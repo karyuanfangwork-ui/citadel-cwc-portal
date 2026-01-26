@@ -1,0 +1,574 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USERS & AUTHENTICATION
+// ============================================================================
+
+model User {
+  id            String    @id @default(uuid()) @db.Uuid
+  email         String    @unique @db.VarChar(255)
+  passwordHash  String    @map("password_hash") @db.VarChar(255)
+  firstName     String    @map("first_name") @db.VarChar(100)
+  lastName      String    @map("last_name") @db.VarChar(100)
+  phone         String?   @db.VarChar(20)
+  avatarUrl     String?   @map("avatar_url") @db.Text
+  department    String?   @db.VarChar(100)
+  jobTitle      String?   @map("job_title") @db.VarChar(100)
+  managerId     String?   @map("manager_id") @db.Uuid
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  lastLoginAt   DateTime? @map("last_login_at") @db.Timestamp(6)
+
+  // Relations
+  manager               User?                        @relation("UserManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordinates          User[]                       @relation("UserManager")
+  roles                 UserRole[]
+  sessions              Session[]
+  createdRequests       Request[]                    @relation("RequestRequester")
+  assignedRequests      Request[]                    @relation("RequestAssignee")
+  activities            RequestActivity[]
+  attachments           RequestAttachment[]
+  kbArticles            KnowledgeBaseArticle[]
+  auditLogs             AuditLog[]
+  notifications         Notification[]
+  itHardwareApprovals   ITHardwareRequest[]          @relation("HardwareManagerApproval")
+
+  @@map("users")
+  @@index([email])
+  @@index([managerId])
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(50)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model UserRole {
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamp(6)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  resource    String   @db.VarChar(50)
+  action      String   @db.VarChar(50)
+  description String?  @db.Text
+
+  // Relations
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  token     String    @unique @db.VarChar(500)
+  ipAddress String?   @map("ip_address") @db.Inet
+  userAgent String?   @map("user_agent") @db.Text
+  expiresAt DateTime  @map("expires_at") @db.Timestamp(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+  @@index([token])
+  @@index([userId])
+}
+
+// ============================================================================
+// SERVICE DESKS & REQUEST MANAGEMENT
+// ============================================================================
+
+model ServiceDesk {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @unique @db.VarChar(100)
+  code        String    @unique @db.VarChar(20)
+  description String?   @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  categories ServiceCategory[]
+  requests   Request[]
+  kbArticles KnowledgeBaseArticle[]
+
+  @@map("service_desks")
+}
+
+model ServiceCategory {
+  id            String   @id @default(uuid()) @db.Uuid
+  serviceDeskId String   @map("service_desk_id") @db.Uuid
+  name          String   @db.VarChar(100)
+  description   String?  @db.Text
+  icon          String?  @db.VarChar(50)
+  colorClass    String?  @map("color_class") @db.VarChar(50)
+  displayOrder  Int      @default(0) @map("display_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  serviceDesk  ServiceDesk   @relation(fields: [serviceDeskId], references: [id], onDelete: Cascade)
+  requestTypes RequestType[]
+
+  @@unique([serviceDeskId, name])
+  @@map("service_categories")
+  @@index([serviceDeskId])
+}
+
+model RequestType {
+  id                String   @id @default(uuid()) @db.Uuid
+  serviceCategoryId String   @map("service_category_id") @db.Uuid
+  name              String   @db.VarChar(150)
+  description       String?  @db.Text
+  icon              String?  @db.VarChar(50)
+  requiresApproval  Boolean  @default(false) @map("requires_approval")
+  slaHours          Int?     @map("sla_hours")
+  isActive          Boolean  @default(true) @map("is_active")
+  formConfig        Json?    @map("form_config") @db.JsonB
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  serviceCategory ServiceCategory @relation(fields: [serviceCategoryId], references: [id], onDelete: Cascade)
+  requests        Request[]
+
+  @@map("request_types")
+  @@index([serviceCategoryId])
+}
+
+enum RequestStatus {
+  SUBMITTED
+  IN_REVIEW
+  ACTION_REQUIRED
+  APPROVED
+  REJECTED
+  RESOLVED
+  IN_PROGRESS
+  WAITING
+}
+
+enum RequestPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Request {
+  id               String          @id @default(uuid()) @db.Uuid
+  referenceNumber  String          @unique @map("reference_number") @db.VarChar(50)
+  requestTypeId    String?         @map("request_type_id") @db.Uuid
+  serviceDeskId    String?         @map("service_desk_id") @db.Uuid
+  
+  // Requester Information
+  requesterId      String          @map("requester_id") @db.Uuid
+  requesterEmail   String          @map("requester_email") @db.VarChar(255)
+  requesterPhone   String?         @map("requester_phone") @db.VarChar(20)
+  
+  // Request Details
+  summary          String          @db.VarChar(500)
+  description      String?         @db.Text
+  priority         RequestPriority @default(MEDIUM)
+  status           RequestStatus   @default(SUBMITTED)
+  
+  // Assignment
+  assignedToId     String?         @map("assigned_to_id") @db.Uuid
+  assignedTeam     String?         @map("assigned_team") @db.VarChar(100)
+  
+  // Metadata
+  isConfidential   Boolean         @default(false) @map("is_confidential")
+  tags             String[]        @db.Text
+  customFields     Json?           @map("custom_fields") @db.JsonB
+  
+  // SLA Tracking
+  slaDueAt         DateTime?       @map("sla_due_at") @db.Timestamp(6)
+  firstResponseAt  DateTime?       @map("first_response_at") @db.Timestamp(6)
+  resolvedAt       DateTime?       @map("resolved_at") @db.Timestamp(6)
+  closedAt         DateTime?       @map("closed_at") @db.Timestamp(6)
+  
+  // Timestamps
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt        DateTime?       @map("deleted_at") @db.Timestamp(6)
+
+  // Relations
+  requestType         RequestType?              @relation(fields: [requestTypeId], references: [id])
+  serviceDesk         ServiceDesk?              @relation(fields: [serviceDeskId], references: [id])
+  requester           User                      @relation("RequestRequester", fields: [requesterId], references: [id])
+  assignedTo          User?                     @relation("RequestAssignee", fields: [assignedToId], references: [id])
+  activities          RequestActivity[]
+  attachments         RequestAttachment[]
+  itHardwareRequest   ITHardwareRequest?
+  hrLeaveRequest      HRLeaveRequest?
+  expenseReimbursement FinanceExpenseReimbursement?
+  notifications       Notification[]
+
+  @@map("requests")
+  @@index([referenceNumber])
+  @@index([requesterId])
+  @@index([status])
+  @@index([serviceDeskId])
+  @@index([assignedToId])
+  @@index([createdAt(sort: Desc)])
+}
+
+// ============================================================================
+// REQUEST ACTIVITIES & COMMUNICATION
+// ============================================================================
+
+enum ActivityType {
+  COMMENT
+  STATUS_CHANGE
+  ASSIGNMENT
+  ATTACHMENT
+  SYSTEM
+  APPROVAL
+  REJECTION
+}
+
+model RequestActivity {
+  id                String       @id @default(uuid()) @db.Uuid
+  requestId         String       @map("request_id") @db.Uuid
+  
+  // Author
+  authorId          String?      @map("author_id") @db.Uuid
+  authorName        String       @map("author_name") @db.VarChar(200)
+  authorRole        String?      @map("author_role") @db.VarChar(100)
+  authorAvatarUrl   String?      @map("author_avatar_url") @db.Text
+  
+  // Activity Details
+  activityType      ActivityType @map("activity_type")
+  message           String       @db.Text
+  isSystemGenerated Boolean      @default(false) @map("is_system_generated")
+  isInternal        Boolean      @default(false) @map("is_internal")
+  
+  // Metadata
+  metadata          Json?        @db.JsonB
+  
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  request     Request               @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author      User?                 @relation(fields: [authorId], references: [id])
+  attachments RequestAttachment[]
+
+  @@map("request_activities")
+  @@index([requestId, createdAt(sort: Desc)])
+}
+
+model RequestAttachment {
+  id         String    @id @default(uuid()) @db.Uuid
+  requestId  String    @map("request_id") @db.Uuid
+  activityId String?   @map("activity_id") @db.Uuid
+  
+  uploadedById String? @map("uploaded_by_id") @db.Uuid
+  
+  fileName     String  @map("file_name") @db.VarChar(255)
+  fileSize     BigInt  @map("file_size")
+  fileType     String? @map("file_type") @db.VarChar(100)
+  mimeType     String? @map("mime_type") @db.VarChar(100)
+  storagePath  String  @map("storage_path") @db.Text
+  storageUrl   String  @map("storage_url") @db.Text
+  
+  isScanned    Boolean @default(false) @map("is_scanned")
+  scanResult   String? @map("scan_result") @db.VarChar(50)
+  
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamp(6)
+
+  // Relations
+  request       Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  activity      RequestActivity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  uploadedBy    User?            @relation(fields: [uploadedById], references: [id])
+  expenseLineItems ExpenseLineItem[]
+
+  @@map("request_attachments")
+  @@index([requestId])
+}
+
+// ============================================================================
+// DEPARTMENT-SPECIFIC TABLES
+// ============================================================================
+
+// IT Hardware Requests
+model ITHardwareRequest {
+  id                      String    @id @default(uuid()) @db.Uuid
+  requestId               String    @unique @map("request_id") @db.Uuid
+  
+  hardwareName            String    @map("hardware_name") @db.VarChar(255)
+  hardwareModel           String?   @map("hardware_model") @db.VarChar(255)
+  estimatedPrice          Decimal?  @map("estimated_price") @db.Decimal(10, 2)
+  preferredVendor         String?   @map("preferred_vendor") @db.VarChar(200)
+  productUrl              String?   @map("product_url") @db.Text
+  businessJustification   String    @map("business_justification") @db.Text
+  
+  managerApprovalRequired Boolean   @default(true) @map("manager_approval_required")
+  managerApprovedAt       DateTime? @map("manager_approved_at") @db.Timestamp(6)
+  managerApprovedById     String?   @map("manager_approved_by_id") @db.Uuid
+  
+  procurementStatus       String?   @map("procurement_status") @db.VarChar(50)
+  orderNumber             String?   @map("order_number") @db.VarChar(100)
+  trackingNumber          String?   @map("tracking_number") @db.VarChar(100)
+  
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  request           Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  managerApprovedBy User?   @relation("HardwareManagerApproval", fields: [managerApprovedById], references: [id])
+
+  @@map("it_hardware_requests")
+}
+
+// HR Leave Requests
+model HRLeaveRequest {
+  id                    String    @id @default(uuid()) @db.Uuid
+  requestId             String    @unique @map("request_id") @db.Uuid
+  
+  leaveType             String    @map("leave_type") @db.VarChar(50)
+  startDate             DateTime  @map("start_date") @db.Date
+  endDate               DateTime  @map("end_date") @db.Date
+  totalDays             Decimal   @map("total_days") @db.Decimal(4, 2)
+  
+  reason                String?   @db.Text
+  emergencyContact      String?   @map("emergency_contact") @db.VarChar(200)
+  emergencyPhone        String?   @map("emergency_phone") @db.VarChar(20)
+  
+  managerApprovalStatus String?   @map("manager_approval_status") @db.VarChar(50)
+  hrApprovalStatus      String?   @map("hr_approval_status") @db.VarChar(50)
+  
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("hr_leave_requests")
+}
+
+// Finance Expense Reimbursements
+model FinanceExpenseReimbursement {
+  id                String    @id @default(uuid()) @db.Uuid
+  requestId         String    @unique @map("request_id") @db.Uuid
+  
+  expenseDate       DateTime  @map("expense_date") @db.Date
+  expenseCategory   String    @map("expense_category") @db.VarChar(100)
+  totalAmount       Decimal   @map("total_amount") @db.Decimal(10, 2)
+  currency          String    @default("USD") @db.VarChar(3)
+  
+  merchantName      String?   @map("merchant_name") @db.VarChar(200)
+  paymentMethod     String?   @map("payment_method") @db.VarChar(50)
+  
+  businessPurpose   String    @map("business_purpose") @db.Text
+  projectCode       String?   @map("project_code") @db.VarChar(50)
+  costCenter        String?   @map("cost_center") @db.VarChar(50)
+  
+  approvalStatus    String?   @map("approval_status") @db.VarChar(50)
+  approvedAmount    Decimal?  @map("approved_amount") @db.Decimal(10, 2)
+  paymentStatus     String?   @map("payment_status") @db.VarChar(50)
+  paymentDate       DateTime? @map("payment_date") @db.Date
+  paymentReference  String?   @map("payment_reference") @db.VarChar(100)
+  
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  request   Request           @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  lineItems ExpenseLineItem[]
+
+  @@map("finance_expense_reimbursements")
+}
+
+model ExpenseLineItem {
+  id                  String    @id @default(uuid()) @db.Uuid
+  expenseId           String    @map("expense_id") @db.Uuid
+  
+  description         String    @db.VarChar(500)
+  amount              Decimal   @db.Decimal(10, 2)
+  quantity            Int       @default(1)
+  receiptAttachmentId String?   @map("receipt_attachment_id") @db.Uuid
+  
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  expense           FinanceExpenseReimbursement @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  receiptAttachment RequestAttachment?          @relation(fields: [receiptAttachmentId], references: [id])
+
+  @@map("expense_line_items")
+  @@index([expenseId])
+}
+
+// ============================================================================
+// NOTIFICATIONS & ALERTS
+// ============================================================================
+
+model NotificationTemplate {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @unique @db.VarChar(100)
+  eventType    String   @map("event_type") @db.VarChar(100)
+  
+  emailSubject String?  @map("email_subject") @db.Text
+  emailBody    String?  @map("email_body") @db.Text
+  smsBody      String?  @map("sms_body") @db.Text
+  pushTitle    String?  @map("push_title") @db.VarChar(200)
+  pushBody     String?  @map("push_body") @db.Text
+  
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("notification_templates")
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+model Notification {
+  id               String             @id @default(uuid()) @db.Uuid
+  userId           String             @map("user_id") @db.Uuid
+  
+  channel          NotificationChannel
+  status           NotificationStatus @default(PENDING)
+  
+  subject          String?            @db.VarChar(500)
+  body             String             @db.Text
+  
+  relatedRequestId String?            @map("related_request_id") @db.Uuid
+  
+  sentAt           DateTime?          @map("sent_at") @db.Timestamp(6)
+  readAt           DateTime?          @map("read_at") @db.Timestamp(6)
+  errorMessage     String?            @map("error_message") @db.Text
+  
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  relatedRequest Request? @relation(fields: [relatedRequestId], references: [id], onDelete: SetNull)
+
+  @@map("notifications")
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+}
+
+// ============================================================================
+// KNOWLEDGE BASE
+// ============================================================================
+
+model KnowledgeBaseArticle {
+  id              String    @id @default(uuid()) @db.Uuid
+  serviceDeskId   String?   @map("service_desk_id") @db.Uuid
+  
+  title           String    @db.VarChar(500)
+  slug            String    @unique @db.VarChar(500)
+  content         String    @db.Text
+  excerpt         String?   @db.Text
+  
+  authorId        String?   @map("author_id") @db.Uuid
+  
+  category        String?   @db.VarChar(100)
+  tags            String[]  @db.Text
+  
+  viewCount       Int       @default(0) @map("view_count")
+  helpfulCount    Int       @default(0) @map("helpful_count")
+  notHelpfulCount Int       @default(0) @map("not_helpful_count")
+  
+  isPublished     Boolean   @default(false) @map("is_published")
+  publishedAt     DateTime? @map("published_at") @db.Timestamp(6)
+  
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamp(6)
+
+  // Relations
+  serviceDesk ServiceDesk? @relation(fields: [serviceDeskId], references: [id])
+  author      User?        @relation(fields: [authorId], references: [id])
+
+  @@map("kb_articles")
+  @@index([slug])
+  @@index([serviceDeskId])
+  @@index([isPublished, publishedAt(sort: Desc)])
+}
+
+// ============================================================================
+// AUDIT & COMPLIANCE
+// ============================================================================
+
+model AuditLog {
+  id           String    @id @default(uuid()) @db.Uuid
+  
+  userId       String?   @map("user_id") @db.Uuid
+  userEmail    String?   @map("user_email") @db.VarChar(255)
+  
+  action       String    @db.VarChar(100)
+  resourceType String    @map("resource_type") @db.VarChar(100)
+  resourceId   String?   @map("resource_id") @db.Uuid
+  
+  ipAddress    String?   @map("ip_address") @db.Inet
+  userAgent    String?   @map("user_agent") @db.Text
+  
+  oldValues    Json?     @map("old_values") @db.JsonB
+  newValues    Json?     @map("new_values") @db.JsonB
+  
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([resourceType, resourceId])
+  @@index([createdAt(sort: Desc)])
+}
