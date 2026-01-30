@@ -7,6 +7,9 @@ import notificationRoutes from './notification.routes';
 import kbRoutes from './kb.routes';
 import searchRoutes from './search.routes';
 import approvalRoutes from './approval.routes';
+import interviewRoutes from './interview.routes';
+import screeningRoutes from './screening.routes';
+import loaRoutes from './loa.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -23,5 +26,8 @@ router.use('/notifications', notificationRoutes);
 router.use('/kb', kbRoutes);
 router.use('/search', searchRoutes);
 router.use('/approvals', approvalRoutes);
+router.use('/interviews', interviewRoutes);
+router.use('/screening', screeningRoutes);
+router.use('/loa', loaRoutes);
 
 export default router;
