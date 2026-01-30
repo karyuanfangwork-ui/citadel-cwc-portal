@@ -6,6 +6,7 @@ import serviceDeskRoutes from './serviceDesk.routes';
 import notificationRoutes from './notification.routes';
 import kbRoutes from './kb.routes';
 import searchRoutes from './search.routes';
+import approvalRoutes from './approval.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -21,5 +22,6 @@ router.use('/service-desks', serviceDeskRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/kb', kbRoutes);
 router.use('/search', searchRoutes);
+router.use('/approvals', approvalRoutes);
 
 export default router;

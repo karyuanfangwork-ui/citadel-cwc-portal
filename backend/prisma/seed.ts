@@ -70,6 +70,15 @@ async function main() {
         },
     });
 
+    const ceoRole = await prisma.role.upsert({
+        where: { name: 'CEO' },
+        update: {},
+        create: {
+            name: 'CEO',
+            description: 'Chief Executive Officer with approval authority',
+        },
+    });
+
     console.log('✅ Roles created');
 
     // Create Permissions
@@ -125,6 +134,40 @@ async function main() {
     });
 
     console.log('✅ Admin user created (email: admin@helpdesk.com, password: admin123)');
+
+    // Create CEO User
+    const ceoHashedPassword = await bcrypt.hash('ceo123', 10);
+
+    const ceoUser = await prisma.user.upsert({
+        where: { email: 'ceo@company.com' },
+        update: {},
+        create: {
+            email: 'ceo@company.com',
+            passwordHash: ceoHashedPassword,
+            firstName: 'Chief',
+            lastName: 'Executive',
+            department: 'Executive',
+            jobTitle: 'Chief Executive Officer',
+            isActive: true,
+        },
+    });
+
+    // Assign CEO role
+    await prisma.userRole.upsert({
+        where: {
+            userId_roleId: {
+                userId: ceoUser.id,
+                roleId: ceoRole.id,
+            },
+        },
+        update: {},
+        create: {
+            userId: ceoUser.id,
+            roleId: ceoRole.id,
+        },
+    });
+
+    console.log('✅ CEO user created (email: ceo@company.com, password: ceo123)');
 
     // Create Test Users
     const testUsers = [

@@ -11,6 +11,12 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.RESOLVED]: { label: 'RESOLVED', color: 'text-gray-700', bg: 'bg-gray-100' },
   [RequestStatus.IN_PROGRESS]: { label: 'IN PROGRESS', color: 'text-blue-700', bg: 'bg-blue-100' },
   [RequestStatus.WAITING]: { label: 'WAITING', color: 'text-gray-600', bg: 'bg-gray-100' },
+  [RequestStatus.PENDING_CEO_APPROVAL]: { label: 'PENDING CEO APPROVAL', color: 'text-purple-700', bg: 'bg-purple-100' },
+  [RequestStatus.CEO_APPROVED]: { label: 'CEO APPROVED', color: 'text-green-700', bg: 'bg-green-100' },
+  [RequestStatus.CEO_REJECTED]: { label: 'CEO REJECTED', color: 'text-red-700', bg: 'bg-red-100' },
+  [RequestStatus.JOB_POSTED]: { label: 'JOB POSTED', color: 'text-blue-700', bg: 'bg-blue-100' },
+  [RequestStatus.PENDING_MANAGER_REVIEW]: { label: 'PENDING MANAGER REVIEW', color: 'text-orange-700', bg: 'bg-orange-100' },
+  [RequestStatus.MANAGER_APPROVED]: { label: 'MANAGER APPROVED', color: 'text-green-700', bg: 'bg-green-100' },
 };
 
 export const MOCK_REQUESTS = [
@@ -25,7 +31,7 @@ export const MOCK_REQUESTS = [
     type: 'IT',
     description: 'Replacement for aging laptop model 2019.',
     updates: [
-        { id: '101', author: 'System', message: 'Ticket created', timestamp: '2 hours ago', isSystem: true }
+      { id: '101', author: 'System', message: 'Ticket created', timestamp: '2 hours ago', isSystem: true }
     ]
   },
   {
@@ -61,8 +67,8 @@ export const MOCK_REQUESTS = [
     type: 'HR',
     description: 'Reporting a potential administrative error in official Q3 performance review records. The feedback uploaded does not align with verbal discussion on Oct 14th.',
     updates: [
-        { id: '201', author: 'HR Investigation Team', message: 'Hello, we have received your report regarding the performance review discrepancy. We have initiated a review. Could you please confirm if you have notes?', timestamp: 'Yesterday, 2:45 PM' },
-        { id: '202', author: 'Alex Rivera', message: 'Yes, I have my personal notes from that day. I\'ve scanned them and can attach them.', timestamp: 'Yesterday, 4:12 PM' }
+      { id: '201', author: 'HR Investigation Team', message: 'Hello, we have received your report regarding the performance review discrepancy. We have initiated a review. Could you please confirm if you have notes?', timestamp: 'Yesterday, 2:45 PM' },
+      { id: '202', author: 'Alex Rivera', message: 'Yes, I have my personal notes from that day. I\'ve scanned them and can attach them.', timestamp: 'Yesterday, 4:12 PM' }
     ]
   }
 ];

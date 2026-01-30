@@ -1,0 +1,97 @@
+// ============================================================================
+// EXTENDED HIRING WORKFLOW
+// ============================================================================
+
+model InterviewSchedule {
+  id                String   @id @default(uuid()) @db.Uuid
+  requestId         String   @unique @map("request_id") @db.Uuid
+  candidateId       String   @map("candidate_id") @db.Uuid
+  interviewDate     DateTime @map("interview_date") @db.Date
+  interviewTime     String   @map("interview_time") @db.VarChar(50)
+  location          String?  @db.VarChar(100)
+  meetingLink       String?  @map("meeting_link") @db.Text
+  interviewers      String   @db.Text // JSON array
+  notes             String?  @db.Text
+  scheduledBy       String   @map("scheduled_by") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  // Relations
+  request           Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  candidateResume   CandidateResume  @relation(fields: [candidateId], references: [id])
+  scheduledByUser   User             @relation(fields: [scheduledBy], references: [id])
+  
+  @@map("interview_schedules")
+  @@index([requestId])
+  @@index([candidateId])
+}
+
+model InterviewFeedback {
+  id                String   @id @default(uuid()) @db.Uuid
+  requestId         String   @unique @map("request_id") @db.Uuid
+  decision          String   @db.VarChar(20) // "PROCEED", "REJECT"
+  overallRating     Int?     @map("overall_rating")
+  technicalSkills   Int?     @map("technical_skills")
+  culturalFit       Int?     @map("cultural_fit")
+  communication     Int?
+  feedback          String   @db.Text
+  concerns          String?  @db.Text
+  submittedBy       String   @map("submitted_by") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  // Relations
+  request           Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  submittedByUser   User     @relation(fields: [submittedBy], references: [id])
+  
+  @@map("interview_feedbacks")
+  @@index([requestId])
+}
+
+model HRScreening {
+  id                    String   @id @default(uuid()) @db.Uuid
+  requestId             String   @unique @map("request_id") @db.Uuid
+  backgroundCheckStatus String   @map("background_check_status") @db.VarChar(50)
+  backgroundCheckNotes  String?  @map("background_check_notes") @db.Text
+  referencesCheckStatus String   @map("references_check_status") @db.VarChar(50)
+  referencesCheckNotes  String?  @map("references_check_notes") @db.Text
+  referencesContacted   String?  @map("references_contacted") @db.Text // JSON array
+  overallStatus         String   @map("overall_status") @db.VarChar(50)
+  completedBy           String?  @map("completed_by") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  // Relations
+  request             Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  completedByUser     User?    @relation(fields: [completedBy], references: [id])
+  
+  @@map("hr_screenings")
+  @@index([requestId])
+}
+
+model LetterOfAcceptance {
+  id                  String    @id @default(uuid()) @db.Uuid
+  requestId           String    @unique @map("request_id") @db.Uuid
+  loaFileUrl          String    @map("loa_file_url") @db.Text
+  loaFileName         String    @map("loa_file_name") @db.VarChar(255)
+  loaFileSize         Int       @map("loa_file_size")
+  signedLoaFileUrl    String?   @map("signed_loa_file_url") @db.Text
+  signedLoaFileName   String?   @map("signed_loa_file_name") @db.VarChar(255)
+  signedLoaFileSize   Int?      @map("signed_loa_file_size")
+  uploadedBy          String    @map("uploaded_by") @db.Uuid
+  approvedBy          String?   @map("approved_by") @db.Uuid
+  approvalDate        DateTime? @map("approval_date") @db.Timestamp(6)
+  approvalComments    String?   @map("approval_comments") @db.Text
+  issuedDate          DateTime? @map("issued_date") @db.Timestamp(6)
+  acceptedDate        DateTime? @map("accepted_date") @db.Timestamp(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  // Relations
+  request             Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  uploadedByUser      User     @relation("LOAUploadedBy", fields: [uploadedBy], references: [id])
+  approvedByUser      User?    @relation("LOAApprovedBy", fields: [approvedBy], references: [id])
+  
+  @@map("letters_of_acceptance")
+  @@index([requestId])
+}

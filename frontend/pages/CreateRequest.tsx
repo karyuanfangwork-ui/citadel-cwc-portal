@@ -18,7 +18,6 @@ const CreateRequest = () => {
         summary: '',
         description: '',
         urgency: 'MEDIUM',
-        component: '',
         customFields: {}
     });
 
@@ -27,14 +26,6 @@ const CreateRequest = () => {
         { value: 'MEDIUM', label: 'Medium - Significant issue for a single user' },
         { value: 'HIGH', label: 'High - Significant issue for multiple users' },
         { value: 'CRITICAL', label: 'Critical - System wide issue or total work stoppage' },
-    ];
-
-    const COMPONENT_OPTIONS = [
-        'Connect',
-        'Hardware',
-        'Software',
-        'Service',
-        'Access',
     ];
 
     const KB_ARTICLES = [
@@ -129,10 +120,7 @@ const CreateRequest = () => {
                 summary: formData.summary,
                 description: formData.description,
                 priority: formData.urgency as any,
-                customFields: {
-                    ...formData.customFields,
-                    component: formData.component
-                }
+                customFields: formData.customFields
             });
 
             navigate(`/request/${request.id}`);
@@ -182,6 +170,40 @@ const CreateRequest = () => {
                         onChange={e => handleCustomFieldChange(field.id, e.target.value)}
                         disabled={submitting}
                     />
+                );
+            case 'currency':
+                return (
+                    <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                            RM
+                        </span>
+                        <input
+                            required={field.required}
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className={`${commonClass} pl-14`}
+                            placeholder="0.00"
+                            value={formData.customFields[field.id] || ''}
+                            onChange={e => {
+                                const value = e.target.value;
+                                // Format to 2 decimal places
+                                if (value && !isNaN(parseFloat(value))) {
+                                    handleCustomFieldChange(field.id, parseFloat(value).toFixed(2));
+                                } else {
+                                    handleCustomFieldChange(field.id, value);
+                                }
+                            }}
+                            onBlur={e => {
+                                // Ensure 2 decimal places on blur
+                                const value = e.target.value;
+                                if (value && !isNaN(parseFloat(value))) {
+                                    handleCustomFieldChange(field.id, parseFloat(value).toFixed(2));
+                                }
+                            }}
+                            disabled={submitting}
+                        />
+                    </div>
                 );
             case 'file':
                 return (
@@ -331,29 +353,6 @@ const CreateRequest = () => {
                                         />
                                     </div>
 
-                                    {/* Component - Only for IT Support */}
-                                    {deskType === 'it' && (
-                                        <div>
-                                            <label className="block text-sm font-bold text-[#101418] mb-2 flex justify-between">
-                                                Component <span className="text-red-500">*</span>
-                                            </label>
-                                            <div className="relative">
-                                                <select
-                                                    required
-                                                    className="w-full pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none transition-all appearance-none text-[#101418]"
-                                                    value={formData.component}
-                                                    onChange={e => setFormData({ ...formData, component: e.target.value })}
-                                                    disabled={submitting}
-                                                >
-                                                    <option value="" disabled>Select a component</option>
-                                                    {COMPONENT_OPTIONS.map(opt => (
-                                                        <option key={opt} value={opt}>{opt}</option>
-                                                    ))}
-                                                </select>
-                                                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
-                                            </div>
-                                        </div>
-                                    )}
 
                                     {/* DYNAMIC FIELDS FROM ADMIN CONFIG */}
                                     {selectedRequestType?.formConfig?.map((field: any) => (
@@ -365,44 +364,48 @@ const CreateRequest = () => {
                                         </div>
                                     ))}
 
-                                    {/* Description */}
-                                    <div>
-                                        <label className="block text-sm font-bold text-[#101418] mb-2">Description</label>
-                                        <div className="border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0052cc]/20 focus-within:border-[#0052cc] transition-all">
-                                            <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-2 flex gap-4">
-                                                <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">format_bold</button>
-                                                <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">format_italic</button>
-                                                <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">format_list_bulleted</button>
-                                                <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">link</button>
+                                    {/* Description - Only for IT Support */}
+                                    {deskType === 'it' && (
+                                        <div>
+                                            <label className="block text-sm font-bold text-[#101418] mb-2">Description</label>
+                                            <div className="border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0052cc]/20 focus-within:border-[#0052cc] transition-all">
+                                                <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-2 flex gap-4">
+                                                    <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">format_bold</button>
+                                                    <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">format_italic</button>
+                                                    <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">format_list_bulleted</button>
+                                                    <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">link</button>
+                                                </div>
+                                                <textarea
+                                                    rows={8}
+                                                    placeholder="Include any error codes or steps to reproduce..."
+                                                    className="w-full px-4 py-3 bg-white border-none text-base outline-none resize-none placeholder:text-gray-400"
+                                                    value={formData.description}
+                                                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                                    disabled={submitting}
+                                                />
                                             </div>
-                                            <textarea
-                                                rows={8}
-                                                placeholder="Include any error codes or steps to reproduce..."
-                                                className="w-full px-4 py-3 bg-white border-none text-base outline-none resize-none placeholder:text-gray-400"
-                                                value={formData.description}
-                                                onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                                disabled={submitting}
-                                            />
                                         </div>
-                                    </div>
+                                    )}
 
-                                    {/* Urgency */}
-                                    <div>
-                                        <label className="block text-sm font-bold text-[#101418] mb-2">Urgency</label>
-                                        <div className="relative">
-                                            <select
-                                                className="w-full pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none transition-all appearance-none text-[#101418]"
-                                                value={formData.urgency}
-                                                onChange={e => setFormData({ ...formData, urgency: e.target.value })}
-                                                disabled={submitting}
-                                            >
-                                                {URGENCY_OPTIONS.map(opt => (
-                                                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                ))}
-                                            </select>
-                                            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
+                                    {/* Urgency - Only for IT Support */}
+                                    {deskType === 'it' && (
+                                        <div>
+                                            <label className="block text-sm font-bold text-[#101418] mb-2">Urgency</label>
+                                            <div className="relative">
+                                                <select
+                                                    className="w-full pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none transition-all appearance-none text-[#101418]"
+                                                    value={formData.urgency}
+                                                    onChange={e => setFormData({ ...formData, urgency: e.target.value })}
+                                                    disabled={submitting}
+                                                >
+                                                    {URGENCY_OPTIONS.map(opt => (
+                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    ))}
+                                                </select>
+                                                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
 
                                     {/* Actions */}
                                     <div className="pt-6 flex items-center gap-6">

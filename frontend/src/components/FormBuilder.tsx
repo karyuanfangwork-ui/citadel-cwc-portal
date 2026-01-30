@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 interface FormField {
     id: string;
     label: string;
-    type: 'text' | 'textarea' | 'select' | 'date' | 'number' | 'file';
+    type: 'text' | 'textarea' | 'select' | 'date' | 'number' | 'currency' | 'file';
     required: boolean;
     options?: string[]; // For 'select' type
 }
@@ -82,6 +82,7 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
                                         <option value="text">Text</option>
                                         <option value="textarea">Textarea</option>
                                         <option value="number">Number</option>
+                                        <option value="currency">Currency (RM)</option>
                                         <option value="date">Date</option>
                                         <option value="file">File Upload</option>
                                     </select>

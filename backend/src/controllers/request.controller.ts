@@ -30,8 +30,21 @@ class RequestController {
         };
 
         // Users can only see their own requests unless they're agents/admins
+        // Exception: CEO can see requests in hiring workflow
         if (!req.user!.roles.includes('ADMIN') && !req.user!.roles.includes('AGENT')) {
-            where.requesterId = req.user!.id;
+            if (req.user!.roles.includes('CEO')) {
+                // CEO can see:
+                // 1. Requests they created
+                // 2. Requests in hiring workflow (any status)
+                const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { status: { in: ceoHiringStatuses } }
+                ];
+            } else {
+                // Regular users only see their own requests
+                where.requesterId = req.user!.id;
+            }
         }
 
         if (status) {
@@ -229,10 +242,19 @@ class RequestController {
         }
 
         // Check permissions
+        // Allow access if:
+        // 1. User is the requester
+        // 2. User is ADMIN or AGENT
+        // 3. User is CEO and request is in hiring workflow
+        const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
+        const isCEOViewingPendingApproval =
+            req.user!.roles.includes('CEO') && ceoHiringStatuses.includes(request.status);
+
         if (
             request.requesterId !== req.user!.id &&
             !req.user!.roles.includes('ADMIN') &&
-            !req.user!.roles.includes('AGENT')
+            !req.user!.roles.includes('AGENT') &&
+            !isCEOViewingPendingApproval
         ) {
             throw new AppError('You do not have permission to view this request', 403);
         }
@@ -427,6 +449,27 @@ class RequestController {
         const request = await prisma.request.update({
             where: { id },
             data: { assignedToId },
+            include: {
+                requester: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        avatarUrl: true,
+                    },
+                },
+                assignedTo: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                    },
+                },
+                serviceDesk: true,
+                requestType: true,
+            },
         });
 
         // Create activity
@@ -457,6 +500,27 @@ class RequestController {
         const request = await prisma.request.update({
             where: { id },
             data: { status: status as RequestStatus },
+            include: {
+                requester: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                        avatarUrl: true,
+                    },
+                },
+                assignedTo: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                    },
+                },
+                serviceDesk: true,
+                requestType: true,
+            },
         });
 
         // Create activity

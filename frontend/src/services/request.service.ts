@@ -1,5 +1,5 @@
 import apiClient from './api';
-import { RequestStatus, RequestPriority } from '../types';
+import { RequestStatus, RequestPriority } from '../../types';
 
 interface RequestFilters {
     page?: number;
@@ -84,5 +84,19 @@ export const requestService = {
 
     async deleteAttachment(requestId: string, attachmentId: string) {
         await apiClient.delete(`/requests/${requestId}/attachments/${attachmentId}`);
+    },
+
+    async assignRequest(requestId: string, assignedToId: string) {
+        const response = await apiClient.put(`/requests/${requestId}/assign`, {
+            assignedToId,
+        });
+        return response.data.data.request;
+    },
+
+    async updateStatus(requestId: string, status: RequestStatus) {
+        const response = await apiClient.put(`/requests/${requestId}/status`, {
+            status,
+        });
+        return response.data.data.request;
     },
 };
