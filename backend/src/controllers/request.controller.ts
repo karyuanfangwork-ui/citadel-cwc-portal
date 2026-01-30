@@ -234,11 +234,34 @@ class RequestController {
                         deletedAt: null,
                     },
                 },
+                candidateResumes: {
+                    include: {
+                        uploadedBy: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                email: true,
+                            },
+                        },
+                    },
+                    orderBy: {
+                        createdAt: 'desc',
+                    },
+                },
             },
         });
 
         if (!request) {
             throw new AppError('Request not found', 404);
+        }
+
+        // Transform BigInt to string in candidateResumes for JSON serialization
+        if (request.candidateResumes) {
+            (request as any).candidateResumes = request.candidateResumes.map(resume => ({
+                ...resume,
+                fileSize: resume.fileSize.toString(),
+            }));
         }
 
         // Check permissions

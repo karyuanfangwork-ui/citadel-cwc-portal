@@ -8,7 +8,7 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.ACTION_REQUIRED]: { label: 'ACTION REQUIRED', color: 'text-orange-700', bg: 'bg-orange-100' },
   [RequestStatus.APPROVED]: { label: 'APPROVED', color: 'text-emerald-700', bg: 'bg-emerald-100' },
   [RequestStatus.REJECTED]: { label: 'REJECTED', color: 'text-red-700', bg: 'bg-red-100' },
-  [RequestStatus.RESOLVED]: { label: 'RESOLVED', color: 'text-gray-700', bg: 'bg-gray-100' },
+  [RequestStatus.RESOLVED]: { label: 'COMPLETED', color: 'text-emerald-700', bg: 'bg-emerald-100' },
   [RequestStatus.IN_PROGRESS]: { label: 'IN PROGRESS', color: 'text-blue-700', bg: 'bg-blue-100' },
   [RequestStatus.WAITING]: { label: 'WAITING', color: 'text-gray-600', bg: 'bg-gray-100' },
   [RequestStatus.PENDING_CEO_APPROVAL]: { label: 'PENDING CEO APPROVAL', color: 'text-purple-700', bg: 'bg-purple-100' },
@@ -17,6 +17,14 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.JOB_POSTED]: { label: 'JOB POSTED', color: 'text-blue-700', bg: 'bg-blue-100' },
   [RequestStatus.PENDING_MANAGER_REVIEW]: { label: 'PENDING MANAGER REVIEW', color: 'text-orange-700', bg: 'bg-orange-100' },
   [RequestStatus.MANAGER_APPROVED]: { label: 'MANAGER APPROVED', color: 'text-green-700', bg: 'bg-green-100' },
+  [RequestStatus.INTERVIEW_SCHEDULED]: { label: 'INTERVIEW SCHEDULED', color: 'text-indigo-700', bg: 'bg-indigo-100' },
+  [RequestStatus.INTERVIEW_FEEDBACK_PENDING]: { label: 'FEEDBACK RECEIVED', color: 'text-orange-700', bg: 'bg-orange-100' },
+  [RequestStatus.CANDIDATE_REJECTED_INTERVIEW]: { label: 'CANDIDATE REJECTED', color: 'text-red-700', bg: 'bg-red-100' },
+  [RequestStatus.HR_SCREENING]: { label: 'HR SCREENING', color: 'text-blue-700', bg: 'bg-blue-100' },
+  [RequestStatus.LOA_PENDING_APPROVAL]: { label: 'LOA APPROVAL', color: 'text-orange-700', bg: 'bg-orange-100' },
+  [RequestStatus.LOA_APPROVED]: { label: 'LOA APPROVED', color: 'text-emerald-700', bg: 'bg-emerald-100' },
+  [RequestStatus.LOA_ISSUED]: { label: 'LOA ISSUED', color: 'text-blue-700', bg: 'bg-blue-100' },
+  [RequestStatus.LOA_ACCEPTED]: { label: 'LOA ACCEPTED', color: 'text-green-700', bg: 'bg-green-100' },
 };
 
 export const MOCK_REQUESTS = [

@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { tokenManager } from '../utils/tokenManager';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
 // Create axios instance
 const apiClient: AxiosInstance = axios.create({
@@ -64,7 +64,8 @@ apiClient.interceptors.response.use(
         }
 
         // Handle other errors
-        const errorMessage = error.response?.data?.message || error.message || 'An error occurred';
+        const axiosError = error as any;
+        const errorMessage = axiosError.response?.data?.message || axiosError.message || 'An error occurred';
         return Promise.reject(new Error(errorMessage));
     }
 );

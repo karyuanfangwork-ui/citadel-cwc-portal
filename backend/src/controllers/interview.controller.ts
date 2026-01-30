@@ -84,6 +84,15 @@ export const scheduleInterview = async (req: Request, res: Response) => {
             }
         });
 
+        // Parse interviewers if it's a string
+        if (typeof interviewSchedule.interviewers === 'string') {
+            try {
+                (interviewSchedule as any).interviewers = JSON.parse(interviewSchedule.interviewers);
+            } catch (e) {
+                (interviewSchedule as any).interviewers = [];
+            }
+        }
+
         // Update request status
         const updatedRequest = await prisma.request.update({
             where: { id },
@@ -102,6 +111,14 @@ export const scheduleInterview = async (req: Request, res: Response) => {
                 isSystemGenerated: true
             }
         });
+
+        // Transform BigInt to string for JSON serialization
+        if (interviewSchedule && interviewSchedule.candidateResume) {
+            (interviewSchedule as any).candidateResume = {
+                ...interviewSchedule.candidateResume,
+                fileSize: interviewSchedule.candidateResume.fileSize.toString()
+            };
+        }
 
         res.json({
             status: 'success',
@@ -283,11 +300,28 @@ export const getInterviewDetails = async (req: Request, res: Response) => {
             })
         ]);
 
+        // Transform BigInt to string and parse interviewers
+        if (interviewSchedule) {
+            if (interviewSchedule.candidateResume) {
+                (interviewSchedule as any).candidateResume = {
+                    ...interviewSchedule.candidateResume,
+                    fileSize: interviewSchedule.candidateResume.fileSize.toString()
+                };
+            }
+            if (typeof interviewSchedule.interviewers === 'string') {
+                try {
+                    (interviewSchedule as any).interviewers = JSON.parse(interviewSchedule.interviewers);
+                } catch (e) {
+                    (interviewSchedule as any).interviewers = [];
+                }
+            }
+        }
+
         res.json({
             status: 'success',
             data: {
-                interviewSchedule,
-                interviewFeedback
+                schedule: interviewSchedule,
+                feedback: interviewFeedback
             }
         });
     } catch (error) {

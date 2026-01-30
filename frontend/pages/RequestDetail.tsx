@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { requestService } from '../src/services/request.service';
-import approvalService, { CandidateResume } from '../src/services/approval.service';
+import approvalService from '../src/services/approval.service';
+import interviewService from '../src/services/interview.service';
+import screeningService from '../src/services/screening.service';
+import loaService from '../src/services/loa.service';
 import { useAuth } from '../src/context/AuthContext';
 import { STATUS_CONFIG } from '../constants';
+import {
+  RequestStatus,
+  InterviewSchedule,
+  InterviewFeedback,
+  HRScreening,
+  LetterOfAcceptance,
+  CandidateResume
+} from '../types';
 
 interface Request {
   id: string;
@@ -32,6 +43,12 @@ interface Request {
     lastName: string;
     email: string;
   };
+  requesterId: string;
+  candidateResumes?: CandidateResume[];
+  interviewSchedule?: InterviewSchedule;
+  interviewFeedback?: InterviewFeedback;
+  hrScreening?: HRScreening;
+  letterOfAcceptance?: LetterOfAcceptance;
 }
 
 interface Activity {
@@ -60,14 +77,30 @@ const RequestDetail = () => {
   const [resolutionComment, setResolutionComment] = useState('');
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
 
+  const [resumes, setResumes] = useState<CandidateResume[]>([]);
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [processingAction, setProcessingAction] = useState(false);
+
   // Hiring workflow states
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showJobPostModal, setShowJobPostModal] = useState(false);
   const [showCEODecisionModal, setShowCEODecisionModal] = useState(false);
   const [showManagerDecisionModal, setShowManagerDecisionModal] = useState(false);
-  const [resumes, setResumes] = useState<CandidateResume[]>([]);
-  const [uploadingResume, setUploadingResume] = useState(false);
-  const [processingAction, setProcessingAction] = useState(false);
+
+  // New Hiring Workflow states
+  const [showScheduleInterviewModal, setShowScheduleInterviewModal] = useState(false);
+  const [showInterviewFeedbackModal, setShowInterviewFeedbackModal] = useState(false);
+  const [showHRScreeningModal, setShowHRScreeningModal] = useState(false);
+  const [showUploadLOAModal, setShowUploadLOAModal] = useState(false);
+  const [showLOAApprovalModal, setShowLOAApprovalModal] = useState(false);
+  const [showUploadSignedLOAModal, setShowUploadSignedLOAModal] = useState(false);
+
+  const [interviewDetails, setInterviewDetails] = useState<{
+    schedule: InterviewSchedule | null;
+    feedback: InterviewFeedback | null;
+  } | null>(null);
+  const [screeningDetails, setScreeningDetails] = useState<HRScreening | null>(null);
+  const [loaDetails, setLoaDetails] = useState<LetterOfAcceptance | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -87,11 +120,65 @@ const RequestDetail = () => {
 
       setRequest(requestData);
       setActivities(activitiesData);
+
+      // Sync resumes state if available in requestData
+      if (requestData.candidateResumes) {
+        setResumes(requestData.candidateResumes);
+      }
+
+      // Fetch additional workflow details based on status
+      if (id) {
+        fetchWorkflowDetails(id, requestData.status);
+      }
     } catch (err: any) {
       console.error('Error fetching request:', err);
       setError(err.message || 'Failed to load request');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchWorkflowDetails = async (requestId: string, status: string) => {
+    try {
+      // Interviews
+      if (['INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED', 'RESOLVED'].includes(status)) {
+        const data = await interviewService.getInterviewDetails(requestId);
+
+        // Final fallback for interviewers
+        if (data?.schedule && typeof data.schedule.interviewers === 'string') {
+          try {
+            data.schedule.interviewers = JSON.parse(data.schedule.interviewers);
+          } catch (e) {
+            data.schedule.interviewers = [];
+          }
+        }
+
+        setInterviewDetails(data);
+      }
+
+      // Screening
+      if (['HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED'].includes(status)) {
+        const data = await screeningService.getScreeningDetails(requestId);
+
+        // Final fallback for referencesContacted
+        if (data && typeof data.referencesContacted === 'string') {
+          try {
+            data.referencesContacted = JSON.parse(data.referencesContacted);
+          } catch (e) {
+            data.referencesContacted = [];
+          }
+        }
+
+        setScreeningDetails(data);
+      }
+
+      // LOA
+      if (['LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED'].includes(status)) {
+        const data = await loaService.getLOADetails(requestId);
+        setLoaDetails(data);
+      }
+    } catch (error) {
+      console.error('Error fetching workflow details:', error);
     }
   };
 
@@ -228,7 +315,8 @@ const RequestDetail = () => {
   };
 
   useEffect(() => {
-    if (id && request?.status === 'JOB_POSTED' || request?.status === 'PENDING_MANAGER_REVIEW') {
+    const relevantStatuses = ['JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED', 'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING'];
+    if (id && relevantStatuses.includes(request?.status || '')) {
       fetchResumes();
     }
   }, [id, request?.status]);
@@ -332,6 +420,155 @@ const RequestDetail = () => {
     }
   };
 
+  // Interview Handlers
+  const handleScheduleInterview = async (interviewData: any) => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await interviewService.scheduleInterview(id, interviewData);
+      await fetchRequestData();
+      setShowScheduleInterviewModal(false);
+      alert('Interview scheduled successfully');
+    } catch (error: any) {
+      alert(error.message || 'Failed to schedule interview');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleSubmitInterviewFeedback = async (feedbackData: any) => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await interviewService.submitFeedback(id, feedbackData);
+      await fetchRequestData();
+      setShowInterviewFeedbackModal(false);
+      alert('Interview feedback submitted successfully');
+    } catch (error: any) {
+      alert(error.message || 'Failed to submit feedback');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  // Screening Handlers
+  const handleStartHRScreening = async () => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await screeningService.startScreening(id);
+      await fetchRequestData();
+      alert('HR screening started');
+    } catch (error: any) {
+      alert(error.message || 'Failed to start HR screening');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleUpdateScreeningStatus = async (screeningData: any) => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await screeningService.updateScreeningStatus(id, screeningData);
+      await fetchRequestData();
+      setShowHRScreeningModal(false);
+      alert('Screening status updated');
+    } catch (error: any) {
+      alert(error.message || 'Failed to update screening status');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  // LOA Handlers
+  const handleUploadLOA = async (file: File) => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await loaService.uploadLOA(id, file);
+      await fetchRequestData();
+      setShowUploadLOAModal(false);
+      alert('LOA document uploaded successfully');
+    } catch (error: any) {
+      alert(error.message || 'Failed to upload LOA');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleRouteLOAForApproval = async (comments?: string) => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await loaService.routeForApproval(id, comments);
+      await fetchRequestData();
+      alert('LOA routed for manager approval');
+    } catch (error: any) {
+      alert(error.message || 'Failed to route LOA for approval');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleLOAApprovalDecision = async (decision: 'APPROVE' | 'REJECT', comments?: string) => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await loaService.managerDecision(id, decision, comments);
+      await fetchRequestData();
+      setShowLOAApprovalModal(false);
+      alert(`LOA ${decision.toLowerCase()}d successfully`);
+    } catch (error: any) {
+      alert(error.message || 'Failed to submit LOA decision');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleMarkLOAIssued = async () => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await loaService.markIssued(id);
+      await fetchRequestData();
+      alert('LOA marked as issued to candidate');
+    } catch (error: any) {
+      alert(error.message || 'Failed to mark LOA as issued');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleUploadSignedLOA = async (file: File) => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await loaService.uploadSignedLOA(id, file);
+      await fetchRequestData();
+      setShowUploadSignedLOAModal(false);
+      alert('Signed LOA uploaded successfully');
+    } catch (error: any) {
+      alert(error.message || 'Failed to upload signed LOA');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleMarkLOAAccepted = async () => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await loaService.markAccepted(id);
+      await fetchRequestData();
+      alert('Hiring process complete! LOA marked as accepted.');
+    } catch (error: any) {
+      alert(error.message || 'Failed to mark LOA as accepted');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -345,6 +582,45 @@ const RequestDetail = () => {
   };
 
   const getStatusSteps = (currentStatus: string) => {
+    const isHiringWorkflow = request?.serviceDesk?.code === 'HR';
+
+    if (isHiringWorkflow) {
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL', icon: 'verified_user' },
+        { label: 'Job Posted', status: 'JOB_POSTED', icon: 'work' },
+        { label: 'Manager Review', status: 'PENDING_MANAGER_REVIEW', icon: 'rate_review' },
+        { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'event' },
+        { label: 'Screening', status: 'HR_SCREENING', icon: 'fact_check' },
+        { label: 'LOA', status: 'LOA_PENDING_APPROVAL', icon: 'article' },
+        { label: 'Complete', status: 'RESOLVED', icon: 'stars' },
+      ];
+
+      const statusOrder = [
+        'SUBMITTED',
+        'PENDING_CEO_APPROVAL',
+        'CEO_APPROVED',
+        'JOB_POSTED',
+        'PENDING_MANAGER_REVIEW',
+        'MANAGER_APPROVED',
+        'INTERVIEW_SCHEDULED',
+        'INTERVIEW_FEEDBACK_PENDING',
+        'HR_SCREENING',
+        'LOA_PENDING_APPROVAL',
+        'LOA_APPROVED',
+        'LOA_ISSUED',
+        'LOA_ACCEPTED',
+        'RESOLVED'
+      ];
+
+      const currentIndex = statusOrder.indexOf(currentStatus);
+
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
     const allSteps = [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
       { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
@@ -355,7 +631,7 @@ const RequestDetail = () => {
     const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'RESOLVED', 'APPROVED', 'REJECTED'];
     const currentIndex = statusOrder.indexOf(currentStatus);
 
-    return allSteps.map((step, idx) => ({
+    return allSteps.map((step) => ({
       ...step,
       active: statusOrder.indexOf(step.status) <= currentIndex,
     }));
@@ -581,6 +857,274 @@ const RequestDetail = () => {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* NEW WORKFLOW DISPLAY SECTIONS */}
+
+            {/* Selection Information Section */}
+            {request.customFields?.selectedCandidateId && (
+              <div className="bg-white p-6 rounded-xl border border-blue-100 shadow-sm mt-6 bg-gradient-to-r from-blue-50/50 to-transparent">
+                <div className="flex items-center gap-4">
+                  <div className="size-12 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-md">
+                    <span className="material-symbols-outlined text-2xl">person_check</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-blue-900">Selected Candidate</h3>
+                    <p className="text-sm text-blue-700 font-medium">
+                      {request.customFields.selectedCandidateName} has been approved for hire.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Interview Details Section */}
+            {interviewDetails?.schedule && (
+              <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6 overflow-hidden">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="size-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                    <span className="material-symbols-outlined">calendar_month</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-[#101418]">Interview Information</h3>
+                    <p className="text-xs text-[#5e718d] uppercase tracking-wider font-semibold">Scheduled Stage</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <span className="material-symbols-outlined text-gray-400 text-xl">event</span>
+                      <div>
+                        <p className="text-xs font-bold text-[#5e718d] uppercase">Date & Time</p>
+                        <p className="font-semibold text-[#101418]">
+                          {new Date(interviewDetails.schedule.interviewDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at {interviewDetails.schedule.interviewTime}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <span className="material-symbols-outlined text-gray-400 text-xl">location_on</span>
+                      <div>
+                        <p className="text-xs font-bold text-[#5e718d] uppercase">Location / Link</p>
+                        {interviewDetails.schedule.meetingLink ? (
+                          <a href={interviewDetails.schedule.meetingLink} target="_blank" rel="noreferrer" className="text-[#0052cc] font-semibold hover:underline flex items-center gap-1">
+                            Join Meeting <span className="material-symbols-outlined text-xs">open_in_new</span>
+                          </a>
+                        ) : (
+                          <p className="font-semibold text-[#101418]">{interviewDetails.schedule.location || 'N/A'}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3">
+                      <span className="material-symbols-outlined text-gray-400 text-xl">group</span>
+                      <div>
+                        <p className="text-xs font-bold text-[#5e718d] uppercase">Interviewers</p>
+                        <p className="font-semibold text-[#101418]">
+                          {Array.isArray(interviewDetails.schedule.interviewers)
+                            ? interviewDetails.schedule.interviewers.join(', ')
+                            : String(interviewDetails.schedule.interviewers)}
+                        </p>
+                      </div>
+                    </div>
+                    {interviewDetails.schedule.notes && (
+                      <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">notes</span>
+                        <div>
+                          <p className="text-xs font-bold text-[#5e718d] uppercase">Pre-interview Notes</p>
+                          <p className="text-sm text-[#44546f]">{interviewDetails.schedule.notes}</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Interview Feedback Display */}
+                {interviewDetails.feedback && (
+                  <div className="mt-8 pt-8 border-t border-gray-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-bold text-[#101418]">Interview Outcome</h4>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${interviewDetails.feedback.decision === 'PROCEED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                        {interviewDetails.feedback.decision}
+                      </span>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-6">
+                      <p className="text-[#44546f] italic mb-4">"{interviewDetails.feedback.feedback}"</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Overall</p>
+                          <div className="flex text-amber-500">
+                            {[...Array(5)].map((_, i) => (
+                              <span key={i} className="material-symbols-outlined text-xs">
+                                {i < (interviewDetails.feedback?.overallRating || 0) ? 'star' : 'star_outline'}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Technical</p>
+                          <p className="font-bold text-sm">{interviewDetails.feedback.technicalSkills}/5</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Culture</p>
+                          <p className="font-bold text-sm">{interviewDetails.feedback.culturalFit}/5</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Comm.</p>
+                          <p className="font-bold text-sm">{interviewDetails.feedback.communication}/5</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* HR Screening Details Section */}
+            {screeningDetails && (
+              <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="size-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                    <span className="material-symbols-outlined">fact_check</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-[#101418]">HR Screening Status</h3>
+                    <p className="text-xs text-[#5e718d] uppercase tracking-wider font-semibold">Verification Stage</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="space-y-6">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-bold text-[#5e718d] uppercase">Background Check</p>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${screeningDetails.backgroundCheckStatus === 'PASSED' ? 'bg-green-100 text-green-700' :
+                          screeningDetails.backgroundCheckStatus === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                          {screeningDetails.backgroundCheckStatus}
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#44546f] bg-gray-50 p-3 rounded-lg border border-gray-100">
+                        {screeningDetails.backgroundCheckNotes || 'No notes available.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-bold text-[#5e718d] uppercase">References Check</p>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${screeningDetails.referencesCheckStatus === 'PASSED' ? 'bg-green-100 text-green-700' :
+                          screeningDetails.referencesCheckStatus === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                          {screeningDetails.referencesCheckStatus}
+                        </span>
+                      </div>
+                      <p className="text-sm text-[#44546f] bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3">
+                        {screeningDetails.referencesCheckNotes || 'No notes available.'}
+                      </p>
+                      {Array.isArray(screeningDetails.referencesContacted) && screeningDetails.referencesContacted.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Contacted</p>
+                          <div className="flex flex-wrap gap-2">
+                            {screeningDetails.referencesContacted.map((ref, idx) => (
+                              <span key={idx} className="bg-white border border-gray-200 px-2 py-1 rounded text-xs font-medium text-[#101418]">
+                                {ref}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* LOA Documents Section */}
+            {loaDetails && (
+              <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="size-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                    <span className="material-symbols-outlined">article</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-[#101418]">Letter of Acceptance (LOA)</h3>
+                    <p className="text-xs text-[#5e718d] uppercase tracking-wider font-semibold">Final Stage</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Draft LOA */}
+                  <div className="flex items-center justify-between p-4 border border-gray-100 rounded-xl bg-gray-50/50">
+                    <div className="flex items-center gap-4">
+                      <div className="size-10 bg-white rounded-lg flex items-center justify-center shadow-sm text-[#0052cc]">
+                        <span className="material-symbols-outlined">description</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-[#101418]">Draft / Issued LOA</p>
+                        <p className="text-xs text-[#5e718d]">{loaDetails.loaFileName} • {(loaDetails.loaFileSize / 1024).toFixed(1)} KB</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {loaDetails.approvalDate && (
+                        <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>
+                      )}
+                      <a
+                        href={`http://localhost:3000${loaDetails.loaFileUrl}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#0052cc] hover:bg-gray-50 transition-colors"
+                      >
+                        View
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Signed LOA */}
+                  {loaDetails.signedLoaFileUrl && (
+                    <div className="flex items-center justify-between p-4 border border-emerald-100 rounded-xl bg-emerald-50/30">
+                      <div className="flex items-center gap-4">
+                        <div className="size-10 bg-white rounded-lg flex items-center justify-center shadow-sm text-emerald-600 border border-emerald-100">
+                          <span className="material-symbols-outlined">ink_pen</span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-emerald-900">Signed LOA</p>
+                          <p className="text-xs text-emerald-700">{loaDetails.signedLoaFileName} • {(loaDetails.signedLoaFileSize ? loaDetails.signedLoaFileSize / 1024 : 0).toFixed(1)} KB</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {loaDetails.acceptedDate && (
+                          <span className="text-[10px] font-bold text-white bg-emerald-600 px-2 py-0.5 rounded">ACCEPTED</span>
+                        )}
+                        <a
+                          href={`http://localhost:3000${loaDetails.signedLoaFileUrl}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 py-2 bg-white border border-emerald-200 rounded-lg text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-colors"
+                        >
+                          View
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Approval Comments */}
+                {loaDetails.approvalComments && (
+                  <div className="mt-4 p-4 bg-amber-50 rounded-lg border border-amber-100">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="material-symbols-outlined text-amber-600 text-sm">comment</span>
+                      <p className="text-xs font-bold text-amber-800 uppercase">Approval Comments</p>
+                    </div>
+                    <p className="text-sm text-amber-900 italic">"{loaDetails.approvalComments}"</p>
+                  </div>
+                )}
               </div>
             )}
           </section>
@@ -821,6 +1365,100 @@ const RequestDetail = () => {
                           {processingAction ? 'Routing...' : 'Route to Hiring Manager'}
                         </button>
                       )}
+
+                      {/* NEW WORKFLOW ACTIONS FOR AGENTS */}
+
+                      {/* Schedule Interview - Show when status is MANAGER_APPROVED */}
+                      {request.status === 'MANAGER_APPROVED' && (
+                        <button
+                          onClick={() => setShowScheduleInterviewModal(true)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-lg">calendar_month</span>
+                          Schedule Interview
+                        </button>
+                      )}
+
+                      {/* Start HR Screening - Show when status is INTERVIEW_FEEDBACK_PENDING and decision is PROCEED */}
+                      {request.status === 'INTERVIEW_FEEDBACK_PENDING' && interviewDetails?.feedback?.decision === 'PROCEED' && (
+                        <button
+                          onClick={handleStartHRScreening}
+                          disabled={processingAction}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="material-symbols-outlined text-lg">play_arrow</span>
+                          {processingAction ? 'Processing...' : 'Start HR Screening'}
+                        </button>
+                      )}
+
+                      {/* Update Screening - Show when status is HR_SCREENING */}
+                      {request.status === 'HR_SCREENING' && (
+                        <button
+                          onClick={() => setShowHRScreeningModal(true)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-lg">edit_note</span>
+                          Update Screening Status
+                        </button>
+                      )}
+
+                      {/* Upload LOA - Show when status is HR_SCREENING and screening is completed */}
+                      {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && screeningDetails?.overallStatus === 'COMPLETED' && !loaDetails && (
+                        <button
+                          onClick={() => setShowUploadLOAModal(true)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-lg">upload_file</span>
+                          Upload LOA Document
+                        </button>
+                      )}
+
+                      {/* Route LOA for Approval - Show when status is HR_SCREENING and LOA is uploaded */}
+                      {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && loaDetails && !loaDetails.approvedBy && (
+                        <button
+                          onClick={() => handleRouteLOAForApproval()}
+                          disabled={processingAction}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="material-symbols-outlined text-lg">send</span>
+                          {processingAction ? 'Routing...' : 'Route LOA for Approval'}
+                        </button>
+                      )}
+
+                      {/* Issue LOA - Show when status is LOA_APPROVED */}
+                      {request.status === 'LOA_APPROVED' && (
+                        <button
+                          onClick={handleMarkLOAIssued}
+                          disabled={processingAction}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="material-symbols-outlined text-lg">mail</span>
+                          {processingAction ? 'Processing...' : 'Issue LOA to Candidate'}
+                        </button>
+                      )}
+
+                      {/* Upload Signed LOA - Show when status is LOA_ISSUED */}
+                      {request.status === 'LOA_ISSUED' && !loaDetails?.signedLoaFileUrl && (
+                        <button
+                          onClick={() => setShowUploadSignedLOAModal(true)}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-lg">upload</span>
+                          Upload Signed LOA
+                        </button>
+                      )}
+
+                      {/* Mark LOA Accepted - Show when status is LOA_ISSUED and signed LOA is uploaded */}
+                      {request.status === 'LOA_ISSUED' && loaDetails?.signedLoaFileUrl && (
+                        <button
+                          onClick={handleMarkLOAAccepted}
+                          disabled={processingAction}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span className="material-symbols-outlined text-lg">verified</span>
+                          {processingAction ? 'Processing...' : 'Mark LOA Accepted'}
+                        </button>
+                      )}
                     </>
                   )}
 
@@ -828,7 +1466,7 @@ const RequestDetail = () => {
                 </>
               ) : null}
 
-              {/* CEO Actions - Show only for CEO role */}
+              {/* CEO Actions */}
               {user?.roles?.includes('CEO') && request.status === 'PENDING_CEO_APPROVAL' && (
                 <>
                   <button
@@ -843,18 +1481,44 @@ const RequestDetail = () => {
                 </>
               )}
 
-              {/* Hiring Manager Actions - Show only for requester when pending review */}
-              {user?.id === request.requester?.id && request.status === 'PENDING_MANAGER_REVIEW' && (
+              {/* Hiring Manager Actions (Requester) */}
+              {user?.id === request.requester?.id && (
                 <>
-                  <button
-                    onClick={() => setShowManagerDecisionModal(true)}
-                    disabled={processingAction}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="material-symbols-outlined text-lg">rate_review</span>
-                    {processingAction ? 'Processing...' : 'Review Candidates'}
-                  </button>
-                  <div className="h-px bg-gray-200 my-2"></div>
+                  {/* Candidate Selection Review */}
+                  {request.status === 'PENDING_MANAGER_REVIEW' && (
+                    <button
+                      onClick={() => setShowManagerDecisionModal(true)}
+                      disabled={processingAction}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-symbols-outlined text-lg">rate_review</span>
+                      {processingAction ? 'Processing...' : 'Review Candidates'}
+                    </button>
+                  )}
+
+                  {/* Submit Interview Feedback */}
+                  {request.status === 'INTERVIEW_SCHEDULED' && (
+                    <button
+                      onClick={() => setShowInterviewFeedbackModal(true)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">feedback</span>
+                      Submit Interview Feedback
+                    </button>
+                  )}
+
+                  {/* LOA Approval Decision */}
+                  {request.status === 'LOA_PENDING_APPROVAL' && loaDetails && (
+                    <button
+                      onClick={() => setShowLOAApprovalModal(true)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-lg">fact_check</span>
+                      Approve/Reject LOA
+                    </button>
+                  )}
+
+                  {request.status !== 'SUBMITTED' && <div className="h-px bg-gray-200 my-2"></div>}
                 </>
               )}
 
@@ -1231,6 +1895,293 @@ const RequestDetail = () => {
                   >
                     {processingAction ? 'Processing...' : 'Submit Decision'}
                   </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW HIRING WORKFLOW MODALS */}
+
+      {/* Schedule Interview Modal */}
+      {showScheduleInterviewModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+            <div className="p-8">
+              <h2 className="text-2xl font-bold mb-6">Schedule Interview</h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const interviewData = {
+                  candidateId: formData.get('candidateId'),
+                  interviewDate: formData.get('interviewDate'),
+                  interviewTime: formData.get('interviewTime'),
+                  location: formData.get('location'),
+                  meetingLink: formData.get('meetingLink'),
+                  interviewers: (formData.get('interviewers') as string).split(',').map(i => i.trim()),
+                  notes: formData.get('notes'),
+                };
+                handleScheduleInterview(interviewData);
+              }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Select Candidate *</label>
+                    <select
+                      name="candidateId"
+                      required
+                      defaultValue={request.customFields?.selectedCandidateId || ""}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
+                    >
+                      <option value="">-- Select --</option>
+                      {resumes.map(r => (
+                        <option key={r.id} value={r.id}>
+                          {r.candidateName} {r.id === request.customFields?.selectedCandidateId ? ' (Selected)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Date *</label>
+                      <input type="date" name="interviewDate" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Time *</label>
+                      <input type="time" name="interviewTime" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Interviewers (comma separated) *</label>
+                    <input type="text" name="interviewers" placeholder="e.g. Jane Smith, Robert Brown" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Meeting Link / Location</label>
+                    <input type="text" name="meetingLink" placeholder="Zoom Link or Meeting Room" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button type="button" onClick={() => setShowScheduleInterviewModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
+                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg">{processingAction ? 'Scheduling...' : 'Schedule'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interview Feedback Modal */}
+      {showInterviewFeedbackModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-y-auto max-h-[90vh]">
+            <div className="p-8">
+              <h2 className="text-2xl font-bold mb-6">Interview Feedback</h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const feedbackData = {
+                  decision: formData.get('decision'),
+                  feedback: formData.get('feedback'),
+                  overallRating: parseInt(formData.get('overallRating') as string) || 3,
+                  technicalSkills: parseInt(formData.get('technicalSkills') as string) || 3,
+                  culturalFit: parseInt(formData.get('culturalFit') as string) || 3,
+                  communication: parseInt(formData.get('communication') as string) || 3,
+                };
+                handleSubmitInterviewFeedback(feedbackData);
+              }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Final Decision *</label>
+                    <select name="decision" required className="w-full px-4 py-2 border border-gray-200 rounded-lg">
+                      <option value="PROCEED">Proceed to Screening</option>
+                      <option value="REJECT">Reject Candidate</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Technical Skills (1-5)</label>
+                      <input type="number" name="technicalSkills" min="1" max="5" defaultValue="3" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Cultural Fit (1-5)</label>
+                      <input type="number" name="culturalFit" min="1" max="5" defaultValue="3" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Overall Feedback *</label>
+                    <textarea name="feedback" required rows={4} className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button type="button" onClick={() => setShowInterviewFeedbackModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
+                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg">Submit Feedback</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HR Screening Modal */}
+      {showHRScreeningModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-8">
+              <h2 className="text-2xl font-bold mb-6">HR Screening</h2>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const refContactedRaw = formData.get('refContacted') as string;
+                const screeningData = {
+                  backgroundCheckStatus: formData.get('bgStatus'),
+                  backgroundCheckNotes: formData.get('bgNotes'),
+                  referencesCheckStatus: formData.get('refStatus'),
+                  referencesCheckNotes: formData.get('refNotes'),
+                  referencesContacted: refContactedRaw ? refContactedRaw.split(',').map(r => r.trim()).filter(Boolean) : [],
+                  overallStatus: formData.get('overallStatus'),
+                };
+                handleUpdateScreeningStatus(screeningData);
+              }}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-[#5e718d] mb-2">BG Check Status</label>
+                      <select name="bgStatus" defaultValue={screeningDetails?.backgroundCheckStatus || "PENDING"} className="w-full px-4 py-2 border border-gray-200 rounded-lg">
+                        <option value="PENDING">Pending</option>
+                        <option value="PASSED">Passed</option>
+                        <option value="FAILED">Failed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Ref Check Status</label>
+                      <select name="refStatus" defaultValue={screeningDetails?.referencesCheckStatus || "PENDING"} className="w-full px-4 py-2 border border-gray-200 rounded-lg">
+                        <option value="PENDING">Pending</option>
+                        <option value="PASSED">Passed</option>
+                        <option value="FAILED">Failed</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Background Check Notes</label>
+                    <textarea name="bgNotes" rows={2} defaultValue={screeningDetails?.backgroundCheckNotes || ""} placeholder="Observations from BG check..." className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">References Check Notes</label>
+                    <textarea name="refNotes" rows={2} defaultValue={screeningDetails?.referencesCheckNotes || ""} placeholder="Feedback from references..." className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">References Contacted (comma separated)</label>
+                    <input type="text" name="refContacted" defaultValue={Array.isArray(screeningDetails?.referencesContacted) ? screeningDetails.referencesContacted.join(', ') : ""} placeholder="e.g. Michael Scott, Jim Halpert" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Overall Screening Status *</label>
+                    <select name="overallStatus" required defaultValue={screeningDetails?.overallStatus || "IN_PROGRESS"} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                      <option value="IN_PROGRESS">In Progress</option>
+                      <option value="COMPLETED">Completed (Proceed to LOA)</option>
+                      <option value="REJECTED">Rejected</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button type="button" onClick={() => setShowHRScreeningModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancel</button>
+                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50">
+                    {processingAction ? 'Updating...' : 'Update Status'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload LOA Modal */}
+      {showUploadLOAModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+            <div className="p-8">
+              <h2 className="text-2xl font-bold mb-6">Upload LOA Document</h2>
+              <p className="text-sm text-gray-600 mb-6">Upload the draft Letter of Acceptance prepared for the candidate.</p>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const file = (e.currentTarget.elements.namedItem('file') as HTMLInputElement).files?.[0];
+                if (file) handleUploadLOA(file);
+              }}>
+                <div className="mb-6">
+                  <input type="file" name="file" required accept=".pdf,.doc,.docx" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                </div>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setShowUploadLOAModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
+                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-emerald-600 rounded-lg">{processingAction ? 'Uploading...' : 'Upload & Prepare'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LOA Approval Modal */}
+      {showLOAApprovalModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+            <div className="p-8">
+              <h2 className="text-2xl font-bold mb-4">LOA Approval</h2>
+              <p className="text-sm text-gray-600 mb-6">Review the draft LOA and provide your decision.</p>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const decision = formData.get('decision') as 'APPROVE' | 'REJECT';
+                const comments = formData.get('comments') as string;
+                handleLOAApprovalDecision(decision, comments);
+              }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Decision *</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 font-semibold">
+                        <input type="radio" name="decision" value="APPROVE" required /> Approve
+                      </label>
+                      <label className="flex items-center gap-2 font-semibold">
+                        <input type="radio" name="decision" value="REJECT" required /> Reject
+                      </label>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Comments</label>
+                    <textarea name="comments" rows={3} className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" placeholder="Feedback for HR..." />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button type="button" onClick={() => setShowLOAApprovalModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
+                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-emerald-600 rounded-lg">Submit Decision</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Signed LOA Modal */}
+      {showUploadSignedLOAModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+            <div className="p-8">
+              <h2 className="text-2xl font-bold mb-6">Upload Signed LOA</h2>
+              <p className="text-sm text-gray-600 mb-6">Upload the finalized and signed document received from the candidate.</p>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const file = (e.currentTarget.elements.namedItem('file') as HTMLInputElement).files?.[0];
+                if (file) handleUploadSignedLOA(file);
+              }}>
+                <div className="mb-6">
+                  <input type="file" name="file" required accept=".pdf" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                </div>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setShowUploadSignedLOAModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
+                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg">{processingAction ? 'Uploading...' : 'Upload Signed Copy'}</button>
                 </div>
               </form>
             </div>

@@ -33,10 +33,10 @@ export const uploadLOA = async (req: Request, res: Response) => {
             });
         }
 
-        if (request.status !== 'HR_SCREENING') {
+        if (request.status !== 'HR_SCREENING' && request.status !== 'LOA_PENDING_APPROVAL') {
             return res.status(400).json({
                 status: 'error',
-                message: 'Request must be in HR_SCREENING status to upload LOA'
+                message: 'Request must be in HR_SCREENING or LOA_PENDING_APPROVAL status to upload LOA'
             });
         }
 
@@ -84,7 +84,7 @@ export const uploadLOA = async (req: Request, res: Response) => {
 
         res.json({
             status: 'success',
-            data: { loa }
+            data: loa
         });
     } catch (error) {
         console.error('Error uploading LOA:', error);
@@ -121,10 +121,10 @@ export const routeLOAForApproval = async (req: Request, res: Response) => {
             });
         }
 
-        if (request.status !== 'HR_SCREENING') {
+        if (request.status !== 'HR_SCREENING' && request.status !== 'LOA_PENDING_APPROVAL') {
             return res.status(400).json({
                 status: 'error',
-                message: 'Request must be in HR_SCREENING status to route LOA for approval'
+                message: 'Request must be in HR_SCREENING or LOA_PENDING_APPROVAL status to route LOA for approval'
             });
         }
 
@@ -418,7 +418,7 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
 
         res.json({
             status: 'success',
-            data: { loa: updatedLOA }
+            data: updatedLOA
         });
     } catch (error) {
         console.error('Error uploading signed LOA:', error);
@@ -478,7 +478,7 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
         const updatedRequest = await prisma.request.update({
             where: { id },
             data: {
-                status: 'LOA_ACCEPTED',
+                status: 'RESOLVED',
                 resolvedAt: new Date()
             }
         });
@@ -544,7 +544,7 @@ export const getLOADetails = async (req: Request, res: Response) => {
 
         res.json({
             status: 'success',
-            data: { loa }
+            data: loa
         });
     } catch (error) {
         console.error('Error getting LOA details:', error);

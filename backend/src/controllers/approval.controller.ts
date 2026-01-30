@@ -319,6 +319,14 @@ export const routeToManager = async (req: Request, res: Response) => {
             }
         });
 
+        // Transform BigInt to string in candidateResumes for JSON serialization
+        if ((updatedRequest as any).candidateResumes) {
+            (updatedRequest as any).candidateResumes = (updatedRequest as any).candidateResumes.map((resume: any) => ({
+                ...resume,
+                fileSize: resume.fileSize.toString()
+            }));
+        }
+
         res.json({
             status: 'success',
             data: {
@@ -442,6 +450,14 @@ export const managerDecision = async (req: Request, res: Response) => {
                 isSystemGenerated: false
             }
         });
+
+        // Transform BigInt to string in candidateResumes for JSON serialization
+        if ((updatedRequest as any).candidateResumes) {
+            (updatedRequest as any).candidateResumes = updatedRequest.candidateResumes.map((resume: any) => ({
+                ...resume,
+                fileSize: resume.fileSize.toString()
+            }));
+        }
 
         res.json({
             status: 'success',

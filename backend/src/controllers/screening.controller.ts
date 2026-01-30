@@ -85,10 +85,7 @@ export const startHRScreening = async (req: Request, res: Response) => {
 
         res.json({
             status: 'success',
-            data: {
-                request: updatedRequest,
-                hrScreening
-            }
+            data: hrScreening
         });
     } catch (error) {
         console.error('Error starting HR screening:', error);
@@ -111,7 +108,8 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
             backgroundCheckNotes,
             referencesCheckStatus,
             referencesCheckNotes,
-            referencesContacted
+            referencesContacted,
+            overallStatus: agentOverallStatus
         } = req.body;
         const userId = (req as any).user?.id;
 
@@ -138,11 +136,18 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
         }
 
         // Determine overall status
-        let overallStatus = 'IN_PROGRESS';
-        if (backgroundCheckStatus === 'COMPLETED' && referencesCheckStatus === 'COMPLETED') {
-            overallStatus = 'COMPLETED';
-        } else if (backgroundCheckStatus === 'FAILED' || referencesCheckStatus === 'FAILED') {
-            overallStatus = 'ISSUES_FOUND';
+        let calculatedStatus = agentOverallStatus || 'IN_PROGRESS';
+
+        // If not explicitly set by agent, calculate based on sub-statuses
+        if (!agentOverallStatus) {
+            const bgPassed = backgroundCheckStatus === 'PASSED' || backgroundCheckStatus === 'COMPLETED';
+            const refPassed = referencesCheckStatus === 'PASSED' || referencesCheckStatus === 'COMPLETED';
+
+            if (bgPassed && refPassed) {
+                calculatedStatus = 'COMPLETED';
+            } else if (backgroundCheckStatus === 'FAILED' || referencesCheckStatus === 'FAILED') {
+                calculatedStatus = 'ISSUES_FOUND';
+            }
         }
 
         // Update screening record
@@ -154,7 +159,7 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
                 referencesCheckStatus: referencesCheckStatus || request.hrScreening.referencesCheckStatus,
                 referencesCheckNotes: referencesCheckNotes || request.hrScreening.referencesCheckNotes,
                 referencesContacted: referencesContacted ? JSON.stringify(referencesContacted) : request.hrScreening.referencesContacted,
-                overallStatus,
+                overallStatus: calculatedStatus,
                 completedBy: userId
             },
             include: {
@@ -169,6 +174,19 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
             }
         });
 
+        // If screening is COMPLETED or REJECTED, update the request status
+        if (calculatedStatus === 'COMPLETED') {
+            await prisma.request.update({
+                where: { id },
+                data: { status: 'LOA_PENDING_APPROVAL' }
+            });
+        } else if (calculatedStatus === 'REJECTED') {
+            await prisma.request.update({
+                where: { id },
+                data: { status: 'REJECTED' }
+            });
+        }
+
         // Create activity log
         await prisma.requestActivity.create({
             data: {
@@ -177,16 +195,24 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'SYSTEM',
-                message: `HR screening updated - Background: ${backgroundCheckStatus || 'unchanged'}, References: ${referencesCheckStatus || 'unchanged'}`,
+                message: `HR screening updated - Status: ${calculatedStatus}, Background: ${backgroundCheckStatus || 'unchanged'}, References: ${referencesCheckStatus || 'unchanged'}`,
                 isSystemGenerated: true
             }
         });
 
+        // Prepare response data with parsed fields
+        const responseData = {
+            ...updatedScreening,
+            referencesContacted: updatedScreening.referencesContacted ?
+                (typeof updatedScreening.referencesContacted === 'string' ?
+                    JSON.parse(updatedScreening.referencesContacted) :
+                    updatedScreening.referencesContacted) :
+                []
+        };
+
         res.json({
             status: 'success',
-            data: {
-                hrScreening: updatedScreening
-            }
+            data: responseData
         });
     } catch (error) {
         console.error('Error updating screening status:', error);
@@ -219,11 +245,18 @@ export const getScreeningDetails = async (req: Request, res: Response) => {
             }
         });
 
+        // Parse referencesContacted if it's a string
+        if (hrScreening && typeof hrScreening.referencesContacted === 'string') {
+            try {
+                (hrScreening as any).referencesContacted = JSON.parse(hrScreening.referencesContacted);
+            } catch (e) {
+                (hrScreening as any).referencesContacted = [];
+            }
+        }
+
         res.json({
             status: 'success',
-            data: {
-                hrScreening
-            }
+            data: hrScreening
         });
     } catch (error) {
         console.error('Error getting screening details:', error);
