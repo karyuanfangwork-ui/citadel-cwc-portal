@@ -14,6 +14,7 @@ import RequestDetail from './pages/RequestDetail';
 import HardwareForm from './pages/HardwareForm';
 import AdminSettings from './pages/AdminSettings';
 import CreateRequest from './pages/CreateRequest';
+import NotificationDropdown from './src/components/NotificationDropdown';
 
 const Header = () => {
   const location = useLocation();
@@ -60,9 +61,7 @@ const Header = () => {
             />
           </div>
           <div className="flex gap-2">
-            <button className="flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
+            <NotificationDropdown />
             <button className="flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors">
               <span className="material-symbols-outlined">help</span>
             </button>
