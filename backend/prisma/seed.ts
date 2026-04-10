@@ -329,6 +329,22 @@ async function main() {
             pushTitle: 'Status Updated',
             pushBody: 'Request {{referenceNumber}} is now {{newStatus}}.',
         },
+        {
+            name: 'request_assigned',
+            eventType: 'REQUEST_ASSIGNED',
+            emailSubject: 'Request {{referenceNumber}} - Assigned to You',
+            emailBody: 'You have been assigned to request {{referenceNumber}}: {{summary}}. Please review and take action.',
+            pushTitle: 'New Assignment',
+            pushBody: 'Request {{referenceNumber}} assigned to you.',
+        },
+        {
+            name: 'comment_added',
+            eventType: 'COMMENT_ADDED',
+            emailSubject: 'New Comment on Request {{referenceNumber}}',
+            emailBody: 'A new comment has been added to request {{referenceNumber}}. Please check the request for details.',
+            pushTitle: 'New Comment',
+            pushBody: 'New comment on {{referenceNumber}}.',
+        },
     ];
 
     for (const template of templates) {
