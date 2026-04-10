@@ -21,7 +21,37 @@ export enum RequestStatus {
   LOA_PENDING_APPROVAL = 'LOA_PENDING_APPROVAL',
   LOA_APPROVED = 'LOA_APPROVED',
   LOA_ISSUED = 'LOA_ISSUED',
-  LOA_ACCEPTED = 'LOA_ACCEPTED'
+  LOA_ACCEPTED = 'LOA_ACCEPTED',
+  COMPLETED = 'COMPLETED',
+  // Onboarding Statuses
+  ONBOARDING_SUBMITTED = 'ONBOARDING_SUBMITTED',
+  ONBOARDING_PENDING_HR_APPROVAL = 'ONBOARDING_PENDING_HR_APPROVAL',
+  ONBOARDING_PRE_ARRIVAL_SETUP = 'ONBOARDING_PRE_ARRIVAL_SETUP',
+  ONBOARDING_READY_FOR_DAY_1 = 'ONBOARDING_READY_FOR_DAY_1',
+  ONBOARDING_DAY_1_ORIENTATION = 'ONBOARDING_DAY_1_ORIENTATION',
+  ONBOARDING_WEEK_1_INTEGRATION = 'ONBOARDING_WEEK_1_INTEGRATION',
+  ONBOARDING_MONTH_1_MILESTONE = 'ONBOARDING_MONTH_1_MILESTONE',
+  ONBOARDING_MONTH_2_MILESTONE = 'ONBOARDING_MONTH_2_MILESTONE',
+  ONBOARDING_MONTH_3_MILESTONE = 'ONBOARDING_MONTH_3_MILESTONE',
+  ONBOARDING_COMPLETED = 'ONBOARDING_COMPLETED',
+  // IT Workflow
+  PENDING_MANAGER_APPROVAL_IT = 'PENDING_MANAGER_APPROVAL_IT',
+  MANAGER_APPROVED_IT = 'MANAGER_APPROVED_IT',
+  MANAGER_REJECTED_IT = 'MANAGER_REJECTED_IT',
+  PROCUREMENT_IN_PROGRESS = 'PROCUREMENT_IN_PROGRESS',
+  HARDWARE_ORDERED = 'HARDWARE_ORDERED',
+  HARDWARE_RECEIVED = 'HARDWARE_RECEIVED',
+  SOFTWARE_PROVISIONED = 'SOFTWARE_PROVISIONED',
+  // Finance Workflow
+  PENDING_MANAGER_APPROVAL_FIN = 'PENDING_MANAGER_APPROVAL_FIN',
+  MANAGER_APPROVED_FIN = 'MANAGER_APPROVED_FIN',
+  MANAGER_REJECTED_FIN = 'MANAGER_REJECTED_FIN',
+  PENDING_FINANCE_HEAD_APPROVAL = 'PENDING_FINANCE_HEAD_APPROVAL',
+  FINANCE_HEAD_APPROVED = 'FINANCE_HEAD_APPROVED',
+  FINANCE_HEAD_REJECTED = 'FINANCE_HEAD_REJECTED',
+  PAYMENT_PROCESSING = 'PAYMENT_PROCESSING',
+  PAYMENT_COMPLETED = 'PAYMENT_COMPLETED',
+  REIMBURSEMENT_CLOSED = 'REIMBURSEMENT_CLOSED',
 }
 
 export enum RequestPriority {
@@ -150,4 +180,90 @@ export interface ServiceCard {
   colorClass: string;
   link: string;
   actionText: string;
+}
+
+// Onboarding Types
+export interface OnboardingTask {
+  id: string;
+  onboardingId: string;
+  taskName: string;
+  taskDescription?: string;
+  taskCategory: 'IT' | 'HR' | 'TRAINING' | 'ADMIN';
+  assignedTo?: string;
+  assignedToUser?: UserInfo;
+  dueDate?: string;
+  priority: RequestPriority;
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'BLOCKED';
+  completedBy?: string;
+  completedByUser?: UserInfo;
+  completedAt?: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface OnboardingRequest {
+  id: string;
+  requestId: string;
+  newHireFirstName: string;
+  newHireLastName: string;
+  newHireEmail: string;
+  newHirePhone?: string;
+  newHireId?: string;
+  jobTitle: string;
+  department: string;
+  hiringManagerId: string;
+  startDate: string;
+  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
+  overallStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD';
+  currentPhase: 'PRE_ARRIVAL' | 'DAY_1' | 'WEEK_1' | 'MONTH_1' | 'MONTH_2' | 'MONTH_3' | 'COMPLETED';
+  // IT Setup
+  accountCreated: boolean;
+  emailSetup: boolean;
+  hardwareAssigned: boolean;
+  badgeReady: boolean;
+  // HR Documentation
+  i9Completed: boolean;
+  w4Completed: boolean;
+  benefitsEnrolled: boolean;
+  policiesAcknowledged: boolean;
+  // Training
+  orientationCompleted: boolean;
+  trainingScheduled: boolean;
+  buddyAssigned?: string;
+  // Milestones
+  day1Completed?: string;
+  week1Completed?: string;
+  day30Completed?: string;
+  day60Completed?: string;
+  day90Completed?: string;
+  completedBy?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Relations
+  request?: RequestItem;
+  hiringManager?: UserInfo;
+  newHire?: UserInfo;
+  buddy?: UserInfo;
+  tasks?: OnboardingTask[];
+}
+
+export interface OnboardingProgress {
+  overallStatus: string;
+  currentPhase: string;
+  completionPercentage: number;
+  tasks: {
+    total: number;
+    completed: number;
+    pending: number;
+  };
+  milestones: {
+    day1: boolean;
+    week1: boolean;
+    day30: boolean;
+    day60: boolean;
+    day90: boolean;
+  };
+  completedMilestones: number;
+  totalMilestones: number;
 }

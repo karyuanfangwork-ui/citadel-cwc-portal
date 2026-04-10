@@ -25,6 +25,36 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.LOA_APPROVED]: { label: 'LOA APPROVED', color: 'text-emerald-700', bg: 'bg-emerald-100' },
   [RequestStatus.LOA_ISSUED]: { label: 'LOA ISSUED', color: 'text-blue-700', bg: 'bg-blue-100' },
   [RequestStatus.LOA_ACCEPTED]: { label: 'LOA ACCEPTED', color: 'text-green-700', bg: 'bg-green-100' },
+  [RequestStatus.COMPLETED]: { label: 'HIRING COMPLETE', color: 'text-emerald-800', bg: 'bg-emerald-200' },
+  // Onboarding Statuses
+  [RequestStatus.ONBOARDING_SUBMITTED]: { label: 'ONBOARDING SUBMITTED', color: 'text-cyan-700', bg: 'bg-cyan-100' },
+  [RequestStatus.ONBOARDING_PENDING_HR_APPROVAL]: { label: 'PENDING HR APPROVAL', color: 'text-orange-700', bg: 'bg-orange-100' },
+  [RequestStatus.ONBOARDING_PRE_ARRIVAL_SETUP]: { label: 'PRE-ARRIVAL SETUP', color: 'text-indigo-700', bg: 'bg-indigo-100' },
+  [RequestStatus.ONBOARDING_READY_FOR_DAY_1]: { label: 'READY FOR DAY 1', color: 'text-blue-700', bg: 'bg-blue-100' },
+  [RequestStatus.ONBOARDING_DAY_1_ORIENTATION]: { label: 'DAY 1 ORIENTATION', color: 'text-purple-700', bg: 'bg-purple-100' },
+  [RequestStatus.ONBOARDING_WEEK_1_INTEGRATION]: { label: 'WEEK 1 INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100' },
+  [RequestStatus.ONBOARDING_MONTH_1_MILESTONE]: { label: '30-DAY MILESTONE', color: 'text-sky-700', bg: 'bg-sky-100' },
+  [RequestStatus.ONBOARDING_MONTH_2_MILESTONE]: { label: '60-DAY MILESTONE', color: 'text-teal-700', bg: 'bg-teal-100' },
+  [RequestStatus.ONBOARDING_MONTH_3_MILESTONE]: { label: '90-DAY MILESTONE', color: 'text-emerald-700', bg: 'bg-emerald-100' },
+  [RequestStatus.ONBOARDING_COMPLETED]: { label: 'ONBOARDING COMPLETE', color: 'text-green-800', bg: 'bg-green-200' },
+  // IT Workflow Statuses
+  [RequestStatus.PENDING_MANAGER_APPROVAL_IT]: { label: 'Pending Manager Approval', color: 'text-purple-700', bg: 'bg-purple-100' },
+  [RequestStatus.MANAGER_APPROVED_IT]: { label: 'Manager Approved', color: 'text-green-700', bg: 'bg-green-100' },
+  [RequestStatus.MANAGER_REJECTED_IT]: { label: 'Manager Rejected', color: 'text-red-700', bg: 'bg-red-100' },
+  [RequestStatus.PROCUREMENT_IN_PROGRESS]: { label: 'Procurement In Progress', color: 'text-orange-700', bg: 'bg-orange-100' },
+  [RequestStatus.HARDWARE_ORDERED]: { label: 'Hardware Ordered', color: 'text-blue-700', bg: 'bg-blue-100' },
+  [RequestStatus.HARDWARE_RECEIVED]: { label: 'Hardware Received', color: 'text-teal-700', bg: 'bg-teal-100' },
+  [RequestStatus.SOFTWARE_PROVISIONED]: { label: 'Software Provisioned', color: 'text-teal-700', bg: 'bg-teal-100' },
+  // Finance Workflow Statuses
+  [RequestStatus.PENDING_MANAGER_APPROVAL_FIN]: { label: 'Pending Manager Approval', color: 'text-purple-700', bg: 'bg-purple-100' },
+  [RequestStatus.MANAGER_APPROVED_FIN]: { label: 'Manager Approved', color: 'text-green-700', bg: 'bg-green-100' },
+  [RequestStatus.MANAGER_REJECTED_FIN]: { label: 'Manager Rejected', color: 'text-red-700', bg: 'bg-red-100' },
+  [RequestStatus.PENDING_FINANCE_HEAD_APPROVAL]: { label: 'Pending Finance Head', color: 'text-indigo-700', bg: 'bg-indigo-100' },
+  [RequestStatus.FINANCE_HEAD_APPROVED]: { label: 'Finance Head Approved', color: 'text-green-700', bg: 'bg-green-100' },
+  [RequestStatus.FINANCE_HEAD_REJECTED]: { label: 'Finance Head Rejected', color: 'text-red-700', bg: 'bg-red-100' },
+  [RequestStatus.PAYMENT_PROCESSING]: { label: 'Payment Processing', color: 'text-amber-700', bg: 'bg-amber-100' },
+  [RequestStatus.PAYMENT_COMPLETED]: { label: 'Payment Completed', color: 'text-green-700', bg: 'bg-green-100' },
+  [RequestStatus.REIMBURSEMENT_CLOSED]: { label: 'Reimbursement Closed', color: 'text-gray-700', bg: 'bg-gray-100' },
 };
 
 export const MOCK_REQUESTS = [
