@@ -17,6 +17,9 @@ import CreateRequest from './pages/CreateRequest';
 import NotificationDropdown from './src/components/NotificationDropdown';
 import AgentDashboard from './pages/AgentDashboard';
 import Reports from './pages/Reports';
+import SearchResults from './pages/SearchResults';
+import KnowledgeBase from './pages/KnowledgeBase';
+import ArticleDetail from './pages/ArticleDetail';
 
 const Header = () => {
   const location = useLocation();
@@ -53,21 +56,32 @@ const Header = () => {
             {user?.roles?.includes('ADMIN') && (
               <Link to="/reports" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/reports') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Reports</Link>
             )}
-            <a href="#" className="text-sm font-semibold text-[#44546f] hover:text-[#0052cc] transition-colors">Knowledge Base</a>
+            <Link to="/kb" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/kb') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Knowledge Base</Link>
             {user?.roles?.includes('ADMIN') && (
               <Link to="/admin/settings" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/admin/settings') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Admin Settings</Link>
             )}
           </nav>
         </div>
         <div className="flex items-center gap-6">
-          <div className="relative hidden sm:block">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const q = (formData.get('q') as string) ?? '';
+              if (q.trim()) {
+                window.location.hash = `#/search?q=${encodeURIComponent(q.trim())}`;
+              }
+            }}
+            className="relative hidden sm:block"
+          >
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5e718d] text-xl">search</span>
             <input
+              name="q"
               type="text"
-              placeholder="Search help articles..."
+              placeholder="Search requests and articles..."
               className="w-64 pl-10 pr-4 py-1.5 bg-[#f0f2f5] border-none rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all"
             />
-          </div>
+          </form>
           <div className="flex gap-2">
             <NotificationDropdown />
             <button className="flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors">
@@ -133,6 +147,9 @@ export default function App() {
               <Route path="/it/hardware" element={<ProtectedRoute><HardwareForm /></ProtectedRoute>} />
               <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requireAdmin><Reports /></ProtectedRoute>} />
+              <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
+              <Route path="/kb" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
+              <Route path="/kb/:slug" element={<ProtectedRoute><ArticleDetail /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettings /></ProtectedRoute>} />
               <Route path="/:deskType/:deskId/create/:categoryId" element={<ProtectedRoute><CreateRequest /></ProtectedRoute>} />
             </Routes>
