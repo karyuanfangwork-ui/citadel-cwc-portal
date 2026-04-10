@@ -17,11 +17,11 @@ export const apiLimiter = rateLimit({
 // Strict rate limiter for auth endpoints
 export const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000, // 1000 requests per window (increased for development)
+    max: process.env.NODE_ENV === 'development' ? 1000 : 10,
     message: {
         status: 'error',
         statusCode: 429,
-        message: 'Too many authentication attempts, please try again later',
+        message: 'Too many authentication attempts. Please try again after 15 minutes.',
     },
     standardHeaders: true,
     legacyHeaders: false,
