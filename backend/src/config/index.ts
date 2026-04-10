@@ -89,3 +89,18 @@ export const config = {
         adminEmail: process.env.ADMIN_EMAIL || 'admin@helpdesk.com',
     },
 };
+
+// Validate critical config in production
+if (config.env === 'production') {
+  const required: Array<[string, string]> = [
+    ['JWT_SECRET', config.jwt.secret],
+    ['JWT_REFRESH_SECRET', config.jwt.refreshSecret],
+    ['DATABASE_URL', config.database.url],
+  ];
+
+  for (const [name, value] of required) {
+    if (!value || value.includes('change-this') || value.includes('your-super-secret')) {
+      throw new Error(`Production requires a secure ${name}. Current value is a default/placeholder.`);
+    }
+  }
+}
