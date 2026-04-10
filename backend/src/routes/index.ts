@@ -10,6 +10,9 @@ import approvalRoutes from './approval.routes';
 import interviewRoutes from './interview.routes';
 import screeningRoutes from './screening.routes';
 import loaRoutes from './loa.routes';
+import onboardingRoutes from './onboarding.routes';
+import itWorkflowRoutes from './it-workflow.routes';
+import financeWorkflowRoutes from './finance-workflow.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -29,5 +32,9 @@ router.use('/approvals', approvalRoutes);
 router.use('/interviews', interviewRoutes);
 router.use('/screening', screeningRoutes);
 router.use('/loa', loaRoutes);
+router.use('/onboarding', onboardingRoutes);
+router.use('/it-workflow', itWorkflowRoutes);
+router.use('/finance-workflow', financeWorkflowRoutes);
 
 export default router;
+
