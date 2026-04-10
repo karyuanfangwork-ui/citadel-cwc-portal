@@ -148,6 +148,16 @@ class RequestController {
 
         const referenceNumber = `${serviceDesk.code}-${count + 1}`;
 
+        // Calculate SLA due date from request type
+        let slaDueAt: Date | undefined;
+        if (requestTypeId) {
+          const requestType = await prisma.requestType.findUnique({ where: { id: requestTypeId } });
+          if (requestType?.slaHours) {
+            slaDueAt = new Date();
+            slaDueAt.setHours(slaDueAt.getHours() + requestType.slaHours);
+          }
+        }
+
         // Create request
         const request = await prisma.request.create({
             data: {
@@ -161,6 +171,7 @@ class RequestController {
                 priority,
                 customFields,
                 status: 'SUBMITTED',
+                slaDueAt,
             },
             include: {
                 requester: {
