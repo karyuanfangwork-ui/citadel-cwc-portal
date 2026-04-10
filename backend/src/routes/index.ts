@@ -13,6 +13,7 @@ import loaRoutes from './loa.routes';
 import onboardingRoutes from './onboarding.routes';
 import itWorkflowRoutes from './it-workflow.routes';
 import financeWorkflowRoutes from './finance-workflow.routes';
+import reportsRoutes from './reports.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -35,6 +36,7 @@ router.use('/loa', loaRoutes);
 router.use('/onboarding', onboardingRoutes);
 router.use('/it-workflow', itWorkflowRoutes);
 router.use('/finance-workflow', financeWorkflowRoutes);
+router.use('/reports', reportsRoutes);
 
 export default router;
 
