@@ -311,6 +311,109 @@ async function main() {
 
     console.log('✅ Service categories created');
 
+    // Create Service Categories for HR
+    const hrCategoriesData = [
+        { name: 'Leave Management', description: 'Apply for leave, check balance', icon: 'event_available', color: '#10b981', displayOrder: 1 },
+        { name: 'Payroll & Compensation', description: 'Salary queries, tax forms, payslips', icon: 'payments', color: '#6366f1', displayOrder: 2 },
+        { name: 'Benefits & Claims', description: 'Medical claims, insurance, benefits enrollment', icon: 'health_and_safety', color: '#f59e0b', displayOrder: 3 },
+        { name: 'New Hire Request', description: 'Request to hire for a position', icon: 'person_add', color: '#0052cc', displayOrder: 4 },
+    ];
+
+    for (const cat of hrCategoriesData) {
+        const category = await prisma.serviceCategory.upsert({
+            where: {
+                serviceDeskId_name: {
+                    serviceDeskId: hrDesk.id,
+                    name: cat.name
+                }
+            },
+            update: {
+                icon: cat.icon,
+                color: cat.color,
+                displayOrder: cat.displayOrder,
+                isActive: true
+            },
+            create: {
+                ...cat,
+                serviceDeskId: hrDesk.id,
+                isActive: true,
+            },
+        });
+
+        // Check if request type already exists for this category
+        const existingType = await prisma.requestType.findFirst({
+            where: {
+                serviceCategoryId: category.id,
+                name: cat.name
+            }
+        });
+
+        if (!existingType) {
+            await prisma.requestType.create({
+                data: {
+                    serviceCategoryId: category.id,
+                    name: cat.name,
+                    description: cat.description,
+                    slaHours: 48,
+                    isActive: true,
+                },
+            });
+        }
+    }
+
+    console.log('✅ HR categories created');
+
+    // Create Service Categories for Finance
+    const finCategoriesData = [
+        { name: 'Expense Reimbursement', description: 'Submit expense claims for reimbursement', icon: 'receipt_long', color: '#10b981', displayOrder: 1 },
+        { name: 'Invoice Processing', description: 'Submit or query vendor invoices', icon: 'description', color: '#6366f1', displayOrder: 2 },
+        { name: 'Budget Approval', description: 'Request budget allocation or transfer', icon: 'account_balance', color: '#f59e0b', displayOrder: 3 },
+    ];
+
+    for (const cat of finCategoriesData) {
+        const category = await prisma.serviceCategory.upsert({
+            where: {
+                serviceDeskId_name: {
+                    serviceDeskId: financeDesk.id,
+                    name: cat.name
+                }
+            },
+            update: {
+                icon: cat.icon,
+                color: cat.color,
+                displayOrder: cat.displayOrder,
+                isActive: true
+            },
+            create: {
+                ...cat,
+                serviceDeskId: financeDesk.id,
+                isActive: true,
+            },
+        });
+
+        // Check if request type already exists for this category
+        const existingType = await prisma.requestType.findFirst({
+            where: {
+                serviceCategoryId: category.id,
+                name: cat.name
+            }
+        });
+
+        if (!existingType) {
+            await prisma.requestType.create({
+                data: {
+                    serviceCategoryId: category.id,
+                    name: cat.name,
+                    description: cat.description,
+                    slaHours: 72,
+                    isActive: true,
+                },
+            });
+        }
+    }
+
+    console.log('✅ Finance categories created');
+
     // Create Notification Templates
     const templates = [
         {
