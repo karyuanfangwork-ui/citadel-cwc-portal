@@ -6,7 +6,10 @@ import interviewService from '../src/services/interview.service';
 import screeningService from '../src/services/screening.service';
 import loaService from '../src/services/loa.service';
 import { useAuth } from '../src/context/AuthContext';
+import itWorkflowService from '../src/services/it-workflow.service';
+import financeWorkflowService from '../src/services/finance-workflow.service';
 import { STATUS_CONFIG } from '../constants';
+import OnboardingDashboard from '../src/components/OnboardingDashboard';
 import {
   RequestStatus,
   InterviewSchedule,
@@ -110,6 +113,7 @@ const RequestDetail = () => {
 
   const fetchRequestData = async () => {
     try {
+      console.log('🔍 fetchRequestData called for request ID:', id);
       setLoading(true);
       setError(null);
 
@@ -117,6 +121,9 @@ const RequestDetail = () => {
         requestService.getRequestById(id!),
         requestService.getRequestActivities(id!),
       ]);
+
+      console.log('✅ Request data loaded:', requestData);
+      console.log('✅ Activities loaded:', activitiesData);
 
       setRequest(requestData);
       setActivities(activitiesData);
@@ -128,12 +135,16 @@ const RequestDetail = () => {
 
       // Fetch additional workflow details based on status
       if (id) {
-        fetchWorkflowDetails(id, requestData.status);
+        console.log('📋 Fetching workflow details for status:', requestData.status);
+        await fetchWorkflowDetails(id, requestData.status);
       }
+
+      console.log('✅ fetchRequestData completed successfully');
     } catch (err: any) {
-      console.error('Error fetching request:', err);
+      console.error('❌ Error fetching request:', err);
       setError(err.message || 'Failed to load request');
     } finally {
+      console.log('🏁 Setting loading to false');
       setLoading(false);
     }
   };
@@ -141,7 +152,7 @@ const RequestDetail = () => {
   const fetchWorkflowDetails = async (requestId: string, status: string) => {
     try {
       // Interviews
-      if (['INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED', 'RESOLVED'].includes(status)) {
+      if (['INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED', 'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1', 'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION', 'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE', 'ONBOARDING_COMPLETED'].includes(status)) {
         const data = await interviewService.getInterviewDetails(requestId);
 
         // Final fallback for interviewers
@@ -157,7 +168,7 @@ const RequestDetail = () => {
       }
 
       // Screening
-      if (['HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED'].includes(status)) {
+      if (['HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED', 'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1', 'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION', 'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE', 'ONBOARDING_COMPLETED'].includes(status)) {
         const data = await screeningService.getScreeningDetails(requestId);
 
         // Final fallback for referencesContacted
@@ -173,7 +184,7 @@ const RequestDetail = () => {
       }
 
       // LOA
-      if (['LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED'].includes(status)) {
+      if (['LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED', 'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1', 'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION', 'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE', 'ONBOARDING_COMPLETED'].includes(status)) {
         const data = await loaService.getLOADetails(requestId);
         setLoaDetails(data);
       }
@@ -560,11 +571,15 @@ const RequestDetail = () => {
     try {
       setProcessingAction(true);
       await loaService.markAccepted(id);
+
+      // Refetch the request data to get updated status and onboarding info
       await fetchRequestData();
-      alert('Hiring process complete! LOA marked as accepted.');
+
+      alert('Hiring process complete! LOA marked as accepted. Onboarding workflow has been created.');
+      setProcessingAction(false);
     } catch (error: any) {
+      console.error('Error marking LOA as accepted:', error);
       alert(error.message || 'Failed to mark LOA as accepted');
-    } finally {
       setProcessingAction(false);
     }
   };
@@ -593,7 +608,8 @@ const RequestDetail = () => {
         { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'event' },
         { label: 'Screening', status: 'HR_SCREENING', icon: 'fact_check' },
         { label: 'LOA', status: 'LOA_PENDING_APPROVAL', icon: 'article' },
-        { label: 'Complete', status: 'RESOLVED', icon: 'stars' },
+        { label: 'Hiring Complete', status: 'COMPLETED', icon: 'stars' },
+        { label: 'Onboarding', status: 'ONBOARDING_SUBMITTED', icon: 'badge' },
       ];
 
       const statusOrder = [
@@ -610,7 +626,18 @@ const RequestDetail = () => {
         'LOA_APPROVED',
         'LOA_ISSUED',
         'LOA_ACCEPTED',
-        'RESOLVED'
+        'COMPLETED',
+        // Onboarding statuses
+        'ONBOARDING_SUBMITTED',
+        'ONBOARDING_PENDING_HR_APPROVAL',
+        'ONBOARDING_PRE_ARRIVAL_SETUP',
+        'ONBOARDING_READY_FOR_DAY_1',
+        'ONBOARDING_DAY_1_ORIENTATION',
+        'ONBOARDING_WEEK_1_INTEGRATION',
+        'ONBOARDING_MONTH_1_MILESTONE',
+        'ONBOARDING_MONTH_2_MILESTONE',
+        'ONBOARDING_MONTH_3_MILESTONE',
+        'ONBOARDING_COMPLETED'
       ];
 
       const currentIndex = statusOrder.indexOf(currentStatus);
@@ -704,8 +731,8 @@ const RequestDetail = () => {
         </div>
       </div>
 
-      {/* Resolution Summary - Only show for RESOLVED tickets */}
-      {request.status === 'RESOLVED' && (() => {
+      {/* Resolution Summary - Only show for RESOLVED/COMPLETED tickets */}
+      {(request.status === 'RESOLVED' || request.status === 'COMPLETED') && (() => {
         // Find the most recent non-system comment before the status was changed to RESOLVED
         const resolutionActivity = activities
           .filter(a => !a.isSystemGenerated && a.activityType === 'COMMENT')
@@ -1128,6 +1155,227 @@ const RequestDetail = () => {
               </div>
             )}
           </section>
+
+          {/* Onboarding Workflow Section */}
+          {request?.status && [
+            'ONBOARDING_SUBMITTED',
+            'ONBOARDING_PENDING_HR_APPROVAL',
+            'ONBOARDING_PRE_ARRIVAL_SETUP',
+            'ONBOARDING_READY_FOR_DAY_1',
+            'ONBOARDING_DAY_1_ORIENTATION',
+            'ONBOARDING_WEEK_1_INTEGRATION',
+            'ONBOARDING_MONTH_1_MILESTONE',
+            'ONBOARDING_MONTH_2_MILESTONE',
+            'ONBOARDING_MONTH_3_MILESTONE',
+            'ONBOARDING_COMPLETED'
+          ].includes(request.status) && (
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                  <span className="material-symbols-outlined text-[#0052cc]">badge</span>
+                  <h3 className="font-bold text-xl">Onboarding Workflow</h3>
+                </div>
+                <OnboardingDashboard requestId={request.id} />
+              </section>
+            )}
+
+            {/* IT Workflow Actions */}
+            {request.serviceDesk?.code === 'IT' && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                  <span className="material-symbols-outlined text-[#0052cc]">devices</span>
+                  <h3 className="font-bold text-xl">IT Workflow</h3>
+                </div>
+
+                {request.status === 'SUBMITTED' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const managerId = prompt('Enter manager user ID for approval:');
+                      if (managerId) {
+                        await itWorkflowService.submitForApproval(request.id, managerId);
+                        window.location.reload();
+                      }
+                    }}
+                    className="px-4 py-2 bg-[#0052cc] text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Submit for Manager Approval
+                  </button>
+                )}
+
+                {request.status === 'PENDING_MANAGER_APPROVAL_IT' && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Approval comments (optional):');
+                        await itWorkflowService.managerDecision(request.id, 'APPROVED', comments || undefined);
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Reason for rejection:');
+                        if (comments) {
+                          await itWorkflowService.managerDecision(request.id, 'REJECTED', comments);
+                          window.location.reload();
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+
+                {request.status === 'MANAGER_APPROVED_IT' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const vendor = prompt('Vendor name (optional):');
+                      const orderNumber = prompt('Order number (optional):');
+                      await itWorkflowService.markProcurement(request.id, { vendor: vendor || undefined, orderNumber: orderNumber || undefined });
+                      window.location.reload();
+                    }}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  >
+                    Start Procurement
+                  </button>
+                )}
+
+                {(request.status === 'PROCUREMENT_IN_PROGRESS' || request.status === 'MANAGER_APPROVED_IT') && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const notes = prompt('Fulfilment notes (optional):');
+                      await itWorkflowService.markFulfilled(request.id, notes || undefined);
+                      window.location.reload();
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Mark as Fulfilled
+                  </button>
+                )}
+              </section>
+            )}
+
+            {/* Finance Workflow Actions */}
+            {request.serviceDesk?.code === 'FINANCE' && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                  <span className="material-symbols-outlined text-[#0052cc]">payments</span>
+                  <h3 className="font-bold text-xl">Finance Workflow</h3>
+                </div>
+
+                {request.status === 'SUBMITTED' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const managerId = prompt('Enter manager user ID for approval:');
+                      if (managerId) {
+                        await financeWorkflowService.submitForManager(request.id, managerId);
+                        window.location.reload();
+                      }
+                    }}
+                    className="px-4 py-2 bg-[#0052cc] text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Submit for Manager Approval
+                  </button>
+                )}
+
+                {request.status === 'PENDING_MANAGER_APPROVAL_FIN' && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Approval comments (optional):');
+                        await financeWorkflowService.managerDecision(request.id, 'APPROVED', comments || undefined);
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Reason for rejection:');
+                        if (comments) {
+                          await financeWorkflowService.managerDecision(request.id, 'REJECTED', comments);
+                          window.location.reload();
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+
+                {request.status === 'MANAGER_APPROVED_FIN' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const financeHeadId = prompt('Enter Finance Head user ID:');
+                      if (financeHeadId) {
+                        await financeWorkflowService.submitForFinanceHead(request.id, financeHeadId);
+                        window.location.reload();
+                      }
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    Submit for Finance Head Approval
+                  </button>
+                )}
+
+                {request.status === 'PENDING_FINANCE_HEAD_APPROVAL' && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Approval comments (optional):');
+                        await financeWorkflowService.financeHeadDecision(request.id, 'APPROVED', comments || undefined);
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Reason for rejection:');
+                        if (comments) {
+                          await financeWorkflowService.financeHeadDecision(request.id, 'REJECTED', comments);
+                          window.location.reload();
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+
+                {request.status === 'FINANCE_HEAD_APPROVED' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const paymentReference = prompt('Payment reference (optional):');
+                      await financeWorkflowService.markPayment(request.id, { paymentStatus: 'PROCESSING', paymentReference: paymentReference || undefined });
+                      window.location.reload();
+                    }}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                  >
+                    Start Payment Processing
+                  </button>
+                )}
+
+                {request.status === 'PAYMENT_PROCESSING' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const paymentReference = prompt('Payment reference:');
+                      await financeWorkflowService.markPayment(request.id, { paymentStatus: 'COMPLETED', paymentReference: paymentReference || undefined });
+                      window.location.reload();
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Mark Payment Completed
+                  </button>
+                )}
+              </section>
+            )}
 
           {/* Communication Timeline */}
           <section className="space-y-6">
