@@ -15,6 +15,8 @@ import HardwareForm from './pages/HardwareForm';
 import AdminSettings from './pages/AdminSettings';
 import CreateRequest from './pages/CreateRequest';
 import NotificationDropdown from './src/components/NotificationDropdown';
+import AgentDashboard from './pages/AgentDashboard';
+import Reports from './pages/Reports';
 
 const Header = () => {
   const location = useLocation();
@@ -45,6 +47,12 @@ const Header = () => {
           <nav className="hidden md:flex items-center gap-8">
             <Link to="/" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Dashboard</Link>
             <Link to="/my-requests" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/my-requests') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>My Requests</Link>
+            {(user?.roles?.includes('ADMIN') || user?.roles?.includes('AGENT')) && (
+              <Link to="/agent" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/agent') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Agent Dashboard</Link>
+            )}
+            {user?.roles?.includes('ADMIN') && (
+              <Link to="/reports" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/reports') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Reports</Link>
+            )}
             <a href="#" className="text-sm font-semibold text-[#44546f] hover:text-[#0052cc] transition-colors">Knowledge Base</a>
             {user?.roles?.includes('ADMIN') && (
               <Link to="/admin/settings" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/admin/settings') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Admin Settings</Link>
@@ -123,6 +131,8 @@ export default function App() {
               <Route path="/my-requests" element={<ProtectedRoute><MyRequests /></ProtectedRoute>} />
               <Route path="/request/:id" element={<ProtectedRoute><RequestDetail /></ProtectedRoute>} />
               <Route path="/it/hardware" element={<ProtectedRoute><HardwareForm /></ProtectedRoute>} />
+              <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute requireAdmin><Reports /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettings /></ProtectedRoute>} />
               <Route path="/:deskType/:deskId/create/:categoryId" element={<ProtectedRoute><CreateRequest /></ProtectedRoute>} />
             </Routes>
