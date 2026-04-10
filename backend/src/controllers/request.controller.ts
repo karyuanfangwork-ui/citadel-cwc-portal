@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { notify, notifyMultiple } from '../services/notification.service';
 
 const prisma = new PrismaClient();
 
@@ -186,6 +187,29 @@ class RequestController {
                 isSystemGenerated: true,
             },
         });
+
+        // Notify requester
+        await notify({
+            userId: request.requesterId,
+            eventType: 'REQUEST_CREATED',
+            variables: {
+                referenceNumber: request.referenceNumber,
+                summary: request.summary,
+            },
+            relatedRequestId: request.id,
+        });
+
+        // Notify all admins
+        const admins = await prisma.user.findMany({
+            where: { roles: { some: { role: { name: 'ADMIN' } } } },
+            select: { id: true },
+        });
+        await notifyMultiple(
+            admins.map((a) => a.id),
+            'REQUEST_CREATED',
+            { referenceNumber: request.referenceNumber, summary: request.summary },
+            request.id
+        );
 
         res.status(201).json({
             status: 'success',
@@ -413,6 +437,25 @@ class RequestController {
             },
         });
 
+        // Notify request owner about new comment
+        if (request.requesterId !== req.user!.id) {
+            await notify({
+                userId: request.requesterId,
+                eventType: 'COMMENT_ADDED',
+                variables: { referenceNumber: request.referenceNumber },
+                relatedRequestId: id,
+            });
+        }
+        // Also notify assigned agent if they didn't write the comment
+        if (request.assignedToId && request.assignedToId !== req.user!.id) {
+            await notify({
+                userId: request.assignedToId,
+                eventType: 'COMMENT_ADDED',
+                variables: { referenceNumber: request.referenceNumber },
+                relatedRequestId: id,
+            });
+        }
+
         res.status(201).json({
             status: 'success',
             data: { activity },
@@ -507,6 +550,17 @@ class RequestController {
             },
         });
 
+        // Notify the assigned agent
+        await notify({
+            userId: assignedToId,
+            eventType: 'REQUEST_ASSIGNED',
+            variables: {
+                referenceNumber: request.referenceNumber,
+                summary: request.summary,
+            },
+            relatedRequestId: request.id,
+        });
+
         res.json({
             status: 'success',
             data: { request },
@@ -557,6 +611,17 @@ class RequestController {
                 isSystemGenerated: true,
                 metadata: { newStatus: status },
             },
+        });
+
+        // Notify requester of status change
+        await notify({
+            userId: request.requesterId,
+            eventType: 'STATUS_CHANGED',
+            variables: {
+                referenceNumber: request.referenceNumber,
+                newStatus: status,
+            },
+            relatedRequestId: request.id,
         });
 
         res.json({
