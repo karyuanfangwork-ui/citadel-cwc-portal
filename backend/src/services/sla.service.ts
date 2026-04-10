@@ -9,7 +9,7 @@ export async function checkSlaBreaches(): Promise<number> {
     const breachedRequests = await prisma.request.findMany({
       where: {
         slaDueAt: { lte: now },
-        status: { notIn: ['RESOLVED', 'CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
+        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
       },
       include: {
         assignedTo: { select: { id: true } },

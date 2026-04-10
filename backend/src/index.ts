@@ -9,6 +9,7 @@ import { logger } from './utils/logger';
 import { errorHandler } from './middleware/error.middleware';
 import { notFoundHandler } from './middleware/notFound.middleware';
 import routes from './routes';
+import { startSlaChecker } from './jobs/sla-checker';
 
 // Load environment variables
 dotenv.config();
@@ -93,6 +94,7 @@ const server = app.listen(PORT, () => {
     logger.info(`🚀 Server running on port ${PORT} in ${config.env} mode`);
     logger.info(`📡 API available at http://localhost:${PORT}${config.apiPrefix}`);
     logger.info(`🏥 Health check at http://localhost:${PORT}/health`);
+    startSlaChecker();
 });
 
 // Graceful shutdown

@@ -448,6 +448,14 @@ async function main() {
             pushTitle: 'New Comment',
             pushBody: 'New comment on {{referenceNumber}}.',
         },
+        {
+            name: 'sla_breached',
+            eventType: 'SLA_BREACHED',
+            emailSubject: 'SLA Breach Alert - Request {{referenceNumber}}',
+            emailBody: 'Request {{referenceNumber}} has exceeded its SLA deadline. Please take immediate action.',
+            pushTitle: 'SLA Breach',
+            pushBody: 'Request {{referenceNumber}} has breached its SLA.',
+        },
     ];
 
     for (const template of templates) {
