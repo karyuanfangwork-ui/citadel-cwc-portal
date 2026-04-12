@@ -10,6 +10,13 @@ const router = Router();
 router.use(authenticate);
 
 /**
+ * @route   GET /api/v1/users/agents
+ * @desc    Get all agents (AGENT or ADMIN roles)
+ * @access  Private (Admin, Agent)
+ */
+router.get('/agents', authorize('ADMIN', 'AGENT'), userController.getAgents);
+
+/**
  * @route   GET /api/v1/users/me
  * @desc    Get current user profile
  * @access  Private

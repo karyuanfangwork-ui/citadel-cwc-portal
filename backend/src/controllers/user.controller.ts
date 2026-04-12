@@ -220,6 +220,27 @@ class UserController {
     });
 
     /**
+     * Get all agents (AGENT or ADMIN roles)
+     */
+    getAgents = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const agents = await prisma.user.findMany({
+            where: {
+                roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
+                deletedAt: null,
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+            },
+            orderBy: { firstName: 'asc' },
+        });
+
+        res.json({ success: true, data: { agents } });
+    });
+
+    /**
      * Delete user by ID (Admin only)
      */
     deleteUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
