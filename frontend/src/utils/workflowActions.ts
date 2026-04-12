@@ -57,7 +57,7 @@ export function getWorkflowActions(
         variant: 'warning',
       });
     }
-    if (status === 'PROCUREMENT_IN_PROGRESS' || status === 'MANAGER_APPROVED_IT') {
+    if (status === 'PROCUREMENT_IN_PROGRESS') {
       actions.push({
         type: 'MARK_FULFILLED',
         label: 'Mark as Fulfilled',
@@ -67,7 +67,7 @@ export function getWorkflowActions(
     }
   }
 
-  if (status === 'PENDING_MANAGER_APPROVAL_IT') {
+  if (isAdmin && status === 'PENDING_MANAGER_APPROVAL_IT') {
     actions.push(
       {
         type: 'APPROVE',
