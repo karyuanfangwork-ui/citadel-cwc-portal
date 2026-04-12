@@ -22,7 +22,11 @@ interface BannerConfig {
 
 function getBannerConfig(role: RequestRole, status: string, assignedToName?: string): BannerConfig | null {
   if (role === 'staff') {
-    if (status === 'SUBMITTED') return {
+    if (status === 'SUBMITTED') return assignedToName ? {
+      icon: 'visibility', title: 'Under Review',
+      description: `${assignedToName} is reviewing your request.`,
+      bgClass: 'bg-indigo-50', borderClass: 'border-indigo-200', iconBgClass: 'bg-indigo-600', iconColor: 'text-white'
+    } : {
       icon: 'hourglass_top', title: 'Request Submitted',
       description: 'Your request has been received and is waiting to be picked up by our team.',
       bgClass: 'bg-blue-50', borderClass: 'border-blue-200', iconBgClass: 'bg-blue-600', iconColor: 'text-white'
