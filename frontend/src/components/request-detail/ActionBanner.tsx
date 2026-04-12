@@ -98,7 +98,7 @@ function getBannerConfig(role: RequestRole, status: string, assignedToName?: str
   }
 
   if (role === 'agent') {
-    if (status === 'SUBMITTED') return {
+    if (status === 'SUBMITTED' && !assignedToName) return {
       icon: 'inbox', title: 'New Request — Needs Assignment',
       description: 'This request has not been assigned yet. Assign it to yourself or another agent.',
       actionLabel: 'Assign',
