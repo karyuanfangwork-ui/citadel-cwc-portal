@@ -1302,6 +1302,225 @@ const RequestDetail = () => {
               </section>
             )}
 
+          {/* Update Status dropdown — only valid transitions */}
+          {getValidNextStatuses(request.status).length > 0 && (
+            <div className="relative">
+              <label className="block text-xs font-bold text-[#5e718d] mb-2">Update Status</label>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) handleStatusChange(e.target.value);
+                }}
+                disabled={updatingStatus}
+                className="w-full px-4 py-2.5 text-sm font-semibold text-[#44546f] bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">Select next status...</option>
+                {getValidNextStatuses(request.status).map(status => (
+                  <option key={status} value={status}>
+                    {STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]?.label || status}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Hiring Workflow Actions for HR Agents */}
+          {request.serviceDesk?.code === 'HR' && (
+            <>
+              {/* Route to CEO - Show when status is SUBMITTED or IN_REVIEW */}
+              {(request.status === 'SUBMITTED' || request.status === 'IN_REVIEW') && (
+                <button
+                  onClick={handleRouteToCEO}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">send</span>
+                  {processingAction ? 'Routing...' : 'Route to CEO'}
+                </button>
+              )}
+
+              {/* Mark Job Posted - Show when status is CEO_APPROVED */}
+              {request.status === 'CEO_APPROVED' && (
+                <button
+                  onClick={() => setShowJobPostModal(true)}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">work</span>
+                  Mark as Job Posted
+                </button>
+              )}
+
+              {/* Upload Resume - Show when status is JOB_POSTED */}
+              {request.status === 'JOB_POSTED' && (
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">upload_file</span>
+                  Upload Candidate Resume
+                </button>
+              )}
+
+              {/* Route to Manager - Show when status is JOB_POSTED and has resumes */}
+              {request.status === 'JOB_POSTED' && resumes.length > 0 && (
+                <button
+                  onClick={handleRouteToManager}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
+                  {processingAction ? 'Routing...' : 'Route to Hiring Manager'}
+                </button>
+              )}
+
+              {/* Schedule Interview - Show when status is MANAGER_APPROVED */}
+              {request.status === 'MANAGER_APPROVED' && (
+                <button
+                  onClick={() => setShowScheduleInterviewModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">calendar_month</span>
+                  Schedule Interview
+                </button>
+              )}
+
+              {/* Start HR Screening - Show when status is INTERVIEW_FEEDBACK_PENDING and decision is PROCEED */}
+              {request.status === 'INTERVIEW_FEEDBACK_PENDING' && interviewDetails?.feedback?.decision === 'PROCEED' && (
+                <button
+                  onClick={handleStartHRScreening}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">play_arrow</span>
+                  {processingAction ? 'Processing...' : 'Start HR Screening'}
+                </button>
+              )}
+
+              {/* Update Screening - Show when status is HR_SCREENING */}
+              {request.status === 'HR_SCREENING' && (
+                <button
+                  onClick={() => setShowHRScreeningModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">edit_note</span>
+                  Update Screening Status
+                </button>
+              )}
+
+              {/* Upload LOA - Show when status is HR_SCREENING and screening is completed */}
+              {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && screeningDetails?.overallStatus === 'COMPLETED' && !loaDetails && (
+                <button
+                  onClick={() => setShowUploadLOAModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">upload_file</span>
+                  Upload LOA Document
+                </button>
+              )}
+
+              {/* Route LOA for Approval - Show when status is HR_SCREENING and LOA is uploaded */}
+              {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && loaDetails && !loaDetails.approvedBy && (
+                <button
+                  onClick={() => handleRouteLOAForApproval()}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">send</span>
+                  {processingAction ? 'Routing...' : 'Route LOA for Approval'}
+                </button>
+              )}
+
+              {/* Issue LOA - Show when status is LOA_APPROVED */}
+              {request.status === 'LOA_APPROVED' && (
+                <button
+                  onClick={handleMarkLOAIssued}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">mail</span>
+                  {processingAction ? 'Processing...' : 'Issue LOA to Candidate'}
+                </button>
+              )}
+
+              {/* Upload Signed LOA - Show when status is LOA_ISSUED */}
+              {request.status === 'LOA_ISSUED' && !loaDetails?.signedLoaFileUrl && (
+                <button
+                  onClick={() => setShowUploadSignedLOAModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">upload</span>
+                  Upload Signed LOA
+                </button>
+              )}
+
+              {/* Mark LOA Accepted - Show when status is LOA_ISSUED and signed LOA is uploaded */}
+              {request.status === 'LOA_ISSUED' && loaDetails?.signedLoaFileUrl && (
+                <button
+                  onClick={handleMarkLOAAccepted}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">verified</span>
+                  {processingAction ? 'Processing...' : 'Mark LOA Accepted'}
+                </button>
+              )}
+
+              {/* Re-route rejected request - CEO rejected */}
+              {request.status === 'CEO_REJECTED' && (
+                <div className="space-y-2">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-xs text-red-700 font-semibold">CEO has rejected this request.</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!id) return;
+                      try {
+                        setProcessingAction(true);
+                        await requestService.updateStatus(id, 'SUBMITTED' as any);
+                        await fetchRequestData();
+                        alert('Request returned to SUBMITTED for revision');
+                      } catch (err: any) {
+                        alert(err.message || 'Failed to re-open request');
+                      } finally {
+                        setProcessingAction(false);
+                      }
+                    }}
+                    disabled={processingAction}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-lg">replay</span>
+                    {processingAction ? 'Processing...' : 'Revise & Resubmit'}
+                  </button>
+                </div>
+              )}
+
+              {/* Re-open for new candidates after interview rejection */}
+              {request.status === 'CANDIDATE_REJECTED_INTERVIEW' && (
+                <button
+                  onClick={async () => {
+                    if (!id) return;
+                    try {
+                      setProcessingAction(true);
+                      await requestService.updateStatus(id, 'JOB_POSTED' as any);
+                      await fetchRequestData();
+                      alert('Request returned to Job Posted for new candidates');
+                    } catch (err: any) {
+                      alert(err.message || 'Failed');
+                    } finally {
+                      setProcessingAction(false);
+                    }
+                  }}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-lg">replay</span>
+                  {processingAction ? 'Processing...' : 'Re-open for New Candidates'}
+                </button>
+              )}
+            </>
+          )}
+
           <ActivityFeed
             activities={activities}
             onSubmitComment={async (text, isInternal) => {
@@ -1312,243 +1531,23 @@ const RequestDetail = () => {
           />
         </div>
 
-        <ActionSidebar
-          requestId={request.id}
-          status={request.status}
-          userRoles={user?.roles || []}
-          userId={user?.id || ''}
-          userName={user ? `${user.firstName} ${user.lastName}` : ''}
-          assignedTo={request.assignedTo || null}
-          referenceNumber={request.referenceNumber}
-          priority={request.priority}
-          serviceDeskName={request.serviceDesk?.name || ''}
-          requesterName={request.requester ? `${request.requester.firstName} ${request.requester.lastName}` : ''}
-          createdAt={request.createdAt}
-          slaDueAt={request.slaDueAt}
-          onActionSuccess={fetchRequestData}
-        />
-
-                  {/* Update Status dropdown — only valid transitions */}
-                  {getValidNextStatuses(request.status).length > 0 && (
-                    <div className="relative">
-                      <label className="block text-xs font-bold text-[#5e718d] mb-2">Update Status</label>
-                      <select
-                        value=""
-                        onChange={(e) => {
-                          if (e.target.value) handleStatusChange(e.target.value);
-                        }}
-                        disabled={updatingStatus}
-                        className="w-full px-4 py-2.5 text-sm font-semibold text-[#44546f] bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <option value="">Select next status...</option>
-                        {getValidNextStatuses(request.status).map(status => (
-                          <option key={status} value={status}>
-                            {STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]?.label || status}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* Hiring Workflow Actions for HR Agents */}
-                  {request.serviceDesk?.code === 'HR' && (
-                    <>
-                      {/* Route to CEO - Show when status is SUBMITTED or IN_REVIEW */}
-                      {(request.status === 'SUBMITTED' || request.status === 'IN_REVIEW') && (
-                        <button
-                          onClick={handleRouteToCEO}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">send</span>
-                          {processingAction ? 'Routing...' : 'Route to CEO'}
-                        </button>
-                      )}
-
-                      {/* Mark Job Posted - Show when status is CEO_APPROVED */}
-                      {request.status === 'CEO_APPROVED' && (
-                        <button
-                          onClick={() => setShowJobPostModal(true)}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">work</span>
-                          Mark as Job Posted
-                        </button>
-                      )}
-
-                      {/* Upload Resume - Show when status is JOB_POSTED */}
-                      {request.status === 'JOB_POSTED' && (
-                        <button
-                          onClick={() => setShowUploadModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">upload_file</span>
-                          Upload Candidate Resume
-                        </button>
-                      )}
-
-                      {/* Route to Manager - Show when status is JOB_POSTED and has resumes */}
-                      {request.status === 'JOB_POSTED' && resumes.length > 0 && (
-                        <button
-                          onClick={handleRouteToManager}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
-                          {processingAction ? 'Routing...' : 'Route to Hiring Manager'}
-                        </button>
-                      )}
-
-                      {/* NEW WORKFLOW ACTIONS FOR AGENTS */}
-
-                      {/* Schedule Interview - Show when status is MANAGER_APPROVED */}
-                      {request.status === 'MANAGER_APPROVED' && (
-                        <button
-                          onClick={() => setShowScheduleInterviewModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">calendar_month</span>
-                          Schedule Interview
-                        </button>
-                      )}
-
-                      {/* Start HR Screening - Show when status is INTERVIEW_FEEDBACK_PENDING and decision is PROCEED */}
-                      {request.status === 'INTERVIEW_FEEDBACK_PENDING' && interviewDetails?.feedback?.decision === 'PROCEED' && (
-                        <button
-                          onClick={handleStartHRScreening}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">play_arrow</span>
-                          {processingAction ? 'Processing...' : 'Start HR Screening'}
-                        </button>
-                      )}
-
-                      {/* Update Screening - Show when status is HR_SCREENING */}
-                      {request.status === 'HR_SCREENING' && (
-                        <button
-                          onClick={() => setShowHRScreeningModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">edit_note</span>
-                          Update Screening Status
-                        </button>
-                      )}
-
-                      {/* Upload LOA - Show when status is HR_SCREENING and screening is completed */}
-                      {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && screeningDetails?.overallStatus === 'COMPLETED' && !loaDetails && (
-                        <button
-                          onClick={() => setShowUploadLOAModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">upload_file</span>
-                          Upload LOA Document
-                        </button>
-                      )}
-
-                      {/* Route LOA for Approval - Show when status is HR_SCREENING and LOA is uploaded */}
-                      {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && loaDetails && !loaDetails.approvedBy && (
-                        <button
-                          onClick={() => handleRouteLOAForApproval()}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">send</span>
-                          {processingAction ? 'Routing...' : 'Route LOA for Approval'}
-                        </button>
-                      )}
-
-                      {/* Issue LOA - Show when status is LOA_APPROVED */}
-                      {request.status === 'LOA_APPROVED' && (
-                        <button
-                          onClick={handleMarkLOAIssued}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">mail</span>
-                          {processingAction ? 'Processing...' : 'Issue LOA to Candidate'}
-                        </button>
-                      )}
-
-                      {/* Upload Signed LOA - Show when status is LOA_ISSUED */}
-                      {request.status === 'LOA_ISSUED' && !loaDetails?.signedLoaFileUrl && (
-                        <button
-                          onClick={() => setShowUploadSignedLOAModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">upload</span>
-                          Upload Signed LOA
-                        </button>
-                      )}
-
-                      {/* Mark LOA Accepted - Show when status is LOA_ISSUED and signed LOA is uploaded */}
-                      {request.status === 'LOA_ISSUED' && loaDetails?.signedLoaFileUrl && (
-                        <button
-                          onClick={handleMarkLOAAccepted}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">verified</span>
-                          {processingAction ? 'Processing...' : 'Mark LOA Accepted'}
-                        </button>
-                      )}
-
-                      {/* Re-route rejected request - CEO rejected */}
-                      {request.status === 'CEO_REJECTED' && (
-                        <div className="space-y-2">
-                          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                            <p className="text-xs text-red-700 font-semibold">CEO has rejected this request.</p>
-                          </div>
-                          <button
-                            onClick={async () => {
-                              if (!id) return;
-                              try {
-                                setProcessingAction(true);
-                                await requestService.updateStatus(id, 'SUBMITTED' as any);
-                                await fetchRequestData();
-                                alert('Request returned to SUBMITTED for revision');
-                              } catch (err: any) {
-                                alert(err.message || 'Failed to re-open request');
-                              } finally {
-                                setProcessingAction(false);
-                              }
-                            }}
-                            disabled={processingAction}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
-                          >
-                            <span className="material-symbols-outlined text-lg">replay</span>
-                            {processingAction ? 'Processing...' : 'Revise & Resubmit'}
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Re-open for new candidates after interview rejection */}
-                      {request.status === 'CANDIDATE_REJECTED_INTERVIEW' && (
-                        <button
-                          onClick={async () => {
-                            if (!id) return;
-                            try {
-                              setProcessingAction(true);
-                              await requestService.updateStatus(id, 'JOB_POSTED' as any);
-                              await fetchRequestData();
-                              alert('Request returned to Job Posted for new candidates');
-                            } catch (err: any) {
-                              alert(err.message || 'Failed');
-                            } finally {
-                              setProcessingAction(false);
-                            }
-                          }}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          <span className="material-symbols-outlined text-lg">replay</span>
-                          {processingAction ? 'Processing...' : 'Re-open for New Candidates'}
-                        </button>
-                      )}
-                    </>
-                  )}
-
+        <div data-actions-sidebar>
+          <ActionSidebar
+            requestId={request.id}
+            status={request.status}
+            userRoles={user?.roles || []}
+            userId={user?.id || ''}
+            userName={user ? `${user.firstName} ${user.lastName}` : ''}
+            assignedTo={request.assignedTo || null}
+            referenceNumber={request.referenceNumber}
+            priority={request.priority}
+            serviceDeskName={request.serviceDesk?.name || ''}
+            requesterName={request.requester ? `${request.requester.firstName} ${request.requester.lastName}` : ''}
+            createdAt={request.createdAt}
+            slaDueAt={request.slaDueAt}
+            onActionSuccess={fetchRequestData}
+          />
+        </div>
       </div>
 
       {/* Resolution Modal */}
