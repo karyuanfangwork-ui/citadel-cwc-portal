@@ -15,6 +15,7 @@ import ActionBanner from '../src/components/request-detail/ActionBanner';
 import { detectRequestRole, isHiringRequest } from '../src/utils/roleDetection';
 import SLAIndicator from '../src/components/request-detail/SLAIndicator';
 import CustomFieldsPanel from '../src/components/request-detail/CustomFieldsPanel';
+import AssignToDropdown from '../src/components/request-detail/AssignToDropdown';
 import {
   RequestStatus,
   InterviewSchedule,
@@ -719,6 +720,18 @@ const RequestDetail = () => {
     serviceDeskCode: request.serviceDesk?.code || '',
   });
 
+  // Build timestamp map from status change activities
+  const statusTimestamps: Record<string, string> = {};
+  activities
+    .filter(a => a.activityType === 'STATUS_CHANGE' || (a.isSystemGenerated && a.message.includes('status')))
+    .forEach(a => {
+      const match = a.message.match(/status.*?to\s+(\w+)/i) || a.message.match(/(\w+_?\w+)/);
+      if (match) {
+        statusTimestamps[match[1]] = a.createdAt;
+      }
+    });
+  statusTimestamps['SUBMITTED'] = request.createdAt;
+
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <nav className="flex items-center gap-2 mb-6 text-sm font-medium text-[#5e718d]">
@@ -748,6 +761,11 @@ const RequestDetail = () => {
                   {step.icon}
                 </span>
                 <span className="text-xs font-bold uppercase tracking-wider">{step.label}</span>
+                {step.active && statusTimestamps[step.status] && (
+                  <span className="text-[9px] text-[#8993a4] font-normal">
+                    {new Date(statusTimestamps[step.status]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                )}
               </div>
               {idx < steps.length - 1 && (
                 <div
@@ -844,8 +862,8 @@ const RequestDetail = () => {
               serviceDeskCode={request.serviceDesk?.code || ''}
             />
 
-            {/* Candidate Resumes Section - Show when resumes exist */}
-            {resumes.length > 0 && (
+            {/* Candidate Resumes Section - Show when resumes exist and in hiring workflow */}
+            {isHiringRequest(request.serviceDesk?.code || '', request.status) && resumes.length > 0 && (
               <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
                 <div className="flex items-center justify-between mb-6">
                   <span className="text-xs font-bold text-[#5e718d] uppercase tracking-widest">
@@ -928,6 +946,9 @@ const RequestDetail = () => {
               </div>
             )}
 
+            {/* Interview, Screening, and LOA Sections - only for hiring workflow */}
+            {isHiringRequest(request.serviceDesk?.code || '', request.status) && (
+              <>
             {/* Interview Details Section */}
             {interviewDetails?.schedule && (
               <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6 overflow-hidden">
@@ -1175,6 +1196,8 @@ const RequestDetail = () => {
                   </div>
                 )}
               </div>
+            )}
+              </>
             )}
           </section>
 
@@ -1646,6 +1669,17 @@ const RequestDetail = () => {
                     </button>
                   )}
 
+                  {/* Assign to another agent */}
+                  <AssignToDropdown
+                    currentAssigneeId={request.assignedTo?.id}
+                    onAssign={async (agentId) => {
+                      const updatedRequest = await requestService.assignRequest(id!, agentId);
+                      setRequest(updatedRequest);
+                      const updatedActivities = await requestService.getRequestActivities(id!);
+                      setActivities(updatedActivities);
+                    }}
+                  />
+
                   {/* Update Status dropdown — only valid transitions */}
                   {getValidNextStatuses(request.status).length > 0 && (
                     <div className="relative">
@@ -1809,6 +1843,59 @@ const RequestDetail = () => {
                         >
                           <span className="material-symbols-outlined text-lg">verified</span>
                           {processingAction ? 'Processing...' : 'Mark LOA Accepted'}
+                        </button>
+                      )}
+
+                      {/* Re-route rejected request - CEO rejected */}
+                      {request.status === 'CEO_REJECTED' && (
+                        <div className="space-y-2">
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <p className="text-xs text-red-700 font-semibold">CEO has rejected this request.</p>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              if (!id) return;
+                              try {
+                                setProcessingAction(true);
+                                await requestService.updateStatus(id, 'SUBMITTED' as any);
+                                await fetchRequestData();
+                                alert('Request returned to SUBMITTED for revision');
+                              } catch (err: any) {
+                                alert(err.message || 'Failed to re-open request');
+                              } finally {
+                                setProcessingAction(false);
+                              }
+                            }}
+                            disabled={processingAction}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            <span className="material-symbols-outlined text-lg">replay</span>
+                            {processingAction ? 'Processing...' : 'Revise & Resubmit'}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Re-open for new candidates after interview rejection */}
+                      {request.status === 'CANDIDATE_REJECTED_INTERVIEW' && (
+                        <button
+                          onClick={async () => {
+                            if (!id) return;
+                            try {
+                              setProcessingAction(true);
+                              await requestService.updateStatus(id, 'JOB_POSTED' as any);
+                              await fetchRequestData();
+                              alert('Request returned to Job Posted for new candidates');
+                            } catch (err: any) {
+                              alert(err.message || 'Failed');
+                            } finally {
+                              setProcessingAction(false);
+                            }
+                          }}
+                          disabled={processingAction}
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-lg">replay</span>
+                          {processingAction ? 'Processing...' : 'Re-open for New Candidates'}
                         </button>
                       )}
                     </>
