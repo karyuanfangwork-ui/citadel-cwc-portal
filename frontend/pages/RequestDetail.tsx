@@ -1783,15 +1783,42 @@ const RequestDetail = () => {
               )}
 
               {/* Common Actions */}
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors">
+              <label className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
                 <span className="material-symbols-outlined text-lg">attach_file</span>
                 Add Attachment
-              </button>
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors">
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !id) return;
+                    try {
+                      await requestService.uploadAttachment(id, file);
+                      await fetchRequestData();
+                      alert('Attachment uploaded successfully');
+                    } catch (err: any) {
+                      alert(err.message || 'Failed to upload attachment');
+                    }
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <button
+                onClick={() => {
+                  const url = window.location.href;
+                  navigator.clipboard.writeText(url).then(() => {
+                    alert('Request link copied to clipboard');
+                  });
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors"
+              >
                 <span className="material-symbols-outlined text-lg">share</span>
                 Share Request
               </button>
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors">
+              <button
+                onClick={() => window.print()}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors"
+              >
                 <span className="material-symbols-outlined text-lg">print</span>
                 Print Details
               </button>
