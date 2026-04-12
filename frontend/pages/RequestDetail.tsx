@@ -13,6 +13,8 @@ import { getValidNextStatuses } from '../src/utils/workflowTransitions';
 import OnboardingDashboard from '../src/components/OnboardingDashboard';
 import ActionBanner from '../src/components/request-detail/ActionBanner';
 import { detectRequestRole, isHiringRequest } from '../src/utils/roleDetection';
+import SLAIndicator from '../src/components/request-detail/SLAIndicator';
+import CustomFieldsPanel from '../src/components/request-detail/CustomFieldsPanel';
 import {
   RequestStatus,
   InterviewSchedule,
@@ -50,6 +52,7 @@ interface Request {
     email: string;
   };
   requesterId: string;
+  slaDueAt?: string | null;
   candidateResumes?: CandidateResume[];
   interviewSchedule?: InterviewSchedule;
   interviewFeedback?: InterviewFeedback;
@@ -835,28 +838,11 @@ const RequestDetail = () => {
               </p>
             </div>
 
-            {/* Custom Fields - Main Content Display */}
-            {request.customFields && Object.keys(request.customFields).length > 0 && (
-              <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
-                <span className="text-xs font-bold text-[#5e718d] uppercase tracking-widest block mb-6">
-                  Additional Information
-                </span>
-                <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {Object.entries(request.customFields)
-                    .filter(([key, value]) => value !== null && value !== undefined && value !== '')
-                    .map(([key, value]) => (
-                      <div key={key} className="border-l-4 border-[#0052cc] pl-4">
-                        <dt className="text-sm font-bold text-[#5e718d] uppercase tracking-wide mb-2">
-                          {key.replace(/([A-Z_])/g, ' $1').trim().replace(/_/g, ' ')}
-                        </dt>
-                        <dd className="text-lg font-semibold text-[#101418]">
-                          {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
-                        </dd>
-                      </div>
-                    ))}
-                </dl>
-              </div>
-            )}
+            {/* Structured Custom Fields */}
+            <CustomFieldsPanel
+              customFields={request.customFields}
+              serviceDeskCode={request.serviceDesk?.code || ''}
+            />
 
             {/* Candidate Resumes Section - Show when resumes exist */}
             {resumes.length > 0 && (
@@ -1602,6 +1588,14 @@ const RequestDetail = () => {
                 <dt className="text-[#5e718d] mb-1">Priority</dt>
                 <dd className="font-semibold">{request.priority}</dd>
               </div>
+              {request.slaDueAt && (
+                <div>
+                  <dt className="text-[#5e718d] mb-1">SLA Status</dt>
+                  <dd>
+                    <SLAIndicator slaDueAt={request.slaDueAt} status={request.status} />
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt className="text-[#5e718d] mb-1">Service Desk</dt>
                 <dd className="font-semibold">{request.serviceDesk?.name || 'N/A'}</dd>
@@ -1840,7 +1834,7 @@ const RequestDetail = () => {
               )}
 
               {/* Hiring Manager Actions (Requester) */}
-              {user?.id === request.requester?.id && (
+              {user?.id === request.requester?.id && isHiringRequest(request.serviceDesk?.code || '', request.status) && (
                 <>
                   {/* Candidate Selection Review */}
                   {request.status === 'PENDING_MANAGER_REVIEW' && (
