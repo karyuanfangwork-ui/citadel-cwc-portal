@@ -1303,7 +1303,7 @@ const RequestDetail = () => {
             )}
 
           {/* Update Status dropdown — only valid transitions */}
-          {getValidNextStatuses(request.status).length > 0 && (
+          {(user?.roles?.includes('ADMIN') || user?.roles?.includes('AGENT')) && getValidNextStatuses(request.status).length > 0 && (
             <div className="relative">
               <label className="block text-xs font-bold text-[#5e718d] mb-2">Update Status</label>
               <select
