@@ -75,6 +75,7 @@ const RequestDetail = () => {
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [isInternalNote, setIsInternalNote] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<'all' | 'comments' | 'system' | 'internal'>('all');
   const [assigning, setAssigning] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showResolutionModal, setShowResolutionModal] = useState(false);
@@ -1393,9 +1394,28 @@ const RequestDetail = () => {
 
           {/* Communication Timeline */}
           <section className="space-y-6">
-            <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
-              <span className="material-symbols-outlined text-[#0052cc]">encrypted</span>
-              <h3 className="font-bold text-xl">Secure Communication</h3>
+            <div className="border-b border-gray-100 pb-4">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="material-symbols-outlined text-[#0052cc]">encrypted</span>
+                <h3 className="font-bold text-xl">Secure Communication</h3>
+              </div>
+              <div className="flex gap-2">
+                {(['all', 'comments', 'system'] as const).concat(
+                  (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) ? ['internal' as const] : []
+                ).map(filter => (
+                  <button
+                    key={filter}
+                    onClick={() => setActivityFilter(filter)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                      activityFilter === filter
+                        ? 'bg-[#0052cc] text-white'
+                        : 'bg-gray-100 text-[#5e718d] hover:bg-gray-200'
+                    }`}
+                  >
+                    {filter === 'all' ? 'All' : filter === 'comments' ? 'Comments' : filter === 'system' ? 'Activity Log' : 'Internal'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="space-y-8">
@@ -1404,7 +1424,19 @@ const RequestDetail = () => {
                   <p>No activities yet</p>
                 </div>
               ) : (
-                activities.map((activity, idx) => {
+                activities
+                  .filter(activity => {
+                    // Hide internal notes from non-agent/admin users
+                    if (activity.isInternal && !user?.roles?.includes('AGENT') && !user?.roles?.includes('ADMIN')) {
+                      return false;
+                    }
+                    // Tab filter
+                    if (activityFilter === 'comments') return !activity.isSystemGenerated && !activity.isInternal;
+                    if (activityFilter === 'system') return activity.isSystemGenerated;
+                    if (activityFilter === 'internal') return activity.isInternal;
+                    return true;
+                  })
+                  .map((activity, idx) => {
                   const isUser = activity.authorName === `${user?.firstName} ${user?.lastName}`;
                   return (
                     <div key={activity.id} className={`flex gap-4 ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -1420,9 +1452,12 @@ const RequestDetail = () => {
                       </div>
                       <div className={`flex-1 max-w-xl ${isUser ? 'text-right' : ''}`}>
                         <div
-                          className={`p-5 rounded-2xl shadow-sm border ${isUser
-                            ? 'bg-blue-50 border-blue-100 rounded-tr-none'
-                            : 'bg-white border-gray-100 rounded-tl-none'
+                          className={`p-5 rounded-2xl shadow-sm border ${
+                            activity.isInternal
+                              ? 'bg-amber-50 border-amber-200 border-dashed rounded-tl-none'
+                              : isUser
+                                ? 'bg-blue-50 border-blue-100 rounded-tr-none'
+                                : 'bg-white border-gray-100 rounded-tl-none'
                             }`}
                         >
                           <div className="flex justify-between items-center mb-2 gap-4">
@@ -1437,6 +1472,12 @@ const RequestDetail = () => {
                           <p className="text-sm text-[#44546f] leading-relaxed text-left">
                             {activity.message}
                           </p>
+                          {activity.isInternal && (
+                            <div className="flex items-center gap-1 mt-2 text-amber-600">
+                              <span className="material-symbols-outlined text-xs">lock</span>
+                              <span className="text-[10px] font-bold uppercase">Internal Note</span>
+                            </div>
+                          )}
                           {activity.isSystemGenerated && (
                             <span className="text-[10px] text-[#5e718d] italic mt-2 block">
                               System generated
