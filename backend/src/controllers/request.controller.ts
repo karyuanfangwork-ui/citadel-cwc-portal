@@ -411,9 +411,16 @@ class RequestController {
             orderBy: { createdAt: 'asc' },
         });
 
+        // Filter internal activities for non-agent/admin users
+        const userRoles = req.user!.roles || [];
+        const isAgentOrAdmin = userRoles.includes('ADMIN') || userRoles.includes('AGENT');
+        const filteredActivities = isAgentOrAdmin
+          ? activities
+          : activities.filter((a: any) => !a.isInternal);
+
         res.json({
             status: 'success',
-            data: { activities },
+            data: { activities: filteredActivities },
         });
     });
 
