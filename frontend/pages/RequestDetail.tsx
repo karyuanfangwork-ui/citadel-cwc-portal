@@ -74,6 +74,7 @@ const RequestDetail = () => {
   const [error, setError] = useState<string | null>(null);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [isInternalNote, setIsInternalNote] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showResolutionModal, setShowResolutionModal] = useState(false);
@@ -199,11 +200,12 @@ const RequestDetail = () => {
 
     try {
       setSubmitting(true);
-      const newActivity = await requestService.addActivity(id, comment, false);
+      const newActivity = await requestService.addActivity(id, comment, isInternalNote);
 
       // Add the new activity to the list
       setActivities([...activities, newActivity]);
       setComment('');
+      setIsInternalNote(false);
     } catch (err: any) {
       console.error('Error adding comment:', err);
       alert('Failed to add comment: ' + (err.message || 'Unknown error'));
@@ -1460,6 +1462,18 @@ const RequestDetail = () => {
                   onChange={(e) => setComment(e.target.value)}
                   disabled={submitting}
                 ></textarea>
+                {(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && (
+                  <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isInternalNote}
+                      onChange={(e) => setIsInternalNote(e.target.checked)}
+                      className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="material-symbols-outlined text-sm text-amber-600">lock</span>
+                    <span className="text-sm font-semibold text-amber-700">Internal note (not visible to requester)</span>
+                  </label>
+                )}
                 <div className="flex justify-end gap-3 mt-4">
                   <button
                     type="button"
