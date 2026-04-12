@@ -9,6 +9,7 @@ import { useAuth } from '../src/context/AuthContext';
 import itWorkflowService from '../src/services/it-workflow.service';
 import financeWorkflowService from '../src/services/finance-workflow.service';
 import { STATUS_CONFIG } from '../constants';
+import { getValidNextStatuses } from '../src/utils/workflowTransitions';
 import OnboardingDashboard from '../src/components/OnboardingDashboard';
 import ActionBanner from '../src/components/request-detail/ActionBanner';
 import { detectRequestRole, isHiringRequest } from '../src/utils/roleDetection';
@@ -1651,25 +1652,27 @@ const RequestDetail = () => {
                     </button>
                   )}
 
-                  {/* Update Status dropdown */}
-                  <div className="relative">
-                    <label className="block text-xs font-bold text-[#5e718d] mb-2">Update Status</label>
-                    <select
-                      value={request.status}
-                      onChange={(e) => handleStatusChange(e.target.value)}
-                      disabled={updatingStatus}
-                      className="w-full px-4 py-2.5 text-sm font-semibold text-[#44546f] bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="SUBMITTED">Submitted</option>
-                      <option value="IN_REVIEW">In Review</option>
-                      <option value="IN_PROGRESS">In Progress</option>
-                      <option value="ACTION_REQUIRED">Action Required</option>
-                      <option value="WAITING">Waiting</option>
-                      <option value="APPROVED">Approved</option>
-                      <option value="REJECTED">Rejected</option>
-                      <option value="RESOLVED">Resolved</option>
-                    </select>
-                  </div>
+                  {/* Update Status dropdown — only valid transitions */}
+                  {getValidNextStatuses(request.status).length > 0 && (
+                    <div className="relative">
+                      <label className="block text-xs font-bold text-[#5e718d] mb-2">Update Status</label>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value) handleStatusChange(e.target.value);
+                        }}
+                        disabled={updatingStatus}
+                        className="w-full px-4 py-2.5 text-sm font-semibold text-[#44546f] bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <option value="">Select next status...</option>
+                        {getValidNextStatuses(request.status).map(status => (
+                          <option key={status} value={status}>
+                            {STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]?.label || status}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {/* Hiring Workflow Actions for HR Agents */}
                   {request.serviceDesk?.code === 'HR' && (
