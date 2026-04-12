@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { createOnboardingFromHiring } from '../services/onboarding.service';
 
 const prisma = new PrismaClient();
 
@@ -478,8 +479,9 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
         const updatedRequest = await prisma.request.update({
             where: { id },
             data: {
-                status: 'RESOLVED',
-                resolvedAt: new Date()
+                status: 'COMPLETED',
+                resolvedAt: new Date(),
+                closedAt: new Date()
             }
         });
 
@@ -495,6 +497,29 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
                 isSystemGenerated: true
             }
         });
+
+        // Automatically create onboarding workflow
+        console.log('=== ONBOARDING AUTO-CREATION TRIGGER ===');
+        console.log('Request ID:', id);
+        console.log('Request Status:', updatedRequest.status);
+
+        try {
+            console.log('Calling createOnboardingFromHiring...');
+            const onboarding = await createOnboardingFromHiring(updatedRequest);
+
+            if (onboarding) {
+                console.log(`✅ Onboarding workflow created successfully for request ${id}`);
+                console.log('Onboarding ID:', onboarding.id);
+            } else {
+                console.log('⚠️  createOnboardingFromHiring returned null');
+            }
+        } catch (onboardingError) {
+            console.error('❌ Error creating onboarding workflow:', onboardingError);
+            console.error('Error stack:', (onboardingError as Error).stack);
+            // Don't fail the LOA acceptance if onboarding creation fails
+        }
+        console.log('=== END ONBOARDING TRIGGER ===');
+
 
         res.json({
             status: 'success',
