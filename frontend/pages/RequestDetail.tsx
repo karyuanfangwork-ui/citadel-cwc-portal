@@ -597,7 +597,19 @@ const RequestDetail = () => {
   };
 
   const getStatusSteps = (currentStatus: string) => {
-    const isHiringWorkflow = request?.serviceDesk?.code === 'HR';
+    // Only show hiring stepper for actual hiring workflow statuses
+    const hiringStatuses = [
+      'PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED',
+      'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED',
+      'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'CANDIDATE_REJECTED_INTERVIEW',
+      'HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED',
+      'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL',
+      'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1',
+      'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION',
+      'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE',
+      'ONBOARDING_MONTH_3_MILESTONE', 'ONBOARDING_COMPLETED'
+    ];
+    const isHiringWorkflow = request?.serviceDesk?.code === 'HR' && hiringStatuses.includes(currentStatus);
 
     if (isHiringWorkflow) {
       const allSteps = [
