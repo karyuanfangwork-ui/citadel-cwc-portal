@@ -52,7 +52,7 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
     new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 
   const initials = (name: string) =>
-    name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+    name.split(' ').filter(Boolean).map(p => p[0]).join('').slice(0, 2).toUpperCase();
 
   const tabs: { id: TabType; label: string; count?: number }[] = [
     { id: 'all',      label: 'All' },

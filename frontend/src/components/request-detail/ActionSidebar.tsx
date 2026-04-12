@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getWorkflowActions } from '../../utils/workflowActions';
+import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
 import WorkflowApproveModal from './WorkflowApproveModal';
 import WorkflowRejectModal from './WorkflowRejectModal';
 import SubmitForApprovalModal from './SubmitForApprovalModal';
@@ -58,7 +58,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
     onActionSuccess();
   };
 
-  const handleActionClick = (type: string) => {
+  const handleActionClick = (type: WorkflowActionType) => {
     switch (type) {
       case 'APPROVE': setOpenModal('APPROVE'); break;
       case 'REJECT': setOpenModal('REJECT'); break;
@@ -66,6 +66,8 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'START_PROCUREMENT': setOpenModal('PROCUREMENT'); break;
       case 'MARK_FULFILLED': setOpenModal('FULFILMENT'); break;
       case 'ASSIGN': setOpenModal('ASSIGN'); break;
+      default:
+        console.warn('[ActionSidebar] Unhandled action type:', type);
     }
   };
 
@@ -115,7 +117,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className={`size-8 rounded-full flex items-center justify-center text-xs font-bold ${assignedTo ? 'bg-[#0052cc] text-white' : 'bg-amber-100 text-amber-700'}`}>
-              {assignedTo ? `${assignedTo.firstName[0]}${assignedTo.lastName[0]}` : '!'}
+              {assignedTo ? `${assignedTo.firstName[0] ?? '?'}${assignedTo.lastName[0] ?? '?'}` : '!'}
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Assigned To</p>
