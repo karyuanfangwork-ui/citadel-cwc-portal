@@ -592,6 +592,18 @@ class RequestController {
         const { id } = req.params;
         const { status } = req.body;
 
+        // Fetch current request to validate transition
+        const currentRequest = await prisma.request.findUnique({ where: { id } });
+        if (!currentRequest) {
+            throw new AppError('Request not found', 404);
+        }
+
+        // Validate transition
+        const { isValidTransition } = require('../utils/workflowTransitions');
+        if (!isValidTransition(currentRequest.status, status)) {
+            throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
+        }
+
         const request = await prisma.request.update({
             where: { id },
             data: { status: status as RequestStatus },
