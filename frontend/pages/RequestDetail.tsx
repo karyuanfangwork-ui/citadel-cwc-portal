@@ -10,6 +10,8 @@ import itWorkflowService from '../src/services/it-workflow.service';
 import financeWorkflowService from '../src/services/finance-workflow.service';
 import { STATUS_CONFIG } from '../constants';
 import OnboardingDashboard from '../src/components/OnboardingDashboard';
+import ActionBanner from '../src/components/request-detail/ActionBanner';
+import { detectRequestRole, isHiringRequest } from '../src/utils/roleDetection';
 import {
   RequestStatus,
   InterviewSchedule,
@@ -705,6 +707,14 @@ const RequestDetail = () => {
 
   const steps = getStatusSteps(request.status);
 
+  const currentRole = detectRequestRole({
+    userRoles: user?.roles || [],
+    userId: user?.id || '',
+    requesterId: request.requesterId || request.requester?.id || '',
+    requestStatus: request.status,
+    serviceDeskCode: request.serviceDesk?.code || '',
+  });
+
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <nav className="flex items-center gap-2 mb-6 text-sm font-medium text-[#5e718d]">
@@ -745,6 +755,16 @@ const RequestDetail = () => {
           ))}
         </div>
       </div>
+
+      <ActionBanner
+        role={currentRole}
+        status={request.status}
+        assignedToName={request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}` : undefined}
+        onActionClick={() => {
+          const actionsSection = document.querySelector('[data-actions-sidebar]');
+          if (actionsSection) actionsSection.scrollIntoView({ behavior: 'smooth' });
+        }}
+      />
 
       {/* Resolution Summary - Only show for RESOLVED/COMPLETED tickets */}
       {(request.status === 'RESOLVED' || request.status === 'COMPLETED') && (() => {
@@ -1612,7 +1632,7 @@ const RequestDetail = () => {
             </dl>
           </div>
 
-          <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
+          <div data-actions-sidebar className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
             <h3 className="font-bold mb-4">Actions</h3>
             <div className="space-y-2">
               {/* Agent Actions - Show only if user is an agent/admin AND not the requester */}
