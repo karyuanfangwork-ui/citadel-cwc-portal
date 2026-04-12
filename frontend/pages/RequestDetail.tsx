@@ -1503,6 +1503,26 @@ const RequestDetail = () => {
                 </dd>
               </div>
               <div>
+                <dt className="text-[#5e718d] mb-1">Assigned To</dt>
+                <dd>
+                  {request.assignedTo ? (
+                    <div className="flex items-center gap-2">
+                      <div className="size-7 rounded-full bg-[#0052cc]/10 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-sm text-[#0052cc]">person</span>
+                      </div>
+                      <span className="font-semibold text-[#101418]">
+                        {request.assignedTo.firstName} {request.assignedTo.lastName}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-orange-600 font-semibold text-xs flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">warning</span>
+                      Unassigned
+                    </span>
+                  )}
+                </dd>
+              </div>
+              <div>
                 <dt className="text-[#5e718d] mb-1">Priority</dt>
                 <dd className="font-semibold">{request.priority}</dd>
               </div>
