@@ -6,7 +6,6 @@ import interviewService from '../src/services/interview.service';
 import screeningService from '../src/services/screening.service';
 import loaService from '../src/services/loa.service';
 import { useAuth } from '../src/context/AuthContext';
-import itWorkflowService from '../src/services/it-workflow.service';
 import financeWorkflowService from '../src/services/finance-workflow.service';
 import { STATUS_CONFIG } from '../constants';
 import { getValidNextStatuses } from '../src/utils/workflowTransitions';
@@ -15,7 +14,8 @@ import ActionBanner from '../src/components/request-detail/ActionBanner';
 import { detectRequestRole, isHiringRequest } from '../src/utils/roleDetection';
 import SLAIndicator from '../src/components/request-detail/SLAIndicator';
 import CustomFieldsPanel from '../src/components/request-detail/CustomFieldsPanel';
-import AssignToDropdown from '../src/components/request-detail/AssignToDropdown';
+import ActionSidebar from '../src/components/request-detail/ActionSidebar';
+import ActivityFeed from '../src/components/request-detail/ActivityFeed';
 import {
   RequestStatus,
   InterviewSchedule,
@@ -79,11 +79,6 @@ const RequestDetail = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [comment, setComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [isInternalNote, setIsInternalNote] = useState(false);
-  const [activityFilter, setActivityFilter] = useState<'all' | 'comments' | 'system' | 'internal'>('all');
-  const [assigning, setAssigning] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [resolutionComment, setResolutionComment] = useState('');
@@ -199,47 +194,6 @@ const RequestDetail = () => {
       }
     } catch (error) {
       console.error('Error fetching workflow details:', error);
-    }
-  };
-
-  const handleSubmitComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!comment.trim() || !id) return;
-
-    try {
-      setSubmitting(true);
-      const newActivity = await requestService.addActivity(id, comment, isInternalNote);
-
-      // Add the new activity to the list
-      setActivities([...activities, newActivity]);
-      setComment('');
-      setIsInternalNote(false);
-    } catch (err: any) {
-      console.error('Error adding comment:', err);
-      alert('Failed to add comment: ' + (err.message || 'Unknown error'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleAssignToSelf = async () => {
-    if (!id || !user?.id) return;
-
-    try {
-      setAssigning(true);
-      const updatedRequest = await requestService.assignRequest(id, user.id);
-
-      // Update the request with the new assignment
-      setRequest(updatedRequest);
-
-      // Refresh activities to show the assignment event
-      const updatedActivities = await requestService.getRequestActivities(id);
-      setActivities(updatedActivities);
-    } catch (err: any) {
-      console.error('Error assigning request:', err);
-      alert('Failed to assign request: ' + (err.message || 'Unknown error'));
-    } finally {
-      setAssigning(false);
     }
   };
 
@@ -1223,85 +1177,6 @@ const RequestDetail = () => {
               </section>
             )}
 
-            {/* IT Workflow Actions */}
-            {request.serviceDesk?.code === 'IT' && (
-              <section className="space-y-4">
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
-                  <span className="material-symbols-outlined text-[#0052cc]">devices</span>
-                  <h3 className="font-bold text-xl">IT Workflow</h3>
-                </div>
-
-                {request.status === 'SUBMITTED' && user?.roles?.includes('ADMIN') && (
-                  <button
-                    onClick={async () => {
-                      const managerId = prompt('Enter manager user ID for approval:');
-                      if (managerId) {
-                        await itWorkflowService.submitForApproval(request.id, managerId);
-                        window.location.reload();
-                      }
-                    }}
-                    className="px-4 py-2 bg-[#0052cc] text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Submit for Manager Approval
-                  </button>
-                )}
-
-                {request.status === 'PENDING_MANAGER_APPROVAL_IT' && (
-                  <div className="flex gap-3">
-                    <button
-                      onClick={async () => {
-                        const comments = prompt('Approval comments (optional):');
-                        await itWorkflowService.managerDecision(request.id, 'APPROVED', comments || undefined);
-                        window.location.reload();
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={async () => {
-                        const comments = prompt('Reason for rejection:');
-                        if (comments) {
-                          await itWorkflowService.managerDecision(request.id, 'REJECTED', comments);
-                          window.location.reload();
-                        }
-                      }}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                )}
-
-                {request.status === 'MANAGER_APPROVED_IT' && user?.roles?.includes('ADMIN') && (
-                  <button
-                    onClick={async () => {
-                      const vendor = prompt('Vendor name (optional):');
-                      const orderNumber = prompt('Order number (optional):');
-                      await itWorkflowService.markProcurement(request.id, { vendor: vendor || undefined, orderNumber: orderNumber || undefined });
-                      window.location.reload();
-                    }}
-                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-                  >
-                    Start Procurement
-                  </button>
-                )}
-
-                {(request.status === 'PROCUREMENT_IN_PROGRESS' || request.status === 'MANAGER_APPROVED_IT') && user?.roles?.includes('ADMIN') && (
-                  <button
-                    onClick={async () => {
-                      const notes = prompt('Fulfilment notes (optional):');
-                      await itWorkflowService.markFulfilled(request.id, notes || undefined);
-                      window.location.reload();
-                    }}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    Mark as Fulfilled
-                  </button>
-                )}
-              </section>
-            )}
-
             {/* Finance Workflow Actions */}
             {request.serviceDesk?.code === 'FINANCE' && (
               <section className="space-y-4">
@@ -1313,8 +1188,13 @@ const RequestDetail = () => {
                 {request.status === 'SUBMITTED' && user?.roles?.includes('ADMIN') && (
                   <button
                     onClick={async () => {
-                      const managerId = prompt('Enter manager user ID for approval:');
+                      const managerId = prompt('Enter manager user ID (UUID) for approval:');
                       if (managerId) {
+                        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                        if (!uuidRegex.test(managerId)) {
+                          alert('Invalid user ID. Please enter a valid UUID (e.g. from the admin panel).');
+                          return;
+                        }
                         await financeWorkflowService.submitForManager(request.id, managerId);
                         window.location.reload();
                       }
@@ -1422,263 +1302,31 @@ const RequestDetail = () => {
               </section>
             )}
 
-          {/* Communication Timeline */}
-          <section className="space-y-6">
-            <div className="border-b border-gray-100 pb-4">
-              <div className="flex items-center gap-3 mb-4">
-                <span className="material-symbols-outlined text-[#0052cc]">encrypted</span>
-                <h3 className="font-bold text-xl">Secure Communication</h3>
-              </div>
-              <div className="flex gap-2">
-                {(['all', 'comments', 'system'] as const).concat(
-                  (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) ? ['internal' as const] : []
-                ).map(filter => (
-                  <button
-                    key={filter}
-                    onClick={() => setActivityFilter(filter)}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-                      activityFilter === filter
-                        ? 'bg-[#0052cc] text-white'
-                        : 'bg-gray-100 text-[#5e718d] hover:bg-gray-200'
-                    }`}
-                  >
-                    {filter === 'all' ? 'All' : filter === 'comments' ? 'Comments' : filter === 'system' ? 'Activity Log' : 'Internal'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="space-y-8">
-              {activities.length === 0 ? (
-                <div className="text-center py-8 text-[#5e718d]">
-                  <p>No activities yet</p>
-                </div>
-              ) : (
-                activities
-                  .filter(activity => {
-                    // Hide internal notes from non-agent/admin users
-                    if (activity.isInternal && !user?.roles?.includes('AGENT') && !user?.roles?.includes('ADMIN')) {
-                      return false;
-                    }
-                    // Tab filter
-                    if (activityFilter === 'comments') return !activity.isSystemGenerated && !activity.isInternal;
-                    if (activityFilter === 'system') return activity.isSystemGenerated;
-                    if (activityFilter === 'internal') return activity.isInternal;
-                    return true;
-                  })
-                  .map((activity, idx) => {
-                  const isUser = activity.authorName === `${user?.firstName} ${user?.lastName}`;
-                  return (
-                    <div key={activity.id} className={`flex gap-4 ${isUser ? 'flex-row-reverse' : ''}`}>
-                      <div
-                        className={`size-10 rounded-full flex items-center justify-center shrink-0 ${isUser
-                          ? 'bg-[#0052cc]/10 text-[#0052cc]'
-                          : 'bg-gray-100 text-[#5e718d]'
-                          }`}
-                      >
-                        <span className="material-symbols-outlined">
-                          {isUser ? 'person' : 'shield_person'}
-                        </span>
-                      </div>
-                      <div className={`flex-1 max-w-xl ${isUser ? 'text-right' : ''}`}>
-                        <div
-                          className={`p-5 rounded-2xl shadow-sm border ${
-                            activity.isInternal
-                              ? 'bg-amber-50 border-amber-200 border-dashed rounded-tl-none'
-                              : isUser
-                                ? 'bg-blue-50 border-blue-100 rounded-tr-none'
-                                : 'bg-white border-gray-100 rounded-tl-none'
-                            }`}
-                        >
-                          <div className="flex justify-between items-center mb-2 gap-4">
-                            <span className="text-xs font-bold text-[#0052cc]">
-                              {activity.authorName}
-                              {activity.authorRole && ` (${activity.authorRole})`}
-                            </span>
-                            <span className="text-[11px] text-[#5e718d]">
-                              {formatDateTime(activity.createdAt)}
-                            </span>
-                          </div>
-                          <p className="text-sm text-[#44546f] leading-relaxed text-left">
-                            {activity.message}
-                          </p>
-                          {activity.isInternal && (
-                            <div className="flex items-center gap-1 mt-2 text-amber-600">
-                              <span className="material-symbols-outlined text-xs">lock</span>
-                              <span className="text-[10px] font-bold uppercase">Internal Note</span>
-                            </div>
-                          )}
-                          {activity.isSystemGenerated && (
-                            <span className="text-[10px] text-[#5e718d] italic mt-2 block">
-                              System generated
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Add Comment Form */}
-            <form onSubmit={handleSubmitComment} className="mt-8">
-              <div className="bg-white border border-gray-200 rounded-xl p-6">
-                <label className="block text-sm font-bold text-[#101418] mb-3">Add a comment</label>
-                <textarea
-                  className="w-full p-4 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none resize-none"
-                  rows={4}
-                  placeholder="Type your message here..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  disabled={submitting}
-                ></textarea>
-                {(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && (
-                  <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={isInternalNote}
-                      onChange={(e) => setIsInternalNote(e.target.checked)}
-                      className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
-                    />
-                    <span className="material-symbols-outlined text-sm text-amber-600">lock</span>
-                    <span className="text-sm font-semibold text-amber-700">Internal note (not visible to requester)</span>
-                  </label>
-                )}
-                <div className="flex justify-end gap-3 mt-4">
-                  <button
-                    type="button"
-                    className="px-6 py-2 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
-                    onClick={() => setComment('')}
-                    disabled={submitting}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-[#0052cc] text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!comment.trim() || submitting}
-                  >
-                    {submitting ? 'Posting...' : 'Post Comment'}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </section>
+          <ActivityFeed
+            activities={activities}
+            onSubmitComment={async (text, isInternal) => {
+              const newActivity = await requestService.addActivity(id!, text, isInternal);
+              setActivities(prev => [...prev, newActivity]);
+            }}
+            canPostInternal={!!(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN'))}
+          />
         </div>
 
-        {/* Sidebar */}
-        <aside className="w-full lg:w-80 space-y-6">
-          <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-            <h3 className="font-bold mb-6">Request Details</h3>
-            <dl className="space-y-4 text-sm">
-              <div>
-                <dt className="text-[#5e718d] mb-1">Reference Number</dt>
-                <dd className="font-mono font-bold text-[#0052cc]">{request.referenceNumber}</dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Status</dt>
-                <dd>
-                  <span
-                    className={`inline-flex px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[request.status]?.bg || 'bg-gray-100'
-                      } ${STATUS_CONFIG[request.status]?.color || 'text-gray-600'}`}
-                  >
-                    {STATUS_CONFIG[request.status]?.label || request.status}
-                  </span>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Assigned To</dt>
-                <dd>
-                  {request.assignedTo ? (
-                    <div className="flex items-center gap-2">
-                      <div className="size-7 rounded-full bg-[#0052cc]/10 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-sm text-[#0052cc]">person</span>
-                      </div>
-                      <span className="font-semibold text-[#101418]">
-                        {request.assignedTo.firstName} {request.assignedTo.lastName}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-orange-600 font-semibold text-xs flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm">warning</span>
-                      Unassigned
-                    </span>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Priority</dt>
-                <dd className="font-semibold">{request.priority}</dd>
-              </div>
-              {request.slaDueAt && (
-                <div>
-                  <dt className="text-[#5e718d] mb-1">SLA Status</dt>
-                  <dd>
-                    <SLAIndicator slaDueAt={request.slaDueAt} status={request.status} />
-                  </dd>
-                </div>
-              )}
-              <div>
-                <dt className="text-[#5e718d] mb-1">Service Desk</dt>
-                <dd className="font-semibold">{request.serviceDesk?.name || 'N/A'}</dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Requester</dt>
-                <dd className="font-semibold">
-                  {request.requester
-                    ? `${request.requester.firstName} ${request.requester.lastName}`
-                    : 'N/A'}
-                </dd>
-              </div>
-              {request.assignedTo && (
-                <div>
-                  <dt className="text-[#5e718d] mb-1">Assigned To</dt>
-                  <dd className="font-semibold">
-                    {request.assignedTo.firstName} {request.assignedTo.lastName}
-                  </dd>
-                </div>
-              )}
-              <div>
-                <dt className="text-[#5e718d] mb-1">Created</dt>
-                <dd className="font-semibold">{formatDateTime(request.createdAt)}</dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Last Updated</dt>
-                <dd className="font-semibold">{formatDateTime(request.updatedAt)}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div data-actions-sidebar className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-            <h3 className="font-bold mb-4">Actions</h3>
-            <div className="space-y-2">
-              {/* Agent Actions - Show only if user is an agent/admin AND not the requester */}
-              {(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) &&
-                user?.id !== request.requester?.id ? (
-                <>
-                  {/* Assign to Me button - Show only if not assigned */}
-                  {!request.assignedTo && (
-                    <button
-                      onClick={handleAssignToSelf}
-                      disabled={assigning}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-[#0052cc] hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="material-symbols-outlined text-lg">person_add</span>
-                      {assigning ? 'Assigning...' : 'Assign to Me'}
-                    </button>
-                  )}
-
-                  {/* Assign to another agent */}
-                  <AssignToDropdown
-                    currentAssigneeId={request.assignedTo?.id}
-                    onAssign={async (agentId) => {
-                      const updatedRequest = await requestService.assignRequest(id!, agentId);
-                      setRequest(updatedRequest);
-                      const updatedActivities = await requestService.getRequestActivities(id!);
-                      setActivities(updatedActivities);
-                    }}
-                  />
+        <ActionSidebar
+          requestId={request.id}
+          status={request.status}
+          userRoles={user?.roles || []}
+          userId={user?.id || ''}
+          userName={user ? `${user.firstName} ${user.lastName}` : ''}
+          assignedTo={request.assignedTo || null}
+          referenceNumber={request.referenceNumber}
+          priority={request.priority}
+          serviceDeskName={request.serviceDesk?.name || ''}
+          requesterName={request.requester ? `${request.requester.firstName} ${request.requester.lastName}` : ''}
+          createdAt={request.createdAt}
+          slaDueAt={request.slaDueAt}
+          onActionSuccess={fetchRequestData}
+        />
 
                   {/* Update Status dropdown — only valid transitions */}
                   {getValidNextStatuses(request.status).length > 0 && (
@@ -1901,109 +1549,6 @@ const RequestDetail = () => {
                     </>
                   )}
 
-                  <div className="h-px bg-gray-200 my-2"></div>
-                </>
-              ) : null}
-
-              {/* CEO Actions */}
-              {user?.roles?.includes('CEO') && request.status === 'PENDING_CEO_APPROVAL' && (
-                <>
-                  <button
-                    onClick={() => setShowCEODecisionModal(true)}
-                    disabled={processingAction}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="material-symbols-outlined text-lg">check_circle</span>
-                    {processingAction ? 'Processing...' : 'Review Request'}
-                  </button>
-                  <div className="h-px bg-gray-200 my-2"></div>
-                </>
-              )}
-
-              {/* Hiring Manager Actions (Requester) */}
-              {user?.id === request.requester?.id && isHiringRequest(request.serviceDesk?.code || '', request.status) && (
-                <>
-                  {/* Candidate Selection Review */}
-                  {request.status === 'PENDING_MANAGER_REVIEW' && (
-                    <button
-                      onClick={() => setShowManagerDecisionModal(true)}
-                      disabled={processingAction}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="material-symbols-outlined text-lg">rate_review</span>
-                      {processingAction ? 'Processing...' : 'Review Candidates'}
-                    </button>
-                  )}
-
-                  {/* Submit Interview Feedback */}
-                  {request.status === 'INTERVIEW_SCHEDULED' && (
-                    <button
-                      onClick={() => setShowInterviewFeedbackModal(true)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-lg">feedback</span>
-                      Submit Interview Feedback
-                    </button>
-                  )}
-
-                  {/* LOA Approval Decision */}
-                  {request.status === 'LOA_PENDING_APPROVAL' && loaDetails && (
-                    <button
-                      onClick={() => setShowLOAApprovalModal(true)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-lg">fact_check</span>
-                      Approve/Reject LOA
-                    </button>
-                  )}
-
-                  {request.status !== 'SUBMITTED' && <div className="h-px bg-gray-200 my-2"></div>}
-                </>
-              )}
-
-              {/* Common Actions */}
-              <label className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors cursor-pointer">
-                <span className="material-symbols-outlined text-lg">attach_file</span>
-                Add Attachment
-                <input
-                  type="file"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file || !id) return;
-                    try {
-                      await requestService.uploadAttachment(id, file);
-                      await fetchRequestData();
-                      alert('Attachment uploaded successfully');
-                    } catch (err: any) {
-                      alert(err.message || 'Failed to upload attachment');
-                    }
-                    e.target.value = '';
-                  }}
-                />
-              </label>
-              <button
-                onClick={() => {
-                  const url = window.location.href;
-                  navigator.clipboard.writeText(url).then(() => {
-                    alert('Request link copied to clipboard');
-                  });
-                }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">share</span>
-                Share Request
-              </button>
-              <button
-                onClick={() => window.print()}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">print</span>
-                Print Details
-              </button>
-            </div>
-          </div>
-        </aside>
       </div>
 
       {/* Resolution Modal */}
