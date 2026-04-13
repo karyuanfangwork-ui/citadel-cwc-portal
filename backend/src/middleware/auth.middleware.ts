@@ -12,6 +12,8 @@ export interface AuthRequest extends Request {
         email: string;
         roles: string[];
     };
+    jti?: string;
+    tokenExp?: number;
 }
 
 export const authenticate = async (
