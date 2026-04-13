@@ -67,6 +67,7 @@ export async function managerDecision(req: Request, res: Response) {
   try {
     const { id } = req.params;
     const { decision, comments } = req.body;
+    const currentUser = (req as any).user;
 
     if (!['APPROVED', 'REJECTED'].includes(decision)) {
       return res.status(400).json({ error: 'Decision must be APPROVED or REJECTED' });
@@ -75,6 +76,21 @@ export async function managerDecision(req: Request, res: Response) {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Authorization: must be the designated approver OR an ADMIN
+    const isAdmin = currentUser?.roles?.some((r: any) => r.role?.name === 'ADMIN') ?? false;
+    if (!isAdmin) {
+      const approval = await prisma.requestApproval.findFirst({
+        where: {
+          requestId: id,
+          approverId: currentUser?.id,
+          status: 'PENDING',
+        },
+      });
+      if (!approval) {
+        return res.status(403).json({ error: 'Forbidden: you are not the designated approver for this request' });
+      }
     }
 
     const newStatus = decision === 'APPROVED' ? 'MANAGER_APPROVED_IT' : 'MANAGER_REJECTED_IT';
