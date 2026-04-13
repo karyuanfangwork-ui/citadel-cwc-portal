@@ -68,7 +68,7 @@ class RequestController {
         }
 
         if (requestTypeId) {
-            where.requestTypeId = requestTypeId;
+            where.requestTypeId = requestTypeId as string;
         }
 
         if (search) {
