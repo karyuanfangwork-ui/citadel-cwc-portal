@@ -95,38 +95,39 @@ export function getWorkflowActions(
         variant: 'warning',
       });
     }
-    if (status === 'PROCUREMENT_IN_PROGRESS') {
-      actions.push({
-        type: 'MARK_HARDWARE_ORDERED',
-        label: 'Mark Hardware Ordered',
-        description: 'Confirm the hardware order has been placed with the vendor.',
-        variant: 'warning',
-      });
-    }
-    if (status === 'HARDWARE_ORDERED') {
-      actions.push({
-        type: 'MARK_HARDWARE_RECEIVED',
-        label: 'Mark Hardware Received',
-        description: 'Confirm the hardware has been received from the vendor.',
-        variant: 'warning',
-      });
-    }
-    if (status === 'HARDWARE_RECEIVED') {
-      actions.push({
-        type: 'MARK_SOFTWARE_PROVISIONED',
-        label: 'Mark Software Provisioned',
-        description: 'Confirm that required software has been installed and configured.',
-        variant: 'warning',
-      });
-    }
-    if (status === 'SOFTWARE_PROVISIONED') {
-      actions.push({
-        type: 'MARK_FULFILLED',
-        label: 'Close & Resolve',
-        description: 'Confirm the item has been delivered to the requester and close the request.',
-        variant: 'success',
-      });
-    }
+  }
+
+  if (canAct && status === 'PROCUREMENT_IN_PROGRESS' && isProcurement) {
+    actions.push({
+      type: 'MARK_HARDWARE_ORDERED',
+      label: 'Mark Hardware Ordered',
+      description: 'Confirm the hardware order has been placed with the vendor.',
+      variant: 'warning',
+    });
+  }
+  if (canAct && status === 'HARDWARE_ORDERED' && isProcurement) {
+    actions.push({
+      type: 'MARK_HARDWARE_RECEIVED',
+      label: 'Mark Hardware Received',
+      description: 'Confirm the hardware has been received from the vendor.',
+      variant: 'warning',
+    });
+  }
+  if (canAct && status === 'HARDWARE_RECEIVED' && isProcurement) {
+    actions.push({
+      type: 'MARK_SOFTWARE_PROVISIONED',
+      label: 'Mark Software Provisioned',
+      description: 'Confirm that required software has been installed and configured.',
+      variant: 'warning',
+    });
+  }
+  if (canAct && status === 'SOFTWARE_PROVISIONED' && isProcurement) {
+    actions.push({
+      type: 'MARK_FULFILLED',
+      label: 'Close & Resolve',
+      description: 'Confirm the item has been delivered to the requester and close the request.',
+      variant: 'success',
+    });
   }
 
   if (isAdmin && status === 'PENDING_MANAGER_APPROVAL_IT') {
