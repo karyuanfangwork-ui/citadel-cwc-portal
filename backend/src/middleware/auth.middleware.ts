@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { AppError } from './error.middleware';
 import { config } from '../config';
+import { tokenService } from '../services/token.service';
 
 const prisma = new PrismaClient();
 
@@ -22,43 +23,61 @@ export const authenticate = async (
     next: NextFunction
 ) => {
     try {
-        // Get token from header
-        const authHeader = req.headers.authorization;
+        // Prefer cookie; fall back to Authorization header for API clients / tests
+        let token: string | undefined;
+        if (req.cookies?.access_token) {
+            token = req.cookies.access_token;
+        } else {
+            const authHeader = req.headers.authorization;
+            if (authHeader?.startsWith('Bearer ')) {
+                token = authHeader.substring(7);
+            }
+        }
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        if (!token) {
             throw new AppError('No token provided', 401);
         }
 
-        const token = authHeader.substring(7);
-
-        // Verify token
         const decoded = jwt.verify(token, config.jwt.secret) as {
             userId: string;
             email: string;
+            jti?: string;
+            exp?: number;
+            iat?: number;
         };
 
-        // Get user from database
+        // Check Redis blocklist — catches revoked tokens post-logout
+        if (decoded.jti) {
+            const revoked = await tokenService.isJtiRevoked(decoded.jti);
+            if (revoked) {
+                throw new AppError('Token has been revoked', 401);
+            }
+
+            // Check user-level revocation (password change / admin force-logout)
+            const revokedAt = await tokenService.getUserRevocationTimestamp(decoded.userId);
+            const tokenIssuedAt = decoded.iat ? decoded.iat * 1000 : 0;
+            if (revokedAt > 0 && tokenIssuedAt < revokedAt) {
+                throw new AppError('Token has been revoked', 401);
+            }
+        }
+
         const user = await prisma.user.findUnique({
             where: { id: decoded.userId },
-            include: {
-                roles: {
-                    include: {
-                        role: true,
-                    },
-                },
-            },
+            include: { roles: { include: { role: true } } },
         });
 
         if (!user || !user.isActive) {
             throw new AppError('User not found or inactive', 401);
         }
 
-        // Attach user to request
         req.user = {
             id: user.id,
             email: user.email,
             roles: user.roles.map((ur) => ur.role.name),
         };
+        // Populate jti and tokenExp so logout can revoke the specific token
+        req.jti = decoded.jti;
+        req.tokenExp = decoded.exp;
 
         next();
     } catch (error) {
@@ -72,37 +91,41 @@ export const authenticate = async (
     }
 };
 
-// Optional authentication (doesn't fail if no token)
 export const optionalAuth = async (
     req: AuthRequest,
     res: Response,
     next: NextFunction
 ) => {
     try {
-        const authHeader = req.headers.authorization;
-
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return next();
+        let token: string | undefined;
+        if (req.cookies?.access_token) {
+            token = req.cookies.access_token;
+        } else {
+            const authHeader = req.headers.authorization;
+            if (authHeader?.startsWith('Bearer ')) {
+                token = authHeader.substring(7);
+            }
         }
 
-        const token = authHeader.substring(7);
+        if (!token) return next();
+
         const decoded = jwt.verify(token, config.jwt.secret) as {
             userId: string;
             email: string;
+            jti?: string;
         };
+
+        if (decoded.jti) {
+            const revoked = await tokenService.isJtiRevoked(decoded.jti);
+            if (revoked) return next();
+        }
 
         const user = await prisma.user.findUnique({
             where: { id: decoded.userId },
-            include: {
-                roles: {
-                    include: {
-                        role: true,
-                    },
-                },
-            },
+            include: { roles: { include: { role: true } } },
         });
 
-        if (user && user.isActive) {
+        if (user?.isActive) {
             req.user = {
                 id: user.id,
                 email: user.email,
@@ -111,25 +134,20 @@ export const optionalAuth = async (
         }
 
         next();
-    } catch (error) {
-        // Silently fail for optional auth
+    } catch {
         next();
     }
 };
 
-// Role-based authorization
 export const authorize = (...roles: string[]) => {
     return (req: AuthRequest, res: Response, next: NextFunction) => {
         if (!req.user) {
             return next(new AppError('Not authenticated', 401));
         }
-
         const hasRole = roles.some((role) => req.user!.roles.includes(role));
-
         if (!hasRole) {
             return next(new AppError('Insufficient permissions', 403));
         }
-
         next();
     };
 };
