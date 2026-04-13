@@ -29,6 +29,10 @@ const itWorkflowService = {
     const response = await api.post(`/it-workflow/requests/${requestId}/mark-software-provisioned`, data);
     return response.data;
   },
+  async vpDecision(requestId: string, data: { decision: 'APPROVED' | 'REJECTED'; comments?: string }) {
+    const response = await api.post(`/it-workflow/requests/${requestId}/vp-decision`, data);
+    return response.data;
+  },
 };
 
 export default itWorkflowService;
