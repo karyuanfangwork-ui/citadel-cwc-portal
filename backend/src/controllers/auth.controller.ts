@@ -221,30 +221,33 @@ class AuthController {
     forgotPassword = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { email } = req.body;
 
-        // Always return success to avoid user enumeration
+        // Always return success immediately to prevent user enumeration
         res.json({
             status: 'success',
             message: 'If the email exists, a password reset link has been sent',
         });
 
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return;
+        // Fire-and-forget: errors here are logged but cannot affect the response
+        Promise.resolve().then(async () => {
+            const user = await prisma.user.findUnique({ where: { email } });
+            if (!user) return;
 
-        const { plainToken } = await passwordResetService.createToken(user.id);
-        const resetUrl = `${config.app.url}/#/reset-password?token=${plainToken}`;
+            const { plainToken } = await passwordResetService.createToken(user.id);
+            const resetUrl = `${config.app.url}/#/reset-password?token=${plainToken}`;
 
-        await sendEmail(
-            user.email,
-            'Password Reset Request',
-            `
-                <p>You requested a password reset for your Help Center account.</p>
+            await sendEmail(
+                user.email,
+                'Password Reset Request',
+                `<p>You requested a password reset for your Help Center account.</p>
                 <p>Click the link below to reset your password. This link expires in 15 minutes.</p>
                 <p><a href="${resetUrl}">${resetUrl}</a></p>
-                <p>If you did not request this, you can safely ignore this email.</p>
-            `,
-        );
+                <p>If you did not request this, you can safely ignore this email.</p>`
+            );
 
-        logger.info(`Password reset email sent to: ${email}`);
+            logger.info(`Password reset email sent to: ${email}`);
+        }).catch((err) => {
+            logger.error(`Failed to process password reset for ${email}:`, err);
+        });
     });
 
     resetPassword = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
