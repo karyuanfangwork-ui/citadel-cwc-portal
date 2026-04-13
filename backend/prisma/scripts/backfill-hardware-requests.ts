@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -32,23 +32,26 @@ async function main() {
     const rawPrice = cf.estimatedPrice;
     const estimatedPrice =
       rawPrice != null && rawPrice !== '' && !isNaN(Number(rawPrice))
-        ? parseFloat(String(rawPrice))
+        ? new Prisma.Decimal(String(rawPrice))
         : null;
 
-    await prisma.iTHardwareRequest.create({
-      data: {
-        requestId: req.id,
-        hardwareName,
-        hardwareModel: cf.hardwareModel || cf.hw_model || cf.model || null,
-        estimatedPrice,
-        preferredVendor: cf.preferredVendor || null,
-        productUrl: cf.productUrl || null,
-        businessJustification,
-      },
-    });
-
-    created++;
-    console.log(`Created ITHardwareRequest for request ${req.referenceNumber}`);
+    try {
+      await prisma.iTHardwareRequest.create({
+        data: {
+          requestId: req.id,
+          hardwareName,
+          hardwareModel: cf.hardwareModel || cf.hw_model || cf.model || null,
+          estimatedPrice,
+          preferredVendor: cf.preferredVendor || null,
+          productUrl: cf.productUrl || null,
+          businessJustification,
+        },
+      });
+      created++;
+      console.log(`Created ITHardwareRequest for request ${req.referenceNumber}`);
+    } catch (error) {
+      console.error(`Failed to create ITHardwareRequest for request ${req.referenceNumber}:`, error);
+    }
   }
 
   console.log(`Done. Created ${created} ITHardwareRequest records.`);
