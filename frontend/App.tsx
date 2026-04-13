@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HashRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import Login from './src/pages/Login';
@@ -11,7 +11,6 @@ import ITSupport from './pages/ITSupport';
 import GroupFinance from './pages/GroupFinance';
 import MyRequests from './pages/MyRequests';
 import RequestDetail from './pages/RequestDetail';
-import HardwareForm from './pages/HardwareForm';
 import AdminSettings from './pages/AdminSettings';
 import CreateRequest from './pages/CreateRequest';
 import NotificationDropdown from './src/components/NotificationDropdown';
@@ -144,7 +143,7 @@ export default function App() {
               <Route path="/finance" element={<ProtectedRoute><GroupFinance /></ProtectedRoute>} />
               <Route path="/my-requests" element={<ProtectedRoute><MyRequests /></ProtectedRoute>} />
               <Route path="/request/:id" element={<ProtectedRoute><RequestDetail /></ProtectedRoute>} />
-              <Route path="/it/hardware" element={<ProtectedRoute><HardwareForm /></ProtectedRoute>} />
+              <Route path="/it/hardware" element={<Navigate to="/it" replace />} />
               <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requireAdmin><Reports /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
