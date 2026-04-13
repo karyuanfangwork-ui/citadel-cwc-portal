@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Design: Action-First Sidebar — Full Layout</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: #f4f5f7; color: #101418; font-size: 13px; }
+
+  .page-header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 10px 20px; display: flex; align-items: center; gap: 6px; font-size: 11px; color: #5e718d; }
+  .page-header span { color: #0052cc; font-weight: 700; }
+
+  /* Stepper */
+  .stepper { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 16px 20px; }
+  .stepper-inner { display: flex; align-items: flex-start; gap: 0; }
+  .step { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 80px; }
+  .step-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
+  .step-icon.done { background: #0052cc; color: #fff; }
+  .step-icon.active { background: #0052cc; color: #fff; box-shadow: 0 0 0 3px #bfdbfe; }
+  .step-icon.pending { background: #e5e7eb; color: #9ca3af; }
+  .step-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: #5e718d; text-align: center; }
+  .step-label.active { color: #0052cc; }
+  .step-date { font-size: 8px; color: #9ca3af; }
+  .step-line { flex: 1; height: 2px; margin-top: 16px; background: #e5e7eb; }
+  .step-line.done { background: #0052cc; }
+
+  /* Main layout */
+  .layout { display: flex; gap: 0; min-height: calc(100vh - 110px); }
+
+  /* Left: main content */
+  .main { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+
+  /* Right: action sidebar */
+  .sidebar { width: 300px; background: #fff; border-left: 1px solid #e5e7eb; display: flex; flex-direction: column; }
+
+  /* ── SIDEBAR ── */
+  .action-panel { padding: 16px; border-bottom: 2px solid #e5e7eb; }
+  .action-panel-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #5e718d; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .action-panel-label::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:#f59e0b; box-shadow:0 0 0 2px #fef3c7; }
+
+  .action-card { background: #eff4ff; border: 1.5px solid #bfdbfe; border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+  .action-card-title { font-size: 12px; font-weight: 800; color: #1e40af; margin-bottom: 4px; }
+  .action-card-desc { font-size: 11px; color: #3b82f6; margin-bottom: 12px; line-height: 1.4; }
+  .btn { display: block; width: 100%; padding: 9px 12px; border-radius: 8px; font-size: 12px; font-weight: 700; text-align: center; border: none; cursor: pointer; margin-bottom: 6px; }
+  .btn:last-child { margin-bottom: 0; }
+  .btn-primary { background: #0052cc; color: #fff; }
+  .btn-success { background: #16a34a; color: #fff; }
+  .btn-danger { background: #dc2626; color: #fff; }
+  .btn-warning { background: #d97706; color: #fff; }
+  .btn-ghost { background: #fff; color: #374151; border: 1.5px solid #e5e7eb; }
+  .btn-row { display: flex; gap: 6px; }
+  .btn-row .btn { flex: 1; }
+
+  .assign-block { padding: 12px 16px; border-bottom: 1px solid #f1f3f5; }
+  .assign-row { display: flex; align-items: center; gap: 8px; }
+  .agent-avatar { width: 28px; height: 28px; border-radius: 50%; background: #0052cc; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .agent-avatar.unassigned { background: #f59e0b; color: #fff; }
+  .assign-info { flex: 1; }
+  .assign-info .label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #5e718d; }
+  .assign-info .value { font-size: 12px; font-weight: 600; color: #101418; }
+  .assign-info .value.warn { color: #d97706; }
+  .btn-reassign { font-size: 11px; font-weight: 700; color: #0052cc; background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
+  .btn-reassign:hover { background: #eff4ff; }
+
+  .sla-block { padding: 12px 16px; border-bottom: 1px solid #f1f3f5; display: flex; align-items: center; gap: 10px; }
+  .sla-dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex-shrink:0; }
+  .sla-dot.ok { background: #16a34a; }
+  .sla-dot.breach { background: #dc2626; }
+  .sla-info .label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing:.06em; color: #5e718d; }
+  .sla-info .value { font-size: 12px; font-weight: 700; color: #d97706; }
+
+  .meta-block { padding: 14px 16px; }
+  .meta-row { display: flex; justify-content: space-between; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid #f8f9fa; }
+  .meta-row:last-child { border-bottom: none; }
+  .meta-key { font-size: 10px; font-weight: 700; color: #5e718d; text-transform: uppercase; letter-spacing:.04em; }
+  .meta-val { font-size: 12px; font-weight: 600; color: #101418; text-align: right; }
+  .badge-priority { padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 800; background: #fef3c7; color: #b45309; }
+
+  /* ── MAIN CONTENT ── */
+  .section-card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
+  .section-head { padding: 14px 18px; border-bottom: 1px solid #f1f3f5; display: flex; align-items: center; gap: 10px; }
+  .section-head h3 { font-size: 14px; font-weight: 800; color: #101418; }
+  .section-head .icon { width: 28px; height: 28px; border-radius: 8px; background: #eff4ff; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #0052cc; }
+  .section-body { padding: 16px 18px; }
+  .case-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #5e718d; margin-bottom: 4px; }
+  .case-title { font-size: 20px; font-weight: 800; color: #101418; margin-bottom: 12px; }
+  .desc-box { background: #f8f9fa; border-radius: 8px; padding: 12px; font-size: 13px; color: #44546f; line-height: 1.6; }
+
+  /* Custom fields */
+  .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .field-item { background: #f8f9fa; border-radius: 8px; padding: 10px 12px; }
+  .field-key { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing:.06em; color: #5e718d; margin-bottom: 3px; }
+  .field-val { font-size: 12px; font-weight: 600; color: #101418; }
+
+  /* Activity */
+  .tab-bar { display: flex; gap: 2px; padding: 10px 18px 0; border-bottom: 1px solid #f1f3f5; }
+  .tab { padding: 7px 12px; font-size: 11px; font-weight: 700; color: #5e718d; border-radius: 6px 6px 0 0; cursor: pointer; position: relative; }
+  .tab.active { background: #eff4ff; color: #0052cc; border-bottom: 2px solid #0052cc; }
+  .tab .badge-count { position: absolute; top: 4px; right: 4px; width: 14px; height: 14px; border-radius: 50%; background: #dc2626; color: #fff; font-size: 8px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .activity-list { padding: 14px 18px; display: flex; flex-direction: column; gap: 12px; }
+  .activity-item { display: flex; gap: 10px; }
+  .act-avatar { width: 28px; height: 28px; border-radius: 50%; background: #6366f1; color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+  .act-avatar.system { background: #e5e7eb; color: #6b7280; }
+  .act-body { flex: 1; }
+  .act-meta { font-size: 10px; color: #9ca3af; margin-bottom: 3px; }
+  .act-meta strong { color: #374151; }
+  .act-text { font-size: 12px; color: #374151; line-height: 1.5; }
+  .act-text.internal { background: #fefce8; border-left: 3px solid #fbbf24; padding: 6px 10px; border-radius: 0 6px 6px 0; font-style: italic; }
+
+  /* Reply box */
+  .reply-box { padding: 14px 18px; border-top: 1px solid #f1f3f5; }
+  .reply-box textarea { width: 100%; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 12px; font-family: inherit; resize: none; outline: none; color: #374151; }
+  .reply-box textarea:focus { border-color: #0052cc; }
+  .reply-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+  .internal-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; }
+  .toggle-pill { width: 30px; height: 16px; background: #e5e7eb; border-radius: 99px; position: relative; cursor: pointer; }
+  .toggle-pill.on { background: #fbbf24; }
+  .toggle-pill::after { content:''; position:absolute; width:12px; height:12px; background:#fff; border-radius:50%; top:2px; left:2px; transition:.15s; }
+  .toggle-pill.on::after { left:16px; }
+  .reply-submit { display: flex; gap: 6px; align-items: center; }
+  .btn-sm { padding: 7px 14px; border-radius: 7px; font-size: 11px; font-weight: 700; border: none; cursor: pointer; }
+  .btn-sm-primary { background: #0052cc; color: #fff; }
+  .btn-sm-ghost { background: #f1f3f5; color: #374151; }
+
+  /* Annotation callouts */
+  .callout { background: #fef9c3; border: 1.5px dashed #fbbf24; border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #78350f; font-weight: 600; margin-top: 8px; display: flex; align-items: flex-start; gap: 6px; }
+  .callout::before { content: '💡'; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<!-- Breadcrumb -->
+<div class="page-header">
+  Help Center › My Requests › <span>IT-1</span>
+</div>
+
+<!-- Stepper -->
+<div class="stepper">
+  <div class="stepper-inner">
+    <div class="step">
+      <div class="step-icon done">✓</div>
+      <div class="step-label active">Submitted</div>
+      <div class="step-date">Apr 12</div>
+    </div>
+    <div class="step-line done"></div>
+    <div class="step">
+      <div class="step-icon active">●</div>
+      <div class="step-label active">Pending Approval</div>
+      <div class="step-date">Apr 12</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step">
+      <div class="step-icon pending">○</div>
+      <div class="step-label">Procurement</div>
+      <div class="step-date"></div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step">
+      <div class="step-icon pending">○</div>
+      <div class="step-label">Fulfilled</div>
+      <div class="step-date"></div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step">
+      <div class="step-icon pending">○</div>
+      <div class="step-label">Resolved</div>
+      <div class="step-date"></div>
+    </div>
+  </div>
+  <div class="callout" style="margin-top:12px">Stepper is now the single source of truth for status. Status badge removed from sidebar.</div>
+</div>
+
+<!-- Main layout -->
+<div class="layout">
+
+  <!-- LEFT: Content -->
+  <div class="main">
+
+    <!-- Case Summary -->
+    <div class="section-card">
+      <div class="section-body">
+        <div class="case-label">Case Summary</div>
+        <div class="case-title">mouse replacement</div>
+        <div class="case-label">Description</div>
+        <div class="desc-box">mouse is not working, please request a new one</div>
+        <div class="fields-grid">
+          <div class="field-item"><div class="field-key">Category</div><div class="field-val">Hardware</div></div>
+          <div class="field-item"><div class="field-key">Urgency</div><div class="field-val">Normal</div></div>
+          <div class="field-item"><div class="field-key">Location</div><div class="field-val">HQ - Floor 3</div></div>
+          <div class="field-item"><div class="field-key">Asset Tag</div><div class="field-val">N/A</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity -->
+    <div class="section-card">
+      <div class="tab-bar">
+        <div class="tab active">All</div>
+        <div class="tab" style="position:relative">Comments <span class="badge-count">2</span></div>
+        <div class="tab">Activity Log</div>
+        <div class="tab" style="position:relative">Internal <span class="badge-count" style="background:#f59e0b">1</span></div>
+      </div>
+      <div class="activity-list">
+        <div class="activity-item">
+          <div class="act-avatar system">⚙</div>
+          <div class="act-body">
+            <div class="act-meta"><strong>System</strong> · Apr 12, 10:17 PM</div>
+            <div class="act-text">Request created and submitted.</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="act-avatar system">⚙</div>
+          <div class="act-body">
+            <div class="act-meta"><strong>System</strong> · Apr 12, 10:18 PM</div>
+            <div class="act-text">Request submitted for manager approval.</div>
+          </div>
+        </div>
+        <div class="activity-item">
+          <div class="act-avatar">AJ</div>
+          <div class="act-body">
+            <div class="act-meta"><strong>Agent Johnson</strong> · Apr 12, 10:25 PM</div>
+            <div class="act-text internal">⚠ Internal note: Checked stock — we're out of M720 mice. May need to order from vendor.</div>
+          </div>
+        </div>
+      </div>
+      <div class="reply-box">
+        <textarea rows="3" placeholder="Reply to requester or leave an internal note…"></textarea>
+        <div class="reply-footer">
+          <div class="internal-toggle">
+            <div class="toggle-pill"></div>
+            <span style="color:#6b7280">Internal note</span>
+          </div>
+          <div class="reply-submit">
+            <button class="btn-sm btn-sm-ghost">Cancel</button>
+            <button class="btn-sm btn-sm-primary">Send Reply</button>
+          </div>
+        </div>
+      </div>
+      <div class="callout" style="margin:0 18px 14px">Tabs now show unread count badges. Internal note toggle is visually distinct (amber when on). Activity tab replaces old "System" label.</div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Action Sidebar -->
+  <div class="sidebar">
+
+    <!-- NEXT ACTION PANEL -->
+    <div class="action-panel">
+      <div class="action-panel-label">Next Action Required</div>
+      <div class="action-card">
+        <div class="action-card-title">Manager Approval Pending</div>
+        <div class="action-card-desc">This IT request is awaiting manager sign-off before procurement can begin.</div>
+        <div class="btn-row">
+          <button class="btn btn-success">✓ Approve</button>
+          <button class="btn btn-danger">✗ Reject</button>
+        </div>
+      </div>
+      <div class="callout">All workflow actions now open a proper modal form — no more browser prompt() dialogs.</div>
+    </div>
+
+    <!-- ASSIGN BLOCK -->
+    <div class="assign-block">
+      <div class="assign-row">
+        <div class="agent-avatar unassigned">!</div>
+        <div class="assign-info">
+          <div class="label">Assigned To</div>
+          <div class="value warn">⚠ Unassigned</div>
+        </div>
+        <button class="btn-reassign">Assign ›</button>
+      </div>
+      <div class="callout" style="margin-top:8px">Assignment surfaced at top of sidebar with clear "Assign" CTA. Clicking opens the agent picker dropdown.</div>
+    </div>
+
+    <!-- SLA -->
+    <div class="sla-block">
+      <div class="sla-dot"></div>
+      <div class="sla-info">
+        <div class="label">SLA Due</div>
+        <div class="value">2h 14m remaining</div>
+      </div>
+    </div>
+
+    <!-- METADATA (secondary, collapsed below fold) -->
+    <div class="meta-block">
+      <div class="meta-row">
+        <span class="meta-key">Reference</span>
+        <span class="meta-val" style="color:#0052cc;font-weight:800">IT-1</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-key">Priority</span>
+        <span class="meta-val"><span class="badge-priority">MEDIUM</span></span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-key">Service Desk</span>
+        <span class="meta-val">IT Support</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-key">Requester</span>
+        <span class="meta-val">System Administrator</span>
+      </div>
+      <div class="meta-row">
+        <span class="meta-key">Created</span>
+        <span class="meta-val">Apr 12, 10:17 PM</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// inject helper shim
+</script>
+</body>
+</html>

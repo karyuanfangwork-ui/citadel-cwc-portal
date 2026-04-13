@@ -1,0 +1,78 @@
+<h2>Request Detail — UX Audit Findings</h2>
+<p class="subtitle">Agent/Admin perspective · 8 issues identified · prioritised by impact</p>
+
+<style>
+.audit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+.issue { background: #fff; border: 1.5px solid #e5e7eb; border-radius: 12px; padding: 20px; }
+.issue.critical { border-left: 4px solid #dc2626; }
+.issue.high    { border-left: 4px solid #f59e0b; }
+.issue.medium  { border-left: 4px solid #3b82f6; }
+.badge { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: .06em; padding: 2px 8px; border-radius: 99px; text-transform: uppercase; margin-bottom: 8px; }
+.badge.critical { background: #fee2e2; color: #dc2626; }
+.badge.high    { background: #fef3c7; color: #b45309; }
+.badge.medium  { background: #dbeafe; color: #1d4ed8; }
+.issue h3 { font-size: 14px; font-weight: 700; margin: 0 0 6px; color: #101418; }
+.issue p  { font-size: 13px; color: #44546f; margin: 0 0 8px; line-height: 1.5; }
+.fix { font-size: 12px; font-weight: 700; color: #0052cc; background: #eff4ff; padding: 6px 10px; border-radius: 6px; }
+.section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #5e718d; margin: 28px 0 12px; }
+</style>
+
+<div class="section-title">🔴 Critical — Blocks agent productivity</div>
+<div class="audit-grid">
+  <div class="issue critical">
+    <span class="badge critical">Critical</span>
+    <h3>1. Workflow actions use browser prompt() dialogs</h3>
+    <p>All IT and Finance workflow actions (Submit for Approval, Start Procurement, Fulfilment) use native browser <code>prompt()</code> — no validation UX, no user picker, breaks the visual language entirely. Caused today's UUID crash.</p>
+    <div class="fix">→ Replace with inline modal forms with proper inputs and validation</div>
+  </div>
+  <div class="issue critical">
+    <span class="badge critical">Critical</span>
+    <h3>2. "Next action" is buried — no clear call-to-action</h3>
+    <p>The ActionBanner tells agents something needs to be done, but the actual action buttons (Approve, Assign, Submit) are scattered across different sections far below, with no visual hierarchy pointing the agent to "do this next".</p>
+    <div class="fix">→ Consolidate next-action CTA into a sticky Agent Action Panel on the right sidebar</div>
+  </div>
+</div>
+
+<div class="section-title">🟡 High — Friction in daily use</div>
+<div class="audit-grid">
+  <div class="issue high">
+    <span class="badge high">High</span>
+    <h3>3. Right sidebar is read-only metadata, wastes prime real estate</h3>
+    <p>The right column (Reference Number, Status, Priority, Service Desk, Requester) shows static info an agent already knows. Agents need to <em>act</em>, not read — but the action zone is on the left in a sea of content.</p>
+    <div class="fix">→ Move key actions to sidebar; metadata collapses to secondary view</div>
+  </div>
+  <div class="issue high">
+    <span class="badge high">High</span>
+    <h3>4. Status badge and stepper are disconnected</h3>
+    <p>The stepper at the top shows progress but the "Status" badge in the sidebar repeats it as a raw enum string (e.g. "SUBMITTED"). Agents see two conflicting representations of the same thing with different formatting.</p>
+    <div class="fix">→ Remove sidebar status badge; stepper is the single source of truth for progress</div>
+  </div>
+  <div class="issue high">
+    <span class="badge high">High</span>
+    <h3>5. IT/Finance workflow sections show even when irrelevant</h3>
+    <p>The "IT Workflow" and "Finance Workflow" section headers always render for those service desks, even when there are no actions to take (e.g. after resolution). Creates visual noise and confusion about what's pending.</p>
+    <div class="fix">→ Collapse workflow sections when no pending action exists; show only active step</div>
+  </div>
+</div>
+
+<div class="section-title">🔵 Medium — Polish and clarity</div>
+<div class="audit-grid">
+  <div class="issue medium">
+    <span class="badge medium">Medium</span>
+    <h3>6. "Assign to Agent" dropdown is not surfaced prominently</h3>
+    <p>The AssignToDropdown component exists but blends into the sidebar. New tickets showing "Unassigned" with an orange warning triangle are the highest priority — but assignment feels like a secondary task visually.</p>
+    <div class="fix">→ Elevate assign action to top of sidebar with a distinct "Claim / Reassign" button state</div>
+  </div>
+  <div class="issue medium">
+    <span class="badge medium">Medium</span>
+    <h3>7. Activity log filter tabs (All / Comments / Activity / Internal) are low contrast</h3>
+    <p>The tab labels are small and the active state styling is subtle. Agents use Internal notes frequently to coordinate — but the tab is visually identical to unselected tabs at a glance.</p>
+    <div class="fix">→ Increase tab contrast; add unread count badges on Comments and Internal tabs</div>
+  </div>
+  <div class="issue medium">
+    <span class="badge medium">Medium</span>
+    <h3>8. Comment box lacks quick-reply affordances</h3>
+    <p>The comment input is a plain textarea with no indication of its power — no character count, no draft indicator, no template shortcuts for common agent replies ("Resolving this now", "Escalating to…").</p>
+    <div class="fix">→ Add agent reply templates and an Internal Note toggle that's more visually distinct</div>
+  </div>
+</div>
