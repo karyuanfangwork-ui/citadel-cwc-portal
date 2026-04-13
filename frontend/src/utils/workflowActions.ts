@@ -7,7 +7,9 @@ export type WorkflowActionType =
   | 'MARK_HARDWARE_RECEIVED'
   | 'MARK_SOFTWARE_PROVISIONED'
   | 'MARK_FULFILLED'
-  | 'ASSIGN';
+  | 'ASSIGN'
+  | 'VP_DECISION'
+  | 'RESUBMIT_REQUEST';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -37,7 +39,8 @@ export function getWorkflowActions(
   userRoles: string[],
   isAssigned: boolean,
   isDesignatedApprover = false,
-  requestTypeName = ''
+  requestTypeName = '',
+  isRequester = false
 ): WorkflowAction[] {
   const isAdmin = userRoles.includes('ADMIN');
   const isAgent = userRoles.includes('AGENT');
@@ -145,6 +148,24 @@ export function getWorkflowActions(
         variant: 'danger',
       }
     );
+  }
+
+  if (isAdmin && status === 'PENDING_VP_APPROVAL_IT') {
+    actions.push({
+      type: 'VP_DECISION',
+      label: 'VP Approval Decision',
+      description: 'Review and make a VP-level approval decision on this IT request.',
+      variant: 'primary',
+    });
+  }
+
+  if (isRequester && status === 'MANAGER_REJECTED_IT') {
+    actions.push({
+      type: 'RESUBMIT_REQUEST',
+      label: 'Revise & Resubmit',
+      description: 'Revise your request based on feedback and resubmit for approval.',
+      variant: 'warning',
+    });
   }
 
   return actions;

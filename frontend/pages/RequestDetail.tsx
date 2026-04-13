@@ -1550,6 +1550,7 @@ const RequestDetail = () => {
             priority={request.priority}
             serviceDeskName={request.serviceDesk?.name || ''}
             requesterName={request.requester ? `${request.requester.firstName} ${request.requester.lastName}` : ''}
+            requesterId={request.requesterId || request.requester?.id || ''}
             createdAt={request.createdAt}
             slaDueAt={request.slaDueAt}
             onActionSuccess={fetchRequestData}

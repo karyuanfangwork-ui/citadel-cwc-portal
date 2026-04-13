@@ -9,9 +9,11 @@ import HardwareOrderedModal from './HardwareOrderedModal';
 import HardwareReceivedModal from './HardwareReceivedModal';
 import SoftwareProvisionedModal from './SoftwareProvisionedModal';
 import AssignAgentModal from './AssignAgentModal';
+import VpApprovalModal from './VpApprovalModal';
+import ResubmitModal from './ResubmitModal';
 import SLAIndicator from './SLAIndicator';
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -28,6 +30,7 @@ interface ActionSidebarProps {
   requesterName: string;
   createdAt: string;
   slaDueAt?: string | null;
+  requesterId?: string;
   onActionSuccess: () => void;
 }
 
@@ -53,6 +56,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   requesterName,
   createdAt,
   slaDueAt,
+  requesterId,
   onActionSuccess,
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
@@ -61,7 +65,8 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   const isDesignatedApprover = approvals.some(
     a => a.approverId === userId && a.status === 'PENDING'
   );
-  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName);
+  const isRequester = !!(requesterId && userId && requesterId === userId);
+  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester);
 
   const handleSuccess = () => {
     setOpenModal(null);
@@ -79,6 +84,8 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'MARK_SOFTWARE_PROVISIONED': setOpenModal('SOFTWARE_PROVISIONED'); break;
       case 'MARK_FULFILLED': setOpenModal('FULFILMENT'); break;
       case 'ASSIGN': setOpenModal('ASSIGN'); break;
+      case 'VP_DECISION': setOpenModal('VP_DECISION'); break;
+      case 'RESUBMIT_REQUEST': setOpenModal('RESUBMIT_REQUEST'); break;
       default:
         console.warn('[ActionSidebar] Unhandled action type:', type);
     }
@@ -187,6 +194,8 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       {openModal === 'HARDWARE_RECEIVED'  && <HardwareReceivedModal   requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
       {openModal === 'SOFTWARE_PROVISIONED' && <SoftwareProvisionedModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
       {openModal === 'FULFILMENT'         && <FulfilmentModal      requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
+      {openModal === 'VP_DECISION'         && <VpApprovalModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
+      {openModal === 'RESUBMIT_REQUEST'   && <ResubmitModal requestId={requestId} initialValues={{}} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
       {openModal === 'ASSIGN'             && (
         <AssignAgentModal
           requestId={requestId}
