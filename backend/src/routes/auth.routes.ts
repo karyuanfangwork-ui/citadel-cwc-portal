@@ -14,7 +14,7 @@ router.post('/login', authLimiter, validate(loginSchema), authController.login);
 router.post('/logout', authenticate, authController.logout);
 
 // Refresh reads from cookie — no body schema needed
-router.post('/refresh', authController.refreshToken);
+router.post('/refresh', authLimiter, authController.refreshToken);
 
 router.post('/forgot-password', passwordResetLimiter, authController.forgotPassword);
 router.post('/reset-password', passwordResetLimiter, authController.resetPassword);
