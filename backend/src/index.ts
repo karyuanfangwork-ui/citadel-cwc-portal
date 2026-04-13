@@ -1,6 +1,7 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
@@ -24,10 +25,15 @@ const app: Application = express();
 // Security headers
 app.use(helmet());
 
+// Cookie parsing
+app.use(cookieParser());
+
 // CORS
 app.use(cors({
     origin: config.cors.origin,
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
 }));
 
 // Body parsing
