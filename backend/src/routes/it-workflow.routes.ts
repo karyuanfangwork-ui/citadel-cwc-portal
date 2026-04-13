@@ -8,6 +8,8 @@ import {
   markHardwareOrdered,
   markHardwareReceived,
   markSoftwareProvisioned,
+  vpDecision,
+  resubmitRequest,
 } from '../controllers/it-workflow.controller';
 
 const router = Router();
@@ -21,5 +23,7 @@ router.post('/requests/:id/mark-hardware-ordered', authorize('ADMIN', 'AGENT'), 
 router.post('/requests/:id/mark-hardware-received', authorize('ADMIN', 'AGENT'), markHardwareReceived);
 router.post('/requests/:id/mark-software-provisioned', authorize('ADMIN', 'AGENT'), markSoftwareProvisioned);
 router.post('/requests/:id/mark-fulfilled', authorize('ADMIN', 'AGENT'), markFulfilled);
+router.post('/requests/:id/vp-decision', authorize('ADMIN'), vpDecision);
+router.post('/requests/:id/resubmit', resubmitRequest);
 
 export default router;

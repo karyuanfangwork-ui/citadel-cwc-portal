@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { notify } from '../services/notification.service';
+import { config } from '../config';
 
 const prisma = new PrismaClient();
 
@@ -77,7 +78,10 @@ export async function managerDecision(req: Request, res: Response) {
       return res.status(400).json({ error: 'Decision must be APPROVED or REJECTED' });
     }
 
-    const request = await prisma.request.findUnique({ where: { id } });
+    const request = await (prisma.request.findUnique({
+      where: { id },
+      include: { itHardwareRequest: true },
+    }) as any);
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
     }
@@ -97,34 +101,86 @@ export async function managerDecision(req: Request, res: Response) {
       }
     }
 
-    const newStatus = decision === 'APPROVED' ? 'MANAGER_APPROVED_IT' : 'MANAGER_REJECTED_IT';
+    if (decision === 'APPROVED') {
+      const price = request.itHardwareRequest?.estimatedPrice
+        ? Number(request.itHardwareRequest.estimatedPrice)
+        : 0;
+      const threshold = config.hardwareVpApprovalThreshold;
 
-    await prisma.request.update({
-      where: { id },
-      data: { status: newStatus },
-    });
+      if (price >= threshold) {
+        // Route to VP approval
+        await prisma.request.update({ where: { id }, data: { status: 'PENDING_VP_APPROVAL_IT' } });
 
-    await prisma.requestApproval.updateMany({
-      where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
-      data: {
-        status: decision as 'APPROVED' | 'REJECTED',
-        comments: comments || null,
-      },
-    });
+        await prisma.requestApproval.updateMany({
+          where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
+          data: { status: 'APPROVED', comments: comments || null },
+        });
 
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: decision === 'APPROVED' ? 'APPROVAL' : 'REJECTION',
-        message: `Manager ${decision.toLowerCase()} the request${comments ? ': ' + comments : ''}`,
-        authorName: (req as any).user?.firstName || 'Manager',
-        authorRole: 'MANAGER',
-        isSystemGenerated: false,
-      },
-    });
+        await prisma.requestActivity.create({
+          data: {
+            requestId: id,
+            activityType: 'APPROVAL',
+            message: `Manager approved the request. Escalated to VP for high-value hardware (Estimated: $${price})`,
+            authorName: currentUser?.firstName || 'Manager',
+            authorRole: 'MANAGER',
+            isSystemGenerated: false,
+          },
+        });
 
-    if (request.requesterId) {
-      await notify(request.requesterId, `Your IT request ${id} has been ${decision.toLowerCase()} by the manager.`);
+        // Notify VP users
+        const vpUsers = await prisma.user.findMany({
+          where: { roles: { some: { role: { name: 'ADMIN' } } } },
+        });
+        for (const vp of vpUsers) {
+          await notify({ userId: vp.id, eventType: 'VP_APPROVAL_REQUIRED', variables: { requestId: String(id), price: String(price) }, relatedRequestId: String(id) });
+        }
+      } else {
+        // Standard manager approval path
+        await prisma.request.update({ where: { id }, data: { status: 'MANAGER_APPROVED_IT' } });
+
+        await prisma.requestApproval.updateMany({
+          where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
+          data: { status: 'APPROVED', comments: comments || null },
+        });
+
+        await prisma.requestActivity.create({
+          data: {
+            requestId: id,
+            activityType: 'APPROVAL',
+            message: `Manager approved the request${comments ? ': ' + comments : ''}`,
+            authorName: currentUser?.firstName || 'Manager',
+            authorRole: 'MANAGER',
+            isSystemGenerated: false,
+          },
+        });
+
+        if (request.requesterId) {
+          await notify({ userId: request.requesterId, eventType: 'MANAGER_APPROVED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
+        }
+      }
+    } else {
+      // REJECTED
+      await prisma.request.update({ where: { id }, data: { status: 'MANAGER_REJECTED_IT' } });
+
+      await prisma.requestApproval.updateMany({
+        where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
+        data: { status: 'REJECTED', comments: comments || null },
+      });
+
+      await prisma.requestActivity.create({
+        data: {
+          requestId: id,
+          activityType: 'REJECTION',
+          message: `Manager rejected the request${comments ? ': ' + comments : ''}`,
+          authorName: currentUser?.firstName || 'Manager',
+          authorRole: 'MANAGER',
+          isSystemGenerated: false,
+        },
+      });
+
+      if (request.requesterId) {
+        await notify({ userId: request.requesterId, eventType: 'MANAGER_REJECTED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
+      }
     }
 
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by manager` });
@@ -416,3 +472,178 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
+
+export const vpDecision = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const { decision, comments } = req.body; // 'APPROVED' | 'REJECTED'
+    const currentUser = (req as any).user;
+
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
+
+    const request = await prisma.request.findUnique({
+      where: { id },
+      include: { requester: true, serviceDesk: true },
+    });
+
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    if (request.status !== 'PENDING_VP_APPROVAL_IT') {
+      return res.status(400).json({ error: 'Request is not pending VP approval' });
+    }
+
+    // Auth check: must be ADMIN
+    const isAdmin = currentUser?.roles?.some((r: any) => r.role?.name === 'ADMIN');
+    if (!isAdmin) return res.status(403).json({ error: 'Forbidden: VP approval requires admin role' });
+
+    if (decision === 'APPROVED') {
+      await prisma.request.update({ where: { id }, data: { status: 'MANAGER_APPROVED_IT' } });
+
+      await prisma.requestApproval.updateMany({
+        where: { requestId: id, status: 'PENDING' },
+        data: { status: 'APPROVED', approverId: currentUser.id, comments: comments || null },
+      });
+
+      await prisma.requestActivity.create({
+        data: {
+          requestId: id,
+          activityType: 'APPROVAL',
+          message: `VP approved the request${comments ? ': ' + comments : ''}`,
+          authorName: currentUser.firstName || 'VP',
+          authorRole: 'VP',
+          isSystemGenerated: false,
+          metadata: { comments },
+        },
+      });
+
+      if (request.requesterId) {
+        await notify({ userId: request.requesterId, eventType: 'VP_APPROVED', variables: { requestId: id }, relatedRequestId: id });
+      }
+    } else if (decision === 'REJECTED') {
+      await prisma.request.update({ where: { id }, data: { status: 'VP_REJECTED_IT' } });
+
+      await prisma.requestApproval.updateMany({
+        where: { requestId: id, status: 'PENDING' },
+        data: { status: 'REJECTED', approverId: currentUser.id, comments: comments || null },
+      });
+
+      await prisma.requestActivity.create({
+        data: {
+          requestId: id,
+          activityType: 'REJECTION',
+          message: `VP rejected the request${comments ? ': ' + comments : ''}`,
+          authorName: currentUser.firstName || 'VP',
+          authorRole: 'VP',
+          isSystemGenerated: false,
+          metadata: { comments },
+        },
+      });
+
+      if (request.requesterId) {
+        await notify({ userId: request.requesterId, eventType: 'VP_REJECTED', variables: { requestId: id, comments: comments || '' }, relatedRequestId: id });
+      }
+    } else {
+      return res.status(400).json({ error: 'Invalid decision. Must be APPROVED or REJECTED' });
+    }
+
+    const updated = await prisma.request.findUnique({ where: { id } });
+    return res.json(updated);
+  } catch (error) {
+    console.error('vpDecision error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const resubmitRequest = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const {
+      hardwareName,
+      hardwareModel,
+      estimatedPrice,
+      preferredVendor,
+      productUrl,
+      businessJustification,
+      resubmitNotes,
+    } = req.body;
+    const currentUser = (req as any).user;
+
+    if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
+
+    const request = await (prisma.request.findUnique({
+      where: { id },
+      include: {
+        itHardwareRequest: true,
+        approvals: {
+          where: { status: 'REJECTED' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    }) as any);
+
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+    if (request.status !== 'MANAGER_REJECTED_IT') {
+      return res.status(400).json({ error: 'Request is not in rejected state' });
+    }
+
+    // Only the original requester can resubmit
+    if (request.requesterId !== currentUser.id) {
+      return res.status(403).json({ error: 'Only the original requester can resubmit' });
+    }
+
+    const hardwareReq = await prisma.iTHardwareRequest.findFirst({ where: { requestId: id } });
+    if (!hardwareReq) return res.status(400).json({ error: 'No hardware request record found' });
+
+    // Update ITHardwareRequest with new values
+    const updateData: any = {};
+    if (hardwareName !== undefined) updateData.hardwareName = hardwareName;
+    if (hardwareModel !== undefined) updateData.hardwareModel = hardwareModel;
+    if (estimatedPrice !== undefined) {
+      updateData.estimatedPrice = estimatedPrice
+        ? new Prisma.Decimal(String(estimatedPrice))
+        : null;
+    }
+    if (preferredVendor !== undefined) updateData.preferredVendor = preferredVendor || null;
+    if (productUrl !== undefined) updateData.productUrl = productUrl || null;
+    if (businessJustification !== undefined) updateData.businessJustification = businessJustification;
+
+    await prisma.iTHardwareRequest.update({ where: { id: hardwareReq.id }, data: updateData });
+
+    // Update customFields to stay in sync and reset status
+    const currentFields = (request.customFields as any) || {};
+    const updatedFields = {
+      ...currentFields,
+      ...updateData,
+      estimatedPrice: estimatedPrice || currentFields.estimatedPrice,
+    };
+    await prisma.request.update({
+      where: { id },
+      data: { status: 'PENDING_MANAGER_APPROVAL_IT', customFields: updatedFields },
+    });
+
+    // Reset the approval or create a new pending one
+    if (request.approvals.length > 0) {
+      await prisma.requestApproval.update({
+        where: { id: request.approvals[0].id },
+        data: { status: 'PENDING', comments: null },
+      });
+    }
+
+    await prisma.requestActivity.create({
+      data: {
+        requestId: id,
+        activityType: 'SYSTEM',
+        message: `Request resubmitted for manager approval${resubmitNotes ? ': ' + resubmitNotes : ''}`,
+        authorName: currentUser.firstName || 'User',
+        isSystemGenerated: false,
+        metadata: { resubmitNotes },
+      },
+    });
+
+    const updated = await prisma.request.findUnique({ where: { id } });
+    return res.json(updated);
+  } catch (error) {
+    console.error('resubmitRequest error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};
