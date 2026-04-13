@@ -1,5 +1,4 @@
 import apiClient from './api';
-import { tokenManager } from '../utils/tokenManager';
 
 interface LoginCredentials {
     email: string;
@@ -15,66 +14,36 @@ interface RegisterData {
     jobTitle?: string;
 }
 
-interface AuthResponse {
-    user: {
-        id: string;
-        email: string;
-        firstName: string;
-        lastName: string;
-        roles?: string[];
-    };
-    accessToken: string;
-    refreshToken: string;
+interface AuthUser {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    roles?: string[];
 }
 
 export const authService = {
-    async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    async login(credentials: LoginCredentials): Promise<AuthUser> {
         const response = await apiClient.post('/auth/login', credentials);
-        const { accessToken, refreshToken, user } = response.data.data;
-
-        // Store tokens
-        tokenManager.setTokens(accessToken, refreshToken);
-
-        return { user, accessToken, refreshToken };
+        return response.data.data.user;
     },
 
-    async register(data: RegisterData): Promise<AuthResponse> {
+    async register(data: RegisterData): Promise<AuthUser> {
         const response = await apiClient.post('/auth/register', data);
-        const { accessToken, refreshToken, user } = response.data.data;
-
-        // Store tokens
-        tokenManager.setTokens(accessToken, refreshToken);
-
-        return { user, accessToken, refreshToken };
+        return response.data.data.user;
     },
 
     async logout(): Promise<void> {
         try {
             await apiClient.post('/auth/logout');
         } catch (error) {
-            // Ignore errors on logout
             console.error('Logout error:', error);
-        } finally {
-            // Always clear tokens
-            tokenManager.clearTokens();
         }
+        // Cookies are cleared by the server via Set-Cookie: access_token=; Max-Age=0
     },
 
-    async getCurrentUser() {
+    async getCurrentUser(): Promise<AuthUser> {
         const response = await apiClient.get('/users/me');
         return response.data.data.user;
-    },
-
-    async refreshToken(): Promise<string> {
-        const refreshToken = tokenManager.getRefreshToken();
-        if (!refreshToken) {
-            throw new Error('No refresh token available');
-        }
-
-        const response = await apiClient.post('/auth/refresh', { refreshToken });
-        const { accessToken } = response.data.data;
-
-        tokenManager.setTokens(accessToken, refreshToken);
-        return accessToken;
     },
 };
