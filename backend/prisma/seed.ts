@@ -276,9 +276,12 @@ async function main() {
         let formConfig: any[] = [];
         if (category.name === 'Request new hardware') {
             formConfig = [
-                { id: 'hw_name', label: 'Hardware Name', type: 'text', required: true },
-                { id: 'hw_model', label: 'Preferred Model', type: 'text', required: false },
-                { id: 'hw_reason', label: 'Business Justification', type: 'textarea', required: true }
+                { id: 'hardwareName', label: 'Hardware Name', type: 'text', required: true },
+                { id: 'hardwareModel', label: 'Preferred Model', type: 'text', required: false },
+                { id: 'estimatedPrice', label: 'Estimated Price (USD)', type: 'currency', required: false },
+                { id: 'preferredVendor', label: 'Preferred Vendor', type: 'text', required: false },
+                { id: 'productUrl', label: 'Product URL', type: 'text', required: false },
+                { id: 'businessJustification', label: 'Business Justification', type: 'textarea', required: true }
             ];
         } else if (category.name === 'Request Software Installation') {
             formConfig = [
@@ -303,8 +306,14 @@ async function main() {
                     description: `Submit a request for ${category.name.toLowerCase()} assistance.`,
                     icon: category.icon,
                     formConfig,
-                    isActive: true
+                    isActive: true,
+                    ...(category.name === 'Request new hardware' ? { slaHours: 72, requiresApproval: true } : {}),
                 }
+            });
+        } else if (category.name === 'Request new hardware') {
+            await prisma.requestType.update({
+                where: { id: existingType.id },
+                data: { formConfig, slaHours: 72, requiresApproval: true }
             });
         }
     }

@@ -22,12 +22,22 @@ const HR_FIELD_LABELS: Record<string, string> = {
 };
 
 const IT_FIELD_LABELS: Record<string, string> = {
+  hardwareName: 'Hardware Name',
+  hardwareModel: 'Preferred Model',
+  estimatedPrice: 'Estimated Price (USD)',
+  preferredVendor: 'Preferred Vendor',
+  productUrl: 'Product URL',
+  businessJustification: 'Business Justification',
+  // legacy keys — keep for backward compat until backfill runs
   hardwareType: 'Hardware Type',
   model: 'Model',
   specifications: 'Specifications',
   reason: 'Reason',
   urgency: 'Urgency',
   currentDevice: 'Current Device',
+  hw_name: 'Hardware Name',
+  hw_model: 'Preferred Model',
+  hw_reason: 'Business Justification',
 };
 
 const FINANCE_FIELD_LABELS: Record<string, string> = {
