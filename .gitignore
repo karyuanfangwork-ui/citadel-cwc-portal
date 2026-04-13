@@ -54,3 +54,6 @@ backend/remove-*.js
 
 # Brain artifacts (documentation)
 .gemini/
+
+# Superpowers brainstorm sessions
+.superpowers/

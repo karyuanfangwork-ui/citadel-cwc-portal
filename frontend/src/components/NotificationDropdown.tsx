@@ -11,7 +11,7 @@ export default function NotificationDropdown() {
   // Fetch unread count on mount and every 30 seconds
   useEffect(() => {
     fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 30000);
+    const interval = setInterval(fetchUnreadCount, 60000);
     return () => clearInterval(interval);
   }, []);
 
