@@ -16,6 +16,10 @@ interface Request {
     name: string;
     code: string;
   };
+  requestType?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 const MyRequests = () => {
@@ -27,11 +31,13 @@ const MyRequests = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [selectedRequestTypeId, setSelectedRequestTypeId] = useState<string | null>(null);
+  const [requestTypeOptions, setRequestTypeOptions] = useState<{ id: string; name: string }[]>([]);
   const limit = 10;
 
   useEffect(() => {
     fetchRequests();
-  }, [filter, searchTerm, page]);
+  }, [filter, searchTerm, page, selectedRequestTypeId]);
 
   const fetchRequests = async () => {
     try {
@@ -47,10 +53,8 @@ const MyRequests = () => {
         filters.search = searchTerm;
       }
 
-      // Filter by status
-      if (filter === 'open') {
-        // For open requests, we'll fetch all and filter on frontend
-        // In production, backend should support status filtering
+      if (selectedRequestTypeId) {
+        filters.requestTypeId = selectedRequestTypeId;
       }
 
       const data = await requestService.getAllRequests(filters);
@@ -67,6 +71,17 @@ const MyRequests = () => {
       setRequests(filteredRequests);
       setTotal(data.pagination?.total || 0);
       setTotalPages(data.pagination?.totalPages || 1);
+
+      // Build unique request type options from results
+      const seen = new Set<string>();
+      const options: { id: string; name: string }[] = [];
+      filteredRequests.forEach((r: Request) => {
+        if (r.requestType && !seen.has(r.requestType.id)) {
+          seen.add(r.requestType.id);
+          options.push({ id: r.requestType.id, name: r.requestType.name });
+        }
+      });
+      setRequestTypeOptions(options);
     } catch (err: any) {
       console.error('Error fetching requests:', err);
       setError(err.message || 'Failed to load requests');
@@ -170,6 +185,19 @@ const MyRequests = () => {
                 }}
               />
             </div>
+            <select
+              className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all text-[#44546f]"
+              value={selectedRequestTypeId || ''}
+              onChange={(e) => {
+                setSelectedRequestTypeId(e.target.value || null);
+                setPage(1);
+              }}
+            >
+              <option value="">All request types</option>
+              {requestTypeOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.name}</option>
+              ))}
+            </select>
           </div>
 
           {loading ? (
@@ -204,6 +232,7 @@ const MyRequests = () => {
                           <th className="px-6 py-4 w-12 text-center">Type</th>
                           <th className="px-6 py-4">Reference</th>
                           <th className="px-6 py-4">Summary</th>
+                          <th className="px-6 py-4">Request Type</th>
                           <th className="px-6 py-4">Service Desk</th>
                           <th className="px-6 py-4">Status</th>
                           <th className="px-6 py-4">Created</th>
@@ -229,6 +258,9 @@ const MyRequests = () => {
                               {req.referenceNumber}
                             </td>
                             <td className="px-6 py-4 font-semibold">{req.summary}</td>
+                            <td className="px-6 py-4 text-[#44546f]">
+                              {req.requestType?.name || '—'}
+                            </td>
                             <td className="px-6 py-4 text-[#44546f]">
                               {req.serviceDesk?.name || 'N/A'}
                             </td>
