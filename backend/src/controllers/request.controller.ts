@@ -19,6 +19,7 @@ class RequestController {
             assignedToId,
             priority,
             search,
+            requestTypeId,
         } = req.query;
 
         const pageNum = parseInt(page as string, 10);
@@ -64,6 +65,10 @@ class RequestController {
 
         if (priority) {
             where.priority = priority;
+        }
+
+        if (requestTypeId) {
+            where.requestTypeId = requestTypeId;
         }
 
         if (search) {
