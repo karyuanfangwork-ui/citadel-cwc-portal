@@ -172,64 +172,72 @@ class RequestController {
           }
         }
 
-        // Create request
-        const request = await prisma.request.create({
-            data: {
-                referenceNumber,
-                requestTypeId,
-                serviceDeskId,
-                requesterId: req.user!.id,
-                requesterEmail: req.user!.email,
-                summary,
-                description,
-                priority,
-                customFields,
-                status: 'SUBMITTED',
-                slaDueAt,
-            },
-            include: {
-                requester: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        email: true,
-                    },
+        // Create request, hardware details, and initial activity in a single transaction
+        const request = await prisma.$transaction(async (tx) => {
+            const createdRequest = await tx.request.create({
+                data: {
+                    referenceNumber,
+                    requestTypeId,
+                    serviceDeskId,
+                    requesterId: req.user!.id,
+                    requesterEmail: req.user!.email,
+                    summary,
+                    description,
+                    priority,
+                    customFields,
+                    status: 'SUBMITTED',
+                    slaDueAt,
                 },
-                serviceDesk: true,
-                requestType: true,
-            },
-        });
-
-        // If this is a hardware request, create the structured ITHardwareRequest record
-        if (requestTypeId) {
-            const reqType = request.requestType;
-            if (reqType && reqType.name.toLowerCase().includes('hardware')) {
-                const cf = (customFields || {}) as Record<string, any>;
-                await prisma.iTHardwareRequest.create({
-                    data: {
-                        requestId: request.id,
-                        hardwareName: cf.hardwareName || cf.hw_name || cf.hardwareType || 'Unknown',
-                        hardwareModel: cf.hardwareModel || cf.hw_model || cf.model || null,
-                        estimatedPrice: cf.estimatedPrice ? parseFloat(cf.estimatedPrice) : null,
-                        preferredVendor: cf.preferredVendor || null,
-                        productUrl: cf.productUrl || null,
-                        businessJustification: cf.businessJustification || cf.hw_reason || cf.reason || '',
+                include: {
+                    requester: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            email: true,
+                        },
                     },
-                });
-            }
-        }
+                    serviceDesk: true,
+                    requestType: true,
+                },
+            });
 
-        // Create initial activity
-        await prisma.requestActivity.create({
-            data: {
-                requestId: request.id,
-                authorId: req.user!.id,
-                authorName: 'System',
-                activityType: 'SYSTEM',
-                message: 'Request created',
-                isSystemGenerated: true,
-            },
+            // If this is a hardware request, create the structured ITHardwareRequest record
+            if (requestTypeId) {
+                const reqType = createdRequest.requestType;
+                if (reqType && reqType.name.toLowerCase().includes('hardware')) {
+                    const cf = (customFields || {}) as Record<string, any>;
+                    const rawPrice = cf.estimatedPrice;
+                    const estimatedPrice = rawPrice != null && rawPrice !== '' && !isNaN(Number(rawPrice))
+                        ? parseFloat(String(rawPrice))
+                        : null;
+                    await tx.iTHardwareRequest.create({
+                        data: {
+                            requestId: createdRequest.id,
+                            hardwareName: cf.hardwareName || cf.hw_name || cf.hardwareType || 'Unknown',
+                            hardwareModel: cf.hardwareModel || cf.hw_model || cf.model || null,
+                            estimatedPrice,
+                            preferredVendor: cf.preferredVendor || null,
+                            productUrl: cf.productUrl || null,
+                            businessJustification: cf.businessJustification || cf.hw_reason || cf.reason || '',
+                        },
+                    });
+                }
+            }
+
+            // Create initial activity
+            await tx.requestActivity.create({
+                data: {
+                    requestId: createdRequest.id,
+                    authorId: req.user!.id,
+                    authorName: 'System',
+                    activityType: 'SYSTEM',
+                    message: 'Request created',
+                    isSystemGenerated: true,
+                },
+            });
+
+            return createdRequest;
         });
 
         // Notify requester
