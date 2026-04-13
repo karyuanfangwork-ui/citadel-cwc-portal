@@ -26,6 +26,7 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
   const [filtered, setFiltered] = useState<Manager[]>([]);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
+  const [suggestedManagerId, setSuggestedManagerId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -47,6 +48,21 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
         );
         setManagers(adminsAndManagers);
         setFiltered(adminsAndManagers);
+
+        // Auto-suggest requester's direct manager
+        try {
+          const { suggestedManager } = await itWorkflowService.getSuggestedManager(requestId);
+          if (suggestedManager) {
+            setSuggestedManagerId(suggestedManager.id);
+            // Pre-select only if this manager is in the list
+            const inList = adminsAndManagers.some(m => m.id === suggestedManager.id);
+            if (inList) {
+              setSelectedId(suggestedManager.id);
+            }
+          }
+        } catch {
+          // Non-fatal: just skip auto-suggest
+        }
       } catch {
         setError('Failed to load managers');
       } finally {
@@ -54,7 +70,7 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
       }
     };
     fetchManagers();
-  }, []);
+  }, [requestId]);
 
   useEffect(() => {
     const q = search.toLowerCase();
@@ -139,8 +155,15 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
                         <div className="size-8 rounded-full bg-[#0052cc] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
                           {m.firstName[0]}{m.lastName[0]}
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">{m.firstName} {m.lastName}</p>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{m.firstName} {m.lastName}</p>
+                            {suggestedManagerId === m.id && (
+                              <span className="flex-shrink-0 text-[10px] font-bold uppercase tracking-wide text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">
+                                Suggested
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs text-gray-500 truncate">{m.email}</p>
                         </div>
                       </label>

@@ -661,3 +661,28 @@ export const resubmitRequest = async (req: Request, res: Response) => {
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export const getSuggestedManager = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const request = await prisma.request.findUnique({
+      where: { id: id as string },
+      include: { requester: true }
+    });
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+
+    if (!request.requester?.managerId) {
+      return res.json({ suggestedManager: null });
+    }
+
+    const manager = await prisma.user.findUnique({
+      where: { id: request.requester.managerId },
+      select: { id: true, firstName: true, lastName: true, email: true }
+    });
+
+    return res.json({ suggestedManager: manager });
+  } catch (error) {
+    console.error('getSuggestedManager error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};

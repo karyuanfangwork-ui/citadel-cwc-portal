@@ -33,6 +33,10 @@ const itWorkflowService = {
     const response = await api.post(`/it-workflow/requests/${requestId}/vp-decision`, data);
     return response.data;
   },
+  async getSuggestedManager(requestId: string): Promise<{ suggestedManager: { id: string; firstName: string; lastName: string; email: string } | null }> {
+    const response = await api.get(`/it-workflow/requests/${requestId}/suggested-manager`);
+    return response.data;
+  },
   async resubmitRequest(requestId: string, data: {
     hardwareName?: string;
     hardwareModel?: string;
