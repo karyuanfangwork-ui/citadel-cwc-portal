@@ -69,6 +69,10 @@ export async function managerDecision(req: Request, res: Response) {
     const { decision, comments } = req.body;
     const currentUser = (req as any).user;
 
+    if (!currentUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
     if (!['APPROVED', 'REJECTED'].includes(decision)) {
       return res.status(400).json({ error: 'Decision must be APPROVED or REJECTED' });
     }
