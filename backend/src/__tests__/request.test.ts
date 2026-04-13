@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import routes from '../routes/index';
 import { errorHandler } from '../middleware/error.middleware';
 import { config } from '../config';
@@ -48,9 +49,10 @@ beforeAll(async () => {
   });
   testUserId = user.id;
 
-  // Generate JWT using the same payload structure as auth.controller
+  // Generate JWT with jti claim (required by auth middleware)
+  const jti = crypto.randomUUID();
   authToken = jwt.sign(
-    { userId: user.id, email: user.email },
+    { userId: user.id, email: user.email, jti },
     config.jwt.secret,
     { expiresIn: '1h' }
   );
@@ -64,7 +66,11 @@ beforeAll(async () => {
 
   // Get first request type for that service desk
   const requestType = await prisma.requestType.findFirst({
-    where: { serviceDeskId: serviceDesk.id },
+    where: {
+      serviceCategory: {
+        serviceDeskId: serviceDesk.id,
+      },
+    },
   });
   if (!requestType) {
     throw new Error('No request type found for service desk. Run seed first.');
@@ -150,5 +156,37 @@ describe('PUT /api/v1/requests/:id', () => {
     expect(res.status).toBe(200);
     const body = res.body.data ?? res.body;
     expect(body.request).toBeDefined();
+  });
+});
+
+describe('GET /api/v1/requests with requestTypeId filter', () => {
+  it('returns only requests matching the given requestTypeId', async () => {
+    const res = await request(app)
+      .get('/api/v1/requests')
+      .query({ requestTypeId })
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    const body = res.body.data ?? res.body;
+    const requests = body.requests ?? body;
+    expect(Array.isArray(requests)).toBe(true);
+    // Every returned request must have the matching requestTypeId
+    requests.forEach((r: any) => {
+      expect(r.requestType?.id ?? r.requestTypeId).toBe(requestTypeId);
+    });
+  });
+
+  it('returns empty list when no requests match the given requestTypeId', async () => {
+    const nonExistentId = '00000000-0000-0000-0000-000000000000';
+    const res = await request(app)
+      .get('/api/v1/requests')
+      .query({ requestTypeId: nonExistentId })
+      .set('Authorization', `Bearer ${authToken}`);
+
+    expect(res.status).toBe(200);
+    const body = res.body.data ?? res.body;
+    const requests = body.requests ?? body;
+    expect(Array.isArray(requests)).toBe(true);
+    expect(requests.length).toBe(0);
   });
 });
