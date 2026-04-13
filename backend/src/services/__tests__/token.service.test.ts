@@ -1,8 +1,8 @@
 import { tokenService } from '../token.service';
 
-// Mock ioredis
+const store = new Map<string, string>();
+
 jest.mock('ioredis', () => {
-  const store = new Map<string, string>();
   return jest.fn().mockImplementation(() => ({
     setex: jest.fn(async (key: string, _ttl: number, val: string) => {
       store.set(key, val);
@@ -20,6 +20,8 @@ jest.mock('ioredis', () => {
   }));
 });
 
+beforeEach(() => store.clear());
+
 describe('tokenService', () => {
   it('blocks a jti after revoking it', async () => {
     await tokenService.revokeJti('jti-abc', 900);
@@ -32,10 +34,16 @@ describe('tokenService', () => {
     expect(blocked).toBe(false);
   });
 
-  it('clears all jtis for a user', async () => {
-    await tokenService.revokeJti('jti-user1-a', 900);
-    await tokenService.revokeJti('jti-user1-b', 900);
+  it('revokeAllForUser sets a revocation timestamp', async () => {
+    const before = Date.now();
     await tokenService.revokeAllForUser('user-1');
-    // After clear, no specific jti check — just confirm no throw
+    const ts = await tokenService.getUserRevocationTimestamp('user-1');
+    expect(ts).toBeGreaterThanOrEqual(before);
+    expect(ts).toBeLessThanOrEqual(Date.now());
+  });
+
+  it('getUserRevocationTimestamp returns 0 for unknown user', async () => {
+    const ts = await tokenService.getUserRevocationTimestamp('user-unknown');
+    expect(ts).toBe(0);
   });
 });

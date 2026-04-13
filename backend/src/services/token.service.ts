@@ -26,11 +26,6 @@ export const tokenService = {
    * Revoke all active tokens for a user (used on password change / admin force-logout).
    */
   async revokeAllForUser(userId: string): Promise<void> {
-    const keys = await redis.keys(`${BLOCKLIST_PREFIX}${USER_PREFIX}${userId}:*`);
-    if (keys.length > 0) {
-      await redis.del(...keys);
-    }
-    // Store a "revoked before" sentinel for this user (30 days TTL)
     await redis.setex(`${USER_PREFIX}${userId}:revoked_at`, 30 * 24 * 3600, Date.now().toString());
   },
 
