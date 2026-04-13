@@ -201,6 +201,25 @@ class RequestController {
             },
         });
 
+        // If this is a hardware request, create the structured ITHardwareRequest record
+        if (requestTypeId) {
+            const reqType = request.requestType;
+            if (reqType && reqType.name.toLowerCase().includes('hardware')) {
+                const cf = (customFields || {}) as Record<string, any>;
+                await prisma.iTHardwareRequest.create({
+                    data: {
+                        requestId: request.id,
+                        hardwareName: cf.hardwareName || cf.hw_name || cf.hardwareType || 'Unknown',
+                        hardwareModel: cf.hardwareModel || cf.hw_model || cf.model || null,
+                        estimatedPrice: cf.estimatedPrice ? parseFloat(cf.estimatedPrice) : null,
+                        preferredVendor: cf.preferredVendor || null,
+                        productUrl: cf.productUrl || null,
+                        businessJustification: cf.businessJustification || cf.hw_reason || cf.reason || '',
+                    },
+                });
+            }
+        }
+
         // Create initial activity
         await prisma.requestActivity.create({
             data: {
@@ -273,6 +292,7 @@ class RequestController {
                 },
                 serviceDesk: true,
                 requestType: true,
+                itHardwareRequest: true,
                 activities: {
                     orderBy: {
                         createdAt: 'asc',
