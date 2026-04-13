@@ -13,6 +13,7 @@ interface TicketRow {
   status: string;
   slaDeadline?: string | null;
   requester?: { firstName: string; lastName: string; email: string } | null;
+  requestType?: { id: string; name: string } | null;
 }
 
 function getSlaDisplay(slaDeadline?: string | null): { label: string; breached: boolean } {
@@ -49,16 +50,25 @@ export default function AgentDashboard() {
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [slaStatus, setSlaStatus] = useState<SlaStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedRequestTypeId, setSelectedRequestTypeId] = useState<string | null>(null);
+  const [requestTypeOptions, setRequestTypeOptions] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
       try {
+        const myParams: Record<string, any> = { assignedToId: user?.id, limit: 50 };
+        const unParams: Record<string, any> = { assignedToId: 'none', limit: 50 };
+        if (selectedRequestTypeId) {
+          myParams.requestTypeId = selectedRequestTypeId;
+          unParams.requestTypeId = selectedRequestTypeId;
+        }
+
         const [summaryData, slaData, myRes, unRes] = await Promise.all([
           reportsService.getSummary(),
           reportsService.getSlaStatus(),
-          api.get('/requests', { params: { assignedToId: user?.id, limit: 50 } }),
-          api.get('/requests', { params: { assignedToId: 'none', limit: 50 } }),
+          api.get('/requests', { params: myParams }),
+          api.get('/requests', { params: unParams }),
         ]);
         setSummary(summaryData);
         setSlaStatus(slaData);
@@ -68,12 +78,13 @@ export default function AgentDashboard() {
           const arr = Array.isArray(raw) ? raw : (raw?.requests ?? []);
           return arr.map((r: any) => ({
             id: r.id,
-            reference: r.reference ?? r.id,
+            reference: r.reference ?? r.referenceNumber ?? r.id,
             summary: r.summary,
             priority: r.priority ?? 'MEDIUM',
             status: r.status,
             slaDeadline: r.slaDeadline ?? r.sla_deadline ?? null,
             requester: r.requester ?? r.requestedBy ?? null,
+            requestType: r.requestType ?? null,
           }));
         };
 
@@ -86,7 +97,20 @@ export default function AgentDashboard() {
       }
     }
     fetchData();
-  }, [user?.id]);
+  }, [user?.id, selectedRequestTypeId]);
+
+  useEffect(() => {
+    if (selectedRequestTypeId) return;
+    const seen = new Set<string>();
+    const options: { id: string; name: string }[] = [];
+    [...myTickets, ...unassignedTickets].forEach((t) => {
+      if (t.requestType && !seen.has(t.requestType.id)) {
+        seen.add(t.requestType.id);
+        options.push({ id: t.requestType.id, name: t.requestType.name });
+      }
+    });
+    setRequestTypeOptions(options);
+  }, [myTickets, unassignedTickets]);
 
   const tickets = activeTab === 'mine' ? myTickets : unassignedTickets;
 
@@ -144,6 +168,20 @@ export default function AgentDashboard() {
         ))}
       </div>
 
+      {/* Request Type Filter */}
+      <div className="mb-4">
+        <select
+          className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 outline-none transition-all text-gray-500"
+          value={selectedRequestTypeId || ''}
+          onChange={(e) => setSelectedRequestTypeId(e.target.value || null)}
+        >
+          <option value="">All request types</option>
+          {requestTypeOptions.map((opt) => (
+            <option key={opt.id} value={opt.id}>{opt.name}</option>
+          ))}
+        </select>
+      </div>
+
       {/* Tab Toggle */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-6">
         <button
@@ -199,6 +237,7 @@ export default function AgentDashboard() {
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Summary</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Request Type</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Priority</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">SLA</th>
@@ -222,6 +261,7 @@ export default function AgentDashboard() {
                   >
                     <td className="px-4 py-3 font-mono text-xs text-gray-600 font-medium">{ticket.reference}</td>
                     <td className="px-4 py-3 text-gray-900 max-w-xs truncate">{ticket.summary}</td>
+                    <td className="px-4 py-3 text-gray-500">{ticket.requestType?.name || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${priorityCfg.bg} ${priorityCfg.color}`}>
                         {priorityCfg.label}
