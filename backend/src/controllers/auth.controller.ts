@@ -26,8 +26,9 @@ function generateAccessToken(userId: string, email: string): { token: string; jt
 }
 
 function generateRefreshToken(userId: string, email: string): string {
+    const jti = crypto.randomUUID();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return jwt.sign({ userId, email }, config.jwt.refreshSecret, {
+    return jwt.sign({ userId, email, jti }, config.jwt.refreshSecret, {
         expiresIn: config.jwt.refreshExpiresIn as any,
         algorithm: 'HS256',
     });
