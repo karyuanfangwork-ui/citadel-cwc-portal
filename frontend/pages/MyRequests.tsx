@@ -81,7 +81,9 @@ const MyRequests = () => {
           options.push({ id: r.requestType.id, name: r.requestType.name });
         }
       });
-      setRequestTypeOptions(options);
+      if (!selectedRequestTypeId) {
+        setRequestTypeOptions(options);
+      }
     } catch (err: any) {
       console.error('Error fetching requests:', err);
       setError(err.message || 'Failed to load requests');
