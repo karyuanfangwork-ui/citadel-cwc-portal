@@ -39,3 +39,16 @@ export const uploadLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
 });
+
+// Strict rate limiter for password reset (prevents token brute-force)
+export const passwordResetLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: process.env.NODE_ENV === 'development' ? 100 : 5,
+    message: {
+        status: 'error',
+        statusCode: 429,
+        message: 'Too many password reset attempts. Please try again in 1 hour.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
