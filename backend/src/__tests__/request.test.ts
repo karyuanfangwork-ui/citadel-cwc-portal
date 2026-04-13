@@ -170,6 +170,7 @@ describe('GET /api/v1/requests with requestTypeId filter', () => {
     const body = res.body.data ?? res.body;
     const requests = body.requests ?? body;
     expect(Array.isArray(requests)).toBe(true);
+    expect(requests.length).toBeGreaterThanOrEqual(1);
     // Every returned request must have the matching requestTypeId
     requests.forEach((r: any) => {
       expect(r.requestType?.id ?? r.requestTypeId).toBe(requestTypeId);
