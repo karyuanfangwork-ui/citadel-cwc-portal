@@ -5,10 +5,13 @@ import WorkflowRejectModal from './WorkflowRejectModal';
 import SubmitForApprovalModal from './SubmitForApprovalModal';
 import ProcurementModal from './ProcurementModal';
 import FulfilmentModal from './FulfilmentModal';
+import HardwareOrderedModal from './HardwareOrderedModal';
+import HardwareReceivedModal from './HardwareReceivedModal';
+import SoftwareProvisionedModal from './SoftwareProvisionedModal';
 import AssignAgentModal from './AssignAgentModal';
 import SLAIndicator from './SLAIndicator';
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'FULFILMENT' | 'ASSIGN' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -71,6 +74,9 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'REJECT': setOpenModal('REJECT'); break;
       case 'SUBMIT_FOR_APPROVAL': setOpenModal('SUBMIT_FOR_APPROVAL'); break;
       case 'START_PROCUREMENT': setOpenModal('PROCUREMENT'); break;
+      case 'MARK_HARDWARE_ORDERED': setOpenModal('HARDWARE_ORDERED'); break;
+      case 'MARK_HARDWARE_RECEIVED': setOpenModal('HARDWARE_RECEIVED'); break;
+      case 'MARK_SOFTWARE_PROVISIONED': setOpenModal('SOFTWARE_PROVISIONED'); break;
       case 'MARK_FULFILLED': setOpenModal('FULFILMENT'); break;
       case 'ASSIGN': setOpenModal('ASSIGN'); break;
       default:
@@ -177,6 +183,9 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       {openModal === 'REJECT'             && <WorkflowRejectModal  requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
       {openModal === 'SUBMIT_FOR_APPROVAL'&& <SubmitForApprovalModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
       {openModal === 'PROCUREMENT'        && <ProcurementModal     requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
+      {openModal === 'HARDWARE_ORDERED'   && <HardwareOrderedModal    requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
+      {openModal === 'HARDWARE_RECEIVED'  && <HardwareReceivedModal   requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
+      {openModal === 'SOFTWARE_PROVISIONED' && <SoftwareProvisionedModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
       {openModal === 'FULFILMENT'         && <FulfilmentModal      requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
       {openModal === 'ASSIGN'             && (
         <AssignAgentModal
