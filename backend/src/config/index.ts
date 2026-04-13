@@ -89,6 +89,9 @@ export const config = {
         maxAge: parseInt(process.env.SESSION_MAX_AGE || '86400000', 10), // 24 hours
     },
 
+    // Hardware VP Approval
+    hardwareVpApprovalThreshold: parseInt(process.env.HARDWARE_VP_APPROVAL_THRESHOLD || '2500', 10),
+
     // Application
     app: {
         name: process.env.APP_NAME || 'Enterprise Help Center',
