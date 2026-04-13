@@ -34,6 +34,11 @@ function generateRefreshToken(userId: string, email: string): string {
     });
 }
 
+/** SHA-256 hash a refresh token before storing/querying in the DB. */
+function hashRefreshToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
+}
+
 function setAuthCookies(res: Response, accessToken: string, refreshToken: string): void {
     const cookieBase = {
         httpOnly: true,
@@ -86,7 +91,7 @@ class AuthController {
         await prisma.session.create({
             data: {
                 userId: user.id,
-                token: refreshToken,
+                token: hashRefreshToken(refreshToken),
                 expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 ipAddress: req.ip,
                 userAgent: req.headers['user-agent'],
@@ -127,7 +132,7 @@ class AuthController {
         await prisma.session.create({
             data: {
                 userId: user.id,
-                token: refreshToken,
+                token: hashRefreshToken(refreshToken),
                 expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 ipAddress: req.ip,
                 userAgent: req.headers['user-agent'],
@@ -164,7 +169,7 @@ class AuthController {
 
             const refreshToken = req.cookies?.refresh_token;
             if (refreshToken) {
-                await prisma.session.deleteMany({ where: { token: refreshToken, userId: req.user.id } });
+                await prisma.session.deleteMany({ where: { token: hashRefreshToken(refreshToken), userId: req.user.id } });
             }
         }
 
@@ -189,7 +194,7 @@ class AuthController {
 
         const session = await prisma.session.findFirst({
             where: {
-                token: refreshToken,
+                token: hashRefreshToken(refreshToken),
                 userId: decoded.userId,
                 expiresAt: { gt: new Date() },
             },
@@ -206,7 +211,7 @@ class AuthController {
         await prisma.session.create({
             data: {
                 userId: decoded.userId,
-                token: newRefreshToken,
+                token: hashRefreshToken(newRefreshToken),
                 expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 ipAddress: req.ip,
                 userAgent: req.headers['user-agent'],
