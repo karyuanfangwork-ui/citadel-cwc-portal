@@ -230,15 +230,27 @@ export async function markFulfilled(req: Request, res: Response) {
 export async function markHardwareOrdered(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    const { orderNumber, vendor, trackingNumber, estimatedDelivery } = req.body;
+    const { orderNumber, vendor, trackingNumber } = req.body;
 
-    const request = await prisma.request.findUnique({ where: { id } });
+    const request = await prisma.request.findUnique({
+      where: { id },
+      include: { serviceDesk: true },
+    });
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
+    if (request.serviceDesk.code !== 'IT') {
+      return res.status(400).json({ error: 'Request does not belong to IT service desk' });
+    }
+
     if (request.status !== 'PROCUREMENT_IN_PROGRESS') {
       return res.status(400).json({ error: 'Request must be in PROCUREMENT_IN_PROGRESS status' });
+    }
+
+    const hardwareReq = await prisma.iTHardwareRequest.findFirst({ where: { requestId: id } });
+    if (!hardwareReq) {
+      return res.status(400).json({ error: 'No hardware request record found for this request' });
     }
 
     await prisma.request.update({
@@ -246,12 +258,12 @@ export async function markHardwareOrdered(req: Request, res: Response) {
       data: { status: 'HARDWARE_ORDERED' },
     });
 
-    await prisma.iTHardwareRequest.updateMany({
-      where: { requestId: id },
+    await prisma.iTHardwareRequest.update({
+      where: { id: hardwareReq.id },
       data: {
         orderNumber: orderNumber || null,
         trackingNumber: trackingNumber || null,
-        preferredVendor: vendor || undefined,
+        preferredVendor: vendor || null,
         procurementStatus: 'ORDERED',
       },
     });
@@ -263,7 +275,7 @@ export async function markHardwareOrdered(req: Request, res: Response) {
         message: `Hardware ordered. Order: ${orderNumber || 'N/A'}, Vendor: ${vendor || 'N/A'}${trackingNumber ? `, Tracking: ${trackingNumber}` : ''}`,
         authorName: 'System',
         isSystemGenerated: true,
-        metadata: { orderNumber, vendor, trackingNumber, estimatedDelivery },
+        metadata: { orderNumber, vendor, trackingNumber },
       },
     });
 
@@ -285,14 +297,23 @@ export async function markHardwareReceived(req: Request, res: Response) {
 
     const request = await prisma.request.findUnique({
       where: { id },
-      include: { assignedTo: true },
+      include: { assignedTo: true, serviceDesk: true },
     });
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
+    if (request.serviceDesk.code !== 'IT') {
+      return res.status(400).json({ error: 'Request does not belong to IT service desk' });
+    }
+
     if (request.status !== 'HARDWARE_ORDERED') {
       return res.status(400).json({ error: 'Request must be in HARDWARE_ORDERED status' });
+    }
+
+    const hardwareReq = await prisma.iTHardwareRequest.findFirst({ where: { requestId: id } });
+    if (!hardwareReq) {
+      return res.status(400).json({ error: 'No hardware request record found for this request' });
     }
 
     await prisma.request.update({
@@ -300,8 +321,8 @@ export async function markHardwareReceived(req: Request, res: Response) {
       data: { status: 'HARDWARE_RECEIVED' },
     });
 
-    await prisma.iTHardwareRequest.updateMany({
-      where: { requestId: id },
+    await prisma.iTHardwareRequest.update({
+      where: { id: hardwareReq.id },
       data: { procurementStatus: 'RECEIVED' },
     });
 
@@ -337,13 +358,25 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
     const { id } = req.params;
     const { provisioningNotes, softwareInstalled } = req.body;
 
-    const request = await prisma.request.findUnique({ where: { id } });
+    const request = await prisma.request.findUnique({
+      where: { id },
+      include: { serviceDesk: true },
+    });
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
+    if (request.serviceDesk.code !== 'IT') {
+      return res.status(400).json({ error: 'Request does not belong to IT service desk' });
+    }
+
     if (request.status !== 'HARDWARE_RECEIVED') {
       return res.status(400).json({ error: 'Request must be in HARDWARE_RECEIVED status' });
+    }
+
+    const hardwareReq = await prisma.iTHardwareRequest.findFirst({ where: { requestId: id } });
+    if (!hardwareReq) {
+      return res.status(400).json({ error: 'No hardware request record found for this request' });
     }
 
     await prisma.request.update({
@@ -351,8 +384,8 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
       data: { status: 'SOFTWARE_PROVISIONED' },
     });
 
-    await prisma.iTHardwareRequest.updateMany({
-      where: { requestId: id },
+    await prisma.iTHardwareRequest.update({
+      where: { id: hardwareReq.id },
       data: { procurementStatus: 'PROVISIONED' },
     });
 
