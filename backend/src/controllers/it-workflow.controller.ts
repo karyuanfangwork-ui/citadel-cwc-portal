@@ -9,6 +9,11 @@ export async function submitForApproval(req: Request, res: Response) {
     const { id } = req.params;
     const { managerId, notes } = req.body;
 
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (managerId && !uuidRegex.test(managerId)) {
+      return res.status(400).json({ error: 'Invalid managerId: must be a valid UUID' });
+    }
+
     const request = await prisma.request.findUnique({
       where: { id },
       include: { serviceDesk: true },

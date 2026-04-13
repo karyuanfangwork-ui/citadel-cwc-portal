@@ -40,10 +40,10 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
           firstName: u.firstName,
           lastName: u.lastName,
           email: u.email,
-          roles: u.roles?.map((r: any) => (typeof r === 'string' ? r : r.name)) ?? [],
+          roles: u.roles?.map((r: any) => (typeof r === 'string' ? r : (r.role?.name ?? r.name))) ?? [],
         }));
         const adminsAndManagers = all.filter(u =>
-          u.roles.some(r => r === 'ADMIN' || r === 'admin')
+          u.roles.some(r => ['ADMIN', 'admin', 'CEO', 'ceo', 'MANAGER', 'manager'].includes(r))
         );
         setManagers(adminsAndManagers);
         setFiltered(adminsAndManagers);
@@ -84,8 +84,8 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100">
           <div className="size-9 rounded-lg bg-blue-100 flex items-center justify-center">
             <span className="material-symbols-outlined text-[#0052cc]">approval</span>
@@ -102,13 +102,13 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
                 Search Manager
               </label>
               <input
-                type="text"
+                type="search"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Type name or email…"
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] [&::-webkit-search-cancel-button]:hidden"
               />
-              <p className="text-xs text-gray-400 mt-1">Showing Admin users</p>
+              <p className="text-xs text-gray-400 mt-1">Showing Admin / Manager users</p>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
@@ -117,14 +117,14 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
               {loading ? (
                 <p className="text-xs text-gray-400 py-2">Loading managers…</p>
               ) : (
-                <div className="space-y-2 max-h-40 overflow-y-auto">
+                <div className="space-y-2 max-h-52 overflow-y-auto pr-0.5">
                   {filtered.length === 0 ? (
                     <p className="text-xs text-gray-400 py-2">No managers found</p>
                   ) : (
                     filtered.map(m => (
                       <label
                         key={m.id}
-                        className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                        className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${
                           selectedId === m.id ? 'border-[#0052cc] bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
                         }`}
                       >
@@ -134,16 +134,14 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
                           value={m.id}
                           checked={selectedId === m.id}
                           onChange={() => setSelectedId(m.id)}
-                          className="accent-[#0052cc]"
+                          className="accent-[#0052cc] w-4 h-4 flex-shrink-0"
                         />
-                        <div className="flex items-center gap-2.5">
-                          <div className="size-7 rounded-full bg-[#0052cc] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
-                            {m.firstName[0]}{m.lastName[0]}
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">{m.firstName} {m.lastName}</p>
-                            <p className="text-xs text-gray-500">{m.email}</p>
-                          </div>
+                        <div className="size-8 rounded-full bg-[#0052cc] text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                          {m.firstName[0]}{m.lastName[0]}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">{m.firstName} {m.lastName}</p>
+                          <p className="text-xs text-gray-500 truncate">{m.email}</p>
                         </div>
                       </label>
                     ))

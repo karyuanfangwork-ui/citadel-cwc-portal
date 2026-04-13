@@ -1,6 +1,6 @@
 import prisma from '../utils/prisma';
 import { sendEmail, renderTemplate } from './email.service';
-import logger from '../utils/logger';
+import { logger } from '../utils/logger';
 
 interface NotifyOptions {
   userId: string;

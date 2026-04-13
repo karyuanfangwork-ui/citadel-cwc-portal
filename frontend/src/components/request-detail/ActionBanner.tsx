@@ -62,6 +62,12 @@ function getBannerConfig(role: RequestRole, status: string, assignedToName?: str
       actionLabel: 'Review Request',
       bgClass: 'bg-purple-50', borderClass: 'border-purple-300', iconBgClass: 'bg-purple-600', iconColor: 'text-white'
     };
+    if (status === 'PENDING_MANAGER_APPROVAL_IT') return {
+      icon: 'approval', title: 'Your Approval Required',
+      description: 'This IT request has been routed to you for sign-off. Review the details and approve or reject.',
+      actionLabel: 'Review & Decide',
+      bgClass: 'bg-blue-50', borderClass: 'border-blue-300', iconBgClass: 'bg-[#0052cc]', iconColor: 'text-white'
+    };
     return null;
   }
 

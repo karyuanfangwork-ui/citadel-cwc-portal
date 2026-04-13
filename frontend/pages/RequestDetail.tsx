@@ -40,6 +40,10 @@ interface Request {
     name: string;
     code: string;
   };
+  requestType?: {
+    id: string;
+    name: string;
+  };
   requester?: {
     id: string;
     firstName: string;
@@ -54,6 +58,7 @@ interface Request {
   };
   requesterId: string;
   slaDueAt?: string | null;
+  approvals?: { id: string; approverId: string; approverType: string; status: string }[];
   candidateResumes?: CandidateResume[];
   interviewSchedule?: InterviewSchedule;
   interviewFeedback?: InterviewFeedback;
@@ -1539,6 +1544,8 @@ const RequestDetail = () => {
             userId={user?.id || ''}
             userName={user ? `${user.firstName} ${user.lastName}` : ''}
             assignedTo={request.assignedTo || null}
+            approvals={request.approvals || []}
+            requestTypeName={request.requestType?.name || ''}
             referenceNumber={request.referenceNumber}
             priority={request.priority}
             serviceDeskName={request.serviceDesk?.name || ''}

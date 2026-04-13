@@ -37,10 +37,12 @@ class RequestController {
                 // CEO can see:
                 // 1. Requests they created
                 // 2. Requests in hiring workflow (any status)
+                // 3. Requests where CEO is the designated approver
                 const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
                 where.OR = [
                     { requesterId: req.user!.id },
-                    { status: { in: ceoHiringStatuses } }
+                    { status: { in: ceoHiringStatuses } },
+                    { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else {
                 // Regular users only see their own requests
@@ -65,11 +67,18 @@ class RequestController {
         }
 
         if (search) {
-            where.OR = [
+            const searchConditions = [
                 { referenceNumber: { contains: search as string, mode: 'insensitive' } },
                 { summary: { contains: search as string, mode: 'insensitive' } },
                 { description: { contains: search as string, mode: 'insensitive' } },
             ];
+            // Preserve existing OR conditions (e.g. CEO visibility) by wrapping with AND
+            if (where.OR) {
+                where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+                delete where.OR;
+            } else {
+                where.OR = searchConditions;
+            }
         }
 
         // Get requests and total count
@@ -284,6 +293,14 @@ class RequestController {
                         createdAt: 'desc',
                     },
                 },
+                approvals: {
+                    select: {
+                        id: true,
+                        approverId: true,
+                        approverType: true,
+                        status: true,
+                    },
+                },
             },
         });
 
@@ -305,14 +322,17 @@ class RequestController {
         // 2. User is ADMIN or AGENT
         // 3. User is CEO and request is in hiring workflow
         const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
-        const isCEOViewingPendingApproval =
-            req.user!.roles.includes('CEO') && ceoHiringStatuses.includes(request.status);
+        const isCEOApprover =
+            req.user!.roles.includes('CEO') && (
+                ceoHiringStatuses.includes(request.status) ||
+                (request as any).approvals?.some((a: any) => a.approverId === req.user!.id)
+            );
 
         if (
             request.requesterId !== req.user!.id &&
             !req.user!.roles.includes('ADMIN') &&
             !req.user!.roles.includes('AGENT') &&
-            !isCEOViewingPendingApproval
+            !isCEOApprover
         ) {
             throw new AppError('You do not have permission to view this request', 403);
         }

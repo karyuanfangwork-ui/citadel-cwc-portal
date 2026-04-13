@@ -226,7 +226,7 @@ class UserController {
         const agents = await prisma.user.findMany({
             where: {
                 roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
-                deletedAt: null,
+                isActive: true,
             },
             select: {
                 id: true,

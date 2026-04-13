@@ -17,6 +17,8 @@ interface ActionSidebarProps {
   userId: string;
   userName: string;
   assignedTo?: { id: string; firstName: string; lastName: string } | null;
+  approvals?: { id: string; approverId: string; approverType: string; status: string }[];
+  requestTypeName?: string;
   referenceNumber: string;
   priority: string;
   serviceDeskName: string;
@@ -40,6 +42,8 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   userId,
   userName,
   assignedTo,
+  approvals = [],
+  requestTypeName = '',
   referenceNumber,
   priority,
   serviceDeskName,
@@ -51,7 +55,10 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   const [openModal, setOpenModal] = useState<ModalType>(null);
 
   const isAssigned = !!assignedTo;
-  const actions = getWorkflowActions(status, userRoles, isAssigned);
+  const isDesignatedApprover = approvals.some(
+    a => a.approverId === userId && a.status === 'PENDING'
+  );
+  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName);
 
   const handleSuccess = () => {
     setOpenModal(null);

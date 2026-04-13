@@ -31,7 +31,7 @@ export function detectRequestRole(params: RoleDetectionParams): RequestRole {
     return 'agent';
   }
 
-  if (userRoles.includes('CEO') && requestStatus === 'PENDING_CEO_APPROVAL') {
+  if (userRoles.includes('CEO') && (requestStatus === 'PENDING_CEO_APPROVAL' || requestStatus === 'PENDING_MANAGER_APPROVAL_IT')) {
     return 'ceo';
   }
 
