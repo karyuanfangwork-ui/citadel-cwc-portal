@@ -86,6 +86,10 @@ export async function managerDecision(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
+    if (request.status !== 'PENDING_MANAGER_APPROVAL_IT') {
+      return res.status(400).json({ error: 'Request is not pending manager approval' });
+    }
+
     // Authorization: must be the designated approver OR an ADMIN
     const isAdmin = currentUser?.roles?.some((r: any) => r.role?.name === 'ADMIN') ?? false;
     if (!isAdmin) {
@@ -626,6 +630,16 @@ export const resubmitRequest = async (req: Request, res: Response) => {
       await prisma.requestApproval.update({
         where: { id: request.approvals[0].id },
         data: { status: 'PENDING', comments: null },
+      });
+    } else {
+      // No existing approval record — create a fresh PENDING one
+      await prisma.requestApproval.create({
+        data: {
+          requestId: id,
+          approverId: null,
+          approverType: 'MANAGER',
+          status: 'PENDING',
+        },
       });
     }
 
