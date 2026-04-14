@@ -92,7 +92,7 @@ const VpApprovalModal: React.FC<VpApprovalModalProps> = ({
               Cancel
             </button>
             <button
-              type="submit"
+              type="button"
               onClick={handleReject}
               disabled={submitting}
               className="px-4 py-3 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
@@ -100,7 +100,7 @@ const VpApprovalModal: React.FC<VpApprovalModalProps> = ({
               {submitting ? 'Rejecting…' : 'Reject'}
             </button>
             <button
-              type="submit"
+              type="button"
               onClick={handleApprove}
               disabled={submitting}
               className="px-4 py-3 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"

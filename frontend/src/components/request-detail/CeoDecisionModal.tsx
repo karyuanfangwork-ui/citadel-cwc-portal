@@ -48,7 +48,7 @@ const CeoDecisionModal: React.FC<CeoDecisionModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-amber-50">
           <div className="size-9 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -86,7 +86,7 @@ const CeoDecisionModal: React.FC<CeoDecisionModalProps> = ({
               Cancel
             </button>
             <button
-              type="submit"
+              type="button"
               onClick={handleReject}
               disabled={submitting}
               className="px-4 py-3 text-sm font-bold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:ring-offset-2"
@@ -94,7 +94,7 @@ const CeoDecisionModal: React.FC<CeoDecisionModalProps> = ({
               {submitting ? 'Rejecting…' : 'Reject'}
             </button>
             <button
-              type="submit"
+              type="button"
               onClick={handleApprove}
               disabled={submitting}
               className="px-4 py-3 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
