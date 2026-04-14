@@ -22,7 +22,7 @@ const PaymentDoneModal: React.FC<PaymentDoneModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const { handleBackdropClick } = useModalDismiss(onClose);
 
-  const isDisabled = !paymentReference.trim() || !amount || !paymentDate || submitting;
+  const isDisabled = !paymentReference.trim() || !amount || parseFloat(amount) <= 0 || !paymentDate || submitting;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -69,6 +69,7 @@ const PaymentDoneModal: React.FC<PaymentDoneModalProps> = ({
                 type="text"
                 value={paymentReference}
                 onChange={e => setPaymentReference(e.target.value)}
+                placeholder="e.g. PAY-2026-001"
                 className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
               />
             </div>
