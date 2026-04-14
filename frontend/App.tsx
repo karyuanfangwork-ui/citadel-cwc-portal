@@ -47,17 +47,59 @@ const Header = () => {
             <h2 className="text-[#101418] text-lg font-bold leading-tight tracking-tight">Help Center</h2>
           </Link>
           <nav className="hidden md:flex items-center gap-8">
-            <Link to="/" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Dashboard</Link>
-            <Link to="/my-requests" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/my-requests') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>My Requests</Link>
+            <Link
+              to="/"
+              className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                isActive('/') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+              }`}
+            >
+              Dashboard
+            </Link>
+            <Link
+              to="/my-requests"
+              className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                isActive('/my-requests') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+              }`}
+            >
+              My Requests
+            </Link>
             {(user?.roles?.includes('ADMIN') || user?.roles?.includes('AGENT')) && (
-              <Link to="/agent" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/agent') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Agent Dashboard</Link>
+              <Link
+                to="/agent"
+                className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                  isActive('/agent') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+                }`}
+              >
+                Agent Dashboard
+              </Link>
             )}
             {user?.roles?.includes('ADMIN') && (
-              <Link to="/reports" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/reports') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Reports</Link>
+              <Link
+                to="/reports"
+                className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                  isActive('/reports') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+                }`}
+              >
+                Reports
+              </Link>
             )}
-            <Link to="/kb" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/kb') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Knowledge Base</Link>
+            <Link
+              to="/kb"
+              className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                isActive('/kb') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+              }`}
+            >
+              Knowledge Base
+            </Link>
             {user?.roles?.includes('ADMIN') && (
-              <Link to="/admin/settings" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/admin/settings') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Admin Settings</Link>
+              <Link
+                to="/admin/settings"
+                className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                  isActive('/admin/settings') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+                }`}
+              >
+                Admin Settings
+              </Link>
             )}
           </nav>
         </div>
@@ -73,7 +115,7 @@ const Header = () => {
             }}
             className="relative hidden sm:block"
           >
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5e718d] text-xl">search</span>
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#44546f] text-xl">search</span>
             <input
               name="q"
               type="text"
