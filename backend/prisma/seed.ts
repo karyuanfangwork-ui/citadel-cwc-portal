@@ -79,6 +79,24 @@ async function main() {
         },
     });
 
+    const ctoRole = await prisma.role.upsert({
+        where: { name: 'CTO' },
+        update: {},
+        create: {
+            name: 'CTO',
+            description: 'Chief Technology Officer with IT approval authority',
+        },
+    });
+
+    const cfoRole = await prisma.role.upsert({
+        where: { name: 'CFO' },
+        update: {},
+        create: {
+            name: 'CFO',
+            description: 'Chief Financial Officer with finance approval authority',
+        },
+    });
+
     console.log('✅ Roles created');
 
     // Create Permissions
@@ -168,6 +186,50 @@ async function main() {
     });
 
     console.log('✅ CEO user created (email: ceo@company.com, password: ceo123)');
+
+    // Create CTO User
+    const ctoHashedPassword = await bcrypt.hash('cto123', 10);
+    const ctoUser = await prisma.user.upsert({
+        where: { email: 'cto@company.com' },
+        update: {},
+        create: {
+            email: 'cto@company.com',
+            firstName: 'Alex',
+            lastName: 'Tech',
+            passwordHash: ctoHashedPassword,
+            isActive: true,
+        },
+    });
+
+    await prisma.userRole.upsert({
+        where: { userId_roleId: { userId: ctoUser.id, roleId: ctoRole.id } },
+        update: {},
+        create: { userId: ctoUser.id, roleId: ctoRole.id },
+    });
+
+    console.log('✅ CTO user created (email: cto@company.com, password: cto123)');
+
+    // Create CFO User
+    const cfoHashedPassword = await bcrypt.hash('cfo123', 10);
+    const cfoUser = await prisma.user.upsert({
+        where: { email: 'cfo@company.com' },
+        update: {},
+        create: {
+            email: 'cfo@company.com',
+            firstName: 'Jordan',
+            lastName: 'Finance',
+            passwordHash: cfoHashedPassword,
+            isActive: true,
+        },
+    });
+
+    await prisma.userRole.upsert({
+        where: { userId_roleId: { userId: cfoUser.id, roleId: cfoRole.id } },
+        update: {},
+        create: { userId: cfoUser.id, roleId: cfoRole.id },
+    });
+
+    console.log('✅ CFO user created (email: cfo@company.com, password: cfo123)');
 
     // Create Test Users
     const testUsers = [
