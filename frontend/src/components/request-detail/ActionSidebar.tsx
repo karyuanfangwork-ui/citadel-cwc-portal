@@ -1,6 +1,7 @@
 import React, { lazy, Suspense, useState } from 'react';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
 import SLAIndicator from './SLAIndicator';
+import itWorkflowService from '../../services/it-workflow.service';
 
 const WorkflowApproveModal = lazy(() => import('./WorkflowApproveModal'));
 const WorkflowRejectModal = lazy(() => import('./WorkflowRejectModal'));
@@ -13,8 +14,14 @@ const SoftwareProvisionedModal = lazy(() => import('./SoftwareProvisionedModal')
 const AssignAgentModal = lazy(() => import('./AssignAgentModal'));
 const VpApprovalModal = lazy(() => import('./VpApprovalModal'));
 const ResubmitModal = lazy(() => import('./ResubmitModal'));
+const AcknowledgeModal = lazy(() => import('./AcknowledgeModal'));
+const CeoDecisionModal = lazy(() => import('./CeoDecisionModal'));
+const CtoDecisionModal = lazy(() => import('./CtoDecisionModal'));
+const PendingInvoiceModal = lazy(() => import('./PendingInvoiceModal'));
+const CfoDecisionModal = lazy(() => import('./CfoDecisionModal'));
+const PaymentDoneModal = lazy(() => import('./PaymentDoneModal'));
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -87,6 +94,23 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'ASSIGN': setOpenModal('ASSIGN'); break;
       case 'VP_DECISION': setOpenModal('VP_DECISION'); break;
       case 'RESUBMIT_REQUEST': setOpenModal('RESUBMIT_REQUEST'); break;
+      case 'ACKNOWLEDGE_IT': setOpenModal('ACKNOWLEDGE_IT'); break;
+      case 'CEO_DECISION': setOpenModal('CEO_DECISION'); break;
+      case 'CTO_DECISION': setOpenModal('CTO_DECISION'); break;
+      case 'ROUTE_TO_CFO': setOpenModal('ROUTE_TO_CFO'); break;
+      case 'CFO_DECISION': setOpenModal('CFO_DECISION'); break;
+      case 'PAYMENT_DONE': setOpenModal('PAYMENT_DONE'); break;
+      case 'COMPLETE_DELIVERY':
+        // Direct action, no modal
+        (async () => {
+          try {
+            await itWorkflowService.completeDelivery(requestId);
+            onActionSuccess();
+          } catch (err: any) {
+            console.error('Failed to complete delivery', err);
+          }
+        })();
+        break;
       default:
         console.warn('[ActionSidebar] Unhandled action type:', type);
     }
@@ -235,6 +259,36 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       {openModal === 'RESUBMIT_REQUEST' && (
         <Suspense fallback={null}>
           <ResubmitModal requestId={requestId} initialValues={{}} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'ACKNOWLEDGE_IT' && (
+        <Suspense fallback={null}>
+          <AcknowledgeModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'CEO_DECISION' && (
+        <Suspense fallback={null}>
+          <CeoDecisionModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'CTO_DECISION' && (
+        <Suspense fallback={null}>
+          <CtoDecisionModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'ROUTE_TO_CFO' && (
+        <Suspense fallback={null}>
+          <PendingInvoiceModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'CFO_DECISION' && (
+        <Suspense fallback={null}>
+          <CfoDecisionModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'PAYMENT_DONE' && (
+        <Suspense fallback={null}>
+          <PaymentDoneModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
       {openModal === 'ASSIGN' && (

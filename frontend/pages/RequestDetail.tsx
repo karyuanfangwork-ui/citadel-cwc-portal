@@ -629,6 +629,51 @@ const RequestDetail = () => {
       }));
     }
 
+    const itProcurementStatuses = [
+      'ACKNOWLEDGED_IT', 'PENDING_CEO_APPROVAL_IT', 'CEO_APPROVED_IT', 'CEO_REJECTED_IT',
+      'PENDING_CTO_APPROVAL_IT', 'CTO_APPROVED_IT', 'CTO_REJECTED_IT', 'PENDING_INVOICE_IT',
+      'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'CFO_REJECTED_IT', 'PAYMENT_PROCESSING_IT',
+      'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT',
+    ];
+    const itProcurementRequestTypes = ['Request new hardware', 'Request Software Installation'];
+    const isITProcurement =
+      request?.serviceDesk?.code === 'IT' &&
+      (itProcurementStatuses.includes(currentStatus) ||
+        (itProcurementRequestTypes.includes(request?.requestTypeName ?? '') && currentStatus === 'SUBMITTED'));
+
+    if (isITProcurement) {
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'Acknowledged', status: 'ACKNOWLEDGED_IT', icon: 'task_alt' },
+        { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL_IT', icon: 'verified_user' },
+        { label: 'CTO Approval', status: 'PENDING_CTO_APPROVAL_IT', icon: 'engineering' },
+        { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'receipt_long' },
+        { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_IT', icon: 'account_balance' },
+        { label: 'Payment', status: 'PAYMENT_PROCESSING_IT', icon: 'payments' },
+        { label: 'Pending Delivery', status: 'PENDING_DELIVERY_IT', icon: 'local_shipping' },
+        { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+      ];
+
+      const statusOrder = [
+        'SUBMITTED',
+        'ACKNOWLEDGED_IT',
+        'PENDING_CEO_APPROVAL_IT', 'CEO_APPROVED_IT',
+        'PENDING_CTO_APPROVAL_IT', 'CTO_APPROVED_IT',
+        'PENDING_INVOICE_IT',
+        'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT',
+        'PAYMENT_PROCESSING_IT', 'PAYMENT_DONE_IT',
+        'PENDING_DELIVERY_IT',
+        'RESOLVED',
+      ];
+
+      const currentIndex = statusOrder.indexOf(currentStatus);
+
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
     const allSteps = [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
       { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
