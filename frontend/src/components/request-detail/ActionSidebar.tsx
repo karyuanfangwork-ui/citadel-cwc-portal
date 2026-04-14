@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
-import WorkflowApproveModal from './WorkflowApproveModal';
-import WorkflowRejectModal from './WorkflowRejectModal';
-import SubmitForApprovalModal from './SubmitForApprovalModal';
-import ProcurementModal from './ProcurementModal';
-import FulfilmentModal from './FulfilmentModal';
-import HardwareOrderedModal from './HardwareOrderedModal';
-import HardwareReceivedModal from './HardwareReceivedModal';
-import SoftwareProvisionedModal from './SoftwareProvisionedModal';
-import AssignAgentModal from './AssignAgentModal';
-import VpApprovalModal from './VpApprovalModal';
-import ResubmitModal from './ResubmitModal';
 import SLAIndicator from './SLAIndicator';
+
+const WorkflowApproveModal = lazy(() => import('./WorkflowApproveModal'));
+const WorkflowRejectModal = lazy(() => import('./WorkflowRejectModal'));
+const SubmitForApprovalModal = lazy(() => import('./SubmitForApprovalModal'));
+const ProcurementModal = lazy(() => import('./ProcurementModal'));
+const FulfilmentModal = lazy(() => import('./FulfilmentModal'));
+const HardwareOrderedModal = lazy(() => import('./HardwareOrderedModal'));
+const HardwareReceivedModal = lazy(() => import('./HardwareReceivedModal'));
+const SoftwareProvisionedModal = lazy(() => import('./SoftwareProvisionedModal'));
+const AssignAgentModal = lazy(() => import('./AssignAgentModal'));
+const VpApprovalModal = lazy(() => import('./VpApprovalModal'));
+const ResubmitModal = lazy(() => import('./ResubmitModal'));
 
 type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | null;
 
@@ -186,25 +187,67 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       </div>
 
       {/* Modals */}
-      {openModal === 'APPROVE'            && <WorkflowApproveModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'REJECT'             && <WorkflowRejectModal  requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'SUBMIT_FOR_APPROVAL'&& <SubmitForApprovalModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'PROCUREMENT'        && <ProcurementModal     requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'HARDWARE_ORDERED'   && <HardwareOrderedModal    requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'HARDWARE_RECEIVED'  && <HardwareReceivedModal   requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'SOFTWARE_PROVISIONED' && <SoftwareProvisionedModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'FULFILMENT'         && <FulfilmentModal      requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'VP_DECISION'         && <VpApprovalModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'RESUBMIT_REQUEST'   && <ResubmitModal requestId={requestId} initialValues={{}} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />}
-      {openModal === 'ASSIGN'             && (
-        <AssignAgentModal
-          requestId={requestId}
-          currentAssigneeId={assignedTo?.id}
-          currentUserId={userId}
-          currentUserName={userName}
-          onSuccess={handleSuccess}
-          onClose={() => setOpenModal(null)}
-        />
+      {openModal === 'APPROVE' && (
+        <Suspense fallback={null}>
+          <WorkflowApproveModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'REJECT' && (
+        <Suspense fallback={null}>
+          <WorkflowRejectModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'SUBMIT_FOR_APPROVAL' && (
+        <Suspense fallback={null}>
+          <SubmitForApprovalModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'PROCUREMENT' && (
+        <Suspense fallback={null}>
+          <ProcurementModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'HARDWARE_ORDERED' && (
+        <Suspense fallback={null}>
+          <HardwareOrderedModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'HARDWARE_RECEIVED' && (
+        <Suspense fallback={null}>
+          <HardwareReceivedModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'SOFTWARE_PROVISIONED' && (
+        <Suspense fallback={null}>
+          <SoftwareProvisionedModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'FULFILMENT' && (
+        <Suspense fallback={null}>
+          <FulfilmentModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'VP_DECISION' && (
+        <Suspense fallback={null}>
+          <VpApprovalModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'RESUBMIT_REQUEST' && (
+        <Suspense fallback={null}>
+          <ResubmitModal requestId={requestId} initialValues={{}} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'ASSIGN' && (
+        <Suspense fallback={null}>
+          <AssignAgentModal
+            requestId={requestId}
+            currentAssigneeId={assignedTo?.id}
+            currentUserId={userId}
+            currentUserName={userName}
+            onSuccess={handleSuccess}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
       )}
     </aside>
   );
