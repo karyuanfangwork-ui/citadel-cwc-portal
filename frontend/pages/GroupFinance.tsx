@@ -85,7 +85,7 @@ const GroupFinance = () => {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
-      <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#5e718d]">
+      <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#44546f]">
         <Link to="/" className="hover:text-amber-600">
           Help Center
         </Link>
@@ -95,14 +95,14 @@ const GroupFinance = () => {
 
       <div className="mb-12">
         <h1 className="text-4xl font-black text-[#101418] mb-4">{serviceDesk.name}</h1>
-        <p className="text-lg text-[#5e718d] max-w-3xl">
+        <p className="text-lg text-[#44546f] max-w-3xl">
           {serviceDesk.description || 'Get help with finance-related requests and services'}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {categories.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-[#5e718d]">
+          <div className="col-span-full text-center py-12 text-[#44546f]">
             <p>No categories available</p>
           </div>
         ) : (
@@ -122,7 +122,7 @@ const GroupFinance = () => {
                   <h3 className="font-bold text-lg mb-2 group-hover:text-amber-600 transition-colors">
                     {category.name}
                   </h3>
-                  <p className="text-sm text-[#5e718d] leading-relaxed">
+                  <p className="text-sm text-[#44546f] leading-relaxed">
                     {category.description || 'Click to view available services'}
                   </p>
                 </div>
@@ -139,7 +139,7 @@ const GroupFinance = () => {
           </div>
           <div className="flex-1">
             <h3 className="font-bold text-xl mb-2">Need finance assistance?</h3>
-            <p className="text-[#5e718d]">
+            <p className="text-[#44546f]">
               Our finance team is available Monday-Friday, 9 AM - 5 PM
             </p>
           </div>

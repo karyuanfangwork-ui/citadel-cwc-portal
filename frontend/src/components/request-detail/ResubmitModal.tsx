@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import itWorkflowService from '../../services/it-workflow.service';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 interface ResubmitModalProps {
   requestId: string;
@@ -31,6 +32,7 @@ const ResubmitModal: React.FC<ResubmitModalProps> = ({
   const [resubmitNotes, setResubmitNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { handleBackdropClick } = useModalDismiss(onClose);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +61,7 @@ const ResubmitModal: React.FC<ResubmitModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={handleBackdropClick}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-gradient-to-r from-amber-50 to-orange-50">
           <div className="size-9 rounded-lg bg-orange-100 flex items-center justify-center">
@@ -172,14 +174,14 @@ const ResubmitModal: React.FC<ResubmitModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+              className="px-4 py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!hardwareName || !businessJustification || submitting}
-              className="px-4 py-2 text-sm font-bold text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50"
+              className="px-4 py-3 text-sm font-bold text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-600 focus-visible:ring-offset-2"
             >
               {submitting ? 'Resubmitting…' : 'Resubmit Request'}
             </button>

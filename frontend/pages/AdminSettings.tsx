@@ -183,18 +183,18 @@ const AdminSettings = () => {
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-[#5e718d] font-bold">Loading system settings...</div>;
+    if (loading) return <div className="p-8 text-center text-[#44546f] font-bold">Loading system settings...</div>;
 
     return (
         <div className="max-w-[1240px] mx-auto px-6 py-12">
             <div className="flex justify-between items-center mb-10">
                 <div>
                     <h1 className="text-4xl font-black text-[#101418] tracking-tight">Admin Console</h1>
-                    <p className="text-[#5e718d] mt-2 font-medium">Configure service desks, categories, and dynamic forms.</p>
+                    <p className="text-[#44546f] mt-2 font-medium">Configure service desks, categories, and dynamic forms.</p>
                 </div>
             </div>
 
-            <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-2xl shadow-gray-100/50">
+            <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
                 <div className="p-8 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gray-50/20">
                     <div className="flex items-center gap-4">
                         <label className="text-sm font-bold text-[#44546f] uppercase tracking-wider">Service Desk</label>
@@ -213,7 +213,7 @@ const AdminSettings = () => {
                     </div>
                     <button
                         onClick={openAddModal}
-                        className="flex items-center gap-2 px-8 py-3.5 bg-[#0052cc] text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-200/50 uppercase tracking-widest text-xs"
+                        className="flex items-center gap-2 px-8 py-3.5 bg-[#0052cc] text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-sm uppercase tracking-widest text-xs"
                     >
                         <span className="material-symbols-outlined text-xl">add</span>
                         Add Category
@@ -223,7 +223,7 @@ const AdminSettings = () => {
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead className="bg-gray-50/50 border-b border-gray-100">
-                            <tr className="text-[11px] font-black text-[#5e718d] uppercase tracking-[0.2em]">
+                            <tr className="text-[11px] font-black text-[#44546f] uppercase tracking-[0.2em]">
                                 <th className="px-8 py-5 w-20">Order</th>
                                 <th className="px-8 py-5 w-16">Icon</th>
                                 <th className="px-8 py-5">Category Name</th>
@@ -243,7 +243,7 @@ const AdminSettings = () => {
                                     </td>
                                     <td className="px-8 py-6">
                                         <div className="font-bold text-[#101418] text-lg">{cat.name}</div>
-                                        <div className="text-sm text-[#5e718d] max-w-xs truncate mt-1">{cat.description || 'No description'}</div>
+                                        <div className="text-sm text-[#44546f] max-w-xs truncate mt-1">{cat.description || 'No description'}</div>
                                     </td>
                                     <td className="px-8 py-6">
                                         <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${cat.isActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
@@ -263,13 +263,13 @@ const AdminSettings = () => {
                                         <div className="flex justify-end gap-3">
                                             <button
                                                 onClick={() => openEditModal(cat)}
-                                                className="w-10 h-10 flex items-center justify-center text-[#5e718d] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
                                             >
                                                 <span className="material-symbols-outlined text-xl">edit</span>
                                             </button>
                                             <button
                                                 onClick={() => handleDelete(cat.id)}
-                                                className="w-10 h-10 flex items-center justify-center text-[#5e718d] hover:bg-white hover:text-red-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-red-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
                                             >
                                                 <span className="material-symbols-outlined text-xl">delete</span>
                                             </button>
@@ -290,7 +290,7 @@ const AdminSettings = () => {
                                     <span className="material-symbols-outlined text-[#0052cc]">settings_input_component</span>
                                     <h3 className="text-2xl font-black text-[#101418]">Services for {selectedCategory.name}</h3>
                                 </div>
-                                <p className="text-[#5e718d] font-medium">Configure individual request forms and their custom fields.</p>
+                                <p className="text-[#44546f] font-medium">Configure individual request forms and their custom fields.</p>
                             </div>
                             <button className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 text-[#101418] font-bold rounded-2xl hover:bg-gray-100 transition-all text-xs uppercase tracking-widest shadow-sm">
                                 <span className="material-symbols-outlined text-sm">add</span> New Service
@@ -321,7 +321,7 @@ const AdminSettings = () => {
                                             </div>
                                         </div>
                                         <h4 className="font-black text-[#101418] text-lg mb-2">{type.name}</h4>
-                                        <p className="text-sm text-[#5e718d] mb-6 line-clamp-2 min-h-[40px] leading-relaxed">{type.description || 'No description provided for this service.'}</p>
+                                        <p className="text-sm text-[#44546f] mb-6 line-clamp-2 min-h-[40px] leading-relaxed">{type.description || 'No description provided for this service.'}</p>
 
                                         <div className="flex items-center justify-between pt-4 border-t border-gray-50">
                                             <span className="text-[10px] font-black uppercase tracking-[0.1em] text-[#0052cc] bg-blue-50 px-3 py-1 rounded-full">
@@ -335,7 +335,7 @@ const AdminSettings = () => {
                             {requestTypes.length === 0 && (
                                 <div className="col-span-full py-16 text-center bg-white rounded-3xl border border-dashed border-gray-200">
                                     <span className="material-symbols-outlined text-4xl text-gray-200 mb-4">inventory_2</span>
-                                    <p className="text-[#5e718d] font-bold">No services found for this category.</p>
+                                    <p className="text-[#44546f] font-bold">No services found for this category.</p>
                                 </div>
                             )}
                         </div>
@@ -449,7 +449,7 @@ const AdminSettings = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="flex-1 px-8 py-5 bg-[#0052cc] text-white font-black rounded-3xl hover:bg-blue-700 transition-all shadow-2xl shadow-blue-200/50 uppercase tracking-widest text-xs"
+                                    className="flex-1 px-8 py-5 bg-[#0052cc] text-white font-black rounded-3xl hover:bg-blue-700 transition-all shadow-sm uppercase tracking-widest text-xs"
                                 >
                                     {editingCategory ? 'Commit Changes' : 'Confirm & Create'}
                                 </button>

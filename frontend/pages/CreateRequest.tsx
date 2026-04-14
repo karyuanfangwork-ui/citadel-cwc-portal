@@ -231,7 +231,7 @@ const CreateRequest = () => {
                                 <p className="text-sm font-bold text-[#101418] group-hover:text-[#0052cc]">
                                     {formData.customFields[field.id] || 'Click to upload or drag and drop'}
                                 </p>
-                                <p className="text-xs text-[#5e718d]">PNG, JPG, PDF, DOC (max 10MB)</p>
+                                <p className="text-xs text-[#44546f]">PNG, JPG, PDF, DOC (max 10MB)</p>
                             </div>
                         </label>
                     </div>
@@ -262,7 +262,7 @@ const CreateRequest = () => {
     return (
         <div className="max-w-[1240px] mx-auto px-6 py-12">
             {/* Breadcrumbs */}
-            <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#5e718d]">
+            <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#44546f]">
                 <Link to="/" className="hover:text-[#0052cc]">Help Center</Link>
                 <span className="material-symbols-outlined text-sm">chevron_right</span>
                 <Link to={`/${deskType}`} className="hover:text-[#0052cc]">{getDeskName()}</Link>
@@ -275,7 +275,7 @@ const CreateRequest = () => {
                 <h1 className="text-4xl font-bold text-[#101418] mb-2">
                     {category?.name || 'Get help'}
                 </h1>
-                <p className="text-[#5e718d] text-lg">
+                <p className="text-[#44546f] text-lg">
                     Tell us what you need help with and we'll get back to you as soon as possible.
                 </p>
             </div>
@@ -317,7 +317,7 @@ const CreateRequest = () => {
                                                     </div>
                                                     <div className="flex-1">
                                                         <h3 className="font-bold text-[#101418] mb-1">{type.name}</h3>
-                                                        <p className="text-xs text-[#5e718d] leading-relaxed">{type.description}</p>
+                                                        <p className="text-xs text-[#44546f] leading-relaxed">{type.description}</p>
                                                     </div>
                                                     {selectedRequestType?.id === type.id && (
                                                         <span className="material-symbols-outlined text-[#0052cc]">check_circle</span>
@@ -412,14 +412,14 @@ const CreateRequest = () => {
                                         <button
                                             type="submit"
                                             disabled={submitting}
-                                            className="px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-lg shadow-blue-200 flex items-center gap-2 disabled:opacity-70"
+                                            className="px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-sm flex items-center gap-2 disabled:opacity-70"
                                         >
                                             {submitting ? 'Sending...' : 'Send Request'}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => navigate(-1)}
-                                            className="px-6 py-3 text-[#5e718d] font-bold hover:text-[#101418] transition-colors"
+                                            className="px-6 py-3 text-[#44546f] font-bold hover:text-[#101418] transition-colors"
                                         >
                                             Cancel
                                         </button>
@@ -449,7 +449,7 @@ const CreateRequest = () => {
                             {KB_ARTICLES.map((article, i) => (
                                 <div key={i} className="group cursor-pointer">
                                     <h4 className="font-bold text-[#101418] group-hover:text-[#0052cc] transition-colors mb-1">{article.title}</h4>
-                                    <p className="text-xs text-[#5e718d] line-clamp-2 leading-normal">{article.excerpt}</p>
+                                    <p className="text-xs text-[#44546f] line-clamp-2 leading-normal">{article.excerpt}</p>
                                 </div>
                             ))}
                         </div>

@@ -693,7 +693,7 @@ const RequestDetail = () => {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
-      <nav className="flex items-center gap-2 mb-6 text-sm font-medium text-[#5e718d]">
+      <nav className="flex items-center gap-2 mb-6 text-sm font-medium text-[#44546f]">
         <Link to="/" className="hover:text-[#0052cc]">
           Help Center
         </Link>
@@ -801,13 +801,13 @@ const RequestDetail = () => {
           {/* Request Summary */}
           <section>
             <div className="mb-6">
-              <span className="text-xs font-bold text-[#5e718d] uppercase tracking-widest">
+              <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest">
                 Case Summary
               </span>
               <h1 className="text-3xl font-bold text-[#101418] mt-1">{request.summary}</h1>
             </div>
             <div className="bg-[#f4f5f7] p-8 rounded-xl border border-gray-100">
-              <span className="text-xs font-bold text-[#5e718d] uppercase tracking-widest block mb-4">
+              <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest block mb-4">
                 Description
               </span>
               <p className="text-[#44546f] leading-relaxed text-lg">
@@ -825,7 +825,7 @@ const RequestDetail = () => {
             {isHiringRequest(request.serviceDesk?.code || '', request.status) && resumes.length > 0 && (
               <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
                 <div className="flex items-center justify-between mb-6">
-                  <span className="text-xs font-bold text-[#5e718d] uppercase tracking-widest">
+                  <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest">
                     Candidate Resumes ({resumes.length})
                   </span>
                   {request.status === 'JOB_POSTED' && (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && (
@@ -848,11 +848,11 @@ const RequestDetail = () => {
                             <h4 className="font-bold text-[#101418]">
                               {resume.candidateName || 'Unnamed Candidate'}
                             </h4>
-                            <p className="text-sm text-[#5e718d] mt-1">{resume.fileName}</p>
+                            <p className="text-sm text-[#44546f] mt-1">{resume.fileName}</p>
                             {resume.notes && (
                               <p className="text-sm text-[#44546f] mt-2 italic">{resume.notes}</p>
                             )}
-                            <div className="flex items-center gap-4 mt-2 text-xs text-[#5e718d]">
+                            <div className="flex items-center gap-4 mt-2 text-xs text-[#44546f]">
                               <span>Uploaded by {resume.uploadedBy.firstName} {resume.uploadedBy.lastName}</span>
                               <span>•</span>
                               <span>{new Date(resume.createdAt).toLocaleDateString()}</span>
@@ -917,7 +917,7 @@ const RequestDetail = () => {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-[#101418]">Interview Information</h3>
-                    <p className="text-xs text-[#5e718d] uppercase tracking-wider font-semibold">Scheduled Stage</p>
+                    <p className="text-xs text-[#44546f] uppercase tracking-wider font-semibold">Scheduled Stage</p>
                   </div>
                 </div>
 
@@ -926,7 +926,7 @@ const RequestDetail = () => {
                     <div className="flex items-start gap-3">
                       <span className="material-symbols-outlined text-gray-400 text-xl">event</span>
                       <div>
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">Date & Time</p>
+                        <p className="text-xs font-bold text-[#44546f] uppercase">Date & Time</p>
                         <p className="font-semibold text-[#101418]">
                           {new Date(interviewDetails.schedule.interviewDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at {interviewDetails.schedule.interviewTime}
                         </p>
@@ -936,7 +936,7 @@ const RequestDetail = () => {
                     <div className="flex items-start gap-3">
                       <span className="material-symbols-outlined text-gray-400 text-xl">location_on</span>
                       <div>
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">Location / Link</p>
+                        <p className="text-xs font-bold text-[#44546f] uppercase">Location / Link</p>
                         {interviewDetails.schedule.meetingLink ? (
                           <a href={interviewDetails.schedule.meetingLink} target="_blank" rel="noreferrer" className="text-[#0052cc] font-semibold hover:underline flex items-center gap-1">
                             Join Meeting <span className="material-symbols-outlined text-xs">open_in_new</span>
@@ -952,7 +952,7 @@ const RequestDetail = () => {
                     <div className="flex items-start gap-3">
                       <span className="material-symbols-outlined text-gray-400 text-xl">group</span>
                       <div>
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">Interviewers</p>
+                        <p className="text-xs font-bold text-[#44546f] uppercase">Interviewers</p>
                         <p className="font-semibold text-[#101418]">
                           {Array.isArray(interviewDetails.schedule.interviewers)
                             ? interviewDetails.schedule.interviewers.join(', ')
@@ -964,7 +964,7 @@ const RequestDetail = () => {
                       <div className="flex items-start gap-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">notes</span>
                         <div>
-                          <p className="text-xs font-bold text-[#5e718d] uppercase">Pre-interview Notes</p>
+                          <p className="text-xs font-bold text-[#44546f] uppercase">Pre-interview Notes</p>
                           <p className="text-sm text-[#44546f]">{interviewDetails.schedule.notes}</p>
                         </div>
                       </div>
@@ -986,7 +986,7 @@ const RequestDetail = () => {
                       <p className="text-[#44546f] italic mb-4">"{interviewDetails.feedback.feedback}"</p>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Overall</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Overall</p>
                           <div className="flex text-amber-500">
                             {[...Array(5)].map((_, i) => (
                               <span key={i} className="material-symbols-outlined text-xs">
@@ -996,15 +996,15 @@ const RequestDetail = () => {
                           </div>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Technical</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Technical</p>
                           <p className="font-bold text-sm">{interviewDetails.feedback.technicalSkills}/5</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Culture</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Culture</p>
                           <p className="font-bold text-sm">{interviewDetails.feedback.culturalFit}/5</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Comm.</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Comm.</p>
                           <p className="font-bold text-sm">{interviewDetails.feedback.communication}/5</p>
                         </div>
                       </div>
@@ -1023,7 +1023,7 @@ const RequestDetail = () => {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-[#101418]">HR Screening Status</h3>
-                    <p className="text-xs text-[#5e718d] uppercase tracking-wider font-semibold">Verification Stage</p>
+                    <p className="text-xs text-[#44546f] uppercase tracking-wider font-semibold">Verification Stage</p>
                   </div>
                 </div>
 
@@ -1031,7 +1031,7 @@ const RequestDetail = () => {
                   <div className="space-y-6">
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">Background Check</p>
+                        <p className="text-xs font-bold text-[#44546f] uppercase">Background Check</p>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${screeningDetails.backgroundCheckStatus === 'PASSED' ? 'bg-green-100 text-green-700' :
                           screeningDetails.backgroundCheckStatus === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
                           }`}>
@@ -1047,7 +1047,7 @@ const RequestDetail = () => {
                   <div className="space-y-6">
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">References Check</p>
+                        <p className="text-xs font-bold text-[#44546f] uppercase">References Check</p>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${screeningDetails.referencesCheckStatus === 'PASSED' ? 'bg-green-100 text-green-700' :
                           screeningDetails.referencesCheckStatus === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
                           }`}>
@@ -1059,7 +1059,7 @@ const RequestDetail = () => {
                       </p>
                       {Array.isArray(screeningDetails.referencesContacted) && screeningDetails.referencesContacted.length > 0 && (
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Contacted</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Contacted</p>
                           <div className="flex flex-wrap gap-2">
                             {screeningDetails.referencesContacted.map((ref, idx) => (
                               <span key={idx} className="bg-white border border-gray-200 px-2 py-1 rounded text-xs font-medium text-[#101418]">
@@ -1084,7 +1084,7 @@ const RequestDetail = () => {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-[#101418]">Letter of Acceptance (LOA)</h3>
-                    <p className="text-xs text-[#5e718d] uppercase tracking-wider font-semibold">Final Stage</p>
+                    <p className="text-xs text-[#44546f] uppercase tracking-wider font-semibold">Final Stage</p>
                   </div>
                 </div>
 
@@ -1097,7 +1097,7 @@ const RequestDetail = () => {
                       </div>
                       <div>
                         <p className="text-sm font-bold text-[#101418]">Draft / Issued LOA</p>
-                        <p className="text-xs text-[#5e718d]">{loaDetails.loaFileName} • {(loaDetails.loaFileSize / 1024).toFixed(1)} KB</p>
+                        <p className="text-xs text-[#44546f]">{loaDetails.loaFileName} • {(loaDetails.loaFileSize / 1024).toFixed(1)} KB</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1310,7 +1310,7 @@ const RequestDetail = () => {
           {/* Update Status dropdown — only valid transitions */}
           {(user?.roles?.includes('ADMIN') || user?.roles?.includes('AGENT')) && getValidNextStatuses(request.status).length > 0 && (
             <div className="relative">
-              <label className="block text-xs font-bold text-[#5e718d] mb-2">Update Status</label>
+              <label className="block text-xs font-bold text-[#44546f] mb-2">Update Status</label>
               <select
                 value=""
                 onChange={(e) => {
@@ -1570,7 +1570,7 @@ const RequestDetail = () => {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold text-[#101418] mb-2">Add Resolution Comment</h2>
-                  <p className="text-sm text-[#5e718d]">
+                  <p className="text-sm text-[#44546f]">
                     You're about to mark this request as <span className="font-bold text-green-600">RESOLVED</span>.
                     Please document what was done to resolve this issue.
                   </p>
@@ -1595,7 +1595,7 @@ const RequestDetail = () => {
               {/* Resolution Comment Textarea */}
               <div className="mb-6">
                 <label className="block text-sm font-bold text-[#101418] mb-3">
-                  Resolution Details <span className="text-[#5e718d] font-normal">(Recommended)</span>
+                  Resolution Details <span className="text-[#44546f] font-normal">(Recommended)</span>
                 </label>
                 <textarea
                   className="w-full p-4 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none resize-none"
@@ -1605,7 +1605,7 @@ const RequestDetail = () => {
                   onChange={(e) => setResolutionComment(e.target.value)}
                   disabled={updatingStatus}
                 ></textarea>
-                <p className="text-xs text-[#5e718d] mt-2">
+                <p className="text-xs text-[#44546f] mt-2">
                   Include: What was done, outcome, next steps (if any), and reference numbers
                 </p>
               </div>
@@ -1662,7 +1662,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Resume File (PDF, DOC, DOCX) *
                     </label>
                     <input
@@ -1674,7 +1674,7 @@ const RequestDetail = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Candidate Name
                     </label>
                     <input
@@ -1685,7 +1685,7 @@ const RequestDetail = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Notes (Optional)
                     </label>
                     <textarea
@@ -1733,7 +1733,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Job Posting URL
                     </label>
                     <input
@@ -1744,7 +1744,7 @@ const RequestDetail = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Notes
                     </label>
                     <textarea
@@ -1792,7 +1792,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Decision *
                     </label>
                     <select
@@ -1806,7 +1806,7 @@ const RequestDetail = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Comments
                     </label>
                     <textarea
@@ -1856,7 +1856,7 @@ const RequestDetail = () => {
                 <div className="space-y-4">
                   {resumes.length > 0 && (
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">
                         Select Candidate (if approving)
                       </label>
                       <select
@@ -1873,7 +1873,7 @@ const RequestDetail = () => {
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Decision *
                     </label>
                     <select
@@ -1887,7 +1887,7 @@ const RequestDetail = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Comments
                     </label>
                     <textarea
@@ -1944,7 +1944,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Select Candidate *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Select Candidate *</label>
                     <select
                       name="candidateId"
                       required
@@ -1961,20 +1961,20 @@ const RequestDetail = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Date *</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Date *</label>
                       <input type="date" name="interviewDate" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Time *</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Time *</label>
                       <input type="time" name="interviewTime" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Interviewers (comma separated) *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Interviewers (comma separated) *</label>
                     <input type="text" name="interviewers" placeholder="e.g. Jane Smith, Robert Brown" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Meeting Link / Location</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Meeting Link / Location</label>
                     <input type="text" name="meetingLink" placeholder="Zoom Link or Meeting Room" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                   </div>
                 </div>
@@ -2009,7 +2009,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Final Decision *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Final Decision *</label>
                     <select name="decision" required className="w-full px-4 py-2 border border-gray-200 rounded-lg">
                       <option value="PROCEED">Proceed to Screening</option>
                       <option value="REJECT">Reject Candidate</option>
@@ -2017,16 +2017,16 @@ const RequestDetail = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Technical Skills (1-5)</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Technical Skills (1-5)</label>
                       <input type="number" name="technicalSkills" min="1" max="5" defaultValue="3" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Cultural Fit (1-5)</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Cultural Fit (1-5)</label>
                       <input type="number" name="culturalFit" min="1" max="5" defaultValue="3" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Overall Feedback *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Overall Feedback *</label>
                     <textarea name="feedback" required rows={4} className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
                   </div>
                 </div>
@@ -2063,7 +2063,7 @@ const RequestDetail = () => {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">BG Check Status</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">BG Check Status</label>
                       <select name="bgStatus" defaultValue={screeningDetails?.backgroundCheckStatus || "PENDING"} className="w-full px-4 py-2 border border-gray-200 rounded-lg">
                         <option value="PENDING">Pending</option>
                         <option value="PASSED">Passed</option>
@@ -2071,7 +2071,7 @@ const RequestDetail = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Ref Check Status</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Ref Check Status</label>
                       <select name="refStatus" defaultValue={screeningDetails?.referencesCheckStatus || "PENDING"} className="w-full px-4 py-2 border border-gray-200 rounded-lg">
                         <option value="PENDING">Pending</option>
                         <option value="PASSED">Passed</option>
@@ -2081,22 +2081,22 @@ const RequestDetail = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Background Check Notes</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Background Check Notes</label>
                     <textarea name="bgNotes" rows={2} defaultValue={screeningDetails?.backgroundCheckNotes || ""} placeholder="Observations from BG check..." className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">References Check Notes</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">References Check Notes</label>
                     <textarea name="refNotes" rows={2} defaultValue={screeningDetails?.referencesCheckNotes || ""} placeholder="Feedback from references..." className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">References Contacted (comma separated)</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">References Contacted (comma separated)</label>
                     <input type="text" name="refContacted" defaultValue={Array.isArray(screeningDetails?.referencesContacted) ? screeningDetails.referencesContacted.join(', ') : ""} placeholder="e.g. Michael Scott, Jim Halpert" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Overall Screening Status *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Overall Screening Status *</label>
                     <select name="overallStatus" required defaultValue={screeningDetails?.overallStatus || "IN_PROGRESS"} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                       <option value="IN_PROGRESS">In Progress</option>
                       <option value="COMPLETED">Completed (Proceed to LOA)</option>
@@ -2157,7 +2157,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Decision *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Decision *</label>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 font-semibold">
                         <input type="radio" name="decision" value="APPROVE" required /> Approve
@@ -2168,7 +2168,7 @@ const RequestDetail = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Comments</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Comments</label>
                     <textarea name="comments" rows={3} className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" placeholder="Feedback for HR..." />
                   </div>
                 </div>

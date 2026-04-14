@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sort -t- -k2 -n)",
+      "Bash(grep -l \"useModalDismiss\" \"c:/CWC2.0/frontend/src/components/request-detail/\"*.tsx)",
+      "Bash(grep -l \"handleBackdropClick\" \"c:/CWC2.0/frontend/src/components/request-detail/\"*.tsx)"
+    ]
+  }
+}

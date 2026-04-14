@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
 import itWorkflowService from '../../services/it-workflow.service';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 interface Manager {
   id: string;
@@ -31,6 +32,7 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { handleBackdropClick } = useModalDismiss(onClose);
 
   useEffect(() => {
     const fetchManagers = async () => {
@@ -100,7 +102,7 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100">
           <div className="size-9 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -189,13 +191,13 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
             )}
           </div>
           <div className="flex justify-end gap-2 p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+            <button type="button" onClick={onClose} className="px-4 py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2">
               Cancel
             </button>
             <button
               type="submit"
               disabled={!selectedId || submitting}
-              className="px-4 py-2 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-3 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-blue-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
             >
               {submitting ? 'Submitting…' : 'Submit for Approval'}
             </button>

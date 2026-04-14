@@ -83,7 +83,7 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
         <dl className="divide-y divide-gray-100">
           {entries.map(([key, value]) => (
             <div key={key} className="flex px-6 py-3.5">
-              <dt className="w-44 shrink-0 text-sm font-semibold text-[#5e718d]">
+              <dt className="w-44 shrink-0 text-sm font-semibold text-[#44546f]">
                 {labels[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}
               </dt>
               <dd className="text-sm text-[#101418] flex-1">{formatValue(value)}</dd>

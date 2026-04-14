@@ -115,10 +115,10 @@ export default function NotificationDropdown() {
 
           <div className="overflow-y-auto flex-1">
             {loading && (
-              <div className="p-8 text-center text-[#5e718d]">Loading...</div>
+              <div className="p-8 text-center text-[#44546f]">Loading...</div>
             )}
             {!loading && notifications.length === 0 && (
-              <div className="p-8 text-center text-[#5e718d]">
+              <div className="p-8 text-center text-[#44546f]">
                 <span className="material-symbols-outlined text-4xl mb-2 block">notifications_off</span>
                 No notifications
               </div>
@@ -140,7 +140,7 @@ export default function NotificationDropdown() {
                       <p className="text-sm font-medium text-[#101418] line-clamp-1">
                         {n.subject ?? 'Notification'}
                       </p>
-                      <p className="text-xs text-[#5e718d] line-clamp-2 mt-0.5">{n.body}</p>
+                      <p className="text-xs text-[#44546f] line-clamp-2 mt-0.5">{n.body}</p>
                       <p className="text-xs text-[#8899aa] mt-1">{formatTime(n.createdAt)}</p>
                     </div>
                   </div>

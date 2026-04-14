@@ -47,7 +47,7 @@ const AssignToDropdown: React.FC<AssignToDropdownProps> = ({ currentAssigneeId, 
 
   return (
     <div>
-      <label className="block text-xs font-bold text-[#5e718d] mb-2">Assign To</label>
+      <label className="block text-xs font-bold text-[#44546f] mb-2">Assign To</label>
       <select
         value={currentAssigneeId || ''}
         onChange={(e) => handleChange(e.target.value)}

@@ -173,7 +173,7 @@ const MyRequests = () => {
         <div className="flex-1 min-w-0">
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="relative flex-1">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5e718d] text-xl">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#44546f] text-xl">
                 search
               </span>
               <input
@@ -214,7 +214,7 @@ const MyRequests = () => {
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
               {requests.length === 0 ? (
-                <div className="p-12 text-center text-[#5e718d]">
+                <div className="p-12 text-center text-[#44546f]">
                   <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">
                     inbox
                   </span>
@@ -268,9 +268,13 @@ const MyRequests = () => {
                             </td>
                             <td className="px-6 py-4">
                               <span
-                                className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100'
-                                  } ${STATUS_CONFIG[req.status]?.color || 'text-gray-600'}`}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100'} ${STATUS_CONFIG[req.status]?.color || 'text-gray-600'}`}
                               >
+                                {STATUS_CONFIG[req.status]?.icon && (
+                                  <span className="material-symbols-outlined text-[12px] leading-none" aria-hidden="true">
+                                    {STATUS_CONFIG[req.status].icon}
+                                  </span>
+                                )}
                                 {STATUS_CONFIG[req.status]?.label || req.status}
                               </span>
                             </td>

@@ -56,7 +56,7 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
             <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {fields.length === 0 ? (
                     <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                        <p className="text-[#5e718d] text-sm italic">No custom fields defined. Basic fields (Summary, Description) are always included.</p>
+                        <p className="text-[#44546f] text-sm italic">No custom fields defined. Basic fields (Summary, Description) are always included.</p>
                     </div>
                 ) : (
                     fields.map((field, index) => (
@@ -122,7 +122,7 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
                 </button>
                 <button
                     onClick={handleSave}
-                    className="flex-1 px-6 py-3 bg-[#0052cc] text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm shadow-lg shadow-blue-100"
+                    className="flex-1 px-6 py-3 bg-[#0052cc] text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm shadow-sm"
                 >
                     Save Configuration
                 </button>
