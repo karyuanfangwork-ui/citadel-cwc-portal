@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../src/context/AuthContext';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG } from '../constants';
-import SkeletonRow from '../src/components/SkeletonRow';
+import { RequestStatus } from '../types';
 
 interface ServiceDesk {
   id: string;
@@ -21,14 +22,62 @@ interface Request {
   priority: string;
   createdAt: string;
   updatedAt: string;
-  serviceDesk?: {
-    name: string;
-    code: string;
-  };
+  serviceDesk?: { name: string; code: string };
 }
 
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+const RESOLVED_STATUSES = new Set<string>([
+  RequestStatus.RESOLVED,
+  RequestStatus.COMPLETED,
+  RequestStatus.REIMBURSEMENT_CLOSED,
+  RequestStatus.ONBOARDING_COMPLETED,
+  RequestStatus.PAYMENT_COMPLETED,
+  RequestStatus.LOA_ACCEPTED,
+]);
+
+function getGreeting(firstName: string): string {
+  const hour = new Date().getHours();
+  const period = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  return `Good ${period}, ${firstName}.`;
+}
+
+function formatDate(): string {
+  return new Date().toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+}
+
+function formatRelativeTime(dateString: string): string {
+  const diffMs = Date.now() - new Date(dateString).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  return `${diffDays}d ago`;
+}
+
+// ── Desk config ────────────────────────────────────────────────────────────
+
+const DESK_STYLE: Record<string, { colorBar: string; iconBg: string; icon: string }> = {
+  IT:      { colorBar: 'var(--color-it-500)',  iconBg: 'var(--color-it-50)',  icon: 'devices' },
+  HR:      { colorBar: 'var(--color-hr-500)',  iconBg: 'var(--color-hr-50)',  icon: 'groups'  },
+  FINANCE: { colorBar: 'var(--color-fin-500)', iconBg: 'var(--color-fin-50)', icon: 'payments' },
+};
+
+// ── Skeleton ───────────────────────────────────────────────────────────────
+
+const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
+  <div style={{ width: w, height: h, background: '#e5e7eb', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+);
+
+// ── Main component ─────────────────────────────────────────────────────────
+
 const Dashboard = () => {
+  const { user } = useAuth();
   const [serviceDesks, setServiceDesks] = useState<ServiceDesk[]>([]);
+  const [allRequests, setAllRequests] = useState<Request[]>([]);
   const [recentRequests, setRecentRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,227 +87,338 @@ const Dashboard = () => {
       try {
         setLoading(true);
         setError(null);
-
-        // Fetch service desks and recent requests in parallel
         const [desksData, requestsData] = await Promise.all([
           serviceDeskService.getAllServiceDesks(),
-          requestService.getAllRequests({ limit: 5 })
+          requestService.getAllRequests({ limit: 50 }),
         ]);
-
         setServiceDesks(desksData);
-        setRecentRequests(requestsData.requests || []);
+        const requests: Request[] = requestsData.requests || [];
+        setAllRequests(requests);
+        setRecentRequests(requests.slice(0, 5));
       } catch (err: any) {
-        console.error('Error fetching dashboard data:', err);
         setError(err.message || 'Failed to load dashboard data');
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
-  // Map service desk to icon and color
-  const getServiceDeskStyle = (code: string) => {
-    const styles: Record<string, { icon: string; color: string }> = {
-      IT: { icon: 'devices', color: 'bg-blue-50 text-blue-600' },
-      HR: { icon: 'groups', color: 'bg-emerald-50 text-emerald-600' },
-      FINANCE: { icon: 'payments', color: 'bg-amber-50 text-amber-600' },
-    };
-    return styles[code] || { icon: 'help', color: 'bg-gray-50 text-gray-600' };
-  };
+  const stats = useMemo(() => {
+    const open = allRequests.filter(r => !RESOLVED_STATUSES.has(r.status) && r.status !== RequestStatus.ACTION_REQUIRED).length;
+    const actionRequired = allRequests.filter(r => r.status === RequestStatus.ACTION_REQUIRED).length;
+    const resolved = allRequests.filter(r => RESOLVED_STATUSES.has(r.status)).length;
+    return { open, actionRequired, resolved };
+  }, [allRequests]);
 
-  // Format date to relative time
-  const formatRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
-  };
+  const greeting = user ? getGreeting(user.firstName) : 'Welcome.';
 
   return (
-    <div className="max-w-[1440px] mx-auto px-6 py-12">
-      <div className="text-center mb-16">
-        <h1 className="text-[#101418] text-5xl font-black tracking-tight mb-6">
-          How can we help you today?
-        </h1>
-        <div className="max-w-2xl mx-auto relative group">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#44546f] text-2xl group-focus-within:text-[#0052cc]">
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Search for hardware, benefits, expenses..."
-            className="w-full h-16 pl-14 pr-32 bg-white border-2 border-transparent shadow-md rounded-2xl text-lg focus:border-[#0052cc] focus:ring-0 outline-none transition-all"
-          />
-          <button className="absolute right-3 top-3 bottom-3 px-8 bg-[#0052cc] text-white font-bold rounded-xl hover:bg-blue-700 transition-all">
-            Search
-          </button>
-        </div>
-        <div className="mt-4 flex items-center justify-center gap-6 text-sm text-[#44546f]">
-          <span>Common:</span>
-          <a href="#" className="font-semibold text-[#0052cc] hover:underline">
-            VPN Setup
-          </a>
-          <a href="#" className="font-semibold text-[#0052cc] hover:underline">
-            Reset Password
-          </a>
-          <a href="#" className="font-semibold text-[#0052cc] hover:underline">
-            Payroll Calendar
-          </a>
-        </div>
-      </div>
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'var(--space-8)', paddingBottom: 'var(--space-16)' }}>
 
-      {/* Service Desks */}
-      {loading ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-            {[0, 1, 2].map(i => (
-              <div key={i} className="animate-pulse p-8 bg-white border border-gray-100 rounded-2xl">
-                <div className="w-14 h-14 bg-gray-200 rounded-xl mb-6" />
-                <div className="h-5 bg-gray-200 rounded w-2/3 mb-3" />
-                <div className="h-4 bg-gray-200 rounded w-full mb-2" />
-                <div className="h-4 bg-gray-200 rounded w-4/5" />
-              </div>
+      {/* ── HERO ── */}
+      <section style={{
+        background: 'linear-gradient(135deg, #0747a6 0%, #0052cc 60%, #0065ff 100%)',
+        borderRadius: 'var(--radius-xl)',
+        padding: 'var(--space-10) var(--space-12)',
+        position: 'relative',
+        overflow: 'hidden',
+        marginBottom: 'var(--space-6)',
+      }}>
+        {/* decorative circles */}
+        <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>
+            {formatDate()}
+          </div>
+          <h1 style={{ fontSize: 'var(--text-4xl)', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: 'var(--space-6)' }}>
+            {greeting}{' '}
+            <span style={{ color: 'rgba(255,255,255,0.65)', fontWeight: 400 }}>How can<br />we help you today?</span>
+          </h1>
+
+          {/* Search */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+            background: 'rgba(255,255,255,0.12)',
+            backdropFilter: 'blur(8px)',
+            border: '1.5px solid rgba(255,255,255,0.2)',
+            borderRadius: 'var(--radius-lg)',
+            padding: 'var(--space-3) var(--space-4)',
+            maxWidth: 560,
+            transition: 'border-color 0.2s',
+          }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)')}
+            onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)')}
+          >
+            <span className="material-symbols-outlined" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 20 }}>search</span>
+            <input
+              type="text"
+              placeholder="Search for hardware, leave requests, expenses..."
+              style={{
+                flex: 1, background: 'none', border: 'none', outline: 'none',
+                color: '#fff', fontSize: 'var(--text-base)', fontFamily: 'var(--font-sans)',
+              }}
+            />
+            <button style={{
+              background: '#fff', color: 'var(--color-brand-700)',
+              border: 'none', borderRadius: 'var(--radius-md)',
+              padding: 'var(--space-2) var(--space-5)',
+              fontSize: 'var(--text-sm)', fontWeight: 800,
+              cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
+            }}>
+              Search
+            </button>
+          </div>
+
+          {/* Quick tags */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginTop: 'var(--space-4)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.45)' }}>Common:</span>
+            {['VPN Setup', 'Reset Password', 'Payroll Calendar', 'Annual Leave'].map(tag => (
+              <span key={tag} style={{
+                fontSize: 'var(--text-xs)', fontWeight: 700,
+                color: 'rgba(255,255,255,0.75)',
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: 'var(--radius-full)',
+                padding: '3px 10px', cursor: 'pointer',
+              }}>{tag}</span>
             ))}
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div className="h-6 bg-gray-200 rounded w-36 animate-pulse" />
-              <div className="h-4 bg-gray-200 rounded w-16 animate-pulse" />
+        </div>
+      </section>
+
+      {/* ── STATS STRIP ── */}
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-5) var(--space-6)', display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
+              <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: '#e5e7eb', flexShrink: 0 }} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <SkeletonBox w="48px" h="28px" />
+                <SkeletonBox w="90px" h="12px" />
+              </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="bg-gray-50">
-                    {['w-24', 'w-48', 'w-28', 'w-20', 'w-20'].map((w, i) => (
-                      <th key={i} className="px-6 py-4">
-                        <div className={`h-3 bg-gray-200 rounded animate-pulse ${w}`} />
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {[0, 1, 2, 3, 4].map(i => (
-                    <SkeletonRow key={i} cols={5} widths={['w-24', 'w-48', 'w-28', 'w-20', 'w-16']} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      ) : error ? (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-8">
-          <p className="font-semibold">Error loading dashboard</p>
-          <p className="text-sm">{error}</p>
+          ))}
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-            {serviceDesks.map((desk) => {
-              const style = getServiceDeskStyle(desk.code);
-              return (
-                <Link
-                  key={desk.id}
-                  to={`/${desk.code.toLowerCase()}`}
-                  className="group p-8 bg-white border border-gray-100 rounded-2xl hover:shadow-2xl hover:shadow-[#0052cc]/5 hover:border-[#0052cc]/20 transition-all"
-                >
-                  <div
-                    className={`w-14 h-14 ${style.color} rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}
-                  >
-                    <span className="material-symbols-outlined text-3xl">{style.icon}</span>
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">{desk.name}</h3>
-                  <p className="text-[#44546f] leading-relaxed">
-                    {desk.description || 'Manage your requests and services'}
-                  </p>
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Recent Requests */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-xl font-bold">Recent requests</h2>
-              <Link to="/my-requests" className="text-sm font-bold text-[#0052cc] hover:underline">
-                View all
-              </Link>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+          {[
+            { label: 'Open Requests',    value: stats.open,           iconBg: 'var(--color-it-50)',  numColor: 'var(--color-brand-700)', icon: 'inbox' },
+            { label: 'Action Required',  value: stats.actionRequired, iconBg: 'var(--color-fin-50)', numColor: 'var(--color-warning)',    icon: 'warning' },
+            { label: 'Resolved All Time',value: stats.resolved,       iconBg: 'var(--color-hr-50)',  numColor: 'var(--color-success)',    icon: 'task_alt' },
+          ].map(stat => (
+            <div key={stat.label} style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+              padding: 'var(--space-5) var(--space-6)',
+              display: 'flex', alignItems: 'center', gap: 'var(--space-4)',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'box-shadow 0.2s, transform 0.2s',
+              cursor: 'default',
+            }}
+              onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-md)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)'; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-sm)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
+            >
+              <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 22, color: stat.numColor }}>{stat.icon}</span>
+              </div>
+              <div>
+                <div style={{ fontSize: 'var(--text-3xl)', fontWeight: 900, lineHeight: 1, color: stat.numColor }}>{stat.value}</div>
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600, marginTop: 2 }}>{stat.label}</div>
+              </div>
             </div>
-            {recentRequests.length === 0 ? (
-              <div className="p-12 text-center text-[#44546f]">
-                <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">
-                  inbox
-                </span>
-                <p className="font-semibold mb-2">No requests yet</p>
-                <p className="text-sm">Create your first request to get started</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-gray-50 text-[#44546f] text-[11px] font-bold uppercase tracking-widest">
-                      <th className="px-6 py-4">Reference</th>
-                      <th className="px-6 py-4">Summary</th>
-                      <th className="px-6 py-4">Service</th>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Updated</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {recentRequests.map((req) => (
-                      <tr
-                        key={req.id}
-                        className="hover:bg-gray-50 transition-colors cursor-pointer"
-                        onClick={() => (window.location.hash = `#/request/${req.id}`)}
-                      >
-                        <td className="px-6 py-5 font-mono text-sm font-bold text-[#0052cc]">
-                          {req.referenceNumber}
-                        </td>
-                        <td className="px-6 py-5 text-sm font-semibold">{req.summary}</td>
-                        <td className="px-6 py-5 text-sm text-[#44546f]">
-                          {req.serviceDesk?.name || 'N/A'}
-                        </td>
-                        <td className="px-6 py-5">
-                          <span
-                            className={`inline-flex px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100'
-                              } ${STATUS_CONFIG[req.status]?.color || 'text-gray-600'}`}
-                          >
-                            {STATUS_CONFIG[req.status]?.label || req.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5 text-sm text-[#44546f]">
-                          {formatRelativeTime(req.updatedAt)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </>
+          ))}
+        </div>
       )}
 
-      <div className="mt-16 text-center">
-        <p className="text-[#44546f] mb-6">Can't find what you're looking for?</p>
-        <div className="flex items-center justify-center gap-4">
-          <button className="flex items-center gap-3 px-8 py-3 bg-white border border-gray-200 rounded-xl font-bold hover:border-[#0052cc] hover:text-[#0052cc] transition-all">
-            <span className="material-symbols-outlined">menu_book</span>
-            Browse Knowledge Base
-          </button>
-          <button className="flex items-center gap-3 px-8 py-3 bg-white border border-gray-200 rounded-xl font-bold hover:border-[#0052cc] hover:text-[#0052cc] transition-all">
-            <span className="material-symbols-outlined">forum</span>
-            Chat with Support
-          </button>
-        </div>
+      {/* ── SERVICE DESKS ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
+        <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>Service Desks</h2>
       </div>
+
+      {loading ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+              <div style={{ width: 48, height: 48, background: '#e5e7eb', borderRadius: 'var(--radius-md)' }} />
+              <SkeletonBox w="60%" h="16px" />
+              <SkeletonBox w="90%" h="12px" />
+              <SkeletonBox w="75%" h="12px" />
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: 'var(--space-4) var(--space-5)', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--space-6)' }}>
+          <p style={{ fontWeight: 700 }}>Error loading dashboard</p>
+          <p style={{ fontSize: 'var(--text-sm)', marginTop: 4 }}>{error}</p>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+          {serviceDesks.map(desk => {
+            const style = DESK_STYLE[desk.code] || { colorBar: '#6b7280', iconBg: '#f3f4f6', icon: 'help' };
+            return (
+              <Link
+                key={desk.id}
+                to={`/${desk.code.toLowerCase()}`}
+                style={{ textDecoration: 'none' }}
+              >
+                <div style={{
+                  background: 'var(--color-surface)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-lg)',
+                  padding: 'var(--space-6)',
+                  boxShadow: 'var(--shadow-sm)',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  height: '100%',
+                  transition: 'box-shadow 0.2s, transform 0.2s, border-color 0.2s',
+                  cursor: 'pointer',
+                }}
+                  onMouseEnter={e => { const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = 'var(--shadow-lg)'; el.style.transform = 'translateY(-2px)'; el.style.borderColor = 'transparent'; }}
+                  onMouseLeave={e => { const el = e.currentTarget as HTMLDivElement; el.style.boxShadow = 'var(--shadow-sm)'; el.style.transform = 'translateY(0)'; el.style.borderColor = 'var(--color-border)'; }}
+                >
+                  {/* top color bar */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: style.colorBar }} />
+
+                  <div style={{ width: 48, height: 48, borderRadius: 'var(--radius-md)', background: style.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 'var(--space-4)', marginTop: 'var(--space-2)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 24, color: style.colorBar }}>{style.icon}</span>
+                  </div>
+
+                  <div style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)', marginBottom: 'var(--space-1)' }}>{desk.name}</div>
+                  <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                    {desk.description || 'Manage your requests and services'}
+                  </div>
+
+                  {/* diagonal arrow */}
+                  <div style={{ position: 'absolute', bottom: 'var(--space-5)', right: 'var(--space-5)', fontSize: 18, color: 'var(--color-text-tertiary)', transition: 'transform 0.2s, color 0.2s' }}>↗</div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── RECENT REQUESTS ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
+        <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>Recent Requests</h2>
+        <Link to="/my-requests" style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-brand-700)', textDecoration: 'none' }}>
+          View all →
+        </Link>
+      </div>
+
+      <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', marginBottom: 'var(--space-8)' }}>
+        {loading ? (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--color-surface-muted)' }}>
+                {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
+                  <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', textAlign: 'left' }}>
+                    <div style={{ height: 10, width: 60, background: '#e5e7eb', borderRadius: 4 }} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[0, 1, 2, 3, 4].map(i => (
+                <tr key={i} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                  {['80px', '200px', '100px', '80px', '60px'].map((w, j) => (
+                    <td key={j} style={{ padding: 'var(--space-4) var(--space-6)' }}>
+                      <div style={{ height: 12, width: w, background: '#e5e7eb', borderRadius: 4 }} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : recentRequests.length === 0 ? (
+          <div style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 'var(--space-4)', display: 'block', opacity: 0.3 }}>inbox</span>
+            <p style={{ fontWeight: 700, marginBottom: 4 }}>No requests yet</p>
+            <p style={{ fontSize: 'var(--text-sm)' }}>Create your first request to get started</p>
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: 'var(--color-surface-muted)' }}>
+                {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
+                  <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'left' }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {recentRequests.map(req => {
+                const statusCfg = STATUS_CONFIG[req.status as RequestStatus];
+                return (
+                  <tr
+                    key={req.id}
+                    style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    onClick={() => (window.location.hash = `#/request/${req.id}`)}
+                  >
+                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-brand-700)' }}>
+                      {req.referenceNumber}
+                    </td>
+                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                      {req.summary}
+                    </td>
+                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+                      {req.serviceDesk?.name || 'N/A'}
+                    </td>
+                    <td style={{ padding: 'var(--space-4) var(--space-6)' }}>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '3px 10px',
+                        borderRadius: 'var(--radius-full)',
+                        fontSize: 'var(--text-xs)', fontWeight: 700,
+                      }}
+                        className={`${statusCfg?.bg || 'bg-gray-100'} ${statusCfg?.color || 'text-gray-600'}`}
+                      >
+                        {statusCfg?.label || req.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
+                      {formatRelativeTime(req.updatedAt)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* ── FOOTER CTAs ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Can't find what you're looking for?</span>
+        {[
+          { icon: 'menu_book', label: 'Browse Knowledge Base' },
+          { icon: 'forum',     label: 'Chat with Support' },
+        ].map(btn => (
+          <button key={btn.label} style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+            padding: 'var(--space-3) var(--space-5)',
+            background: 'var(--color-surface)',
+            border: '1.5px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            fontSize: 'var(--text-sm)', fontWeight: 700,
+            color: 'var(--color-text-primary)',
+            cursor: 'pointer', fontFamily: 'var(--font-sans)',
+            transition: 'all 0.15s',
+          }}
+            onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = 'var(--color-brand-700)'; el.style.color = 'var(--color-brand-700)'; el.style.background = 'var(--color-brand-50)'; }}
+            onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = 'var(--color-border)'; el.style.color = 'var(--color-text-primary)'; el.style.background = 'var(--color-surface)'; }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 18 }}>{btn.icon}</span>
+            {btn.label}
+          </button>
+        ))}
+      </div>
+
     </div>
   );
 };
