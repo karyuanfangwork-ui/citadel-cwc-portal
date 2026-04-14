@@ -21,10 +21,10 @@
   --color-fin-50:  #fffbeb;
 
   /* ── SEMANTIC STATUS ── */
-  --color-success: #059669;
-  --color-warning: #d97706;
+  --color-success: #059669; /* intentionally matches --color-hr-500  */
+  --color-warning: #d97706; /* intentionally matches --color-fin-500 */
   --color-danger:  #dc2626;
-  --color-info:    #0052cc;
+  --color-info:    #0052cc; /* intentionally matches --color-brand-700 / --color-it-500 */
 
   /* ── TEXT ── */
   --color-text-primary:   #111827;
@@ -36,7 +36,7 @@
   --color-surface-subtle: #f8fafc;
   --color-surface-muted:  #f3f4f6;
   --color-border:         #e5e7eb;
-  --color-border-subtle:  #f3f4f6;
+  --color-border-subtle:  #f3f4f6; /* intentionally matches --color-surface-muted */
 
   /* ── SPACING (4px base) ── */
   --space-1:  4px;
