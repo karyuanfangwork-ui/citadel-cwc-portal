@@ -69,7 +69,7 @@ const DESK_STYLE: Record<string, { colorBar: string; iconBg: string; icon: strin
 // ── Skeleton ───────────────────────────────────────────────────────────────
 
 const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
-  <div style={{ width: w, height: h, background: '#e5e7eb', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+  <div style={{ width: w, height: h, background: 'var(--color-border)', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
 );
 
 // ── Main component ─────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ const Dashboard = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
           {[0, 1, 2].map(i => (
             <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-5) var(--space-6)', display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
-              <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: '#e5e7eb', flexShrink: 0 }} />
+              <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--color-border)', flexShrink: 0 }} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <SkeletonBox w="48px" h="28px" />
                 <SkeletonBox w="90px" h="12px" />
@@ -242,7 +242,7 @@ const Dashboard = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
           {[0, 1, 2].map(i => (
             <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              <div style={{ width: 48, height: 48, background: '#e5e7eb', borderRadius: 'var(--radius-md)' }} />
+              <div style={{ width: 48, height: 48, background: 'var(--color-border)', borderRadius: 'var(--radius-md)' }} />
               <SkeletonBox w="60%" h="16px" />
               <SkeletonBox w="90%" h="12px" />
               <SkeletonBox w="75%" h="12px" />
@@ -250,7 +250,7 @@ const Dashboard = () => {
           ))}
         </div>
       ) : error ? (
-        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: 'var(--space-4) var(--space-5)', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--space-6)' }}>
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: 'var(--color-danger)', padding: 'var(--space-4) var(--space-5)', borderRadius: 'var(--radius-lg)', marginBottom: 'var(--space-6)' }}>
           <p style={{ fontWeight: 700 }}>Error loading dashboard</p>
           <p style={{ fontSize: 'var(--text-sm)', marginTop: 4 }}>{error}</p>
         </div>
@@ -315,7 +315,7 @@ const Dashboard = () => {
               <tr style={{ background: 'var(--color-surface-muted)' }}>
                 {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
                   <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', textAlign: 'left' }}>
-                    <div style={{ height: 10, width: 60, background: '#e5e7eb', borderRadius: 4 }} />
+                    <div style={{ height: 10, width: 60, background: 'var(--color-border)', borderRadius: 4 }} />
                   </th>
                 ))}
               </tr>
@@ -325,7 +325,7 @@ const Dashboard = () => {
                 <tr key={i} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
                   {['80px', '200px', '100px', '80px', '60px'].map((w, j) => (
                     <td key={j} style={{ padding: 'var(--space-4) var(--space-6)' }}>
-                      <div style={{ height: 12, width: w, background: '#e5e7eb', borderRadius: 4 }} />
+                      <div style={{ height: 12, width: w, background: 'var(--color-border)', borderRadius: 4 }} />
                     </td>
                   ))}
                 </tr>
