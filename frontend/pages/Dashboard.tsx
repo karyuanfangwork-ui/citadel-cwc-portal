@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG } from '../constants';
+import SkeletonRow from '../src/components/SkeletonRow';
 
 interface ServiceDesk {
   id: string;
@@ -88,19 +89,19 @@ const Dashboard = () => {
           How can we help you today?
         </h1>
         <div className="max-w-2xl mx-auto relative group">
-          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#5e718d] text-2xl group-focus-within:text-[#0052cc]">
+          <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-[#44546f] text-2xl group-focus-within:text-[#0052cc]">
             search
           </span>
           <input
             type="text"
             placeholder="Search for hardware, benefits, expenses..."
-            className="w-full h-16 pl-14 pr-32 bg-white border-2 border-transparent shadow-xl shadow-gray-200/50 rounded-2xl text-lg focus:border-[#0052cc] focus:ring-0 outline-none transition-all"
+            className="w-full h-16 pl-14 pr-32 bg-white border-2 border-transparent shadow-md rounded-2xl text-lg focus:border-[#0052cc] focus:ring-0 outline-none transition-all"
           />
           <button className="absolute right-3 top-3 bottom-3 px-8 bg-[#0052cc] text-white font-bold rounded-xl hover:bg-blue-700 transition-all">
             Search
           </button>
         </div>
-        <div className="mt-4 flex items-center justify-center gap-6 text-sm text-[#5e718d]">
+        <div className="mt-4 flex items-center justify-center gap-6 text-sm text-[#44546f]">
           <span>Common:</span>
           <a href="#" className="font-semibold text-[#0052cc] hover:underline">
             VPN Setup
@@ -116,9 +117,42 @@ const Dashboard = () => {
 
       {/* Service Desks */}
       {loading ? (
-        <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0052cc]"></div>
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="animate-pulse p-8 bg-white border border-gray-100 rounded-2xl">
+                <div className="w-14 h-14 bg-gray-200 rounded-xl mb-6" />
+                <div className="h-5 bg-gray-200 rounded w-2/3 mb-3" />
+                <div className="h-4 bg-gray-200 rounded w-full mb-2" />
+                <div className="h-4 bg-gray-200 rounded w-4/5" />
+              </div>
+            ))}
+          </div>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div className="h-6 bg-gray-200 rounded w-36 animate-pulse" />
+              <div className="h-4 bg-gray-200 rounded w-16 animate-pulse" />
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50">
+                    {['w-24', 'w-48', 'w-28', 'w-20', 'w-20'].map((w, i) => (
+                      <th key={i} className="px-6 py-4">
+                        <div className={`h-3 bg-gray-200 rounded animate-pulse ${w}`} />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <SkeletonRow key={i} cols={5} widths={['w-24', 'w-48', 'w-28', 'w-20', 'w-16']} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
       ) : error ? (
         <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-lg mb-8">
           <p className="font-semibold">Error loading dashboard</p>
@@ -141,7 +175,7 @@ const Dashboard = () => {
                     <span className="material-symbols-outlined text-3xl">{style.icon}</span>
                   </div>
                   <h3 className="text-xl font-bold mb-2">{desk.name}</h3>
-                  <p className="text-[#5e718d] leading-relaxed">
+                  <p className="text-[#44546f] leading-relaxed">
                     {desk.description || 'Manage your requests and services'}
                   </p>
                 </Link>
@@ -158,7 +192,7 @@ const Dashboard = () => {
               </Link>
             </div>
             {recentRequests.length === 0 ? (
-              <div className="p-12 text-center text-[#5e718d]">
+              <div className="p-12 text-center text-[#44546f]">
                 <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">
                   inbox
                 </span>
@@ -169,7 +203,7 @@ const Dashboard = () => {
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
-                    <tr className="bg-gray-50 text-[#5e718d] text-[11px] font-bold uppercase tracking-widest">
+                    <tr className="bg-gray-50 text-[#44546f] text-[11px] font-bold uppercase tracking-widest">
                       <th className="px-6 py-4">Reference</th>
                       <th className="px-6 py-4">Summary</th>
                       <th className="px-6 py-4">Service</th>
@@ -188,7 +222,7 @@ const Dashboard = () => {
                           {req.referenceNumber}
                         </td>
                         <td className="px-6 py-5 text-sm font-semibold">{req.summary}</td>
-                        <td className="px-6 py-5 text-sm text-[#5e718d]">
+                        <td className="px-6 py-5 text-sm text-[#44546f]">
                           {req.serviceDesk?.name || 'N/A'}
                         </td>
                         <td className="px-6 py-5">
@@ -199,7 +233,7 @@ const Dashboard = () => {
                             {STATUS_CONFIG[req.status]?.label || req.status}
                           </span>
                         </td>
-                        <td className="px-6 py-5 text-sm text-[#5e718d]">
+                        <td className="px-6 py-5 text-sm text-[#44546f]">
                           {formatRelativeTime(req.updatedAt)}
                         </td>
                       </tr>
@@ -213,7 +247,7 @@ const Dashboard = () => {
       )}
 
       <div className="mt-16 text-center">
-        <p className="text-[#5e718d] mb-6">Can't find what you're looking for?</p>
+        <p className="text-[#44546f] mb-6">Can't find what you're looking for?</p>
         <div className="flex items-center justify-center gap-4">
           <button className="flex items-center gap-3 px-8 py-3 bg-white border border-gray-200 rounded-xl font-bold hover:border-[#0052cc] hover:text-[#0052cc] transition-all">
             <span className="material-symbols-outlined">menu_book</span>
