@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG } from '../constants';
+import { useAuth } from '../src/context/AuthContext';
 
 interface Request {
   id: string;
@@ -22,7 +23,15 @@ interface Request {
   } | null;
 }
 
+const PENDING_APPROVAL_STATUSES: Record<string, string> = {
+  CEO: 'PENDING_CEO_APPROVAL_IT',
+  CTO: 'PENDING_CTO_APPROVAL_IT',
+  CFO: 'PENDING_CFO_APPROVAL_IT',
+};
+
 const MyRequests = () => {
+  const { user } = useAuth();
+  const approvalRole = user?.roles?.find(r => ['CEO', 'CTO', 'CFO'].includes(r)) ?? null;
   const [filter, setFilter] = useState('open');
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +64,10 @@ const MyRequests = () => {
 
       if (selectedRequestTypeId) {
         filters.requestTypeId = selectedRequestTypeId;
+      }
+
+      if (filter === 'pending_approval' && approvalRole) {
+        filters.status = PENDING_APPROVAL_STATUSES[approvalRole];
       }
 
       const data = await requestService.getAllRequests(filters);
@@ -152,6 +165,24 @@ const MyRequests = () => {
               <span className="material-symbols-outlined text-[20px]">mark_email_read</span>
               All requests
             </button>
+            {approvalRole && (
+              <>
+                <div className="h-px bg-gray-200 my-2"></div>
+                <button
+                  onClick={() => {
+                    setFilter('pending_approval');
+                    setPage(1);
+                  }}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${filter === 'pending_approval'
+                      ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500'
+                      : 'text-[#44546f] hover:bg-gray-100'
+                    }`}
+                >
+                  <span className="material-symbols-outlined text-[20px]">pending_actions</span>
+                  Pending My Approval
+                </button>
+              </>
+            )}
             <div className="h-px bg-gray-200 my-2"></div>
             <a
               href="#"

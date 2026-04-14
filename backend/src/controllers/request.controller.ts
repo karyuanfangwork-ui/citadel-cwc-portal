@@ -35,14 +35,26 @@ class RequestController {
         // Exception: CEO can see requests in hiring workflow
         if (!req.user!.roles.includes('ADMIN') && !req.user!.roles.includes('AGENT')) {
             if (req.user!.roles.includes('CEO')) {
-                // CEO can see:
-                // 1. Requests they created
-                // 2. Requests in hiring workflow (any status)
-                // 3. Requests where CEO is the designated approver
+                // CEO can see their own requests, hiring workflow requests, IT approval requests, and any request where they are a designated approver
                 const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
                 where.OR = [
                     { requesterId: req.user!.id },
                     { status: { in: ceoHiringStatuses } },
+                    { status: 'PENDING_CEO_APPROVAL_IT' },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            } else if (req.user!.roles.includes('CTO')) {
+                // CTO can see their own requests and any IT request pending CTO approval
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { status: 'PENDING_CTO_APPROVAL_IT' },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            } else if (req.user!.roles.includes('CFO')) {
+                // CFO can see their own requests and any IT request pending CFO approval
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { status: 'PENDING_CFO_APPROVAL_IT' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else {
