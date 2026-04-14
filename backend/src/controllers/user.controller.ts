@@ -134,6 +134,7 @@ class UserController {
             search,
             department,
             isActive,
+            role,
         } = req.query;
 
         const pageNum = parseInt(page as string, 10);
@@ -157,6 +158,14 @@ class UserController {
 
         if (isActive !== undefined) {
             where.isActive = isActive === 'true';
+        }
+
+        if (role) {
+            where.roles = {
+                some: {
+                    role: { name: role as string },
+                },
+            };
         }
 
         // Get users and total count
