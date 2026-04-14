@@ -53,6 +53,7 @@ function formatRelativeTime(dateString: string): string {
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return 'just now';
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   return `${diffDays}d ago`;
@@ -78,7 +79,6 @@ const Dashboard = () => {
   const { user } = useAuth();
   const [serviceDesks, setServiceDesks] = useState<ServiceDesk[]>([]);
   const [allRequests, setAllRequests] = useState<Request[]>([]);
-  const [recentRequests, setRecentRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,7 +94,6 @@ const Dashboard = () => {
         setServiceDesks(desksData);
         const requests: Request[] = requestsData.requests || [];
         setAllRequests(requests);
-        setRecentRequests(requests.slice(0, 5));
       } catch (err: any) {
         setError(err.message || 'Failed to load dashboard data');
       } finally {
@@ -111,6 +110,8 @@ const Dashboard = () => {
     return { open, actionRequired, resolved };
   }, [allRequests]);
 
+  const recentRequests = useMemo(() => allRequests.slice(0, 5), [allRequests]);
+
   const greeting = user ? getGreeting(user.firstName) : 'Welcome.';
 
   return (
@@ -118,7 +119,7 @@ const Dashboard = () => {
 
       {/* ── HERO ── */}
       <section style={{
-        background: 'linear-gradient(135deg, #0747a6 0%, #0052cc 60%, #0065ff 100%)',
+        background: 'linear-gradient(135deg, var(--color-brand-900) 0%, var(--color-brand-700) 60%, var(--color-brand-500) 100%)',
         borderRadius: 'var(--radius-xl)',
         padding: 'var(--space-10) var(--space-12)',
         position: 'relative',
@@ -148,10 +149,7 @@ const Dashboard = () => {
             padding: 'var(--space-3) var(--space-4)',
             maxWidth: 560,
             transition: 'border-color 0.2s',
-          }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.5)')}
-            onBlur={e => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)')}
-          >
+          }}>
             <span className="material-symbols-outlined" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 20 }}>search</span>
             <input
               type="text"
@@ -160,6 +158,8 @@ const Dashboard = () => {
                 flex: 1, background: 'none', border: 'none', outline: 'none',
                 color: '#fff', fontSize: 'var(--text-base)', fontFamily: 'var(--font-sans)',
               }}
+              onFocus={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.5)'; }}
+              onBlur={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.2)'; }}
             />
             <button style={{
               background: '#fff', color: 'var(--color-brand-700)',
@@ -193,7 +193,7 @@ const Dashboard = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
           {[0, 1, 2].map(i => (
             <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-5) var(--space-6)', display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
-              <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--color-border)', flexShrink: 0 }} />
+              <SkeletonBox w="44px" h="44px" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <SkeletonBox w="48px" h="28px" />
                 <SkeletonBox w="90px" h="12px" />
@@ -242,7 +242,7 @@ const Dashboard = () => {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
           {[0, 1, 2].map(i => (
             <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-              <div style={{ width: 48, height: 48, background: 'var(--color-border)', borderRadius: 'var(--radius-md)' }} />
+              <SkeletonBox w="48px" h="48px" />
               <SkeletonBox w="60%" h="16px" />
               <SkeletonBox w="90%" h="12px" />
               <SkeletonBox w="75%" h="12px" />
