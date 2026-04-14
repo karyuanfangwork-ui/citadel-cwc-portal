@@ -11,6 +11,13 @@ import {
   vpDecision,
   resubmitRequest,
   getSuggestedManager,
+  acknowledgeRequest,
+  ceoDecision,
+  ctoDecision,
+  routeToCfoApproval,
+  cfoDecision,
+  markPaymentDone,
+  completeDelivery,
 } from '../controllers/it-workflow.controller';
 
 const router = Router();
@@ -27,5 +34,14 @@ router.post('/requests/:id/mark-fulfilled', authorize('ADMIN', 'AGENT'), markFul
 router.post('/requests/:id/vp-decision', authorize('ADMIN'), vpDecision);
 router.post('/requests/:id/resubmit', resubmitRequest);
 router.get('/requests/:id/suggested-manager', getSuggestedManager);
+
+// IT Hardware Executive Approval Chain
+router.post('/requests/:id/acknowledge', authorize('ADMIN', 'AGENT'), acknowledgeRequest);
+router.post('/requests/:id/ceo-decision', authorize('CEO'), ceoDecision);
+router.post('/requests/:id/cto-decision', authorize('CTO'), ctoDecision);
+router.post('/requests/:id/route-to-cfo', authorize('ADMIN', 'AGENT'), routeToCfoApproval);
+router.post('/requests/:id/cfo-decision', authorize('CFO'), cfoDecision);
+router.post('/requests/:id/payment-done', authorize('ADMIN', 'AGENT'), markPaymentDone);
+router.post('/requests/:id/complete-delivery', authorize('ADMIN', 'AGENT'), completeDelivery);
 
 export default router;
