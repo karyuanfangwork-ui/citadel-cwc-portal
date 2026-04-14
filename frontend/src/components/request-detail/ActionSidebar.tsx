@@ -68,6 +68,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   onActionSuccess,
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const isAssigned = !!assignedTo;
   const isDesignatedApprover = approvals.some(
@@ -101,13 +102,13 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'CFO_DECISION': setOpenModal('CFO_DECISION'); break;
       case 'PAYMENT_DONE': setOpenModal('PAYMENT_DONE'); break;
       case 'COMPLETE_DELIVERY':
-        // Direct action, no modal
         (async () => {
           try {
+            setActionError(null);
             await itWorkflowService.completeDelivery(requestId);
             onActionSuccess();
           } catch (err: any) {
-            console.error('Failed to complete delivery', err);
+            setActionError(err.response?.data?.error || 'Failed to complete delivery');
           }
         })();
         break;
@@ -154,6 +155,9 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
               </div>
             ))}
           </div>
+          {actionError && (
+            <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg mt-2">{actionError}</p>
+          )}
         </div>
       )}
 
