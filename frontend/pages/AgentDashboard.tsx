@@ -4,6 +4,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { STATUS_CONFIG } from '../constants';
 import reportsService, { ReportSummary, SlaStatus } from '../src/services/reports.service';
 import api from '../src/services/api';
+import SkeletonRow from '../src/components/SkeletonRow';
 
 interface TicketRow {
   id: string;
@@ -219,16 +220,38 @@ export default function AgentDashboard() {
       {/* Ticket Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3">
-            <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <p className="text-gray-500 text-sm">Loading tickets...</p>
-          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Summary</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Request Type</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Priority</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">SLA</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 w-44">Requester</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {[0, 1, 2, 3, 4, 5].map(i => (
+                <SkeletonRow key={i} cols={7} widths={['w-20', 'w-40', 'w-28', 'w-16', 'w-24', 'w-16', 'w-28']} />
+              ))}
+            </tbody>
+          </table>
         ) : tickets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
-            <span className="material-symbols-outlined text-5xl">inbox</span>
-            <p className="text-base font-medium">No tickets here</p>
-            <p className="text-sm">
-              {activeTab === 'mine' ? 'You have no tickets assigned to you.' : 'No unassigned tickets at the moment.'}
+            <span className="material-symbols-outlined text-5xl opacity-40">
+              {selectedRequestTypeId ? 'filter_alt_off' : 'inbox'}
+            </span>
+            <p className="text-base font-semibold text-gray-500">
+              {selectedRequestTypeId ? 'No tickets match this filter' : 'No tickets here'}
+            </p>
+            <p className="text-sm text-center max-w-xs">
+              {selectedRequestTypeId
+                ? 'Try clearing the request type filter to see all tickets.'
+                : activeTab === 'mine'
+                ? 'You have no tickets assigned to you.'
+                : 'No unassigned tickets at the moment.'}
             </p>
           </div>
         ) : (
@@ -269,7 +292,12 @@ export default function AgentDashboard() {
                     </td>
                     <td className="px-4 py-3">
                       {statusCfg ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusCfg.bg} ${statusCfg.color}`}>
+                          {statusCfg.icon && (
+                            <span className="material-symbols-outlined text-[11px] leading-none" aria-hidden="true">
+                              {statusCfg.icon}
+                            </span>
+                          )}
                           {statusCfg.label}
                         </span>
                       ) : (
