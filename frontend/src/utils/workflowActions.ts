@@ -13,7 +13,7 @@ export type WorkflowActionType =
   | 'ACKNOWLEDGE_IT'
   | 'CEO_DECISION'
   | 'CTO_DECISION'
-  | 'PENDING_INVOICE'
+  | 'ROUTE_TO_CFO'
   | 'CFO_DECISION'
   | 'PAYMENT_DONE'
   | 'COMPLETE_DELIVERY';
@@ -75,6 +75,34 @@ export function getWorkflowActions(
     return actions;
   }
 
+  // CEO/CTO/CFO decision blocks — must be above the canAct guard as these roles are not agents/admins
+  if (userRoles.includes('CEO') && status === 'PENDING_CEO_APPROVAL_IT') {
+    actions.push({
+      type: 'CEO_DECISION',
+      label: 'CEO Approval Decision',
+      description: 'Review and approve or reject this request as CEO.',
+      variant: 'primary',
+    });
+  }
+
+  if (userRoles.includes('CTO') && status === 'PENDING_CTO_APPROVAL_IT') {
+    actions.push({
+      type: 'CTO_DECISION',
+      label: 'CTO Approval Decision',
+      description: 'Review and approve or reject this request as CTO.',
+      variant: 'primary',
+    });
+  }
+
+  if (userRoles.includes('CFO') && status === 'PENDING_CFO_APPROVAL_IT') {
+    actions.push({
+      type: 'CFO_DECISION',
+      label: 'CFO Approval Decision',
+      description: 'Review and approve or reject this request as CFO.',
+      variant: 'primary',
+    });
+  }
+
   if (!canAct) return actions;
 
   // Unassigned — surface assign action for all agent/admin statuses
@@ -88,8 +116,8 @@ export function getWorkflowActions(
   }
 
   if (isAdmin) {
-    // Only hardware/software requests go through manager approval + procurement
-    if (status === 'SUBMITTED' && isProcurement) {
+    // Only non-procurement requests go through manager approval via SUBMIT_FOR_APPROVAL
+    if (status === 'SUBMITTED' && !isProcurement) {
       actions.push({
         type: 'SUBMIT_FOR_APPROVAL',
         label: 'Submit for Manager Approval',
@@ -176,10 +204,7 @@ export function getWorkflowActions(
   }
 
   // IT Hardware Executive Approval Chain
-  // Replace old SUBMIT_FOR_APPROVAL for procurement types in SUBMITTED status
   if (canAct && status === 'SUBMITTED' && isProcurement) {
-    const idx = actions.findIndex(a => a.type === 'SUBMIT_FOR_APPROVAL');
-    if (idx !== -1) actions.splice(idx, 1);
     actions.push({
       type: 'ACKNOWLEDGE_IT',
       label: 'Acknowledge & Route to CEO',
@@ -188,39 +213,12 @@ export function getWorkflowActions(
     });
   }
 
-  if (userRoles.includes('CEO') && status === 'PENDING_CEO_APPROVAL_IT') {
-    actions.push({
-      type: 'CEO_DECISION',
-      label: 'CEO Approval Decision',
-      description: 'Review and approve or reject this request as CEO.',
-      variant: 'primary',
-    });
-  }
-
-  if (userRoles.includes('CTO') && status === 'PENDING_CTO_APPROVAL_IT') {
-    actions.push({
-      type: 'CTO_DECISION',
-      label: 'CTO Approval Decision',
-      description: 'Review and approve or reject this request as CTO.',
-      variant: 'primary',
-    });
-  }
-
   if (canAct && status === 'PENDING_INVOICE_IT') {
     actions.push({
-      type: 'PENDING_INVOICE',
+      type: 'ROUTE_TO_CFO',
       label: 'Route to CFO for Approval',
       description: 'Select CFO and route this request for CFO approval.',
       variant: 'warning',
-    });
-  }
-
-  if (userRoles.includes('CFO') && status === 'PENDING_CFO_APPROVAL_IT') {
-    actions.push({
-      type: 'CFO_DECISION',
-      label: 'CFO Approval Decision',
-      description: 'Review and approve or reject this request as CFO.',
-      variant: 'primary',
     });
   }
 

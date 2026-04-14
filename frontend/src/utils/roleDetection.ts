@@ -1,4 +1,4 @@
-export type RequestRole = 'agent' | 'hiring_manager' | 'ceo' | 'staff';
+export type RequestRole = 'agent' | 'hiring_manager' | 'ceo' | 'cto' | 'cfo' | 'staff';
 
 interface RoleDetectionParams {
   userRoles: string[];
@@ -36,11 +36,11 @@ export function detectRequestRole(params: RoleDetectionParams): RequestRole {
   }
 
   if (userRoles.includes('CTO') && requestStatus === 'PENDING_CTO_APPROVAL_IT') {
-    return 'cto' as any;
+    return 'cto';
   }
 
   if (userRoles.includes('CFO') && requestStatus === 'PENDING_CFO_APPROVAL_IT') {
-    return 'cfo' as any;
+    return 'cfo';
   }
 
   if (userId === requesterId && isHiringRequest(serviceDeskCode, requestStatus)) {
