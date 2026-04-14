@@ -31,8 +31,16 @@ export function detectRequestRole(params: RoleDetectionParams): RequestRole {
     return 'agent';
   }
 
-  if (userRoles.includes('CEO') && (requestStatus === 'PENDING_CEO_APPROVAL' || requestStatus === 'PENDING_MANAGER_APPROVAL_IT')) {
+  if (userRoles.includes('CEO') && (requestStatus === 'PENDING_CEO_APPROVAL' || requestStatus === 'PENDING_MANAGER_APPROVAL_IT' || requestStatus === 'PENDING_CEO_APPROVAL_IT')) {
     return 'ceo';
+  }
+
+  if (userRoles.includes('CTO') && requestStatus === 'PENDING_CTO_APPROVAL_IT') {
+    return 'cto' as any;
+  }
+
+  if (userRoles.includes('CFO') && requestStatus === 'PENDING_CFO_APPROVAL_IT') {
+    return 'cfo' as any;
   }
 
   if (userId === requesterId && isHiringRequest(serviceDeskCode, requestStatus)) {

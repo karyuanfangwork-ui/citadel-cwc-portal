@@ -9,7 +9,14 @@ export type WorkflowActionType =
   | 'MARK_FULFILLED'
   | 'ASSIGN'
   | 'VP_DECISION'
-  | 'RESUBMIT_REQUEST';
+  | 'RESUBMIT_REQUEST'
+  | 'ACKNOWLEDGE_IT'
+  | 'CEO_DECISION'
+  | 'CTO_DECISION'
+  | 'PENDING_INVOICE'
+  | 'CFO_DECISION'
+  | 'PAYMENT_DONE'
+  | 'COMPLETE_DELIVERY';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -165,6 +172,73 @@ export function getWorkflowActions(
       label: 'Revise & Resubmit',
       description: 'Revise your request based on feedback and resubmit for approval.',
       variant: 'warning',
+    });
+  }
+
+  // IT Hardware Executive Approval Chain
+  // Replace old SUBMIT_FOR_APPROVAL for procurement types in SUBMITTED status
+  if (canAct && status === 'SUBMITTED' && isProcurement) {
+    const idx = actions.findIndex(a => a.type === 'SUBMIT_FOR_APPROVAL');
+    if (idx !== -1) actions.splice(idx, 1);
+    actions.push({
+      type: 'ACKNOWLEDGE_IT',
+      label: 'Acknowledge & Route to CEO',
+      description: 'Acknowledge this request and route it to the CEO for approval.',
+      variant: 'primary',
+    });
+  }
+
+  if (userRoles.includes('CEO') && status === 'PENDING_CEO_APPROVAL_IT') {
+    actions.push({
+      type: 'CEO_DECISION',
+      label: 'CEO Approval Decision',
+      description: 'Review and approve or reject this request as CEO.',
+      variant: 'primary',
+    });
+  }
+
+  if (userRoles.includes('CTO') && status === 'PENDING_CTO_APPROVAL_IT') {
+    actions.push({
+      type: 'CTO_DECISION',
+      label: 'CTO Approval Decision',
+      description: 'Review and approve or reject this request as CTO.',
+      variant: 'primary',
+    });
+  }
+
+  if (canAct && status === 'PENDING_INVOICE_IT') {
+    actions.push({
+      type: 'PENDING_INVOICE',
+      label: 'Route to CFO for Approval',
+      description: 'Select CFO and route this request for CFO approval.',
+      variant: 'warning',
+    });
+  }
+
+  if (userRoles.includes('CFO') && status === 'PENDING_CFO_APPROVAL_IT') {
+    actions.push({
+      type: 'CFO_DECISION',
+      label: 'CFO Approval Decision',
+      description: 'Review and approve or reject this request as CFO.',
+      variant: 'primary',
+    });
+  }
+
+  if (canAct && status === 'PAYMENT_PROCESSING_IT') {
+    actions.push({
+      type: 'PAYMENT_DONE',
+      label: 'Mark Payment Done',
+      description: 'Enter payment details and mark payment as completed.',
+      variant: 'success',
+    });
+  }
+
+  if (canAct && status === 'PENDING_DELIVERY_IT') {
+    actions.push({
+      type: 'COMPLETE_DELIVERY',
+      label: 'Complete Delivery',
+      description: 'Confirm hardware has been delivered to the requester.',
+      variant: 'success',
     });
   }
 
