@@ -365,19 +365,32 @@ class RequestController {
         // Allow access if:
         // 1. User is the requester
         // 2. User is ADMIN or AGENT
-        // 3. User is CEO and request is in hiring workflow
+        // 3. User is CEO and request is in hiring workflow or IT CEO approval
+        // 4. User is CTO/CFO and request is pending their IT approval
+        // 5. User is a designated approver on this request
         const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
-        const isCEOApprover =
-            req.user!.roles.includes('CEO') && (
-                ceoHiringStatuses.includes(request.status) ||
-                (request as any).approvals?.some((a: any) => a.approverId === req.user!.id)
-            );
+        const isDesignatedApprover = (request as any).approvals?.some((a: any) => a.approverId === req.user!.id);
+        const isCEOApprover = req.user!.roles.includes('CEO') && (
+            ceoHiringStatuses.includes(request.status) ||
+            request.status === 'PENDING_CEO_APPROVAL_IT' ||
+            isDesignatedApprover
+        );
+        const isCTOApprover = req.user!.roles.includes('CTO') && (
+            request.status === 'PENDING_CTO_APPROVAL_IT' ||
+            isDesignatedApprover
+        );
+        const isCFOApprover = req.user!.roles.includes('CFO') && (
+            request.status === 'PENDING_CFO_APPROVAL_IT' ||
+            isDesignatedApprover
+        );
 
         if (
             request.requesterId !== req.user!.id &&
             !req.user!.roles.includes('ADMIN') &&
             !req.user!.roles.includes('AGENT') &&
-            !isCEOApprover
+            !isCEOApprover &&
+            !isCTOApprover &&
+            !isCFOApprover
         ) {
             throw new AppError('You do not have permission to view this request', 403);
         }
