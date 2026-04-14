@@ -163,7 +163,7 @@ class UserController {
         if (role) {
             where.roles = {
                 some: {
-                    role: { name: role as string },
+                    role: { name: { equals: role as string, mode: 'insensitive' } },
                 },
             };
         }
