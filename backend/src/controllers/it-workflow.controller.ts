@@ -700,9 +700,9 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid ceoId: must be a valid UUID' });
     }
 
-    const request = await (prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } }) as any);
+    const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
-    if (request.serviceDesk.code !== 'IT') return res.status(400).json({ error: 'Request does not belong to IT service desk' });
+    if (!request.serviceDesk || request.serviceDesk.code !== 'IT') return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     if (request.status !== 'SUBMITTED') return res.status(400).json({ error: 'Request must be in SUBMITTED status' });
 
     const ceoUser = await prisma.user.findUnique({
@@ -732,7 +732,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
         message: `Request acknowledged. Routed to CEO for approval${notes ? ': ' + notes : ''}`,
         authorName: currentUser.firstName || 'Agent',
         authorRole: 'AGENT',
-        isSystemGenerated: false,
+        isSystemGenerated: true,
       },
     });
 
@@ -757,8 +757,11 @@ export const ceoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CEO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CEO approval' });
+    const hasCeoRole = (currentUser as any)?.roles?.some((r: any) => r.role?.name === 'CEO');
+    if (!hasCeoRole) return res.status(403).json({ error: 'Only the CEO can make this decision' });
 
     if (decision === 'APPROVED') {
+      await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT' } });
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_CTO_APPROVAL_IT' } });
 
       await prisma.requestApproval.updateMany({
@@ -786,6 +789,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
         await notify({ userId: cto.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
       }
     } else {
+      await prisma.request.update({ where: { id }, data: { status: 'CEO_REJECTED_IT' } });
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
@@ -828,13 +832,16 @@ export const ctoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CTO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CTO approval' });
+    const hasCtoRole = (currentUser as any)?.roles?.some((r: any) => r.role?.name === 'CTO');
+    if (!hasCtoRole) return res.status(403).json({ error: 'Only the CTO can make this decision' });
 
     if (decision === 'APPROVED') {
+      await prisma.request.update({ where: { id }, data: { status: 'CTO_APPROVED_IT' } });
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_INVOICE_IT' } });
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CTO', status: 'PENDING' },
-        data: { status: 'APPROVED', comments: comments || null },
+        data: { status: 'APPROVED', comments: comments || null, approverId: currentUser.id },
       });
 
       await prisma.requestActivity.create({
@@ -853,11 +860,12 @@ export const ctoDecision = async (req: Request, res: Response) => {
         await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_invoice' }, relatedRequestId: id });
       }
     } else {
+      await prisma.request.update({ where: { id }, data: { status: 'CTO_REJECTED_IT' } });
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CTO', status: 'PENDING' },
-        data: { status: 'REJECTED', comments: comments || null },
+        data: { status: 'REJECTED', comments: comments || null, approverId: currentUser.id },
       });
 
       await prisma.requestActivity.create({
@@ -927,7 +935,7 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
         message: `Invoice pending. Routed to CFO for approval${notes ? ': ' + notes : ''}`,
         authorName: currentUser.firstName || 'Agent',
         authorRole: 'AGENT',
-        isSystemGenerated: false,
+        isSystemGenerated: true,
       },
     });
 
@@ -952,13 +960,16 @@ export const cfoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CFO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CFO approval' });
+    const hasCfoRole = (currentUser as any)?.roles?.some((r: any) => r.role?.name === 'CFO');
+    if (!hasCfoRole) return res.status(403).json({ error: 'Only the CFO can make this decision' });
 
     if (decision === 'APPROVED') {
+      await prisma.request.update({ where: { id }, data: { status: 'CFO_APPROVED_IT' } });
       await prisma.request.update({ where: { id }, data: { status: 'PAYMENT_PROCESSING_IT' } });
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
-        data: { status: 'APPROVED', comments: comments || null },
+        data: { status: 'APPROVED', comments: comments || null, approverId: currentUser.id },
       });
 
       await prisma.requestActivity.create({
@@ -977,11 +988,12 @@ export const cfoDecision = async (req: Request, res: Response) => {
         await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'payment_processing' }, relatedRequestId: id });
       }
     } else {
+      await prisma.request.update({ where: { id }, data: { status: 'CFO_REJECTED_IT' } });
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
-        data: { status: 'REJECTED', comments: comments || null },
+        data: { status: 'REJECTED', comments: comments || null, approverId: currentUser.id },
       });
 
       await prisma.requestActivity.create({
@@ -1024,6 +1036,7 @@ export const markPaymentDone = async (req: Request, res: Response) => {
 
     const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
 
+    await prisma.request.update({ where: { id }, data: { status: 'PAYMENT_DONE_IT' } });
     await prisma.request.update({
       where: { id },
       data: {
@@ -1042,7 +1055,7 @@ export const markPaymentDone = async (req: Request, res: Response) => {
         message: `Payment completed. Reference: ${paymentReference}, Amount: ${amount}${notes ? '. ' + notes : ''}`,
         authorName: currentUser.firstName || 'Finance Agent',
         authorRole: 'AGENT',
-        isSystemGenerated: false,
+        isSystemGenerated: true,
         metadata: { paymentReference, amount, paymentDate, notes },
       },
     });
@@ -1083,7 +1096,7 @@ export const completeDelivery = async (req: Request, res: Response) => {
         message: notes ? `Hardware delivered and request resolved: ${notes}` : 'Hardware delivered. Request resolved.',
         authorName: currentUser.firstName || 'IT Agent',
         authorRole: 'AGENT',
-        isSystemGenerated: false,
+        isSystemGenerated: true,
       },
     });
 
