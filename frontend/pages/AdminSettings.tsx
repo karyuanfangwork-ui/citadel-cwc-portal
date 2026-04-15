@@ -50,6 +50,16 @@ const AdminSettings = () => {
     const [pendingAction, setPendingAction] = useState<{ message: string; onConfirm: () => Promise<void> } | null>(null);
     const [toastMsg, setToastMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
+    const [activeTab, setActiveTab] = useState<'service-desks' | 'users'>('service-desks');
+    const [users, setUsers] = useState<any[]>([]);
+    const [userPagination, setUserPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
+    const [userSearch, setUserSearch] = useState('');
+    const [userRoleFilter, setUserRoleFilter] = useState('');
+    const [availableRoles, setAvailableRoles] = useState<{ id: string; name: string; description: string }[]>([]);
+    const [usersLoading, setUsersLoading] = useState(false);
+    const [roleModalUser, setRoleModalUser] = useState<any | null>(null);
+    const [roleModalSelected, setRoleModalSelected] = useState<string[]>([]);
+
     const [formData, setFormData] = useState<CategoryData>({
         name: '',
         description: '',
@@ -80,6 +90,14 @@ const AdminSettings = () => {
         fetchServiceDesks();
     }, []);
 
+    useEffect(() => {
+        if (activeTab === 'users') {
+            fetchUsers(1, '', '');
+            fetchRoles();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [activeTab]);
+
     const fetchServiceDesks = async () => {
         try {
             setLoading(true);
@@ -102,6 +120,29 @@ const AdminSettings = () => {
             setCategories(cats);
         } catch (err) {
             console.error('Error fetching categories:', err);
+        }
+    };
+
+    const fetchUsers = async (page = 1, search = userSearch, roleFilter = userRoleFilter) => {
+        setUsersLoading(true);
+        try {
+            const result = await adminService.listUsers({ page, limit: 15, search: search || undefined, role: roleFilter || undefined });
+            setUsers(result.users);
+            setUserPagination(result.pagination);
+        } catch (err) {
+            console.error('Error fetching users:', err);
+            showToast('error', 'Failed to load users.');
+        } finally {
+            setUsersLoading(false);
+        }
+    };
+
+    const fetchRoles = async () => {
+        try {
+            const roles = await adminService.listRoles();
+            setAvailableRoles(roles);
+        } catch (err) {
+            console.error('Error fetching roles:', err);
         }
     };
 
@@ -204,6 +245,30 @@ const AdminSettings = () => {
         }
     };
 
+    const handleToggleUserStatus = async (user: any) => {
+        try {
+            await adminService.updateUserStatus(user.id, !user.isActive);
+            fetchUsers(userPagination.page);
+            showToast('success', `Account ${!user.isActive ? 'enabled' : 'disabled'}.`);
+        } catch (err) {
+            console.error('Error toggling user status:', err);
+            showToast('error', 'Failed to update account status.');
+        }
+    };
+
+    const handleSaveRoles = async () => {
+        if (!roleModalUser || roleModalSelected.length === 0) return;
+        try {
+            await adminService.assignUserRoles(roleModalUser.id, roleModalSelected);
+            setRoleModalUser(null);
+            fetchUsers(userPagination.page);
+            showToast('success', 'Roles updated. User session revoked — they must log in again.');
+        } catch (err) {
+            console.error('Error saving roles:', err);
+            showToast('error', 'Failed to update roles.');
+        }
+    };
+
     const handleMoveCategory = async (cat: any, direction: 'up' | 'down') => {
         if (!selectedDesk) return;
         const sorted = [...categories].sort((a, b) => a.displayOrder - b.displayOrder);
@@ -270,6 +335,24 @@ const AdminSettings = () => {
                 </div>
             </div>
 
+            {/* Tab Bar */}
+            <div className="flex gap-2 mb-8 border-b border-gray-200">
+                {([
+                    { id: 'service-desks', label: 'Service Desks', icon: 'support_agent' },
+                    { id: 'users', label: 'User Accounts', icon: 'manage_accounts' },
+                ] as const).map(tab => (
+                    <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex items-center gap-2 px-6 py-3 text-sm font-black uppercase tracking-widest border-b-2 transition-all -mb-[2px] ${activeTab === tab.id ? 'border-[#0052cc] text-[#0052cc]' : 'border-transparent text-[#44546f] hover:text-[#101418]'}`}
+                    >
+                        <span className="material-symbols-outlined text-lg">{tab.icon}</span>
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+
+            {activeTab === 'service-desks' && (
             <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
                 <div className="p-8 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gray-50/20">
                     <div className="flex items-center gap-4">
@@ -451,6 +534,123 @@ const AdminSettings = () => {
                     </div>
                 )}
             </div>
+            )}
+
+            {activeTab === 'users' && (
+                <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+                    {/* Header / Filters */}
+                    <div className="p-8 border-b border-gray-100 flex flex-col md:flex-row gap-4 bg-gray-50/20">
+                        <div className="relative flex-1">
+                            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                            <input
+                                type="text"
+                                placeholder="Search by name or email..."
+                                className="w-full pl-12 pr-6 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none"
+                                value={userSearch}
+                                onChange={e => { setUserSearch(e.target.value); fetchUsers(1, e.target.value, userRoleFilter); }}
+                            />
+                        </div>
+                        <select
+                            className="pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none appearance-none"
+                            value={userRoleFilter}
+                            onChange={e => { setUserRoleFilter(e.target.value); fetchUsers(1, userSearch, e.target.value); }}
+                        >
+                            <option value="">All Roles</option>
+                            {availableRoles.map(r => (
+                                <option key={r.id} value={r.name}>{r.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Table */}
+                    {usersLoading ? (
+                        <div className="p-16 text-center text-[#44546f] font-bold">Loading users...</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-gray-50/50 border-b border-gray-100">
+                                    <tr className="text-[11px] font-black text-[#44546f] uppercase tracking-[0.2em]">
+                                        <th className="px-8 py-5">User</th>
+                                        <th className="px-8 py-5">Department</th>
+                                        <th className="px-8 py-5">Roles</th>
+                                        <th className="px-8 py-5">Status</th>
+                                        <th className="px-8 py-5 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {users.map(user => (
+                                        <tr key={user.id} className={`hover:bg-gray-50/50 transition-colors ${!user.isActive ? 'opacity-50' : ''}`}>
+                                            <td className="px-8 py-5">
+                                                <div className="font-bold text-[#101418]">{user.firstName} {user.lastName}</div>
+                                                <div className="text-sm text-[#44546f]">{user.email}</div>
+                                            </td>
+                                            <td className="px-8 py-5 text-sm text-[#44546f]">{user.department || '—'}</td>
+                                            <td className="px-8 py-5">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {user.roles?.map((ur: any) => (
+                                                        <span key={ur.role?.name || ur} className="px-2 py-0.5 bg-blue-50 text-[#0052cc] text-[10px] font-black uppercase rounded-full border border-blue-100">
+                                                            {ur.role?.name || ur}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${user.isActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                                                    {user.isActive ? 'Active' : 'Disabled'}
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-5 text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <button
+                                                        onClick={() => { setRoleModalUser(user); setRoleModalSelected(user.roles?.map((ur: any) => ur.role?.name || ur) || []); }}
+                                                        className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                        title="Manage roles"
+                                                    >
+                                                        <span className="material-symbols-outlined text-xl">admin_panel_settings</span>
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleToggleUserStatus(user)}
+                                                        className={`w-10 h-10 flex items-center justify-center hover:bg-white hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 ${user.isActive ? 'text-[#44546f] hover:text-red-600' : 'text-[#44546f] hover:text-emerald-600'}`}
+                                                        title={user.isActive ? 'Disable account' : 'Enable account'}
+                                                    >
+                                                        <span className="material-symbols-outlined text-xl">{user.isActive ? 'block' : 'check_circle'}</span>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                    {users.length === 0 && (
+                                        <tr>
+                                            <td colSpan={5} className="px-8 py-16 text-center text-[#44546f] font-bold">No users found.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    {/* Pagination */}
+                    {userPagination.totalPages > 1 && (
+                        <div className="p-6 border-t border-gray-100 flex items-center justify-between">
+                            <span className="text-sm text-[#44546f] font-medium">
+                                Showing {(userPagination.page - 1) * userPagination.limit + 1}–{Math.min(userPagination.page * userPagination.limit, userPagination.total)} of {userPagination.total} users
+                            </span>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => fetchUsers(userPagination.page - 1)}
+                                    disabled={userPagination.page <= 1}
+                                    className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-[#44546f] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >Previous</button>
+                                <button
+                                    onClick={() => fetchUsers(userPagination.page + 1)}
+                                    disabled={userPagination.page >= userPagination.totalPages}
+                                    className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-bold text-[#44546f] hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >Next</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Category Edit Modal */}
             {modalOpen && (
@@ -642,6 +842,56 @@ const AdminSettings = () => {
                                 <button type="submit" className="flex-1 py-4 bg-[#0052cc] text-white font-black rounded-3xl hover:bg-blue-700 transition-all text-xs uppercase tracking-widest">Create Service</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Role Assignment Modal */}
+            {roleModalUser && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl overflow-hidden scale-in">
+                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-black text-[#101418]">Assign Roles</h2>
+                                <p className="text-sm text-[#44546f] mt-1">{roleModalUser.firstName} {roleModalUser.lastName}</p>
+                            </div>
+                            <button onClick={() => setRoleModalUser(null)} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400">
+                                <span className="material-symbols-outlined text-3xl">close</span>
+                            </button>
+                        </div>
+                        <div className="p-10">
+                            <p className="text-xs font-black text-[#44546f] uppercase tracking-widest mb-6">Select one or more roles</p>
+                            <div className="space-y-3">
+                                {availableRoles.map(role => (
+                                    <label key={role.id} className="flex items-center gap-4 p-4 rounded-2xl border border-gray-100 hover:border-[#0052cc]/30 hover:bg-blue-50/20 cursor-pointer transition-all">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 rounded accent-[#0052cc]"
+                                            checked={roleModalSelected.includes(role.name)}
+                                            onChange={e => {
+                                                if (e.target.checked) {
+                                                    setRoleModalSelected([...roleModalSelected, role.name]);
+                                                } else {
+                                                    setRoleModalSelected(roleModalSelected.filter(r => r !== role.name));
+                                                }
+                                            }}
+                                        />
+                                        <div>
+                                            <div className="font-bold text-[#101418] text-sm">{role.name}</div>
+                                            <div className="text-xs text-[#44546f]">{role.description}</div>
+                                        </div>
+                                    </label>
+                                ))}
+                            </div>
+                            <div className="flex gap-4 mt-8">
+                                <button onClick={() => setRoleModalUser(null)} className="flex-1 py-4 bg-gray-100 text-[#44546f] font-black rounded-3xl hover:bg-gray-200 transition-all text-xs uppercase tracking-widest">Cancel</button>
+                                <button
+                                    onClick={handleSaveRoles}
+                                    disabled={roleModalSelected.length === 0}
+                                    className="flex-1 py-4 bg-[#0052cc] text-white font-black rounded-3xl hover:bg-blue-700 transition-all text-xs uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+                                >Save Roles</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
