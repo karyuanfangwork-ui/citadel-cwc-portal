@@ -272,7 +272,7 @@ class UserController {
      * Replace a user's roles atomically (Admin only)
      * Body: { roles: string[] } — array of role names e.g. ["USER", "CEO"]
      */
-    assignRoles = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    assignRoles = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = req.params['id'] as string;
         const { roles } = req.body as { roles: string[] };
 
@@ -309,13 +309,15 @@ class UserController {
             include: { roles: { include: { role: true } } },
         });
 
+        if (!updated) throw new AppError('User not found after role update', 500);
+
         res.json({
             status: 'success',
             data: {
                 user: {
-                    id: updated!.id,
-                    email: updated!.email,
-                    roles: updated!.roles.map((ur: { role: { name: string } }) => ur.role.name),
+                    id: updated.id,
+                    email: updated.email,
+                    roles: updated.roles.map((ur: { role: { name: string } }) => ur.role.name),
                 },
             },
         });
