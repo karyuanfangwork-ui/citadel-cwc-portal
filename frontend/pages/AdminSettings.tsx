@@ -44,6 +44,8 @@ const AdminSettings = () => {
     const [selectedCategory, setSelectedCategory] = useState<any>(null);
     const [formBuilderOpen, setFormBuilderOpen] = useState(false);
     const [selectedType, setSelectedType] = useState<any>(null);
+    const [serviceModalOpen, setServiceModalOpen] = useState(false);
+    const [serviceFormData, setServiceFormData] = useState({ name: '', description: '', icon: 'bolt', requiresApproval: false, slaHours: '' });
 
     const [pendingAction, setPendingAction] = useState<{ message: string; onConfirm: () => Promise<void> } | null>(null);
     const [toastMsg, setToastMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
@@ -177,6 +179,29 @@ const AdminSettings = () => {
                 showToast('success', 'Category reactivated.');
             },
         });
+    };
+
+    const handleCreateService = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedDesk || !selectedCategory) return;
+        try {
+            await adminService.createService({
+                categoryId: selectedCategory.id,
+                name: serviceFormData.name,
+                description: serviceFormData.description,
+                icon: serviceFormData.icon,
+                requiresApproval: serviceFormData.requiresApproval,
+                slaHours: serviceFormData.slaHours ? parseInt(serviceFormData.slaHours) : null,
+            });
+            setServiceModalOpen(false);
+            setServiceFormData({ name: '', description: '', icon: 'bolt', requiresApproval: false, slaHours: '' });
+            const types = await serviceDeskService.getRequestTypes(selectedDesk.id, selectedCategory.id);
+            setRequestTypes(types);
+            showToast('success', 'Service created.');
+        } catch (err) {
+            console.error('Error creating service:', err);
+            showToast('error', 'Failed to create service.');
+        }
     };
 
     const handleManageTypes = async (cat: any) => {
@@ -338,7 +363,10 @@ const AdminSettings = () => {
                                 </div>
                                 <p className="text-[#44546f] font-medium">Configure individual request forms and their custom fields.</p>
                             </div>
-                            <button className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 text-[#101418] font-bold rounded-2xl hover:bg-gray-100 transition-all text-xs uppercase tracking-widest shadow-sm">
+                            <button
+                                onClick={() => setServiceModalOpen(true)}
+                                className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 text-[#101418] font-bold rounded-2xl hover:bg-gray-100 transition-all text-xs uppercase tracking-widest shadow-sm"
+                            >
                                 <span className="material-symbols-outlined text-sm">add</span> New Service
                             </button>
                         </div>
@@ -515,6 +543,70 @@ const AdminSettings = () => {
                             onSave={handleSaveFormConfig}
                             onCancel={() => setFormBuilderOpen(false)}
                         />
+                    </div>
+                </div>
+            )}
+
+            {/* New Service Modal */}
+            {serviceModalOpen && selectedCategory && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[#091e42]/70 backdrop-blur-sm">
+                    <div className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl overflow-hidden scale-in">
+                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between">
+                            <h2 className="text-2xl font-black text-[#101418]">New Service</h2>
+                            <button onClick={() => setServiceModalOpen(false)} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400">
+                                <span className="material-symbols-outlined text-3xl">close</span>
+                            </button>
+                        </div>
+                        <form onSubmit={handleCreateService} className="p-10 space-y-6">
+                            <div>
+                                <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Service Name *</label>
+                                <input
+                                    required
+                                    type="text"
+                                    className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all"
+                                    placeholder="e.g. Laptop Replacement"
+                                    value={serviceFormData.name}
+                                    onChange={e => setServiceFormData({ ...serviceFormData, name: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Description</label>
+                                <textarea
+                                    className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all resize-none"
+                                    placeholder="What does this service cover?"
+                                    rows={3}
+                                    value={serviceFormData.description}
+                                    onChange={e => setServiceFormData({ ...serviceFormData, description: e.target.value })}
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">SLA (hours)</label>
+                                    <input
+                                        type="number"
+                                        className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all"
+                                        placeholder="e.g. 24"
+                                        value={serviceFormData.slaHours}
+                                        onChange={e => setServiceFormData({ ...serviceFormData, slaHours: e.target.value })}
+                                    />
+                                </div>
+                                <div className="flex items-center pt-8">
+                                    <label className="flex items-center gap-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 rounded accent-[#0052cc]"
+                                            checked={serviceFormData.requiresApproval}
+                                            onChange={e => setServiceFormData({ ...serviceFormData, requiresApproval: e.target.checked })}
+                                        />
+                                        <span className="text-sm font-bold text-[#44546f]">Requires Approval</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div className="flex gap-6 pt-4">
+                                <button type="button" onClick={() => setServiceModalOpen(false)} className="flex-1 py-4 bg-gray-100 text-[#44546f] font-black rounded-3xl hover:bg-gray-200 transition-all text-xs uppercase tracking-widest">Cancel</button>
+                                <button type="submit" className="flex-1 py-4 bg-[#0052cc] text-white font-black rounded-3xl hover:bg-blue-700 transition-all text-xs uppercase tracking-widest">Create Service</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
