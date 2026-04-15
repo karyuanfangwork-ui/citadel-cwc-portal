@@ -43,6 +43,7 @@ interface Request {
   requestType?: {
     id: string;
     name: string;
+    formConfig?: any[];
   };
   requester?: {
     id: string;
@@ -864,6 +865,7 @@ const RequestDetail = () => {
             <CustomFieldsPanel
               customFields={request.customFields}
               serviceDeskCode={request.serviceDesk?.code || ''}
+              formConfig={request.requestType?.formConfig}
             />
 
             {/* Candidate Resumes Section - Show when resumes exist and in hiring workflow */}
@@ -1598,6 +1600,7 @@ const RequestDetail = () => {
             requesterId={request.requesterId || request.requester?.id || ''}
             createdAt={request.createdAt}
             slaDueAt={request.slaDueAt}
+            serviceDeskCode={request.serviceDesk?.code || ''}
             onActionSuccess={fetchRequestData}
           />
         </div>

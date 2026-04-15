@@ -236,6 +236,24 @@ const CreateRequest = () => {
                         </label>
                     </div>
                 );
+            case 'select':
+                return (
+                    <div className="relative">
+                        <select
+                            required={field.required}
+                            className={`${commonClass} appearance-none`}
+                            value={formData.customFields[field.id] || ''}
+                            onChange={e => handleCustomFieldChange(field.id, e.target.value)}
+                            disabled={submitting}
+                        >
+                            <option value="" disabled>Select an option...</option>
+                            {field.options?.map((option: string, i: number) => (
+                                <option key={i} value={option}>{option}</option>
+                            ))}
+                        </select>
+                        <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
+                    </div>
+                );
             default: // text
                 return (
                     <input

@@ -20,8 +20,9 @@ const CtoDecisionModal = lazy(() => import('./CtoDecisionModal'));
 const PendingInvoiceModal = lazy(() => import('./PendingInvoiceModal'));
 const CfoDecisionModal = lazy(() => import('./CfoDecisionModal'));
 const PaymentDoneModal = lazy(() => import('./PaymentDoneModal'));
+const ManagerDecisionModal = lazy(() => import('./ManagerDecisionModal'));
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'LOA_APPROVAL' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -39,6 +40,7 @@ interface ActionSidebarProps {
   createdAt: string;
   slaDueAt?: string | null;
   requesterId?: string;
+  serviceDeskCode: string;
   onActionSuccess: () => void;
 }
 
@@ -65,6 +67,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   createdAt,
   slaDueAt,
   requesterId,
+  serviceDeskCode,
   onActionSuccess,
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
@@ -101,6 +104,8 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'ROUTE_TO_CFO': setOpenModal('ROUTE_TO_CFO'); break;
       case 'CFO_DECISION': setOpenModal('CFO_DECISION'); break;
       case 'PAYMENT_DONE': setOpenModal('PAYMENT_DONE'); break;
+      case 'MANAGER_DECISION': setOpenModal('MANAGER_DECISION'); break;
+      case 'LOA_APPROVAL': setOpenModal('LOA_APPROVAL'); break;
       case 'COMPLETE_DELIVERY':
         (async () => {
           try {
@@ -272,7 +277,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       )}
       {openModal === 'CEO_DECISION' && (
         <Suspense fallback={null}>
-          <CeoDecisionModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+          <CeoDecisionModal requestId={requestId} serviceDeskCode={serviceDeskCode} serviceDeskName={serviceDeskName} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
       {openModal === 'CTO_DECISION' && (
@@ -305,6 +310,11 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
             onSuccess={handleSuccess}
             onClose={() => setOpenModal(null)}
           />
+        </Suspense>
+      )}
+      {openModal === 'MANAGER_DECISION' && (
+        <Suspense fallback={null}>
+          <ManagerDecisionModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
     </aside>

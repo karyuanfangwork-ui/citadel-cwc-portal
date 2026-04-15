@@ -16,7 +16,9 @@ export type WorkflowActionType =
   | 'ROUTE_TO_CFO'
   | 'CFO_DECISION'
   | 'PAYMENT_DONE'
-  | 'COMPLETE_DELIVERY';
+  | 'COMPLETE_DELIVERY'
+  | 'MANAGER_DECISION'
+  | 'LOA_APPROVAL';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -76,13 +78,15 @@ export function getWorkflowActions(
   }
 
   // CEO/CTO/CFO decision blocks — must be above the canAct guard as these roles are not agents/admins
-  if (userRoles.includes('CEO') && status === 'PENDING_CEO_APPROVAL_IT') {
-    actions.push({
-      type: 'CEO_DECISION',
-      label: 'CEO Approval Decision',
-      description: 'Review and approve or reject this request as CEO.',
-      variant: 'primary',
-    });
+  if (userRoles.includes('CEO')) {
+    if (status === 'PENDING_CEO_APPROVAL_IT' || status === 'PENDING_CEO_APPROVAL') {
+      actions.push({
+        type: 'CEO_DECISION',
+        label: 'CEO Approval Decision',
+        description: 'Review and approve or reject this request as CEO.',
+        variant: 'primary',
+      });
+    }
   }
 
   if (userRoles.includes('CTO') && status === 'PENDING_CTO_APPROVAL_IT') {
@@ -99,6 +103,25 @@ export function getWorkflowActions(
       type: 'CFO_DECISION',
       label: 'CFO Approval Decision',
       description: 'Review and approve or reject this request as CFO.',
+      variant: 'primary',
+    });
+  }
+
+  // Hiring manager actions — must be above the canAct guard as hiring managers are not agents/admins
+  if (isRequester && status === 'PENDING_MANAGER_REVIEW') {
+    actions.push({
+      type: 'MANAGER_DECISION',
+      label: 'Review & Select Candidate',
+      description: 'Review the submitted candidate resumes and select one to proceed.',
+      variant: 'warning',
+    });
+  }
+
+  if (isRequester && status === 'LOA_PENDING_APPROVAL') {
+    actions.push({
+      type: 'LOA_APPROVAL',
+      label: 'Approve / Reject LOA',
+      description: 'Review the Letter of Acceptance and make an approval decision.',
       variant: 'primary',
     });
   }

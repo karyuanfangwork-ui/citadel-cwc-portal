@@ -3,6 +3,7 @@ import React from 'react';
 interface CustomFieldsPanelProps {
   customFields: Record<string, any> | undefined;
   serviceDeskCode: string;
+  formConfig?: any[];
 }
 
 const HR_FIELD_LABELS: Record<string, string> = {
@@ -19,6 +20,7 @@ const HR_FIELD_LABELS: Record<string, string> = {
   jobDescription: 'Job Description',
   requirements: 'Requirements',
   budget: 'Budget',
+  position_title: 'Position Title',
 };
 
 const IT_FIELD_LABELS: Record<string, string> = {
@@ -85,13 +87,27 @@ function formatValue(key: string, value: any): React.ReactNode {
   return String(value);
 }
 
-const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, serviceDeskCode }) => {
+const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, serviceDeskCode, formConfig }) => {
   if (!customFields || Object.keys(customFields).length === 0) return null;
 
   const labels = getFieldLabels(serviceDeskCode);
   const entries = Object.entries(customFields).filter(([_, v]) => v !== null && v !== undefined && v !== '');
 
   if (entries.length === 0) return null;
+
+  const getLabel = (key: string) => {
+    // 1. Check hardcoded map (standard fields)
+    if (labels[key]) return labels[key];
+
+    // 2. Check dynamic form config
+    if (formConfig) {
+      const field = formConfig.find(f => f.id === key);
+      if (field?.label) return field.label;
+    }
+
+    // 3. Fallback to formatted key
+    return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+  };
 
   return (
     <section>
@@ -104,7 +120,7 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
           {entries.map(([key, value]) => (
             <div key={key} className="flex px-6 py-3.5">
               <dt className="w-44 shrink-0 text-sm font-semibold text-[#44546f]">
-                {labels[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}
+                {getLabel(key)}
               </dt>
               <dd className="text-sm text-[#101418] flex-1">{formatValue(key, value)}</dd>
             </div>
@@ -116,3 +132,4 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
 };
 
 export default CustomFieldsPanel;
+

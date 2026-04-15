@@ -1,16 +1,21 @@
 // frontend/src/components/request-detail/CeoDecisionModal.tsx
 import React, { useState } from 'react';
 import itWorkflowService from '../../services/it-workflow.service';
+import approvalService from '../../services/approval.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 
 interface CeoDecisionModalProps {
   requestId: string;
+  serviceDeskCode: string;
+  serviceDeskName: string;
   onSuccess: () => void;
   onClose: () => void;
 }
 
 const CeoDecisionModal: React.FC<CeoDecisionModalProps> = ({
   requestId,
+  serviceDeskCode,
+  serviceDeskName,
   onSuccess,
   onClose,
 }) => {
@@ -19,12 +24,21 @@ const CeoDecisionModal: React.FC<CeoDecisionModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const { handleBackdropClick } = useModalDismiss(onClose);
 
+  const isIT = serviceDeskCode === 'IT';
+  const isHR = serviceDeskCode === 'HR';
+
   const handleApprove = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setSubmitting(true);
       setError(null);
-      await itWorkflowService.ceoDecision(requestId, 'APPROVED', comments || undefined);
+      if (isIT) {
+        await itWorkflowService.ceoDecision(requestId, 'APPROVED', comments || undefined);
+      } else if (isHR) {
+        await approvalService.ceoDecision(requestId, 'APPROVED', comments || undefined);
+      } else {
+        throw new Error(`CEO approval not implemented for service desk: ${serviceDeskCode}`);
+      }
       onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to approve request');
@@ -38,7 +52,13 @@ const CeoDecisionModal: React.FC<CeoDecisionModalProps> = ({
     try {
       setSubmitting(true);
       setError(null);
-      await itWorkflowService.ceoDecision(requestId, 'REJECTED', comments || undefined);
+      if (isIT) {
+        await itWorkflowService.ceoDecision(requestId, 'REJECTED', comments || undefined);
+      } else if (isHR) {
+        await approvalService.ceoDecision(requestId, 'REJECTED', comments || undefined);
+      } else {
+        throw new Error(`CEO rejection not implemented for service desk: ${serviceDeskCode}`);
+      }
       onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to reject request');
@@ -56,7 +76,7 @@ const CeoDecisionModal: React.FC<CeoDecisionModalProps> = ({
           </div>
           <div>
             <h2 className="font-bold text-base text-gray-900">CEO Approval</h2>
-            <p className="text-xs text-gray-500">IT Workflow · CEO Decision Required</p>
+            <p className="text-xs text-gray-500">{serviceDeskName} · CEO Decision Required</p>
           </div>
         </div>
         <form>
@@ -109,3 +129,4 @@ const CeoDecisionModal: React.FC<CeoDecisionModalProps> = ({
 };
 
 export default CeoDecisionModal;
+
