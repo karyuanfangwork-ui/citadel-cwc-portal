@@ -97,6 +97,15 @@ async function main() {
         },
     });
 
+    await prisma.role.upsert({
+        where: { name: 'GROUP_CEO' },
+        update: {},
+        create: {
+            name: 'GROUP_CEO',
+            description: 'Group Chief Executive Officer with highest approval authority',
+        },
+    });
+
     console.log('✅ Roles created');
 
     // Create Permissions
