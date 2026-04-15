@@ -204,6 +204,23 @@ const AdminSettings = () => {
         }
     };
 
+    const handleMoveCategory = async (cat: any, direction: 'up' | 'down') => {
+        if (!selectedDesk) return;
+        const sorted = [...categories].sort((a, b) => a.displayOrder - b.displayOrder);
+        const idx = sorted.findIndex(c => c.id === cat.id);
+        const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= sorted.length) return;
+        const swapTarget = sorted[swapIdx];
+        try {
+            await adminService.updateCategory(selectedDesk.id, cat.id, { displayOrder: swapTarget.displayOrder });
+            await adminService.updateCategory(selectedDesk.id, swapTarget.id, { displayOrder: cat.displayOrder });
+            fetchCategories(selectedDesk.id);
+        } catch (err) {
+            console.error('Error reordering category:', err);
+            showToast('error', 'Failed to reorder categories.');
+        }
+    };
+
     const handleManageTypes = async (cat: any) => {
         if (selectedCategory?.id === cat.id) {
             setSelectedCategory(null);
@@ -294,7 +311,25 @@ const AdminSettings = () => {
                         <tbody className="divide-y divide-gray-100">
                             {categories.map(cat => (
                                 <tr key={cat.id} className={`hover:bg-gray-50/50 transition-colors ${selectedCategory?.id === cat.id ? 'bg-blue-50/30' : ''} ${!cat.isActive ? 'opacity-50' : ''}`}>
-                                    <td className="px-8 py-6 font-bold text-gray-400">{cat.displayOrder}</td>
+                                    <td className="px-8 py-6">
+                                        <div className="flex flex-col items-center gap-1">
+                                            <button
+                                                onClick={() => handleMoveCategory(cat, 'up')}
+                                                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-300 hover:text-[#0052cc] transition-all"
+                                                title="Move up"
+                                            >
+                                                <span className="material-symbols-outlined text-base">arrow_upward</span>
+                                            </button>
+                                            <span className="font-bold text-gray-400 text-sm">{cat.displayOrder}</span>
+                                            <button
+                                                onClick={() => handleMoveCategory(cat, 'down')}
+                                                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-300 hover:text-[#0052cc] transition-all"
+                                                title="Move down"
+                                            >
+                                                <span className="material-symbols-outlined text-base">arrow_downward</span>
+                                            </button>
+                                        </div>
+                                    </td>
                                     <td className="px-8 py-6">
                                         <div className={`w-12 h-12 ${cat.colorClass} rounded-xl flex items-center justify-center shadow-sm`}>
                                             <span className="material-symbols-outlined text-2xl">{cat.icon}</span>
