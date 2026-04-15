@@ -36,6 +36,13 @@ router.get('/:id/request-types', optionalAuth, serviceDeskController.getRequestT
 router.use(authenticate, authorize('ADMIN'));
 
 /**
+ * @route   GET /api/v1/service-desks/:id/categories/all
+ * @desc    Get ALL categories for a service desk (including inactive) — admin only
+ * @access  Private (Admin only)
+ */
+router.get('/:id/categories/all', serviceDeskController.getAllCategoriesAdmin);
+
+/**
  * @route   POST /api/v1/service-desks
  * @desc    Create service desk
  * @access  Private (Admin only)

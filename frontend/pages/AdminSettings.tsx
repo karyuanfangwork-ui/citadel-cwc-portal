@@ -76,7 +76,7 @@ const AdminSettings = () => {
 
     const fetchCategories = async (deskId: string) => {
         try {
-            const cats = await serviceDeskService.getCategories(deskId);
+            const cats = await adminService.getAllCategoriesAdmin(deskId);
             setCategories(cats);
         } catch (err) {
             console.error('Error fetching categories:', err);
@@ -142,6 +142,16 @@ const AdminSettings = () => {
             fetchCategories(selectedDesk.id);
         } catch (err) {
             console.error('Error deleting category:', err);
+        }
+    };
+
+    const handleReactivate = async (catId: string) => {
+        if (!selectedDesk) return;
+        try {
+            await adminService.updateCategory(selectedDesk.id, catId, { isActive: true });
+            fetchCategories(selectedDesk.id);
+        } catch (err) {
+            console.error('Error reactivating category:', err);
         }
     };
 
@@ -234,7 +244,7 @@ const AdminSettings = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {categories.map(cat => (
-                                <tr key={cat.id} className={`hover:bg-gray-50/50 transition-colors ${selectedCategory?.id === cat.id ? 'bg-blue-50/30' : ''}`}>
+                                <tr key={cat.id} className={`hover:bg-gray-50/50 transition-colors ${selectedCategory?.id === cat.id ? 'bg-blue-50/30' : ''} ${!cat.isActive ? 'opacity-50' : ''}`}>
                                     <td className="px-8 py-6 font-bold text-gray-400">{cat.displayOrder}</td>
                                     <td className="px-8 py-6">
                                         <div className={`w-12 h-12 ${cat.colorClass} rounded-xl flex items-center justify-center shadow-sm`}>
@@ -264,15 +274,27 @@ const AdminSettings = () => {
                                             <button
                                                 onClick={() => openEditModal(cat)}
                                                 className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                title="Edit category"
                                             >
                                                 <span className="material-symbols-outlined text-xl">edit</span>
                                             </button>
-                                            <button
-                                                onClick={() => handleDelete(cat.id)}
-                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-red-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
-                                            >
-                                                <span className="material-symbols-outlined text-xl">delete</span>
-                                            </button>
+                                            {cat.isActive ? (
+                                                <button
+                                                    onClick={() => handleDelete(cat.id)}
+                                                    className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-red-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                    title="Deactivate category"
+                                                >
+                                                    <span className="material-symbols-outlined text-xl">delete</span>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleReactivate(cat.id)}
+                                                    className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-emerald-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                    title="Reactivate category"
+                                                >
+                                                    <span className="material-symbols-outlined text-xl">restore</span>
+                                                </button>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>

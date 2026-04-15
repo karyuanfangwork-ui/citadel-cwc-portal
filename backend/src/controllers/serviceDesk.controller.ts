@@ -63,6 +63,23 @@ class ServiceDeskController {
         });
     });
 
+    getAllCategoriesAdmin = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { id } = req.params;
+
+        const categories = await prisma.serviceCategory.findMany({
+            where: { serviceDeskId: id as string },
+            orderBy: { displayOrder: 'asc' },
+            include: {
+                _count: { select: { requestTypes: true } },
+            },
+        });
+
+        res.json({
+            status: 'success',
+            data: { categories },
+        });
+    });
+
     getRequestTypes = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { id } = req.params; // serviceDeskId
         const { categoryId } = req.query;

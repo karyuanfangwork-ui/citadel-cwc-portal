@@ -33,4 +33,12 @@ export const adminService = {
         const response = await apiClient.delete(`/service-desks/${serviceDeskId}/categories/${categoryId}`);
         return response.data;
     },
+
+    /**
+     * Get ALL categories for a service desk (including inactive) — admin only
+     */
+    async getAllCategoriesAdmin(serviceDeskId: string) {
+        const response = await apiClient.get(`/service-desks/${serviceDeskId}/categories/all`);
+        return response.data.data.categories;
+    },
 };
