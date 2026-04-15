@@ -28,6 +28,7 @@ const IT_FIELD_LABELS: Record<string, string> = {
   preferredVendor: 'Preferred Vendor',
   productUrl: 'Product URL',
   businessJustification: 'Business Justification',
+  payment: 'Payment',
   // legacy keys — keep for backward compat until backfill runs
   hardwareType: 'Hardware Type',
   model: 'Model',
@@ -57,11 +58,30 @@ function getFieldLabels(code: string): Record<string, string> {
   return {};
 }
 
-function formatValue(value: any): string {
+function formatPayment(value: Record<string, any>): React.ReactNode {
+  const rows: { label: string; val: string }[] = [];
+  if (value.amount !== undefined) rows.push({ label: 'Amount', val: `MYR ${value.amount}` });
+  if (value.paymentReference) rows.push({ label: 'Reference', val: value.paymentReference });
+  if (value.paymentDate) rows.push({ label: 'Payment Date', val: value.paymentDate });
+  if (value.completedAt) rows.push({ label: 'Completed At', val: new Date(value.completedAt).toLocaleString() });
+  if (rows.length === 0) return JSON.stringify(value);
+  return (
+    <span className="flex flex-col gap-0.5">
+      {rows.map(r => (
+        <span key={r.label}><span className="text-[#44546f] font-medium">{r.label}:</span> {r.val}</span>
+      ))}
+    </span>
+  );
+}
+
+function formatValue(key: string, value: any): React.ReactNode {
   if (value === null || value === undefined || value === '') return '\u2014';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.join(', ');
-  if (typeof value === 'object') return JSON.stringify(value);
+  if (typeof value === 'object') {
+    if (key === 'payment') return formatPayment(value);
+    return JSON.stringify(value);
+  }
   return String(value);
 }
 
@@ -86,7 +106,7 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
               <dt className="w-44 shrink-0 text-sm font-semibold text-[#44546f]">
                 {labels[key] || key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase())}
               </dt>
-              <dd className="text-sm text-[#101418] flex-1">{formatValue(value)}</dd>
+              <dd className="text-sm text-[#101418] flex-1">{formatValue(key, value)}</dd>
             </div>
           ))}
         </dl>

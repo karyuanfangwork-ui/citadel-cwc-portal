@@ -222,6 +222,20 @@ const AdminSettings = () => {
         });
     };
 
+    const handleDeleteService = (typeId: string) => {
+        setPendingAction({
+            message: 'Deactivate this service? It will be hidden from users but can be restored.',
+            onConfirm: async () => {
+                await serviceDeskService.deleteRequestType(typeId);
+                if (selectedCategory) {
+                    const types = await serviceDeskService.getRequestTypes(selectedDesk.id, selectedCategory.id);
+                    setRequestTypes(types);
+                }
+                showToast('success', 'Service deactivated.');
+            },
+        });
+    };
+
     const handleCreateService = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedDesk || !selectedCategory) return;
@@ -507,7 +521,11 @@ const AdminSettings = () => {
                                                 >
                                                     <span className="material-symbols-outlined text-[22px]">dynamic_form</span>
                                                 </button>
-                                                <button className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
+                                                <button
+                                                    onClick={() => handleDeleteService(type.id)}
+                                                    className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                                    title="Deactivate service"
+                                                >
                                                     <span className="material-symbols-outlined text-[20px]">delete</span>
                                                 </button>
                                             </div>

@@ -113,7 +113,8 @@ export default function AgentDashboard() {
     setRequestTypeOptions(options);
   }, [myTickets, unassignedTickets]);
 
-  const tickets = activeTab === 'mine' ? myTickets : unassignedTickets;
+  const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW'];
+  const tickets = (activeTab === 'mine' ? myTickets : unassignedTickets).filter(t => !CLOSED_STATUSES.includes(t.status));
 
   const cards = [
     {
