@@ -46,4 +46,32 @@ export const adminService = {
         const response = await apiClient.post(`/service-desks/request-types`, data);
         return response.data.data.requestType;
     },
+
+    // ── User Management ──────────────────────────────────────────
+
+    async listUsers(params?: { page?: number; limit?: number; search?: string; role?: string; isActive?: boolean }) {
+        const query = new URLSearchParams();
+        if (params?.page) query.set('page', String(params.page));
+        if (params?.limit) query.set('limit', String(params.limit));
+        if (params?.search) query.set('search', params.search);
+        if (params?.role) query.set('role', params.role);
+        if (params?.isActive !== undefined) query.set('isActive', String(params.isActive));
+        const response = await apiClient.get(`/users?${query.toString()}`);
+        return response.data.data as { users: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
+    },
+
+    async updateUserStatus(userId: string, isActive: boolean) {
+        const response = await apiClient.put(`/users/${userId}`, { isActive });
+        return response.data.data.user;
+    },
+
+    async assignUserRoles(userId: string, roles: string[]) {
+        const response = await apiClient.post(`/users/${userId}/roles`, { roles });
+        return response.data.data.user;
+    },
+
+    async listRoles() {
+        const response = await apiClient.get(`/users/roles/all`);
+        return response.data.data.roles as { id: string; name: string; description: string }[];
+    },
 };
