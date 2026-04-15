@@ -45,6 +45,9 @@ const AdminSettings = () => {
     const [formBuilderOpen, setFormBuilderOpen] = useState(false);
     const [selectedType, setSelectedType] = useState<any>(null);
 
+    const [pendingAction, setPendingAction] = useState<{ message: string; onConfirm: () => Promise<void> } | null>(null);
+    const [toastMsg, setToastMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
+
     const [formData, setFormData] = useState<CategoryData>({
         name: '',
         description: '',
@@ -53,6 +56,20 @@ const AdminSettings = () => {
         displayOrder: 0,
         isActive: true,
     });
+
+    const showToast = (type: 'error' | 'success', text: string) => {
+        setToastMsg({ type, text });
+        setTimeout(() => setToastMsg(null), 4000);
+    };
+
+    const executePendingAction = async () => {
+        if (!pendingAction) return;
+        try {
+            await pendingAction.onConfirm();
+        } finally {
+            setPendingAction(null);
+        }
+    };
 
     useEffect(() => {
         fetchServiceDesks();
@@ -128,31 +145,35 @@ const AdminSettings = () => {
             }
             setModalOpen(false);
             fetchCategories(selectedDesk.id);
+            showToast('success', editingCategory ? 'Category updated.' : 'Category created.');
         } catch (err) {
             console.error('Error saving category:', err);
-            alert('Failed to save category. Please check if the name is unique.');
+            showToast('error', 'Failed to save. Ensure the category name is unique for this service desk.');
         }
     };
 
-    const handleDelete = async (catId: string) => {
-        if (!selectedDesk || !window.confirm('Are you sure you want to deactivate this category?')) return;
-
-        try {
-            await adminService.deleteCategory(selectedDesk.id, catId);
-            fetchCategories(selectedDesk.id);
-        } catch (err) {
-            console.error('Error deleting category:', err);
-        }
+    const handleDelete = (catId: string) => {
+        setPendingAction({
+            message: 'Deactivate this category? It will be hidden from users but can be restored.',
+            onConfirm: async () => {
+                if (!selectedDesk) return;
+                await adminService.deleteCategory(selectedDesk.id, catId);
+                fetchCategories(selectedDesk.id);
+                showToast('success', 'Category deactivated.');
+            },
+        });
     };
 
-    const handleReactivate = async (catId: string) => {
-        if (!selectedDesk) return;
-        try {
-            await adminService.updateCategory(selectedDesk.id, catId, { isActive: true });
-            fetchCategories(selectedDesk.id);
-        } catch (err) {
-            console.error('Error reactivating category:', err);
-        }
+    const handleReactivate = (catId: string) => {
+        setPendingAction({
+            message: 'Reactivate this category? It will become visible to users again.',
+            onConfirm: async () => {
+                if (!selectedDesk) return;
+                await adminService.updateCategory(selectedDesk.id, catId, { isActive: true });
+                fetchCategories(selectedDesk.id);
+                showToast('success', 'Category reactivated.');
+            },
+        });
     };
 
     const handleManageTypes = async (cat: any) => {
@@ -180,7 +201,7 @@ const AdminSettings = () => {
             await serviceDeskService.updateRequestType(selectedType.id, {
                 formConfig: fields
             });
-            alert('Form configuration saved successfully!');
+            showToast('success', 'Form configuration saved successfully.');
             setFormBuilderOpen(false);
             if (selectedCategory) {
                 // Refresh request types
@@ -189,7 +210,7 @@ const AdminSettings = () => {
             }
         } catch (err) {
             console.error('Error saving form config:', err);
-            alert('Failed to save form configuration.');
+            showToast('error', 'Failed to save form configuration.');
         }
     };
 
@@ -492,6 +513,43 @@ const AdminSettings = () => {
                             onCancel={() => setFormBuilderOpen(false)}
                         />
                     </div>
+                </div>
+            )}
+
+            {/* Confirm Dialog */}
+            {pendingAction && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-10 scale-in">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 bg-red-50 rounded-2xl flex items-center justify-center">
+                                <span className="material-symbols-outlined text-red-500 text-2xl">warning</span>
+                            </div>
+                            <h3 className="text-xl font-black text-[#101418]">Confirm Action</h3>
+                        </div>
+                        <p className="text-[#44546f] font-medium mb-8">{pendingAction.message}</p>
+                        <div className="flex gap-4">
+                            <button
+                                onClick={() => setPendingAction(null)}
+                                className="flex-1 py-3 bg-gray-100 text-[#44546f] font-black rounded-2xl hover:bg-gray-200 transition-all text-xs uppercase tracking-widest"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={executePendingAction}
+                                className="flex-1 py-3 bg-red-600 text-white font-black rounded-2xl hover:bg-red-700 transition-all text-xs uppercase tracking-widest"
+                            >
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Toast */}
+            {toastMsg && (
+                <div className={`fixed bottom-6 right-6 z-[90] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-xl text-white font-bold text-sm transition-all ${toastMsg.type === 'error' ? 'bg-red-600' : 'bg-emerald-600'}`}>
+                    <span className="material-symbols-outlined text-xl">{toastMsg.type === 'error' ? 'error' : 'check_circle'}</span>
+                    {toastMsg.text}
                 </div>
             )}
         </div>
