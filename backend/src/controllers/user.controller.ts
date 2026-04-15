@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { tokenService } from '../services/token.service';
 
 const prisma = new PrismaClient();
 
@@ -265,6 +266,69 @@ class UserController {
             status: 'success',
             message: 'User deleted successfully',
         });
+    });
+
+    /**
+     * Replace a user's roles atomically (Admin only)
+     * Body: { roles: string[] } — array of role names e.g. ["USER", "CEO"]
+     */
+    assignRoles = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+        const id = req.params['id'] as string;
+        const { roles } = req.body as { roles: string[] };
+
+        if (!Array.isArray(roles) || roles.length === 0) {
+            throw new AppError('roles must be a non-empty array of role names', 400);
+        }
+
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) throw new AppError('User not found', 404);
+
+        const roleRecords = await prisma.role.findMany({
+            where: { name: { in: roles } },
+        });
+
+        if (roleRecords.length !== roles.length) {
+            const found = roleRecords.map((r) => r.name);
+            const invalid = roles.filter((r) => !found.includes(r));
+            throw new AppError(`Unknown roles: ${invalid.join(', ')}`, 400);
+        }
+
+        // Replace all roles atomically
+        await prisma.$transaction([
+            prisma.userRole.deleteMany({ where: { userId: id } }),
+            prisma.userRole.createMany({
+                data: roleRecords.map((r) => ({ userId: id, roleId: r.id })),
+            }),
+        ]);
+
+        // Force-revoke active tokens so new roles take effect immediately
+        await tokenService.revokeAllForUser(id);
+
+        const updated = await prisma.user.findUnique({
+            where: { id },
+            include: { roles: { include: { role: true } } },
+        });
+
+        res.json({
+            status: 'success',
+            data: {
+                user: {
+                    id: updated!.id,
+                    email: updated!.email,
+                    roles: updated!.roles.map((ur: { role: { name: string } }) => ur.role.name),
+                },
+            },
+        });
+    });
+
+    /**
+     * List all available roles (Admin only)
+     */
+    listRoles = asyncHandler(async (_req: AuthRequest, res: Response) => {
+        const roles = await prisma.role.findMany({
+            orderBy: { name: 'asc' },
+        });
+        res.json({ status: 'success', data: { roles } });
     });
 }
 

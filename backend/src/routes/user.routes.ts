@@ -31,6 +31,20 @@ router.get('/me', userController.getMe);
 router.put('/me', validate(updateProfileSchema), userController.updateMe);
 
 /**
+ * @route   POST /api/v1/users/:id/roles
+ * @desc    Replace a user's roles (force-revokes active tokens)
+ * @access  Private (Admin only)
+ */
+router.post('/:id/roles', authorize('ADMIN'), userController.assignRoles);
+
+/**
+ * @route   GET /api/v1/users/roles/all
+ * @desc    List all available roles
+ * @access  Private (Admin only)
+ */
+router.get('/roles/all', authorize('ADMIN'), userController.listRoles);
+
+/**
  * @route   GET /api/v1/users/:id
  * @desc    Get user by ID
  * @access  Private (Admin only)
