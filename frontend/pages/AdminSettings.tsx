@@ -66,6 +66,9 @@ const AdminSettings = () => {
         if (!pendingAction) return;
         try {
             await pendingAction.onConfirm();
+        } catch (err) {
+            console.error('Action failed:', err);
+            showToast('error', 'Action failed. Please try again.');
         } finally {
             setPendingAction(null);
         }
