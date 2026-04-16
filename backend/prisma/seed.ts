@@ -434,6 +434,15 @@ async function main() {
             }
         });
 
+        const newHireFormConfig = cat.name === 'New Hire Request' ? [
+            { id: 'position', label: 'Position / Job Title', type: 'text', required: true },
+            { id: 'department', label: 'Department', type: 'text', required: true },
+            { id: 'candidateName', label: 'Candidate Full Name', type: 'text', required: false },
+            { id: 'candidateEmail', label: 'Candidate Email', type: 'text', required: false },
+            { id: 'headcount', label: 'Number of Headcount', type: 'text', required: false },
+            { id: 'justification', label: 'Business Justification', type: 'textarea', required: true },
+        ] : [];
+
         if (!existingType) {
             await prisma.requestType.create({
                 data: {
@@ -443,12 +452,16 @@ async function main() {
                     slaHours: 48,
                     isActive: true,
                     requiredRole: cat.name === 'New Hire Request' ? 'HIRING_MANAGER' : null,
+                    ...(cat.name === 'New Hire Request' ? { formConfig: newHireFormConfig } : {}),
                 },
             });
-        } else if (cat.name === 'New Hire Request' && existingType.requiredRole !== 'HIRING_MANAGER') {
+        } else if (cat.name === 'New Hire Request') {
             await prisma.requestType.update({
                 where: { id: existingType.id },
-                data: { requiredRole: 'HIRING_MANAGER' },
+                data: {
+                    requiredRole: 'HIRING_MANAGER',
+                    formConfig: newHireFormConfig,
+                },
             });
         }
     }

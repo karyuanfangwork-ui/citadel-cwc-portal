@@ -20,12 +20,35 @@ export const createOnboardingFromHiring = async (request: any) => {
         });
         console.log('LOA found:', loa ? 'Yes' : 'No');
 
-        if (!candidateResume || !loa) {
-            console.error('❌ Cannot create onboarding: Missing candidate resume or LOA');
-            console.error('  - Candidate Resume:', candidateResume ? 'Found' : 'Missing');
-            console.error('  - LOA:', loa ? 'Found' : 'Missing');
+        if (!loa) {
+            console.error('❌ Cannot create onboarding: Missing LOA');
             return null;
         }
+
+        // Resolve candidate name from resume, customFields.candidateName, or selectedCandidateName
+        const cf = request.customFields as any || {};
+        const rawName =
+            candidateResume?.candidateName ||
+            cf.candidateName ||
+            cf.selectedCandidateName ||
+            null;
+        const nameParts = rawName ? rawName.trim().split(/\s+/) : [];
+        const firstName = nameParts[0] || 'Unknown';
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Unknown';
+
+        // Resolve email: candidate email from form > requester email
+        const candidateEmail = cf.candidateEmail || request.requesterEmail || 'unknown@example.com';
+
+        // Resolve job title: form field 'position' > 'jobTitle' > fallback
+        const jobTitle =
+            cf.position ||
+            cf.jobTitle ||
+            'Not specified';
+
+        // Resolve department: form field > fallback
+        const department =
+            cf.department ||
+            'Not specified';
 
         // Calculate start date (7 days after LOA acceptance)
         const startDate = new Date();
@@ -34,11 +57,11 @@ export const createOnboardingFromHiring = async (request: any) => {
 
         console.log('Creating onboarding request with data:', {
             requestId: request.id,
-            newHireFirstName: candidateResume.candidateName?.split(' ')[0] || 'Unknown',
-            newHireLastName: candidateResume.candidateName?.split(' ').slice(1).join(' ') || 'Unknown',
-            newHireEmail: request.requesterEmail || 'unknown@example.com',
-            jobTitle: request.customFields?.jobTitle || 'Not specified',
-            department: request.customFields?.department || 'Not specified',
+            newHireFirstName: firstName,
+            newHireLastName: lastName,
+            newHireEmail: candidateEmail,
+            jobTitle,
+            department,
             hiringManagerId: request.requesterId,
         });
 
@@ -46,12 +69,12 @@ export const createOnboardingFromHiring = async (request: any) => {
         const onboarding = await prisma.onboardingRequest.create({
             data: {
                 requestId: request.id,
-                newHireFirstName: candidateResume.candidateName?.split(' ')[0] || 'Unknown',
-                newHireLastName: candidateResume.candidateName?.split(' ').slice(1).join(' ') || 'Unknown',
-                newHireEmail: request.requesterEmail || 'unknown@example.com',
+                newHireFirstName: firstName,
+                newHireLastName: lastName,
+                newHireEmail: candidateEmail,
                 newHirePhone: null,
-                jobTitle: request.customFields?.jobTitle || 'Not specified',
-                department: request.customFields?.department || 'Not specified',
+                jobTitle,
+                department,
                 hiringManagerId: request.requesterId,
                 startDate,
                 employmentType: 'FULL_TIME',
