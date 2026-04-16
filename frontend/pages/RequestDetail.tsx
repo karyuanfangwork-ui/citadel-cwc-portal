@@ -102,6 +102,7 @@ const RequestDetail = () => {
 
   // New Hiring Workflow states
   const [showScheduleInterviewModal, setShowScheduleInterviewModal] = useState(false);
+  const [showEditInterviewModal, setShowEditInterviewModal] = useState(false);
   const [showInterviewFeedbackModal, setShowInterviewFeedbackModal] = useState(false);
   const [showHRScreeningModal, setShowHRScreeningModal] = useState(false);
   const [showUploadLOAModal, setShowUploadLOAModal] = useState(false);
@@ -402,6 +403,21 @@ const RequestDetail = () => {
   };
 
   // Interview Handlers
+  const handleUpdateInterview = async (interviewData: any) => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await interviewService.updateInterview(id, interviewData);
+      await fetchRequestData();
+      setShowEditInterviewModal(false);
+      alert('Interview details updated successfully');
+    } catch (error: any) {
+      alert(error.message || 'Failed to update interview details');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
   const handleScheduleInterview = async (interviewData: any) => {
     if (!id) return;
     try {
@@ -788,8 +804,18 @@ const RequestDetail = () => {
         status={request.status}
         assignedToName={request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}` : undefined}
         onActionClick={() => {
-          const actionsSection = document.querySelector('[data-actions-sidebar]');
-          if (actionsSection) actionsSection.scrollIntoView({ behavior: 'smooth' });
+          if (currentRole === 'agent' && request.status === 'MANAGER_APPROVED') {
+            setShowScheduleInterviewModal(true);
+          } else if (currentRole === 'hiring_manager' && request.status === 'INTERVIEW_SCHEDULED') {
+            setShowInterviewFeedbackModal(true);
+          } else if (currentRole === 'agent' && request.status === 'INTERVIEW_FEEDBACK_PENDING') {
+            handleStartHRScreening();
+          } else if (currentRole === 'hiring_manager' && request.status === 'LOA_PENDING_APPROVAL') {
+            setShowLOAApprovalModal(true);
+          } else {
+            const actionsSection = document.querySelector('[data-actions-sidebar]');
+            if (actionsSection) actionsSection.scrollIntoView({ behavior: 'smooth' });
+          }
         }}
       />
 
@@ -958,14 +984,25 @@ const RequestDetail = () => {
             {/* Interview Details Section */}
             {interviewDetails?.schedule && (
               <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6 overflow-hidden">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="size-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                    <span className="material-symbols-outlined">calendar_month</span>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="size-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                      <span className="material-symbols-outlined">calendar_month</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-[#101418]">Interview Information</h3>
+                      <p className="text-xs text-[#44546f] uppercase tracking-wider font-semibold">Scheduled Stage</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-[#101418]">Interview Information</h3>
-                    <p className="text-xs text-[#44546f] uppercase tracking-wider font-semibold">Scheduled Stage</p>
-                  </div>
+                  {(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && !interviewDetails?.feedback && (
+                    <button
+                      onClick={() => setShowEditInterviewModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                      Edit
+                    </button>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -980,19 +1017,35 @@ const RequestDetail = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-3">
-                      <span className="material-symbols-outlined text-gray-400 text-xl">location_on</span>
-                      <div>
-                        <p className="text-xs font-bold text-[#44546f] uppercase">Location / Link</p>
-                        {interviewDetails.schedule.meetingLink ? (
+                    {interviewDetails.schedule.meetingLink && (
+                      <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">video_call</span>
+                        <div>
+                          <p className="text-xs font-bold text-[#44546f] uppercase">Meeting Link</p>
                           <a href={interviewDetails.schedule.meetingLink} target="_blank" rel="noreferrer" className="text-[#0052cc] font-semibold hover:underline flex items-center gap-1">
                             Join Meeting <span className="material-symbols-outlined text-xs">open_in_new</span>
                           </a>
-                        ) : (
-                          <p className="font-semibold text-[#101418]">{interviewDetails.schedule.location || 'N/A'}</p>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    {interviewDetails.schedule.location && (
+                      <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">location_on</span>
+                        <div>
+                          <p className="text-xs font-bold text-[#44546f] uppercase">Location</p>
+                          <p className="font-semibold text-[#101418]">{interviewDetails.schedule.location}</p>
+                        </div>
+                      </div>
+                    )}
+                    {!interviewDetails.schedule.meetingLink && !interviewDetails.schedule.location && (
+                      <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">location_on</span>
+                        <div>
+                          <p className="text-xs font-bold text-[#44546f] uppercase">Location / Link</p>
+                          <p className="font-semibold text-[#101418]">N/A</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-4">
@@ -1602,6 +1655,7 @@ const RequestDetail = () => {
             slaDueAt={request.slaDueAt}
             serviceDeskCode={request.serviceDesk?.code || ''}
             onActionSuccess={fetchRequestData}
+            onLOAApproval={() => setShowLOAApprovalModal(true)}
           />
         </div>
       </div>
@@ -2022,13 +2076,103 @@ const RequestDetail = () => {
                     <input type="text" name="interviewers" placeholder="e.g. Jane Smith, Robert Brown" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">Meeting Link / Location</label>
-                    <input type="text" name="meetingLink" placeholder="Zoom Link or Meeting Room" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Microsoft Teams / Meeting Link</label>
+                    <input type="url" name="meetingLink" placeholder="https://teams.microsoft.com/..." className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Physical Location</label>
+                    <input type="text" name="location" placeholder="e.g. Meeting Room A, Level 3" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
                   <button type="button" onClick={() => setShowScheduleInterviewModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
                   <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg">{processingAction ? 'Scheduling...' : 'Schedule'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Interview Modal */}
+      {showEditInterviewModal && interviewDetails?.schedule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+            <div className="p-8">
+              <h2 className="text-2xl font-bold mb-1">Edit Interview Details</h2>
+              <p className="text-sm text-[#44546f] mb-6">Update interview information to fix any errors.</p>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const interviewData = {
+                  interviewDate: formData.get('interviewDate') as string,
+                  interviewTime: formData.get('interviewTime') as string,
+                  location: formData.get('location') as string,
+                  meetingLink: formData.get('meetingLink') as string,
+                  interviewers: (formData.get('interviewers') as string).split(',').map(i => i.trim()).filter(Boolean),
+                  notes: formData.get('notes') as string,
+                };
+                handleUpdateInterview(interviewData);
+              }}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Date *</label>
+                      <input
+                        type="date" name="interviewDate" required
+                        defaultValue={new Date(interviewDetails.schedule.interviewDate).toISOString().split('T')[0]}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Time *</label>
+                      <input
+                        type="time" name="interviewTime" required
+                        defaultValue={interviewDetails.schedule.interviewTime}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Interviewers (comma separated) *</label>
+                    <input
+                      type="text" name="interviewers" required
+                      defaultValue={Array.isArray(interviewDetails.schedule.interviewers) ? interviewDetails.schedule.interviewers.join(', ') : String(interviewDetails.schedule.interviewers)}
+                      placeholder="e.g. Jane Smith, Robert Brown"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Microsoft Teams / Meeting Link</label>
+                    <input
+                      type="url" name="meetingLink"
+                      defaultValue={interviewDetails.schedule.meetingLink || ''}
+                      placeholder="https://teams.microsoft.com/..."
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Physical Location</label>
+                    <input
+                      type="text" name="location"
+                      defaultValue={interviewDetails.schedule.location || ''}
+                      placeholder="e.g. Meeting Room A, Level 3"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Notes</label>
+                    <textarea
+                      name="notes" rows={2}
+                      defaultValue={interviewDetails.schedule.notes || ''}
+                      placeholder="Any notes for the candidate or panel..."
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button type="button" onClick={() => setShowEditInterviewModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
+                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg">{processingAction ? 'Saving...' : 'Save Changes'}</button>
                 </div>
               </form>
             </div>

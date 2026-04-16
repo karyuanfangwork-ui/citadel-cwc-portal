@@ -84,12 +84,6 @@ function getBannerConfig(role: RequestRole, status: string, assignedToName?: str
       actionLabel: 'Submit Feedback',
       bgClass: 'bg-indigo-50', borderClass: 'border-indigo-300', iconBgClass: 'bg-indigo-600', iconColor: 'text-white'
     };
-    if (status === 'LOA_PENDING_APPROVAL') return {
-      icon: 'fact_check', title: 'Your Action: Approve Letter of Acceptance',
-      description: 'The LOA document is ready for your review and approval.',
-      actionLabel: 'Review LOA',
-      bgClass: 'bg-emerald-50', borderClass: 'border-emerald-300', iconBgClass: 'bg-emerald-600', iconColor: 'text-white'
-    };
     if (status === 'PENDING_CEO_APPROVAL') return {
       icon: 'hourglass_top', title: 'Waiting: CEO Approval',
       description: 'Your hiring request is pending CEO approval. You will be notified when a decision is made.',
@@ -99,6 +93,12 @@ function getBannerConfig(role: RequestRole, status: string, assignedToName?: str
       icon: 'fact_check', title: 'In Progress: HR Screening',
       description: 'Background and reference checks are being conducted by HR.',
       bgClass: 'bg-blue-50', borderClass: 'border-blue-200', iconBgClass: 'bg-blue-600', iconColor: 'text-white'
+    };
+    if (status === 'LOA_PENDING_APPROVAL') return {
+      icon: 'approval', title: 'Your Action: Approve / Reject LOA',
+      description: 'Review the Letter of Acceptance and make an approval decision.',
+      actionLabel: 'Approve / Reject LOA',
+      bgClass: 'bg-indigo-50', borderClass: 'border-indigo-300', iconBgClass: 'bg-indigo-600', iconColor: 'text-white'
     };
     return null;
   }

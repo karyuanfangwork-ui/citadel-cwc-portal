@@ -22,7 +22,7 @@ const CfoDecisionModal = lazy(() => import('./CfoDecisionModal'));
 const PaymentDoneModal = lazy(() => import('./PaymentDoneModal'));
 const ManagerDecisionModal = lazy(() => import('./ManagerDecisionModal'));
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'LOA_APPROVAL' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -42,6 +42,7 @@ interface ActionSidebarProps {
   requesterId?: string;
   serviceDeskCode: string;
   onActionSuccess: () => void;
+  onLOAApproval?: () => void;
 }
 
 const PRIORITY_COLOURS: Record<string, string> = {
@@ -69,6 +70,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   requesterId,
   serviceDeskCode,
   onActionSuccess,
+  onLOAApproval,
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -78,7 +80,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
     a => a.approverId === userId && a.status === 'PENDING'
   );
   const isRequester = !!(requesterId && userId && requesterId === userId);
-  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester);
+  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester, serviceDeskCode);
 
   const handleSuccess = () => {
     setOpenModal(null);
@@ -105,7 +107,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'CFO_DECISION': setOpenModal('CFO_DECISION'); break;
       case 'PAYMENT_DONE': setOpenModal('PAYMENT_DONE'); break;
       case 'MANAGER_DECISION': setOpenModal('MANAGER_DECISION'); break;
-      case 'LOA_APPROVAL': setOpenModal('LOA_APPROVAL'); break;
+      case 'LOA_APPROVAL': if (onLOAApproval) onLOAApproval(); break;
       case 'COMPLETE_DELIVERY':
         (async () => {
           try {
