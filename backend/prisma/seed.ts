@@ -399,10 +399,10 @@ async function main() {
 
     // Create Service Categories for HR
     const hrCategoriesData = [
-        { name: 'Leave Management', description: 'Apply for leave, check balance', icon: 'event_available', color: '#10b981', displayOrder: 1 },
-        { name: 'Payroll & Compensation', description: 'Salary queries, tax forms, payslips', icon: 'payments', color: '#6366f1', displayOrder: 2 },
-        { name: 'Benefits & Claims', description: 'Medical claims, insurance, benefits enrollment', icon: 'health_and_safety', color: '#f59e0b', displayOrder: 3 },
-        { name: 'New Hire Request', description: 'Request to hire for a position', icon: 'person_add', color: '#0052cc', displayOrder: 4 },
+        { name: 'Leave Management', description: 'Apply for leave, check balance', icon: 'event_available', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1 },
+        { name: 'Payroll & Compensation', description: 'Salary queries, tax forms, payslips', icon: 'payments', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2 },
+        { name: 'Benefits & Claims', description: 'Medical claims, insurance, benefits enrollment', icon: 'health_and_safety', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 3 },
+        { name: 'New Hire Request', description: 'Request to hire for a position', icon: 'person_add', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4 },
     ];
 
     for (const cat of hrCategoriesData) {
@@ -415,7 +415,7 @@ async function main() {
             },
             update: {
                 icon: cat.icon,
-                color: cat.color,
+                colorClass: cat.colorClass,
                 displayOrder: cat.displayOrder,
                 isActive: true
             },
@@ -457,9 +457,9 @@ async function main() {
 
     // Create Service Categories for Finance
     const finCategoriesData = [
-        { name: 'Expense Reimbursement', description: 'Submit expense claims for reimbursement', icon: 'receipt_long', color: '#10b981', displayOrder: 1 },
-        { name: 'Invoice Processing', description: 'Submit or query vendor invoices', icon: 'description', color: '#6366f1', displayOrder: 2 },
-        { name: 'Budget Approval', description: 'Request budget allocation or transfer', icon: 'account_balance', color: '#f59e0b', displayOrder: 3 },
+        { name: 'Expense Reimbursement', description: 'Submit expense claims for reimbursement', icon: 'receipt_long', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1 },
+        { name: 'Invoice Processing', description: 'Submit or query vendor invoices', icon: 'description', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2 },
+        { name: 'Budget Approval', description: 'Request budget allocation or transfer', icon: 'account_balance', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 3 },
     ];
 
     for (const cat of finCategoriesData) {
@@ -472,7 +472,7 @@ async function main() {
             },
             update: {
                 icon: cat.icon,
-                color: cat.color,
+                colorClass: cat.colorClass,
                 displayOrder: cat.displayOrder,
                 isActive: true
             },
