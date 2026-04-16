@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { OnboardingRequest, OnboardingTask, OnboardingProgress, RequestPriority } from '../../types';
-import axios from 'axios';
+import apiClient from '../services/api';
 
 interface OnboardingDashboardProps {
     requestId: string;
@@ -21,8 +21,8 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
         try {
             setLoading(true);
             const [onboardingRes, progressRes] = await Promise.all([
-                axios.get(`/api/v1/requests/${requestId}/onboarding`),
-                axios.get(`/api/v1/requests/${requestId}/onboarding/progress`)
+                apiClient.get(`/requests/${requestId}/onboarding`),
+                apiClient.get(`/requests/${requestId}/onboarding/progress`)
             ]);
 
             console.log('📦 Onboarding API Response:', onboardingRes.data);
