@@ -20,20 +20,22 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
     const fetchOnboardingData = async () => {
         try {
             setLoading(true);
-            const [onboardingRes, progressRes] = await Promise.all([
-                apiClient.get(`/requests/${requestId}/onboarding`),
-                apiClient.get(`/requests/${requestId}/onboarding/progress`)
-            ]);
-
+            const onboardingRes = await apiClient.get(`/requests/${requestId}/onboarding`);
             console.log('📦 Onboarding API Response:', onboardingRes.data);
-            console.log('📊 Progress API Response:', progressRes.data);
-
             setOnboarding(onboardingRes.data);
-            setProgress(progressRes.data);
             setError(null);
+
+            // Progress is optional — don't let it block the main view
+            try {
+                const progressRes = await apiClient.get(`/requests/${requestId}/onboarding/progress`);
+                console.log('📊 Progress API Response:', progressRes.data);
+                setProgress(progressRes.data);
+            } catch (progressErr) {
+                console.warn('Could not load onboarding progress:', progressErr);
+            }
         } catch (err: any) {
             console.error('Error fetching onboarding data:', err);
-            setError(err.response?.data?.error || 'Failed to load onboarding data');
+            setError(err.message || 'Failed to load onboarding data');
         } finally {
             setLoading(false);
         }
