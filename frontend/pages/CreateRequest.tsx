@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { requestService } from '../src/services/request.service';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
+import { useAuth } from '../src/context/AuthContext';
 
 const CreateRequest = () => {
     const { deskId, categoryId, deskType } = useParams<{ deskId: string; categoryId: string; deskType: string }>();
@@ -20,6 +21,13 @@ const CreateRequest = () => {
         urgency: 'MEDIUM',
         customFields: {}
     });
+
+    const { user } = useAuth();
+
+    const isRoleBlocked = !!(
+        selectedRequestType?.requiredRole &&
+        !user?.roles?.includes(selectedRequestType.requiredRole)
+    );
 
     const URGENCY_OPTIONS = [
         { value: 'LOW', label: 'Low - General inquiry or minor issue' },
@@ -109,6 +117,7 @@ const CreateRequest = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!deskId || !selectedRequestType) return;
+        if (isRoleBlocked) return; // safety guard, button is already disabled
 
         try {
             setSubmitting(true);
@@ -355,6 +364,19 @@ const CreateRequest = () => {
                             {/* Only show form fields if a request type is selected */}
                             {selectedRequestType && (
                                 <>
+                                    {isRoleBlocked && (
+                                        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl mb-6">
+                                            <span className="material-symbols-outlined text-red-500 mt-0.5">lock</span>
+                                            <div>
+                                                <p className="text-sm font-bold text-red-700">Access Restricted</p>
+                                                <p className="text-sm text-red-600">
+                                                    You need the <strong>Hiring Manager</strong> role to submit this request type.
+                                                    Please contact your administrator.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Summary */}
                                     <div>
                                         <label className="block text-sm font-bold text-[#101418] mb-2 flex justify-between">
@@ -429,8 +451,8 @@ const CreateRequest = () => {
                                     <div className="pt-6 flex items-center gap-6">
                                         <button
                                             type="submit"
-                                            disabled={submitting}
-                                            className="px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-sm flex items-center gap-2 disabled:opacity-70"
+                                            disabled={submitting || isRoleBlocked}
+                                            className={`px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-sm flex items-center gap-2 disabled:opacity-70 ${isRoleBlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             {submitting ? 'Sending...' : 'Send Request'}
                                         </button>
