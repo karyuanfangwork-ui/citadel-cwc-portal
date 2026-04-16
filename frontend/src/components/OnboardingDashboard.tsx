@@ -1,18 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { OnboardingRequest, OnboardingTask, OnboardingProgress, RequestPriority } from '../../types';
 import apiClient from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface OnboardingDashboardProps {
     requestId: string;
 }
 
 const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) => {
+    const { user } = useAuth();
     const [onboarding, setOnboarding] = useState<OnboardingRequest | null>(null);
     const [progress, setProgress] = useState<OnboardingProgress | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
     const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
+    const [completing, setCompleting] = useState(false);
 
     useEffect(() => {
         fetchOnboardingData();
@@ -66,6 +69,26 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
             setUpdatingTaskId(null);
         }
     };
+
+    const handleCompleteOnboarding = async () => {
+        if (completing) return;
+        setCompleting(true);
+        try {
+            await apiClient.put(`/onboarding/requests/${requestId}/onboarding/update-status`, {
+                overallStatus: 'COMPLETED',
+                completedBy: user?.id,
+            });
+            setOnboarding(prev => prev ? { ...prev, overallStatus: 'COMPLETED' } : prev);
+        } catch (err: any) {
+            console.error('Failed to complete onboarding:', err);
+        } finally {
+            setCompleting(false);
+        }
+    };
+
+    const allTasksDone = (progress?.tasks?.total ?? 0) > 0 && progress?.tasks?.pending === 0;
+    const isCompleted = onboarding?.overallStatus === 'COMPLETED';
+    const canComplete = (user?.roles?.some(r => r === 'ADMIN' || r === 'AGENT') ?? false) && allTasksDone && !isCompleted;
 
     const getTaskIcon = (status: string, taskId?: string) => {
         if (updatingTaskId === taskId) {
@@ -247,6 +270,39 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                     </div>
                 </div>
             )}
+
+            {/* Completion Banner */}
+            {isCompleted ? (
+                <div className="bg-green-50 border border-green-300 rounded-lg p-5 flex items-center space-x-4">
+                    <span className="material-symbols-outlined text-green-600 text-3xl">task_alt</span>
+                    <div>
+                        <p className="font-semibold text-green-800">Onboarding Completed</p>
+                        <p className="text-sm text-green-700">This new hire request has been closed. All tasks are done.</p>
+                    </div>
+                </div>
+            ) : canComplete ? (
+                <div className="bg-blue-50 border border-blue-300 rounded-lg p-5 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                        <span className="material-symbols-outlined text-blue-600 text-3xl">verified</span>
+                        <div>
+                            <p className="font-semibold text-blue-900">All tasks complete — ready to close</p>
+                            <p className="text-sm text-blue-700">Mark this onboarding as completed to close the new hire request.</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleCompleteOnboarding}
+                        disabled={completing}
+                        className="ml-4 px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
+                    >
+                        {completing ? (
+                            <span className="material-symbols-outlined animate-spin text-sm">autorenew</span>
+                        ) : (
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                        )}
+                        <span>{completing ? 'Completing...' : 'Complete Onboarding'}</span>
+                    </button>
+                </div>
+            ) : null}
 
             {/* Task Checklist */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
