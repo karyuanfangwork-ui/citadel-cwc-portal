@@ -244,38 +244,6 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                             <p className="text-2xl font-bold text-orange-600">{progress.tasks?.pending || 0}</p>
                             <p className="text-sm text-gray-600">Pending</p>
                         </div>
-                        <div className="bg-white rounded-lg p-4 text-center">
-                            <p className="text-2xl font-bold text-blue-600">{progress.completedMilestones || 0}/{progress.totalMilestones || 0}</p>
-                            <p className="text-sm text-gray-600">Milestones</p>
-                        </div>
-                    </div>
-
-                    {/* Milestones */}
-                    <div className="mt-6">
-                        <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                            <span className="material-symbols-outlined text-base mr-2">military_tech</span>
-                            Milestones
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                            {[
-                                { key: 'day1', label: 'Day 1' },
-                                { key: 'week1', label: 'Week 1' },
-                                { key: 'day30', label: '30 Days' },
-                                { key: 'day60', label: '60 Days' },
-                                { key: 'day90', label: '90 Days' }
-                            ].map(milestone => (
-                                <div
-                                    key={milestone.key}
-                                    className={`px-3 py-1 rounded-full text-sm font-medium ${progress.milestones?.[milestone.key as keyof typeof progress.milestones]
-                                        ? 'bg-green-100 text-green-700'
-                                        : 'bg-gray-100 text-gray-500'
-                                        }`}
-                                >
-                                    {progress.milestones?.[milestone.key as keyof typeof progress.milestones] && '✓ '}
-                                    {milestone.label}
-                                </div>
-                            ))}
-                        </div>
                     </div>
                 </div>
             )}
