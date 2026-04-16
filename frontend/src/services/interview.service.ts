@@ -35,6 +35,21 @@ export const interviewService = {
     },
 
     /**
+     * Update an existing interview schedule
+     */
+    async updateInterview(requestId: string, interviewData: {
+        interviewDate: string;
+        interviewTime: string;
+        location?: string;
+        meetingLink?: string;
+        interviewers: string[];
+        notes?: string;
+    }) {
+        const response = await apiClient.put(`/interviews/requests/${requestId}/schedule`, interviewData);
+        return response.data;
+    },
+
+    /**
      * Get interview details (schedule and feedback)
      */
     async getInterviewDetails(requestId: string): Promise<{

@@ -262,6 +262,72 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
 };
 
 /**
+ * Update interview schedule (fix typos, reschedule)
+ * PUT /requests/:id/schedule
+ */
+export const updateInterviewSchedule = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const {
+            interviewDate,
+            interviewTime,
+            location,
+            meetingLink,
+            interviewers,
+            notes
+        } = req.body;
+        const userId = (req as any).user?.id;
+
+        if (!interviewDate || !interviewTime) {
+            return res.status(400).json({ status: 'error', message: 'Interview date and time are required' });
+        }
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
+
+        const allowedStatuses = ['INTERVIEW_SCHEDULED', 'MANAGER_APPROVED'];
+        if (!allowedStatuses.includes(request.status)) {
+            return res.status(400).json({ status: 'error', message: 'Interview can only be updated in MANAGER_APPROVED or INTERVIEW_SCHEDULED status' });
+        }
+
+        const updated = await prisma.interviewSchedule.update({
+            where: { requestId: id },
+            data: {
+                interviewDate: new Date(interviewDate),
+                interviewTime,
+                location: location || null,
+                meetingLink: meetingLink || null,
+                interviewers: JSON.stringify(interviewers || []),
+                notes: notes || null,
+            }
+        });
+
+        if (typeof updated.interviewers === 'string') {
+            try { (updated as any).interviewers = JSON.parse(updated.interviewers); } catch { (updated as any).interviewers = []; }
+        }
+
+        await prisma.requestActivity.create({
+            data: {
+                requestId: id,
+                authorId: userId,
+                authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                authorRole: 'HR Agent',
+                activityType: 'SYSTEM',
+                message: `Interview details updated: ${interviewDate} at ${interviewTime}`,
+                isSystemGenerated: true
+            }
+        });
+
+        res.json({ status: 'success', data: { interviewSchedule: updated } });
+    } catch (error) {
+        console.error('Error updating interview schedule:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to update interview schedule' });
+    }
+};
+
+/**
  * Get interview details
  * GET /requests/:id/interview
  */

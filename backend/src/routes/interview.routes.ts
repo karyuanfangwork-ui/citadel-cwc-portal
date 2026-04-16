@@ -2,6 +2,7 @@ import express from 'express';
 import { authenticate } from '../middleware/auth.middleware';
 import {
     scheduleInterview,
+    updateInterviewSchedule,
     submitInterviewFeedback,
     getInterviewDetails
 } from '../controllers/interview.controller';
@@ -21,6 +22,7 @@ router.use(authenticate);
  * @access  Private (HR Agent)
  */
 router.post('/requests/:id/schedule', scheduleInterview);
+router.put('/requests/:id/schedule', updateInterviewSchedule);
 
 /**
  * @route   POST /api/interviews/requests/:id/feedback
