@@ -45,7 +45,7 @@ const AdminSettings = () => {
     const [formBuilderOpen, setFormBuilderOpen] = useState(false);
     const [selectedType, setSelectedType] = useState<any>(null);
     const [serviceModalOpen, setServiceModalOpen] = useState(false);
-    const [serviceFormData, setServiceFormData] = useState({ name: '', description: '', icon: 'bolt', requiresApproval: false, slaHours: '' });
+    const [serviceFormData, setServiceFormData] = useState({ name: '', description: '', icon: 'bolt', requiresApproval: false, slaHours: '', requiredRole: '' });
 
     const [pendingAction, setPendingAction] = useState<{ message: string; onConfirm: () => Promise<void> } | null>(null);
     const [toastMsg, setToastMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
@@ -247,9 +247,10 @@ const AdminSettings = () => {
                 icon: serviceFormData.icon,
                 requiresApproval: serviceFormData.requiresApproval,
                 slaHours: serviceFormData.slaHours ? parseInt(serviceFormData.slaHours) : null,
+                requiredRole: serviceFormData.requiredRole || null,
             });
             setServiceModalOpen(false);
-            setServiceFormData({ name: '', description: '', icon: 'bolt', requiresApproval: false, slaHours: '' });
+            setServiceFormData({ name: '', description: '', icon: 'bolt', requiresApproval: false, slaHours: '', requiredRole: '' });
             const types = await serviceDeskService.getRequestTypes(selectedDesk.id, selectedCategory.id);
             setRequestTypes(types);
             showToast('success', 'Service created.');
@@ -854,6 +855,20 @@ const AdminSettings = () => {
                                         <span className="text-sm font-bold text-[#44546f]">Requires Approval</span>
                                     </label>
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-[#101418] mb-2">Required Role (optional)</label>
+                                <select
+                                    value={serviceFormData.requiredRole}
+                                    onChange={e => setServiceFormData({ ...serviceFormData, requiredRole: e.target.value })}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0052cc]"
+                                >
+                                    <option value="">No restriction</option>
+                                    {availableRoles.map(role => (
+                                        <option key={role.name} value={role.name}>{role.name}</option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-[#44546f] mt-1">Only users with this role can submit this request type.</p>
                             </div>
                             <div className="flex gap-6 pt-4">
                                 <button type="button" onClick={() => setServiceModalOpen(false)} className="flex-1 py-4 bg-gray-100 text-[#44546f] font-black rounded-3xl hover:bg-gray-200 transition-all text-xs uppercase tracking-widest">Cancel</button>
