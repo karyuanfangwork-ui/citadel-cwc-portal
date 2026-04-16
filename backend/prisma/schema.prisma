@@ -198,6 +198,7 @@ model RequestType {
   slaHours          Int?     @map("sla_hours")
   isActive          Boolean  @default(true) @map("is_active")
   formConfig        Json?    @map("form_config") @db.JsonB
+  requiredRole      String?  @map("required_role") @db.VarChar(50)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
