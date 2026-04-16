@@ -43,7 +43,7 @@ export function detectRequestRole(params: RoleDetectionParams): RequestRole {
     return 'cfo';
   }
 
-  if (userId === requesterId && isHiringRequest(serviceDeskCode, requestStatus)) {
+  if (userRoles.includes('HIRING_MANAGER') && isHiringRequest(serviceDeskCode, requestStatus)) {
     return 'hiring_manager';
   }
 
