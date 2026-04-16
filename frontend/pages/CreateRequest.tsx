@@ -370,7 +370,7 @@ const CreateRequest = () => {
                                             <div>
                                                 <p className="text-sm font-bold text-red-700">Access Restricted</p>
                                                 <p className="text-sm text-red-600">
-                                                    You need the <strong>Hiring Manager</strong> role to submit this request type.
+                                                    You need the <strong>{selectedRequestType.requiredRole}</strong> role to submit this request type.
                                                     Please contact your administrator.
                                                 </p>
                                             </div>
@@ -452,7 +452,7 @@ const CreateRequest = () => {
                                         <button
                                             type="submit"
                                             disabled={submitting || isRoleBlocked}
-                                            className={`px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-sm flex items-center gap-2 disabled:opacity-70 ${isRoleBlocked ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            className="px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             {submitting ? 'Sending...' : 'Send Request'}
                                         </button>

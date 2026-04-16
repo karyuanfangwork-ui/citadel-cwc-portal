@@ -497,7 +497,7 @@ const AdminSettings = () => {
                                 <p className="text-[#44546f] font-medium">Configure individual request forms and their custom fields.</p>
                             </div>
                             <button
-                                onClick={() => setServiceModalOpen(true)}
+                                onClick={() => { if (availableRoles.length === 0) fetchRoles(); setServiceModalOpen(true); }}
                                 className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-200 text-[#101418] font-bold rounded-2xl hover:bg-gray-100 transition-all text-xs uppercase tracking-widest shadow-sm"
                             >
                                 <span className="material-symbols-outlined text-sm">add</span> New Service
