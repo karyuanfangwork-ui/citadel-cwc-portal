@@ -12,6 +12,7 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+    const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchOnboardingData();
@@ -41,7 +42,35 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
         }
     };
 
-    const getTaskIcon = (status: string) => {
+    const handleTaskToggle = async (task: OnboardingTask) => {
+        if (updatingTaskId) return;
+        const newStatus = task.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
+        setUpdatingTaskId(task.id);
+        try {
+            const res = await apiClient.put(
+                `/onboarding/requests/${requestId}/onboarding/tasks/${task.id}`,
+                { status: newStatus }
+            );
+            setOnboarding(prev => prev ? {
+                ...prev,
+                tasks: prev.tasks?.map(t => t.id === task.id ? res.data : t)
+            } : prev);
+            // Refresh progress
+            try {
+                const progressRes = await apiClient.get(`/onboarding/requests/${requestId}/onboarding/progress`);
+                setProgress(progressRes.data);
+            } catch { /* non-fatal */ }
+        } catch (err: any) {
+            console.error('Failed to update task:', err);
+        } finally {
+            setUpdatingTaskId(null);
+        }
+    };
+
+    const getTaskIcon = (status: string, taskId?: string) => {
+        if (updatingTaskId === taskId) {
+            return <span className="material-symbols-outlined text-gray-400 animate-spin">autorenew</span>;
+        }
         switch (status) {
             case 'COMPLETED':
                 return <span className="material-symbols-outlined text-green-600">check_circle</span>;
@@ -281,13 +310,14 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                         filteredTasks.map(task => (
                             <div
                                 key={task.id}
-                                className={`border rounded-lg p-4 transition-all ${task.status === 'COMPLETED'
+                                className={`border rounded-lg p-4 transition-all cursor-pointer ${task.status === 'COMPLETED'
                                     ? 'bg-green-50 border-green-200'
                                     : 'bg-white border-gray-200 hover:border-blue-300'
-                                    }`}
+                                    } ${updatingTaskId === task.id ? 'opacity-60' : ''}`}
+                                onClick={() => handleTaskToggle(task)}
                             >
                                 <div className="flex items-start space-x-3">
-                                    {getTaskIcon(task.status)}
+                                    {getTaskIcon(task.status, task.id)}
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between mb-1">
                                             <h4 className={`font-medium ${task.status === 'COMPLETED' ? 'text-gray-500 line-through' : 'text-gray-900'
