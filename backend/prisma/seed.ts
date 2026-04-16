@@ -106,6 +106,12 @@ async function main() {
         },
     });
 
+    await prisma.role.upsert({
+        where: { name: 'HIRING_MANAGER' },
+        update: {},
+        create: { name: 'HIRING_MANAGER', description: 'Can raise and manage HR hiring requests' }
+    });
+
     console.log('✅ Roles created');
 
     // Create Permissions
@@ -436,7 +442,13 @@ async function main() {
                     description: cat.description,
                     slaHours: 48,
                     isActive: true,
+                    requiredRole: cat.name === 'New Hire Request' ? 'HIRING_MANAGER' : null,
                 },
+            });
+        } else if (cat.name === 'New Hire Request' && existingType.requiredRole !== 'HIRING_MANAGER') {
+            await prisma.requestType.update({
+                where: { id: existingType.id },
+                data: { requiredRole: 'HIRING_MANAGER' },
             });
         }
     }
