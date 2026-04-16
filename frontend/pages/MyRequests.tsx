@@ -76,7 +76,7 @@ const MyRequests = () => {
 
       // Client-side filtering for open requests
       if (filter === 'open') {
-        const closedStatuses = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT'];
+        const closedStatuses = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'ONBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'COMPLETED'];
         filteredRequests = filteredRequests.filter(
           (r: Request) => !closedStatuses.includes(r.status)
         );
