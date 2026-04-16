@@ -812,6 +812,8 @@ const RequestDetail = () => {
             handleStartHRScreening();
           } else if (currentRole === 'hiring_manager' && request.status === 'LOA_PENDING_APPROVAL') {
             setShowLOAApprovalModal(true);
+          } else if (currentRole === 'agent' && request.status === 'LOA_APPROVED') {
+            handleMarkLOAIssued();
           } else {
             const actionsSection = document.querySelector('[data-actions-sidebar]');
             if (actionsSection) actionsSection.scrollIntoView({ behavior: 'smooth' });

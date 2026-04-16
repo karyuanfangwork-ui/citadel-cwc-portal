@@ -205,11 +205,12 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
             });
         }
 
-        // Verify user is the hiring manager (requester)
-        if (request.requesterId !== userId) {
+        // Verify user has HIRING_MANAGER role
+        const userRoles: string[] = (req as any).user?.roles || [];
+        if (!userRoles.includes('HIRING_MANAGER')) {
             return res.status(403).json({
                 status: 'error',
-                message: 'Only the hiring manager can approve or reject LOA'
+                message: 'Only a Hiring Manager can approve or reject LOA'
             });
         }
 

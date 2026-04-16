@@ -128,6 +128,12 @@ function getBannerConfig(role: RequestRole, status: string, assignedToName?: str
       actionLabel: 'Start Screening',
       bgClass: 'bg-blue-50', borderClass: 'border-blue-300', iconBgClass: 'bg-blue-600', iconColor: 'text-white'
     };
+    if (status === 'LOA_APPROVED') return {
+      icon: 'send', title: 'Next Step: Issue LOA to Candidate',
+      description: 'Hiring manager has approved the LOA. Issue it to the candidate.',
+      actionLabel: 'Issue LOA',
+      bgClass: 'bg-emerald-50', borderClass: 'border-emerald-300', iconBgClass: 'bg-emerald-600', iconColor: 'text-white'
+    };
     return null;
   }
 
