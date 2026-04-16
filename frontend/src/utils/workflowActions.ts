@@ -49,12 +49,14 @@ export function getWorkflowActions(
   isAssigned: boolean,
   isDesignatedApprover = false,
   requestTypeName = '',
-  isRequester = false
+  isRequester = false,
+  serviceDeskCode = ''
 ): WorkflowAction[] {
   const isAdmin = userRoles.includes('ADMIN');
   const isAgent = userRoles.includes('AGENT');
   const canAct = isAdmin || isAgent;
   const isProcurement = isProcurementRequest(requestTypeName);
+  const isHR = serviceDeskCode === 'HR';
 
   const actions: WorkflowAction[] = [];
 
@@ -117,7 +119,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (isRequester && status === 'LOA_PENDING_APPROVAL') {
+  if (userRoles.includes('HIRING_MANAGER') && status === 'LOA_PENDING_APPROVAL') {
     actions.push({
       type: 'LOA_APPROVAL',
       label: 'Approve / Reject LOA',
@@ -139,8 +141,9 @@ export function getWorkflowActions(
   }
 
   if (isAdmin) {
-    // Only non-procurement requests go through manager approval via SUBMIT_FOR_APPROVAL
-    if (status === 'SUBMITTED' && !isProcurement) {
+    // Only non-procurement IT requests go through manager approval via SUBMIT_FOR_APPROVAL
+    // HR hiring requests go to CEO approval instead — skip this action for HR
+    if (status === 'SUBMITTED' && !isProcurement && !isHR) {
       actions.push({
         type: 'SUBMIT_FOR_APPROVAL',
         label: 'Submit for Manager Approval',
