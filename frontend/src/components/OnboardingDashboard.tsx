@@ -20,14 +20,14 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
     const fetchOnboardingData = async () => {
         try {
             setLoading(true);
-            const onboardingRes = await apiClient.get(`/requests/${requestId}/onboarding`);
+            const onboardingRes = await apiClient.get(`/onboarding/requests/${requestId}/onboarding`);
             console.log('📦 Onboarding API Response:', onboardingRes.data);
             setOnboarding(onboardingRes.data);
             setError(null);
 
             // Progress is optional — don't let it block the main view
             try {
-                const progressRes = await apiClient.get(`/requests/${requestId}/onboarding/progress`);
+                const progressRes = await apiClient.get(`/onboarding/requests/${requestId}/onboarding/progress`);
                 console.log('📊 Progress API Response:', progressRes.data);
                 setProgress(progressRes.data);
             } catch (progressErr) {
