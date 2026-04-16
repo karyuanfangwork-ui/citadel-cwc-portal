@@ -218,6 +218,19 @@ export interface OnboardingTask {
   createdAt: string;
 }
 
+export interface OnboardingTaskTemplate {
+  id: string;
+  taskName: string;
+  taskDescription?: string;
+  taskCategory: 'IT' | 'HR' | 'TRAINING' | 'ADMIN';
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  dueDayOffset: number;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OnboardingRequest {
   id: string;
   requestId: string;

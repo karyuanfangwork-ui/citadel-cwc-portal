@@ -923,3 +923,21 @@ model OnboardingTask {
   @@index([assignedTo])
   @@index([status])
 }
+
+// Onboarding Task Templates (admin-managed)
+model OnboardingTaskTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  taskName        String   @map("task_name") @db.VarChar(200)
+  taskDescription String?  @map("task_description") @db.Text
+  taskCategory    String   @map("task_category") @db.VarChar(50)
+  priority        String   @default("MEDIUM") @db.VarChar(20)
+  dueDayOffset    Int      @default(0) @map("due_day_offset")
+  displayOrder    Int      @default(0) @map("display_order")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("onboarding_task_templates")
+  @@index([taskCategory])
+  @@index([isActive])
+}

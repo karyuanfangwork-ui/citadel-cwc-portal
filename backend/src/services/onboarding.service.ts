@@ -106,106 +106,31 @@ export const createOnboardingFromHiring = async (request: any) => {
 };
 
 /**
- * Create default onboarding tasks
+ * Create default onboarding tasks from DB templates
  */
 export const createDefaultOnboardingTasks = async (onboardingId: string, startDate: Date) => {
-    const tasks = [
-        // IT Tasks (Pre-Arrival)
-        {
-            taskName: 'Create Active Directory Account',
-            taskDescription: 'Set up AD account with appropriate permissions',
-            taskCategory: 'IT',
-            priority: 'CRITICAL',
-            dueDate: new Date(startDate.getTime() - 5 * 24 * 60 * 60 * 1000), // 5 days before
-        },
-        {
-            taskName: 'Setup Email Account',
-            taskDescription: 'Create company email account and configure mailbox',
-            taskCategory: 'IT',
-            priority: 'CRITICAL',
-            dueDate: new Date(startDate.getTime() - 5 * 24 * 60 * 60 * 1000),
-        },
-        {
-            taskName: 'Provision Laptop/Desktop',
-            taskDescription: 'Prepare and configure hardware with required software',
-            taskCategory: 'IT',
-            priority: 'HIGH',
-            dueDate: new Date(startDate.getTime() - 3 * 24 * 60 * 60 * 1000), // 3 days before
-        },
-        {
-            taskName: 'Create Access Badge',
-            taskDescription: 'Prepare physical access badge for building entry',
-            taskCategory: 'IT',
-            priority: 'HIGH',
-            dueDate: new Date(startDate.getTime() - 2 * 24 * 60 * 60 * 1000), // 2 days before
-        },
-        {
-            taskName: 'Setup Desk/Workspace',
-            taskDescription: 'Prepare workstation with necessary equipment',
-            taskCategory: 'ADMIN',
-            priority: 'MEDIUM',
-            dueDate: new Date(startDate.getTime() - 1 * 24 * 60 * 60 * 1000), // 1 day before
-        },
-        // HR Tasks (Day 1)
-        {
-            taskName: 'Complete I-9 Form',
-            taskDescription: 'Employment eligibility verification',
-            taskCategory: 'HR',
-            priority: 'CRITICAL',
-            dueDate: startDate,
-        },
-        {
-            taskName: 'Complete W-4 Tax Form',
-            taskDescription: 'Federal tax withholding form',
-            taskCategory: 'HR',
-            priority: 'CRITICAL',
-            dueDate: startDate,
-        },
-        {
-            taskName: 'Acknowledge Company Policies',
-            taskDescription: 'Review and sign employee handbook',
-            taskCategory: 'HR',
-            priority: 'HIGH',
-            dueDate: startDate,
-        },
-        // Training Tasks (Week 1)
-        {
-            taskName: 'Complete Security Training',
-            taskDescription: 'Mandatory cybersecurity awareness training',
-            taskCategory: 'TRAINING',
-            priority: 'HIGH',
-            dueDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000), // 1 week after
-        },
-        {
-            taskName: 'Complete Compliance Training',
-            taskDescription: 'Regulatory compliance and ethics training',
-            taskCategory: 'TRAINING',
-            priority: 'HIGH',
-            dueDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000),
-        },
-        {
-            taskName: 'Department Orientation',
-            taskDescription: 'Introduction to team and department processes',
-            taskCategory: 'TRAINING',
-            priority: 'MEDIUM',
-            dueDate: new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000),
-        },
-        // Benefits Enrollment (30 days)
-        {
-            taskName: 'Enroll in Benefits',
-            taskDescription: 'Health insurance, 401k, and other benefits enrollment',
-            taskCategory: 'HR',
-            priority: 'HIGH',
-            dueDate: new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000), // 30 days after
-        },
-    ];
+    const templates = await prisma.onboardingTaskTemplate.findMany({
+        where: { isActive: true },
+        orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    if (templates.length === 0) {
+        console.warn('⚠️  No active onboarding task templates found — no tasks created');
+        return;
+    }
 
     await prisma.onboardingTask.createMany({
-        data: tasks.map(task => ({
+        data: templates.map(template => ({
             onboardingId,
-            ...task,
+            taskName: template.taskName,
+            taskDescription: template.taskDescription ?? undefined,
+            taskCategory: template.taskCategory,
+            priority: template.priority,
+            dueDate: new Date(startDate.getTime() + template.dueDayOffset * 24 * 60 * 60 * 1000),
         })),
     });
+
+    console.log(`✅ Created ${templates.length} onboarding tasks from templates`);
 };
 
 /**
