@@ -55,13 +55,13 @@ function setAuthCookies(res: Response, accessToken: string, refreshToken: string
     res.cookie('refresh_token', refreshToken, {
         ...cookieBase,
         maxAge: 30 * 24 * 60 * 60 * 1000,
-        path: '/api/v1/auth/refresh',
+        path: '/api/v1/auth',
     });
 }
 
 function clearAuthCookies(res: Response): void {
     res.clearCookie('access_token');
-    res.clearCookie('refresh_token', { path: '/api/v1/auth/refresh' });
+    res.clearCookie('refresh_token', { path: '/api/v1/auth' });
 }
 
 // ─── Controller ─────────────────────────────────────────────────────────────
