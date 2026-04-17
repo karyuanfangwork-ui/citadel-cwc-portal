@@ -57,6 +57,7 @@ router.get('/:id', authorize('ADMIN'), userController.getUserById);
  * @access  Private (Admin only)
  */
 router.get('/', authorize('ADMIN'), userController.getAllUsers);
+router.post('/', authorize('ADMIN'), userController.createUser);
 
 /**
  * @route   PUT /api/v1/users/:id
