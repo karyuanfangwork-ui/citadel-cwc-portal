@@ -97,6 +97,10 @@ export interface RequestItem {
   hrScreening?: HRScreening;
   letterOfAcceptance?: LetterOfAcceptance;
   requesterId?: string;
+  // Ticket linking (parent/child for onboarding workflow)
+  parentRequestId?: string;
+  parentRequest?: { id: string; referenceNumber: string; summary: string; status: RequestStatus };
+  childRequests?: { id: string; referenceNumber: string; summary: string; status: RequestStatus }[];
 }
 
 export interface ActivityItem {

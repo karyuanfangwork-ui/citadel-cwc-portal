@@ -55,20 +55,46 @@ export const createOnboardingFromHiring = async (request: any) => {
         startDate.setDate(startDate.getDate() + 7);
         console.log('📅 Calculated start date:', startDate.toISOString());
 
-        console.log('Creating onboarding request with data:', {
-            requestId: request.id,
-            newHireFirstName: firstName,
-            newHireLastName: lastName,
-            newHireEmail: candidateEmail,
-            jobTitle,
-            department,
-            hiringManagerId: request.requesterId,
+        // Look up HR service desk and "Onboard a New Hire" request type
+        const hrServiceDesk = await prisma.serviceDesk.findFirst({
+            where: { name: { contains: 'HR', mode: 'insensitive' } },
+        });
+        const onboardingRequestType = await prisma.requestType.findFirst({
+            where: { name: { contains: 'Onboard', mode: 'insensitive' } },
         });
 
-        // Create onboarding request
+        // Generate next HR-N reference number
+        const lastHrRequest = await prisma.request.findFirst({
+            where: { referenceNumber: { startsWith: 'HR-' } },
+            orderBy: { createdAt: 'desc' },
+        });
+        const nextNum = lastHrRequest
+            ? parseInt(lastHrRequest.referenceNumber.split('-')[1], 10) + 1
+            : 1;
+        const referenceNumber = `HR-${nextNum}`;
+
+        // Create a separate onboarding ticket linked back to the hiring request
+        const onboardingTicket = await prisma.request.create({
+            data: {
+                referenceNumber,
+                serviceDeskId: hrServiceDesk?.id,
+                requestTypeId: onboardingRequestType?.id,
+                requesterId: request.requesterId,
+                requesterEmail: request.requesterEmail,
+                summary: `Onboard New Hire: ${firstName} ${lastName} — ${jobTitle}`,
+                description: `Auto-created onboarding ticket from hiring request ${request.referenceNumber}. Start date: ${startDate.toDateString()}.`,
+                priority: 'HIGH',
+                status: 'ONBOARDING_SUBMITTED',
+                assignedTeam: 'HR',
+                parentRequestId: request.id,
+            },
+        });
+        console.log('✅ Onboarding ticket created:', onboardingTicket.referenceNumber);
+
+        // Create onboarding request linked to the NEW ticket (not the hiring ticket)
         const onboarding = await prisma.onboardingRequest.create({
             data: {
-                requestId: request.id,
+                requestId: onboardingTicket.id,
                 newHireFirstName: firstName,
                 newHireLastName: lastName,
                 newHireEmail: candidateEmail,
@@ -89,15 +115,19 @@ export const createOnboardingFromHiring = async (request: any) => {
         await createDefaultOnboardingTasks(onboarding.id, startDate);
         console.log('✅ Default tasks created');
 
-        // Update request status
-        console.log('Updating request status to ONBOARDING_SUBMITTED...');
-        await prisma.request.update({
-            where: { id: request.id },
-            data: { status: 'ONBOARDING_SUBMITTED' },
+        // Leave hiring request as COMPLETED — add activity log linking to new ticket
+        await prisma.requestActivity.create({
+            data: {
+                requestId: request.id,
+                authorName: 'System',
+                authorRole: 'SYSTEM',
+                activityType: 'SYSTEM',
+                message: `Onboarding ticket ${onboardingTicket.referenceNumber} auto-created for ${firstName} ${lastName}. Start date: ${startDate.toDateString()}.`,
+                isSystemGenerated: true,
+            },
         });
-        console.log('✅ Request status updated');
 
-        return onboarding;
+        return { onboarding, onboardingTicket };
     } catch (error) {
         console.error('❌ Error creating onboarding from hiring:', error);
         console.error('Error details:', error);

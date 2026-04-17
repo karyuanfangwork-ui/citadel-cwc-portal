@@ -308,7 +308,8 @@ model Request {
   // Assignment
   assignedToId     String?         @map("assigned_to_id") @db.Uuid
   assignedTeam     String?         @map("assigned_team") @db.VarChar(100)
-  
+  parentRequestId  String?         @map("parent_request_id") @db.Uuid
+
   // Metadata
   isConfidential   Boolean         @default(false) @map("is_confidential")
   tags             String[]        @db.Text
@@ -343,6 +344,8 @@ model Request {
   hrScreening         HRScreening?
   letterOfAcceptance  LetterOfAcceptance?
   onboardingRequest   OnboardingRequest?
+  parentRequest       Request?          @relation("RequestChildren", fields: [parentRequestId], references: [id])
+  childRequests       Request[]         @relation("RequestChildren")
 
   @@map("requests")
   @@index([referenceNumber])

@@ -504,19 +504,30 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
         console.log('Request ID:', id);
         console.log('Request Status:', updatedRequest.status);
 
+        let onboardingTicketRef: string | null = null;
         try {
             console.log('Calling createOnboardingFromHiring...');
-            const onboarding = await createOnboardingFromHiring(updatedRequest);
+            const result = await createOnboardingFromHiring(updatedRequest);
 
-            if (onboarding) {
-                console.log(`✅ Onboarding workflow created successfully for request ${id}`);
-                console.log('Onboarding ID:', onboarding.id);
+            if (result) {
+                onboardingTicketRef = result.onboardingTicket.referenceNumber;
+                console.log(`✅ Onboarding ticket ${onboardingTicketRef} created for request ${id}`);
             } else {
                 console.log('⚠️  createOnboardingFromHiring returned null');
+                // Log failure as activity so agents are aware
+                await prisma.requestActivity.create({
+                    data: {
+                        requestId: id,
+                        authorName: 'System',
+                        authorRole: 'SYSTEM',
+                        activityType: 'SYSTEM',
+                        message: '⚠️ Failed to auto-create onboarding ticket. Manual creation required.',
+                        isSystemGenerated: true,
+                    },
+                });
             }
         } catch (onboardingError) {
             console.error('❌ Error creating onboarding workflow:', onboardingError);
-            console.error('Error stack:', (onboardingError as Error).stack);
             // Don't fail the LOA acceptance if onboarding creation fails
         }
         console.log('=== END ONBOARDING TRIGGER ===');
@@ -526,7 +537,8 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
             status: 'success',
             data: {
                 request: updatedRequest,
-                loa: updatedLOA
+                loa: updatedLOA,
+                onboardingTicket: onboardingTicketRef ? { referenceNumber: onboardingTicketRef } : null,
             }
         });
     } catch (error) {

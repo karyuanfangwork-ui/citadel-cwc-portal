@@ -65,6 +65,9 @@ interface Request {
   interviewFeedback?: InterviewFeedback;
   hrScreening?: HRScreening;
   letterOfAcceptance?: LetterOfAcceptance;
+  parentRequestId?: string;
+  parentRequest?: { id: string; referenceNumber: string; summary: string; status: string };
+  childRequests?: { id: string; referenceNumber: string; summary: string; status: string }[];
 }
 
 interface Activity {
@@ -820,6 +823,25 @@ const RequestDetail = () => {
           }
         }}
       />
+
+      {/* Child Requests Banner (Onboarding Tickets Created) */}
+      {request.childRequests && request.childRequests.length > 0 && (
+        <div className="mb-6 flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          <span className="font-medium">Onboarding ticket created:</span>
+          {request.childRequests.map((child, idx) => (
+            <span key={child.id}>
+              {idx > 0 && ', '}
+              <Link
+                to={`/#/requests/${child.id}`}
+                className="font-semibold underline hover:text-green-900"
+              >
+                {child.referenceNumber}
+              </Link>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Resolution Summary - Only show for RESOLVED/COMPLETED tickets */}
       {(request.status === 'RESOLVED' || request.status === 'COMPLETED') && (() => {

@@ -313,6 +313,22 @@ class RequestController {
                 serviceDesk: true,
                 requestType: true,
                 itHardwareRequest: true,
+                parentRequest: {
+                    select: {
+                        id: true,
+                        referenceNumber: true,
+                        summary: true,
+                        status: true,
+                    },
+                },
+                childRequests: {
+                    select: {
+                        id: true,
+                        referenceNumber: true,
+                        summary: true,
+                        status: true,
+                    },
+                },
                 activities: {
                     orderBy: {
                         createdAt: 'asc',

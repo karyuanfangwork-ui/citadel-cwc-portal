@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { OnboardingRequest, OnboardingTask, OnboardingProgress, RequestPriority } from '../../types';
+import { useNavigate } from 'react-router-dom';
+import { OnboardingRequest, OnboardingTask, OnboardingProgress, RequestPriority, RequestItem } from '../../types';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,7 +10,9 @@ interface OnboardingDashboardProps {
 
 const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [onboarding, setOnboarding] = useState<OnboardingRequest | null>(null);
+    const [request, setRequest] = useState<RequestItem | null>(null);
     const [progress, setProgress] = useState<OnboardingProgress | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -27,6 +30,11 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
             const onboardingRes = await apiClient.get(`/onboarding/requests/${requestId}/onboarding`);
             console.log('📦 Onboarding API Response:', onboardingRes.data);
             setOnboarding(onboardingRes.data);
+
+            // Fetch request details to get parentRequest link
+            const requestRes = await apiClient.get(`/requests/${requestId}`);
+            setRequest(requestRes.data);
+
             setError(null);
 
             // Progress is optional — don't let it block the main view
@@ -182,6 +190,20 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
 
     return (
         <div className="space-y-6">
+            {/* Parent Request Link Banner */}
+            {request?.parentRequest && (
+                <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+                    <span className="material-symbols-outlined text-base">info</span>
+                    <span>Originated from hiring request</span>
+                    <button
+                        onClick={() => navigate(`/#/requests/${request.parentRequest.id}`)}
+                        className="font-semibold underline hover:text-blue-900 ml-auto"
+                    >
+                        {request.parentRequest.referenceNumber}
+                    </button>
+                </div>
+            )}
+
             {/* New Hire Info Card */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">New Hire Information</h3>
