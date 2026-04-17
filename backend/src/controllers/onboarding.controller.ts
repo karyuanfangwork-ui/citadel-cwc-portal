@@ -308,10 +308,38 @@ export const getOnboardingTasks = async (req: Request, res: Response) => {
  */
 export const updateOnboardingTask = async (req: Request, res: Response) => {
     try {
-        const { taskId } = req.params;
+        const { id: requestId, taskId } = req.params;
         const { status, completedBy, notes, ...updates } = req.body;
+        const userRoles = (req as any).user?.roles || [];
 
-        const task = await prisma.onboardingTask.update({
+        // Get task and request to check role-based access
+        const task = await prisma.onboardingTask.findUnique({
+            where: { id: taskId },
+            include: { onboarding: { include: { request: true } } },
+        });
+
+        if (!task) {
+            return res.status(404).json({ error: 'Task not found' });
+        }
+
+        // Check permissions: only ADMIN or assigned agent for task category
+        const isAdmin = userRoles.includes('ADMIN');
+        const isAgent = userRoles.includes('AGENT');
+        const assignedTeam = task.onboarding.request.assignedTeam?.toUpperCase() || '';
+        const taskCategory = task.taskCategory?.toUpperCase() || '';
+
+        const hasPermission = isAdmin ||
+            (isAgent && assignedTeam === 'IT' && taskCategory === 'IT') ||
+            (isAgent && assignedTeam === 'HR' && ['HR', 'ADMIN', 'TRAINING'].includes(taskCategory));
+
+        if (!hasPermission) {
+            return res.status(403).json({
+                error: 'You do not have permission to update this task',
+                message: `${taskCategory} tasks can only be updated by ${taskCategory === 'IT' ? 'IT agents' : 'HR agents'}`,
+            });
+        }
+
+        const updatedTask = await prisma.onboardingTask.update({
             where: { id: taskId },
             data: {
                 status,
@@ -332,7 +360,7 @@ export const updateOnboardingTask = async (req: Request, res: Response) => {
             },
         });
 
-        res.json(task);
+        res.json(updatedTask);
     } catch (error) {
         console.error('Error updating onboarding task:', error);
         res.status(500).json({ error: 'Failed to update onboarding task' });

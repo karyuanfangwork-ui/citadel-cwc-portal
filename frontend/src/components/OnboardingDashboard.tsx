@@ -53,8 +53,25 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
         }
     };
 
+    const canEditTask = (task: OnboardingTask): boolean => {
+        // Only ADMIN can edit any task
+        if (user?.roles?.includes('ADMIN')) return true;
+
+        // Only AGENT can edit tasks in their category
+        if (!user?.roles?.includes('AGENT')) return false;
+
+        // Check if agent's team matches task category
+        const agentTeam = request?.assignedTeam?.toUpperCase() || '';
+        const taskCategory = task.taskCategory?.toUpperCase() || '';
+
+        if (agentTeam === 'IT' && taskCategory === 'IT') return true;
+        if (agentTeam === 'HR' && (taskCategory === 'HR' || taskCategory === 'ADMIN' || taskCategory === 'TRAINING')) return true;
+
+        return false;
+    };
+
     const handleTaskToggle = async (task: OnboardingTask) => {
-        if (updatingTaskId) return;
+        if (updatingTaskId || !canEditTask(task)) return;
         const newStatus = task.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
         setUpdatingTaskId(task.id);
         try {
@@ -96,7 +113,7 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
 
     const allTasksDone = (progress?.tasks?.total ?? 0) > 0 && progress?.tasks?.pending === 0;
     const isCompleted = onboarding?.overallStatus === 'COMPLETED';
-    const canComplete = (user?.roles?.some(r => r === 'ADMIN' || r === 'AGENT') ?? false) && allTasksDone && !isCompleted;
+    const canComplete = (user?.roles?.some(r => r === 'ADMIN') ?? false) && allTasksDone && !isCompleted;
 
     const getTaskIcon = (status: string, taskId?: string) => {
         if (updatingTaskId === taskId) {
@@ -328,6 +345,19 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
 
             {/* Task Checklist */}
             <div className="bg-white border border-gray-200 rounded-lg p-6">
+                {/* Role-Based Access Notice */}
+                {!user?.roles?.includes('ADMIN') && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700 flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base">info</span>
+                        <span>
+                            {user?.roles?.includes('AGENT')
+                                ? `You can only update ${request?.assignedTeam === 'IT' ? 'IT' : 'HR/Training/Admin'} tasks`
+                                : 'Only admins and assigned agents can update tasks'
+                            }
+                        </span>
+                    </div>
+                )}
+
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900">Task Checklist</h3>
 
@@ -353,14 +383,17 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                     {filteredTasks.length === 0 ? (
                         <p className="text-center text-gray-500 py-8">No tasks found.</p>
                     ) : (
-                        filteredTasks.map(task => (
+                        filteredTasks.map(task => {
+                            const canEdit = canEditTask(task);
+                            return (
                             <div
                                 key={task.id}
-                                className={`border rounded-lg p-4 transition-all cursor-pointer ${task.status === 'COMPLETED'
+                                className={`border rounded-lg p-4 transition-all ${task.status === 'COMPLETED'
                                     ? 'bg-green-50 border-green-200'
-                                    : 'bg-white border-gray-200 hover:border-blue-300'
+                                    : canEdit ? 'bg-white border-gray-200 hover:border-blue-300 cursor-pointer' : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
                                     } ${updatingTaskId === task.id ? 'opacity-60' : ''}`}
-                                onClick={() => handleTaskToggle(task)}
+                                onClick={() => canEdit && handleTaskToggle(task)}
+                                title={!canEdit ? 'You do not have permission to edit this task' : ''}
                             >
                                 <div className="flex items-start space-x-3">
                                     {getTaskIcon(task.status, task.id)}
@@ -397,8 +430,15 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                                         </div>
                                     </div>
                                 </div>
+                                {!canEdit && (
+                                    <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700 flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-sm">lock</span>
+                                        <span>Only {task.taskCategory === 'IT' ? 'IT agents' : 'HR agents'} can update this task</span>
+                                    </div>
+                                )}
                             </div>
-                        ))
+                        );
+                        })
                     )}
                 </div>
             </div>
