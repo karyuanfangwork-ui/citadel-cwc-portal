@@ -68,7 +68,8 @@ const itWorkflowService = {
     if (notes) formData.append('notes', notes);
     const response = await api.post(
       `/it-workflow/requests/${requestId}/route-to-cfo`,
-      formData
+      formData,
+      { headers: { 'Content-Type': undefined } }
     );
     return response.data;
   },
