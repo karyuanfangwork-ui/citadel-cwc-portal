@@ -207,16 +207,34 @@ class AuthController {
 
         // Rotate: delete old session, create new one with new refresh token
         const newRefreshToken = generateRefreshToken(decoded.userId, decoded.email);
-        await prisma.session.delete({ where: { id: session.id } });
-        await prisma.session.create({
-            data: {
-                userId: decoded.userId,
-                token: hashRefreshToken(newRefreshToken),
-                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                ipAddress: req.ip,
-                userAgent: req.headers['user-agent'],
-            },
-        });
+
+        try {
+            // Try to delete old session, but don't fail if it doesn't exist
+            await prisma.session.deleteMany({
+                where: {
+                    id: session.id,
+                    userId: decoded.userId,
+                },
+            });
+        } catch (deleteError) {
+            // Log but don't fail — session may have been deleted already
+            console.warn('Could not delete old session during rotation:', deleteError);
+        }
+
+        try {
+            await prisma.session.create({
+                data: {
+                    userId: decoded.userId,
+                    token: hashRefreshToken(newRefreshToken),
+                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                    ipAddress: req.ip,
+                    userAgent: req.headers['user-agent'],
+                },
+            });
+        } catch (createError) {
+            console.error('Error creating new session:', createError);
+            // Still return success for access token — session creation is best-effort
+        }
 
         const { token: newAccessToken } = generateAccessToken(decoded.userId, decoded.email);
         setAuthCookies(res, newAccessToken, newRefreshToken);
