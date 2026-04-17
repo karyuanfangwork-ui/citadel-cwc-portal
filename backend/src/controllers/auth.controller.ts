@@ -104,7 +104,7 @@ class AuthController {
         res.status(201).json({
             status: 'success',
             data: {
-                user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName },
+                user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName, agentTeam: user.agentTeam },
             },
         });
     });
@@ -153,6 +153,7 @@ class AuthController {
                     firstName: user.firstName,
                     lastName: user.lastName,
                     roles: user.roles.map((ur) => ur.role.name),
+                    agentTeam: user.agentTeam,
                 },
             },
         });

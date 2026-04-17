@@ -60,12 +60,12 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
         // Only AGENT can edit tasks in their category
         if (!user?.roles?.includes('AGENT')) return false;
 
-        // Check if agent's team matches task category
-        const agentTeam = request?.assignedTeam?.toUpperCase() || '';
+        // Check if agent's team (from user.agentTeam) matches task category
+        const userAgentTeam = (user as any)?.agentTeam?.toUpperCase() || '';
         const taskCategory = task.taskCategory?.toUpperCase() || '';
 
-        if (agentTeam === 'IT' && taskCategory === 'IT') return true;
-        if (agentTeam === 'HR' && (taskCategory === 'HR' || taskCategory === 'ADMIN' || taskCategory === 'TRAINING')) return true;
+        if (userAgentTeam === 'IT' && taskCategory === 'IT') return true;
+        if (userAgentTeam === 'HR' && (taskCategory === 'HR' || taskCategory === 'ADMIN' || taskCategory === 'TRAINING')) return true;
 
         return false;
     };
@@ -351,7 +351,9 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                         <span className="material-symbols-outlined text-base">info</span>
                         <span>
                             {user?.roles?.includes('AGENT')
-                                ? `You can only update ${request?.assignedTeam === 'IT' ? 'IT' : 'HR/Training/Admin'} tasks`
+                                ? (user as any)?.agentTeam
+                                    ? `You can only update ${(user as any).agentTeam === 'IT' ? 'IT' : 'HR/Training/Admin'} tasks`
+                                    : 'You have no team assignment'
                                 : 'Only admins and assigned agents can update tasks'
                             }
                         </span>
