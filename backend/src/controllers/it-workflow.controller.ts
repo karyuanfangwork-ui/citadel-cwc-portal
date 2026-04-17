@@ -960,8 +960,13 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
     const id = req.params.id as string;
     const { cfoId, notes } = req.body;
     const currentUser = (req as any).user;
+    const file = (req as any).file as Express.Multer.File | undefined;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
+
+    if (!file) {
+      return res.status(400).json({ error: 'Invoice file is required' });
+    }
 
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!cfoId || !uuidRegex.test(cfoId)) {
@@ -970,7 +975,9 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
 
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
-    if (request.status !== 'PENDING_INVOICE_IT') return res.status(400).json({ error: 'Request must be in PENDING_INVOICE_IT status' });
+    if (request.status !== 'PENDING_INVOICE_IT') {
+      return res.status(400).json({ error: 'Request must be in PENDING_INVOICE_IT status' });
+    }
 
     const cfoUser = await prisma.user.findUnique({
       where: { id: cfoId },
@@ -978,7 +985,9 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
     });
     if (!cfoUser) return res.status(404).json({ error: 'CFO user not found' });
     const hasCfoRole = (cfoUser as any).roles.some((r: any) => r.role?.name === 'CFO');
-    if (!hasCfoRole) return res.status(400).json({ error: 'Selected user does not have CFO role' });
+    if (!hasCfoRole) {
+      return res.status(400).json({ error: 'Selected user does not have CFO role' });
+    }
 
     await prisma.request.update({ where: { id }, data: { status: 'PENDING_CFO_APPROVAL_IT' } });
 
@@ -992,20 +1001,38 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
       },
     });
 
+    await prisma.requestAttachment.create({
+      data: {
+        requestId: id,
+        uploadedById: currentUser.id,
+        fileName: file.originalname,
+        fileSize: BigInt(file.size),
+        mimeType: file.mimetype,
+        fileType: path.extname(file.originalname).replace('.', ''),
+        storagePath: file.path,
+        storageUrl: `/uploads/invoices/${file.filename}`,
+      },
+    });
+
     await prisma.requestActivity.create({
       data: {
         requestId: id,
         activityType: 'SYSTEM',
-        message: `Invoice pending. Routed to CFO for approval${notes ? ': ' + notes : ''}`,
+        message: `Invoice uploaded and routed to CFO for approval${notes ? ': ' + notes : ''}`,
         authorName: currentUser.firstName || 'Agent',
         authorRole: 'AGENT',
         isSystemGenerated: true,
       },
     });
 
-    await notify({ userId: cfoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CFO' }, relatedRequestId: id });
+    await notify({
+      userId: cfoId,
+      eventType: 'APPROVAL_REQUIRED',
+      variables: { requestId: id, role: 'CFO' },
+      relatedRequestId: id,
+    });
 
-    return res.json({ success: true, message: 'Request routed to CFO for approval' });
+    return res.json({ success: true, message: 'Invoice uploaded and request routed to CFO for approval' });
   } catch (error) {
     console.error('routeToCfoApproval error:', error);
     return res.status(500).json({ error: 'Internal server error' });
