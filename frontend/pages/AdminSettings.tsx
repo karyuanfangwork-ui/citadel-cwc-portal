@@ -193,8 +193,13 @@ const AdminSettings = () => {
             const desks = await serviceDeskService.getAllServiceDesks();
             const desksWithTypes = await Promise.all(
                 desks.map(async (desk: any) => {
-                    const types = await serviceDeskService.getRequestTypes(desk.id);
-                    return { ...desk, categories: types };
+                    const categoriesWithTypes = await Promise.all(
+                        (desk.categories || []).map(async (cat: any) => {
+                            const types = await serviceDeskService.getRequestTypes(desk.id, cat.id);
+                            return { ...cat, requestTypes: types || [] };
+                        })
+                    );
+                    return { ...desk, categories: categoriesWithTypes };
                 })
             );
             setWorkflowServiceDesks(desksWithTypes);
