@@ -74,4 +74,9 @@ export const adminService = {
         const response = await apiClient.get(`/users/roles/all`);
         return response.data.data.roles as { id: string; name: string; description: string }[];
     },
+
+    async createUser(data: { firstName: string; lastName: string; email: string; department?: string }): Promise<{ user: { id: string; firstName: string; lastName: string; email: string; department: string | null; roles: string[] }; tempPassword: string }> {
+        const response = await apiClient.post('/users', data);
+        return response.data.data;
+    },
 };
