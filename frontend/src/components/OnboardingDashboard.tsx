@@ -71,7 +71,10 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
     };
 
     const handleTaskToggle = async (task: OnboardingTask) => {
-        if (updatingTaskId || !canEditTask(task)) return;
+        if (updatingTaskId || !canEditTask(task)) {
+            console.warn('Cannot edit task:', { updatingTaskId, canEdit: canEditTask(task), userAgentTeam: (user as any)?.agentTeam, taskCategory: task.taskCategory });
+            return;
+        }
         const newStatus = task.status === 'COMPLETED' ? 'PENDING' : 'COMPLETED';
         setUpdatingTaskId(task.id);
         try {
@@ -79,6 +82,7 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                 `/onboarding/requests/${requestId}/onboarding/tasks/${task.id}`,
                 { status: newStatus }
             );
+            console.log('Task updated successfully:', res.data);
             setOnboarding(prev => prev ? {
                 ...prev,
                 tasks: prev.tasks?.map(t => t.id === task.id ? res.data : t)
@@ -89,7 +93,8 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                 setProgress(progressRes.data);
             } catch { /* non-fatal */ }
         } catch (err: any) {
-            console.error('Failed to update task:', err);
+            console.error('Failed to update task:', err.response?.data || err.message);
+            alert(`Error: ${err.response?.data?.message || err.message || 'Failed to update task'}`);
         } finally {
             setUpdatingTaskId(null);
         }
