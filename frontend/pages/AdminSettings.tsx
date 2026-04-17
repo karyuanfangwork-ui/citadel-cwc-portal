@@ -61,6 +61,8 @@ const AdminSettings = () => {
     const [usersLoading, setUsersLoading] = useState(false);
     const [roleModalUser, setRoleModalUser] = useState<any | null>(null);
     const [roleModalSelected, setRoleModalSelected] = useState<string[]>([]);
+    const [showAgentTeamModal, setShowAgentTeamModal] = useState(false);
+    const [selectedAgentTeam, setSelectedAgentTeam] = useState<string>('');
 
     // Onboarding Task Templates state
     const [templates, setTemplates] = useState<OnboardingTaskTemplate[]>([]);
@@ -665,6 +667,7 @@ const AdminSettings = () => {
                                         <th className="px-8 py-5">User</th>
                                         <th className="px-8 py-5">Department</th>
                                         <th className="px-8 py-5">Roles</th>
+                                        <th className="px-8 py-5">Agent Team</th>
                                         <th className="px-8 py-5">Status</th>
                                         <th className="px-8 py-5 text-right">Actions</th>
                                     </tr>
@@ -687,6 +690,15 @@ const AdminSettings = () => {
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5">
+                                                {user.roles?.some((ur: any) => ur.role?.name === 'AGENT') ? (
+                                                    <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${user.agentTeam ? `bg-amber-50 text-amber-600 border-amber-100` : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
+                                                        {user.agentTeam || 'Unassigned'}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-gray-400 text-sm">—</span>
+                                                )}
+                                            </td>
+                                            <td className="px-8 py-5">
                                                 <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${user.isActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
                                                     {user.isActive ? 'Active' : 'Disabled'}
                                                 </span>
@@ -700,6 +712,15 @@ const AdminSettings = () => {
                                                     >
                                                         <span className="material-symbols-outlined text-xl">admin_panel_settings</span>
                                                     </button>
+                                                    {user.roles?.some((ur: any) => ur.role?.name === 'AGENT') && (
+                                                        <button
+                                                            onClick={() => { setRoleModalUser(user); setSelectedAgentTeam(user.agentTeam || ''); setShowAgentTeamModal(true); }}
+                                                            className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-amber-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                            title="Assign agent team (IT/HR)"
+                                                        >
+                                                            <span className="material-symbols-outlined text-xl">groups</span>
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={() => handleToggleUserStatus(user)}
                                                         className={`w-10 h-10 flex items-center justify-center hover:bg-white hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 ${user.isActive ? 'text-[#44546f] hover:text-red-600' : 'text-[#44546f] hover:text-emerald-600'}`}
@@ -1198,6 +1219,75 @@ const AdminSettings = () => {
                             >
                                 Confirm
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Agent Team Assignment Modal */}
+            {roleModalUser && showAgentTeamModal && (
+                <div className="fixed inset-0 z-[81] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
+                    <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl overflow-hidden scale-in">
+                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between">
+                            <div>
+                                <h2 className="text-2xl font-black text-[#101418]">Assign Agent Team</h2>
+                                <p className="text-sm text-[#44546f] mt-1">{roleModalUser.firstName} {roleModalUser.lastName}</p>
+                            </div>
+                            <button onClick={() => setShowAgentTeamModal(false)} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400">
+                                <span className="material-symbols-outlined text-3xl">close</span>
+                            </button>
+                        </div>
+                        <div className="p-10">
+                            <p className="text-xs font-black text-[#44546f] uppercase tracking-widest mb-6">Select the team this agent manages</p>
+                            <div className="space-y-3">
+                                {['IT', 'HR'].map(team => (
+                                    <label key={team} className="flex items-center gap-4 p-4 rounded-2xl border border-gray-100 hover:border-amber-600/30 hover:bg-amber-50/20 cursor-pointer transition-all">
+                                        <input
+                                            type="radio"
+                                            name="agentTeam"
+                                            value={team}
+                                            checked={selectedAgentTeam === team}
+                                            onChange={e => setSelectedAgentTeam(e.target.value)}
+                                            className="w-5 h-5 accent-amber-600"
+                                        />
+                                        <div>
+                                            <div className="font-bold text-[#101418] text-sm">{team} Team</div>
+                                            <div className="text-xs text-[#44546f]">
+                                                {team === 'IT' ? 'Can manage IT infrastructure tasks' : 'Can manage HR, Admin, and Training tasks'}
+                                            </div>
+                                        </div>
+                                    </label>
+                                ))}
+                                <label className="flex items-center gap-4 p-4 rounded-2xl border border-gray-100 hover:border-gray-300 hover:bg-gray-50 cursor-pointer transition-all">
+                                    <input
+                                        type="radio"
+                                        name="agentTeam"
+                                        value=""
+                                        checked={selectedAgentTeam === ''}
+                                        onChange={e => setSelectedAgentTeam('')}
+                                        className="w-5 h-5 accent-gray-400"
+                                    />
+                                    <div>
+                                        <div className="font-bold text-[#101418] text-sm">No Team Assignment</div>
+                                        <div className="text-xs text-[#44546f]">Agent has no task restrictions (admin override)</div>
+                                    </div>
+                                </label>
+                            </div>
+                            <div className="flex gap-4 mt-8">
+                                <button onClick={() => setShowAgentTeamModal(false)} className="flex-1 py-4 bg-gray-100 text-[#44546f] font-black rounded-3xl hover:bg-gray-200 transition-all text-xs uppercase tracking-widest">Cancel</button>
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            await apiClient.put(`/users/${roleModalUser.id}`, { agentTeam: selectedAgentTeam || null });
+                                            setShowAgentTeamModal(false);
+                                            await fetchUsers(userPagination.page);
+                                        } catch (err: any) {
+                                            alert(err.response?.data?.message || 'Failed to assign agent team');
+                                        }
+                                    }}
+                                    className="flex-1 py-4 bg-amber-600 text-white font-black rounded-3xl hover:bg-amber-700 transition-all text-xs uppercase tracking-widest"
+                                >Assign Team</button>
+                            </div>
                         </div>
                     </div>
                 </div>

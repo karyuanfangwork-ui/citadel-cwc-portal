@@ -208,7 +208,7 @@ class UserController {
      */
     updateUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const { id } = req.params;
-        const { firstName, lastName, phone, department, jobTitle, isActive, managerId } = req.body;
+        const { firstName, lastName, phone, department, jobTitle, isActive, managerId, agentTeam } = req.body;
 
         const user = await prisma.user.update({
             where: { id },
@@ -220,6 +220,7 @@ class UserController {
                 jobTitle,
                 isActive,
                 managerId,
+                agentTeam,
             },
         });
 

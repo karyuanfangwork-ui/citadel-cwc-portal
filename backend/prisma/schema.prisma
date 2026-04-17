@@ -27,6 +27,7 @@ model User {
   jobTitle      String?   @map("job_title") @db.VarChar(100)
   managerId     String?   @map("manager_id") @db.Uuid
   isActive      Boolean   @default(true) @map("is_active")
+  agentTeam     String?   @map("agent_team") @db.VarChar(50)
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
   lastLoginAt   DateTime? @map("last_login_at") @db.Timestamp(6)

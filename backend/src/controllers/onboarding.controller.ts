@@ -322,15 +322,21 @@ export const updateOnboardingTask = async (req: Request, res: Response) => {
             return res.status(404).json({ error: 'Task not found' });
         }
 
+        // Get current user to check agent team
+        const currentUser = await prisma.user.findUnique({
+            where: { id: (req as any).user?.id },
+            select: { agentTeam: true },
+        });
+
         // Check permissions: only ADMIN or assigned agent for task category
         const isAdmin = userRoles.includes('ADMIN');
         const isAgent = userRoles.includes('AGENT');
-        const assignedTeam = task.onboarding.request.assignedTeam?.toUpperCase() || '';
+        const userAgentTeam = currentUser?.agentTeam?.toUpperCase() || '';
         const taskCategory = task.taskCategory?.toUpperCase() || '';
 
         const hasPermission = isAdmin ||
-            (isAgent && assignedTeam === 'IT' && taskCategory === 'IT') ||
-            (isAgent && assignedTeam === 'HR' && ['HR', 'ADMIN', 'TRAINING'].includes(taskCategory));
+            (isAgent && userAgentTeam === 'IT' && taskCategory === 'IT') ||
+            (isAgent && userAgentTeam === 'HR' && ['HR', 'ADMIN', 'TRAINING'].includes(taskCategory));
 
         if (!hasPermission) {
             return res.status(403).json({
