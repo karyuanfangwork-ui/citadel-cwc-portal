@@ -4,6 +4,7 @@ import { adminService, CategoryData } from '../src/services/admin.service';
 import FormBuilder from '../src/components/FormBuilder';
 import { OnboardingTaskTemplate } from '../types';
 import apiClient from '../src/services/api';
+import CreateUserModal from '../src/components/admin/CreateUserModal';
 
 const CATEGORY_ICONS = [
     { name: 'laptop', label: 'Laptop/Hardware' },
@@ -63,6 +64,7 @@ const AdminSettings = () => {
     const [roleModalSelected, setRoleModalSelected] = useState<string[]>([]);
     const [showAgentTeamModal, setShowAgentTeamModal] = useState(false);
     const [selectedAgentTeam, setSelectedAgentTeam] = useState<string>('');
+    const [showCreateUserModal, setShowCreateUserModal] = useState(false);
 
     // Onboarding Task Templates state
     const [templates, setTemplates] = useState<OnboardingTaskTemplate[]>([]);
@@ -708,6 +710,13 @@ const AdminSettings = () => {
                                 <option key={r.id} value={r.name}>{r.name}</option>
                             ))}
                         </select>
+                        <button
+                            onClick={() => setShowCreateUserModal(true)}
+                            className="flex items-center gap-2 px-4 py-3 bg-[#0052cc] text-white text-sm font-bold rounded-2xl hover:bg-[#0047b3] transition-colors whitespace-nowrap"
+                        >
+                            <span className="material-symbols-outlined text-sm">person_add</span>
+                            Create User
+                        </button>
                     </div>
 
                     {/* Table */}
@@ -1197,6 +1206,14 @@ const AdminSettings = () => {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* Create User Modal */}
+            {showCreateUserModal && (
+                <CreateUserModal
+                    onSuccess={() => fetchUsers(1, userSearch, userRoleFilter)}
+                    onClose={() => setShowCreateUserModal(false)}
+                />
             )}
 
             {/* Role Assignment Modal */}
