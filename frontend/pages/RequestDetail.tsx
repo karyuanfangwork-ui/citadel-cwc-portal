@@ -1678,6 +1678,7 @@ const RequestDetail = () => {
             createdAt={request.createdAt}
             slaDueAt={request.slaDueAt}
             serviceDeskCode={request.serviceDesk?.code || ''}
+            requiresApproval={request.requestType?.requiresApproval ?? true}
             onActionSuccess={fetchRequestData}
             onLOAApproval={() => setShowLOAApprovalModal(true)}
           />

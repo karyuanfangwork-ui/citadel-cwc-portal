@@ -41,6 +41,7 @@ interface ActionSidebarProps {
   slaDueAt?: string | null;
   requesterId?: string;
   serviceDeskCode: string;
+  requiresApproval?: boolean;
   onActionSuccess: () => void;
   onLOAApproval?: () => void;
 }
@@ -80,7 +81,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
     a => a.approverId === userId && a.status === 'PENDING'
   );
   const isRequester = !!(requesterId && userId && requesterId === userId);
-  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester, serviceDeskCode);
+  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester, serviceDeskCode, requiresApproval ?? true);
 
   const handleSuccess = () => {
     setOpenModal(null);

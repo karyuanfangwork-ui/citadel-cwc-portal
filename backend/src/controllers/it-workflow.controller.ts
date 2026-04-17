@@ -17,7 +17,7 @@ export async function submitForApproval(req: Request, res: Response) {
 
     const request = await prisma.request.findUnique({
       where: { id },
-      include: { serviceDesk: true },
+      include: { serviceDesk: true, requestType: true },
     });
 
     if (!request) {
@@ -28,6 +28,27 @@ export async function submitForApproval(req: Request, res: Response) {
       return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     }
 
+    // If request type does not require approval, update status to IN_REVIEW directly
+    if (!request.requestType?.requiresApproval) {
+      await prisma.request.update({
+        where: { id },
+        data: { status: 'IN_REVIEW' },
+      });
+
+      await prisma.requestActivity.create({
+        data: {
+          requestId: id,
+          activityType: 'SYSTEM',
+          message: 'Request is now in review and will be handled directly by agents',
+          authorName: 'System',
+          isSystemGenerated: true,
+        },
+      });
+
+      return res.json({ success: true, message: 'Request submitted for review' });
+    }
+
+    // Otherwise, proceed with approval chain
     await prisma.request.update({
       where: { id },
       data: { status: 'PENDING_MANAGER_APPROVAL_IT' },

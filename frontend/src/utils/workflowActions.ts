@@ -50,7 +50,8 @@ export function getWorkflowActions(
   isDesignatedApprover = false,
   requestTypeName = '',
   isRequester = false,
-  serviceDeskCode = ''
+  serviceDeskCode = '',
+  requiresApproval = true
 ): WorkflowAction[] {
   const isAdmin = userRoles.includes('ADMIN');
   const isAgent = userRoles.includes('AGENT');
@@ -141,9 +142,9 @@ export function getWorkflowActions(
   }
 
   if (isAdmin) {
-    // Only non-procurement IT requests go through manager approval via SUBMIT_FOR_APPROVAL
+    // Only non-procurement IT requests with requiresApproval flag go through manager approval
     // HR hiring requests go to CEO approval instead — skip this action for HR
-    if (status === 'SUBMITTED' && !isProcurement && !isHR) {
+    if (status === 'SUBMITTED' && !isProcurement && !isHR && requiresApproval) {
       actions.push({
         type: 'SUBMIT_FOR_APPROVAL',
         label: 'Submit for Manager Approval',

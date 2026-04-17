@@ -52,7 +52,7 @@ const AdminSettings = () => {
     const [pendingAction, setPendingAction] = useState<{ message: string; onConfirm: () => Promise<void> } | null>(null);
     const [toastMsg, setToastMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
-    const [activeTab, setActiveTab] = useState<'service-desks' | 'users' | 'onboarding-tasks'>('service-desks');
+    const [activeTab, setActiveTab] = useState<'service-desks' | 'users' | 'onboarding-tasks' | 'workflow-config'>('service-desks');
     const [users, setUsers] = useState<any[]>([]);
     const [userPagination, setUserPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
     const [userSearch, setUserSearch] = useState('');
@@ -88,6 +88,11 @@ const AdminSettings = () => {
         isActive: true,
     });
 
+    // Workflow Configuration state
+    const [workflowServiceDesks, setWorkflowServiceDesks] = useState<any[]>([]);
+    const [workflowLoading, setWorkflowLoading] = useState(false);
+    const [workflowSaving, setWorkflowSaving] = useState<string | null>(null);
+
     const showToast = (type: 'error' | 'success', text: string) => {
         setToastMsg({ type, text });
         setTimeout(() => setToastMsg(null), 4000);
@@ -115,6 +120,8 @@ const AdminSettings = () => {
         } else if (activeTab === 'users') {
             fetchUsers(1, '', '');
             fetchRoles();
+        } else if (activeTab === 'workflow-config') {
+            fetchWorkflowConfig();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
@@ -177,6 +184,47 @@ const AdminSettings = () => {
             setTemplateError(err.message || 'Failed to load templates');
         } finally {
             setTemplatesLoading(false);
+        }
+    };
+
+    const fetchWorkflowConfig = async () => {
+        setWorkflowLoading(true);
+        try {
+            const desks = await serviceDeskService.getAllServiceDesks();
+            const desksWithTypes = await Promise.all(
+                desks.map(async (desk: any) => {
+                    const types = await serviceDeskService.getRequestTypes(desk.id);
+                    return { ...desk, categories: types };
+                })
+            );
+            setWorkflowServiceDesks(desksWithTypes);
+        } catch (err: any) {
+            showToast('error', 'Failed to load workflow config');
+        } finally {
+            setWorkflowLoading(false);
+        }
+    };
+
+    const handleWorkflowToggle = async (typeId: string, currentValue: boolean) => {
+        setWorkflowSaving(typeId);
+        try {
+            await serviceDeskService.updateRequestType(typeId, { requiresApproval: !currentValue });
+            setWorkflowServiceDesks(prev =>
+                prev.map(desk => ({
+                    ...desk,
+                    categories: desk.categories.map((cat: any) => ({
+                        ...cat,
+                        requestTypes: cat.requestTypes?.map((type: any) =>
+                            type.id === typeId ? { ...type, requiresApproval: !currentValue } : type
+                        ) || []
+                    }))
+                }))
+            );
+            showToast('success', 'Workflow configuration updated');
+        } catch (err: any) {
+            showToast('error', 'Failed to update workflow');
+        } finally {
+            setWorkflowSaving(null);
         }
     };
 
@@ -430,6 +478,7 @@ const AdminSettings = () => {
                     { id: 'service-desks', label: 'Service Desks', icon: 'support_agent' },
                     { id: 'users', label: 'User Accounts', icon: 'manage_accounts' },
                     { id: 'onboarding-tasks', label: 'Onboarding Tasks', icon: 'checklist' },
+                    { id: 'workflow-config', label: 'Workflow Config', icon: 'account_tree' },
                 ] as const).map(tab => (
                     <button
                         key={tab.id}
@@ -1290,6 +1339,74 @@ const AdminSettings = () => {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Workflow Configuration Tab */}
+            {activeTab === 'workflow-config' && (
+                <div>
+                    <div className="mb-8 p-6 bg-blue-50 rounded-2xl border border-blue-200">
+                        <h3 className="text-lg font-black text-[#0052cc] mb-2">Workflow Configuration</h3>
+                        <p className="text-sm text-[#44546f]">Configure which request types require manager approval and which are handled directly by agents.</p>
+                    </div>
+
+                    {workflowLoading ? (
+                        <div className="flex justify-center py-12">
+                            <div className="animate-spin"><span className="material-symbols-outlined">hourglass_top</span></div>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {workflowServiceDesks.map((desk: any) => (
+                                <div key={desk.id} className="border border-gray-200 rounded-2xl overflow-hidden">
+                                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                                        <h4 className="font-black text-[#101418]">{desk.name}</h4>
+                                    </div>
+                                    <div className="divide-y divide-gray-200">
+                                        {desk.categories && desk.categories.map((cat: any) => (
+                                            <div key={cat.id} className="p-6">
+                                                <div className="flex items-center gap-3 mb-4">
+                                                    <span className="material-symbols-outlined text-xl">{cat.icon || 'folder'}</span>
+                                                    <div>
+                                                        <h5 className="font-bold text-[#101418]">{cat.name}</h5>
+                                                        <p className="text-xs text-[#44546f]">{cat.description}</p>
+                                                    </div>
+                                                </div>
+                                                {cat.requestTypes && cat.requestTypes.length > 0 ? (
+                                                    <div className="ml-10 space-y-3">
+                                                        {cat.requestTypes.map((type: any) => (
+                                                            <div key={type.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                                                <div className="flex items-center gap-3">
+                                                                    <span className="material-symbols-outlined text-lg">{type.icon || 'description'}</span>
+                                                                    <div>
+                                                                        <h6 className="font-bold text-sm text-[#101418]">{type.name}</h6>
+                                                                        <p className="text-xs text-[#44546f]">{type.description}</p>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center gap-4">
+                                                                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${type.requiresApproval ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                                                        {type.requiresApproval ? 'Requires Approval' : 'Simple Support'}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={() => handleWorkflowToggle(type.id, type.requiresApproval)}
+                                                                        disabled={workflowSaving === type.id}
+                                                                        className={`relative w-12 h-6 rounded-full transition-all ${type.requiresApproval ? 'bg-amber-600' : 'bg-emerald-600'} ${workflowSaving === type.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                                                                    >
+                                                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${type.requiresApproval ? 'right-1' : 'left-1'}`} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-sm text-[#44546f] ml-10">No request types found</p>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
             )}
 
