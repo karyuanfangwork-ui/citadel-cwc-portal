@@ -333,6 +333,62 @@ class UserController {
         });
         res.json({ status: 'success', data: { roles } });
     });
+
+    createUser = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { firstName, lastName, email, department } = req.body;
+
+        if (!firstName || !lastName || !email) {
+            throw new AppError('firstName, lastName, and email are required', 400);
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            throw new AppError('Invalid email format', 400);
+        }
+
+        const existing = await prisma.user.findUnique({ where: { email } });
+        if (existing) {
+            throw new AppError('Email already in use', 409);
+        }
+
+        const TEMP_PASSWORD = 'abc@123';
+        const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
+
+        const userRole = await prisma.role.findFirst({ where: { name: 'USER' } });
+        if (!userRole) throw new AppError('USER role not found in database', 500);
+
+        const newUser = await prisma.user.create({
+            data: {
+                firstName,
+                lastName,
+                email,
+                passwordHash: hashedPassword,
+                department: department || null,
+                isActive: true,
+                roles: {
+                    create: { roleId: userRole.id },
+                },
+            },
+            include: {
+                roles: { include: { role: true } },
+            },
+        });
+
+        res.status(201).json({
+            status: 'success',
+            data: {
+                user: {
+                    id: newUser.id,
+                    firstName: newUser.firstName,
+                    lastName: newUser.lastName,
+                    email: newUser.email,
+                    department: newUser.department,
+                    roles: (newUser as any).roles.map((ur: any) => ur.role.name),
+                },
+                tempPassword: TEMP_PASSWORD,
+            },
+        });
+    });
 }
 
 export const userController = new UserController();
