@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authenticate } from '../middleware/auth.middleware';
 import {
     createOnboardingRequest,
     getOnboardingRequest,
@@ -13,6 +14,9 @@ import {
 } from '../controllers/onboarding.controller';
 
 const router = Router();
+
+// All onboarding routes require authentication
+router.use(authenticate);
 
 // Onboarding request routes
 router.post('/requests/:id/onboarding/create', createOnboardingRequest);
