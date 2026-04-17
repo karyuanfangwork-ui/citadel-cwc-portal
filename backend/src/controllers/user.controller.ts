@@ -334,19 +334,20 @@ class UserController {
         res.json({ status: 'success', data: { roles } });
     });
 
-    createUser = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+    createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { firstName, lastName, email, department } = req.body;
 
         if (!firstName || !lastName || !email) {
             throw new AppError('firstName, lastName, and email are required', 400);
         }
 
+        const normalizedEmail = email.trim().toLowerCase();
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
+        if (!emailRegex.test(normalizedEmail)) {
             throw new AppError('Invalid email format', 400);
         }
 
-        const existing = await prisma.user.findUnique({ where: { email } });
+        const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
         if (existing) {
             throw new AppError('Email already in use', 409);
         }
@@ -361,7 +362,7 @@ class UserController {
             data: {
                 firstName,
                 lastName,
-                email,
+                email: normalizedEmail,
                 passwordHash: hashedPassword,
                 department: department || null,
                 isActive: true,
