@@ -26,6 +26,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [notes, setNotes] = useState('');
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,11 +61,11 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedId) return;
+    if (!selectedId || !invoiceFile) return;
     try {
       setSubmitting(true);
       setError(null);
-      await itWorkflowService.routeToCfoApproval(requestId, selectedId, notes || undefined);
+      await itWorkflowService.routeToCfoApproval(requestId, selectedId, invoiceFile, notes || undefined);
       onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to route to CFO');
@@ -151,6 +152,37 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
                 className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-purple-400 resize-none"
               />
             </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                Invoice <span className="text-red-500">*</span>
+              </label>
+              {invoiceFile ? (
+                <div className="flex items-center gap-2 p-3 border border-purple-300 bg-purple-50 rounded-lg">
+                  <span className="material-symbols-outlined text-purple-600 text-base">attach_file</span>
+                  <span className="text-sm text-gray-800 flex-1 truncate">{invoiceFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceFile(null)}
+                    className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                    aria-label="Remove file"
+                  >
+                    <span className="material-symbols-outlined text-base">close</span>
+                  </button>
+                </div>
+              ) : (
+                <label className="flex items-center gap-2 p-3 border border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-purple-400 hover:bg-purple-50 transition-colors">
+                  <span className="material-symbols-outlined text-gray-400 text-base">upload_file</span>
+                  <span className="text-sm text-gray-500">Click to upload invoice</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                    className="hidden"
+                    onChange={e => setInvoiceFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              )}
+              <p className="text-xs text-gray-400 mt-1">PDF, DOC, DOCX, PNG, JPG · Max 10MB</p>
+            </div>
             {error && (
               <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
             )}
@@ -161,7 +193,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={!selectedId || submitting}
+              disabled={!selectedId || !invoiceFile || submitting}
               className="px-4 py-3 text-sm font-bold text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-600 focus-visible:ring-offset-2"
             >
               {submitting ? 'Routing…' : 'Route to CFO for Approval'}
