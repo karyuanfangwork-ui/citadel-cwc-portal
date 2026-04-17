@@ -61,8 +61,15 @@ const itWorkflowService = {
     const response = await api.post(`/it-workflow/requests/${requestId}/cto-decision`, { decision, comments });
     return response.data;
   },
-  async routeToCfoApproval(requestId: string, cfoId: string, notes?: string) {
-    const response = await api.post(`/it-workflow/requests/${requestId}/route-to-cfo`, { cfoId, notes });
+  async routeToCfoApproval(requestId: string, cfoId: string, invoiceFile: File, notes?: string) {
+    const formData = new FormData();
+    formData.append('cfoId', cfoId);
+    formData.append('invoice', invoiceFile);
+    if (notes) formData.append('notes', notes);
+    const response = await api.post(
+      `/it-workflow/requests/${requestId}/route-to-cfo`,
+      formData
+    );
     return response.data;
   },
   async cfoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
