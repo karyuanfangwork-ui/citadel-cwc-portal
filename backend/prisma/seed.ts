@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -597,6 +597,45 @@ async function main() {
         console.log('⏭️  Onboarding task templates already exist, skipping');
     }
 
+
+    // Banner Configs — default configs matching former hardcoded ActionBanner logic
+    const defaultBanners = [
+        // Staff role
+        { role: 'staff', status: 'SUBMITTED',       icon: 'hourglass_top', title: 'Request Submitted',           description: 'Your request has been received and is waiting to be picked up by our team.', colorScheme: 'blue'    },
+        { role: 'staff', status: 'IN_REVIEW',        icon: 'visibility',    title: 'Under Review',                description: '{{assignedToName}} is reviewing your request.',                            colorScheme: 'indigo'  },
+        { role: 'staff', status: 'IN_PROGRESS',      icon: 'engineering',   title: 'In Progress',                 description: '{{assignedToName}} is working on your request.',                           colorScheme: 'blue'    },
+        { role: 'staff', status: 'ACTION_REQUIRED',  icon: 'warning',       title: 'Action Required From You',    description: 'The team needs more information. Please check the comments below.',         colorScheme: 'orange'  },
+        { role: 'staff', status: 'RESOLVED',         icon: 'check_circle',  title: 'Resolved',                    description: 'Your request has been completed.',                                         colorScheme: 'green'   },
+        { role: 'staff', status: 'COMPLETED',        icon: 'check_circle',  title: 'Resolved',                    description: 'Your request has been completed.',                                         colorScheme: 'green'   },
+        // Agent role
+        { role: 'agent', status: 'PENDING_CEO_APPROVAL',       icon: 'hourglass_top',  title: 'Pending CEO Approval',            description: '{{assignedToName}} has routed this request to the CEO for approval.',    colorScheme: 'purple'  },
+        { role: 'agent', status: 'CEO_APPROVED',               icon: 'work',           title: 'Next Step: Post the Job',         description: 'CEO has approved. Mark the job as posted to proceed.',                   colorScheme: 'blue'    },
+        { role: 'agent', status: 'MANAGER_APPROVED',           icon: 'calendar_month', title: 'Next Step: Schedule Interview',   description: 'Hiring manager selected a candidate. Schedule the interview.',             colorScheme: 'indigo'  },
+        { role: 'agent', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'play_arrow',     title: 'Next Step: Start HR Screening',   description: 'Interview feedback received. Begin background and reference checks.',      colorScheme: 'blue'    },
+        { role: 'agent', status: 'LOA_APPROVED',               icon: 'send',           title: 'Next Step: Issue LOA to Candidate', description: 'Hiring manager has approved the LOA. Issue it to the candidate.',     colorScheme: 'emerald' },
+        { role: 'agent', status: 'PENDING_INVOICE_IT',         icon: 'receipt_long',   title: 'Pending Invoice',                 description: 'Waiting for invoice to be submitted before processing.',                colorScheme: 'amber'   },
+        { role: 'agent', status: 'PENDING_CFO_APPROVAL_IT',    icon: 'approval',       title: 'Pending CFO Approval',            description: 'Invoice submitted. Awaiting CFO sign-off.',                             colorScheme: 'purple'  },
+        { role: 'agent', status: 'PAYMENT_PROCESSING_IT',      icon: 'payments',       title: 'Payment Processing',              description: 'CFO has approved. Payment is being processed.',                          colorScheme: 'blue'    },
+        { role: 'agent', status: 'PAYMENT_DONE_IT',            icon: 'check_circle',   title: 'Payment Completed',               description: 'Payment has been made. Pending delivery.',                               colorScheme: 'green'   },
+        // CEO role
+        { role: 'ceo', status: 'PENDING_CEO_APPROVAL',         icon: 'approval',       title: 'Your Approval Required',          description: 'This hiring request needs your approval to proceed. Review the details and make a decision.',          colorScheme: 'purple' },
+        { role: 'ceo', status: 'PENDING_MANAGER_APPROVAL_IT',  icon: 'approval',       title: 'Your Approval Required',          description: 'This IT request has been routed to you for sign-off. Review the details and approve or reject.',       colorScheme: 'blue'   },
+        // Hiring Manager role
+        { role: 'hiring_manager', status: 'PENDING_MANAGER_REVIEW',  icon: 'rate_review',   title: 'Your Action: Review Candidates',        description: 'Candidate resumes are ready for your review. Select a candidate to proceed.',                 colorScheme: 'orange'  },
+        { role: 'hiring_manager', status: 'INTERVIEW_SCHEDULED',     icon: 'feedback',      title: 'Your Action: Submit Interview Feedback', description: 'The interview has been completed. Please submit your feedback and decision.',                colorScheme: 'indigo'  },
+        { role: 'hiring_manager', status: 'PENDING_CEO_APPROVAL',    icon: 'hourglass_top', title: 'Waiting: CEO Approval',                  description: 'Your hiring request is pending CEO approval. You will be notified when a decision is made.',   colorScheme: 'purple'  },
+        { role: 'hiring_manager', status: 'HR_SCREENING',            icon: 'fact_check',    title: 'In Progress: HR Screening',              description: 'Background and reference checks are being conducted by HR.',                                  colorScheme: 'blue'    },
+        { role: 'hiring_manager', status: 'LOA_PENDING_APPROVAL',    icon: 'approval',      title: 'Your Action: Approve / Reject LOA',      description: 'Review the Letter of Acceptance and make an approval decision.',                              colorScheme: 'indigo'  },
+    ];
+
+    for (const banner of defaultBanners) {
+        await prisma.bannerConfig.upsert({
+            where: { role_status: { role: banner.role, status: banner.status } },
+            update: {},
+            create: { ...banner, isActive: true },
+        });
+    }
+    console.log(`Seeded ${defaultBanners.length} default banner configs`);
     console.log('🎉 Database seeding completed!');
 }
 
