@@ -44,6 +44,7 @@ interface Request {
     id: string;
     name: string;
     formConfig?: any[];
+    requiresApproval?: boolean;
   };
   requester?: {
     id: string;
@@ -655,11 +656,12 @@ const RequestDetail = () => {
       'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'CFO_REJECTED_IT', 'PAYMENT_PROCESSING_IT',
       'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT',
     ];
-    const itProcurementRequestTypes = ['Request new hardware', 'Request Software Installation'];
+    const itProcurementRequestTypes = ['new hardware', 'Software Installation'];
+    const isITProcurementType = itProcurementRequestTypes.some(t => (request?.requestTypeName ?? '').toLowerCase().includes(t.toLowerCase()));
     const isITProcurement =
       request?.serviceDesk?.code === 'IT' &&
       (itProcurementStatuses.includes(currentStatus) ||
-        (itProcurementRequestTypes.includes(request?.requestTypeName ?? '') && currentStatus === 'SUBMITTED'));
+        (isITProcurementType && (currentStatus === 'SUBMITTED' || currentStatus === 'RESOLVED')));
 
     if (isITProcurement) {
       const allSteps = [
@@ -1679,6 +1681,7 @@ const RequestDetail = () => {
             slaDueAt={request.slaDueAt}
             serviceDeskCode={request.serviceDesk?.code || ''}
             requiresApproval={request.requestType?.requiresApproval ?? true}
+            attachments={request.attachments || []}
             onActionSuccess={fetchRequestData}
             onLOAApproval={() => setShowLOAApprovalModal(true)}
           />

@@ -42,6 +42,7 @@ interface ActionSidebarProps {
   requesterId?: string;
   serviceDeskCode: string;
   requiresApproval?: boolean;
+  attachments?: { id: string; fileName: string; storageUrl: string; mimeType: string; createdAt: string }[];
   onActionSuccess: () => void;
   onLOAApproval?: () => void;
 }
@@ -70,6 +71,8 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   slaDueAt,
   requesterId,
   serviceDeskCode,
+  requiresApproval,
+  attachments = [],
   onActionSuccess,
   onLOAApproval,
 }) => {
@@ -295,7 +298,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       )}
       {openModal === 'CFO_DECISION' && (
         <Suspense fallback={null}>
-          <CfoDecisionModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+          <CfoDecisionModal requestId={requestId} attachments={attachments} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
       {openModal === 'PAYMENT_DONE' && (

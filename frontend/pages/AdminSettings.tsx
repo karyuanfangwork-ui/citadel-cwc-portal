@@ -5,8 +5,8 @@ import FormBuilder from '../src/components/FormBuilder';
 import { OnboardingTaskTemplate } from '../types';
 import apiClient from '../src/services/api';
 import CreateUserModal from '../src/components/admin/CreateUserModal';
-import { bannerConfigService, BannerConfigItem, CreateBannerConfigPayload } from '../src/services/bannerConfigService';
-import { COLOR_SCHEME_CLASSES, clearBannerCache } from '../src/hooks/useBannerConfigs';
+import { StatusDefinitionsTab } from '../src/components/admin/StatusDefinitionsTab';
+import { BannerConfigTab } from '../src/components/admin/BannerConfigTab';
 
 const CATEGORY_ICONS = [
     { name: 'laptop', label: 'Laptop/Hardware' },
@@ -55,7 +55,7 @@ const AdminSettings = () => {
     const [pendingAction, setPendingAction] = useState<{ message: string; onConfirm: () => Promise<void> } | null>(null);
     const [toastMsg, setToastMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
-    const [activeTab, setActiveTab] = useState<'service-desks' | 'users' | 'onboarding-tasks' | 'workflow-config' | 'banner-config'>('service-desks');
+    const [activeTab, setActiveTab] = useState<'service-desks' | 'users' | 'onboarding-tasks' | 'workflow-config' | 'banner-config' | 'status-definitions'>('service-desks');
     const [users, setUsers] = useState<any[]>([]);
     const [userPagination, setUserPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
     const [userSearch, setUserSearch] = useState('');
@@ -97,21 +97,6 @@ const AdminSettings = () => {
     const [workflowLoading, setWorkflowLoading] = useState(false);
     const [workflowSaving, setWorkflowSaving] = useState<string | null>(null);
 
-    // Banner Config state
-    const [bannerConfigs, setBannerConfigs] = useState<BannerConfigItem[]>([]);
-    const [bannerConfigLoading, setBannerConfigLoading] = useState(false);
-    const [showBannerForm, setShowBannerForm] = useState(false);
-    const [editingBanner, setEditingBanner] = useState<BannerConfigItem | null>(null);
-    const [bannerForm, setBannerForm] = useState<CreateBannerConfigPayload>({
-        role: 'staff',
-        status: '',
-        icon: 'hourglass_top',
-        title: '',
-        description: '',
-        colorScheme: 'blue',
-        isActive: true,
-    });
-
     const showToast = (type: 'error' | 'success', text: string) => {
         setToastMsg({ type, text });
         setTimeout(() => setToastMsg(null), 4000);
@@ -141,8 +126,6 @@ const AdminSettings = () => {
             fetchRoles();
         } else if (activeTab === 'workflow-config') {
             fetchWorkflowConfig();
-        } else if (activeTab === 'banner-config') {
-            fetchBannerConfigs();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeTab]);
@@ -228,16 +211,6 @@ const AdminSettings = () => {
             showToast('error', 'Failed to load workflow config');
         } finally {
             setWorkflowLoading(false);
-        }
-    };
-
-    const fetchBannerConfigs = async () => {
-        setBannerConfigLoading(true);
-        try {
-            const data = await bannerConfigService.getAll();
-            setBannerConfigs(data);
-        } finally {
-            setBannerConfigLoading(false);
         }
     };
 
@@ -516,6 +489,7 @@ const AdminSettings = () => {
                     { id: 'onboarding-tasks', label: 'Onboarding Tasks', icon: 'checklist' },
                     { id: 'workflow-config', label: 'Workflow Config', icon: 'account_tree' },
                     { id: 'banner-config', label: 'Banner Config', icon: 'campaign' },
+                    { id: 'status-definitions', label: 'Request Statuses', icon: 'fact_check' },
                 ] as const).map(tab => (
                     <button
                         key={tab.id}
@@ -1463,146 +1437,10 @@ const AdminSettings = () => {
             )}
 
             {/* Banner Config Tab */}
-            {activeTab === 'banner-config' && (
-                <div>
-                    <div className="mb-8 p-6 bg-blue-50 rounded-2xl border border-blue-200">
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">Banner Configuration</h3>
-                        <p className="text-sm text-gray-600">
-                            Configure status banners shown on request detail pages. Use{' '}
-                            <code className="bg-white px-1 rounded">{'{{assignedToName}}'}</code>{' '}
-                            in descriptions to insert the assigned user's name.
-                        </p>
-                    </div>
+            {activeTab === 'banner-config' && <BannerConfigTab />}
 
-                    <div className="flex justify-end mb-4">
-                        <button
-                            onClick={() => {
-                                setEditingBanner(null);
-                                setBannerForm({ role: 'staff', status: '', icon: 'hourglass_top', title: '', description: '', colorScheme: 'blue', isActive: true });
-                                setShowBannerForm(true);
-                            }}
-                            className="px-4 py-2 bg-[#0052cc] text-white text-sm font-bold rounded-lg hover:bg-blue-700"
-                        >
-                            + Add Banner
-                        </button>
-                    </div>
-
-                    {bannerConfigLoading ? (
-                        <div className="text-center py-12 text-gray-400">Loading...</div>
-                    ) : (
-                        <div className="space-y-3">
-                            {bannerConfigs.length === 0 && (
-                                <div className="text-center py-12 text-gray-400">No banner configs yet. Click "Add Banner" to create one.</div>
-                            )}
-                            {bannerConfigs.map((config) => (
-                                <div key={config.id} className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
-                                    <div className={`size-10 rounded-full flex items-center justify-center shrink-0 ${COLOR_SCHEME_CLASSES[config.colorScheme]?.iconBgClass ?? 'bg-blue-600'}`}>
-                                        <span className="material-symbols-outlined text-lg text-white">{config.icon}</span>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-0.5">
-                                            <span className="font-semibold text-sm text-gray-900">{config.title}</span>
-                                            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-500">{config.role}</span>
-                                            <span className="text-xs px-2 py-0.5 bg-indigo-50 rounded-full text-indigo-600 font-mono">{config.status}</span>
-                                            {!config.isActive && <span className="text-xs px-2 py-0.5 bg-red-50 rounded-full text-red-500">Inactive</span>}
-                                        </div>
-                                        <p className="text-xs text-gray-500 truncate">{config.description}</p>
-                                    </div>
-                                    <div className="flex gap-2 shrink-0">
-                                        <button
-                                            onClick={() => {
-                                                setEditingBanner(config);
-                                                setBannerForm({ role: config.role, status: config.status, icon: config.icon, title: config.title, description: config.description, colorScheme: config.colorScheme, isActive: config.isActive });
-                                                setShowBannerForm(true);
-                                            }}
-                                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
-                                        >
-                                            Edit
-                                        </button>
-                                        <button
-                                            onClick={async () => {
-                                                if (!confirm(`Delete banner for "${config.status}" (${config.role})?`)) return;
-                                                await bannerConfigService.delete(config.id);
-                                                clearBannerCache();
-                                                setBannerConfigs(prev => prev.filter(c => c.id !== config.id));
-                                            }}
-                                            className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100"
-                                        >
-                                            Delete
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    {showBannerForm && (
-                        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-                            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
-                                <h3 className="text-lg font-bold text-gray-900 mb-4">{editingBanner ? 'Edit Banner' : 'Add Banner'}</h3>
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-700 mb-1">Role</label>
-                                            <select value={bannerForm.role} onChange={e => setBannerForm(p => ({ ...p, role: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                                                {['staff', 'agent', 'ceo', 'hiring_manager', 'all'].map(r => <option key={r} value={r}>{r}</option>)}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-700 mb-1">Status (exact enum value)</label>
-                                            <input value={bannerForm.status} onChange={e => setBannerForm(p => ({ ...p, status: e.target.value }))} placeholder="e.g. PENDING_INVOICE_IT" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-700 mb-1">Icon (Material Symbols name)</label>
-                                            <input value={bannerForm.icon} onChange={e => setBannerForm(p => ({ ...p, icon: e.target.value }))} placeholder="e.g. hourglass_top" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-700 mb-1">Color Scheme</label>
-                                            <select value={bannerForm.colorScheme} onChange={e => setBannerForm(p => ({ ...p, colorScheme: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                                                {['blue', 'indigo', 'purple', 'amber', 'orange', 'green', 'emerald', 'yellow', 'red'].map(c => <option key={c} value={c}>{c}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-700 mb-1">Title</label>
-                                        <input value={bannerForm.title} onChange={e => setBannerForm(p => ({ ...p, title: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-700 mb-1">Description</label>
-                                        <textarea value={bannerForm.description} onChange={e => setBannerForm(p => ({ ...p, description: e.target.value }))} rows={3} placeholder="Use {{assignedToName}} to insert assigned user's name" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none" />
-                                    </div>
-                                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                                        <input type="checkbox" checked={bannerForm.isActive} onChange={e => setBannerForm(p => ({ ...p, isActive: e.target.checked }))} className="rounded" />
-                                        Active
-                                    </label>
-                                </div>
-                                <div className="flex justify-end gap-3 mt-6">
-                                    <button onClick={() => setShowBannerForm(false)} className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-                                    <button
-                                        onClick={async () => {
-                                            if (!bannerForm.status || !bannerForm.title || !bannerForm.description) return;
-                                            if (editingBanner) {
-                                                const updated = await bannerConfigService.update(editingBanner.id, bannerForm);
-                                                setBannerConfigs(prev => prev.map(c => c.id === editingBanner.id ? updated : c));
-                                            } else {
-                                                const created = await bannerConfigService.create(bannerForm);
-                                                setBannerConfigs(prev => [...prev, created]);
-                                            }
-                                            clearBannerCache();
-                                            setShowBannerForm(false);
-                                        }}
-                                        className="px-4 py-2 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-blue-700"
-                                    >
-                                        {editingBanner ? 'Save Changes' : 'Create Banner'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
+            {/* Request Statuses Tab */}
+            {activeTab === 'status-definitions' && <StatusDefinitionsTab />}
 
             {/* Toast */}
             {toastMsg && (

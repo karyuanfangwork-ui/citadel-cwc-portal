@@ -636,6 +636,90 @@ async function main() {
         });
     }
     console.log(`Seeded ${defaultBanners.length} default banner configs`);
+
+    // Request Status Definitions
+    const statusDefinitions = [
+        // GENERAL
+        { code: 'SUBMITTED',           label: 'Submitted',              category: 'GENERAL', displayOrder: 1 },
+        { code: 'IN_REVIEW',           label: 'In Review',              category: 'GENERAL', displayOrder: 2 },
+        { code: 'ACTION_REQUIRED',     label: 'Action Required',        category: 'GENERAL', displayOrder: 3 },
+        { code: 'APPROVED',            label: 'Approved',               category: 'GENERAL', displayOrder: 4 },
+        { code: 'REJECTED',            label: 'Rejected',               category: 'GENERAL', displayOrder: 5 },
+        { code: 'RESOLVED',            label: 'Resolved',               category: 'GENERAL', displayOrder: 6 },
+        { code: 'IN_PROGRESS',         label: 'In Progress',            category: 'GENERAL', displayOrder: 7 },
+        { code: 'WAITING',             label: 'Waiting',                category: 'GENERAL', displayOrder: 8 },
+        { code: 'COMPLETED',           label: 'Completed',              category: 'GENERAL', displayOrder: 9 },
+        // HR / HIRING
+        { code: 'PENDING_CEO_APPROVAL',            label: 'Pending CEO Approval',            category: 'HR', displayOrder: 10 },
+        { code: 'CEO_APPROVED',                    label: 'CEO Approved',                    category: 'HR', displayOrder: 11 },
+        { code: 'CEO_REJECTED',                    label: 'CEO Rejected',                    category: 'HR', displayOrder: 12 },
+        { code: 'JOB_POSTED',                      label: 'Job Posted',                      category: 'HR', displayOrder: 13 },
+        { code: 'PENDING_MANAGER_REVIEW',          label: 'Pending Manager Review',          category: 'HR', displayOrder: 14 },
+        { code: 'MANAGER_APPROVED',                label: 'Manager Approved',                category: 'HR', displayOrder: 15 },
+        { code: 'INTERVIEW_SCHEDULED',             label: 'Interview Scheduled',             category: 'HR', displayOrder: 16 },
+        { code: 'INTERVIEW_FEEDBACK_PENDING',      label: 'Interview Feedback Pending',      category: 'HR', displayOrder: 17 },
+        { code: 'CANDIDATE_REJECTED_INTERVIEW',    label: 'Candidate Rejected (Interview)',  category: 'HR', displayOrder: 18 },
+        { code: 'HR_SCREENING',                    label: 'HR Screening',                    category: 'HR', displayOrder: 19 },
+        { code: 'LOA_PENDING_APPROVAL',            label: 'LOA Pending Approval',            category: 'HR', displayOrder: 20 },
+        { code: 'LOA_APPROVED',                    label: 'LOA Approved',                    category: 'HR', displayOrder: 21 },
+        { code: 'LOA_ISSUED',                      label: 'LOA Issued',                      category: 'HR', displayOrder: 22 },
+        { code: 'LOA_ACCEPTED',                    label: 'LOA Accepted',                    category: 'HR', displayOrder: 23 },
+        // ONBOARDING
+        { code: 'ONBOARDING_SUBMITTED',            label: 'Onboarding Submitted',            category: 'ONBOARDING', displayOrder: 30 },
+        { code: 'ONBOARDING_PENDING_HR_APPROVAL',  label: 'Pending HR Approval',             category: 'ONBOARDING', displayOrder: 31 },
+        { code: 'ONBOARDING_PRE_ARRIVAL_SETUP',    label: 'Pre-Arrival Setup',               category: 'ONBOARDING', displayOrder: 32 },
+        { code: 'ONBOARDING_READY_FOR_DAY_1',      label: 'Ready for Day 1',                 category: 'ONBOARDING', displayOrder: 33 },
+        { code: 'ONBOARDING_DAY_1_ORIENTATION',    label: 'Day 1 Orientation',               category: 'ONBOARDING', displayOrder: 34 },
+        { code: 'ONBOARDING_WEEK_1_INTEGRATION',   label: 'Week 1 Integration',              category: 'ONBOARDING', displayOrder: 35 },
+        { code: 'ONBOARDING_MONTH_1_MILESTONE',    label: 'Month 1 Milestone',               category: 'ONBOARDING', displayOrder: 36 },
+        { code: 'ONBOARDING_MONTH_2_MILESTONE',    label: 'Month 2 Milestone',               category: 'ONBOARDING', displayOrder: 37 },
+        { code: 'ONBOARDING_MONTH_3_MILESTONE',    label: 'Month 3 Milestone',               category: 'ONBOARDING', displayOrder: 38 },
+        { code: 'ONBOARDING_COMPLETED',            label: 'Onboarding Completed',            category: 'ONBOARDING', displayOrder: 39 },
+        // IT WORKFLOW
+        { code: 'PENDING_MANAGER_APPROVAL_IT',     label: 'Pending Manager Approval (IT)',   category: 'IT', displayOrder: 40 },
+        { code: 'MANAGER_APPROVED_IT',             label: 'Manager Approved (IT)',           category: 'IT', displayOrder: 41 },
+        { code: 'MANAGER_REJECTED_IT',             label: 'Manager Rejected (IT)',           category: 'IT', displayOrder: 42 },
+        { code: 'PENDING_VP_APPROVAL_IT',          label: 'Pending VP Approval (IT)',        category: 'IT', displayOrder: 43 },
+        { code: 'VP_APPROVED_IT',                  label: 'VP Approved (IT)',                category: 'IT', displayOrder: 44 },
+        { code: 'VP_REJECTED_IT',                  label: 'VP Rejected (IT)',                category: 'IT', displayOrder: 45 },
+        { code: 'PROCUREMENT_IN_PROGRESS',         label: 'Procurement In Progress',         category: 'IT', displayOrder: 46 },
+        { code: 'HARDWARE_ORDERED',                label: 'Hardware Ordered',                category: 'IT', displayOrder: 47 },
+        { code: 'HARDWARE_RECEIVED',               label: 'Hardware Received',               category: 'IT', displayOrder: 48 },
+        { code: 'SOFTWARE_PROVISIONED',            label: 'Software Provisioned',            category: 'IT', displayOrder: 49 },
+        { code: 'ACKNOWLEDGED_IT',                 label: 'Acknowledged (IT)',               category: 'IT', displayOrder: 50 },
+        { code: 'PENDING_CEO_APPROVAL_IT',         label: 'Pending CEO Approval (IT)',       category: 'IT', displayOrder: 51 },
+        { code: 'CEO_APPROVED_IT',                 label: 'CEO Approved (IT)',               category: 'IT', displayOrder: 52 },
+        { code: 'CEO_REJECTED_IT',                 label: 'CEO Rejected (IT)',               category: 'IT', displayOrder: 53 },
+        { code: 'PENDING_CTO_APPROVAL_IT',         label: 'Pending CTO Approval (IT)',       category: 'IT', displayOrder: 54 },
+        { code: 'CTO_APPROVED_IT',                 label: 'CTO Approved (IT)',               category: 'IT', displayOrder: 55 },
+        { code: 'CTO_REJECTED_IT',                 label: 'CTO Rejected (IT)',               category: 'IT', displayOrder: 56 },
+        { code: 'PENDING_INVOICE_IT',              label: 'Pending Invoice (IT)',            category: 'IT', displayOrder: 57 },
+        { code: 'PENDING_CFO_APPROVAL_IT',         label: 'Pending CFO Approval (IT)',       category: 'IT', displayOrder: 58 },
+        { code: 'CFO_APPROVED_IT',                 label: 'CFO Approved (IT)',               category: 'IT', displayOrder: 59 },
+        { code: 'CFO_REJECTED_IT',                 label: 'CFO Rejected (IT)',               category: 'IT', displayOrder: 60 },
+        { code: 'PAYMENT_PROCESSING_IT',           label: 'Payment Processing (IT)',         category: 'IT', displayOrder: 61 },
+        { code: 'PAYMENT_DONE_IT',                 label: 'Payment Done (IT)',               category: 'IT', displayOrder: 62 },
+        { code: 'PENDING_DELIVERY_IT',             label: 'Pending Delivery (IT)',           category: 'IT', displayOrder: 63 },
+        // FINANCE WORKFLOW
+        { code: 'PENDING_MANAGER_APPROVAL_FIN',    label: 'Pending Manager Approval (Finance)', category: 'FINANCE', displayOrder: 70 },
+        { code: 'MANAGER_APPROVED_FIN',            label: 'Manager Approved (Finance)',         category: 'FINANCE', displayOrder: 71 },
+        { code: 'MANAGER_REJECTED_FIN',            label: 'Manager Rejected (Finance)',         category: 'FINANCE', displayOrder: 72 },
+        { code: 'PENDING_FINANCE_HEAD_APPROVAL',   label: 'Pending Finance Head Approval',      category: 'FINANCE', displayOrder: 73 },
+        { code: 'FINANCE_HEAD_APPROVED',           label: 'Finance Head Approved',              category: 'FINANCE', displayOrder: 74 },
+        { code: 'FINANCE_HEAD_REJECTED',           label: 'Finance Head Rejected',             category: 'FINANCE', displayOrder: 75 },
+        { code: 'PAYMENT_PROCESSING',              label: 'Payment Processing',                 category: 'FINANCE', displayOrder: 76 },
+        { code: 'PAYMENT_COMPLETED',               label: 'Payment Completed',                  category: 'FINANCE', displayOrder: 77 },
+        { code: 'REIMBURSEMENT_CLOSED',            label: 'Reimbursement Closed',               category: 'FINANCE', displayOrder: 78 },
+    ];
+
+    for (const def of statusDefinitions) {
+        await prisma.requestStatusDefinition.upsert({
+            where: { code: def.code },
+            update: { label: def.label, category: def.category, displayOrder: def.displayOrder },
+            create: { ...def, isActive: true },
+        });
+    }
+    console.log(`Seeded ${statusDefinitions.length} request status definitions`);
     console.log('🎉 Database seeding completed!');
 }
 

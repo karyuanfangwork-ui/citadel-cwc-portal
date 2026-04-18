@@ -58,6 +58,21 @@ export class BannerConfigController {
       return;
     }
 
+    if (role !== undefined || status !== undefined) {
+      const current = await prisma.bannerConfig.findUnique({ where: { id }, select: { role: true, status: true } });
+      if (!current) {
+        res.status(404).json({ status: 'error', message: 'Banner config not found' });
+        return;
+      }
+      const newRole = role ?? current.role;
+      const newStatus = status ?? current.status;
+      const conflict = await prisma.bannerConfig.findFirst({ where: { role: newRole, status: newStatus, NOT: { id } } });
+      if (conflict) {
+        res.status(409).json({ status: 'error', message: `Banner config for role="${newRole}" status="${newStatus}" already exists` });
+        return;
+      }
+    }
+
     const config = await prisma.bannerConfig.update({
       where: { id },
       data: { role, status, icon, title, description, colorScheme, isActive },

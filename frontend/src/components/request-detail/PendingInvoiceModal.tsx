@@ -75,9 +75,9 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-purple-50">
+    <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-[9999] p-4 overflow-y-auto" onClick={handleBackdropClick}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+        <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-purple-50 shrink-0">
           <div className="size-9 rounded-lg bg-purple-100 flex items-center justify-center">
             <span className="material-symbols-outlined text-purple-600">receipt_long</span>
           </div>
@@ -86,8 +86,8 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
             <p className="text-xs text-gray-500">IT Workflow · Select CFO for Approval</p>
           </div>
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-5 space-y-4 overflow-y-auto flex-1">
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
                 Search CFO
@@ -108,7 +108,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
               {loading ? (
                 <p className="text-xs text-gray-400 py-2">Loading CFO users…</p>
               ) : (
-                <div className="space-y-2 max-h-52 overflow-y-auto pr-0.5">
+                <div className="space-y-2 max-h-36 overflow-y-auto pr-0.5">
                   {filtered.length === 0 ? (
                     <p className="text-xs text-gray-400 py-2">No CFO users found</p>
                   ) : (
@@ -147,7 +147,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
-                rows={2}
+                rows={1}
                 placeholder="Any context the CFO should know…"
                 className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-purple-400 resize-none"
               />
@@ -187,7 +187,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
               <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
             )}
           </div>
-          <div className="flex justify-end gap-2 p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+          <div className="flex justify-end gap-2 p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl shrink-0">
             <button type="button" onClick={onClose} className="px-4 py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2">
               Cancel
             </button>
