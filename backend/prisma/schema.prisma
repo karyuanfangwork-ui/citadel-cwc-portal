@@ -945,3 +945,19 @@ model OnboardingTaskTemplate {
   @@index([taskCategory])
   @@index([isActive])
 }
+
+model BannerConfig {
+  id          String   @id @default(uuid())
+  role        String
+  status      String
+  icon        String
+  title       String
+  description String   @db.Text
+  colorScheme String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([role, status])
+  @@map("banner_configs")
+}
