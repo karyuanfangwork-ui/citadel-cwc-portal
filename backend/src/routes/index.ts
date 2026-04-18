@@ -15,6 +15,7 @@ import onboardingTemplateRoutes from './onboardingTemplate.routes';
 import itWorkflowRoutes from './it-workflow.routes';
 import financeWorkflowRoutes from './finance-workflow.routes';
 import reportsRoutes from './reports.routes';
+import bannerConfigRoutes from './bannerConfig.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -39,6 +40,7 @@ router.use('/admin/onboarding-templates', onboardingTemplateRoutes);
 router.use('/it-workflow', itWorkflowRoutes);
 router.use('/finance-workflow', financeWorkflowRoutes);
 router.use('/reports', reportsRoutes);
+router.use('/admin/banner-configs', bannerConfigRoutes);
 
 export default router;
 
