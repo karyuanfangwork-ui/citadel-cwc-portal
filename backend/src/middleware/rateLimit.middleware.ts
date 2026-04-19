@@ -17,11 +17,11 @@ export const apiLimiter = rateLimit({
 // Strict rate limiter for auth endpoints
 export const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000, // 1000 requests per window (increased for development)
+    max: process.env.NODE_ENV === 'development' ? 1000 : 10,
     message: {
         status: 'error',
         statusCode: 429,
-        message: 'Too many authentication attempts, please try again later',
+        message: 'Too many authentication attempts. Please try again after 15 minutes.',
     },
     standardHeaders: true,
     legacyHeaders: false,
@@ -35,6 +35,19 @@ export const uploadLimiter = rateLimit({
         status: 'error',
         statusCode: 429,
         message: 'Too many file uploads, please try again later',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Strict rate limiter for password reset (prevents token brute-force)
+export const passwordResetLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: process.env.NODE_ENV === 'development' ? 100 : 5,
+    message: {
+        status: 'error',
+        statusCode: 429,
+        message: 'Too many password reset attempts. Please try again in 1 hour.',
     },
     standardHeaders: true,
     legacyHeaders: false,

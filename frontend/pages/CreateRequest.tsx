@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { requestService } from '../src/services/request.service';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
+import { useAuth } from '../src/context/AuthContext';
 
 const CreateRequest = () => {
     const { deskId, categoryId, deskType } = useParams<{ deskId: string; categoryId: string; deskType: string }>();
@@ -20,6 +21,13 @@ const CreateRequest = () => {
         urgency: 'MEDIUM',
         customFields: {}
     });
+
+    const { user } = useAuth();
+
+    const isRoleBlocked = !!(
+        selectedRequestType?.requiredRole &&
+        !user?.roles?.includes(selectedRequestType.requiredRole)
+    );
 
     const URGENCY_OPTIONS = [
         { value: 'LOW', label: 'Low - General inquiry or minor issue' },
@@ -109,6 +117,7 @@ const CreateRequest = () => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!deskId || !selectedRequestType) return;
+        if (isRoleBlocked) return; // safety guard, button is already disabled
 
         try {
             setSubmitting(true);
@@ -231,9 +240,27 @@ const CreateRequest = () => {
                                 <p className="text-sm font-bold text-[#101418] group-hover:text-[#0052cc]">
                                     {formData.customFields[field.id] || 'Click to upload or drag and drop'}
                                 </p>
-                                <p className="text-xs text-[#5e718d]">PNG, JPG, PDF, DOC (max 10MB)</p>
+                                <p className="text-xs text-[#44546f]">PNG, JPG, PDF, DOC (max 10MB)</p>
                             </div>
                         </label>
+                    </div>
+                );
+            case 'select':
+                return (
+                    <div className="relative">
+                        <select
+                            required={field.required}
+                            className={`${commonClass} appearance-none`}
+                            value={formData.customFields[field.id] || ''}
+                            onChange={e => handleCustomFieldChange(field.id, e.target.value)}
+                            disabled={submitting}
+                        >
+                            <option value="" disabled>Select an option...</option>
+                            {field.options?.map((option: string, i: number) => (
+                                <option key={i} value={option}>{option}</option>
+                            ))}
+                        </select>
+                        <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
                     </div>
                 );
             default: // text
@@ -262,7 +289,7 @@ const CreateRequest = () => {
     return (
         <div className="max-w-[1240px] mx-auto px-6 py-12">
             {/* Breadcrumbs */}
-            <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#5e718d]">
+            <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#44546f]">
                 <Link to="/" className="hover:text-[#0052cc]">Help Center</Link>
                 <span className="material-symbols-outlined text-sm">chevron_right</span>
                 <Link to={`/${deskType}`} className="hover:text-[#0052cc]">{getDeskName()}</Link>
@@ -275,7 +302,7 @@ const CreateRequest = () => {
                 <h1 className="text-4xl font-bold text-[#101418] mb-2">
                     {category?.name || 'Get help'}
                 </h1>
-                <p className="text-[#5e718d] text-lg">
+                <p className="text-[#44546f] text-lg">
                     Tell us what you need help with and we'll get back to you as soon as possible.
                 </p>
             </div>
@@ -317,7 +344,7 @@ const CreateRequest = () => {
                                                     </div>
                                                     <div className="flex-1">
                                                         <h3 className="font-bold text-[#101418] mb-1">{type.name}</h3>
-                                                        <p className="text-xs text-[#5e718d] leading-relaxed">{type.description}</p>
+                                                        <p className="text-xs text-[#44546f] leading-relaxed">{type.description}</p>
                                                     </div>
                                                     {selectedRequestType?.id === type.id && (
                                                         <span className="material-symbols-outlined text-[#0052cc]">check_circle</span>
@@ -337,6 +364,19 @@ const CreateRequest = () => {
                             {/* Only show form fields if a request type is selected */}
                             {selectedRequestType && (
                                 <>
+                                    {isRoleBlocked && (
+                                        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl mb-6">
+                                            <span className="material-symbols-outlined text-red-500 mt-0.5">lock</span>
+                                            <div>
+                                                <p className="text-sm font-bold text-red-700">Access Restricted</p>
+                                                <p className="text-sm text-red-600">
+                                                    You need the <strong>{selectedRequestType.requiredRole}</strong> role to submit this request type.
+                                                    Please contact your administrator.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Summary */}
                                     <div>
                                         <label className="block text-sm font-bold text-[#101418] mb-2 flex justify-between">
@@ -411,15 +451,15 @@ const CreateRequest = () => {
                                     <div className="pt-6 flex items-center gap-6">
                                         <button
                                             type="submit"
-                                            disabled={submitting}
-                                            className="px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-lg shadow-blue-200 flex items-center gap-2 disabled:opacity-70"
+                                            disabled={submitting || isRoleBlocked}
+                                            className="px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             {submitting ? 'Sending...' : 'Send Request'}
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => navigate(-1)}
-                                            className="px-6 py-3 text-[#5e718d] font-bold hover:text-[#101418] transition-colors"
+                                            className="px-6 py-3 text-[#44546f] font-bold hover:text-[#101418] transition-colors"
                                         >
                                             Cancel
                                         </button>
@@ -449,7 +489,7 @@ const CreateRequest = () => {
                             {KB_ARTICLES.map((article, i) => (
                                 <div key={i} className="group cursor-pointer">
                                     <h4 className="font-bold text-[#101418] group-hover:text-[#0052cc] transition-colors mb-1">{article.title}</h4>
-                                    <p className="text-xs text-[#5e718d] line-clamp-2 leading-normal">{article.excerpt}</p>
+                                    <p className="text-xs text-[#44546f] line-clamp-2 leading-normal">{article.excerpt}</p>
                                 </div>
                             ))}
                         </div>

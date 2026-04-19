@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { tokenService } from '../services/token.service';
 
 const prisma = new PrismaClient();
 
@@ -134,6 +135,7 @@ class UserController {
             search,
             department,
             isActive,
+            role,
         } = req.query;
 
         const pageNum = parseInt(page as string, 10);
@@ -157,6 +159,14 @@ class UserController {
 
         if (isActive !== undefined) {
             where.isActive = isActive === 'true';
+        }
+
+        if (role) {
+            where.roles = {
+                some: {
+                    role: { name: { equals: role as string, mode: 'insensitive' } },
+                },
+            };
         }
 
         // Get users and total count
@@ -198,7 +208,7 @@ class UserController {
      */
     updateUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const { id } = req.params;
-        const { firstName, lastName, phone, department, jobTitle, isActive, managerId } = req.body;
+        const { firstName, lastName, phone, department, jobTitle, isActive, managerId, agentTeam } = req.body;
 
         const user = await prisma.user.update({
             where: { id },
@@ -210,6 +220,7 @@ class UserController {
                 jobTitle,
                 isActive,
                 managerId,
+                agentTeam,
             },
         });
 
@@ -217,6 +228,27 @@ class UserController {
             status: 'success',
             data: { user },
         });
+    });
+
+    /**
+     * Get all agents (AGENT or ADMIN roles)
+     */
+    getAgents = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const agents = await prisma.user.findMany({
+            where: {
+                roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
+                isActive: true,
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+            },
+            orderBy: { firstName: 'asc' },
+        });
+
+        res.json({ success: true, data: { agents } });
     });
 
     /**
@@ -234,6 +266,128 @@ class UserController {
         res.json({
             status: 'success',
             message: 'User deleted successfully',
+        });
+    });
+
+    /**
+     * Replace a user's roles atomically (Admin only)
+     * Body: { roles: string[] } — array of role names e.g. ["USER", "CEO"]
+     */
+    assignRoles = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const id = req.params['id'] as string;
+        const { roles } = req.body as { roles: string[] };
+
+        if (!Array.isArray(roles) || roles.length === 0) {
+            throw new AppError('roles must be a non-empty array of role names', 400);
+        }
+
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) throw new AppError('User not found', 404);
+
+        const roleRecords = await prisma.role.findMany({
+            where: { name: { in: roles } },
+        });
+
+        if (roleRecords.length !== roles.length) {
+            const found = roleRecords.map((r) => r.name);
+            const invalid = roles.filter((r) => !found.includes(r));
+            throw new AppError(`Unknown roles: ${invalid.join(', ')}`, 400);
+        }
+
+        // Replace all roles atomically
+        await prisma.$transaction([
+            prisma.userRole.deleteMany({ where: { userId: id } }),
+            prisma.userRole.createMany({
+                data: roleRecords.map((r) => ({ userId: id, roleId: r.id })),
+            }),
+        ]);
+
+        // Force-revoke active tokens so new roles take effect immediately
+        await tokenService.revokeAllForUser(id);
+
+        const updated = await prisma.user.findUnique({
+            where: { id },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!updated) throw new AppError('User not found after role update', 500);
+
+        res.json({
+            status: 'success',
+            data: {
+                user: {
+                    id: updated.id,
+                    email: updated.email,
+                    roles: updated.roles.map((ur: { role: { name: string } }) => ur.role.name),
+                },
+            },
+        });
+    });
+
+    /**
+     * List all available roles (Admin only)
+     */
+    listRoles = asyncHandler(async (_req: AuthRequest, res: Response) => {
+        const roles = await prisma.role.findMany({
+            orderBy: { name: 'asc' },
+        });
+        res.json({ status: 'success', data: { roles } });
+    });
+
+    createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { firstName, lastName, email, department } = req.body;
+
+        if (!firstName || !lastName || !email) {
+            throw new AppError('firstName, lastName, and email are required', 400);
+        }
+
+        const normalizedEmail = email.trim().toLowerCase();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(normalizedEmail)) {
+            throw new AppError('Invalid email format', 400);
+        }
+
+        const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        if (existing) {
+            throw new AppError('Email already in use', 409);
+        }
+
+        const TEMP_PASSWORD = 'abc@123';
+        const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
+
+        const userRole = await prisma.role.findFirst({ where: { name: 'USER' } });
+        if (!userRole) throw new AppError('USER role not found in database', 500);
+
+        const newUser = await prisma.user.create({
+            data: {
+                firstName,
+                lastName,
+                email: normalizedEmail,
+                passwordHash: hashedPassword,
+                department: department || null,
+                isActive: true,
+                roles: {
+                    create: { roleId: userRole.id },
+                },
+            },
+            include: {
+                roles: { include: { role: true } },
+            },
+        });
+
+        res.status(201).json({
+            status: 'success',
+            data: {
+                user: {
+                    id: newUser.id,
+                    firstName: newUser.firstName,
+                    lastName: newUser.lastName,
+                    email: newUser.email,
+                    department: newUser.department,
+                    roles: (newUser as any).roles.map((ur: any) => ur.role.name),
+                },
+                tempPassword: TEMP_PASSWORD,
+            },
         });
     });
 }

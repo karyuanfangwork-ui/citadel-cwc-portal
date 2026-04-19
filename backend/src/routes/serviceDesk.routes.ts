@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { serviceDeskController } from '../controllers/serviceDesk.controller';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, authorize, optionalAuth } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -9,31 +9,38 @@ const router = Router();
  * @desc    Get all service desks
  * @access  Public
  */
-router.get('/', serviceDeskController.getAllServiceDesks);
+router.get('/', optionalAuth, serviceDeskController.getAllServiceDesks);
 
 /**
  * @route   GET /api/v1/service-desks/:id
  * @desc    Get service desk by ID
  * @access  Public
  */
-router.get('/:id', serviceDeskController.getServiceDeskById);
+router.get('/:id', optionalAuth, serviceDeskController.getServiceDeskById);
 
 /**
  * @route   GET /api/v1/service-desks/:id/categories
  * @desc    Get categories for a service desk
  * @access  Public
  */
-router.get('/:id/categories', serviceDeskController.getCategories);
+router.get('/:id/categories', optionalAuth, serviceDeskController.getCategories);
 
 /**
  * @route   GET /api/v1/service-desks/:id/request-types
  * @desc    Get request types for a service desk
  * @access  Public
  */
-router.get('/:id/request-types', serviceDeskController.getRequestTypes);
+router.get('/:id/request-types', optionalAuth, serviceDeskController.getRequestTypes);
 
 // Admin routes
 router.use(authenticate, authorize('ADMIN'));
+
+/**
+ * @route   GET /api/v1/service-desks/:id/categories/all
+ * @desc    Get ALL categories for a service desk (including inactive) — admin only
+ * @access  Private (Admin only)
+ */
+router.get('/:id/categories/all', serviceDeskController.getAllCategoriesAdmin);
 
 /**
  * @route   POST /api/v1/service-desks

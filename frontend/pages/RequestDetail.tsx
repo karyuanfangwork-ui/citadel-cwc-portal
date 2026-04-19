@@ -6,7 +6,16 @@ import interviewService from '../src/services/interview.service';
 import screeningService from '../src/services/screening.service';
 import loaService from '../src/services/loa.service';
 import { useAuth } from '../src/context/AuthContext';
+import financeWorkflowService from '../src/services/finance-workflow.service';
 import { STATUS_CONFIG } from '../constants';
+import { getValidNextStatuses } from '../src/utils/workflowTransitions';
+import OnboardingDashboard from '../src/components/OnboardingDashboard';
+import ActionBanner from '../src/components/request-detail/ActionBanner';
+import { detectRequestRole, isHiringRequest } from '../src/utils/roleDetection';
+import SLAIndicator from '../src/components/request-detail/SLAIndicator';
+import CustomFieldsPanel from '../src/components/request-detail/CustomFieldsPanel';
+import ActionSidebar from '../src/components/request-detail/ActionSidebar';
+import ActivityFeed from '../src/components/request-detail/ActivityFeed';
 import {
   RequestStatus,
   InterviewSchedule,
@@ -31,6 +40,12 @@ interface Request {
     name: string;
     code: string;
   };
+  requestType?: {
+    id: string;
+    name: string;
+    formConfig?: any[];
+    requiresApproval?: boolean;
+  };
   requester?: {
     id: string;
     firstName: string;
@@ -44,11 +59,16 @@ interface Request {
     email: string;
   };
   requesterId: string;
+  slaDueAt?: string | null;
+  approvals?: { id: string; approverId: string; approverType: string; status: string }[];
   candidateResumes?: CandidateResume[];
   interviewSchedule?: InterviewSchedule;
   interviewFeedback?: InterviewFeedback;
   hrScreening?: HRScreening;
   letterOfAcceptance?: LetterOfAcceptance;
+  parentRequestId?: string;
+  parentRequest?: { id: string; referenceNumber: string; summary: string; status: string };
+  childRequests?: { id: string; referenceNumber: string; summary: string; status: string }[];
 }
 
 interface Activity {
@@ -69,9 +89,6 @@ const RequestDetail = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [comment, setComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [assigning, setAssigning] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [resolutionComment, setResolutionComment] = useState('');
@@ -89,6 +106,7 @@ const RequestDetail = () => {
 
   // New Hiring Workflow states
   const [showScheduleInterviewModal, setShowScheduleInterviewModal] = useState(false);
+  const [showEditInterviewModal, setShowEditInterviewModal] = useState(false);
   const [showInterviewFeedbackModal, setShowInterviewFeedbackModal] = useState(false);
   const [showHRScreeningModal, setShowHRScreeningModal] = useState(false);
   const [showUploadLOAModal, setShowUploadLOAModal] = useState(false);
@@ -110,6 +128,7 @@ const RequestDetail = () => {
 
   const fetchRequestData = async () => {
     try {
+      console.log('🔍 fetchRequestData called for request ID:', id);
       setLoading(true);
       setError(null);
 
@@ -117,6 +136,9 @@ const RequestDetail = () => {
         requestService.getRequestById(id!),
         requestService.getRequestActivities(id!),
       ]);
+
+      console.log('✅ Request data loaded:', requestData);
+      console.log('✅ Activities loaded:', activitiesData);
 
       setRequest(requestData);
       setActivities(activitiesData);
@@ -128,12 +150,16 @@ const RequestDetail = () => {
 
       // Fetch additional workflow details based on status
       if (id) {
-        fetchWorkflowDetails(id, requestData.status);
+        console.log('📋 Fetching workflow details for status:', requestData.status);
+        await fetchWorkflowDetails(id, requestData.status);
       }
+
+      console.log('✅ fetchRequestData completed successfully');
     } catch (err: any) {
-      console.error('Error fetching request:', err);
+      console.error('❌ Error fetching request:', err);
       setError(err.message || 'Failed to load request');
     } finally {
+      console.log('🏁 Setting loading to false');
       setLoading(false);
     }
   };
@@ -141,7 +167,7 @@ const RequestDetail = () => {
   const fetchWorkflowDetails = async (requestId: string, status: string) => {
     try {
       // Interviews
-      if (['INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED', 'RESOLVED'].includes(status)) {
+      if (['INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED', 'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1', 'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION', 'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE', 'ONBOARDING_COMPLETED'].includes(status)) {
         const data = await interviewService.getInterviewDetails(requestId);
 
         // Final fallback for interviewers
@@ -157,7 +183,7 @@ const RequestDetail = () => {
       }
 
       // Screening
-      if (['HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED'].includes(status)) {
+      if (['HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED', 'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1', 'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION', 'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE', 'ONBOARDING_COMPLETED'].includes(status)) {
         const data = await screeningService.getScreeningDetails(requestId);
 
         // Final fallback for referencesContacted
@@ -173,52 +199,12 @@ const RequestDetail = () => {
       }
 
       // LOA
-      if (['LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED'].includes(status)) {
+      if (['LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED', 'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1', 'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION', 'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE', 'ONBOARDING_COMPLETED'].includes(status)) {
         const data = await loaService.getLOADetails(requestId);
         setLoaDetails(data);
       }
     } catch (error) {
       console.error('Error fetching workflow details:', error);
-    }
-  };
-
-  const handleSubmitComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!comment.trim() || !id) return;
-
-    try {
-      setSubmitting(true);
-      const newActivity = await requestService.addActivity(id, comment, false);
-
-      // Add the new activity to the list
-      setActivities([...activities, newActivity]);
-      setComment('');
-    } catch (err: any) {
-      console.error('Error adding comment:', err);
-      alert('Failed to add comment: ' + (err.message || 'Unknown error'));
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleAssignToSelf = async () => {
-    if (!id || !user?.id) return;
-
-    try {
-      setAssigning(true);
-      const updatedRequest = await requestService.assignRequest(id, user.id);
-
-      // Update the request with the new assignment
-      setRequest(updatedRequest);
-
-      // Refresh activities to show the assignment event
-      const updatedActivities = await requestService.getRequestActivities(id);
-      setActivities(updatedActivities);
-    } catch (err: any) {
-      console.error('Error assigning request:', err);
-      alert('Failed to assign request: ' + (err.message || 'Unknown error'));
-    } finally {
-      setAssigning(false);
     }
   };
 
@@ -421,6 +407,21 @@ const RequestDetail = () => {
   };
 
   // Interview Handlers
+  const handleUpdateInterview = async (interviewData: any) => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      await interviewService.updateInterview(id, interviewData);
+      await fetchRequestData();
+      setShowEditInterviewModal(false);
+      alert('Interview details updated successfully');
+    } catch (error: any) {
+      alert(error.message || 'Failed to update interview details');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
   const handleScheduleInterview = async (interviewData: any) => {
     if (!id) return;
     try {
@@ -560,11 +561,15 @@ const RequestDetail = () => {
     try {
       setProcessingAction(true);
       await loaService.markAccepted(id);
+
+      // Refetch the request data to get updated status and onboarding info
       await fetchRequestData();
-      alert('Hiring process complete! LOA marked as accepted.');
+
+      alert('Hiring process complete! LOA marked as accepted. Onboarding workflow has been created.');
+      setProcessingAction(false);
     } catch (error: any) {
+      console.error('Error marking LOA as accepted:', error);
       alert(error.message || 'Failed to mark LOA as accepted');
-    } finally {
       setProcessingAction(false);
     }
   };
@@ -582,7 +587,19 @@ const RequestDetail = () => {
   };
 
   const getStatusSteps = (currentStatus: string) => {
-    const isHiringWorkflow = request?.serviceDesk?.code === 'HR';
+    // Only show hiring stepper for actual hiring workflow statuses
+    const hiringStatuses = [
+      'PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED',
+      'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED',
+      'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'CANDIDATE_REJECTED_INTERVIEW',
+      'HR_SCREENING', 'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED',
+      'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL',
+      'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1',
+      'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION',
+      'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE',
+      'ONBOARDING_MONTH_3_MILESTONE', 'ONBOARDING_COMPLETED'
+    ];
+    const isHiringWorkflow = request?.serviceDesk?.code === 'HR' && hiringStatuses.includes(currentStatus);
 
     if (isHiringWorkflow) {
       const allSteps = [
@@ -593,7 +610,8 @@ const RequestDetail = () => {
         { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'event' },
         { label: 'Screening', status: 'HR_SCREENING', icon: 'fact_check' },
         { label: 'LOA', status: 'LOA_PENDING_APPROVAL', icon: 'article' },
-        { label: 'Complete', status: 'RESOLVED', icon: 'stars' },
+        { label: 'Hiring Complete', status: 'COMPLETED', icon: 'stars' },
+        { label: 'Onboarding', status: 'ONBOARDING_SUBMITTED', icon: 'badge' },
       ];
 
       const statusOrder = [
@@ -610,7 +628,64 @@ const RequestDetail = () => {
         'LOA_APPROVED',
         'LOA_ISSUED',
         'LOA_ACCEPTED',
-        'RESOLVED'
+        'COMPLETED',
+        // Onboarding statuses
+        'ONBOARDING_SUBMITTED',
+        'ONBOARDING_PENDING_HR_APPROVAL',
+        'ONBOARDING_PRE_ARRIVAL_SETUP',
+        'ONBOARDING_READY_FOR_DAY_1',
+        'ONBOARDING_DAY_1_ORIENTATION',
+        'ONBOARDING_WEEK_1_INTEGRATION',
+        'ONBOARDING_MONTH_1_MILESTONE',
+        'ONBOARDING_MONTH_2_MILESTONE',
+        'ONBOARDING_MONTH_3_MILESTONE',
+        'ONBOARDING_COMPLETED'
+      ];
+
+      const currentIndex = statusOrder.indexOf(currentStatus);
+
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    const itProcurementStatuses = [
+      'ACKNOWLEDGED_IT', 'PENDING_CEO_APPROVAL_IT', 'CEO_APPROVED_IT', 'CEO_REJECTED_IT',
+      'PENDING_CTO_APPROVAL_IT', 'CTO_APPROVED_IT', 'CTO_REJECTED_IT', 'PENDING_INVOICE_IT',
+      'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'CFO_REJECTED_IT', 'PAYMENT_PROCESSING_IT',
+      'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT',
+    ];
+    const itProcurementRequestTypes = ['new hardware', 'Software Installation'];
+    const isITProcurementType = itProcurementRequestTypes.some(t => (request?.requestTypeName ?? '').toLowerCase().includes(t.toLowerCase()));
+    const isITProcurement =
+      request?.serviceDesk?.code === 'IT' &&
+      (itProcurementStatuses.includes(currentStatus) ||
+        (isITProcurementType && (currentStatus === 'SUBMITTED' || currentStatus === 'RESOLVED')));
+
+    if (isITProcurement) {
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'Acknowledged', status: 'ACKNOWLEDGED_IT', icon: 'task_alt' },
+        { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL_IT', icon: 'verified_user' },
+        { label: 'CTO Approval', status: 'PENDING_CTO_APPROVAL_IT', icon: 'engineering' },
+        { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'receipt_long' },
+        { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_IT', icon: 'account_balance' },
+        { label: 'Payment', status: 'PAYMENT_PROCESSING_IT', icon: 'payments' },
+        { label: 'Pending Delivery', status: 'PENDING_DELIVERY_IT', icon: 'local_shipping' },
+        { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+      ];
+
+      const statusOrder = [
+        'SUBMITTED',
+        'ACKNOWLEDGED_IT',
+        'PENDING_CEO_APPROVAL_IT', 'CEO_APPROVED_IT', 'CEO_REJECTED_IT',
+        'PENDING_CTO_APPROVAL_IT', 'CTO_APPROVED_IT', 'CTO_REJECTED_IT',
+        'PENDING_INVOICE_IT',
+        'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'CFO_REJECTED_IT',
+        'PAYMENT_PROCESSING_IT', 'PAYMENT_DONE_IT',
+        'PENDING_DELIVERY_IT',
+        'RESOLVED',
       ];
 
       const currentIndex = statusOrder.indexOf(currentStatus);
@@ -663,9 +738,29 @@ const RequestDetail = () => {
 
   const steps = getStatusSteps(request.status);
 
+  const currentRole = detectRequestRole({
+    userRoles: user?.roles || [],
+    userId: user?.id || '',
+    requesterId: request.requesterId || request.requester?.id || '',
+    requestStatus: request.status,
+    serviceDeskCode: request.serviceDesk?.code || '',
+  });
+
+  // Build timestamp map from status change activities
+  const statusTimestamps: Record<string, string> = {};
+  activities
+    .filter(a => a.activityType === 'STATUS_CHANGE' || (a.isSystemGenerated && a.message.includes('status')))
+    .forEach(a => {
+      const match = a.message.match(/status.*?to\s+(\w+)/i) || a.message.match(/(\w+_?\w+)/);
+      if (match) {
+        statusTimestamps[match[1]] = a.createdAt;
+      }
+    });
+  statusTimestamps['SUBMITTED'] = request.createdAt;
+
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
-      <nav className="flex items-center gap-2 mb-6 text-sm font-medium text-[#5e718d]">
+      <nav className="flex items-center gap-2 mb-6 text-sm font-medium text-[#44546f]">
         <Link to="/" className="hover:text-[#0052cc]">
           Help Center
         </Link>
@@ -692,6 +787,11 @@ const RequestDetail = () => {
                   {step.icon}
                 </span>
                 <span className="text-xs font-bold uppercase tracking-wider">{step.label}</span>
+                {step.active && statusTimestamps[step.status] && (
+                  <span className="text-[9px] text-[#8993a4] font-normal">
+                    {new Date(statusTimestamps[step.status]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                )}
               </div>
               {idx < steps.length - 1 && (
                 <div
@@ -704,8 +804,49 @@ const RequestDetail = () => {
         </div>
       </div>
 
-      {/* Resolution Summary - Only show for RESOLVED tickets */}
-      {request.status === 'RESOLVED' && (() => {
+      <ActionBanner
+        role={currentRole}
+        status={request.status}
+        assignedToName={request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}` : undefined}
+        onActionClick={() => {
+          if (currentRole === 'agent' && request.status === 'MANAGER_APPROVED') {
+            setShowScheduleInterviewModal(true);
+          } else if (currentRole === 'hiring_manager' && request.status === 'INTERVIEW_SCHEDULED') {
+            setShowInterviewFeedbackModal(true);
+          } else if (currentRole === 'agent' && request.status === 'INTERVIEW_FEEDBACK_PENDING') {
+            handleStartHRScreening();
+          } else if (currentRole === 'hiring_manager' && request.status === 'LOA_PENDING_APPROVAL') {
+            setShowLOAApprovalModal(true);
+          } else if (currentRole === 'agent' && request.status === 'LOA_APPROVED') {
+            handleMarkLOAIssued();
+          } else {
+            const actionsSection = document.querySelector('[data-actions-sidebar]');
+            if (actionsSection) actionsSection.scrollIntoView({ behavior: 'smooth' });
+          }
+        }}
+      />
+
+      {/* Child Requests Banner (Onboarding Tickets Created) */}
+      {request.childRequests && request.childRequests.length > 0 && (
+        <div className="mb-6 flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          <span className="font-medium">Onboarding ticket created:</span>
+          {request.childRequests.map((child, idx) => (
+            <span key={child.id}>
+              {idx > 0 && ', '}
+              <Link
+                to={`/#/requests/${child.id}`}
+                className="font-semibold underline hover:text-green-900"
+              >
+                {child.referenceNumber}
+              </Link>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Resolution Summary - Only show for RESOLVED/COMPLETED tickets */}
+      {(request.status === 'RESOLVED' || request.status === 'COMPLETED') && (() => {
         // Find the most recent non-system comment before the status was changed to RESOLVED
         const resolutionActivity = activities
           .filter(a => !a.isSystemGenerated && a.activityType === 'COMMENT')
@@ -758,13 +899,13 @@ const RequestDetail = () => {
           {/* Request Summary */}
           <section>
             <div className="mb-6">
-              <span className="text-xs font-bold text-[#5e718d] uppercase tracking-widest">
+              <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest">
                 Case Summary
               </span>
               <h1 className="text-3xl font-bold text-[#101418] mt-1">{request.summary}</h1>
             </div>
             <div className="bg-[#f4f5f7] p-8 rounded-xl border border-gray-100">
-              <span className="text-xs font-bold text-[#5e718d] uppercase tracking-widest block mb-4">
+              <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest block mb-4">
                 Description
               </span>
               <p className="text-[#44546f] leading-relaxed text-lg">
@@ -772,34 +913,18 @@ const RequestDetail = () => {
               </p>
             </div>
 
-            {/* Custom Fields - Main Content Display */}
-            {request.customFields && Object.keys(request.customFields).length > 0 && (
-              <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
-                <span className="text-xs font-bold text-[#5e718d] uppercase tracking-widest block mb-6">
-                  Additional Information
-                </span>
-                <dl className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {Object.entries(request.customFields)
-                    .filter(([key, value]) => value !== null && value !== undefined && value !== '')
-                    .map(([key, value]) => (
-                      <div key={key} className="border-l-4 border-[#0052cc] pl-4">
-                        <dt className="text-sm font-bold text-[#5e718d] uppercase tracking-wide mb-2">
-                          {key.replace(/([A-Z_])/g, ' $1').trim().replace(/_/g, ' ')}
-                        </dt>
-                        <dd className="text-lg font-semibold text-[#101418]">
-                          {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
-                        </dd>
-                      </div>
-                    ))}
-                </dl>
-              </div>
-            )}
+            {/* Structured Custom Fields */}
+            <CustomFieldsPanel
+              customFields={request.customFields}
+              serviceDeskCode={request.serviceDesk?.code || ''}
+              formConfig={request.requestType?.formConfig}
+            />
 
-            {/* Candidate Resumes Section - Show when resumes exist */}
-            {resumes.length > 0 && (
+            {/* Candidate Resumes Section - Show when resumes exist and in hiring workflow */}
+            {isHiringRequest(request.serviceDesk?.code || '', request.status) && resumes.length > 0 && (
               <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
                 <div className="flex items-center justify-between mb-6">
-                  <span className="text-xs font-bold text-[#5e718d] uppercase tracking-widest">
+                  <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest">
                     Candidate Resumes ({resumes.length})
                   </span>
                   {request.status === 'JOB_POSTED' && (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && (
@@ -822,11 +947,11 @@ const RequestDetail = () => {
                             <h4 className="font-bold text-[#101418]">
                               {resume.candidateName || 'Unnamed Candidate'}
                             </h4>
-                            <p className="text-sm text-[#5e718d] mt-1">{resume.fileName}</p>
+                            <p className="text-sm text-[#44546f] mt-1">{resume.fileName}</p>
                             {resume.notes && (
                               <p className="text-sm text-[#44546f] mt-2 italic">{resume.notes}</p>
                             )}
-                            <div className="flex items-center gap-4 mt-2 text-xs text-[#5e718d]">
+                            <div className="flex items-center gap-4 mt-2 text-xs text-[#44546f]">
                               <span>Uploaded by {resume.uploadedBy.firstName} {resume.uploadedBy.lastName}</span>
                               <span>•</span>
                               <span>{new Date(resume.createdAt).toLocaleDateString()}</span>
@@ -879,17 +1004,31 @@ const RequestDetail = () => {
               </div>
             )}
 
+            {/* Interview, Screening, and LOA Sections - only for hiring workflow */}
+            {isHiringRequest(request.serviceDesk?.code || '', request.status) && (
+              <>
             {/* Interview Details Section */}
             {interviewDetails?.schedule && (
               <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6 overflow-hidden">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="size-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                    <span className="material-symbols-outlined">calendar_month</span>
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="size-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                      <span className="material-symbols-outlined">calendar_month</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg text-[#101418]">Interview Information</h3>
+                      <p className="text-xs text-[#44546f] uppercase tracking-wider font-semibold">Scheduled Stage</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-lg text-[#101418]">Interview Information</h3>
-                    <p className="text-xs text-[#5e718d] uppercase tracking-wider font-semibold">Scheduled Stage</p>
-                  </div>
+                  {(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && !interviewDetails?.feedback && (
+                    <button
+                      onClick={() => setShowEditInterviewModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">edit</span>
+                      Edit
+                    </button>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -897,33 +1036,49 @@ const RequestDetail = () => {
                     <div className="flex items-start gap-3">
                       <span className="material-symbols-outlined text-gray-400 text-xl">event</span>
                       <div>
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">Date & Time</p>
+                        <p className="text-xs font-bold text-[#44546f] uppercase">Date & Time</p>
                         <p className="font-semibold text-[#101418]">
                           {new Date(interviewDetails.schedule.interviewDate).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at {interviewDetails.schedule.interviewTime}
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex items-start gap-3">
-                      <span className="material-symbols-outlined text-gray-400 text-xl">location_on</span>
-                      <div>
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">Location / Link</p>
-                        {interviewDetails.schedule.meetingLink ? (
+                    {interviewDetails.schedule.meetingLink && (
+                      <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">video_call</span>
+                        <div>
+                          <p className="text-xs font-bold text-[#44546f] uppercase">Meeting Link</p>
                           <a href={interviewDetails.schedule.meetingLink} target="_blank" rel="noreferrer" className="text-[#0052cc] font-semibold hover:underline flex items-center gap-1">
                             Join Meeting <span className="material-symbols-outlined text-xs">open_in_new</span>
                           </a>
-                        ) : (
-                          <p className="font-semibold text-[#101418]">{interviewDetails.schedule.location || 'N/A'}</p>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    )}
+                    {interviewDetails.schedule.location && (
+                      <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">location_on</span>
+                        <div>
+                          <p className="text-xs font-bold text-[#44546f] uppercase">Location</p>
+                          <p className="font-semibold text-[#101418]">{interviewDetails.schedule.location}</p>
+                        </div>
+                      </div>
+                    )}
+                    {!interviewDetails.schedule.meetingLink && !interviewDetails.schedule.location && (
+                      <div className="flex items-start gap-3">
+                        <span className="material-symbols-outlined text-gray-400 text-xl">location_on</span>
+                        <div>
+                          <p className="text-xs font-bold text-[#44546f] uppercase">Location / Link</p>
+                          <p className="font-semibold text-[#101418]">N/A</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-4">
                     <div className="flex items-start gap-3">
                       <span className="material-symbols-outlined text-gray-400 text-xl">group</span>
                       <div>
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">Interviewers</p>
+                        <p className="text-xs font-bold text-[#44546f] uppercase">Interviewers</p>
                         <p className="font-semibold text-[#101418]">
                           {Array.isArray(interviewDetails.schedule.interviewers)
                             ? interviewDetails.schedule.interviewers.join(', ')
@@ -935,7 +1090,7 @@ const RequestDetail = () => {
                       <div className="flex items-start gap-3">
                         <span className="material-symbols-outlined text-gray-400 text-xl">notes</span>
                         <div>
-                          <p className="text-xs font-bold text-[#5e718d] uppercase">Pre-interview Notes</p>
+                          <p className="text-xs font-bold text-[#44546f] uppercase">Pre-interview Notes</p>
                           <p className="text-sm text-[#44546f]">{interviewDetails.schedule.notes}</p>
                         </div>
                       </div>
@@ -957,7 +1112,7 @@ const RequestDetail = () => {
                       <p className="text-[#44546f] italic mb-4">"{interviewDetails.feedback.feedback}"</p>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Overall</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Overall</p>
                           <div className="flex text-amber-500">
                             {[...Array(5)].map((_, i) => (
                               <span key={i} className="material-symbols-outlined text-xs">
@@ -967,15 +1122,15 @@ const RequestDetail = () => {
                           </div>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Technical</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Technical</p>
                           <p className="font-bold text-sm">{interviewDetails.feedback.technicalSkills}/5</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Culture</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Culture</p>
                           <p className="font-bold text-sm">{interviewDetails.feedback.culturalFit}/5</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Comm.</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Comm.</p>
                           <p className="font-bold text-sm">{interviewDetails.feedback.communication}/5</p>
                         </div>
                       </div>
@@ -994,7 +1149,7 @@ const RequestDetail = () => {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-[#101418]">HR Screening Status</h3>
-                    <p className="text-xs text-[#5e718d] uppercase tracking-wider font-semibold">Verification Stage</p>
+                    <p className="text-xs text-[#44546f] uppercase tracking-wider font-semibold">Verification Stage</p>
                   </div>
                 </div>
 
@@ -1002,7 +1157,7 @@ const RequestDetail = () => {
                   <div className="space-y-6">
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">Background Check</p>
+                        <p className="text-xs font-bold text-[#44546f] uppercase">Background Check</p>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${screeningDetails.backgroundCheckStatus === 'PASSED' ? 'bg-green-100 text-green-700' :
                           screeningDetails.backgroundCheckStatus === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
                           }`}>
@@ -1018,7 +1173,7 @@ const RequestDetail = () => {
                   <div className="space-y-6">
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-bold text-[#5e718d] uppercase">References Check</p>
+                        <p className="text-xs font-bold text-[#44546f] uppercase">References Check</p>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${screeningDetails.referencesCheckStatus === 'PASSED' ? 'bg-green-100 text-green-700' :
                           screeningDetails.referencesCheckStatus === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
                           }`}>
@@ -1030,7 +1185,7 @@ const RequestDetail = () => {
                       </p>
                       {Array.isArray(screeningDetails.referencesContacted) && screeningDetails.referencesContacted.length > 0 && (
                         <div>
-                          <p className="text-[10px] font-bold text-[#5e718d] uppercase mb-1">Contacted</p>
+                          <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Contacted</p>
                           <div className="flex flex-wrap gap-2">
                             {screeningDetails.referencesContacted.map((ref, idx) => (
                               <span key={idx} className="bg-white border border-gray-200 px-2 py-1 rounded text-xs font-medium text-[#101418]">
@@ -1055,7 +1210,7 @@ const RequestDetail = () => {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-[#101418]">Letter of Acceptance (LOA)</h3>
-                    <p className="text-xs text-[#5e718d] uppercase tracking-wider font-semibold">Final Stage</p>
+                    <p className="text-xs text-[#44546f] uppercase tracking-wider font-semibold">Final Stage</p>
                   </div>
                 </div>
 
@@ -1068,7 +1223,7 @@ const RequestDetail = () => {
                       </div>
                       <div>
                         <p className="text-sm font-bold text-[#101418]">Draft / Issued LOA</p>
-                        <p className="text-xs text-[#5e718d]">{loaDetails.loaFileName} • {(loaDetails.loaFileSize / 1024).toFixed(1)} KB</p>
+                        <p className="text-xs text-[#44546f]">{loaDetails.loaFileName} • {(loaDetails.loaFileSize / 1024).toFixed(1)} KB</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -1127,417 +1282,410 @@ const RequestDetail = () => {
                 )}
               </div>
             )}
+              </>
+            )}
           </section>
 
-          {/* Communication Timeline */}
-          <section className="space-y-6">
-            <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
-              <span className="material-symbols-outlined text-[#0052cc]">encrypted</span>
-              <h3 className="font-bold text-xl">Secure Communication</h3>
-            </div>
-
-            <div className="space-y-8">
-              {activities.length === 0 ? (
-                <div className="text-center py-8 text-[#5e718d]">
-                  <p>No activities yet</p>
+          {/* Onboarding Workflow Section */}
+          {request?.status && [
+            'ONBOARDING_SUBMITTED',
+            'ONBOARDING_PENDING_HR_APPROVAL',
+            'ONBOARDING_PRE_ARRIVAL_SETUP',
+            'ONBOARDING_READY_FOR_DAY_1',
+            'ONBOARDING_DAY_1_ORIENTATION',
+            'ONBOARDING_WEEK_1_INTEGRATION',
+            'ONBOARDING_MONTH_1_MILESTONE',
+            'ONBOARDING_MONTH_2_MILESTONE',
+            'ONBOARDING_MONTH_3_MILESTONE',
+            'ONBOARDING_COMPLETED'
+          ].includes(request.status) && (
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                  <span className="material-symbols-outlined text-[#0052cc]">badge</span>
+                  <h3 className="font-bold text-xl">Onboarding Workflow</h3>
                 </div>
-              ) : (
-                activities.map((activity, idx) => {
-                  const isUser = activity.authorName === `${user?.firstName} ${user?.lastName}`;
-                  return (
-                    <div key={activity.id} className={`flex gap-4 ${isUser ? 'flex-row-reverse' : ''}`}>
-                      <div
-                        className={`size-10 rounded-full flex items-center justify-center shrink-0 ${isUser
-                          ? 'bg-[#0052cc]/10 text-[#0052cc]'
-                          : 'bg-gray-100 text-[#5e718d]'
-                          }`}
-                      >
-                        <span className="material-symbols-outlined">
-                          {isUser ? 'person' : 'shield_person'}
-                        </span>
-                      </div>
-                      <div className={`flex-1 max-w-xl ${isUser ? 'text-right' : ''}`}>
-                        <div
-                          className={`p-5 rounded-2xl shadow-sm border ${isUser
-                            ? 'bg-blue-50 border-blue-100 rounded-tr-none'
-                            : 'bg-white border-gray-100 rounded-tl-none'
-                            }`}
-                        >
-                          <div className="flex justify-between items-center mb-2 gap-4">
-                            <span className="text-xs font-bold text-[#0052cc]">
-                              {activity.authorName}
-                              {activity.authorRole && ` (${activity.authorRole})`}
-                            </span>
-                            <span className="text-[11px] text-[#5e718d]">
-                              {formatDateTime(activity.createdAt)}
-                            </span>
-                          </div>
-                          <p className="text-sm text-[#44546f] leading-relaxed text-left">
-                            {activity.message}
-                          </p>
-                          {activity.isSystemGenerated && (
-                            <span className="text-[10px] text-[#5e718d] italic mt-2 block">
-                              System generated
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+                <OnboardingDashboard requestId={request.id} />
+              </section>
+            )}
+
+            {/* Finance Workflow Actions */}
+            {request.serviceDesk?.code === 'FINANCE' && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                  <span className="material-symbols-outlined text-[#0052cc]">payments</span>
+                  <h3 className="font-bold text-xl">Finance Workflow</h3>
+                </div>
+
+                {request.status === 'SUBMITTED' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const managerId = prompt('Enter manager user ID (UUID) for approval:');
+                      if (managerId) {
+                        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+                        if (!uuidRegex.test(managerId)) {
+                          alert('Invalid user ID. Please enter a valid UUID (e.g. from the admin panel).');
+                          return;
+                        }
+                        await financeWorkflowService.submitForManager(request.id, managerId);
+                        window.location.reload();
+                      }
+                    }}
+                    className="px-4 py-2 bg-[#0052cc] text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Submit for Manager Approval
+                  </button>
+                )}
+
+                {request.status === 'PENDING_MANAGER_APPROVAL_FIN' && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Approval comments (optional):');
+                        await financeWorkflowService.managerDecision(request.id, 'APPROVED', comments || undefined);
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Reason for rejection:');
+                        if (comments) {
+                          await financeWorkflowService.managerDecision(request.id, 'REJECTED', comments);
+                          window.location.reload();
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+
+                {request.status === 'MANAGER_APPROVED_FIN' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const financeHeadId = prompt('Enter Finance Head user ID:');
+                      if (financeHeadId) {
+                        await financeWorkflowService.submitForFinanceHead(request.id, financeHeadId);
+                        window.location.reload();
+                      }
+                    }}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                  >
+                    Submit for Finance Head Approval
+                  </button>
+                )}
+
+                {request.status === 'PENDING_FINANCE_HEAD_APPROVAL' && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Approval comments (optional):');
+                        await financeWorkflowService.financeHeadDecision(request.id, 'APPROVED', comments || undefined);
+                        window.location.reload();
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const comments = prompt('Reason for rejection:');
+                        if (comments) {
+                          await financeWorkflowService.financeHeadDecision(request.id, 'REJECTED', comments);
+                          window.location.reload();
+                        }
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                )}
+
+                {request.status === 'FINANCE_HEAD_APPROVED' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const paymentReference = prompt('Payment reference (optional):');
+                      await financeWorkflowService.markPayment(request.id, { paymentStatus: 'PROCESSING', paymentReference: paymentReference || undefined });
+                      window.location.reload();
+                    }}
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                  >
+                    Start Payment Processing
+                  </button>
+                )}
+
+                {request.status === 'PAYMENT_PROCESSING' && user?.roles?.includes('ADMIN') && (
+                  <button
+                    onClick={async () => {
+                      const paymentReference = prompt('Payment reference:');
+                      await financeWorkflowService.markPayment(request.id, { paymentStatus: 'COMPLETED', paymentReference: paymentReference || undefined });
+                      window.location.reload();
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Mark Payment Completed
+                  </button>
+                )}
+              </section>
+            )}
+
+          {/* Update Status dropdown — only valid transitions */}
+          {(user?.roles?.includes('ADMIN') || user?.roles?.includes('AGENT')) && getValidNextStatuses(request.status).length > 0 && (
+            <div className="relative">
+              <label className="block text-xs font-bold text-[#44546f] mb-2">Update Status</label>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) handleStatusChange(e.target.value);
+                }}
+                disabled={updatingStatus}
+                className="w-full px-4 py-2.5 text-sm font-semibold text-[#44546f] bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <option value="">Select next status...</option>
+                {getValidNextStatuses(request.status).map(status => (
+                  <option key={status} value={status}>
+                    {STATUS_CONFIG[status as keyof typeof STATUS_CONFIG]?.label || status}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Hiring Workflow Actions for HR Agents */}
+          {request.serviceDesk?.code === 'HR' && (
+            <>
+              {/* Route to CEO - Show when status is SUBMITTED or IN_REVIEW */}
+              {(request.status === 'SUBMITTED' || request.status === 'IN_REVIEW') && (
+                <button
+                  onClick={handleRouteToCEO}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">send</span>
+                  {processingAction ? 'Routing...' : 'Route to CEO'}
+                </button>
               )}
-            </div>
 
-            {/* Add Comment Form */}
-            <form onSubmit={handleSubmitComment} className="mt-8">
-              <div className="bg-white border border-gray-200 rounded-xl p-6">
-                <label className="block text-sm font-bold text-[#101418] mb-3">Add a comment</label>
-                <textarea
-                  className="w-full p-4 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none resize-none"
-                  rows={4}
-                  placeholder="Type your message here..."
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  disabled={submitting}
-                ></textarea>
-                <div className="flex justify-end gap-3 mt-4">
+              {/* Mark Job Posted - Show when status is CEO_APPROVED */}
+              {request.status === 'CEO_APPROVED' && (
+                <button
+                  onClick={() => setShowJobPostModal(true)}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">work</span>
+                  Mark as Job Posted
+                </button>
+              )}
+
+              {/* Upload Resume - Show when status is JOB_POSTED */}
+              {request.status === 'JOB_POSTED' && (
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">upload_file</span>
+                  Upload Candidate Resume
+                </button>
+              )}
+
+              {/* Route to Manager - Show when status is JOB_POSTED and has resumes */}
+              {request.status === 'JOB_POSTED' && resumes.length > 0 && (
+                <button
+                  onClick={handleRouteToManager}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
+                  {processingAction ? 'Routing...' : 'Route to Hiring Manager'}
+                </button>
+              )}
+
+              {/* Schedule Interview - Show when status is MANAGER_APPROVED */}
+              {request.status === 'MANAGER_APPROVED' && (
+                <button
+                  onClick={() => setShowScheduleInterviewModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">calendar_month</span>
+                  Schedule Interview
+                </button>
+              )}
+
+              {/* Start HR Screening - Show when status is INTERVIEW_FEEDBACK_PENDING and decision is PROCEED */}
+              {request.status === 'INTERVIEW_FEEDBACK_PENDING' && interviewDetails?.feedback?.decision === 'PROCEED' && (
+                <button
+                  onClick={handleStartHRScreening}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">play_arrow</span>
+                  {processingAction ? 'Processing...' : 'Start HR Screening'}
+                </button>
+              )}
+
+              {/* Update Screening - Show when status is HR_SCREENING */}
+              {request.status === 'HR_SCREENING' && (
+                <button
+                  onClick={() => setShowHRScreeningModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">edit_note</span>
+                  Update Screening Status
+                </button>
+              )}
+
+              {/* Upload LOA - Show when status is HR_SCREENING and screening is completed */}
+              {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && screeningDetails?.overallStatus === 'COMPLETED' && !loaDetails && (
+                <button
+                  onClick={() => setShowUploadLOAModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">upload_file</span>
+                  Upload LOA Document
+                </button>
+              )}
+
+              {/* Route LOA for Approval - Show when status is HR_SCREENING and LOA is uploaded */}
+              {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && loaDetails && !loaDetails.approvedBy && (
+                <button
+                  onClick={() => handleRouteLOAForApproval()}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">send</span>
+                  {processingAction ? 'Routing...' : 'Route LOA for Approval'}
+                </button>
+              )}
+
+              {/* Issue LOA - Show when status is LOA_APPROVED */}
+              {request.status === 'LOA_APPROVED' && (
+                <button
+                  onClick={handleMarkLOAIssued}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">mail</span>
+                  {processingAction ? 'Processing...' : 'Issue LOA to Candidate'}
+                </button>
+              )}
+
+              {/* Upload Signed LOA - Show when status is LOA_ISSUED */}
+              {request.status === 'LOA_ISSUED' && !loaDetails?.signedLoaFileUrl && (
+                <button
+                  onClick={() => setShowUploadSignedLOAModal(true)}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">upload</span>
+                  Upload Signed LOA
+                </button>
+              )}
+
+              {/* Mark LOA Accepted - Show when status is LOA_ISSUED and signed LOA is uploaded */}
+              {request.status === 'LOA_ISSUED' && loaDetails?.signedLoaFileUrl && (
+                <button
+                  onClick={handleMarkLOAAccepted}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined text-lg">verified</span>
+                  {processingAction ? 'Processing...' : 'Mark LOA Accepted'}
+                </button>
+              )}
+
+              {/* Re-route rejected request - CEO rejected */}
+              {request.status === 'CEO_REJECTED' && (
+                <div className="space-y-2">
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                    <p className="text-xs text-red-700 font-semibold">CEO has rejected this request.</p>
+                  </div>
                   <button
-                    type="button"
-                    className="px-6 py-2 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
-                    onClick={() => setComment('')}
-                    disabled={submitting}
+                    onClick={async () => {
+                      if (!id) return;
+                      try {
+                        setProcessingAction(true);
+                        await requestService.updateStatus(id, 'SUBMITTED' as any);
+                        await fetchRequestData();
+                        alert('Request returned to SUBMITTED for revision');
+                      } catch (err: any) {
+                        alert(err.message || 'Failed to re-open request');
+                      } finally {
+                        setProcessingAction(false);
+                      }
+                    }}
+                    disabled={processingAction}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-[#0052cc] text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={!comment.trim() || submitting}
-                  >
-                    {submitting ? 'Posting...' : 'Post Comment'}
+                    <span className="material-symbols-outlined text-lg">replay</span>
+                    {processingAction ? 'Processing...' : 'Revise & Resubmit'}
                   </button>
                 </div>
-              </div>
-            </form>
-          </section>
+              )}
+
+              {/* Re-open for new candidates after interview rejection */}
+              {request.status === 'CANDIDATE_REJECTED_INTERVIEW' && (
+                <button
+                  onClick={async () => {
+                    if (!id) return;
+                    try {
+                      setProcessingAction(true);
+                      await requestService.updateStatus(id, 'JOB_POSTED' as any);
+                      await fetchRequestData();
+                      alert('Request returned to Job Posted for new candidates');
+                    } catch (err: any) {
+                      alert(err.message || 'Failed');
+                    } finally {
+                      setProcessingAction(false);
+                    }
+                  }}
+                  disabled={processingAction}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-lg">replay</span>
+                  {processingAction ? 'Processing...' : 'Re-open for New Candidates'}
+                </button>
+              )}
+            </>
+          )}
+
+          <ActivityFeed
+            activities={activities}
+            onSubmitComment={async (text, isInternal) => {
+              const newActivity = await requestService.addActivity(id!, text, isInternal);
+              setActivities(prev => [...prev, newActivity]);
+            }}
+            canPostInternal={!!(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN'))}
+          />
         </div>
 
-        {/* Sidebar */}
-        <aside className="w-full lg:w-80 space-y-6">
-          <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-            <h3 className="font-bold mb-6">Request Details</h3>
-            <dl className="space-y-4 text-sm">
-              <div>
-                <dt className="text-[#5e718d] mb-1">Reference Number</dt>
-                <dd className="font-mono font-bold text-[#0052cc]">{request.referenceNumber}</dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Status</dt>
-                <dd>
-                  <span
-                    className={`inline-flex px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[request.status]?.bg || 'bg-gray-100'
-                      } ${STATUS_CONFIG[request.status]?.color || 'text-gray-600'}`}
-                  >
-                    {STATUS_CONFIG[request.status]?.label || request.status}
-                  </span>
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Priority</dt>
-                <dd className="font-semibold">{request.priority}</dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Service Desk</dt>
-                <dd className="font-semibold">{request.serviceDesk?.name || 'N/A'}</dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Requester</dt>
-                <dd className="font-semibold">
-                  {request.requester
-                    ? `${request.requester.firstName} ${request.requester.lastName}`
-                    : 'N/A'}
-                </dd>
-              </div>
-              {request.assignedTo && (
-                <div>
-                  <dt className="text-[#5e718d] mb-1">Assigned To</dt>
-                  <dd className="font-semibold">
-                    {request.assignedTo.firstName} {request.assignedTo.lastName}
-                  </dd>
-                </div>
-              )}
-              <div>
-                <dt className="text-[#5e718d] mb-1">Created</dt>
-                <dd className="font-semibold">{formatDateTime(request.createdAt)}</dd>
-              </div>
-              <div>
-                <dt className="text-[#5e718d] mb-1">Last Updated</dt>
-                <dd className="font-semibold">{formatDateTime(request.updatedAt)}</dd>
-              </div>
-            </dl>
-          </div>
-
-          <div className="bg-white border border-gray-100 rounded-xl p-6 shadow-sm">
-            <h3 className="font-bold mb-4">Actions</h3>
-            <div className="space-y-2">
-              {/* Agent Actions - Show only if user is an agent/admin AND not the requester */}
-              {(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) &&
-                user?.id !== request.requester?.id ? (
-                <>
-                  {/* Assign to Me button - Show only if not assigned */}
-                  {!request.assignedTo && (
-                    <button
-                      onClick={handleAssignToSelf}
-                      disabled={assigning}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-[#0052cc] hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="material-symbols-outlined text-lg">person_add</span>
-                      {assigning ? 'Assigning...' : 'Assign to Me'}
-                    </button>
-                  )}
-
-                  {/* Update Status dropdown */}
-                  <div className="relative">
-                    <label className="block text-xs font-bold text-[#5e718d] mb-2">Update Status</label>
-                    <select
-                      value={request.status}
-                      onChange={(e) => handleStatusChange(e.target.value)}
-                      disabled={updatingStatus}
-                      className="w-full px-4 py-2.5 text-sm font-semibold text-[#44546f] bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <option value="SUBMITTED">Submitted</option>
-                      <option value="IN_REVIEW">In Review</option>
-                      <option value="IN_PROGRESS">In Progress</option>
-                      <option value="ACTION_REQUIRED">Action Required</option>
-                      <option value="WAITING">Waiting</option>
-                      <option value="APPROVED">Approved</option>
-                      <option value="REJECTED">Rejected</option>
-                      <option value="RESOLVED">Resolved</option>
-                    </select>
-                  </div>
-
-                  {/* Hiring Workflow Actions for HR Agents */}
-                  {request.serviceDesk?.code === 'HR' && (
-                    <>
-                      {/* Route to CEO - Show when status is SUBMITTED or IN_REVIEW */}
-                      {(request.status === 'SUBMITTED' || request.status === 'IN_REVIEW') && (
-                        <button
-                          onClick={handleRouteToCEO}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">send</span>
-                          {processingAction ? 'Routing...' : 'Route to CEO'}
-                        </button>
-                      )}
-
-                      {/* Mark Job Posted - Show when status is CEO_APPROVED */}
-                      {request.status === 'CEO_APPROVED' && (
-                        <button
-                          onClick={() => setShowJobPostModal(true)}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">work</span>
-                          Mark as Job Posted
-                        </button>
-                      )}
-
-                      {/* Upload Resume - Show when status is JOB_POSTED */}
-                      {request.status === 'JOB_POSTED' && (
-                        <button
-                          onClick={() => setShowUploadModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">upload_file</span>
-                          Upload Candidate Resume
-                        </button>
-                      )}
-
-                      {/* Route to Manager - Show when status is JOB_POSTED and has resumes */}
-                      {request.status === 'JOB_POSTED' && resumes.length > 0 && (
-                        <button
-                          onClick={handleRouteToManager}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
-                          {processingAction ? 'Routing...' : 'Route to Hiring Manager'}
-                        </button>
-                      )}
-
-                      {/* NEW WORKFLOW ACTIONS FOR AGENTS */}
-
-                      {/* Schedule Interview - Show when status is MANAGER_APPROVED */}
-                      {request.status === 'MANAGER_APPROVED' && (
-                        <button
-                          onClick={() => setShowScheduleInterviewModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">calendar_month</span>
-                          Schedule Interview
-                        </button>
-                      )}
-
-                      {/* Start HR Screening - Show when status is INTERVIEW_FEEDBACK_PENDING and decision is PROCEED */}
-                      {request.status === 'INTERVIEW_FEEDBACK_PENDING' && interviewDetails?.feedback?.decision === 'PROCEED' && (
-                        <button
-                          onClick={handleStartHRScreening}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">play_arrow</span>
-                          {processingAction ? 'Processing...' : 'Start HR Screening'}
-                        </button>
-                      )}
-
-                      {/* Update Screening - Show when status is HR_SCREENING */}
-                      {request.status === 'HR_SCREENING' && (
-                        <button
-                          onClick={() => setShowHRScreeningModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">edit_note</span>
-                          Update Screening Status
-                        </button>
-                      )}
-
-                      {/* Upload LOA - Show when status is HR_SCREENING and screening is completed */}
-                      {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && screeningDetails?.overallStatus === 'COMPLETED' && !loaDetails && (
-                        <button
-                          onClick={() => setShowUploadLOAModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">upload_file</span>
-                          Upload LOA Document
-                        </button>
-                      )}
-
-                      {/* Route LOA for Approval - Show when status is HR_SCREENING and LOA is uploaded */}
-                      {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && loaDetails && !loaDetails.approvedBy && (
-                        <button
-                          onClick={() => handleRouteLOAForApproval()}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">send</span>
-                          {processingAction ? 'Routing...' : 'Route LOA for Approval'}
-                        </button>
-                      )}
-
-                      {/* Issue LOA - Show when status is LOA_APPROVED */}
-                      {request.status === 'LOA_APPROVED' && (
-                        <button
-                          onClick={handleMarkLOAIssued}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">mail</span>
-                          {processingAction ? 'Processing...' : 'Issue LOA to Candidate'}
-                        </button>
-                      )}
-
-                      {/* Upload Signed LOA - Show when status is LOA_ISSUED */}
-                      {request.status === 'LOA_ISSUED' && !loaDetails?.signedLoaFileUrl && (
-                        <button
-                          onClick={() => setShowUploadSignedLOAModal(true)}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-lg">upload</span>
-                          Upload Signed LOA
-                        </button>
-                      )}
-
-                      {/* Mark LOA Accepted - Show when status is LOA_ISSUED and signed LOA is uploaded */}
-                      {request.status === 'LOA_ISSUED' && loaDetails?.signedLoaFileUrl && (
-                        <button
-                          onClick={handleMarkLOAAccepted}
-                          disabled={processingAction}
-                          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <span className="material-symbols-outlined text-lg">verified</span>
-                          {processingAction ? 'Processing...' : 'Mark LOA Accepted'}
-                        </button>
-                      )}
-                    </>
-                  )}
-
-                  <div className="h-px bg-gray-200 my-2"></div>
-                </>
-              ) : null}
-
-              {/* CEO Actions */}
-              {user?.roles?.includes('CEO') && request.status === 'PENDING_CEO_APPROVAL' && (
-                <>
-                  <button
-                    onClick={() => setShowCEODecisionModal(true)}
-                    disabled={processingAction}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <span className="material-symbols-outlined text-lg">check_circle</span>
-                    {processingAction ? 'Processing...' : 'Review Request'}
-                  </button>
-                  <div className="h-px bg-gray-200 my-2"></div>
-                </>
-              )}
-
-              {/* Hiring Manager Actions (Requester) */}
-              {user?.id === request.requester?.id && (
-                <>
-                  {/* Candidate Selection Review */}
-                  {request.status === 'PENDING_MANAGER_REVIEW' && (
-                    <button
-                      onClick={() => setShowManagerDecisionModal(true)}
-                      disabled={processingAction}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="material-symbols-outlined text-lg">rate_review</span>
-                      {processingAction ? 'Processing...' : 'Review Candidates'}
-                    </button>
-                  )}
-
-                  {/* Submit Interview Feedback */}
-                  {request.status === 'INTERVIEW_SCHEDULED' && (
-                    <button
-                      onClick={() => setShowInterviewFeedbackModal(true)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-lg">feedback</span>
-                      Submit Interview Feedback
-                    </button>
-                  )}
-
-                  {/* LOA Approval Decision */}
-                  {request.status === 'LOA_PENDING_APPROVAL' && loaDetails && (
-                    <button
-                      onClick={() => setShowLOAApprovalModal(true)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-lg">fact_check</span>
-                      Approve/Reject LOA
-                    </button>
-                  )}
-
-                  {request.status !== 'SUBMITTED' && <div className="h-px bg-gray-200 my-2"></div>}
-                </>
-              )}
-
-              {/* Common Actions */}
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors">
-                <span className="material-symbols-outlined text-lg">attach_file</span>
-                Add Attachment
-              </button>
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors">
-                <span className="material-symbols-outlined text-lg">share</span>
-                Share Request
-              </button>
-              <button className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[#44546f] hover:bg-gray-50 rounded-lg transition-colors">
-                <span className="material-symbols-outlined text-lg">print</span>
-                Print Details
-              </button>
-            </div>
-          </div>
-        </aside>
+        <div data-actions-sidebar>
+          <ActionSidebar
+            requestId={request.id}
+            status={request.status}
+            userRoles={user?.roles || []}
+            userId={user?.id || ''}
+            userName={user ? `${user.firstName} ${user.lastName}` : ''}
+            assignedTo={request.assignedTo || null}
+            approvals={request.approvals || []}
+            requestTypeName={request.requestType?.name || ''}
+            referenceNumber={request.referenceNumber}
+            priority={request.priority}
+            serviceDeskName={request.serviceDesk?.name || ''}
+            requesterName={request.requester ? `${request.requester.firstName} ${request.requester.lastName}` : ''}
+            requesterId={request.requesterId || request.requester?.id || ''}
+            createdAt={request.createdAt}
+            slaDueAt={request.slaDueAt}
+            serviceDeskCode={request.serviceDesk?.code || ''}
+            requiresApproval={request.requestType?.requiresApproval ?? true}
+            attachments={request.attachments || []}
+            onActionSuccess={fetchRequestData}
+            onLOAApproval={() => setShowLOAApprovalModal(true)}
+          />
+        </div>
       </div>
 
       {/* Resolution Modal */}
@@ -1552,7 +1700,7 @@ const RequestDetail = () => {
                 </div>
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold text-[#101418] mb-2">Add Resolution Comment</h2>
-                  <p className="text-sm text-[#5e718d]">
+                  <p className="text-sm text-[#44546f]">
                     You're about to mark this request as <span className="font-bold text-green-600">RESOLVED</span>.
                     Please document what was done to resolve this issue.
                   </p>
@@ -1577,7 +1725,7 @@ const RequestDetail = () => {
               {/* Resolution Comment Textarea */}
               <div className="mb-6">
                 <label className="block text-sm font-bold text-[#101418] mb-3">
-                  Resolution Details <span className="text-[#5e718d] font-normal">(Recommended)</span>
+                  Resolution Details <span className="text-[#44546f] font-normal">(Recommended)</span>
                 </label>
                 <textarea
                   className="w-full p-4 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none resize-none"
@@ -1587,7 +1735,7 @@ const RequestDetail = () => {
                   onChange={(e) => setResolutionComment(e.target.value)}
                   disabled={updatingStatus}
                 ></textarea>
-                <p className="text-xs text-[#5e718d] mt-2">
+                <p className="text-xs text-[#44546f] mt-2">
                   Include: What was done, outcome, next steps (if any), and reference numbers
                 </p>
               </div>
@@ -1644,7 +1792,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Resume File (PDF, DOC, DOCX) *
                     </label>
                     <input
@@ -1656,7 +1804,7 @@ const RequestDetail = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Candidate Name
                     </label>
                     <input
@@ -1667,7 +1815,7 @@ const RequestDetail = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Notes (Optional)
                     </label>
                     <textarea
@@ -1715,7 +1863,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Job Posting URL
                     </label>
                     <input
@@ -1726,7 +1874,7 @@ const RequestDetail = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Notes
                     </label>
                     <textarea
@@ -1774,7 +1922,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Decision *
                     </label>
                     <select
@@ -1788,7 +1936,7 @@ const RequestDetail = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Comments
                     </label>
                     <textarea
@@ -1838,7 +1986,7 @@ const RequestDetail = () => {
                 <div className="space-y-4">
                   {resumes.length > 0 && (
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">
                         Select Candidate (if approving)
                       </label>
                       <select
@@ -1855,7 +2003,7 @@ const RequestDetail = () => {
                     </div>
                   )}
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Decision *
                     </label>
                     <select
@@ -1869,7 +2017,7 @@ const RequestDetail = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">
                       Comments
                     </label>
                     <textarea
@@ -1926,7 +2074,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Select Candidate *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Select Candidate *</label>
                     <select
                       name="candidateId"
                       required
@@ -1943,26 +2091,116 @@ const RequestDetail = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Date *</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Date *</label>
                       <input type="date" name="interviewDate" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Time *</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Time *</label>
                       <input type="time" name="interviewTime" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Interviewers (comma separated) *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Interviewers (comma separated) *</label>
                     <input type="text" name="interviewers" placeholder="e.g. Jane Smith, Robert Brown" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Meeting Link / Location</label>
-                    <input type="text" name="meetingLink" placeholder="Zoom Link or Meeting Room" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Microsoft Teams / Meeting Link</label>
+                    <input type="url" name="meetingLink" placeholder="https://teams.microsoft.com/..." className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Physical Location</label>
+                    <input type="text" name="location" placeholder="e.g. Meeting Room A, Level 3" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
                   <button type="button" onClick={() => setShowScheduleInterviewModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
                   <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg">{processingAction ? 'Scheduling...' : 'Schedule'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Interview Modal */}
+      {showEditInterviewModal && interviewDetails?.schedule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+            <div className="p-8">
+              <h2 className="text-2xl font-bold mb-1">Edit Interview Details</h2>
+              <p className="text-sm text-[#44546f] mb-6">Update interview information to fix any errors.</p>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const interviewData = {
+                  interviewDate: formData.get('interviewDate') as string,
+                  interviewTime: formData.get('interviewTime') as string,
+                  location: formData.get('location') as string,
+                  meetingLink: formData.get('meetingLink') as string,
+                  interviewers: (formData.get('interviewers') as string).split(',').map(i => i.trim()).filter(Boolean),
+                  notes: formData.get('notes') as string,
+                };
+                handleUpdateInterview(interviewData);
+              }}>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Date *</label>
+                      <input
+                        type="date" name="interviewDate" required
+                        defaultValue={new Date(interviewDetails.schedule.interviewDate).toISOString().split('T')[0]}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Time *</label>
+                      <input
+                        type="time" name="interviewTime" required
+                        defaultValue={interviewDetails.schedule.interviewTime}
+                        className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Interviewers (comma separated) *</label>
+                    <input
+                      type="text" name="interviewers" required
+                      defaultValue={Array.isArray(interviewDetails.schedule.interviewers) ? interviewDetails.schedule.interviewers.join(', ') : String(interviewDetails.schedule.interviewers)}
+                      placeholder="e.g. Jane Smith, Robert Brown"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Microsoft Teams / Meeting Link</label>
+                    <input
+                      type="url" name="meetingLink"
+                      defaultValue={interviewDetails.schedule.meetingLink || ''}
+                      placeholder="https://teams.microsoft.com/..."
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Physical Location</label>
+                    <input
+                      type="text" name="location"
+                      defaultValue={interviewDetails.schedule.location || ''}
+                      placeholder="e.g. Meeting Room A, Level 3"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Notes</label>
+                    <textarea
+                      name="notes" rows={2}
+                      defaultValue={interviewDetails.schedule.notes || ''}
+                      placeholder="Any notes for the candidate or panel..."
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-3 mt-6">
+                  <button type="button" onClick={() => setShowEditInterviewModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
+                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg">{processingAction ? 'Saving...' : 'Save Changes'}</button>
                 </div>
               </form>
             </div>
@@ -1991,7 +2229,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Final Decision *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Final Decision *</label>
                     <select name="decision" required className="w-full px-4 py-2 border border-gray-200 rounded-lg">
                       <option value="PROCEED">Proceed to Screening</option>
                       <option value="REJECT">Reject Candidate</option>
@@ -1999,16 +2237,16 @@ const RequestDetail = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Technical Skills (1-5)</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Technical Skills (1-5)</label>
                       <input type="number" name="technicalSkills" min="1" max="5" defaultValue="3" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Cultural Fit (1-5)</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Cultural Fit (1-5)</label>
                       <input type="number" name="culturalFit" min="1" max="5" defaultValue="3" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Overall Feedback *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Overall Feedback *</label>
                     <textarea name="feedback" required rows={4} className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
                   </div>
                 </div>
@@ -2045,7 +2283,7 @@ const RequestDetail = () => {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">BG Check Status</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">BG Check Status</label>
                       <select name="bgStatus" defaultValue={screeningDetails?.backgroundCheckStatus || "PENDING"} className="w-full px-4 py-2 border border-gray-200 rounded-lg">
                         <option value="PENDING">Pending</option>
                         <option value="PASSED">Passed</option>
@@ -2053,7 +2291,7 @@ const RequestDetail = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-[#5e718d] mb-2">Ref Check Status</label>
+                      <label className="block text-sm font-bold text-[#44546f] mb-2">Ref Check Status</label>
                       <select name="refStatus" defaultValue={screeningDetails?.referencesCheckStatus || "PENDING"} className="w-full px-4 py-2 border border-gray-200 rounded-lg">
                         <option value="PENDING">Pending</option>
                         <option value="PASSED">Passed</option>
@@ -2063,22 +2301,22 @@ const RequestDetail = () => {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Background Check Notes</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Background Check Notes</label>
                     <textarea name="bgNotes" rows={2} defaultValue={screeningDetails?.backgroundCheckNotes || ""} placeholder="Observations from BG check..." className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">References Check Notes</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">References Check Notes</label>
                     <textarea name="refNotes" rows={2} defaultValue={screeningDetails?.referencesCheckNotes || ""} placeholder="Feedback from references..." className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">References Contacted (comma separated)</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">References Contacted (comma separated)</label>
                     <input type="text" name="refContacted" defaultValue={Array.isArray(screeningDetails?.referencesContacted) ? screeningDetails.referencesContacted.join(', ') : ""} placeholder="e.g. Michael Scott, Jim Halpert" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Overall Screening Status *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Overall Screening Status *</label>
                     <select name="overallStatus" required defaultValue={screeningDetails?.overallStatus || "IN_PROGRESS"} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                       <option value="IN_PROGRESS">In Progress</option>
                       <option value="COMPLETED">Completed (Proceed to LOA)</option>
@@ -2139,7 +2377,7 @@ const RequestDetail = () => {
               }}>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Decision *</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Decision *</label>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 font-semibold">
                         <input type="radio" name="decision" value="APPROVE" required /> Approve
@@ -2150,7 +2388,7 @@ const RequestDetail = () => {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-[#5e718d] mb-2">Comments</label>
+                    <label className="block text-sm font-bold text-[#44546f] mb-2">Comments</label>
                     <textarea name="comments" rows={3} className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" placeholder="Feedback for HR..." />
                   </div>
                 </div>

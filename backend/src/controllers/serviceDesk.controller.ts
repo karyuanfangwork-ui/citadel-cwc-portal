@@ -63,6 +63,23 @@ class ServiceDeskController {
         });
     });
 
+    getAllCategoriesAdmin = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { id } = req.params;
+
+        const categories = await prisma.serviceCategory.findMany({
+            where: { serviceDeskId: id as string },
+            orderBy: { displayOrder: 'asc' },
+            include: {
+                _count: { select: { requestTypes: true } },
+            },
+        });
+
+        res.json({
+            status: 'success',
+            data: { categories },
+        });
+    });
+
     getRequestTypes = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { id } = req.params; // serviceDeskId
         const { categoryId } = req.query;
@@ -249,7 +266,7 @@ class ServiceDeskController {
 
     createRequestType = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { categoryId } = req.body;
-        const { name, description, icon, requiresApproval, slaHours, formConfig } = req.body;
+        const { name, description, icon, requiresApproval, slaHours, formConfig, requiredRole } = req.body;
 
         const requestType = await prisma.requestType.create({
             data: {
@@ -260,6 +277,7 @@ class ServiceDeskController {
                 requiresApproval: !!requiresApproval,
                 slaHours: parseInt(slaHours as string) || null,
                 formConfig: formConfig || [],
+                requiredRole: requiredRole || null,
                 isActive: true
             }
         });
@@ -272,7 +290,7 @@ class ServiceDeskController {
 
     updateRequestType = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { typeId } = req.params;
-        const { name, description, icon, requiresApproval, slaHours, formConfig, isActive } = req.body;
+        const { name, description, icon, requiresApproval, slaHours, formConfig, isActive, requiredRole } = req.body;
 
         const requestType = await prisma.requestType.update({
             where: { id: typeId as string },
@@ -283,7 +301,8 @@ class ServiceDeskController {
                 requiresApproval: requiresApproval !== undefined ? !!requiresApproval : undefined,
                 slaHours: slaHours !== undefined ? (parseInt(slaHours as string) || null) : undefined,
                 formConfig,
-                isActive
+                isActive,
+                requiredRole: requiredRole !== undefined ? (requiredRole || null) : undefined,
             }
         });
 

@@ -7,6 +7,7 @@ interface RequestFilters {
     status?: RequestStatus;
     serviceDeskId?: string;
     search?: string;
+    requestTypeId?: string;
 }
 
 interface CreateRequestData {
@@ -26,6 +27,7 @@ export const requestService = {
         if (filters.status) params.append('status', filters.status);
         if (filters.serviceDeskId) params.append('serviceDeskId', filters.serviceDeskId);
         if (filters.search) params.append('search', filters.search);
+        if (filters.requestTypeId) params.append('requestTypeId', filters.requestTypeId);
 
         const response = await apiClient.get(`/requests?${params.toString()}`);
         return response.data.data;

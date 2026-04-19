@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG } from '../constants';
+import { useAuth } from '../src/context/AuthContext';
 
 interface Request {
   id: string;
@@ -16,9 +17,21 @@ interface Request {
     name: string;
     code: string;
   };
+  requestType?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
+const PENDING_APPROVAL_STATUSES: Record<string, string> = {
+  CEO: 'PENDING_CEO_APPROVAL_IT',
+  CTO: 'PENDING_CTO_APPROVAL_IT',
+  CFO: 'PENDING_CFO_APPROVAL_IT',
+};
+
 const MyRequests = () => {
+  const { user } = useAuth();
+  const approvalRole = user?.roles?.find(r => ['CEO', 'CTO', 'CFO'].includes(r)) ?? null;
   const [filter, setFilter] = useState('open');
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,11 +40,13 @@ const MyRequests = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [selectedRequestTypeId, setSelectedRequestTypeId] = useState<string | null>(null);
+  const [requestTypeOptions, setRequestTypeOptions] = useState<{ id: string; name: string }[]>([]);
   const limit = 10;
 
   useEffect(() => {
     fetchRequests();
-  }, [filter, searchTerm, page]);
+  }, [filter, searchTerm, page, selectedRequestTypeId]);
 
   const fetchRequests = async () => {
     try {
@@ -47,10 +62,12 @@ const MyRequests = () => {
         filters.search = searchTerm;
       }
 
-      // Filter by status
-      if (filter === 'open') {
-        // For open requests, we'll fetch all and filter on frontend
-        // In production, backend should support status filtering
+      if (selectedRequestTypeId) {
+        filters.requestTypeId = selectedRequestTypeId;
+      }
+
+      if (filter === 'pending_approval' && approvalRole) {
+        filters.status = PENDING_APPROVAL_STATUSES[approvalRole];
       }
 
       const data = await requestService.getAllRequests(filters);
@@ -59,14 +76,28 @@ const MyRequests = () => {
 
       // Client-side filtering for open requests
       if (filter === 'open') {
+        const closedStatuses = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'ONBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'COMPLETED'];
         filteredRequests = filteredRequests.filter(
-          (r: Request) => r.status !== 'RESOLVED' && r.status !== 'CLOSED'
+          (r: Request) => !closedStatuses.includes(r.status)
         );
       }
 
       setRequests(filteredRequests);
       setTotal(data.pagination?.total || 0);
       setTotalPages(data.pagination?.totalPages || 1);
+
+      // Build unique request type options from results
+      const seen = new Set<string>();
+      const options: { id: string; name: string }[] = [];
+      filteredRequests.forEach((r: Request) => {
+        if (r.requestType && !seen.has(r.requestType.id)) {
+          seen.add(r.requestType.id);
+          options.push({ id: r.requestType.id, name: r.requestType.name });
+        }
+      });
+      if (!selectedRequestTypeId) {
+        setRequestTypeOptions(options);
+      }
     } catch (err: any) {
       console.error('Error fetching requests:', err);
       setError(err.message || 'Failed to load requests');
@@ -135,6 +166,24 @@ const MyRequests = () => {
               <span className="material-symbols-outlined text-[20px]">mark_email_read</span>
               All requests
             </button>
+            {approvalRole && (
+              <>
+                <div className="h-px bg-gray-200 my-2"></div>
+                <button
+                  onClick={() => {
+                    setFilter('pending_approval');
+                    setPage(1);
+                  }}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${filter === 'pending_approval'
+                      ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500'
+                      : 'text-[#44546f] hover:bg-gray-100'
+                    }`}
+                >
+                  <span className="material-symbols-outlined text-[20px]">pending_actions</span>
+                  Pending My Approval
+                </button>
+              </>
+            )}
             <div className="h-px bg-gray-200 my-2"></div>
             <a
               href="#"
@@ -156,7 +205,7 @@ const MyRequests = () => {
         <div className="flex-1 min-w-0">
           <div className="flex flex-col md:flex-row gap-4 mb-6">
             <div className="relative flex-1">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5e718d] text-xl">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#44546f] text-xl">
                 search
               </span>
               <input
@@ -170,6 +219,19 @@ const MyRequests = () => {
                 }}
               />
             </div>
+            <select
+              className="pl-3 pr-8 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all text-[#44546f]"
+              value={selectedRequestTypeId || ''}
+              onChange={(e) => {
+                setSelectedRequestTypeId(e.target.value || null);
+                setPage(1);
+              }}
+            >
+              <option value="">All request types</option>
+              {requestTypeOptions.map((opt) => (
+                <option key={opt.id} value={opt.id}>{opt.name}</option>
+              ))}
+            </select>
           </div>
 
           {loading ? (
@@ -184,7 +246,7 @@ const MyRequests = () => {
           ) : (
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
               {requests.length === 0 ? (
-                <div className="p-12 text-center text-[#5e718d]">
+                <div className="p-12 text-center text-[#44546f]">
                   <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">
                     inbox
                   </span>
@@ -204,6 +266,7 @@ const MyRequests = () => {
                           <th className="px-6 py-4 w-12 text-center">Type</th>
                           <th className="px-6 py-4">Reference</th>
                           <th className="px-6 py-4">Summary</th>
+                          <th className="px-6 py-4">Request Type</th>
                           <th className="px-6 py-4">Service Desk</th>
                           <th className="px-6 py-4">Status</th>
                           <th className="px-6 py-4">Created</th>
@@ -230,13 +293,20 @@ const MyRequests = () => {
                             </td>
                             <td className="px-6 py-4 font-semibold">{req.summary}</td>
                             <td className="px-6 py-4 text-[#44546f]">
+                              {req.requestType?.name || '—'}
+                            </td>
+                            <td className="px-6 py-4 text-[#44546f]">
                               {req.serviceDesk?.name || 'N/A'}
                             </td>
                             <td className="px-6 py-4">
                               <span
-                                className={`inline-flex items-center px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100'
-                                  } ${STATUS_CONFIG[req.status]?.color || 'text-gray-600'}`}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100'} ${STATUS_CONFIG[req.status]?.color || 'text-gray-600'}`}
                               >
+                                {STATUS_CONFIG[req.status]?.icon && (
+                                  <span className="material-symbols-outlined text-[12px] leading-none" aria-hidden="true">
+                                    {STATUS_CONFIG[req.status].icon}
+                                  </span>
+                                )}
                                 {STATUS_CONFIG[req.status]?.label || req.status}
                               </span>
                             </td>

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { HashRouter, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import Login from './src/pages/Login';
@@ -11,9 +11,14 @@ import ITSupport from './pages/ITSupport';
 import GroupFinance from './pages/GroupFinance';
 import MyRequests from './pages/MyRequests';
 import RequestDetail from './pages/RequestDetail';
-import HardwareForm from './pages/HardwareForm';
 import AdminSettings from './pages/AdminSettings';
 import CreateRequest from './pages/CreateRequest';
+import NotificationDropdown from './src/components/NotificationDropdown';
+import AgentDashboard from './pages/AgentDashboard';
+import Reports from './pages/Reports';
+import SearchResults from './pages/SearchResults';
+import KnowledgeBase from './pages/KnowledgeBase';
+import ArticleDetail from './pages/ArticleDetail';
 
 const Header = () => {
   const location = useLocation();
@@ -42,27 +47,84 @@ const Header = () => {
             <h2 className="text-[#101418] text-lg font-bold leading-tight tracking-tight">Help Center</h2>
           </Link>
           <nav className="hidden md:flex items-center gap-8">
-            <Link to="/" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Dashboard</Link>
-            <Link to="/my-requests" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/my-requests') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>My Requests</Link>
-            <a href="#" className="text-sm font-semibold text-[#44546f] hover:text-[#0052cc] transition-colors">Knowledge Base</a>
+            <Link
+              to="/"
+              className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                isActive('/') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+              }`}
+            >
+              Dashboard
+            </Link>
+            <Link
+              to="/my-requests"
+              className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                isActive('/my-requests') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+              }`}
+            >
+              My Requests
+            </Link>
+            {(user?.roles?.includes('ADMIN') || user?.roles?.includes('AGENT')) && (
+              <Link
+                to="/agent"
+                className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                  isActive('/agent') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+                }`}
+              >
+                Agent Dashboard
+              </Link>
+            )}
             {user?.roles?.includes('ADMIN') && (
-              <Link to="/admin/settings" className={`text-sm font-semibold hover:text-[#0052cc] transition-colors ${isActive('/admin/settings') ? 'text-[#0052cc]' : 'text-[#44546f]'}`}>Admin Settings</Link>
+              <Link
+                to="/reports"
+                className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                  isActive('/reports') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+                }`}
+              >
+                Reports
+              </Link>
+            )}
+            <Link
+              to="/kb"
+              className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                isActive('/kb') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+              }`}
+            >
+              Knowledge Base
+            </Link>
+            {user?.roles?.includes('ADMIN') && (
+              <Link
+                to="/admin/settings"
+                className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                  isActive('/admin/settings') ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+                }`}
+              >
+                Admin Settings
+              </Link>
             )}
           </nav>
         </div>
         <div className="flex items-center gap-6">
-          <div className="relative hidden sm:block">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#5e718d] text-xl">search</span>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const q = (formData.get('q') as string) ?? '';
+              if (q.trim()) {
+                window.location.hash = `#/search?q=${encodeURIComponent(q.trim())}`;
+              }
+            }}
+            className="relative hidden sm:block"
+          >
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#44546f] text-xl">search</span>
             <input
+              name="q"
               type="text"
-              placeholder="Search help articles..."
+              placeholder="Search requests and articles..."
               className="w-64 pl-10 pr-4 py-1.5 bg-[#f0f2f5] border-none rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all"
             />
-          </div>
+          </form>
           <div className="flex gap-2">
-            <button className="flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
+            <NotificationDropdown />
             <button className="flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors">
               <span className="material-symbols-outlined">help</span>
             </button>
@@ -123,7 +185,12 @@ export default function App() {
               <Route path="/finance" element={<ProtectedRoute><GroupFinance /></ProtectedRoute>} />
               <Route path="/my-requests" element={<ProtectedRoute><MyRequests /></ProtectedRoute>} />
               <Route path="/request/:id" element={<ProtectedRoute><RequestDetail /></ProtectedRoute>} />
-              <Route path="/it/hardware" element={<ProtectedRoute><HardwareForm /></ProtectedRoute>} />
+              <Route path="/it/hardware" element={<Navigate to="/it" replace />} />
+              <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute requireAdmin><Reports /></ProtectedRoute>} />
+              <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
+              <Route path="/kb" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
+              <Route path="/kb/:slug" element={<ProtectedRoute><ArticleDetail /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettings /></ProtectedRoute>} />
               <Route path="/:deskType/:deskId/create/:categoryId" element={<ProtectedRoute><CreateRequest /></ProtectedRoute>} />
             </Routes>

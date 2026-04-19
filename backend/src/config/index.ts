@@ -19,10 +19,17 @@ export const config = {
 
     // JWT
     jwt: {
-        secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
-        expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-        refreshSecret: process.env.JWT_REFRESH_SECRET || 'your-super-secret-refresh-key',
+        secret: process.env.JWT_SECRET || '',
+        expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+        refreshSecret: process.env.JWT_REFRESH_SECRET || '',
         refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
+    },
+
+    // Cookies
+    cookie: {
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: (process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none') || 'strict',
+        domain: process.env.COOKIE_DOMAIN || undefined,
     },
 
     // CORS
@@ -78,9 +85,12 @@ export const config = {
 
     // Session
     session: {
-        secret: process.env.SESSION_SECRET || 'your-session-secret',
+        secret: process.env.SESSION_SECRET || '',
         maxAge: parseInt(process.env.SESSION_MAX_AGE || '86400000', 10), // 24 hours
     },
+
+    // Hardware VP Approval
+    hardwareVpApprovalThreshold: parseInt(process.env.HARDWARE_VP_APPROVAL_THRESHOLD || '2500', 10),
 
     // Application
     app: {
@@ -89,3 +99,19 @@ export const config = {
         adminEmail: process.env.ADMIN_EMAIL || 'admin@helpdesk.com',
     },
 };
+
+// Validate critical config — enforced in ALL environments, not just production
+const requiredSecrets: Array<[string, string | undefined]> = [
+    ['JWT_SECRET', config.jwt.secret],
+    ['JWT_REFRESH_SECRET', config.jwt.refreshSecret],
+    ['DATABASE_URL', config.database.url],
+];
+
+for (const [name, value] of requiredSecrets) {
+    if (!value) {
+        throw new Error(
+            `Missing required environment variable: ${name}.\n` +
+            `Generate a secure value with: node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"`
+        );
+    }
+}

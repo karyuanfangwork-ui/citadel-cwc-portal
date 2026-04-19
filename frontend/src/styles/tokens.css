@@ -1,0 +1,80 @@
+:root {
+  /* ── BRAND ── */
+  --color-brand-900: #0747a6;
+  --color-brand-700: #0052cc;
+  --color-brand-500: #0065ff;
+  --color-brand-300: #4c9aff;
+  --color-brand-100: #deebff;
+  --color-brand-50:  #eff6ff;
+
+  /* ── SERVICE DESK ACCENTS ── */
+  --color-it-500:  #0052cc;
+  --color-it-100:  #deebff;
+  --color-it-50:   #eff6ff;
+
+  --color-hr-500:  #059669;
+  --color-hr-100:  #d1fae5;
+  --color-hr-50:   #ecfdf5;
+
+  --color-fin-500: #d97706;
+  --color-fin-100: #fde68a;
+  --color-fin-50:  #fffbeb;
+
+  /* ── SEMANTIC STATUS ── */
+  --color-success: #059669; /* intentionally matches --color-hr-500  */
+  --color-warning: #d97706; /* intentionally matches --color-fin-500 */
+  --color-danger:  #dc2626;
+  --color-info:    #0052cc; /* intentionally matches --color-brand-700 / --color-it-500 */
+
+  /* ── TEXT ── */
+  --color-text-primary:   #111827;
+  --color-text-secondary: #44546f;
+  --color-text-tertiary:  #9ca3af;
+
+  /* ── SURFACE & BORDER ── */
+  --color-surface:        #ffffff;
+  --color-surface-subtle: #f8fafc;
+  --color-surface-muted:  #f3f4f6;
+  --color-border:         #e5e7eb;
+  --color-border-subtle:  #f3f4f6; /* intentionally matches --color-surface-muted */
+
+  /* ── SPACING (4px base) ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ── BORDER RADIUS ── */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  /* ── SHADOW ── */
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.10), 0 4px 8px rgba(0,0,0,0.04);
+
+  /* ── TYPOGRAPHY ── */
+  --font-sans: 'Plus Jakarta Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --text-xs:   11px;
+  --text-sm:   13px;
+  --text-base: 15px;
+  --text-lg:   17px;
+  --text-xl:   20px;
+  --text-2xl:  24px;
+  --text-3xl:  30px;
+  --text-4xl:  36px;
+}
+
+body {
+  font-family: var(--font-sans);
+}

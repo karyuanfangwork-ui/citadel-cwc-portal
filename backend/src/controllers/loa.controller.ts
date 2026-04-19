@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { createOnboardingFromHiring } from '../services/onboarding.service';
 
 const prisma = new PrismaClient();
 
@@ -204,11 +205,12 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
             });
         }
 
-        // Verify user is the hiring manager (requester)
-        if (request.requesterId !== userId) {
+        // Verify user has HIRING_MANAGER role
+        const userRoles: string[] = (req as any).user?.roles || [];
+        if (!userRoles.includes('HIRING_MANAGER')) {
             return res.status(403).json({
                 status: 'error',
-                message: 'Only the hiring manager can approve or reject LOA'
+                message: 'Only a Hiring Manager can approve or reject LOA'
             });
         }
 
@@ -478,8 +480,9 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
         const updatedRequest = await prisma.request.update({
             where: { id },
             data: {
-                status: 'RESOLVED',
-                resolvedAt: new Date()
+                status: 'COMPLETED',
+                resolvedAt: new Date(),
+                closedAt: new Date()
             }
         });
 
@@ -496,11 +499,46 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
             }
         });
 
+        // Automatically create onboarding workflow
+        console.log('=== ONBOARDING AUTO-CREATION TRIGGER ===');
+        console.log('Request ID:', id);
+        console.log('Request Status:', updatedRequest.status);
+
+        let onboardingTicketRef: string | null = null;
+        try {
+            console.log('Calling createOnboardingFromHiring...');
+            const result = await createOnboardingFromHiring(updatedRequest);
+
+            if (result) {
+                onboardingTicketRef = result.onboardingTicket.referenceNumber;
+                console.log(`✅ Onboarding ticket ${onboardingTicketRef} created for request ${id}`);
+            } else {
+                console.log('⚠️  createOnboardingFromHiring returned null');
+                // Log failure as activity so agents are aware
+                await prisma.requestActivity.create({
+                    data: {
+                        requestId: id,
+                        authorName: 'System',
+                        authorRole: 'SYSTEM',
+                        activityType: 'SYSTEM',
+                        message: '⚠️ Failed to auto-create onboarding ticket. Manual creation required.',
+                        isSystemGenerated: true,
+                    },
+                });
+            }
+        } catch (onboardingError) {
+            console.error('❌ Error creating onboarding workflow:', onboardingError);
+            // Don't fail the LOA acceptance if onboarding creation fails
+        }
+        console.log('=== END ONBOARDING TRIGGER ===');
+
+
         res.json({
             status: 'success',
             data: {
                 request: updatedRequest,
-                loa: updatedLOA
+                loa: updatedLOA,
+                onboardingTicket: onboardingTicketRef ? { referenceNumber: onboardingTicketRef } : null,
             }
         });
     } catch (error) {

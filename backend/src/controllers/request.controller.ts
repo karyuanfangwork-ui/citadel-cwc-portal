@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { notify, notifyMultiple } from '../services/notification.service';
 
 const prisma = new PrismaClient();
 
@@ -18,6 +19,7 @@ class RequestController {
             assignedToId,
             priority,
             search,
+            requestTypeId,
         } = req.query;
 
         const pageNum = parseInt(page as string, 10);
@@ -33,13 +35,27 @@ class RequestController {
         // Exception: CEO can see requests in hiring workflow
         if (!req.user!.roles.includes('ADMIN') && !req.user!.roles.includes('AGENT')) {
             if (req.user!.roles.includes('CEO')) {
-                // CEO can see:
-                // 1. Requests they created
-                // 2. Requests in hiring workflow (any status)
+                // CEO can see their own requests, hiring workflow requests, IT approval requests, and any request where they are a designated approver
                 const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
                 where.OR = [
                     { requesterId: req.user!.id },
-                    { status: { in: ceoHiringStatuses } }
+                    { status: { in: ceoHiringStatuses } },
+                    { status: 'PENDING_CEO_APPROVAL_IT' },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            } else if (req.user!.roles.includes('CTO')) {
+                // CTO can see their own requests and any IT request pending CTO approval
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { status: 'PENDING_CTO_APPROVAL_IT' },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            } else if (req.user!.roles.includes('CFO')) {
+                // CFO can see their own requests and any IT request pending CFO approval
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { status: 'PENDING_CFO_APPROVAL_IT' },
+                    { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else {
                 // Regular users only see their own requests
@@ -63,12 +79,23 @@ class RequestController {
             where.priority = priority;
         }
 
+        if (requestTypeId) {
+            where.requestTypeId = requestTypeId as string;
+        }
+
         if (search) {
-            where.OR = [
+            const searchConditions = [
                 { referenceNumber: { contains: search as string, mode: 'insensitive' } },
                 { summary: { contains: search as string, mode: 'insensitive' } },
                 { description: { contains: search as string, mode: 'insensitive' } },
             ];
+            // Preserve existing OR conditions (e.g. CEO visibility) by wrapping with AND
+            if (where.OR) {
+                where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+                delete where.OR;
+            } else {
+                where.OR = searchConditions;
+            }
         }
 
         // Get requests and total count
@@ -147,45 +174,106 @@ class RequestController {
 
         const referenceNumber = `${serviceDesk.code}-${count + 1}`;
 
-        // Create request
-        const request = await prisma.request.create({
-            data: {
-                referenceNumber,
-                requestTypeId,
-                serviceDeskId,
-                requesterId: req.user!.id,
-                requesterEmail: req.user!.email,
-                summary,
-                description,
-                priority,
-                customFields,
-                status: 'SUBMITTED',
-            },
-            include: {
-                requester: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        email: true,
-                    },
+        // Calculate SLA due date from request type
+        let slaDueAt: Date | undefined;
+        if (requestTypeId) {
+          const requestType = await prisma.requestType.findUnique({ where: { id: requestTypeId } });
+          if (requestType?.slaHours) {
+            slaDueAt = new Date();
+            slaDueAt.setHours(slaDueAt.getHours() + requestType.slaHours);
+          }
+        }
+
+        // Create request, hardware details, and initial activity in a single transaction
+        const request = await prisma.$transaction(async (tx) => {
+            const createdRequest = await tx.request.create({
+                data: {
+                    referenceNumber,
+                    requestTypeId,
+                    serviceDeskId,
+                    requesterId: req.user!.id,
+                    requesterEmail: req.user!.email,
+                    summary,
+                    description,
+                    priority,
+                    customFields,
+                    status: 'SUBMITTED',
+                    slaDueAt,
                 },
-                serviceDesk: true,
-                requestType: true,
-            },
+                include: {
+                    requester: {
+                        select: {
+                            id: true,
+                            firstName: true,
+                            lastName: true,
+                            email: true,
+                        },
+                    },
+                    serviceDesk: true,
+                    requestType: true,
+                },
+            });
+
+            // If this is a hardware request, create the structured ITHardwareRequest record
+            if (requestTypeId) {
+                const reqType = createdRequest.requestType;
+                if (reqType && reqType.name.toLowerCase().includes('hardware')) {
+                    const cf = (customFields || {}) as Record<string, any>;
+                    const rawPrice = cf.estimatedPrice;
+                    const estimatedPrice = rawPrice != null && rawPrice !== '' && !isNaN(Number(rawPrice))
+                        ? parseFloat(String(rawPrice))
+                        : null;
+                    await tx.iTHardwareRequest.create({
+                        data: {
+                            requestId: createdRequest.id,
+                            hardwareName: cf.hardwareName || cf.hw_name || cf.hardwareType || 'Unknown',
+                            hardwareModel: cf.hardwareModel || cf.hw_model || cf.model || null,
+                            estimatedPrice,
+                            preferredVendor: cf.preferredVendor || null,
+                            productUrl: cf.productUrl || null,
+                            businessJustification: cf.businessJustification || cf.hw_reason || cf.reason || '',
+                        },
+                    });
+                }
+            }
+
+            // Create initial activity
+            await tx.requestActivity.create({
+                data: {
+                    requestId: createdRequest.id,
+                    authorId: req.user!.id,
+                    authorName: 'System',
+                    activityType: 'SYSTEM',
+                    message: 'Request created',
+                    isSystemGenerated: true,
+                },
+            });
+
+            return createdRequest;
         });
 
-        // Create initial activity
-        await prisma.requestActivity.create({
-            data: {
-                requestId: request.id,
-                authorId: req.user!.id,
-                authorName: 'System',
-                activityType: 'SYSTEM',
-                message: 'Request created',
-                isSystemGenerated: true,
+        // Notify requester
+        await notify({
+            userId: request.requesterId,
+            eventType: 'REQUEST_CREATED',
+            variables: {
+                referenceNumber: request.referenceNumber,
+                summary: request.summary,
             },
+            relatedRequestId: request.id,
         });
+
+        // Notify all admins
+        const admins = await prisma.user.findMany({
+            where: { roles: { some: { role: { name: 'ADMIN' } } } },
+            select: { id: true },
+        });
+        await notifyMultiple(
+            admins.map((a) => a.id),
+            'REQUEST_CREATED',
+            { referenceNumber: request.referenceNumber, summary: request.summary },
+            request.id
+        );
 
         res.status(201).json({
             status: 'success',
@@ -224,6 +312,23 @@ class RequestController {
                 },
                 serviceDesk: true,
                 requestType: true,
+                itHardwareRequest: true,
+                parentRequest: {
+                    select: {
+                        id: true,
+                        referenceNumber: true,
+                        summary: true,
+                        status: true,
+                    },
+                },
+                childRequests: {
+                    select: {
+                        id: true,
+                        referenceNumber: true,
+                        summary: true,
+                        status: true,
+                    },
+                },
                 activities: {
                     orderBy: {
                         createdAt: 'asc',
@@ -249,6 +354,14 @@ class RequestController {
                         createdAt: 'desc',
                     },
                 },
+                approvals: {
+                    select: {
+                        id: true,
+                        approverId: true,
+                        approverType: true,
+                        status: true,
+                    },
+                },
             },
         });
 
@@ -268,16 +381,32 @@ class RequestController {
         // Allow access if:
         // 1. User is the requester
         // 2. User is ADMIN or AGENT
-        // 3. User is CEO and request is in hiring workflow
+        // 3. User is CEO and request is in hiring workflow or IT CEO approval
+        // 4. User is CTO/CFO and request is pending their IT approval
+        // 5. User is a designated approver on this request
         const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
-        const isCEOViewingPendingApproval =
-            req.user!.roles.includes('CEO') && ceoHiringStatuses.includes(request.status);
+        const isDesignatedApprover = (request as any).approvals?.some((a: any) => a.approverId === req.user!.id);
+        const isCEOApprover = req.user!.roles.includes('CEO') && (
+            ceoHiringStatuses.includes(request.status) ||
+            request.status === 'PENDING_CEO_APPROVAL_IT' ||
+            isDesignatedApprover
+        );
+        const isCTOApprover = req.user!.roles.includes('CTO') && (
+            request.status === 'PENDING_CTO_APPROVAL_IT' ||
+            isDesignatedApprover
+        );
+        const isCFOApprover = req.user!.roles.includes('CFO') && (
+            request.status === 'PENDING_CFO_APPROVAL_IT' ||
+            isDesignatedApprover
+        );
 
         if (
             request.requesterId !== req.user!.id &&
             !req.user!.roles.includes('ADMIN') &&
             !req.user!.roles.includes('AGENT') &&
-            !isCEOViewingPendingApproval
+            !isCEOApprover &&
+            !isCTOApprover &&
+            !isCFOApprover
         ) {
             throw new AppError('You do not have permission to view this request', 403);
         }
@@ -376,9 +505,16 @@ class RequestController {
             orderBy: { createdAt: 'asc' },
         });
 
+        // Filter internal activities for non-agent/admin users
+        const userRoles = req.user!.roles || [];
+        const isAgentOrAdmin = userRoles.includes('ADMIN') || userRoles.includes('AGENT');
+        const filteredActivities = isAgentOrAdmin
+          ? activities
+          : activities.filter((a: any) => !a.isInternal);
+
         res.json({
             status: 'success',
-            data: { activities },
+            data: { activities: filteredActivities },
         });
     });
 
@@ -412,6 +548,25 @@ class RequestController {
                 isInternal: isInternal || false,
             },
         });
+
+        // Notify request owner about new comment
+        if (request.requesterId !== req.user!.id) {
+            await notify({
+                userId: request.requesterId,
+                eventType: 'COMMENT_ADDED',
+                variables: { referenceNumber: request.referenceNumber },
+                relatedRequestId: id,
+            });
+        }
+        // Also notify assigned agent if they didn't write the comment
+        if (request.assignedToId && request.assignedToId !== req.user!.id) {
+            await notify({
+                userId: request.assignedToId,
+                eventType: 'COMMENT_ADDED',
+                variables: { referenceNumber: request.referenceNumber },
+                relatedRequestId: id,
+            });
+        }
 
         res.status(201).json({
             status: 'success',
@@ -507,6 +662,17 @@ class RequestController {
             },
         });
 
+        // Notify the assigned agent
+        await notify({
+            userId: assignedToId,
+            eventType: 'REQUEST_ASSIGNED',
+            variables: {
+                referenceNumber: request.referenceNumber,
+                summary: request.summary,
+            },
+            relatedRequestId: request.id,
+        });
+
         res.json({
             status: 'success',
             data: { request },
@@ -519,6 +685,18 @@ class RequestController {
     updateStatus = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const { id } = req.params;
         const { status } = req.body;
+
+        // Fetch current request to validate transition
+        const currentRequest = await prisma.request.findUnique({ where: { id } });
+        if (!currentRequest) {
+            throw new AppError('Request not found', 404);
+        }
+
+        // Validate transition
+        const { isValidTransition } = require('../utils/workflowTransitions');
+        if (!isValidTransition(currentRequest.status, status)) {
+            throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
+        }
 
         const request = await prisma.request.update({
             where: { id },
@@ -557,6 +735,17 @@ class RequestController {
                 isSystemGenerated: true,
                 metadata: { newStatus: status },
             },
+        });
+
+        // Notify requester of status change
+        await notify({
+            userId: request.requesterId,
+            eventType: 'STATUS_CHANGED',
+            variables: {
+                referenceNumber: request.referenceNumber,
+                newStatus: status,
+            },
+            relatedRequestId: request.id,
         });
 
         res.json({

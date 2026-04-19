@@ -10,6 +10,13 @@ import approvalRoutes from './approval.routes';
 import interviewRoutes from './interview.routes';
 import screeningRoutes from './screening.routes';
 import loaRoutes from './loa.routes';
+import onboardingRoutes from './onboarding.routes';
+import onboardingTemplateRoutes from './onboardingTemplate.routes';
+import itWorkflowRoutes from './it-workflow.routes';
+import financeWorkflowRoutes from './finance-workflow.routes';
+import reportsRoutes from './reports.routes';
+import bannerConfigRoutes from './bannerConfig.routes';
+import requestStatusDefinitionRoutes from './requestStatusDefinition.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -29,5 +36,13 @@ router.use('/approvals', approvalRoutes);
 router.use('/interviews', interviewRoutes);
 router.use('/screening', screeningRoutes);
 router.use('/loa', loaRoutes);
+router.use('/onboarding', onboardingRoutes);
+router.use('/admin/onboarding-templates', onboardingTemplateRoutes);
+router.use('/it-workflow', itWorkflowRoutes);
+router.use('/finance-workflow', financeWorkflowRoutes);
+router.use('/reports', reportsRoutes);
+router.use('/admin/banner-configs', bannerConfigRoutes);
+router.use('/admin/status-definitions', requestStatusDefinitionRoutes);
 
 export default router;
+

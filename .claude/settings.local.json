@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sort -t- -k2 -n)",
+      "Bash(grep -l \"useModalDismiss\" \"c:/CWC2.0/frontend/src/components/request-detail/\"*.tsx)",
+      "Bash(grep -l \"handleBackdropClick\" \"c:/CWC2.0/frontend/src/components/request-detail/\"*.tsx)",
+      "Read(//c/Users/KarYuanFang/.claude/plugins/cache/claude-code-plugins/frontend-design/1.0.0/skills/brainstorming/**)",
+      "Read(//c/Users/KarYuanFang/.claude/plugins/cache/claude-code-plugins/**)",
+      "Bash(git -C /c/CWC2.0 diff 2c92f30..99a3598 -- frontend/pages/Dashboard.tsx)",
+      "Bash(C:\\\\Users\\\\KarYuanFang\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.0.7\\\\scripts\\\\start-server.sh --project-dir \"c:/CWC2.0\")",
+      "Bash(PRISMA_MIGRATE_SKIP_GENERATE=false npx prisma migrate dev --name add_it_hardware_approval_chain_statuses)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(taskkill /F /IM \"query_engine-windows.dll.node\")",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(cmd /c \"taskkill /F /IM node.exe\")",
+      "Bash(cmd /c \"taskkill /F /IM node.exe 2>&1\")",
+      "Bash(cmd /c \"handle64.exe C:\\\\CWC2.0\\\\backend\\\\node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node 2>&1\")",
+      "Bash(cmd /c \"handle C:\\\\CWC2.0\\\\backend\\\\node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node 2>&1\")",
+      "Bash(cmd /c \"del /F C:\\\\CWC2.0\\\\backend\\\\node_modules\\\\.prisma\\\\client\\\\query_engine-windows.dll.node 2>&1\")",
+      "Bash(ls /c/CWC2.0/backend/node_modules/.prisma/client/*.tmp*)",
+      "Bash(cmd /c \"icacls C:\\\\CWC2.0\\\\backend\\\\node_modules\\\\.prisma\\\\client 2>&1\")",
+      "Bash(ls -la /c/CWC2.0/backend/node_modules/.prisma/client/query_engine-windows.dll.node*)",
+      "Bash(git -C c:/CWC2.0 show HEAD -- frontend/src/components/request-detail/AcknowledgeModal.tsx)",
+      "Bash(git -C c:/CWC2.0 show HEAD -- frontend/src/components/request-detail/CeoDecisionModal.tsx)",
+      "Bash(npm run:*)",
+      "Bash(echo \"Backend started, PID: $!\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s -X POST http://localhost:3000/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@helpdesk.com\",\"password\":\"admin123\"}')",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('TOKEN:', d.get\\('data',{}\\).get\\('token','NO TOKEN'\\)[:50]\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)[:500]\\)\")",
+      "Bash(curl -s -X POST http://localhost:3000/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"email\":\"admin@helpdesk.com\",\"password\":\"admin123\"}' -c /tmp/cookies.txt -b /tmp/cookies.txt)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Roles:', d['data']['user']['roles']\\)\")",
+      "Bash(curl -s http://localhost:3000/api/v1/auth/me -b /tmp/cookies.txt)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d,indent=2\\)[:300]\\)\")",
+      "Bash(curl -s \"http://localhost:3000/api/v1/users?role=CEO&limit=5\" -b /tmp/cookies.txt)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); users=d.get\\('data',{}\\).get\\('users',[]\\); print\\('CEO users:', [\\(u['email'],u['roles']\\) for u in users]\\)\")"
+    ]
+  }
+}

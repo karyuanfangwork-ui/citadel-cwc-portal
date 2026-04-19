@@ -56,7 +56,7 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
             <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
                 {fields.length === 0 ? (
                     <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                        <p className="text-[#5e718d] text-sm italic">No custom fields defined. Basic fields (Summary, Description) are always included.</p>
+                        <p className="text-[#44546f] text-sm italic">No custom fields defined. Basic fields (Summary, Description) are always included.</p>
                     </div>
                 ) : (
                     fields.map((field, index) => (
@@ -77,13 +77,21 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
                                     <select
                                         className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:border-[#0052cc] outline-none appearance-none"
                                         value={field.type}
-                                        onChange={e => updateField(field.id, { type: e.target.value as any })}
+                                        onChange={e => {
+                                            const newType = e.target.value as any;
+                                            const updates: Partial<FormField> = { type: newType };
+                                            if (newType === 'select' && !field.options) {
+                                                updates.options = [];
+                                            }
+                                            updateField(field.id, updates);
+                                        }}
                                     >
                                         <option value="text">Text</option>
                                         <option value="textarea">Textarea</option>
                                         <option value="number">Number</option>
                                         <option value="currency">Currency (RM)</option>
                                         <option value="date">Date</option>
+                                        <option value="select">Dropdown (Select)</option>
                                         <option value="file">File Upload</option>
                                     </select>
                                 </div>
@@ -99,6 +107,64 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
                                         <span className="text-xs font-bold text-[#44546f]">Required</span>
                                     </label>
                                 </div>
+
+                                {field.type === 'select' && (
+                                    <div className="sm:col-span-12 mt-2 pt-3 border-t border-gray-200/50">
+                                        <label className="block text-[10px] font-bold text-[#44546f] uppercase tracking-wider mb-2">Dropdown Options</label>
+                                        <div className="flex flex-wrap gap-2 mb-3">
+                                            {field.options?.map((opt, optIdx) => (
+                                                <span key={optIdx} className="inline-flex items-center gap-1 px-2 py-1 bg-[#0052cc]/5 text-[#0052cc] text-[11px] font-bold rounded-lg border border-[#0052cc]/10">
+                                                    {opt}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newOpts = [...(field.options || [])];
+                                                            newOpts.splice(optIdx, 1);
+                                                            updateField(field.id, { options: newOpts });
+                                                        }}
+                                                        className="material-symbols-outlined text-[14px] hover:text-red-500 transition-colors ml-1"
+                                                    >
+                                                        close
+                                                    </button>
+                                                </span>
+                                            ))}
+                                            {(field.options?.length || 0) === 0 && (
+                                                <p className="text-[10px] italic text-gray-400">Add options below...</p>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Add option (e.g. IT Hardware)"
+                                                className="flex-grow px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:border-[#0052cc] outline-none"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        const val = e.currentTarget.value.trim();
+                                                        if (val && !field.options?.includes(val)) {
+                                                            updateField(field.id, { options: [...(field.options || []), val] });
+                                                            e.currentTarget.value = '';
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    const input = (e.currentTarget.previousElementSibling as HTMLInputElement);
+                                                    const val = input.value.trim();
+                                                    if (val && !field.options?.includes(val)) {
+                                                        updateField(field.id, { options: [...(field.options || []), val] });
+                                                        input.value = '';
+                                                    }
+                                                }}
+                                                className="px-4 py-2 bg-[#0052cc] text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-700 transition-all shadow-sm"
+                                            >
+                                                Add
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <button
@@ -122,7 +188,7 @@ const FormBuilder: React.FC<FormBuilderProps> = ({ initialFields, onSave, onCanc
                 </button>
                 <button
                     onClick={handleSave}
-                    className="flex-1 px-6 py-3 bg-[#0052cc] text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm shadow-lg shadow-blue-100"
+                    className="flex-1 px-6 py-3 bg-[#0052cc] text-white font-bold rounded-xl hover:bg-blue-700 transition-all text-sm shadow-sm"
                 >
                     Save Configuration
                 </button>

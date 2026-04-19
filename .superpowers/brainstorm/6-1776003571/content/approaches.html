@@ -1,0 +1,209 @@
+<h2>3 Redesign Approaches for Request Detail</h2>
+<p class="subtitle">Pick the direction that fits your goals — each fixes all 8 issues differently</p>
+
+<style>
+.cards { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; margin-top: 20px; }
+.card { background: #fff; border: 2px solid #e5e7eb; border-radius: 14px; overflow: hidden; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.card.selected, .card:hover { border-color: #0052cc; box-shadow: 0 0 0 3px #dbeafe; }
+.card-header { padding: 18px 20px 14px; border-bottom: 1px solid #f1f3f5; }
+.card-header .letter { font-size: 28px; font-weight: 900; color: #0052cc; line-height: 1; }
+.card-header h3 { font-size: 16px; font-weight: 800; margin: 4px 0 2px; color: #101418; }
+.card-header .tag { font-size: 10px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; }
+.tag-recommended { background: #dcfce7; color: #166534; }
+.tag-minimal { background: #f3f4f6; color: #374151; }
+.tag-ambitious { background: #fef3c7; color: #92400e; }
+.card-body { padding: 16px 20px; }
+.card-body p { font-size: 13px; color: #44546f; margin: 0 0 14px; line-height: 1.55; }
+.feature-list { list-style: none; padding: 0; margin: 0; }
+.feature-list li { font-size: 12px; color: #374151; padding: 5px 0; border-bottom: 1px solid #f1f3f5; display: flex; align-items: flex-start; gap: 8px; }
+.feature-list li:last-child { border-bottom: none; }
+.check { color: #16a34a; font-weight: 900; flex-shrink: 0; }
+.card-footer { padding: 14px 20px; background: #f8f9fa; border-top: 1px solid #f1f3f5; }
+.tradeoff { font-size: 11px; color: #6b7280; }
+.tradeoff strong { color: #374151; }
+
+/* Mini mockup thumbnails */
+.mockup-thumb { background: #f8f9fa; border-radius: 8px; border: 1px solid #e5e7eb; height: 120px; margin-bottom: 14px; overflow: hidden; display: flex; gap: 0; font-size: 9px; }
+.mt-left { flex: 1; border-right: 1px solid #e5e7eb; padding: 6px; display: flex; flex-direction: column; gap: 3px; }
+.mt-right { width: 36%; padding: 6px; display: flex; flex-direction: column; gap: 3px; }
+.mt-bar { height: 6px; border-radius: 3px; background: #0052cc; }
+.mt-bar.gray { background: #e5e7eb; }
+.mt-bar.green { background: #16a34a; }
+.mt-bar.sm { height: 4px; }
+.mt-block { background: #e5e7eb; border-radius: 4px; padding: 4px 6px; font-size: 8px; color: #6b7280; }
+.mt-action { background: #0052cc; border-radius: 4px; padding: 4px 6px; font-size: 8px; color: #fff; text-align: center; }
+.mt-action.green { background: #16a34a; }
+.mt-action.amber { background: #d97706; }
+.mt-banner { background: #fef3c7; border-radius: 4px; padding: 3px 6px; font-size: 8px; color: #92400e; }
+.mt-tabs { display: flex; gap: 2px; }
+.mt-tab { background: #e5e7eb; border-radius: 3px; padding: 2px 4px; font-size: 7px; color: #6b7280; }
+.mt-tab.active { background: #0052cc; color: #fff; }
+.mt-stepper { display: flex; align-items: center; gap: 2px; margin-bottom: 4px; }
+.mt-step { width: 8px; height: 8px; border-radius: 50%; background: #0052cc; }
+.mt-step.gray { background: #e5e7eb; }
+.mt-line { flex: 1; height: 1px; background: #e5e7eb; }
+.mt-line.active { background: #0052cc; }
+.mt-sticky { background: #eff4ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 5px 6px; }
+.mt-split { display: flex; height: 100%; }
+.mt-main { flex: 1; border-right: 1px solid #e5e7eb; padding: 6px; display: flex; flex-direction: column; gap: 3px; }
+.mt-panel { width: 38%; background: #eff4ff; padding: 6px; display: flex; flex-direction: column; gap: 3px; }
+</style>
+
+<div class="cards">
+
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-header">
+      <div class="letter">A</div>
+      <h3>Action-First Sidebar</h3>
+      <span class="tag tag-recommended">⭐ Recommended</span>
+    </div>
+    <div class="card-body">
+      <!-- Mini mockup -->
+      <div class="mockup-thumb">
+        <div class="mt-left">
+          <div class="mt-stepper">
+            <div class="mt-step"></div><div class="mt-line active"></div>
+            <div class="mt-step"></div><div class="mt-line"></div>
+            <div class="mt-step gray"></div><div class="mt-line"></div>
+            <div class="mt-step gray"></div>
+          </div>
+          <div class="mt-banner">⚡ Needs Assignment</div>
+          <div class="mt-bar" style="width:60%"></div>
+          <div class="mt-bar gray sm" style="width:80%"></div>
+          <div class="mt-bar gray sm" style="width:50%"></div>
+          <div class="mt-block" style="margin-top:4px">Custom Fields</div>
+          <div class="mt-tabs" style="margin-top:4px">
+            <div class="mt-tab active">All</div>
+            <div class="mt-tab">Comments</div>
+            <div class="mt-tab">Internal</div>
+          </div>
+        </div>
+        <div class="mt-right">
+          <div style="font-size:8px;font-weight:800;color:#0052cc;margin-bottom:3px">NEXT ACTION</div>
+          <div class="mt-sticky">
+            <div class="mt-action green" style="margin-bottom:3px">✓ Approve</div>
+            <div class="mt-action amber">✗ Reject</div>
+          </div>
+          <div style="margin-top:4px;font-size:8px;color:#6b7280">Ref: IT-1</div>
+          <div style="font-size:8px;color:#6b7280">Priority: MEDIUM</div>
+          <div style="font-size:8px;color:#6b7280">SLA: 2h left</div>
+        </div>
+      </div>
+
+      <p>Restructure the sidebar into a <strong>two-zone panel</strong>: top zone is a sticky "Next Action" card with prominent action buttons for whatever step is current; bottom zone retains metadata. All workflow actions move out of the main content and into proper modal forms triggered from the sidebar.</p>
+      <ul class="feature-list">
+        <li><span class="check">✓</span> Sticky action panel always visible without scrolling</li>
+        <li><span class="check">✓</span> Replaces all prompt() dialogs with modal forms</li>
+        <li><span class="check">✓</span> Sidebar status badge removed — stepper is single truth</li>
+        <li><span class="check">✓</span> Assign/Claim button elevated to top of action panel</li>
+        <li><span class="check">✓</span> Workflow sections collapse when no action pending</li>
+        <li><span class="check">✓</span> Activity tabs get count badges + stronger active state</li>
+        <li><span class="check">✓</span> Internal Note toggle becomes visually distinct</li>
+      </ul>
+    </div>
+    <div class="card-footer">
+      <div class="tradeoff"><strong>Effort:</strong> Medium — reorganise sidebar, add modal components, wire up action states. No layout rearchitecture.</div>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-header">
+      <div class="letter">B</div>
+      <h3>Tabbed Content + Fixed Action Bar</h3>
+      <span class="tag tag-minimal">Minimal change</span>
+    </div>
+    <div class="card-body">
+      <!-- Mini mockup -->
+      <div class="mockup-thumb">
+        <div class="mt-split">
+          <div class="mt-main">
+            <div class="mt-stepper">
+              <div class="mt-step"></div><div class="mt-line active"></div>
+              <div class="mt-step"></div><div class="mt-line"></div>
+              <div class="mt-step gray"></div>
+            </div>
+            <div class="mt-tabs">
+              <div class="mt-tab active">Overview</div>
+              <div class="mt-tab">Workflow</div>
+              <div class="mt-tab">Activity</div>
+            </div>
+            <div class="mt-bar" style="width:70%;margin-top:4px"></div>
+            <div class="mt-bar gray sm" style="width:90%;margin-top:3px"></div>
+            <div class="mt-bar gray sm" style="width:60%;margin-top:3px"></div>
+          </div>
+          <div class="mt-panel">
+            <div style="font-size:8px;font-weight:800;color:#0052cc">REF: IT-1</div>
+            <div style="font-size:7px;color:#6b7280;margin-top:2px">Priority · SLA · Agent</div>
+            <div class="mt-block" style="margin-top:4px;font-size:7px">Unassigned ⚠</div>
+          </div>
+        </div>
+      </div>
+      <!-- Fixed bottom bar indicator -->
+      <div style="background:#0052cc;border-radius:6px;padding:5px 10px;font-size:9px;color:#fff;text-align:center;margin-bottom:14px">📌 Fixed bottom bar: Approve · Reject · Assign</div>
+
+      <p>Keep the two-column layout but introduce <strong>content tabs</strong> (Overview / Workflow / Activity) to reduce scroll, plus a <strong>fixed bottom action bar</strong> that surfaces the current pending actions always at screen bottom.</p>
+      <ul class="feature-list">
+        <li><span class="check">✓</span> Fixed action bar eliminates scroll-hunting for buttons</li>
+        <li><span class="check">✓</span> Tabs reduce cognitive load per view</li>
+        <li><span class="check">✓</span> Replaces prompt() dialogs</li>
+        <li><span class="check">✓</span> Lower implementation risk — additive changes only</li>
+      </ul>
+    </div>
+    <div class="card-footer">
+      <div class="tradeoff"><strong>Effort:</strong> Low-medium — add tabs and a sticky bar. Sidebar unchanged. Quicker to ship but less elegant for complex workflows.</div>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-header">
+      <div class="letter">C</div>
+      <h3>Agent Workbench (Full Rearchitecture)</h3>
+      <span class="tag tag-ambitious">Ambitious</span>
+    </div>
+    <div class="card-body">
+      <!-- Mini mockup -->
+      <div class="mockup-thumb">
+        <div style="display:flex;flex-direction:column;width:100%">
+          <div style="background:#0052cc;padding:4px 8px;display:flex;gap:6px;align-items:center">
+            <div style="font-size:8px;color:#fff;font-weight:700">IT-1 · mouse replacement</div>
+            <div style="margin-left:auto;background:#16a34a;border-radius:3px;padding:1px 5px;font-size:7px;color:#fff">Approve</div>
+            <div style="background:#dc2626;border-radius:3px;padding:1px 5px;font-size:7px;color:#fff">Reject</div>
+          </div>
+          <div style="display:flex;flex:1">
+            <div style="width:160px;border-right:1px solid #e5e7eb;padding:5px;display:flex;flex-direction:column;gap:3px">
+              <div style="font-size:7px;font-weight:800;color:#0052cc;text-transform:uppercase">Workflow</div>
+              <div style="font-size:7px;background:#eff4ff;border-radius:3px;padding:2px 4px;color:#0052cc">⚡ Pending Approval</div>
+              <div style="font-size:7px;color:#6b7280">SLA · Priority · Agent</div>
+            </div>
+            <div style="flex:1;padding:5px;display:flex;flex-direction:column;gap:3px">
+              <div class="mt-bar" style="width:80%"></div>
+              <div class="mt-bar gray sm" style="width:90%"></div>
+              <div class="mt-bar gray sm" style="width:60%"></div>
+            </div>
+            <div style="width:80px;border-left:1px solid #e5e7eb;padding:5px;background:#f8f9fa;display:flex;flex-direction:column;gap:3px">
+              <div style="font-size:7px;font-weight:700;color:#374151">Activity</div>
+              <div class="mt-bar gray sm" style="width:100%"></div>
+              <div class="mt-bar gray sm" style="width:80%"></div>
+              <div class="mt-bar gray sm" style="width:90%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p>A true <strong>3-pane agent workbench</strong>: left rail for workflow state machine, centre for ticket content, right rail for activity/comms. Action buttons live in a persistent header bar. Optimised for agents who work multiple tickets in a session.</p>
+      <ul class="feature-list">
+        <li><span class="check">✓</span> Maximum information density for power users</li>
+        <li><span class="check">✓</span> Workflow state always visible in left rail</li>
+        <li><span class="check">✓</span> Activity never buried under content</li>
+        <li><span class="check">✓</span> Persistent header with all actions</li>
+      </ul>
+    </div>
+    <div class="card-footer">
+      <div class="tradeoff"><strong>Effort:</strong> High — significant layout rearchitecture. Best ROI if agents handle 20+ tickets/day; overkill for occasional use.</div>
+    </div>
+  </div>
+
+</div>

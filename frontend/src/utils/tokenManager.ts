@@ -1,33 +1,36 @@
-// Token management utilities
-const ACCESS_TOKEN_KEY = 'access_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
-
+/**
+ * tokenManager — stub retained for API compatibility.
+ *
+ * Tokens are now stored exclusively in HttpOnly cookies managed by the server.
+ * This module no longer reads or writes localStorage. The server is the single
+ * source of truth for session state.
+ */
 export const tokenManager = {
-    getAccessToken(): string | null {
-        return localStorage.getItem(ACCESS_TOKEN_KEY);
+    /** @deprecated Tokens are server-managed via HttpOnly cookies. Always returns null. */
+    getAccessToken(): null {
+        return null;
     },
 
-    getRefreshToken(): string | null {
-        return localStorage.getItem(REFRESH_TOKEN_KEY);
+    /** @deprecated Tokens are server-managed via HttpOnly cookies. Always returns null. */
+    getRefreshToken(): null {
+        return null;
     },
 
-    setTokens(accessToken: string, refreshToken: string): void {
-        localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-        localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    /** @deprecated No-op. Tokens are set by the server via Set-Cookie. */
+    setTokens(_accessToken: string, _refreshToken: string): void {
+        // intentional no-op
     },
 
+    /** @deprecated No-op. Tokens are cleared by the server via clearCookie. */
     clearTokens(): void {
-        localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
+        // intentional no-op
     },
 
-    isTokenExpired(token: string): boolean {
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const expirationTime = payload.exp * 1000; // Convert to milliseconds
-            return Date.now() >= expirationTime;
-        } catch (error) {
-            return true;
-        }
+    /**
+     * Always returns false — token expiry is enforced server-side.
+     * @deprecated
+     */
+    isTokenExpired(_token: string): boolean {
+        return false;
     },
 };
