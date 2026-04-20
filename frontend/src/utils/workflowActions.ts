@@ -18,7 +18,17 @@ export type WorkflowActionType =
   | 'PAYMENT_DONE'
   | 'COMPLETE_DELIVERY'
   | 'MANAGER_DECISION'
-  | 'LOA_APPROVAL';
+  | 'LOA_APPROVAL'
+  | 'ROUTE_TO_CEO_HR'
+  | 'MARK_JOB_POSTED'
+  | 'UPLOAD_RESUME'
+  | 'ROUTE_TO_MANAGER'
+  | 'SCHEDULE_INTERVIEW'
+  | 'UPDATE_SCREENING'
+  | 'UPLOAD_LOA'
+  | 'ISSUE_LOA'
+  | 'UPLOAD_SIGNED_LOA'
+  | 'MARK_LOA_ACCEPTED';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -31,15 +41,16 @@ export interface WorkflowAction {
  * Returns the list of workflow actions available for a given status + role combo.
  * Returns empty array when no actions are available (section should be hidden).
  */
-// Request types that go through the procurement workflow (hardware/software only)
-const PROCUREMENT_REQUEST_TYPES = [
-  'Request new hardware',
-  'Request Software Installation',
-];
+// Stable codes for request types that go through the procurement workflow
+const PROCUREMENT_REQUEST_TYPE_CODES = ['NEW_HARDWARE', 'SOFTWARE_INSTALLATION'];
 
-function isProcurementRequest(requestTypeName: string): boolean {
-  return PROCUREMENT_REQUEST_TYPES.some(t =>
-    requestTypeName.toLowerCase().includes(t.toLowerCase())
+function isProcurementRequest(requestTypeCode: string, requestTypeName: string): boolean {
+  if (requestTypeCode) {
+    return PROCUREMENT_REQUEST_TYPE_CODES.includes(requestTypeCode);
+  }
+  // Fallback for records without a code (legacy)
+  return ['new hardware', 'software installation'].some(t =>
+    requestTypeName.toLowerCase().includes(t)
   );
 }
 
@@ -51,12 +62,17 @@ export function getWorkflowActions(
   requestTypeName = '',
   isRequester = false,
   serviceDeskCode = '',
-  requiresApproval = true
+  requiresApproval = true,
+  requestTypeCode = '',
+  hasResumes = false,
+  screeningCompleted = false,
+  hasLOA = false,
+  hasSignedLOA = false
 ): WorkflowAction[] {
   const isAdmin = userRoles.includes('ADMIN');
   const isAgent = userRoles.includes('AGENT');
   const canAct = isAdmin || isAgent;
-  const isProcurement = isProcurementRequest(requestTypeName);
+  const isProcurement = isProcurementRequest(requestTypeCode, requestTypeName);
   const isHR = serviceDeskCode === 'HR';
 
   const actions: WorkflowAction[] = [];
@@ -236,6 +252,106 @@ export function getWorkflowActions(
       type: 'ACKNOWLEDGE_IT',
       label: 'Acknowledge & Route to CEO',
       description: 'Acknowledge this request and route it to the CEO for approval.',
+      variant: 'primary',
+    });
+  }
+
+  // HR New Hiring — Route to CEO
+  const isNewHiring = requestTypeCode === 'NEW_HIRING' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('hiring'));
+  if (canAct && isHR && isNewHiring && status === 'JOB_POSTED') {
+    if (hasResumes) {
+      actions.push({
+        type: 'ROUTE_TO_MANAGER',
+        label: 'Route to Hiring Manager',
+        description: 'Send uploaded resumes to the hiring manager for review.',
+        variant: 'warning',
+      });
+    }
+    actions.push({
+      type: 'UPLOAD_RESUME',
+      label: hasResumes ? 'Upload Another Resume' : 'Upload Candidate Resume',
+      description: 'Upload a candidate resume to proceed to hiring manager review.',
+      variant: 'success',
+    });
+  }
+
+  if (canAct && isHR && isNewHiring && status === 'HR_SCREENING') {
+    actions.push({
+      type: 'UPDATE_SCREENING',
+      label: 'Update Screening Status',
+      description: 'Update background check and references check status.',
+      variant: 'primary',
+    });
+    if (screeningCompleted && !hasLOA) {
+      actions.push({
+        type: 'UPLOAD_LOA',
+        label: 'Upload LOA Document',
+        description: 'Screening complete. Upload the draft Letter of Acceptance.',
+        variant: 'success',
+      });
+    }
+  }
+
+  if (canAct && isHR && isNewHiring && status === 'LOA_ISSUED' && hasSignedLOA) {
+    actions.push({
+      type: 'MARK_LOA_ACCEPTED',
+      label: 'Mark LOA Accepted',
+      description: 'Signed LOA received from candidate. Mark the hiring as complete.',
+      variant: 'success',
+    });
+  }
+
+  if (canAct && isHR && isNewHiring && status === 'LOA_ISSUED' && !hasSignedLOA) {
+    actions.push({
+      type: 'UPLOAD_SIGNED_LOA',
+      label: 'Upload Signed LOA',
+      description: 'LOA has been issued. Upload the signed copy received from the candidate.',
+      variant: 'primary',
+    });
+  }
+
+  if (canAct && isHR && isNewHiring && status === 'LOA_APPROVED') {
+    actions.push({
+      type: 'ISSUE_LOA',
+      label: 'Issue LOA to Candidate',
+      description: 'LOA has been approved. Issue it to the candidate.',
+      variant: 'primary',
+    });
+  }
+
+  if (canAct && isHR && isNewHiring && status === 'LOA_PENDING_APPROVAL' && screeningCompleted && !hasLOA) {
+    actions.push({
+      type: 'UPLOAD_LOA',
+      label: 'Upload LOA Document',
+      description: 'Upload the draft Letter of Acceptance for the candidate.',
+      variant: 'success',
+    });
+  }
+
+  if (canAct && isHR && isNewHiring && status === 'MANAGER_APPROVED') {
+    actions.push({
+      type: 'SCHEDULE_INTERVIEW',
+      label: 'Schedule Interview',
+      description: 'Hiring manager selected a candidate. Schedule the interview.',
+      variant: 'primary',
+    });
+  }
+
+  if (canAct && isHR && isNewHiring && status === 'CEO_APPROVED') {
+    actions.push({
+      type: 'MARK_JOB_POSTED',
+      label: 'Mark Job as Posted',
+      description: 'CEO has approved. Record the job posting URL to proceed.',
+      variant: 'primary',
+    });
+  }
+
+  if (canAct && isHR && isNewHiring && (status === 'SUBMITTED' || status === 'IN_REVIEW')) {
+    actions.push({
+      type: 'ROUTE_TO_CEO_HR',
+      label: 'Route to CEO for Approval',
+      description: 'Route this hiring request to the CEO for sign-off.',
       variant: 'primary',
     });
   }

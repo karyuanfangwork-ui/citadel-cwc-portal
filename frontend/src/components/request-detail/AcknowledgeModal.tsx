@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import itWorkflowService from '../../services/it-workflow.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import ModalPortal from '../ModalPortal';
 
 interface Ceo {
   id: string;
@@ -74,6 +75,7 @@ const AcknowledgeModal: React.FC<AcknowledgeModalProps> = ({
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100">
@@ -170,6 +172,7 @@ const AcknowledgeModal: React.FC<AcknowledgeModalProps> = ({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
 import { requestService } from '../../services/request.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import ModalPortal from '../ModalPortal';
 
 interface Agent {
   id: string;
@@ -82,7 +83,8 @@ const AssignAgentModal: React.FC<AssignAgentModalProps> = ({
   const isSelf = selectedId === currentUserId;
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={handleBackdropClick}>
+    <ModalPortal>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100">
           <div className="size-9 rounded-lg bg-blue-100 flex items-center justify-center">
@@ -181,6 +183,7 @@ const AssignAgentModal: React.FC<AssignAgentModalProps> = ({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

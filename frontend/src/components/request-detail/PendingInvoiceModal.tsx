@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import itWorkflowService from '../../services/it-workflow.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import ModalPortal from '../ModalPortal';
 
 interface CfoUser {
   id: string;
@@ -75,8 +76,9 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-[9999] p-4 overflow-y-auto" onClick={handleBackdropClick}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+    <ModalPortal>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4 overflow-y-auto" onClick={handleBackdropClick}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] my-auto">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-purple-50 shrink-0">
           <div className="size-9 rounded-lg bg-purple-100 flex items-center justify-center">
             <span className="material-symbols-outlined text-purple-600">receipt_long</span>
@@ -202,6 +204,7 @@ const PendingInvoiceModal: React.FC<PendingInvoiceModalProps> = ({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

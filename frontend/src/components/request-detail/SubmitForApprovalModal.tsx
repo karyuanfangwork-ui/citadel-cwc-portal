@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import apiClient from '../../services/api';
 import itWorkflowService from '../../services/it-workflow.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import ModalPortal from '../ModalPortal';
 
 interface Manager {
   id: string;
@@ -102,6 +103,7 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
   };
 
   return (
+    <ModalPortal>
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100">
@@ -205,6 +207,7 @@ const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

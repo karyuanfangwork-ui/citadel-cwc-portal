@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../src/context/AuthContext';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { adminService, CategoryData } from '../src/services/admin.service';
 import FormBuilder from '../src/components/FormBuilder';
@@ -39,6 +40,7 @@ const COLOR_THEMES = [
 ];
 
 const AdminSettings = () => {
+    const { user: currentUser, logout } = useAuth();
     const [serviceDesks, setServiceDesks] = useState<any[]>([]);
     const [selectedDesk, setSelectedDesk] = useState<any>(null);
     const [categories, setCategories] = useState<any[]>([]);
@@ -51,6 +53,9 @@ const AdminSettings = () => {
     const [selectedType, setSelectedType] = useState<any>(null);
     const [serviceModalOpen, setServiceModalOpen] = useState(false);
     const [serviceFormData, setServiceFormData] = useState({ name: '', description: '', icon: 'bolt', requiresApproval: false, slaHours: '', requiredRole: '' });
+    const [editingTypeName, setEditingTypeName] = useState<{ id: string; name: string; description: string } | null>(null);
+    const [editTypeForm, setEditTypeForm] = useState({ name: '', description: '' });
+    const [savingTypeName, setSavingTypeName] = useState(false);
 
     const [pendingAction, setPendingAction] = useState<{ message: string; onConfirm: () => Promise<void> } | null>(null);
     const [toastMsg, setToastMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
@@ -404,11 +409,18 @@ const AdminSettings = () => {
 
     const handleSaveRoles = async () => {
         if (!roleModalUser || roleModalSelected.length === 0) return;
+        const isSelf = currentUser?.id === roleModalUser.id;
         try {
             await adminService.assignUserRoles(roleModalUser.id, roleModalSelected);
             setRoleModalUser(null);
-            fetchUsers(userPagination.page);
-            showToast('success', 'Roles updated. User session revoked — they must log in again.');
+            if (isSelf) {
+                // Session was revoked — must log out and re-login for new roles to take effect
+                showToast('success', 'Your roles were updated. Please log in again.');
+                setTimeout(() => logout(), 1500);
+            } else {
+                fetchUsers(userPagination.page);
+                showToast('success', 'Roles updated. User session revoked — they must log in again.');
+            }
         } catch (err) {
             console.error('Error saving roles:', err);
             showToast('error', 'Failed to update roles.');
@@ -449,6 +461,31 @@ const AdminSettings = () => {
     const openFormBuilder = (type: any) => {
         setSelectedType(type);
         setFormBuilderOpen(true);
+    };
+
+    const openEditTypeName = (type: any) => {
+        setEditingTypeName({ id: type.id, name: type.name, description: type.description || '' });
+        setEditTypeForm({ name: type.name, description: type.description || '' });
+    };
+
+    const handleSaveTypeName = async () => {
+        if (!editingTypeName) return;
+        setSavingTypeName(true);
+        try {
+            await serviceDeskService.updateRequestType(editingTypeName.id, {
+                name: editTypeForm.name,
+                description: editTypeForm.description,
+            });
+            setRequestTypes(prev => prev.map(t =>
+                t.id === editingTypeName.id ? { ...t, name: editTypeForm.name, description: editTypeForm.description } : t
+            ));
+            showToast('success', 'Request type updated successfully.');
+            setEditingTypeName(null);
+        } catch (err) {
+            showToast('error', 'Failed to update request type.');
+        } finally {
+            setSavingTypeName(false);
+        }
     };
 
     const handleSaveFormConfig = async (fields: any[]) => {
@@ -650,6 +687,13 @@ const AdminSettings = () => {
                                                 <span className="material-symbols-outlined text-2xl">{type.icon || 'bolt'}</span>
                                             </div>
                                             <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => openEditTypeName(type)}
+                                                    className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
+                                                    title="Edit Name & Description"
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">edit</span>
+                                                </button>
                                                 <button
                                                     onClick={() => openFormBuilder(type)}
                                                     className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-[#0052cc] hover:bg-blue-50 rounded-xl transition-all"
@@ -1441,6 +1485,70 @@ const AdminSettings = () => {
 
             {/* Request Statuses Tab */}
             {activeTab === 'status-definitions' && <StatusDefinitionsTab />}
+
+            {/* Edit Request Type Name Modal */}
+            {editingTypeName && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+                        <div className="p-8">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-xl font-bold text-[#101418]">Edit Request Type</h2>
+                                <button
+                                    onClick={() => setEditingTypeName(null)}
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                    disabled={savingTypeName}
+                                >
+                                    <span className="material-symbols-outlined text-2xl">close</span>
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-[#101418] mb-2">Name</label>
+                                    <input
+                                        type="text"
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none"
+                                        value={editTypeForm.name}
+                                        onChange={e => setEditTypeForm(f => ({ ...f, name: e.target.value }))}
+                                        disabled={savingTypeName}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-[#101418] mb-2">Description</label>
+                                    <textarea
+                                        rows={3}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none resize-none"
+                                        value={editTypeForm.description}
+                                        onChange={e => setEditTypeForm(f => ({ ...f, description: e.target.value }))}
+                                        disabled={savingTypeName}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-3 justify-end mt-6">
+                                <button
+                                    type="button"
+                                    className="px-6 py-2.5 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
+                                    onClick={() => setEditingTypeName(null)}
+                                    disabled={savingTypeName}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    className="px-6 py-2.5 bg-[#0052cc] text-white text-sm font-bold rounded-lg hover:bg-[#0043a8] transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    onClick={handleSaveTypeName}
+                                    disabled={savingTypeName || !editTypeForm.name.trim()}
+                                >
+                                    {savingTypeName ? (
+                                        <><span className="animate-spin material-symbols-outlined text-lg">progress_activity</span>Saving...</>
+                                    ) : (
+                                        <><span className="material-symbols-outlined text-lg">save</span>Save Changes</>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Toast */}
             {toastMsg && (

@@ -7,8 +7,9 @@ import apiClient from './api';
 /**
  * Route request to CEO for approval
  */
-export const routeToCEO = async (requestId: string, comments?: string) => {
+export const routeToCEO = async (requestId: string, ceoId?: string, comments?: string) => {
     const response = await apiClient.post(`/approvals/requests/${requestId}/route-to-ceo`, {
+        ceoId,
         comments
     });
     return response.data.data;

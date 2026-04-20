@@ -195,13 +195,7 @@ const CreateRequest = () => {
                             placeholder="0.00"
                             value={formData.customFields[field.id] || ''}
                             onChange={e => {
-                                const value = e.target.value;
-                                // Format to 2 decimal places
-                                if (value && !isNaN(parseFloat(value))) {
-                                    handleCustomFieldChange(field.id, parseFloat(value).toFixed(2));
-                                } else {
-                                    handleCustomFieldChange(field.id, value);
-                                }
+                                handleCustomFieldChange(field.id, e.target.value);
                             }}
                             onBlur={e => {
                                 // Ensure 2 decimal places on blur
@@ -385,7 +379,7 @@ const CreateRequest = () => {
                                         <input
                                             required
                                             type="text"
-                                            placeholder="e.g.. VPN won't connect"
+                                            placeholder="Enter a brief summary"
                                             className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none transition-all placeholder:text-gray-400"
                                             value={formData.summary}
                                             onChange={e => setFormData({ ...formData, summary: e.target.value })}
@@ -417,7 +411,7 @@ const CreateRequest = () => {
                                                 </div>
                                                 <textarea
                                                     rows={8}
-                                                    placeholder="Include any error codes or steps to reproduce..."
+                                                    placeholder="Provide additional details about your request..."
                                                     className="w-full px-4 py-3 bg-white border-none text-base outline-none resize-none placeholder:text-gray-400"
                                                     value={formData.description}
                                                     onChange={e => setFormData({ ...formData, description: e.target.value })}

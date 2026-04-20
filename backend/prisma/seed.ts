@@ -134,9 +134,21 @@ async function main() {
 
     console.log('✅ Permissions created');
 
-    // Create Admin User
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const hiringManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'HIRING_MANAGER' } });
 
+    // Helper: assign roles to a user (create-only, never removes existing roles)
+    const assignRoles = async (userId: string, roleIds: string[]) => {
+        for (const roleId of roleIds) {
+            await prisma.userRole.upsert({
+                where: { userId_roleId: { userId, roleId } },
+                update: {},
+                create: { userId, roleId },
+            });
+        }
+    };
+
+    // --- System accounts ---
+    const hashedPassword = await bcrypt.hash('admin123', 10);
     const adminUser = await prisma.user.upsert({
         where: { email: 'admin@helpdesk.com' },
         update: {},
@@ -150,33 +162,15 @@ async function main() {
             isActive: true,
         },
     });
-
-    // Assign admin role
-    await prisma.userRole.upsert({
-        where: {
-            userId_roleId: {
-                userId: adminUser.id,
-                roleId: adminRole.id,
-            },
-        },
-        update: {},
-        create: {
-            userId: adminUser.id,
-            roleId: adminRole.id,
-        },
-    });
-
+    await assignRoles(adminUser.id, [adminRole.id, agentRole.id, hiringManagerRole.id]);
     console.log('✅ Admin user created (email: admin@helpdesk.com, password: admin123)');
-
-    // Create CEO User
-    const ceoHashedPassword = await bcrypt.hash('ceo123', 10);
 
     const ceoUser = await prisma.user.upsert({
         where: { email: 'ceo@company.com' },
         update: {},
         create: {
             email: 'ceo@company.com',
-            passwordHash: ceoHashedPassword,
+            passwordHash: await bcrypt.hash('ceo123', 10),
             firstName: 'Chief',
             lastName: 'Executive',
             department: 'Executive',
@@ -184,148 +178,94 @@ async function main() {
             isActive: true,
         },
     });
-
-    // Assign CEO role
-    await prisma.userRole.upsert({
-        where: {
-            userId_roleId: {
-                userId: ceoUser.id,
-                roleId: ceoRole.id,
-            },
-        },
-        update: {},
-        create: {
-            userId: ceoUser.id,
-            roleId: ceoRole.id,
-        },
-    });
-
+    await assignRoles(ceoUser.id, [ceoRole.id, hiringManagerRole.id]);
     console.log('✅ CEO user created (email: ceo@company.com, password: ceo123)');
 
-    // Create CTO User
-    const ctoHashedPassword = await bcrypt.hash('cto123', 10);
     const ctoUser = await prisma.user.upsert({
         where: { email: 'cto@company.com' },
         update: {},
         create: {
             email: 'cto@company.com',
+            passwordHash: await bcrypt.hash('cto123', 10),
             firstName: 'Alex',
             lastName: 'Tech',
-            passwordHash: ctoHashedPassword,
             isActive: true,
         },
     });
-
-    await prisma.userRole.upsert({
-        where: { userId_roleId: { userId: ctoUser.id, roleId: ctoRole.id } },
-        update: {},
-        create: { userId: ctoUser.id, roleId: ctoRole.id },
-    });
-
+    await assignRoles(ctoUser.id, [ctoRole.id]);
     console.log('✅ CTO user created (email: cto@company.com, password: cto123)');
 
-    // Create CFO User
-    const cfoHashedPassword = await bcrypt.hash('cfo123', 10);
     const cfoUser = await prisma.user.upsert({
         where: { email: 'cfo@company.com' },
         update: {},
         create: {
             email: 'cfo@company.com',
+            passwordHash: await bcrypt.hash('cfo123', 10),
             firstName: 'Jordan',
             lastName: 'Finance',
-            passwordHash: cfoHashedPassword,
             isActive: true,
         },
     });
-
-    await prisma.userRole.upsert({
-        where: { userId_roleId: { userId: cfoUser.id, roleId: cfoRole.id } },
-        update: {},
-        create: { userId: cfoUser.id, roleId: cfoRole.id },
-    });
-
+    await assignRoles(cfoUser.id, [cfoRole.id]);
     console.log('✅ CFO user created (email: cfo@company.com, password: cfo123)');
 
-    // Create Test Users
-    const testUsers = [
-        {
-            email: 'john.doe@company.com',
-            firstName: 'John',
-            lastName: 'Doe',
-            department: 'Engineering',
-            jobTitle: 'Software Engineer',
-        },
-        {
-            email: 'jane.smith@company.com',
-            firstName: 'Jane',
-            lastName: 'Smith',
-            department: 'Marketing',
-            jobTitle: 'Marketing Manager',
-        },
-        {
-            email: 'agent@helpdesk.com',
-            firstName: 'Support',
-            lastName: 'Agent',
-            department: 'IT',
-            jobTitle: 'IT Support Specialist',
-        },
+    // --- Agent accounts ---
+    const agentPassword = await bcrypt.hash('password123', 10);
+
+    const agentAccounts = [
+        { email: 'agent@helpdesk.com',     firstName: 'Support', lastName: 'Agent',       department: 'IT',      jobTitle: 'IT Support Specialist',    roles: [agentRole.id] },
+        { email: 'itagent@company.com',     firstName: 'Agent',   lastName: 'IT one',      department: '',        jobTitle: '',                          roles: [agentRole.id, userRole.id] },
+        { email: 'hr@company.com',          firstName: 'Agent',   lastName: 'HR one',      department: '',        jobTitle: '',                          roles: [agentRole.id, userRole.id] },
+        { email: 'finance@company.com',     firstName: 'Agent',   lastName: 'Finance one', department: '',        jobTitle: '',                          roles: [agentRole.id, userRole.id] },
     ];
 
-    const testPassword = await bcrypt.hash('password123', 10);
-
-    for (const userData of testUsers) {
-        const user = await prisma.user.upsert({
-            where: { email: userData.email },
+    for (const acc of agentAccounts) {
+        const u = await prisma.user.upsert({
+            where: { email: acc.email },
             update: {},
             create: {
-                ...userData,
-                passwordHash: testPassword,
+                email: acc.email,
+                passwordHash: agentPassword,
+                firstName: acc.firstName,
+                lastName: acc.lastName,
+                department: acc.department || null,
+                jobTitle: acc.jobTitle || null,
                 isActive: true,
             },
         });
-
-        // Assign user role to regular users
-        if (userData.email !== 'agent@helpdesk.com') {
-            await prisma.userRole.upsert({
-                where: {
-                    userId_roleId: {
-                        userId: user.id,
-                        roleId: userRole.id,
-                    },
-                },
-                update: {},
-                create: {
-                    userId: user.id,
-                    roleId: userRole.id,
-                },
-            });
-        } else {
-            // Assign agent role
-            await prisma.userRole.upsert({
-                where: {
-                    userId_roleId: {
-                        userId: user.id,
-                        roleId: agentRole.id,
-                    },
-                },
-                update: {},
-                create: {
-                    userId: user.id,
-                    roleId: agentRole.id,
-                },
-            });
-        }
+        await assignRoles(u.id, acc.roles);
     }
+    console.log('✅ Agent accounts created (password: password123)');
 
+    // --- Regular test users ---
+    const testPassword = await bcrypt.hash('password123', 10);
+    const testUsers = [
+        { email: 'john.doe@company.com',   firstName: 'John', lastName: 'Doe',   department: 'Engineering', jobTitle: 'Software Engineer' },
+        { email: 'jane.smith@company.com', firstName: 'Jane', lastName: 'Smith', department: 'Marketing',   jobTitle: 'Marketing Manager' },
+    ];
+
+    for (const userData of testUsers) {
+        const u = await prisma.user.upsert({
+            where: { email: userData.email },
+            update: {},
+            create: { ...userData, passwordHash: testPassword, isActive: true },
+        });
+        await assignRoles(u.id, [userRole.id]);
+    }
     console.log('✅ Test users created (password: password123)');
 
     // Create Service Categories for IT
     const itCategories = [
-        { name: 'Get IT help', icon: 'help', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1 },
-        { name: 'Email Management', icon: 'mail', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2 },
-        { name: 'Report System problem', icon: 'report', colorClass: 'bg-purple-50 text-purple-600', displayOrder: 3 },
-        { name: 'Request Software Installation', icon: 'apps', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4 },
-        { name: 'Request new hardware', icon: 'laptop', colorClass: 'bg-cyan-50 text-cyan-600', displayOrder: 5 },
+        { name: 'Get IT help', icon: 'help', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1,
+          requestTypeName: 'Get IT Help Request', requestTypeCode: 'GET_IT_HELP' },
+        { name: 'Email Management', icon: 'mail', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
+          requestTypeName: 'Email Management Request', requestTypeCode: 'EMAIL_MANAGEMENT' },
+        { name: 'Report System problem', icon: 'report', colorClass: 'bg-purple-50 text-purple-600', displayOrder: 3,
+          requestTypeName: 'Report System Problem Request', requestTypeCode: 'REPORT_SYSTEM_PROBLEM' },
+        { name: 'Request Software Installation', icon: 'apps', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4,
+          requestTypeName: 'Software Installation Request', requestTypeCode: 'SOFTWARE_INSTALLATION' },
+        { name: 'Request new hardware', icon: 'laptop', colorClass: 'bg-cyan-50 text-cyan-600', displayOrder: 5,
+          requestTypeName: 'Request New Hardware Request', requestTypeCode: 'NEW_HARDWARE' },
     ];
 
     for (const category of itCategories) {
@@ -336,14 +276,12 @@ async function main() {
                     name: category.name
                 }
             },
-            update: {
+            update: {},
+            create: {
+                name: category.name,
                 icon: category.icon,
                 colorClass: category.colorClass,
                 displayOrder: category.displayOrder,
-                isActive: true
-            },
-            create: {
-                ...category,
                 serviceDeskId: itDesk.id,
                 isActive: true,
             },
@@ -351,46 +289,62 @@ async function main() {
 
         // Add a default request type with a sample form configuration
         let formConfig: any[] = [];
-        if (category.name === 'Request new hardware') {
+        if (category.requestTypeCode === 'NEW_HARDWARE') {
             formConfig = [
                 { id: 'hardwareName', label: 'Hardware Name', type: 'text', required: true },
-                { id: 'hardwareModel', label: 'Preferred Model', type: 'text', required: false },
-                { id: 'estimatedPrice', label: 'Estimated Price (USD)', type: 'currency', required: false },
-                { id: 'preferredVendor', label: 'Preferred Vendor', type: 'text', required: false },
+                { id: 'estimatedPrice', label: 'Estimated Price  ', type: 'currency', required: false },
                 { id: 'productUrl', label: 'Product URL', type: 'text', required: false },
-                { id: 'businessJustification', label: 'Business Justification', type: 'textarea', required: true }
+                { id: 'businessJustification', label: 'Business Justification', type: 'textarea', required: true },
             ];
-        } else if (category.name === 'Request Software Installation') {
+        } else if (category.requestTypeCode === 'SOFTWARE_INSTALLATION') {
             formConfig = [
                 { id: 'sw_name', label: 'Software Name', type: 'text', required: true },
                 { id: 'sw_version', label: 'Version Number', type: 'text', required: false }
             ];
         }
 
-        // Check if request type already exists for this category
-        const existingType = await prisma.requestType.findFirst({
-            where: {
-                serviceCategoryId: cat.id,
-                name: `General ${category.name} Request`
-            }
+        // Upsert by code so the name can be freely changed without duplicates
+        const existingByCode = await prisma.requestType.findFirst({
+            where: { code: category.requestTypeCode }
         });
+        // Also find any old record without a code for this category (legacy)
+        const existingLegacy = !existingByCode ? await prisma.requestType.findFirst({
+            where: { serviceCategoryId: cat.id }
+        }) : null;
 
-        if (!existingType) {
+        if (existingByCode) {
+            // Only backfill structural fields — never overwrite name, description, or formConfig
+            // so Admin UI edits are preserved across re-seeds
+            await prisma.requestType.update({
+                where: { id: existingByCode.id },
+                data: {
+                    serviceCategoryId: cat.id,
+                    isActive: true,
+                    ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
+                }
+            });
+        } else if (existingLegacy) {
+            // Backfill code onto legacy record without touching name/formConfig
+            await prisma.requestType.update({
+                where: { id: existingLegacy.id },
+                data: {
+                    code: category.requestTypeCode,
+                    isActive: true,
+                    ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
+                }
+            });
+        } else {
             await prisma.requestType.create({
                 data: {
                     serviceCategoryId: cat.id,
-                    name: `General ${category.name} Request`,
+                    code: category.requestTypeCode,
+                    name: category.requestTypeName,
                     description: `Submit a request for ${category.name.toLowerCase()} assistance.`,
                     icon: category.icon,
                     formConfig,
                     isActive: true,
-                    ...(category.name === 'Request new hardware' ? { slaHours: 72, requiresApproval: true } : {}),
+                    ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
                 }
-            });
-        } else if (category.name === 'Request new hardware') {
-            await prisma.requestType.update({
-                where: { id: existingType.id },
-                data: { formConfig, slaHours: 72, requiresApproval: true }
             });
         }
     }
@@ -399,10 +353,56 @@ async function main() {
 
     // Create Service Categories for HR
     const hrCategoriesData = [
-        { name: 'Leave Management', description: 'Apply for leave, check balance', icon: 'event_available', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1 },
-        { name: 'Payroll & Compensation', description: 'Salary queries, tax forms, payslips', icon: 'payments', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2 },
-        { name: 'Benefits & Claims', description: 'Medical claims, insurance, benefits enrollment', icon: 'health_and_safety', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 3 },
-        { name: 'New Hire Request', description: 'Request to hire for a position', icon: 'person_add', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4 },
+        {
+            name: 'Question for HR', description: 'Ask HR a question or request general HR assistance',
+            icon: 'contact_support', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1,
+            requestTypeName: 'Question for HR', requestTypeCode: 'HR_QUESTION',
+            formConfig: [
+                { id: 'field_1776666757696', label: 'What is your question ?', type: 'text', required: true },
+                { id: 'field_1776666848303', label: 'Provide as much detail as possible about your question', type: 'textarea', required: true },
+                { id: 'field_1776666972796', label: 'Attachment', type: 'file', required: false },
+            ],
+            requiredRole: null, slaHours: 24,
+        },
+        {
+            name: 'New Hiring Request', description: 'Request to open a new position and hire a candidate',
+            icon: 'person_add', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 2,
+            requestTypeName: 'New Hiring Request', requestTypeCode: 'NEW_HIRING',
+            formConfig: [
+                { id: 'position', label: 'Job Title', type: 'text', required: true },
+                { id: 'department', label: 'Department', type: 'text', required: true },
+                { id: 'headcount', label: 'Role Category', type: 'select', required: true, options: ['Junior Executive', 'Senior Executive', 'Head of Department', 'C-Level'] },
+                { id: 'field_1776667989723', label: 'Proposed Salary', type: 'currency', required: false },
+                { id: 'field_1776668042538', label: 'Attach Org Chart', type: 'file', required: false },
+                { id: 'field_1776668064979', label: 'Attach Job Description', type: 'file', required: false },
+            ],
+            requiredRole: 'HIRING_MANAGER', slaHours: 48,
+        },
+        {
+            name: 'New Employee Onboarding', description: 'Initiate onboarding process for a new hire',
+            icon: 'how_to_reg', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 3,
+            requestTypeName: 'New Employee Onboarding', requestTypeCode: 'EMPLOYEE_ONBOARDING',
+            formConfig: [
+                { id: 'employeeName', label: 'Employee Full Name', type: 'text', required: true },
+                { id: 'employeeEmail', label: 'Employee Email', type: 'text', required: true },
+                { id: 'startDate', label: 'Start Date', type: 'text', required: true },
+                { id: 'department', label: 'Department', type: 'text', required: true },
+                { id: 'jobTitle', label: 'Job Title', type: 'text', required: true },
+            ],
+            requiredRole: null, slaHours: 48,
+        },
+        {
+            name: 'Offboard an Employee', description: 'Initiate offboarding process for a departing employee',
+            icon: 'person_remove', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 4,
+            requestTypeName: 'Offboard an Employee', requestTypeCode: 'EMPLOYEE_OFFBOARDING',
+            formConfig: [
+                { id: 'employeeName', label: 'Employee Full Name', type: 'text', required: true },
+                { id: 'employeeEmail', label: 'Employee Email', type: 'text', required: true },
+                { id: 'lastDay', label: 'Last Working Day', type: 'text', required: true },
+                { id: 'reason', label: 'Reason for Departure', type: 'text', required: false },
+            ],
+            requiredRole: null, slaHours: 48,
+        },
     ];
 
     for (const cat of hrCategoriesData) {
@@ -413,54 +413,49 @@ async function main() {
                     name: cat.name
                 }
             },
-            update: {
+            update: {},
+            create: {
+                name: cat.name,
+                description: cat.description,
                 icon: cat.icon,
                 colorClass: cat.colorClass,
                 displayOrder: cat.displayOrder,
-                isActive: true
-            },
-            create: {
-                ...cat,
                 serviceDeskId: hrDesk.id,
                 isActive: true,
             },
         });
 
-        // Check if request type already exists for this category
-        const existingType = await prisma.requestType.findFirst({
-            where: {
-                serviceCategoryId: category.id,
-                name: cat.name
-            }
+        // Upsert by code — only create if missing, never overwrite admin-editable fields
+        const existingByCode = await prisma.requestType.findFirst({
+            where: { code: cat.requestTypeCode }
         });
+        const existingLegacy = !existingByCode
+            ? await prisma.requestType.findFirst({ where: { serviceCategoryId: category.id } })
+            : null;
 
-        const newHireFormConfig = cat.name === 'New Hire Request' ? [
-            { id: 'position', label: 'Position / Job Title', type: 'text', required: true },
-            { id: 'department', label: 'Department', type: 'text', required: true },
-            { id: 'candidateName', label: 'Candidate Full Name', type: 'text', required: false },
-            { id: 'candidateEmail', label: 'Candidate Email', type: 'text', required: false },
-            { id: 'headcount', label: 'Number of Headcount', type: 'text', required: false },
-            { id: 'justification', label: 'Business Justification', type: 'textarea', required: true },
-        ] : [];
-
-        if (!existingType) {
+        if (existingByCode) {
+            // Backfill structural fields only
+            await prisma.requestType.update({
+                where: { id: existingByCode.id },
+                data: { serviceCategoryId: category.id, isActive: true },
+            });
+        } else if (existingLegacy) {
+            // Assign code to legacy record without touching name/formConfig
+            await prisma.requestType.update({
+                where: { id: existingLegacy.id },
+                data: { code: cat.requestTypeCode, isActive: true },
+            });
+        } else {
             await prisma.requestType.create({
                 data: {
                     serviceCategoryId: category.id,
-                    name: cat.name,
+                    code: cat.requestTypeCode,
+                    name: cat.requestTypeName,
                     description: cat.description,
-                    slaHours: 48,
+                    slaHours: cat.slaHours,
                     isActive: true,
-                    requiredRole: cat.name === 'New Hire Request' ? 'HIRING_MANAGER' : null,
-                    ...(cat.name === 'New Hire Request' ? { formConfig: newHireFormConfig } : {}),
-                },
-            });
-        } else if (cat.name === 'New Hire Request') {
-            await prisma.requestType.update({
-                where: { id: existingType.id },
-                data: {
-                    requiredRole: 'HIRING_MANAGER',
-                    formConfig: newHireFormConfig,
+                    requiredRole: cat.requiredRole,
+                    formConfig: cat.formConfig,
                 },
             });
         }
@@ -470,9 +465,42 @@ async function main() {
 
     // Create Service Categories for Finance
     const finCategoriesData = [
-        { name: 'Expense Reimbursement', description: 'Submit expense claims for reimbursement', icon: 'receipt_long', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1 },
-        { name: 'Invoice Processing', description: 'Submit or query vendor invoices', icon: 'description', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2 },
-        { name: 'Budget Approval', description: 'Request budget allocation or transfer', icon: 'account_balance', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 3 },
+        {
+            name: 'Purchase Requisition', description: 'Submit a request to purchase goods or services',
+            icon: 'shopping_cart', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1,
+            requestTypeName: 'Purchase Requisition', requestTypeCode: 'PURCHASE_REQUISITION',
+            formConfig: [
+                { id: 'itemName', label: 'Item / Service Name', type: 'text', required: true },
+                { id: 'quantity', label: 'Quantity', type: 'number', required: true },
+                { id: 'estimatedCost', label: 'Estimated Cost (RM)', type: 'currency', required: true },
+                { id: 'vendor', label: 'Preferred Vendor', type: 'text', required: false },
+                { id: 'justification', label: 'Business Justification', type: 'textarea', required: true },
+            ],
+        },
+        {
+            name: 'Inter-Company Chargeback', description: 'Request a chargeback between internal company entities',
+            icon: 'swap_horiz', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
+            requestTypeName: 'Inter-Company Chargeback', requestTypeCode: 'INTERCOMPANY_CHARGEBACK',
+            formConfig: [
+                { id: 'chargeFromEntity', label: 'Charge From Entity', type: 'text', required: true },
+                { id: 'chargeToEntity', label: 'Charge To Entity', type: 'text', required: true },
+                { id: 'amount', label: 'Amount (RM)', type: 'currency', required: true },
+                { id: 'costCenter', label: 'Cost Center', type: 'text', required: false },
+                { id: 'description', label: 'Description / Reason', type: 'textarea', required: true },
+            ],
+        },
+        {
+            name: 'Submit Budget Proposal', description: 'Submit a budget proposal for approval',
+            icon: 'account_balance', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 3,
+            requestTypeName: 'Submit Budget Proposal', requestTypeCode: 'BUDGET_PROPOSAL',
+            formConfig: [
+                { id: 'department', label: 'Department', type: 'text', required: true },
+                { id: 'budgetPeriod', label: 'Budget Period (e.g. Q1 2026)', type: 'text', required: true },
+                { id: 'totalAmount', label: 'Total Amount Requested (RM)', type: 'currency', required: true },
+                { id: 'breakdown', label: 'Budget Breakdown', type: 'textarea', required: true },
+                { id: 'justification', label: 'Business Justification', type: 'textarea', required: true },
+            ],
+        },
     ];
 
     for (const cat of finCategoriesData) {
@@ -483,35 +511,45 @@ async function main() {
                     name: cat.name
                 }
             },
-            update: {
+            update: {},
+            create: {
+                name: cat.name,
+                description: cat.description,
                 icon: cat.icon,
                 colorClass: cat.colorClass,
                 displayOrder: cat.displayOrder,
-                isActive: true
-            },
-            create: {
-                ...cat,
                 serviceDeskId: financeDesk.id,
                 isActive: true,
             },
         });
 
-        // Check if request type already exists for this category
-        const existingType = await prisma.requestType.findFirst({
-            where: {
-                serviceCategoryId: category.id,
-                name: cat.name
-            }
+        const existingByCode = await prisma.requestType.findFirst({
+            where: { code: cat.requestTypeCode }
         });
+        const existingLegacy = !existingByCode
+            ? await prisma.requestType.findFirst({ where: { serviceCategoryId: category.id } })
+            : null;
 
-        if (!existingType) {
+        if (existingByCode) {
+            await prisma.requestType.update({
+                where: { id: existingByCode.id },
+                data: { serviceCategoryId: category.id, isActive: true },
+            });
+        } else if (existingLegacy) {
+            await prisma.requestType.update({
+                where: { id: existingLegacy.id },
+                data: { code: cat.requestTypeCode, isActive: true },
+            });
+        } else {
             await prisma.requestType.create({
                 data: {
                     serviceCategoryId: category.id,
-                    name: cat.name,
+                    code: cat.requestTypeCode,
+                    name: cat.requestTypeName,
                     description: cat.description,
                     slaHours: 72,
                     isActive: true,
+                    formConfig: cat.formConfig,
                 },
             });
         }
@@ -715,7 +753,7 @@ async function main() {
     for (const def of statusDefinitions) {
         await prisma.requestStatusDefinition.upsert({
             where: { code: def.code },
-            update: { label: def.label, category: def.category, displayOrder: def.displayOrder },
+            update: {},
             create: { ...def, isActive: true },
         });
     }

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import approvalService, { CandidateResume } from '../../services/approval.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import ModalPortal from '../ModalPortal';
 
 interface ManagerDecisionModalProps {
   requestId: string;
@@ -71,6 +72,7 @@ const ManagerDecisionModal: React.FC<ManagerDecisionModalProps> = ({
   };
 
   return (
+    <ModalPortal>
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4"
       onClick={handleBackdropClick}
@@ -185,6 +187,7 @@ const ManagerDecisionModal: React.FC<ManagerDecisionModalProps> = ({
         </div>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

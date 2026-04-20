@@ -1,7 +1,6 @@
 import React, { lazy, Suspense, useState } from 'react';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
 import SLAIndicator from './SLAIndicator';
-import itWorkflowService from '../../services/it-workflow.service';
 
 const WorkflowApproveModal = lazy(() => import('./WorkflowApproveModal'));
 const WorkflowRejectModal = lazy(() => import('./WorkflowRejectModal'));
@@ -21,8 +20,16 @@ const PendingInvoiceModal = lazy(() => import('./PendingInvoiceModal'));
 const CfoDecisionModal = lazy(() => import('./CfoDecisionModal'));
 const PaymentDoneModal = lazy(() => import('./PaymentDoneModal'));
 const ManagerDecisionModal = lazy(() => import('./ManagerDecisionModal'));
+const CompleteDeliveryModal = lazy(() => import('./CompleteDeliveryModal'));
+const RouteToCEOHRModal = lazy(() => import('./RouteToCEOHRModal'));
+const MarkJobPostedModal = lazy(() => import('./MarkJobPostedModal'));
+const UploadResumeModal = lazy(() => import('./UploadResumeModal'));
+const ScheduleInterviewModal = lazy(() => import('./ScheduleInterviewModal'));
+const UpdateScreeningModal = lazy(() => import('./UpdateScreeningModal'));
+const UploadLOAModal = lazy(() => import('./UploadLOAModal'));
+const UploadSignedLOAModal = lazy(() => import('./UploadSignedLOAModal'));
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -33,6 +40,7 @@ interface ActionSidebarProps {
   assignedTo?: { id: string; firstName: string; lastName: string } | null;
   approvals?: { id: string; approverId: string; approverType: string; status: string }[];
   requestTypeName?: string;
+  requestTypeCode?: string;
   referenceNumber: string;
   priority: string;
   serviceDeskName: string;
@@ -43,8 +51,16 @@ interface ActionSidebarProps {
   serviceDeskCode: string;
   requiresApproval?: boolean;
   attachments?: { id: string; fileName: string; storageUrl: string; mimeType: string; createdAt: string }[];
+  hasResumes?: boolean;
+  screeningCompleted?: boolean;
+  hasLOA?: boolean;
+  hasSignedLOA?: boolean;
+  selectedCandidateId?: string;
   onActionSuccess: () => void;
   onLOAApproval?: () => void;
+  onRouteToManager?: () => void;
+  onIssueLOA?: () => void;
+  onMarkLOAAccepted?: () => void;
 }
 
 const PRIORITY_COLOURS: Record<string, string> = {
@@ -63,6 +79,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   assignedTo,
   approvals = [],
   requestTypeName = '',
+  requestTypeCode = '',
   referenceNumber,
   priority,
   serviceDeskName,
@@ -73,8 +90,16 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   serviceDeskCode,
   requiresApproval,
   attachments = [],
+  hasResumes = false,
+  screeningCompleted = false,
+  hasLOA = false,
+  hasSignedLOA = false,
+  selectedCandidateId,
   onActionSuccess,
   onLOAApproval,
+  onRouteToManager,
+  onIssueLOA,
+  onMarkLOAAccepted,
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -84,7 +109,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
     a => a.approverId === userId && a.status === 'PENDING'
   );
   const isRequester = !!(requesterId && userId && requesterId === userId);
-  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester, serviceDeskCode, requiresApproval ?? true);
+  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester, serviceDeskCode, requiresApproval ?? true, requestTypeCode, hasResumes, screeningCompleted, hasLOA, hasSignedLOA);
 
   const handleSuccess = () => {
     setOpenModal(null);
@@ -112,17 +137,17 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'PAYMENT_DONE': setOpenModal('PAYMENT_DONE'); break;
       case 'MANAGER_DECISION': setOpenModal('MANAGER_DECISION'); break;
       case 'LOA_APPROVAL': if (onLOAApproval) onLOAApproval(); break;
-      case 'COMPLETE_DELIVERY':
-        (async () => {
-          try {
-            setActionError(null);
-            await itWorkflowService.completeDelivery(requestId);
-            onActionSuccess();
-          } catch (err: any) {
-            setActionError(err.response?.data?.error || 'Failed to complete delivery');
-          }
-        })();
-        break;
+      case 'ROUTE_TO_CEO_HR': setOpenModal('ROUTE_TO_CEO_HR'); break;
+      case 'MARK_JOB_POSTED': setOpenModal('MARK_JOB_POSTED'); break;
+      case 'UPLOAD_RESUME': setOpenModal('UPLOAD_RESUME'); break;
+      case 'ROUTE_TO_MANAGER': if (onRouteToManager) onRouteToManager(); break;
+      case 'SCHEDULE_INTERVIEW': setOpenModal('SCHEDULE_INTERVIEW'); break;
+      case 'UPDATE_SCREENING': setOpenModal('UPDATE_SCREENING'); break;
+      case 'UPLOAD_LOA': setOpenModal('UPLOAD_LOA'); break;
+      case 'ISSUE_LOA': if (onIssueLOA) onIssueLOA(); break;
+      case 'UPLOAD_SIGNED_LOA': setOpenModal('UPLOAD_SIGNED_LOA'); break;
+      case 'MARK_LOA_ACCEPTED': if (onMarkLOAAccepted) onMarkLOAAccepted(); break;
+      case 'COMPLETE_DELIVERY': setOpenModal('COMPLETE_DELIVERY'); break;
       default:
         console.warn('[ActionSidebar] Unhandled action type:', type);
     }
@@ -321,6 +346,46 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       {openModal === 'MANAGER_DECISION' && (
         <Suspense fallback={null}>
           <ManagerDecisionModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'COMPLETE_DELIVERY' && (
+        <Suspense fallback={null}>
+          <CompleteDeliveryModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'ROUTE_TO_CEO_HR' && (
+        <Suspense fallback={null}>
+          <RouteToCEOHRModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'MARK_JOB_POSTED' && (
+        <Suspense fallback={null}>
+          <MarkJobPostedModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'UPLOAD_RESUME' && (
+        <Suspense fallback={null}>
+          <UploadResumeModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'SCHEDULE_INTERVIEW' && (
+        <Suspense fallback={null}>
+          <ScheduleInterviewModal requestId={requestId} selectedCandidateId={selectedCandidateId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'UPDATE_SCREENING' && (
+        <Suspense fallback={null}>
+          <UpdateScreeningModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'UPLOAD_LOA' && (
+        <Suspense fallback={null}>
+          <UploadLOAModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'UPLOAD_SIGNED_LOA' && (
+        <Suspense fallback={null}>
+          <UploadSignedLOAModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
     </aside>

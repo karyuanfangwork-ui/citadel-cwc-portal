@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
 export const routeToCEO = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { comments } = req.body;
+        const { comments, ceoId } = req.body;
         const userId = (req as any).user?.id;
 
         // Get the request
@@ -45,6 +45,7 @@ export const routeToCEO = async (req: Request, res: Response) => {
             data: {
                 requestId: id,
                 approverType: 'CEO',
+                approverId: ceoId || null,
                 status: ApprovalStatus.PENDING,
                 comments: comments || null
             }

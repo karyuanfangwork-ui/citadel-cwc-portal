@@ -42,6 +42,7 @@ interface Request {
   };
   requestType?: {
     id: string;
+    code?: string;
     name: string;
     formConfig?: any[];
     requiresApproval?: boolean;
@@ -93,6 +94,8 @@ const RequestDetail = () => {
   const [showResolutionModal, setShowResolutionModal] = useState(false);
   const [resolutionComment, setResolutionComment] = useState('');
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const [showRejectionConfirm, setShowRejectionConfirm] = useState(false);
+  const [rejectionPendingStatus, setRejectionPendingStatus] = useState<string | null>(null);
 
   const [resumes, setResumes] = useState<CandidateResume[]>([]);
   const [uploadingResume, setUploadingResume] = useState(false);
@@ -215,6 +218,13 @@ const RequestDetail = () => {
     if (newStatus === 'RESOLVED') {
       setPendingStatus(newStatus);
       setShowResolutionModal(true);
+      return;
+    }
+
+    // If changing to REJECTED, show confirmation modal
+    if (newStatus === 'REJECTED') {
+      setRejectionPendingStatus(newStatus);
+      setShowRejectionConfirm(true);
       return;
     }
 
@@ -599,7 +609,10 @@ const RequestDetail = () => {
       'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE',
       'ONBOARDING_MONTH_3_MILESTONE', 'ONBOARDING_COMPLETED'
     ];
-    const isHiringWorkflow = request?.serviceDesk?.code === 'HR' && hiringStatuses.includes(currentStatus);
+    const isNewHiringRequest = request?.serviceDesk?.code === 'HR' &&
+      (request?.requestType?.code === 'NEW_HIRING' || (request?.requestTypeName ?? '').toLowerCase().includes('hiring'));
+    const isHiringWorkflow = isNewHiringRequest &&
+      (hiringStatuses.includes(currentStatus) || currentStatus === 'SUBMITTED' || currentStatus === 'IN_REVIEW');
 
     if (isHiringWorkflow) {
       const allSteps = [
@@ -656,8 +669,11 @@ const RequestDetail = () => {
       'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'CFO_REJECTED_IT', 'PAYMENT_PROCESSING_IT',
       'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT',
     ];
-    const itProcurementRequestTypes = ['new hardware', 'Software Installation'];
-    const isITProcurementType = itProcurementRequestTypes.some(t => (request?.requestTypeName ?? '').toLowerCase().includes(t.toLowerCase()));
+    const itProcurementCodes = ['NEW_HARDWARE', 'SOFTWARE_INSTALLATION'];
+    const requestTypeCode = request?.requestType?.code ?? '';
+    const isITProcurementType = requestTypeCode
+      ? itProcurementCodes.includes(requestTypeCode)
+      : ['new hardware', 'software installation'].some(t => (request?.requestTypeName ?? '').toLowerCase().includes(t));
     const isITProcurement =
       request?.serviceDesk?.code === 'IT' &&
       (itProcurementStatuses.includes(currentStatus) ||
@@ -1456,66 +1472,8 @@ const RequestDetail = () => {
           )}
 
           {/* Hiring Workflow Actions for HR Agents */}
-          {request.serviceDesk?.code === 'HR' && (
+          {request.serviceDesk?.code === 'HR' && (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && (
             <>
-              {/* Route to CEO - Show when status is SUBMITTED or IN_REVIEW */}
-              {(request.status === 'SUBMITTED' || request.status === 'IN_REVIEW') && (
-                <button
-                  onClick={handleRouteToCEO}
-                  disabled={processingAction}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="material-symbols-outlined text-lg">send</span>
-                  {processingAction ? 'Routing...' : 'Route to CEO'}
-                </button>
-              )}
-
-              {/* Mark Job Posted - Show when status is CEO_APPROVED */}
-              {request.status === 'CEO_APPROVED' && (
-                <button
-                  onClick={() => setShowJobPostModal(true)}
-                  disabled={processingAction}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="material-symbols-outlined text-lg">work</span>
-                  Mark as Job Posted
-                </button>
-              )}
-
-              {/* Upload Resume - Show when status is JOB_POSTED */}
-              {request.status === 'JOB_POSTED' && (
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
-                >
-                  <span className="material-symbols-outlined text-lg">upload_file</span>
-                  Upload Candidate Resume
-                </button>
-              )}
-
-              {/* Route to Manager - Show when status is JOB_POSTED and has resumes */}
-              {request.status === 'JOB_POSTED' && resumes.length > 0 && (
-                <button
-                  onClick={handleRouteToManager}
-                  disabled={processingAction}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="material-symbols-outlined text-lg">forward_to_inbox</span>
-                  {processingAction ? 'Routing...' : 'Route to Hiring Manager'}
-                </button>
-              )}
-
-              {/* Schedule Interview - Show when status is MANAGER_APPROVED */}
-              {request.status === 'MANAGER_APPROVED' && (
-                <button
-                  onClick={() => setShowScheduleInterviewModal(true)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                >
-                  <span className="material-symbols-outlined text-lg">calendar_month</span>
-                  Schedule Interview
-                </button>
-              )}
-
               {/* Start HR Screening - Show when status is INTERVIEW_FEEDBACK_PENDING and decision is PROCEED */}
               {request.status === 'INTERVIEW_FEEDBACK_PENDING' && interviewDetails?.feedback?.decision === 'PROCEED' && (
                 <button
@@ -1528,28 +1486,6 @@ const RequestDetail = () => {
                 </button>
               )}
 
-              {/* Update Screening - Show when status is HR_SCREENING */}
-              {request.status === 'HR_SCREENING' && (
-                <button
-                  onClick={() => setShowHRScreeningModal(true)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                >
-                  <span className="material-symbols-outlined text-lg">edit_note</span>
-                  Update Screening Status
-                </button>
-              )}
-
-              {/* Upload LOA - Show when status is HR_SCREENING and screening is completed */}
-              {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && screeningDetails?.overallStatus === 'COMPLETED' && !loaDetails && (
-                <button
-                  onClick={() => setShowUploadLOAModal(true)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-colors"
-                >
-                  <span className="material-symbols-outlined text-lg">upload_file</span>
-                  Upload LOA Document
-                </button>
-              )}
-
               {/* Route LOA for Approval - Show when status is HR_SCREENING and LOA is uploaded */}
               {(request.status === 'HR_SCREENING' || request.status === 'LOA_PENDING_APPROVAL') && loaDetails && !loaDetails.approvedBy && (
                 <button
@@ -1559,41 +1495,6 @@ const RequestDetail = () => {
                 >
                   <span className="material-symbols-outlined text-lg">send</span>
                   {processingAction ? 'Routing...' : 'Route LOA for Approval'}
-                </button>
-              )}
-
-              {/* Issue LOA - Show when status is LOA_APPROVED */}
-              {request.status === 'LOA_APPROVED' && (
-                <button
-                  onClick={handleMarkLOAIssued}
-                  disabled={processingAction}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="material-symbols-outlined text-lg">mail</span>
-                  {processingAction ? 'Processing...' : 'Issue LOA to Candidate'}
-                </button>
-              )}
-
-              {/* Upload Signed LOA - Show when status is LOA_ISSUED */}
-              {request.status === 'LOA_ISSUED' && !loaDetails?.signedLoaFileUrl && (
-                <button
-                  onClick={() => setShowUploadSignedLOAModal(true)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-                >
-                  <span className="material-symbols-outlined text-lg">upload</span>
-                  Upload Signed LOA
-                </button>
-              )}
-
-              {/* Mark LOA Accepted - Show when status is LOA_ISSUED and signed LOA is uploaded */}
-              {request.status === 'LOA_ISSUED' && loaDetails?.signedLoaFileUrl && (
-                <button
-                  onClick={handleMarkLOAAccepted}
-                  disabled={processingAction}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="material-symbols-outlined text-lg">verified</span>
-                  {processingAction ? 'Processing...' : 'Mark LOA Accepted'}
                 </button>
               )}
 
@@ -1672,6 +1573,7 @@ const RequestDetail = () => {
             assignedTo={request.assignedTo || null}
             approvals={request.approvals || []}
             requestTypeName={request.requestType?.name || ''}
+            requestTypeCode={request.requestType?.code || ''}
             referenceNumber={request.referenceNumber}
             priority={request.priority}
             serviceDeskName={request.serviceDesk?.name || ''}
@@ -1682,15 +1584,23 @@ const RequestDetail = () => {
             serviceDeskCode={request.serviceDesk?.code || ''}
             requiresApproval={request.requestType?.requiresApproval ?? true}
             attachments={request.attachments || []}
+            hasResumes={resumes.length > 0}
+            screeningCompleted={screeningDetails?.overallStatus === 'COMPLETED'}
+            hasLOA={!!loaDetails}
+            hasSignedLOA={!!loaDetails?.signedLoaFileUrl}
+            selectedCandidateId={request.customFields?.selectedCandidateId}
             onActionSuccess={fetchRequestData}
             onLOAApproval={() => setShowLOAApprovalModal(true)}
+            onRouteToManager={handleRouteToManager}
+            onIssueLOA={handleMarkLOAIssued}
+            onMarkLOAAccepted={handleMarkLOAAccepted}
           />
         </div>
       </div>
 
       {/* Resolution Modal */}
       {showResolutionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-8">
               {/* Header */}
@@ -1705,6 +1615,14 @@ const RequestDetail = () => {
                     Please document what was done to resolve this issue.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={() => { setShowResolutionModal(false); setResolutionComment(''); }}
+                  disabled={updatingStatus}
+                >
+                  <span className="material-symbols-outlined text-2xl">close</span>
+                </button>
               </div>
 
               {/* Info Box */}
@@ -1730,18 +1648,26 @@ const RequestDetail = () => {
                 <textarea
                   className="w-full p-4 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none resize-none"
                   rows={6}
-                  placeholder="Example: Installed Adobe Creative Cloud on user's workstation. License activated successfully. User can now access all Adobe applications. Tested Photoshop and Illustrator - both working correctly."
+                  placeholder="Example: Reviewed and processed the request. All required steps have been completed and the requester has been notified. No further action needed."
                   value={resolutionComment}
                   onChange={(e) => setResolutionComment(e.target.value)}
                   disabled={updatingStatus}
                 ></textarea>
                 <p className="text-xs text-[#44546f] mt-2">
-                  Include: What was done, outcome, next steps (if any), and reference numbers
+                  Include: actions taken, outcome, any next steps, and relevant reference numbers
                 </p>
               </div>
 
               {/* Action Buttons */}
               <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  className="px-6 py-2.5 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={() => { setShowResolutionModal(false); setResolutionComment(''); }}
+                  disabled={updatingStatus}
+                >
+                  Cancel
+                </button>
                 <button
                   type="button"
                   className="px-6 py-2.5 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
@@ -1774,134 +1700,64 @@ const RequestDetail = () => {
         </div>
       )}
 
-      {/* Upload Resume Modal */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
+      {/* Rejection Confirmation Modal */}
+      {showRejectionConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
             <div className="p-8">
-              <h2 className="text-2xl font-bold mb-6">Upload Candidate Resume</h2>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const file = formData.get('file') as File;
-                const candidateName = formData.get('candidateName') as string;
-                const notes = formData.get('notes') as string;
-                if (file) {
-                  handleUploadResume(file, candidateName, notes);
-                }
-              }}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">
-                      Resume File (PDF, DOC, DOCX) *
-                    </label>
-                    <input
-                      type="file"
-                      name="file"
-                      accept=".pdf,.doc,.docx"
-                      required
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">
-                      Candidate Name
-                    </label>
-                    <input
-                      type="text"
-                      name="candidateName"
-                      placeholder="e.g., John Doe"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">
-                      Notes (Optional)
-                    </label>
-                    <textarea
-                      name="notes"
-                      rows={3}
-                      placeholder="Additional notes about the candidate..."
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none"
-                    />
-                  </div>
+              <div className="flex items-start gap-4 mb-6">
+                <div className="size-12 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-2xl text-red-600">cancel</span>
                 </div>
-                <div className="flex gap-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowUploadModal(false)}
-                    className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={uploadingResume}
-                    className="flex-1 px-6 py-3 text-sm font-bold text-white bg-[#0052cc] hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {uploadingResume ? 'Uploading...' : 'Upload Resume'}
-                  </button>
+                <div className="flex-1">
+                  <h2 className="text-xl font-bold text-[#101418] mb-2">Reject this Request?</h2>
+                  <p className="text-sm text-[#44546f]">
+                    You are about to mark this request as <span className="font-bold text-red-600">REJECTED</span>. This action cannot be easily undone. Are you sure?
+                  </p>
                 </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mark Job Posted Modal */}
-      {showJobPostModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
-            <div className="p-8">
-              <h2 className="text-2xl font-bold mb-6">Mark Job as Posted</h2>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const jobPostingUrl = formData.get('jobPostingUrl') as string;
-                const notes = formData.get('notes') as string;
-                handleMarkJobPosted(jobPostingUrl, notes);
-              }}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">
-                      Job Posting URL
-                    </label>
-                    <input
-                      type="url"
-                      name="jobPostingUrl"
-                      placeholder="https://careers.company.com/job/123"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">
-                      Notes
-                    </label>
-                    <textarea
-                      name="notes"
-                      rows={3}
-                      placeholder="Where was the job posted?"
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none"
-                    />
-                  </div>
-                </div>
-                <div className="flex gap-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => setShowJobPostModal(false)}
-                    className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={processingAction}
-                    className="flex-1 px-6 py-3 text-sm font-bold text-white bg-[#0052cc] hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
-                  >
-                    {processingAction ? 'Processing...' : 'Mark as Posted'}
-                  </button>
-                </div>
-              </form>
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={() => { setShowRejectionConfirm(false); setRejectionPendingStatus(null); }}
+                  disabled={updatingStatus}
+                >
+                  <span className="material-symbols-outlined text-2xl">close</span>
+                </button>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  className="px-6 py-2.5 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={() => { setShowRejectionConfirm(false); setRejectionPendingStatus(null); }}
+                  disabled={updatingStatus}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="px-6 py-2.5 bg-red-600 text-white text-sm font-bold rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  onClick={async () => {
+                    if (rejectionPendingStatus) {
+                      await updateStatusDirectly(rejectionPendingStatus);
+                    }
+                    setShowRejectionConfirm(false);
+                    setRejectionPendingStatus(null);
+                  }}
+                  disabled={updatingStatus}
+                >
+                  {updatingStatus ? (
+                    <>
+                      <span className="animate-spin material-symbols-outlined text-lg">progress_activity</span>
+                      Rejecting...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-lg">cancel</span>
+                      Confirm Reject
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1909,7 +1765,7 @@ const RequestDetail = () => {
 
       {/* CEO Decision Modal */}
       {showCEODecisionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
             <div className="p-8">
               <h2 className="text-2xl font-bold mb-6">CEO Approval Decision</h2>
@@ -1971,7 +1827,7 @@ const RequestDetail = () => {
 
       {/* Manager Decision Modal */}
       {showManagerDecisionModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-8">
               <h2 className="text-2xl font-bold mb-6">Review Candidates</h2>
@@ -2053,78 +1909,9 @@ const RequestDetail = () => {
       {/* NEW HIRING WORKFLOW MODALS */}
 
       {/* Schedule Interview Modal */}
-      {showScheduleInterviewModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
-            <div className="p-8">
-              <h2 className="text-2xl font-bold mb-6">Schedule Interview</h2>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const interviewData = {
-                  candidateId: formData.get('candidateId'),
-                  interviewDate: formData.get('interviewDate'),
-                  interviewTime: formData.get('interviewTime'),
-                  location: formData.get('location'),
-                  meetingLink: formData.get('meetingLink'),
-                  interviewers: (formData.get('interviewers') as string).split(',').map(i => i.trim()),
-                  notes: formData.get('notes'),
-                };
-                handleScheduleInterview(interviewData);
-              }}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">Select Candidate *</label>
-                    <select
-                      name="candidateId"
-                      required
-                      defaultValue={request.customFields?.selectedCandidateId || ""}
-                      className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none"
-                    >
-                      <option value="">-- Select --</option>
-                      {resumes.map(r => (
-                        <option key={r.id} value={r.id}>
-                          {r.candidateName} {r.id === request.customFields?.selectedCandidateId ? ' (Selected)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold text-[#44546f] mb-2">Date *</label>
-                      <input type="date" name="interviewDate" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-[#44546f] mb-2">Time *</label>
-                      <input type="time" name="interviewTime" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">Interviewers (comma separated) *</label>
-                    <input type="text" name="interviewers" placeholder="e.g. Jane Smith, Robert Brown" required className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">Microsoft Teams / Meeting Link</label>
-                    <input type="url" name="meetingLink" placeholder="https://teams.microsoft.com/..." className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">Physical Location</label>
-                    <input type="text" name="location" placeholder="e.g. Meeting Room A, Level 3" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
-                  </div>
-                </div>
-                <div className="flex gap-3 mt-6">
-                  <button type="button" onClick={() => setShowScheduleInterviewModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
-                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg">{processingAction ? 'Scheduling...' : 'Schedule'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Edit Interview Modal */}
       {showEditInterviewModal && interviewDetails?.schedule && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
             <div className="p-8">
               <h2 className="text-2xl font-bold mb-1">Edit Interview Details</h2>
@@ -2210,7 +1997,7 @@ const RequestDetail = () => {
 
       {/* Interview Feedback Modal */}
       {showInterviewFeedbackModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-y-auto max-h-[90vh]">
             <div className="p-8">
               <h2 className="text-2xl font-bold mb-6">Interview Feedback</h2>
@@ -2260,110 +2047,9 @@ const RequestDetail = () => {
         </div>
       )}
 
-      {/* HR Screening Modal */}
-      {showHRScreeningModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-8">
-              <h2 className="text-2xl font-bold mb-6">HR Screening</h2>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const refContactedRaw = formData.get('refContacted') as string;
-                const screeningData = {
-                  backgroundCheckStatus: formData.get('bgStatus'),
-                  backgroundCheckNotes: formData.get('bgNotes'),
-                  referencesCheckStatus: formData.get('refStatus'),
-                  referencesCheckNotes: formData.get('refNotes'),
-                  referencesContacted: refContactedRaw ? refContactedRaw.split(',').map(r => r.trim()).filter(Boolean) : [],
-                  overallStatus: formData.get('overallStatus'),
-                };
-                handleUpdateScreeningStatus(screeningData);
-              }}>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold text-[#44546f] mb-2">BG Check Status</label>
-                      <select name="bgStatus" defaultValue={screeningDetails?.backgroundCheckStatus || "PENDING"} className="w-full px-4 py-2 border border-gray-200 rounded-lg">
-                        <option value="PENDING">Pending</option>
-                        <option value="PASSED">Passed</option>
-                        <option value="FAILED">Failed</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-bold text-[#44546f] mb-2">Ref Check Status</label>
-                      <select name="refStatus" defaultValue={screeningDetails?.referencesCheckStatus || "PENDING"} className="w-full px-4 py-2 border border-gray-200 rounded-lg">
-                        <option value="PENDING">Pending</option>
-                        <option value="PASSED">Passed</option>
-                        <option value="FAILED">Failed</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">Background Check Notes</label>
-                    <textarea name="bgNotes" rows={2} defaultValue={screeningDetails?.backgroundCheckNotes || ""} placeholder="Observations from BG check..." className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">References Check Notes</label>
-                    <textarea name="refNotes" rows={2} defaultValue={screeningDetails?.referencesCheckNotes || ""} placeholder="Feedback from references..." className="w-full px-4 py-2 border border-gray-200 rounded-lg resize-none" />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">References Contacted (comma separated)</label>
-                    <input type="text" name="refContacted" defaultValue={Array.isArray(screeningDetails?.referencesContacted) ? screeningDetails.referencesContacted.join(', ') : ""} placeholder="e.g. Michael Scott, Jim Halpert" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold text-[#44546f] mb-2">Overall Screening Status *</label>
-                    <select name="overallStatus" required defaultValue={screeningDetails?.overallStatus || "IN_PROGRESS"} className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
-                      <option value="IN_PROGRESS">In Progress</option>
-                      <option value="COMPLETED">Completed (Proceed to LOA)</option>
-                      <option value="REJECTED">Rejected</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="flex gap-3 mt-6">
-                  <button type="button" onClick={() => setShowHRScreeningModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">Cancel</button>
-                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50">
-                    {processingAction ? 'Updating...' : 'Update Status'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Upload LOA Modal */}
-      {showUploadLOAModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
-            <div className="p-8">
-              <h2 className="text-2xl font-bold mb-6">Upload LOA Document</h2>
-              <p className="text-sm text-gray-600 mb-6">Upload the draft Letter of Acceptance prepared for the candidate.</p>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const file = (e.currentTarget.elements.namedItem('file') as HTMLInputElement).files?.[0];
-                if (file) handleUploadLOA(file);
-              }}>
-                <div className="mb-6">
-                  <input type="file" name="file" required accept=".pdf,.doc,.docx" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
-                </div>
-                <div className="flex gap-3">
-                  <button type="button" onClick={() => setShowUploadLOAModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
-                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-emerald-600 rounded-lg">{processingAction ? 'Uploading...' : 'Upload & Prepare'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* LOA Approval Modal */}
       {showLOAApprovalModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
             <div className="p-8">
               <h2 className="text-2xl font-bold mb-4">LOA Approval</h2>
@@ -2402,30 +2088,6 @@ const RequestDetail = () => {
         </div>
       )}
 
-      {/* Upload Signed LOA Modal */}
-      {showUploadSignedLOAModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
-            <div className="p-8">
-              <h2 className="text-2xl font-bold mb-6">Upload Signed LOA</h2>
-              <p className="text-sm text-gray-600 mb-6">Upload the finalized and signed document received from the candidate.</p>
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const file = (e.currentTarget.elements.namedItem('file') as HTMLInputElement).files?.[0];
-                if (file) handleUploadSignedLOA(file);
-              }}>
-                <div className="mb-6">
-                  <input type="file" name="file" required accept=".pdf" className="w-full px-4 py-2 border border-gray-200 rounded-lg" />
-                </div>
-                <div className="flex gap-3">
-                  <button type="button" onClick={() => setShowUploadSignedLOAModal(false)} className="flex-1 px-6 py-3 text-sm font-bold text-[#44546f] bg-gray-100 rounded-lg">Cancel</button>
-                  <button type="submit" disabled={processingAction} className="flex-1 px-6 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg">{processingAction ? 'Uploading...' : 'Upload Signed Copy'}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

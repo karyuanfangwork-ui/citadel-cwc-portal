@@ -1,0 +1,82 @@
+import React, { useState } from 'react';
+import loaService from '../../services/loa.service';
+import { useModalDismiss } from '../../hooks/useModalDismiss';
+import ModalPortal from '../ModalPortal';
+
+interface UploadSignedLOAModalProps {
+  requestId: string;
+  onSuccess: () => void;
+  onClose: () => void;
+}
+
+const UploadSignedLOAModal: React.FC<UploadSignedLOAModalProps> = ({ requestId, onSuccess, onClose }) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { handleBackdropClick } = useModalDismiss(onClose);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    try {
+      setSubmitting(true);
+      setError(null);
+      await loaService.uploadSignedLOA(requestId, file);
+      onSuccess();
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to upload signed LOA');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <ModalPortal>
+      <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+          <div className="flex items-center gap-3 p-5 border-b border-gray-100">
+            <div className="size-9 rounded-lg bg-indigo-100 flex items-center justify-center">
+              <span className="material-symbols-outlined text-indigo-600">upload</span>
+            </div>
+            <div>
+              <h2 className="font-bold text-base text-gray-900">Upload Signed LOA</h2>
+              <p className="text-xs text-gray-500">HR Workflow · Upload the signed copy received from candidate</p>
+            </div>
+          </div>
+          <form onSubmit={handleSubmit}>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600">Upload the finalized and signed document received from the candidate.</p>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Signed LOA (PDF) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  required
+                  onChange={e => setFile(e.target.files?.[0] || null)}
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
+                />
+              </div>
+              {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+            </div>
+            <div className="flex justify-end gap-2 p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <button type="button" onClick={onClose} className="px-4 py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!file || submitting}
+                className="px-4 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {submitting ? 'Uploading…' : 'Upload Signed Copy'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </ModalPortal>
+  );
+};
+
+export default UploadSignedLOAModal;
