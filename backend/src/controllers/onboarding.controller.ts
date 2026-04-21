@@ -170,7 +170,9 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
 
         // Update request status based on onboarding phase
         const statusMap: Record<string, string> = {
+            'HR_APPROVAL': 'ONBOARDING_PENDING_HR_APPROVAL',
             'PRE_ARRIVAL': 'ONBOARDING_PRE_ARRIVAL_SETUP',
+            'DAY_1_READY': 'ONBOARDING_READY_FOR_DAY_1',
             'DAY_1': 'ONBOARDING_DAY_1_ORIENTATION',
             'WEEK_1': 'ONBOARDING_WEEK_1_INTEGRATION',
             'MONTH_1': 'ONBOARDING_MONTH_1_MILESTONE',
@@ -186,6 +188,26 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
         }
 
         if (overallStatus === 'COMPLETED') {
+            // Fetch fresh task counts — onboarding above may not have pending tasks yet
+            const taskCounts = await prisma.onboardingTask.groupBy({
+                by: ['status'],
+                where: { onboardingId: onboarding.id },
+                _count: true,
+            });
+            const pendingCount = taskCounts
+                .filter(t => t.status !== 'COMPLETED')
+                .reduce((sum, t) => sum + t._count, 0);
+            const totalCount = taskCounts.reduce((sum, t) => sum + t._count, 0);
+
+            if (totalCount > 0 && pendingCount > 0) {
+                return res.status(400).json({
+                    error: 'Cannot complete onboarding',
+                    message: `${pendingCount} task${pendingCount > 1 ? 's are' : ' is'} still incomplete. Please complete all tasks before closing this onboarding.`,
+                    pendingCount,
+                    totalCount,
+                });
+            }
+
             await prisma.request.update({
                 where: { id: requestId },
                 data: {

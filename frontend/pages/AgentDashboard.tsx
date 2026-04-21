@@ -113,13 +113,13 @@ export default function AgentDashboard() {
     setRequestTypeOptions(options);
   }, [myTickets, unassignedTickets]);
 
-  const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED'];
+  const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED'];
   const tickets = (activeTab === 'mine' ? myTickets : unassignedTickets).filter(t => !CLOSED_STATUSES.includes(t.status));
 
   const cards = [
     {
       label: 'My Open Tickets',
-      value: myTickets.filter(t => !['RESOLVED', 'COMPLETED', 'REJECTED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CANDIDATE_REJECTED_INTERVIEW', 'REIMBURSEMENT_CLOSED'].includes(t.status)).length,
+      value: myTickets.filter(t => !CLOSED_STATUSES.includes(t.status)).length,
       icon: 'confirmation_number',
       color: 'text-blue-600',
       bg: 'bg-blue-50',

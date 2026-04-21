@@ -7,9 +7,11 @@ import screeningService from '../src/services/screening.service';
 import loaService from '../src/services/loa.service';
 import { useAuth } from '../src/context/AuthContext';
 import financeWorkflowService from '../src/services/finance-workflow.service';
+import apiClient from '../src/services/api';
 import { STATUS_CONFIG } from '../constants';
 import { getValidNextStatuses } from '../src/utils/workflowTransitions';
 import OnboardingDashboard from '../src/components/OnboardingDashboard';
+import OffboardingDashboard from '../src/components/OffboardingDashboard';
 import ActionBanner from '../src/components/request-detail/ActionBanner';
 import { detectRequestRole, isHiringRequest } from '../src/utils/roleDetection';
 import SLAIndicator from '../src/components/request-detail/SLAIndicator';
@@ -96,6 +98,7 @@ const RequestDetail = () => {
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showRejectionConfirm, setShowRejectionConfirm] = useState(false);
   const [rejectionPendingStatus, setRejectionPendingStatus] = useState<string | null>(null);
+  const [showCompleteOnboardingConfirm, setShowCompleteOnboardingConfirm] = useState(false);
 
   const [resumes, setResumes] = useState<CandidateResume[]>([]);
   const [uploadingResume, setUploadingResume] = useState(false);
@@ -211,8 +214,18 @@ const RequestDetail = () => {
     }
   };
 
+  const requireAssigned = (): boolean => {
+    const isAgent = user?.roles?.includes('AGENT') && !user?.roles?.includes('ADMIN');
+    if (isAgent && !request?.assignedTo) {
+      alert('This ticket must be assigned to an agent before the status can be updated. Please assign it first using the "Assign ›" button in the sidebar.');
+      return false;
+    }
+    return true;
+  };
+
   const handleStatusChange = async (newStatus: string) => {
     if (!id) return;
+    if (!requireAssigned()) return;
 
     // If changing to RESOLVED, show resolution modal
     if (newStatus === 'RESOLVED') {
@@ -584,6 +597,121 @@ const RequestDetail = () => {
     }
   };
 
+  // Onboarding phase map: request status → next currentPhase value
+  const ONBOARDING_NEXT_PHASE: Record<string, string> = {
+    SUBMITTED:                     'PRE_ARRIVAL',
+    ONBOARDING_SUBMITTED:          'PRE_ARRIVAL',
+    ONBOARDING_PRE_ARRIVAL_SETUP:   'DAY_1_READY',
+    ONBOARDING_READY_FOR_DAY_1:     'DAY_1',
+    ONBOARDING_DAY_1_ORIENTATION:   'WEEK_1',
+  };
+
+  const handleAdvanceOnboardingPhase = async () => {
+    if (!id || !request) return;
+    if (!requireAssigned()) return;
+    const nextPhase = ONBOARDING_NEXT_PHASE[request.status];
+    if (!nextPhase) return;
+    try {
+      setProcessingAction(true);
+      await apiClient.put(
+        `/onboarding/requests/${id}/onboarding/update-status`,
+        { currentPhase: nextPhase }
+      );
+      await fetchRequestData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to advance phase');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleCompleteOnboarding = async () => {
+    if (!id) return;
+    if (!requireAssigned()) return;
+    try {
+      // Pre-check task completion before showing confirmation
+      const progressRes = await apiClient.get(`/onboarding/requests/${id}/onboarding/progress`);
+      const { tasks } = progressRes.data;
+      if (tasks?.total > 0 && tasks?.pending > 0) {
+        alert(`Cannot complete onboarding: ${tasks.pending} task${tasks.pending > 1 ? 's are' : ' is'} still incomplete. Please complete all tasks first.`);
+        return;
+      }
+      // Show confirmation modal
+      setShowCompleteOnboardingConfirm(true);
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to check onboarding progress');
+    }
+  };
+
+  const confirmCompleteOnboarding = async () => {
+    if (!id) return;
+    try {
+      setProcessingAction(true);
+      setShowCompleteOnboardingConfirm(false);
+      await apiClient.put(
+        `/onboarding/requests/${id}/onboarding/update-status`,
+        { overallStatus: 'COMPLETED' }
+      );
+      await fetchRequestData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to complete onboarding');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  // Offboarding phase map: request status → next currentPhase value
+  const OFFBOARDING_NEXT_PHASE: Record<string, string> = {
+    SUBMITTED:                       'NOTICE_PERIOD',
+    OFFBOARDING_SUBMITTED:           'NOTICE_PERIOD',
+    OFFBOARDING_NOTICE_PERIOD:       'KNOWLEDGE_TRANSFER',
+    OFFBOARDING_KNOWLEDGE_TRANSFER:  'FINAL_WEEK',
+    OFFBOARDING_FINAL_WEEK:          'EXIT_PROCEDURES',
+  };
+
+  const handleAdvanceOffboardingPhase = async () => {
+    if (!id || !request) return;
+    if (!requireAssigned()) return;
+    const nextPhase = OFFBOARDING_NEXT_PHASE[request.status];
+    if (!nextPhase) return;
+    try {
+      setProcessingAction(true);
+      await apiClient.put(
+        `/offboarding/requests/${id}/offboarding/update-status`,
+        { currentPhase: nextPhase }
+      );
+      await fetchRequestData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to advance phase');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleCompleteOffboarding = async () => {
+    if (!id) return;
+    if (!requireAssigned()) return;
+    try {
+      const progressRes = await apiClient.get(`/offboarding/requests/${id}/offboarding/progress`);
+      const { tasks } = progressRes.data;
+      if (tasks?.total > 0 && tasks?.pending > 0) {
+        alert(`Cannot complete offboarding: ${tasks.pending} task${tasks.pending > 1 ? 's are' : ' is'} still incomplete.`);
+        return;
+      }
+      if (!window.confirm('Mark this offboarding as COMPLETED and close the ticket? This cannot be undone.')) return;
+      setProcessingAction(true);
+      await apiClient.put(
+        `/offboarding/requests/${id}/offboarding/update-status`,
+        { overallStatus: 'COMPLETED' }
+      );
+      await fetchRequestData();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message || 'Failed to complete offboarding');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -613,6 +741,78 @@ const RequestDetail = () => {
       (request?.requestType?.code === 'NEW_HIRING' || (request?.requestTypeName ?? '').toLowerCase().includes('hiring'));
     const isHiringWorkflow = isNewHiringRequest &&
       (hiringStatuses.includes(currentStatus) || currentStatus === 'SUBMITTED' || currentStatus === 'IN_REVIEW');
+
+    const offboardingStatuses = [
+      'SUBMITTED', 'OFFBOARDING_SUBMITTED',
+      'OFFBOARDING_NOTICE_PERIOD', 'OFFBOARDING_KNOWLEDGE_TRANSFER',
+      'OFFBOARDING_FINAL_WEEK', 'OFFBOARDING_EXIT_PROCEDURES',
+      'OFFBOARDING_COMPLETED'
+    ];
+    const isOffboardingRequest = request?.serviceDesk?.code === 'HR' &&
+      (request?.requestType?.code === 'EMPLOYEE_OFFBOARDING' ||
+        (request?.requestTypeName ?? '').toLowerCase().includes('offboard'));
+    const isOffboardingWorkflow = isOffboardingRequest && offboardingStatuses.includes(currentStatus);
+
+    if (isOffboardingWorkflow) {
+      const allSteps = [
+        { label: 'Submitted', status: 'OFFBOARDING_SUBMITTED', icon: 'check_circle' },
+        { label: 'Notice Period', status: 'OFFBOARDING_NOTICE_PERIOD', icon: 'event_note' },
+        { label: 'Knowledge Transfer', status: 'OFFBOARDING_KNOWLEDGE_TRANSFER', icon: 'transfer_within_a_station' },
+        { label: 'Final Week', status: 'OFFBOARDING_FINAL_WEEK', icon: 'hourglass_bottom' },
+        { label: 'Exit Procedures', status: 'OFFBOARDING_EXIT_PROCEDURES', icon: 'logout' },
+        { label: 'Completed', status: 'OFFBOARDING_COMPLETED', icon: 'task_alt' },
+      ];
+      const statusOrder = [
+        'SUBMITTED', 'OFFBOARDING_SUBMITTED',
+        'OFFBOARDING_NOTICE_PERIOD', 'OFFBOARDING_KNOWLEDGE_TRANSFER',
+        'OFFBOARDING_FINAL_WEEK', 'OFFBOARDING_EXIT_PROCEDURES',
+        'OFFBOARDING_COMPLETED',
+      ];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map(step => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    const onboardingStatuses = [
+      'SUBMITTED', 'ONBOARDING_SUBMITTED',
+      'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1',
+      'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION',
+      'ONBOARDING_COMPLETED'
+    ];
+    const isOnboardingRequest = request?.serviceDesk?.code === 'HR' &&
+      (request?.requestType?.code === 'EMPLOYEE_ONBOARDING' ||
+        (request?.requestTypeName ?? '').toLowerCase().includes('onboard'));
+    const isOnboardingWorkflow = isOnboardingRequest && onboardingStatuses.includes(currentStatus);
+
+    if (isOnboardingWorkflow) {
+      const allSteps = [
+        { label: 'Submitted', status: 'ONBOARDING_SUBMITTED', icon: 'check_circle' },
+        { label: 'Pre-Arrival Setup', status: 'ONBOARDING_PRE_ARRIVAL_SETUP', icon: 'luggage' },
+        { label: 'Day 1 Ready', status: 'ONBOARDING_READY_FOR_DAY_1', icon: 'event_available' },
+        { label: 'Day 1 Orientation', status: 'ONBOARDING_DAY_1_ORIENTATION', icon: 'school' },
+        { label: 'Week 1', status: 'ONBOARDING_WEEK_1_INTEGRATION', icon: 'groups' },
+        { label: 'Completed', status: 'ONBOARDING_COMPLETED', icon: 'stars' },
+      ];
+
+      const statusOrder = [
+        'SUBMITTED',
+        'ONBOARDING_SUBMITTED',
+        'ONBOARDING_PRE_ARRIVAL_SETUP',
+        'ONBOARDING_READY_FOR_DAY_1',
+        'ONBOARDING_DAY_1_ORIENTATION',
+        'ONBOARDING_WEEK_1_INTEGRATION',
+        'ONBOARDING_COMPLETED',
+      ];
+
+      const currentIndex = statusOrder.indexOf(currentStatus);
+
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
 
     if (isHiringWorkflow) {
       const allSteps = [
@@ -858,6 +1058,24 @@ const RequestDetail = () => {
               </Link>
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Closed banner for terminal workflow statuses */}
+      {['OFFBOARDING_COMPLETED', 'ONBOARDING_COMPLETED', 'REIMBURSEMENT_CLOSED'].includes(request.status) && (
+        <div className="mb-8 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 shadow-sm flex items-center gap-4">
+          <div className="size-12 rounded-full bg-green-600 flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-2xl text-white">task_alt</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h3 className="text-lg font-bold text-green-900">Ticket Closed</h3>
+              <span className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-full">
+                {request.status.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <p className="text-sm text-green-700">This request has been completed and closed.</p>
+          </div>
         </div>
       )}
 
@@ -1303,24 +1521,44 @@ const RequestDetail = () => {
           </section>
 
           {/* Onboarding Workflow Section */}
-          {request?.status && [
-            'ONBOARDING_SUBMITTED',
-            'ONBOARDING_PENDING_HR_APPROVAL',
-            'ONBOARDING_PRE_ARRIVAL_SETUP',
-            'ONBOARDING_READY_FOR_DAY_1',
-            'ONBOARDING_DAY_1_ORIENTATION',
-            'ONBOARDING_WEEK_1_INTEGRATION',
-            'ONBOARDING_MONTH_1_MILESTONE',
-            'ONBOARDING_MONTH_2_MILESTONE',
-            'ONBOARDING_MONTH_3_MILESTONE',
-            'ONBOARDING_COMPLETED'
-          ].includes(request.status) && (
+          {request?.status && (
+            request.requestType?.code === 'EMPLOYEE_ONBOARDING' ||
+            [
+              'ONBOARDING_SUBMITTED',
+              'ONBOARDING_PRE_ARRIVAL_SETUP',
+              'ONBOARDING_READY_FOR_DAY_1',
+              'ONBOARDING_DAY_1_ORIENTATION',
+              'ONBOARDING_WEEK_1_INTEGRATION',
+              'ONBOARDING_COMPLETED'
+            ].includes(request.status)
+          ) && (
               <section className="space-y-6">
                 <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
                   <span className="material-symbols-outlined text-[#0052cc]">badge</span>
                   <h3 className="font-bold text-xl">Onboarding Workflow</h3>
                 </div>
                 <OnboardingDashboard requestId={request.id} />
+              </section>
+            )}
+
+          {/* Offboarding Workflow Section */}
+          {request?.status && (
+            request.requestType?.code === 'EMPLOYEE_OFFBOARDING' ||
+            [
+              'OFFBOARDING_SUBMITTED',
+              'OFFBOARDING_NOTICE_PERIOD',
+              'OFFBOARDING_KNOWLEDGE_TRANSFER',
+              'OFFBOARDING_FINAL_WEEK',
+              'OFFBOARDING_EXIT_PROCEDURES',
+              'OFFBOARDING_COMPLETED'
+            ].includes(request.status)
+          ) && (
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
+                  <span className="material-symbols-outlined text-amber-600">person_remove</span>
+                  <h3 className="font-bold text-xl">Offboarding Workflow</h3>
+                </div>
+                <OffboardingDashboard requestId={request.id} onComplete={fetchRequestData} />
               </section>
             )}
 
@@ -1594,6 +1832,10 @@ const RequestDetail = () => {
             onRouteToManager={handleRouteToManager}
             onIssueLOA={handleMarkLOAIssued}
             onMarkLOAAccepted={handleMarkLOAAccepted}
+            onAdvanceOnboardingPhase={handleAdvanceOnboardingPhase}
+            onCompleteOnboarding={handleCompleteOnboarding}
+            onAdvanceOffboardingPhase={handleAdvanceOffboardingPhase}
+            onCompleteOffboarding={handleCompleteOffboarding}
           />
         </div>
       </div>
@@ -1754,6 +1996,64 @@ const RequestDetail = () => {
                     <>
                       <span className="material-symbols-outlined text-lg">cancel</span>
                       Confirm Reject
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Complete Onboarding Confirmation Modal */}
+      {showCompleteOnboardingConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-8">
+              <div className="flex items-start gap-4 mb-6">
+                <div className="size-12 rounded-full bg-green-100 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-2xl text-green-600">task_alt</span>
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-bold text-[#101418] mb-2">Complete Onboarding?</h2>
+                  <p className="text-sm text-[#44546f]">
+                    You are about to mark this onboarding as <span className="font-bold text-green-600">COMPLETED</span> and close the ticket. All tasks have been verified as done.
+                  </p>
+                  <p className="text-sm text-[#44546f] mt-2">This action cannot be undone. Please confirm.</p>
+                </div>
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  onClick={() => setShowCompleteOnboardingConfirm(false)}
+                  disabled={processingAction}
+                >
+                  <span className="material-symbols-outlined text-2xl">close</span>
+                </button>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  className="px-6 py-2.5 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
+                  onClick={() => setShowCompleteOnboardingConfirm(false)}
+                  disabled={processingAction}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="px-6 py-2.5 bg-green-600 text-white text-sm font-bold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  onClick={confirmCompleteOnboarding}
+                  disabled={processingAction}
+                >
+                  {processingAction ? (
+                    <>
+                      <span className="animate-spin material-symbols-outlined text-lg">progress_activity</span>
+                      Completing...
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-lg">check_circle</span>
+                      Yes, Complete Onboarding
                     </>
                   )}
                 </button>

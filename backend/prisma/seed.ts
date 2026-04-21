@@ -635,6 +635,29 @@ async function main() {
         console.log('⏭️  Onboarding task templates already exist, skipping');
     }
 
+    // Seed offboarding task templates
+    const existingOffboardingTemplates = await prisma.offboardingTaskTemplate.count();
+    if (existingOffboardingTemplates === 0) {
+        await prisma.offboardingTaskTemplate.createMany({
+            data: [
+                { taskName: 'Notify IT of Departure', taskDescription: 'Alert IT team of employee last working day to schedule account deactivation', taskCategory: 'HR', priority: 'HIGH', dueDayOffset: -10, displayOrder: 1 },
+                { taskName: 'Schedule Exit Interview', taskDescription: 'Arrange exit interview with HR to gather feedback', taskCategory: 'HR', priority: 'HIGH', dueDayOffset: -7, displayOrder: 2 },
+                { taskName: 'Knowledge Transfer Plan', taskDescription: 'Create and execute knowledge transfer documentation for key responsibilities', taskCategory: 'HR', priority: 'CRITICAL', dueDayOffset: -7, displayOrder: 3 },
+                { taskName: 'Revoke System Access', taskDescription: 'Disable all system accounts, VPN, and application access on last day', taskCategory: 'IT', priority: 'CRITICAL', dueDayOffset: 0, displayOrder: 4 },
+                { taskName: 'Disable Email Account', taskDescription: 'Deactivate email and set up forwarding/out-of-office', taskCategory: 'IT', priority: 'CRITICAL', dueDayOffset: 0, displayOrder: 5 },
+                { taskName: 'Collect Company Hardware', taskDescription: 'Collect laptop, phone, access badge, and other company equipment', taskCategory: 'IT', priority: 'HIGH', dueDayOffset: 0, displayOrder: 6 },
+                { taskName: 'Process Final Payroll', taskDescription: 'Ensure final paycheck includes all outstanding pay, bonuses, and leave', taskCategory: 'HR', priority: 'CRITICAL', dueDayOffset: 0, displayOrder: 7 },
+                { taskName: 'Terminate Benefits', taskDescription: 'Cancel health insurance, 401k contributions, and other benefits', taskCategory: 'HR', priority: 'HIGH', dueDayOffset: 0, displayOrder: 8 },
+                { taskName: 'Conduct Exit Interview', taskDescription: 'Conduct and document exit interview with departing employee', taskCategory: 'HR', priority: 'MEDIUM', dueDayOffset: -1, displayOrder: 9 },
+                { taskName: 'Update Org Chart & Directory', taskDescription: 'Remove employee from org chart, team directories, and mailing lists', taskCategory: 'ADMIN', priority: 'MEDIUM', dueDayOffset: 0, displayOrder: 10 },
+                { taskName: 'Reassign Open Tasks & Projects', taskDescription: 'Transition all open work items to appropriate team members', taskCategory: 'ADMIN', priority: 'HIGH', dueDayOffset: -3, displayOrder: 11 },
+                { taskName: 'Return Physical Access Badge', taskDescription: 'Collect and deactivate physical building access badge', taskCategory: 'IT', priority: 'HIGH', dueDayOffset: 0, displayOrder: 12 },
+            ],
+        });
+        console.log('✅ Offboarding task templates seeded');
+    } else {
+        console.log('⏭️  Offboarding task templates already exist, skipping');
+    }
 
     // Banner Configs — default configs matching former hardcoded ActionBanner logic
     const defaultBanners = [
@@ -702,17 +725,20 @@ async function main() {
         { code: 'LOA_APPROVED',                    label: 'LOA Approved',                    category: 'HR', displayOrder: 21 },
         { code: 'LOA_ISSUED',                      label: 'LOA Issued',                      category: 'HR', displayOrder: 22 },
         { code: 'LOA_ACCEPTED',                    label: 'LOA Accepted',                    category: 'HR', displayOrder: 23 },
+        // OFFBOARDING
+        { code: 'OFFBOARDING_SUBMITTED',           label: 'Offboarding Submitted',           category: 'OFFBOARDING', displayOrder: 36 },
+        { code: 'OFFBOARDING_NOTICE_PERIOD',        label: 'Notice Period',                   category: 'OFFBOARDING', displayOrder: 37 },
+        { code: 'OFFBOARDING_KNOWLEDGE_TRANSFER',   label: 'Knowledge Transfer',              category: 'OFFBOARDING', displayOrder: 38 },
+        { code: 'OFFBOARDING_FINAL_WEEK',           label: 'Final Week',                      category: 'OFFBOARDING', displayOrder: 39 },
+        { code: 'OFFBOARDING_EXIT_PROCEDURES',      label: 'Exit Procedures',                 category: 'OFFBOARDING', displayOrder: 40 },
+        { code: 'OFFBOARDING_COMPLETED',            label: 'Offboarding Completed',           category: 'OFFBOARDING', displayOrder: 41 },
         // ONBOARDING
         { code: 'ONBOARDING_SUBMITTED',            label: 'Onboarding Submitted',            category: 'ONBOARDING', displayOrder: 30 },
-        { code: 'ONBOARDING_PENDING_HR_APPROVAL',  label: 'Pending HR Approval',             category: 'ONBOARDING', displayOrder: 31 },
-        { code: 'ONBOARDING_PRE_ARRIVAL_SETUP',    label: 'Pre-Arrival Setup',               category: 'ONBOARDING', displayOrder: 32 },
-        { code: 'ONBOARDING_READY_FOR_DAY_1',      label: 'Ready for Day 1',                 category: 'ONBOARDING', displayOrder: 33 },
-        { code: 'ONBOARDING_DAY_1_ORIENTATION',    label: 'Day 1 Orientation',               category: 'ONBOARDING', displayOrder: 34 },
-        { code: 'ONBOARDING_WEEK_1_INTEGRATION',   label: 'Week 1 Integration',              category: 'ONBOARDING', displayOrder: 35 },
-        { code: 'ONBOARDING_MONTH_1_MILESTONE',    label: 'Month 1 Milestone',               category: 'ONBOARDING', displayOrder: 36 },
-        { code: 'ONBOARDING_MONTH_2_MILESTONE',    label: 'Month 2 Milestone',               category: 'ONBOARDING', displayOrder: 37 },
-        { code: 'ONBOARDING_MONTH_3_MILESTONE',    label: 'Month 3 Milestone',               category: 'ONBOARDING', displayOrder: 38 },
-        { code: 'ONBOARDING_COMPLETED',            label: 'Onboarding Completed',            category: 'ONBOARDING', displayOrder: 39 },
+        { code: 'ONBOARDING_PRE_ARRIVAL_SETUP',    label: 'Pre-Arrival Setup',               category: 'ONBOARDING', displayOrder: 31 },
+        { code: 'ONBOARDING_READY_FOR_DAY_1',      label: 'Ready for Day 1',                 category: 'ONBOARDING', displayOrder: 32 },
+        { code: 'ONBOARDING_DAY_1_ORIENTATION',    label: 'Day 1 Orientation',               category: 'ONBOARDING', displayOrder: 33 },
+        { code: 'ONBOARDING_WEEK_1_INTEGRATION',   label: 'Week 1 Integration',              category: 'ONBOARDING', displayOrder: 34 },
+        { code: 'ONBOARDING_COMPLETED',            label: 'Onboarding Completed',            category: 'ONBOARDING', displayOrder: 35 },
         // IT WORKFLOW
         { code: 'PENDING_MANAGER_APPROVAL_IT',     label: 'Pending Manager Approval (IT)',   category: 'IT', displayOrder: 40 },
         { code: 'MANAGER_APPROVED_IT',             label: 'Manager Approved (IT)',           category: 'IT', displayOrder: 41 },

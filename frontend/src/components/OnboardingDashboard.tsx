@@ -19,6 +19,7 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
     const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
     const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
     const [completing, setCompleting] = useState(false);
+    const [advancingPhase, setAdvancingPhase] = useState(false);
 
     useEffect(() => {
         fetchOnboardingData();
@@ -102,6 +103,16 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
 
     const handleCompleteOnboarding = async () => {
         if (completing) return;
+        // Frontend pre-check
+        const pending = progress?.tasks?.pending ?? 0;
+        const total = progress?.tasks?.total ?? 0;
+        if (total > 0 && pending > 0) {
+            alert(`Cannot complete onboarding: ${pending} task${pending > 1 ? 's are' : ' is'} still incomplete. Please complete all tasks first.`);
+            return;
+        }
+        if (!window.confirm('Are you sure you want to mark this onboarding as COMPLETED and close the ticket? This action cannot be undone.')) {
+            return;
+        }
         setCompleting(true);
         try {
             await apiClient.put(`/onboarding/requests/${requestId}/onboarding/update-status`, {
@@ -110,15 +121,47 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
             });
             setOnboarding(prev => prev ? { ...prev, overallStatus: 'COMPLETED' } : prev);
         } catch (err: any) {
+            const msg = err.response?.data?.message || err.message || 'Failed to complete onboarding';
+            alert(msg);
             console.error('Failed to complete onboarding:', err);
         } finally {
             setCompleting(false);
         }
     };
 
+    const isAdminOrHRAgent = user?.roles?.includes('ADMIN') ||
+        (user?.roles?.includes('AGENT') && (user as any)?.agentTeam?.toUpperCase() === 'HR');
     const allTasksDone = (progress?.tasks?.total ?? 0) > 0 && progress?.tasks?.pending === 0;
     const isCompleted = onboarding?.overallStatus === 'COMPLETED';
-    const canComplete = (user?.roles?.some(r => r === 'ADMIN') ?? false) && allTasksDone && !isCompleted;
+    const canComplete = (isAdminOrHRAgent ?? false) && allTasksDone && !isCompleted;
+
+    // Phase advancement config
+    const PHASE_SEQUENCE = [
+        { phase: 'PRE_ARRIVAL',  label: 'Pre-Arrival Setup',  next: 'DAY_1_READY' },
+        { phase: 'DAY_1_READY',  label: 'Day 1 Ready',        next: 'DAY_1' },
+        { phase: 'DAY_1',        label: 'Day 1 Orientation',  next: 'WEEK_1' },
+        { phase: 'WEEK_1',       label: 'Week 1',             next: null },
+    ];
+    const currentPhaseEntry = PHASE_SEQUENCE.find(p => p.phase === onboarding?.currentPhase);
+    const nextPhase = currentPhaseEntry?.next ?? null;
+    const nextPhaseLabel = nextPhase ? PHASE_SEQUENCE.find(p => p.phase === nextPhase)?.label : null;
+    const canAdvancePhase = isAdminOrHRAgent && !isCompleted && !!nextPhase;
+
+    const handleAdvancePhase = async () => {
+        if (!nextPhase || advancingPhase) return;
+        setAdvancingPhase(true);
+        try {
+            await apiClient.put(`/onboarding/requests/${requestId}/onboarding/update-status`, {
+                currentPhase: nextPhase,
+            });
+            await fetchOnboardingData();
+        } catch (err: any) {
+            console.error('Failed to advance phase:', err);
+            alert(`Error: ${err.response?.data?.message || err.message || 'Failed to advance phase'}`);
+        } finally {
+            setAdvancingPhase(false);
+        }
+    };
 
     const getTaskIcon = (status: string, taskId?: string) => {
         if (updatingTaskId === taskId) {
@@ -175,7 +218,7 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
         try {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return 'Invalid Date';
-            return date.toLocaleDateString();
+            return date.toLocaleDateString('en-GB');
         } catch (e) {
             return 'Invalid Date';
         }
@@ -312,6 +355,33 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                             <p className="text-sm text-gray-600">Pending</p>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Phase Advancement Banner */}
+            {!isCompleted && canAdvancePhase && (
+                <div className="bg-indigo-50 border border-indigo-300 rounded-lg p-5 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                        <span className="material-symbols-outlined text-indigo-600 text-3xl">arrow_forward</span>
+                        <div>
+                            <p className="font-semibold text-indigo-900">
+                                Current phase: <span className="font-bold">{currentPhaseEntry?.label ?? onboarding?.currentPhase}</span>
+                            </p>
+                            <p className="text-sm text-indigo-700">Advance to next phase: <span className="font-semibold">{nextPhaseLabel}</span></p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleAdvancePhase}
+                        disabled={advancingPhase}
+                        className="ml-4 px-5 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
+                    >
+                        {advancingPhase ? (
+                            <span className="material-symbols-outlined animate-spin text-sm">autorenew</span>
+                        ) : (
+                            <span className="material-symbols-outlined text-sm">skip_next</span>
+                        )}
+                        <span>{advancingPhase ? 'Advancing...' : `Move to ${nextPhaseLabel}`}</span>
+                    </button>
                 </div>
             )}
 

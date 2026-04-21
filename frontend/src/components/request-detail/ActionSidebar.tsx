@@ -61,6 +61,10 @@ interface ActionSidebarProps {
   onRouteToManager?: () => void;
   onIssueLOA?: () => void;
   onMarkLOAAccepted?: () => void;
+  onAdvanceOnboardingPhase?: () => void;
+  onCompleteOnboarding?: () => void;
+  onAdvanceOffboardingPhase?: () => void;
+  onCompleteOffboarding?: () => void;
 }
 
 const PRIORITY_COLOURS: Record<string, string> = {
@@ -100,6 +104,10 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   onRouteToManager,
   onIssueLOA,
   onMarkLOAAccepted,
+  onAdvanceOnboardingPhase,
+  onCompleteOnboarding,
+  onAdvanceOffboardingPhase,
+  onCompleteOffboarding,
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -148,6 +156,10 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'UPLOAD_SIGNED_LOA': setOpenModal('UPLOAD_SIGNED_LOA'); break;
       case 'MARK_LOA_ACCEPTED': if (onMarkLOAAccepted) onMarkLOAAccepted(); break;
       case 'COMPLETE_DELIVERY': setOpenModal('COMPLETE_DELIVERY'); break;
+      case 'ADVANCE_ONBOARDING_PHASE': if (onAdvanceOnboardingPhase) onAdvanceOnboardingPhase(); break;
+      case 'COMPLETE_ONBOARDING': if (onCompleteOnboarding) onCompleteOnboarding(); break;
+      case 'ADVANCE_OFFBOARDING_PHASE': if (onAdvanceOffboardingPhase) onAdvanceOffboardingPhase(); break;
+      case 'COMPLETE_OFFBOARDING': if (onCompleteOffboarding) onCompleteOffboarding(); break;
       default:
         console.warn('[ActionSidebar] Unhandled action type:', type);
     }

@@ -28,7 +28,11 @@ export type WorkflowActionType =
   | 'UPLOAD_LOA'
   | 'ISSUE_LOA'
   | 'UPLOAD_SIGNED_LOA'
-  | 'MARK_LOA_ACCEPTED';
+  | 'MARK_LOA_ACCEPTED'
+  | 'ADVANCE_ONBOARDING_PHASE'
+  | 'COMPLETE_ONBOARDING'
+  | 'ADVANCE_OFFBOARDING_PHASE'
+  | 'COMPLETE_OFFBOARDING';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -381,6 +385,96 @@ export function getWorkflowActions(
       description: 'Confirm hardware has been delivered to the requester.',
       variant: 'success',
     });
+  }
+
+  // Offboarding ticket phase advancement
+  const isOffboardingTicket = requestTypeCode === 'EMPLOYEE_OFFBOARDING' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('offboard'));
+  if (canAct && isHR && isOffboardingTicket) {
+    const offboardingPhaseActions: Record<string, { label: string; description: string }> = {
+      SUBMITTED: {
+        label: 'Start Notice Period',
+        description: 'Begin the offboarding process and initiate the notice period tasks.',
+      },
+      OFFBOARDING_SUBMITTED: {
+        label: 'Start Notice Period',
+        description: 'Begin the offboarding process and initiate the notice period tasks.',
+      },
+      OFFBOARDING_NOTICE_PERIOD: {
+        label: 'Begin Knowledge Transfer',
+        description: 'Notice period underway. Advance to the knowledge transfer phase.',
+      },
+      OFFBOARDING_KNOWLEDGE_TRANSFER: {
+        label: 'Advance to Final Week',
+        description: 'Knowledge transfer complete. Move to the final week phase.',
+      },
+      OFFBOARDING_FINAL_WEEK: {
+        label: 'Begin Exit Procedures',
+        description: 'Final week in progress. Start exit procedures (IT revocation, hardware collection, etc.).',
+      },
+    };
+    const phaseAction = offboardingPhaseActions[status];
+    if (phaseAction) {
+      actions.push({
+        type: 'ADVANCE_OFFBOARDING_PHASE',
+        label: phaseAction.label,
+        description: phaseAction.description,
+        variant: 'primary',
+      });
+    }
+    if (status === 'OFFBOARDING_EXIT_PROCEDURES') {
+      actions.push({
+        type: 'COMPLETE_OFFBOARDING',
+        label: 'Complete Offboarding',
+        description: 'All tasks done. Mark this offboarding as complete and close the ticket.',
+        variant: 'success',
+      });
+    }
+  }
+
+  // Onboarding ticket phase advancement
+  const isOnboardingTicket = requestTypeCode === 'EMPLOYEE_ONBOARDING' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('onboard'));
+  if (canAct && isHR && isOnboardingTicket) {
+    const onboardingPhaseActions: Record<string, { label: string; description: string }> = {
+      SUBMITTED: {
+        label: 'Start Pre-Arrival Setup',
+        description: 'Review the new hire details and begin pre-arrival tasks such as account creation and equipment provisioning.',
+      },
+      ONBOARDING_SUBMITTED: {
+        label: 'Start Pre-Arrival Setup',
+        description: 'Review the new hire details and begin pre-arrival tasks such as account creation and equipment provisioning.',
+      },
+      ONBOARDING_PRE_ARRIVAL_SETUP: {
+        label: 'Mark Day 1 Ready',
+        description: 'Complete all pre-arrival tasks in the checklist below, then advance to Day 1 Ready.',
+      },
+      ONBOARDING_READY_FOR_DAY_1: {
+        label: 'Begin Day 1 Orientation',
+        description: 'New hire is arriving today. Start the Day 1 orientation phase.',
+      },
+      ONBOARDING_DAY_1_ORIENTATION: {
+        label: 'Advance to Week 1 Integration',
+        description: 'Day 1 complete. Move the new hire into the Week 1 integration phase.',
+      },
+    };
+    const phaseAction = onboardingPhaseActions[status];
+    if (phaseAction) {
+      actions.push({
+        type: 'ADVANCE_ONBOARDING_PHASE',
+        label: phaseAction.label,
+        description: phaseAction.description,
+        variant: 'primary',
+      });
+    }
+    if (status === 'ONBOARDING_WEEK_1_INTEGRATION') {
+      actions.push({
+        type: 'COMPLETE_ONBOARDING',
+        label: 'Complete Onboarding',
+        description: 'All tasks are done. Mark this onboarding as complete and close the ticket.',
+        variant: 'success',
+      });
+    }
   }
 
   return actions;

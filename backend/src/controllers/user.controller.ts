@@ -49,6 +49,7 @@ class UserController {
                     jobTitle: user.jobTitle,
                     manager: user.manager,
                     roles: user.roles.map((ur) => ur.role.name),
+                    agentTeam: user.agentTeam,
                     createdAt: user.createdAt,
                 },
             },

@@ -3,6 +3,7 @@ import { PrismaClient, RequestStatus } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { notify, notifyMultiple } from '../services/notification.service';
+import { createDefaultOnboardingTasks } from '../services/onboarding.service';
 
 const prisma = new PrismaClient();
 
@@ -184,6 +185,38 @@ class RequestController {
           }
         }
 
+        // Detect manual onboarding/offboarding submission
+        const requestType = requestTypeId
+            ? await prisma.requestType.findUnique({ where: { id: requestTypeId } })
+            : null;
+        const isManualOnboarding = requestType?.code === 'EMPLOYEE_ONBOARDING';
+        const isManualOffboarding = requestType?.code === 'EMPLOYEE_OFFBOARDING';
+        const initialStatus = isManualOnboarding
+            ? 'ONBOARDING_SUBMITTED'
+            : isManualOffboarding
+            ? 'OFFBOARDING_SUBMITTED'
+            : 'SUBMITTED';
+
+        // Auto-generate description from form fields
+        let finalDescription = description;
+        if (isManualOnboarding && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const name = cf.employeeName || 'Unknown';
+            const jobTitle = cf.jobTitle || 'Not specified';
+            const dept = cf.department || 'Not specified';
+            const startDate = cf.startDate || 'TBD';
+            const email = cf.employeeEmail || 'Not provided';
+            finalDescription = `New employee onboarding request for ${name} (${jobTitle}) in ${dept}. Start date: ${startDate}. Contact: ${email}.`;
+        }
+        if (isManualOffboarding && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const name = cf.employeeName || 'Unknown';
+            const lastDay = cf.lastDay || 'TBD';
+            const email = cf.employeeEmail || 'Not provided';
+            const reason = cf.reason || 'Not specified';
+            finalDescription = `Employee offboarding request for ${name}. Last working day: ${lastDay}. Contact: ${email}. Reason: ${reason}.`;
+        }
+
         // Create request, hardware details, and initial activity in a single transaction
         const request = await prisma.$transaction(async (tx) => {
             const createdRequest = await tx.request.create({
@@ -194,10 +227,10 @@ class RequestController {
                     requesterId: req.user!.id,
                     requesterEmail: req.user!.email,
                     summary,
-                    description,
+                    description: finalDescription,
                     priority,
                     customFields,
-                    status: 'SUBMITTED',
+                    status: initialStatus as any,
                     slaDueAt,
                 },
                 include: {
@@ -237,6 +270,104 @@ class RequestController {
                 }
             }
 
+            // Auto-create OnboardingRequest for manually submitted onboarding tickets
+            if (isManualOnboarding) {
+                const cf = (customFields || {}) as Record<string, any>;
+
+                // Parse employee name — support "employeeName" (full) or split first/last
+                const rawName = (cf.employeeName || '').trim();
+                const nameParts = rawName.split(/\s+/);
+                const firstName = nameParts[0] || 'Unknown';
+                const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Unknown';
+
+                // Parse start date — fallback to 7 days from now
+                let startDate: Date;
+                if (cf.startDate) {
+                    const parsed = new Date(cf.startDate);
+                    startDate = isNaN(parsed.getTime()) ? new Date(Date.now() + 7 * 86400000) : parsed;
+                } else {
+                    startDate = new Date(Date.now() + 7 * 86400000);
+                }
+
+                const onboarding = await tx.onboardingRequest.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        newHireFirstName: firstName,
+                        newHireLastName: lastName,
+                        newHireEmail: cf.employeeEmail || req.user!.email,
+                        newHirePhone: null,
+                        jobTitle: cf.jobTitle || 'Not specified',
+                        department: cf.department || 'Not specified',
+                        hiringManagerId: req.user!.id,
+                        startDate,
+                        employmentType: 'FULL_TIME',
+                        overallStatus: 'PENDING',
+                        currentPhase: 'PRE_ARRIVAL',
+                    },
+                });
+
+                await tx.requestActivity.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        authorName: 'System',
+                        authorRole: 'SYSTEM',
+                        activityType: 'SYSTEM',
+                        message: `Onboarding workflow initialised for ${firstName} ${lastName}. Start date: ${startDate.toDateString()}.`,
+                        isSystemGenerated: true,
+                    },
+                });
+
+                // Seed default tasks outside the transaction
+                (createdRequest as any)._onboardingId = onboarding.id;
+                (createdRequest as any)._startDate = startDate;
+            }
+
+            // Auto-create OffboardingRequest for manually submitted offboarding tickets
+            if (isManualOffboarding) {
+                const cf = (customFields || {}) as Record<string, any>;
+
+                const rawName = (cf.employeeName || '').trim();
+                const nameParts = rawName.split(/\s+/);
+                const firstName = nameParts[0] || 'Unknown';
+                const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Unknown';
+
+                let lastWorkingDay: Date;
+                if (cf.lastDay) {
+                    const parsed = new Date(cf.lastDay);
+                    lastWorkingDay = isNaN(parsed.getTime()) ? new Date(Date.now() + 14 * 86400000) : parsed;
+                } else {
+                    lastWorkingDay = new Date(Date.now() + 14 * 86400000);
+                }
+
+                const offboarding = await tx.offboardingRequest.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        employeeFirstName: firstName,
+                        employeeLastName: lastName,
+                        employeeEmail: cf.employeeEmail || req.user!.email,
+                        managerId: req.user!.id,
+                        lastWorkingDay,
+                        reasonForDeparture: cf.reason || null,
+                        overallStatus: 'PENDING',
+                        currentPhase: 'NOTICE_PERIOD',
+                    },
+                });
+
+                await tx.requestActivity.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        authorName: 'System',
+                        authorRole: 'SYSTEM',
+                        activityType: 'SYSTEM',
+                        message: `Offboarding workflow initialised for ${firstName} ${lastName}. Last working day: ${lastWorkingDay.toDateString()}.`,
+                        isSystemGenerated: true,
+                    },
+                });
+
+                (createdRequest as any)._offboardingId = offboarding.id;
+                (createdRequest as any)._lastWorkingDay = lastWorkingDay;
+            }
+
             // Create initial activity
             await tx.requestActivity.create({
                 data: {
@@ -251,6 +382,23 @@ class RequestController {
 
             return createdRequest;
         });
+
+        // Seed default onboarding tasks after transaction
+        if (isManualOnboarding && (request as any)._onboardingId) {
+            await createDefaultOnboardingTasks(
+                (request as any)._onboardingId,
+                (request as any)._startDate,
+            );
+        }
+
+        // Seed default offboarding tasks after transaction
+        if (isManualOffboarding && (request as any)._offboardingId) {
+            const { createDefaultOffboardingTasks } = await import('./offboarding.controller');
+            await createDefaultOffboardingTasks(
+                (request as any)._offboardingId,
+                (request as any)._lastWorkingDay,
+            );
+        }
 
         // Notify requester
         await notify({
@@ -698,9 +846,17 @@ class RequestController {
             throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
         }
 
+        const TERMINAL_STATUSES = [
+            'RESOLVED', 'REJECTED', 'COMPLETED',
+            'OFFBOARDING_COMPLETED', 'ONBOARDING_COMPLETED',
+            'REIMBURSEMENT_CLOSED', 'CEO_REJECTED',
+        ];
         const request = await prisma.request.update({
             where: { id },
-            data: { status: status as RequestStatus },
+            data: {
+                status: status as RequestStatus,
+                ...(TERMINAL_STATUSES.includes(status) && { closedAt: new Date() }),
+            },
             include: {
                 requester: {
                     select: {

@@ -53,6 +53,12 @@ model User {
   completedScreenings   HRScreening[]
   uploadedLOAs          LetterOfAcceptance[]         @relation("LOAUploadedBy")
   approvedLOAs          LetterOfAcceptance[]         @relation("LOAApprovedBy")
+  // Offboarding Relations
+  offboardingAsEmployee     OffboardingRequest[]     @relation("OffboardingEmployee")
+  offboardingAsManager      OffboardingRequest[]     @relation("OffboardingManager")
+  offboardingCompletedBy    OffboardingRequest[]     @relation("OffboardingCompletedBy")
+  offboardingTasksAssigned  OffboardingTask[]        @relation("OffboardingTaskAssignedTo")
+  offboardingTasksCompleted OffboardingTask[]        @relation("OffboardingTaskCompletedBy")
   // Onboarding Relations
   onboardingAsHiringManager OnboardingRequest[]      @relation("OnboardingHiringManager")
   onboardingAsNewHire       OnboardingRequest[]      @relation("OnboardingNewHire")
@@ -235,6 +241,13 @@ enum RequestStatus {
   LOA_ISSUED
   LOA_ACCEPTED
   COMPLETED
+  // Offboarding Statuses
+  OFFBOARDING_SUBMITTED
+  OFFBOARDING_NOTICE_PERIOD
+  OFFBOARDING_KNOWLEDGE_TRANSFER
+  OFFBOARDING_FINAL_WEEK
+  OFFBOARDING_EXIT_PROCEDURES
+  OFFBOARDING_COMPLETED
   // Onboarding Statuses
   ONBOARDING_SUBMITTED
   ONBOARDING_PENDING_HR_APPROVAL
@@ -346,6 +359,7 @@ model Request {
   hrScreening         HRScreening?
   letterOfAcceptance  LetterOfAcceptance?
   onboardingRequest   OnboardingRequest?
+  offboardingRequest  OffboardingRequest?
   parentRequest       Request?          @relation("RequestChildren", fields: [parentRequestId], references: [id])
   childRequests       Request[]         @relation("RequestChildren")
 
@@ -943,6 +957,111 @@ model OnboardingTaskTemplate {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   @@map("onboarding_task_templates")
+  @@index([taskCategory])
+  @@index([isActive])
+}
+
+// Offboarding Requests
+model OffboardingRequest {
+  id                  String    @id @default(uuid()) @db.Uuid
+  requestId           String    @unique @map("request_id") @db.Uuid
+
+  // Departing Employee
+  employeeFirstName   String    @map("employee_first_name") @db.VarChar(100)
+  employeeLastName    String    @map("employee_last_name") @db.VarChar(100)
+  employeeEmail       String    @map("employee_email") @db.VarChar(255)
+  employeeId          String?   @map("employee_id") @db.Uuid
+
+  // Position Details
+  department          String?   @db.VarChar(100)
+  managerId           String    @map("manager_id") @db.Uuid
+  lastWorkingDay      DateTime  @map("last_working_day") @db.Date
+  reasonForDeparture  String?   @map("reason_for_departure") @db.Text
+
+  // Offboarding Status
+  overallStatus       String    @map("overall_status") @db.VarChar(50)
+  currentPhase        String    @map("current_phase") @db.VarChar(50)
+
+  // IT Revocation Flags
+  accountsDisabled    Boolean   @default(false) @map("accounts_disabled")
+  emailRevoked        Boolean   @default(false) @map("email_revoked")
+  hardwareReturned    Boolean   @default(false) @map("hardware_returned")
+  accessBadgeRevoked  Boolean   @default(false) @map("access_badge_revoked")
+
+  // HR Documentation Flags
+  resignationLetterAttached  Boolean   @default(false) @map("resignation_letter_attached")
+  resignationLetterUrl       String?   @map("resignation_letter_url") @db.VarChar(500)
+  resignationLetterFileName  String?   @map("resignation_letter_file_name") @db.VarChar(255)
+  exitInterviewScheduledDate DateTime? @map("exit_interview_scheduled_date") @db.Date
+  exitInterviewDone   Boolean   @default(false) @map("exit_interview_done")
+  finalPayrollDone    Boolean   @default(false) @map("final_payroll_done")
+  benefitsTerminated  Boolean   @default(false) @map("benefits_terminated")
+  knowledgeTransferDone Boolean @default(false) @map("knowledge_transfer_done")
+
+  completedBy         String?   @map("completed_by") @db.Uuid
+  completedAt         DateTime? @map("completed_at") @db.Timestamp(6)
+
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  request             Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  manager             User      @relation("OffboardingManager", fields: [managerId], references: [id])
+  employee            User?     @relation("OffboardingEmployee", fields: [employeeId], references: [id])
+  completedByUser     User?     @relation("OffboardingCompletedBy", fields: [completedBy], references: [id])
+  tasks               OffboardingTask[]
+
+  @@map("offboarding_requests")
+  @@index([requestId])
+  @@index([employeeId])
+  @@index([lastWorkingDay])
+}
+
+// Offboarding Tasks
+model OffboardingTask {
+  id                String    @id @default(uuid()) @db.Uuid
+  offboardingId     String    @map("offboarding_id") @db.Uuid
+
+  taskName          String    @map("task_name") @db.VarChar(200)
+  taskDescription   String?   @map("task_description") @db.Text
+  taskCategory      String    @map("task_category") @db.VarChar(50)
+  assignedTo        String?   @map("assigned_to") @db.Uuid
+  dueDate           DateTime? @map("due_date") @db.Date
+  priority          String    @default("MEDIUM") @db.VarChar(20)
+
+  status            String    @default("PENDING") @db.VarChar(50)
+  completedBy       String?   @map("completed_by") @db.Uuid
+  completedAt       DateTime? @map("completed_at") @db.Timestamp(6)
+  notes             String?   @db.Text
+
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  offboarding       OffboardingRequest @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
+  assignedToUser    User?              @relation("OffboardingTaskAssignedTo", fields: [assignedTo], references: [id])
+  completedByUser   User?              @relation("OffboardingTaskCompletedBy", fields: [completedBy], references: [id])
+
+  @@map("offboarding_tasks")
+  @@index([offboardingId])
+  @@index([assignedTo])
+  @@index([status])
+}
+
+// Offboarding Task Templates (admin-managed)
+model OffboardingTaskTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  taskName        String   @map("task_name") @db.VarChar(200)
+  taskDescription String?  @map("task_description") @db.Text
+  taskCategory    String   @map("task_category") @db.VarChar(50)
+  priority        String   @default("MEDIUM") @db.VarChar(20)
+  dueDayOffset    Int      @default(0) @map("due_day_offset")
+  displayOrder    Int      @default(0) @map("display_order")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("offboarding_task_templates")
   @@index([taskCategory])
   @@index([isActive])
 }

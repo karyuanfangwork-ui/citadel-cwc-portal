@@ -32,6 +32,7 @@ const RESOLVED_STATUSES = new Set<string>([
   RequestStatus.COMPLETED,
   RequestStatus.REIMBURSEMENT_CLOSED,
   RequestStatus.ONBOARDING_COMPLETED,
+  RequestStatus.OFFBOARDING_COMPLETED,
   RequestStatus.PAYMENT_COMPLETED,
   RequestStatus.LOA_ACCEPTED,
 ]);
