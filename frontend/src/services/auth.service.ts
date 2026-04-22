@@ -23,7 +23,7 @@ interface AuthUser {
 }
 
 export const authService = {
-    async login(credentials: LoginCredentials): Promise<AuthUser> {
+    async login(credentials: LoginCredentials): Promise<AuthUser & { accessToken?: string }> {
         const response = await apiClient.post('/auth/login', credentials);
         return response.data.data.user;
     },

@@ -19,7 +19,7 @@ export interface AuthRequest extends Request {
 
 export const authenticate = async (
     req: AuthRequest,
-    res: Response,
+    _res: Response,
     next: NextFunction
 ) => {
     try {
@@ -96,7 +96,7 @@ export const authenticate = async (
 
 export const optionalAuth = async (
     req: AuthRequest,
-    res: Response,
+    _res: Response,
     next: NextFunction
 ) => {
     try {
@@ -151,8 +151,98 @@ export function hasRole(req: AuthRequest, ...roles: string[]): boolean {
     return roles.some((role) => req.user?.roles.includes(role) ?? false);
 }
 
+/**
+ * SSE authentication middleware — accepts token from ?token= query param.
+ * EventSource cannot send HTTP-only cookies or custom headers,
+ * so SSE connections authenticate via ?token=<jwt> query parameter.
+ */
+export const sseAuth = async (
+    req: AuthRequest,
+    res: Response,
+    next: NextFunction
+) => {
+    try {
+        let token: string | undefined;
+
+        // 1. Query param (for SSE EventSource connections)
+        if ((req.query as Record<string, unknown>).token) {
+            token = String((req.query as Record<string, unknown>).token);
+        }
+        // 2. Cookie (standard browser sessions)
+        else if (req.cookies?.access_token) {
+            token = req.cookies.access_token;
+        }
+        // 3. Authorization header (API clients / curl)
+        else {
+            const authHeader = req.headers.authorization;
+            if (authHeader?.startsWith('Bearer ')) {
+                token = authHeader.substring(7);
+            }
+        }
+
+        if (!token) {
+            res.status(401).json({ error: 'No token provided' });
+            return;
+        }
+
+        const decoded = jwt.verify(token, config.jwt.secret) as {
+            userId: string;
+            email: string;
+            jti?: string;
+            exp?: number;
+            iat?: number;
+        };
+
+        if (!decoded.jti) {
+            res.status(401).json({ error: 'Token is missing required claims' });
+            return;
+        }
+
+        const revoked = await tokenService.isJtiRevoked(decoded.jti);
+        if (revoked) {
+            res.status(401).json({ error: 'Token has been revoked' });
+            return;
+        }
+
+        const revokedAt = await tokenService.getUserRevocationTimestamp(decoded.userId);
+        const tokenIssuedAt = decoded.iat ? decoded.iat * 1000 : 0;
+        if (revokedAt > 0 && tokenIssuedAt < revokedAt) {
+            res.status(401).json({ error: 'Token has been revoked' });
+            return;
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.userId },
+            include: { roles: { include: { role: true } } },
+        });
+
+        if (!user || !user.isActive) {
+            res.status(401).json({ error: 'User not found or inactive' });
+            return;
+        }
+
+        req.user = {
+            id: user.id,
+            email: user.email,
+            roles: user.roles.map((ur) => ur.role.name),
+        };
+        req.jti = decoded.jti;
+        req.tokenExp = decoded.exp;
+
+        next();
+    } catch (error) {
+        if (error instanceof jwt.JsonWebTokenError) {
+            res.status(401).json({ error: 'Invalid token' });
+        } else if (error instanceof jwt.TokenExpiredError) {
+            res.status(401).json({ error: 'Token expired' });
+        } else {
+            res.status(401).json({ error: 'Authentication failed' });
+        }
+    }
+};
+
 export const authorize = (...roles: string[]) => {
-    return (req: AuthRequest, res: Response, next: NextFunction) => {
+    return (req: AuthRequest, _res: Response, next: NextFunction) => {
         if (!req.user) {
             return next(new AppError('Not authenticated', 401));
         }

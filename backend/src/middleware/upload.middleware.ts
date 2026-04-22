@@ -1,6 +1,9 @@
-import * as multer from 'multer';
+import multer from 'multer';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import multerS3 from 'multer-s3';
+import { S3Client } from '@aws-sdk/client-s3';
+import { config } from '../config';
 
 // ---------------------------------------------------------------------------
 // MIME type allowlist — only these file types are accepted
@@ -64,17 +67,34 @@ const BLOCKED_EXTENSIONS = new Set([
 ]);
 
 // ---------------------------------------------------------------------------
-// Multer storage engine
+// S3 Client Configuration
 // ---------------------------------------------------------------------------
-const storage = multer.default.diskStorage({
-  destination: (_req: Express.Request, _file: Express.Multer.File, cb) => {
-    cb(null, path.resolve(process.cwd(), 'uploads'));
+const s3 = new S3Client({
+  region: config.s3.region,
+  endpoint: config.s3.endpoint,
+  credentials: {
+    accessKeyId: config.s3.accessKey,
+    secretAccessKey: config.s3.secretKey,
   },
-  filename: (_req: Express.Request, file: Express.Multer.File, cb) => {
+  forcePathStyle: config.s3.forcePathStyle,
+  // DO Spaces rejects AWS SDK v3 checksum headers — disable them
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
+});
+
+// ---------------------------------------------------------------------------
+// Multer S3 storage engine
+// ---------------------------------------------------------------------------
+const storage = multerS3({
+  s3: s3,
+  bucket: config.s3.bucket,
+  metadata: (req, file, cb) => {
+    cb(null, { fieldName: file.fieldname });
+  },
+  key: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    // Use crypto UUID v4 equivalent
     const uuid = crypto.randomUUID();
-    cb(null, `${uuid}${ext}`);
+    cb(null, `cwc/${uuid}${ext}`);
   },
 });
 
@@ -114,7 +134,7 @@ function fileFilter(
 // ---------------------------------------------------------------------------
 // Configured multer instance — 10MB limit, 5 files max
 // ---------------------------------------------------------------------------
-const uploader = multer.default({
+const uploader = multer({
   storage,
   fileFilter,
   limits: {
@@ -127,3 +147,4 @@ const uploader = multer.default({
 // Middleware factory for single file upload
 // ---------------------------------------------------------------------------
 export const uploadSingleFile = (fieldName: string) => uploader.single(fieldName);
+

@@ -53,7 +53,7 @@ export const uploadLOA = async (req: Request, res: Response) => {
         const loa = await prisma.letterOfAcceptance.create({
             data: {
                 requestId: id,
-                loaFileUrl: file.path,
+                loaFileUrl: (file as any).key,
                 loaFileName: file.originalname,
                 loaFileSize: file.size,
                 uploadedBy: userId
@@ -399,7 +399,7 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
         const updatedLOA = await prisma.letterOfAcceptance.update({
             where: { id: request.letterOfAcceptance.id },
             data: {
-                signedLoaFileUrl: file.path,
+                signedLoaFileUrl: (file as any).key,
                 signedLoaFileName: file.originalname,
                 signedLoaFileSize: file.size
             }

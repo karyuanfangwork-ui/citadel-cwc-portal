@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { notificationController } from '../controllers/notification.controller';
 import { authenticate } from '../middleware/auth.middleware';
+import { sseAuth } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication (except /stream which uses sseAuth)
 router.use(authenticate);
 
 /**
@@ -20,13 +21,6 @@ router.get('/', notificationController.getNotifications);
  * @access  Private
  */
 router.get('/unread-count', notificationController.getUnreadCount);
-
-/**
- * @route   GET /api/v1/notifications/stream
- * @desc    SSE stream for real-time notifications
- * @access  Private
- */
-router.get('/stream', notificationController.streamNotifications);
 
 /**
  * @route   PUT /api/v1/notifications/:id/read
@@ -49,4 +43,7 @@ router.put('/read-all', notificationController.markAllAsRead);
  */
 router.delete('/:id', notificationController.deleteNotification);
 
+// SSE route is NOT under router.use(authenticate) — it uses sseAuth instead
+// to accept token from query param for EventSource compatibility
 export default router;
+export { router as notificationRouter };

@@ -78,12 +78,21 @@ export const config = {
         format: process.env.LOG_FORMAT || 'json',
     },
 
+    // S3/MinIO Storage
+    s3: {
+        endpoint: process.env.S3_ENDPOINT || 'http://localhost:9000',
+        region: process.env.S3_REGION || 'us-east-1',
+        bucket: process.env.S3_BUCKET || 'helpdesk-uploads',
+        accessKey: process.env.S3_ACCESS_KEY || '',
+        secretKey: process.env.S3_SECRET_KEY || '',
+        forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+    },
+
     // Session
     session: {
         secret: process.env.SESSION_SECRET || '',
         maxAge: parseInt(process.env.SESSION_MAX_AGE || '86400000', 10), // 24 hours
     },
-
     // Hardware VP Approval
     hardwareVpApprovalThreshold: parseInt(process.env.HARDWARE_VP_APPROVAL_THRESHOLD || '2500', 10),
 

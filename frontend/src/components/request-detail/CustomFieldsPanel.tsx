@@ -1,5 +1,7 @@
 import React from 'react';
 
+const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+
 interface CustomFieldsPanelProps {
   customFields: Record<string, any> | undefined;
   serviceDeskCode: string;
@@ -82,6 +84,20 @@ function formatValue(key: string, value: any): React.ReactNode {
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'object') {
     if (key === 'payment') return formatPayment(value);
+    if (value.s3Key && value.fileName) {
+      const href = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}`;
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-[#0052cc] hover:underline font-medium"
+        >
+          <span className="material-symbols-outlined text-base">download</span>
+          {value.fileName}
+        </a>
+      );
+    }
     return JSON.stringify(value);
   }
   return String(value);

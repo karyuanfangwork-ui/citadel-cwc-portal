@@ -1196,13 +1196,13 @@ const RequestDetail = () => {
                         </div>
                         <div className="flex items-center gap-2">
                           <a
-                            href={`http://localhost:3000${resume.fileUrl}`}
+                            href={`http://localhost:3000/api/v1/files/download${loaDetails.loaFileUrl}`}
                             target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 text-sm font-semibold text-[#0052cc] hover:bg-blue-50 rounded-lg transition-colors"
+                            rel="noreferrer"
+                            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#0052cc] hover:bg-gray-50 transition-colors"
                           >
-                            Download
-                          </a>
+                          View
+                        </a>
                           {request.status === 'JOB_POSTED' && (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && (
                             <button
                               onClick={() => handleDeleteResume(resume.id)}
@@ -1464,14 +1464,14 @@ const RequestDetail = () => {
                       {loaDetails.approvalDate && (
                         <span className="text-[10px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded">APPROVED</span>
                       )}
-                      <a
-                        href={`http://localhost:3000${loaDetails.loaFileUrl}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#0052cc] hover:bg-gray-50 transition-colors"
-                      >
-                        View
-                      </a>
+                          <a
+                            href={`http://localhost:3000/api/v1/files/download${loaDetails.loaFileUrl}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#0052cc] hover:bg-gray-50 transition-colors"
+                          >
+                          View
+                        </a>
                     </div>
                   </div>
 
@@ -1491,12 +1491,12 @@ const RequestDetail = () => {
                         {loaDetails.acceptedDate && (
                           <span className="text-[10px] font-bold text-white bg-emerald-600 px-2 py-0.5 rounded">ACCEPTED</span>
                         )}
-                        <a
-                          href={`http://localhost:3000${loaDetails.signedLoaFileUrl}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-4 py-2 bg-white border border-emerald-200 rounded-lg text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-colors"
-                        >
+                          <a
+                            href={`http://localhost:3000/api/v1/files/download${loaDetails.loaFileUrl}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#0052cc] hover:bg-gray-50 transition-colors"
+                          >
                           View
                         </a>
                       </div>

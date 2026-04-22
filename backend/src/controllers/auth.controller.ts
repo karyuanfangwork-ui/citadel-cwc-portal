@@ -155,6 +155,7 @@ class AuthController {
                     roles: user.roles.map((ur) => ur.role.name),
                     agentTeam: user.agentTeam,
                 },
+                accessToken, // exposed for SSE EventSource auth
             },
         });
     });

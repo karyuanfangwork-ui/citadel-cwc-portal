@@ -4,6 +4,7 @@ import userRoutes from './user.routes';
 import requestRoutes from './request.routes';
 import serviceDeskRoutes from './serviceDesk.routes';
 import notificationRoutes from './notification.routes';
+import notificationSseRoutes from './notificationSse.routes';
 import kbRoutes from './kb.routes';
 import searchRoutes from './search.routes';
 import approvalRoutes from './approval.routes';
@@ -20,6 +21,7 @@ import reportsRoutes from './reports.routes';
 import bannerConfigRoutes from './bannerConfig.routes';
 import requestStatusDefinitionRoutes from './requestStatusDefinition.routes';
 import workflowTransitionRoutes from './workflowTransition.routes';
+import fileRoutes from './file.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -32,6 +34,7 @@ router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/requests', requestRoutes);
 router.use('/service-desks', serviceDeskRoutes);
+router.use('/notifications', notificationSseRoutes); // SSE first — uses sseAuth for ?token= query param
 router.use('/notifications', notificationRoutes);
 router.use('/kb', kbRoutes);
 router.use('/search', searchRoutes);
@@ -49,6 +52,7 @@ router.use('/reports', reportsRoutes);
 router.use('/admin/banner-configs', bannerConfigRoutes);
 router.use('/admin/status-definitions', requestStatusDefinitionRoutes);
 router.use('/admin/workflow-transitions', workflowTransitionRoutes);
+router.use('/files', fileRoutes);
 
 export default router;
 

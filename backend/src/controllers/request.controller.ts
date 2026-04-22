@@ -765,8 +765,7 @@ class RequestController {
             throw new AppError('Request not found', 404);
         }
 
-        // Build storage URL (served via /uploads static route)
-        const storageUrl = `/uploads/${file.filename}`;
+        const s3Key = (file as any).key;
 
         const attachment = await prisma.requestAttachment.create({
             data: {
@@ -775,8 +774,8 @@ class RequestController {
                 fileName: file.originalname,
                 fileSize: BigInt(file.size),
                 mimeType: file.mimetype,
-                storagePath: file.path,
-                storageUrl,
+                storagePath: s3Key,
+                storageUrl: s3Key,
                 isScanned: false,       // stub for future ClamAV integration
                 scanResult: null,
             },

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { Notification } from '../services/notification.service';
 import notificationService from '../services/notification.service';
+import { useAuth } from './AuthContext';
 
 interface Toast {
   id: string;
@@ -18,9 +19,11 @@ interface NotificationContextType {
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
-const SSE_URL = ((import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1') + '/notifications/stream';
+const API_BASE = (import.meta as any).env.VITE_API_URL || 'http://localhost:3000/api/v1';
+const SSE_URL = `${API_BASE}/notifications/stream`;
 
 export const NotificationProvider: React.FC<{ userId: string | null; children: ReactNode }> = ({ userId, children }) => {
+  const { accessToken } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotification, setRecentNotification] = useState<Notification | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
@@ -47,13 +50,14 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
 
   // Open/close SSE stream based on auth state
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !accessToken) {
       esRef.current?.close();
       esRef.current = null;
       return;
     }
 
-    const es = new EventSource(SSE_URL, { withCredentials: true });
+    const esUrl = `${SSE_URL}?token=${encodeURIComponent(accessToken)}`;
+    const es = new EventSource(esUrl);
     esRef.current = es;
 
     es.addEventListener('notification', (e: MessageEvent) => {
@@ -71,7 +75,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       es.close();
       esRef.current = null;
     };
-  }, [userId, showToast]);
+  }, [userId, accessToken, showToast]);
 
   const dismissToast = useCallback(() => {
     setToast(null);

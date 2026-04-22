@@ -1,53 +1,11 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+import { uploadSingleFile } from '../middleware/upload.middleware';
 
 const prisma = new PrismaClient();
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => {
-        const uploadDir = path.join(__dirname, '../../uploads/resumes');
-
-        // Create directory if it doesn't exist
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-
-        cb(null, uploadDir);
-    },
-    filename: (_req, file, cb) => {
-        // Generate unique filename: {uuid}_{timestamp}.{ext}
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, `resume-${uniqueSuffix}${ext}`);
-    }
-});
-
-const fileFilter = (_req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
-    // Accept only PDF, DOC, DOCX files
-    const allowedMimes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-    ];
-
-    if (allowedMimes.includes(file.mimetype)) {
-        cb(null, true);
-    } else {
-        cb(new Error('Only PDF, DOC, and DOCX files are allowed'));
-    }
-};
-
-export const upload = multer({
-    storage,
-    fileFilter,
-    limits: {
-        fileSize: 10 * 1024 * 1024 // 10MB max file size
-    }
-});
+// Shared S3-backed multer instance — used by loa.routes and approval.routes
+export const upload = { single: (field: string) => uploadSingleFile(field) };
 
 /**
  * Upload candidate resume
@@ -58,44 +16,29 @@ export const uploadResume = async (req: Request, res: Response): Promise<any> =>
         const { id } = req.params as { id: string };
         const { candidateName, notes } = req.body;
         const userId = (req as any).user?.id;
-        const file = req.file;
+        const file = req.file as any;
 
         if (!file) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'No file uploaded'
-            });
+            return res.status(400).json({ status: 'error', message: 'No file uploaded' });
         }
 
-        // Get the request
-        const request = await prisma.request.findUnique({
-            where: { id }
-        });
-
+        const request = await prisma.request.findUnique({ where: { id } });
         if (!request) {
-            // Delete uploaded file if request not found
-            fs.unlinkSync(file.path);
-            return res.status(404).json({
-                status: 'error',
-                message: 'Request not found'
-            });
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
         }
 
         if (request.status !== 'JOB_POSTED') {
-            // Delete uploaded file if wrong status
-            fs.unlinkSync(file.path);
             return res.status(400).json({
                 status: 'error',
                 message: 'Can only upload resumes when request status is JOB_POSTED'
             });
         }
 
-        // Create resume record
         const resume = await prisma.candidateResume.create({
             data: {
                 requestId: id,
                 fileName: file.originalname,
-                fileUrl: `/uploads/resumes/${file.filename}`,
+                fileUrl: file.key,   // S3 key
                 fileSize: BigInt(file.size),
                 mimeType: file.mimetype,
                 uploadedById: userId,
@@ -104,7 +47,6 @@ export const uploadResume = async (req: Request, res: Response): Promise<any> =>
             }
         });
 
-        // Create activity log
         await prisma.requestActivity.create({
             data: {
                 requestId: id,
@@ -117,32 +59,13 @@ export const uploadResume = async (req: Request, res: Response): Promise<any> =>
             }
         });
 
-        // Convert BigInt to string for JSON serialization
-        const resumeData = {
-            ...resume,
-            fileSize: resume.fileSize.toString()
-        };
-
         res.json({
             status: 'success',
-            data: { resume: resumeData }
+            data: { resume: { ...resume, fileSize: resume.fileSize.toString() } }
         });
     } catch (error) {
         console.error('Error uploading resume:', error);
-
-        // Clean up uploaded file on error
-        if (req.file) {
-            try {
-                fs.unlinkSync(req.file.path);
-            } catch (unlinkError) {
-                console.error('Error deleting file:', unlinkError);
-            }
-        }
-
-        res.status(500).json({
-            status: 'error',
-            message: 'Failed to upload resume'
-        });
+        res.status(500).json({ status: 'error', message: 'Failed to upload resume' });
     }
 };
 
@@ -158,33 +81,19 @@ export const getResumes = async (req: Request, res: Response): Promise<any> => {
             where: { requestId: id },
             include: {
                 uploadedBy: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        email: true
-                    }
+                    select: { id: true, firstName: true, lastName: true, email: true }
                 }
             },
             orderBy: { createdAt: 'desc' }
         });
 
-        // Convert BigInt to string for JSON serialization
-        const resumesData = resumes.map(resume => ({
-            ...resume,
-            fileSize: resume.fileSize.toString()
-        }));
-
         res.json({
             status: 'success',
-            data: { resumes: resumesData }
+            data: { resumes: resumes.map(r => ({ ...r, fileSize: r.fileSize.toString() })) }
         });
     } catch (error) {
         console.error('Error fetching resumes:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Failed to fetch resumes'
-        });
+        res.status(500).json({ status: 'error', message: 'Failed to fetch resumes' });
     }
 };
 
@@ -197,27 +106,17 @@ export const deleteResume = async (req: Request, res: Response): Promise<any> =>
         const { id, resumeId } = req.params as { id: string; resumeId: string };
         const userId = (req as any).user?.id;
 
-        // Get the resume
         const resume = await prisma.candidateResume.findUnique({
             where: { id: resumeId },
             include: { request: true, uploadedBy: true }
         });
 
         if (!resume) {
-            return res.status(404).json({
-                status: 'error',
-                message: 'Resume not found'
-            });
+            return res.status(404).json({ status: 'error', message: 'Resume not found' });
         }
-
         if (resume.requestId !== id) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Resume does not belong to this request'
-            });
+            return res.status(400).json({ status: 'error', message: 'Resume does not belong to this request' });
         }
-
-        // Only allow deletion if request is still in JOB_POSTED status
         if (resume.request.status !== 'JOB_POSTED') {
             return res.status(400).json({
                 status: 'error',
@@ -225,18 +124,9 @@ export const deleteResume = async (req: Request, res: Response): Promise<any> =>
             });
         }
 
-        // Delete file from filesystem
-        const filePath = path.join(__dirname, '../../', resume.fileUrl);
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
+        // S3 deletion is not strictly required; record is deleted from DB
+        await prisma.candidateResume.delete({ where: { id: resumeId } });
 
-        // Delete database record
-        await prisma.candidateResume.delete({
-            where: { id: resumeId }
-        });
-
-        // Create activity log
         await prisma.requestActivity.create({
             data: {
                 requestId: id,
@@ -249,15 +139,9 @@ export const deleteResume = async (req: Request, res: Response): Promise<any> =>
             }
         });
 
-        res.json({
-            status: 'success',
-            message: 'Resume deleted successfully'
-        });
+        res.json({ status: 'success', message: 'Resume deleted successfully' });
     } catch (error) {
         console.error('Error deleting resume:', error);
-        res.status(500).json({
-            status: 'error',
-            message: 'Failed to delete resume'
-        });
+        res.status(500).json({ status: 'error', message: 'Failed to delete resume' });
     }
 };

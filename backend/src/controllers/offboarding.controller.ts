@@ -1,38 +1,11 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
-import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
+import { uploadSingleFile } from '../middleware/upload.middleware';
 
 const prisma = new PrismaClient();
 
-const resignationStorage = multer.diskStorage({
-    destination: (_req, _file, cb) => {
-        const dir = path.join(__dirname, '../../uploads/resignation-letters');
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
-    },
-    filename: (_req, file, cb) => {
-        const suffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, `resignation-${suffix}${path.extname(file.originalname)}`);
-    },
-});
-
-export const resignationUpload = multer({
-    storage: resignationStorage,
-    fileFilter: (_req, file, cb) => {
-        const allowed = [
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'image/jpeg',
-            'image/png',
-        ];
-        if (allowed.includes(file.mimetype)) cb(null, true);
-        else cb(new Error('Only PDF, DOC, DOCX, JPG, PNG files are allowed'));
-    },
-    limits: { fileSize: 10 * 1024 * 1024 },
-});
+// Shared S3-backed multer — resignation letter upload
+export const resignationUpload = { single: (field: string) => uploadSingleFile(field) };
 
 export const createOffboardingRequest = async (req: Request, res: Response) => {
     try {
@@ -365,13 +338,7 @@ export const uploadResignationLetter = async (req: Request, res: Response) => {
         const offboarding = await prisma.offboardingRequest.findUnique({ where: { requestId } });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
 
-        // Delete old file if present
-        if (offboarding.resignationLetterUrl) {
-            const oldPath = path.join(__dirname, '../../', offboarding.resignationLetterUrl);
-            if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-        }
-
-        const fileUrl = `/uploads/resignation-letters/${file.filename}`;
+        const fileUrl = (file as any).key;   // S3 key
 
         await prisma.offboardingRequest.update({
             where: { requestId },

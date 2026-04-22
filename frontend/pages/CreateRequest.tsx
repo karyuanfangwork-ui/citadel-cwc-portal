@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { requestService } from '../src/services/request.service';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { useAuth } from '../src/context/AuthContext';
+import apiClient from '../src/services/api';
 
 const CreateRequest = () => {
     const { deskId, categoryId, deskType } = useParams<{ deskId: string; categoryId: string; deskType: string }>();
@@ -13,6 +14,7 @@ const CreateRequest = () => {
     const [category, setCategory] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
+    const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
     const [error, setError] = useState<string | null>(null);
 
     const [formData, setFormData] = useState<any>({
@@ -208,37 +210,54 @@ const CreateRequest = () => {
                         />
                     </div>
                 );
-            case 'file':
+            case 'file': {
+                const fieldValue = formData.customFields[field.id];
+                const displayName = fieldValue?.fileName || fieldValue || null;
+                const isUploading = uploadingFields[field.id];
                 return (
                     <div className="relative">
                         <input
-                            required={field.required}
+                            required={field.required && !fieldValue}
                             type="file"
                             accept="image/*,.pdf,.doc,.docx,.txt"
                             className="hidden"
                             id={`file-${field.id}`}
-                            onChange={e => {
+                            onChange={async e => {
                                 const file = e.target.files?.[0];
-                                if (file) {
-                                    handleCustomFieldChange(field.id, file.name);
+                                if (!file) return;
+                                setUploadingFields(prev => ({ ...prev, [field.id]: true }));
+                                try {
+                                    const fd = new FormData();
+                                    fd.append('file', file);
+                                    const res = await apiClient.post('/files/upload', fd, {
+                                        headers: { 'Content-Type': 'multipart/form-data' },
+                                    });
+                                    handleCustomFieldChange(field.id, res.data.data);
+                                } catch {
+                                    setError('File upload failed. Please try again.');
+                                } finally {
+                                    setUploadingFields(prev => ({ ...prev, [field.id]: false }));
                                 }
                             }}
-                            disabled={submitting}
+                            disabled={submitting || isUploading}
                         />
                         <label
                             htmlFor={`file-${field.id}`}
                             className="flex items-center justify-center gap-3 w-full px-4 py-6 bg-white border-2 border-dashed border-gray-300 rounded-lg hover:border-[#0052cc] hover:bg-blue-50/30 transition-all cursor-pointer group"
                         >
-                            <span className="material-symbols-outlined text-3xl text-gray-400 group-hover:text-[#0052cc]">upload_file</span>
+                            <span className="material-symbols-outlined text-3xl text-gray-400 group-hover:text-[#0052cc]">
+                                {isUploading ? 'hourglass_empty' : 'upload_file'}
+                            </span>
                             <div className="text-left">
                                 <p className="text-sm font-bold text-[#101418] group-hover:text-[#0052cc]">
-                                    {formData.customFields[field.id] || 'Click to upload or drag and drop'}
+                                    {isUploading ? 'Uploading...' : displayName || 'Click to upload or drag and drop'}
                                 </p>
                                 <p className="text-xs text-[#44546f]">PNG, JPG, PDF, DOC (max 10MB)</p>
                             </div>
                         </label>
                     </div>
                 );
+            }
             case 'select':
                 return (
                     <div className="relative">
@@ -445,10 +464,10 @@ const CreateRequest = () => {
                                     <div className="pt-6 flex items-center gap-6">
                                         <button
                                             type="submit"
-                                            disabled={submitting || isRoleBlocked}
+                                            disabled={submitting || isRoleBlocked || Object.values(uploadingFields).some(Boolean)}
                                             className="px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            {submitting ? 'Sending...' : 'Send Request'}
+                                            {submitting ? 'Sending...' : Object.values(uploadingFields).some(Boolean) ? 'Uploading...' : 'Send Request'}
                                         </button>
                                         <button
                                             type="button"
