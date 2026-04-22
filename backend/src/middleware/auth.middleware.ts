@@ -147,6 +147,10 @@ export const optionalAuth = async (
     }
 };
 
+export function hasRole(req: AuthRequest, ...roles: string[]): boolean {
+    return roles.some((role) => req.user?.roles.includes(role) ?? false);
+}
+
 export const authorize = (...roles: string[]) => {
     return (req: AuthRequest, res: Response, next: NextFunction) => {
         if (!req.user) {

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requestController } from '../controllers/request.controller';
 import { authenticate, authorize } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
-import { uploadLimiter } from '../middleware/rateLimit.middleware';
+import { uploadSingleFile } from '../middleware/upload.middleware';
 import {
     createRequestSchema,
     updateRequestSchema,
@@ -74,7 +74,7 @@ router.post(
  */
 router.post(
     '/:id/attachments',
-    uploadLimiter,
+    uploadSingleFile('file'),
     requestController.uploadAttachment
 );
 

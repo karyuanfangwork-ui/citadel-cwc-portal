@@ -1,9 +1,14 @@
 import { Response, NextFunction } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 import { notify, notifyMultiple } from '../services/notification.service';
 import { createDefaultOnboardingTasks } from '../services/onboarding.service';
+import { sanitizeString, sanitizeComment } from '../utils/sanitize';
+import { auditLog } from '../utils/audit';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -34,8 +39,8 @@ class RequestController {
 
         // Users can only see their own requests unless they're agents/admins
         // Exception: CEO can see requests in hiring workflow
-        if (!req.user!.roles.includes('ADMIN') && !req.user!.roles.includes('AGENT')) {
-            if (req.user!.roles.includes('CEO')) {
+        if (!hasRole(req, 'ADMIN', 'AGENT')) {
+            if (hasRole(req, 'CEO')) {
                 // CEO can see their own requests, hiring workflow requests, IT approval requests, and any request where they are a designated approver
                 const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
                 where.OR = [
@@ -44,14 +49,14 @@ class RequestController {
                     { status: 'PENDING_CEO_APPROVAL_IT' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
-            } else if (req.user!.roles.includes('CTO')) {
+            } else if (hasRole(req, 'CTO')) {
                 // CTO can see their own requests and any IT request pending CTO approval
                 where.OR = [
                     { requesterId: req.user!.id },
                     { status: 'PENDING_CTO_APPROVAL_IT' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
-            } else if (req.user!.roles.includes('CFO')) {
+            } else if (hasRole(req, 'CFO')) {
                 // CFO can see their own requests and any IT request pending CFO approval
                 where.OR = [
                     { requesterId: req.user!.id },
@@ -153,11 +158,15 @@ class RequestController {
         const {
             requestTypeId,
             serviceDeskId,
-            summary,
-            description,
+            summary: rawSummary,
+            description: rawDescription,
             priority,
             customFields,
         } = req.body;
+
+        // Sanitize highest-risk text fields before storing
+        const summary = sanitizeString(rawSummary);
+        const description = rawDescription ? sanitizeComment(rawDescription) : undefined;
 
         // Generate reference number
         const serviceDesk = await prisma.serviceDesk.findUnique({
@@ -423,6 +432,13 @@ class RequestController {
             request.id
         );
 
+        await auditLog(req, 'REQUEST_CREATED', 'request', request.id, {
+            referenceNumber: request.referenceNumber,
+            summary: request.summary,
+            status: request.status,
+            requesterId: request.requesterId,
+        });
+
         res.status(201).json({
             status: 'success',
             data: { request },
@@ -534,24 +550,23 @@ class RequestController {
         // 5. User is a designated approver on this request
         const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
         const isDesignatedApprover = (request as any).approvals?.some((a: any) => a.approverId === req.user!.id);
-        const isCEOApprover = req.user!.roles.includes('CEO') && (
+        const isCEOApprover = hasRole(req, 'CEO') && (
             ceoHiringStatuses.includes(request.status) ||
             request.status === 'PENDING_CEO_APPROVAL_IT' ||
             isDesignatedApprover
         );
-        const isCTOApprover = req.user!.roles.includes('CTO') && (
+        const isCTOApprover = hasRole(req, 'CTO') && (
             request.status === 'PENDING_CTO_APPROVAL_IT' ||
             isDesignatedApprover
         );
-        const isCFOApprover = req.user!.roles.includes('CFO') && (
+        const isCFOApprover = hasRole(req, 'CFO') && (
             request.status === 'PENDING_CFO_APPROVAL_IT' ||
             isDesignatedApprover
         );
 
         if (
             request.requesterId !== req.user!.id &&
-            !req.user!.roles.includes('ADMIN') &&
-            !req.user!.roles.includes('AGENT') &&
+            !hasRole(req, 'ADMIN', 'AGENT') &&
             !isCEOApprover &&
             !isCTOApprover &&
             !isCFOApprover
@@ -570,7 +585,11 @@ class RequestController {
      */
     updateRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const { id } = req.params;
-        const { summary, description, priority } = req.body;
+        const { summary: rawSummary, description: rawDescription, priority } = req.body;
+
+        // Sanitize highest-risk text fields
+        const summary = rawSummary !== undefined ? sanitizeString(rawSummary) : undefined;
+        const description = rawDescription !== undefined ? sanitizeComment(rawDescription) : undefined;
 
         const existingRequest = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -671,7 +690,10 @@ class RequestController {
      */
     addActivity = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const { id } = req.params;
-        const { message, isInternal } = req.body;
+        const { message: rawMessage, isInternal } = req.body;
+
+        // Sanitize comment message before storing
+        const message = sanitizeComment(rawMessage);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -723,29 +745,110 @@ class RequestController {
     });
 
     /**
-     * Upload attachment (placeholder)
+     * Upload attachment to request
+     * Accepts: images (JPG/PNG/GIF/WebP), PDFs, Word docs, Excel, CSV, plain text, ZIP
+     * Max size: 10MB | isScanned: false flag set for future virus scanning
      */
-    uploadAttachment = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    uploadAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { id } = req.params;
+        const file = req.file;
 
-        // TODO: Implement file upload with multer and S3
-        res.json({
+        if (!file) {
+            throw new AppError('No file uploaded', 400);
+        }
+
+        // Verify request exists
+        const request = await prisma.request.findFirst({
+            where: { id, deletedAt: null },
+        });
+        if (!request) {
+            throw new AppError('Request not found', 404);
+        }
+
+        // Build storage URL (served via /uploads static route)
+        const storageUrl = `/uploads/${file.filename}`;
+
+        const attachment = await prisma.requestAttachment.create({
+            data: {
+                requestId: id,
+                uploadedById: req.user!.id,
+                fileName: file.originalname,
+                fileSize: BigInt(file.size),
+                mimeType: file.mimetype,
+                storagePath: file.path,
+                storageUrl,
+                isScanned: false,       // stub for future ClamAV integration
+                scanResult: null,
+            },
+        });
+
+        // Log un-scanned file for manual review (future virus scan)
+        logger.info(`[UPLOAD] Unscanned file uploaded: ${attachment.id} | ${file.originalname} | ${file.mimetype} | ${(file.size / 1024).toFixed(1)}KB | by ${req.user!.email}`);
+
+        res.status(201).json({
             status: 'success',
-            message: 'File upload endpoint - to be implemented',
+            data: {
+                id: attachment.id,
+                fileName: attachment.fileName,
+                fileSize: Number(attachment.fileSize),
+                mimeType: attachment.mimeType,
+                storageUrl: attachment.storageUrl,
+                isScanned: attachment.isScanned,
+                createdAt: attachment.createdAt,
+            },
         });
     });
 
     /**
-     * Download attachment (placeholder)
+     * Download attachment
+     * Serves the file from local disk storage via the storageUrl path.
+     * Sets Content-Disposition header for browser download.
      */
     downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const { id, attachmentId } = req.params;
 
-        // TODO: Implement file download from S3
-        res.json({
-            status: 'success',
-            message: 'File download endpoint - to be implemented',
+        // Verify the attachment belongs to the request and is not deleted
+        const attachment = await prisma.requestAttachment.findFirst({
+            where: {
+                id: attachmentId,
+                requestId: id,
+                deletedAt: null,
+            },
         });
+
+        if (!attachment) {
+            throw new AppError('Attachment not found', 404);
+        }
+
+        // Resolve absolute path — storagePath is stored as an absolute path from diskStorage
+        const absolutePath = path.resolve(attachment.storagePath);
+
+        // Security: ensure the resolved path is actually inside the uploads directory
+        const uploadsDir = path.resolve(process.cwd(), 'uploads');
+        if (!absolutePath.startsWith(uploadsDir)) {
+            logger.warn(`[DOWNLOAD] Blocked path traversal attempt: ${absolutePath}`);
+            throw new AppError('Invalid file path', 400);
+        }
+
+        // Verify file exists on disk
+        if (!fs.existsSync(absolutePath)) {
+            logger.error(`[DOWNLOAD] File not found on disk: ${absolutePath}`);
+            throw new AppError('File not found on server', 404);
+        }
+
+        // Set Content-Type — fall back to application/octet-stream if unknown
+        const contentType = attachment.mimeType || 'application/octet-stream';
+
+        // Set Content-Disposition to trigger browser download with original filename
+        const disposition = `attachment; filename="${encodeURIComponent(attachment.fileName)}"`;
+
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', disposition);
+        res.setHeader('Content-Length', fs.statSync(absolutePath).size);
+
+        // Stream the file to the response
+        const fileStream = fs.createReadStream(absolutePath);
+        fileStream.pipe(res);
     });
 
     /**
@@ -821,6 +924,11 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
+        await auditLog(req, 'REQUEST_ASSIGNED', 'request', request.id, {
+            assignedToId,
+            referenceNumber: request.referenceNumber,
+        });
+
         res.json({
             status: 'success',
             data: { request },
@@ -841,8 +949,8 @@ class RequestController {
         }
 
         // Validate transition
-        const { isValidTransition } = require('../utils/workflowTransitions');
-        if (!isValidTransition(currentRequest.status, status)) {
+        const { isValidTransition } = await import('../utils/workflowTransitions');
+        if (!(await isValidTransition(currentRequest.status, status))) {
             throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
         }
 
@@ -902,6 +1010,13 @@ class RequestController {
                 newStatus: status,
             },
             relatedRequestId: request.id,
+        });
+
+        await auditLog(req, 'STATUS_CHANGED', 'request', request.id, {
+            newStatus: status,
+            referenceNumber: request.referenceNumber,
+        }, {
+            oldStatus: currentRequest.status,
         });
 
         res.json({

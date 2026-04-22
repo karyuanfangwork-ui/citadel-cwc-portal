@@ -19,6 +19,7 @@ import financeWorkflowRoutes from './finance-workflow.routes';
 import reportsRoutes from './reports.routes';
 import bannerConfigRoutes from './bannerConfig.routes';
 import requestStatusDefinitionRoutes from './requestStatusDefinition.routes';
+import workflowTransitionRoutes from './workflowTransition.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -47,6 +48,7 @@ router.use('/finance-workflow', financeWorkflowRoutes);
 router.use('/reports', reportsRoutes);
 router.use('/admin/banner-configs', bannerConfigRoutes);
 router.use('/admin/status-definitions', requestStatusDefinitionRoutes);
+router.use('/admin/workflow-transitions', workflowTransitionRoutes);
 
 export default router;
 

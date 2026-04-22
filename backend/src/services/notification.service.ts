@@ -1,6 +1,7 @@
 import prisma from '../utils/prisma';
 import { sendEmail, renderTemplate } from './email.service';
 import { logger } from '../utils/logger';
+import { pushToUser } from '../utils/sseClients';
 
 interface NotifyOptions {
   userId: string;
@@ -26,7 +27,7 @@ export async function notify(options: NotifyOptions): Promise<void> {
       : `Event: ${eventType}`;
 
     // Create in-app notification
-    await prisma.notification.create({
+    const inAppNotification = await prisma.notification.create({
       data: {
         userId,
         channel: 'IN_APP',
@@ -35,6 +36,15 @@ export async function notify(options: NotifyOptions): Promise<void> {
         relatedRequestId,
         status: 'SENT',
       },
+    });
+
+    // Push real-time event to any connected SSE client for this user
+    pushToUser(userId, 'notification', {
+      id: inAppNotification.id,
+      subject,
+      body,
+      relatedRequestId: relatedRequestId ?? null,
+      createdAt: inAppNotification.createdAt,
     });
 
     // Send email notification

@@ -21,7 +21,7 @@ These are launch blockers. Do not build anything new until these are done.
 
 ---
 
-### TASK 1: Add Input Sanitization (XSS Prevention)
+### TASK 1: Add Input Sanitization (XSS Prevention) ✅ DONE
 **Priority:** P0 | **Impact:** Security | **Effort:** Small | **Files:** ~5
 
 **Why huge impact:**
@@ -45,7 +45,7 @@ Frontend:
 
 ---
 
-### TASK 2: Fix File Upload Validation
+### TASK 2: Fix File Upload Validation ✅ DONE
 **Priority:** P0 | **Impact:** Security | **Effort:** Small | **Files:** ~3
 
 **Why huge impact:**
@@ -79,7 +79,7 @@ Virus scan stub (add now, integrate ClamAV later):
 
 ---
 
-### TASK 3: Make Workflow Transitions DB-Driven
+### TASK 3: Make Workflow Transitions DB-Driven ✅ DONE
 **Priority:** P0 | **Impact:** Workflow | **Effort:** Large | **Files:** ~8
 
 **Why huge impact:**
@@ -126,7 +126,7 @@ Read from DB, allow admin to add/remove transitions (with caution UX)
 
 ---
 
-### TASK 4: SLA Checker — 1 Minute Interval
+### TASK 4: SLA Checker — 1 Minute Interval ✅ DONE
 **Priority:** P0 | **Impact:** Operations / Compliance | **Effort:** Tiny | **Files:** 1
 
 **Why huge impact:**
@@ -146,7 +146,7 @@ Also add to the check:
 
 ---
 
-### TASK 5: Audit Trail — Make It Mandatory
+### TASK 5: Audit Trail — Make It Mandatory ✅ DONE
 **Priority:** P0 | **Impact:** Security / Compliance | **Effort:** Medium | **Files:** ~5
 
 **Why huge impact:**
@@ -190,7 +190,7 @@ Step 3 — Add audit log viewer in Admin settings
 
 ---
 
-### TASK 6: Fix CFO/CTO Role — Put in Role Table
+### TASK 6: Fix CFO/CTO Role — Put in Role Table ✅ DONE
 **Priority:** P1 | **Impact:** Security | **Effort:** Small | **Files:** ~5
 
 **Why huge impact:**
@@ -213,7 +213,7 @@ CEO, CTO, and CFO are checked as string literals in `request.controller.ts` (`re
 
 ---
 
-### TASK 7: Real-Time Notifications (WebSocket or SSE)
+### TASK 7: Real-Time Notifications (WebSocket or SSE) ✅ DONE
 **Priority:** P1 | **Impact:** UX / Engagement | **Effort:** Medium | **Files:** ~8
 
 **Why huge impact:**
@@ -244,7 +244,7 @@ Frontend:
 
 ---
 
-### TASK 8: Replace HashRouter with BrowserRouter
+### TASK 8: Replace HashRouter with BrowserRouter ✅ DONE
 **Priority:** P1 | **Impact:** UX | **Effort:** Small | **Files:** 1
 
 **Why huge impact:**
@@ -272,7 +272,7 @@ Frontend:
 
 ---
 
-### TASK 9: Mobile Responsive Layout
+### TASK 9: Mobile Responsive Layout ✅ DONE
 **Priority:** P1 | **Impact:** UX | **Effort:** Medium | **Files:** ~10
 
 **Why huge impact:**
@@ -298,7 +298,7 @@ Time estimate: 1-2 days focused work
 
 ---
 
-### TASK 10: Build Permission Matrix UI
+### TASK 10: Build Permission Matrix UI ✅ DONE
 **Priority:** P1 | **Impact:** Security / Admin | **Effort:** Medium | **Files:** ~6
 
 **Why huge impact:**
@@ -366,33 +366,29 @@ Permissions to model:
 ## EXECUTION ORDER (One-by-One)
 
 ```
-Week 1:
-  [ ] Task 1 — Input Sanitization (P0)
-  [ ] Task 2 — File Upload Validation (P0)
+Week 1: ✅ COMPLETE
+  [x] Task 1 — Input Sanitization (P0)
+  [x] Task 2 — File Upload Validation (P0)
 
-Week 2:
-  [ ] Task 4 — SLA 1-Minute Interval (P0)
-  [ ] Task 6 — CFO/CTO Roles in DB (P1)
+Week 2: ✅ COMPLETE
+  [x] Task 4 — SLA 1-Minute Interval (P0)
+  [x] Task 6 — CFO/CTO Roles in DB (P1)
 
-Week 3:
-  [ ] Task 3 — DB-Driven Workflows (P0) ← largest task
-    - Day 1-2: DB schema + seed
-    - Day 3: Refactor code
-    - Day 4: Fix 5 broken transitions
-    - Day 5: Admin UI
+Week 3: ✅ COMPLETE
+  [x] Task 3 — DB-Driven Workflows (P0)
 
-Week 4:
-  [ ] Task 5 — Mandatory Audit Trail (P0)
-  [ ] Task 8 — BrowserRouter (P1)
+Week 4: ✅ COMPLETE
+  [x] Task 5 — Mandatory Audit Trail (P0)
+  [x] Task 8 — BrowserRouter (P1)
 
-Week 5:
-  [ ] Task 7 — Real-Time Notifications (P1)
-  [ ] Task 9 — Mobile Responsive (P1)
+Week 5: ✅ COMPLETE
+  [x] Task 7 — Real-Time Notifications (P1)
+  [x] Task 9 — Mobile Responsive (P1)
 
-Week 6:
-  [ ] Task 10 — Permission Matrix UI (P1)
+Week 6: ✅ COMPLETE
+  [x] Task 10 — Permission Matrix UI (P1)
 
-Week 7-8:
+Week 7-8: ← CURRENT
   [ ] Tasks 11-15 (P2 items)
 
 Total: ~8 weeks for MVP-ready
@@ -412,5 +408,6 @@ These give immediate wins with minimal effort:
 
 ---
 
-*Plan version: 1.0*
+*Plan version: 1.1*
 *Created: April 21, 2026*
+*Last updated: April 21, 2026 — Tasks 1–6 complete (all P0s + Task 6 P1)*

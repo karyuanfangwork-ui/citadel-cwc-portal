@@ -1,19 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import notificationService, { Notification } from '../services/notification.service';
+import { useNotifications } from '../context/NotificationContext';
 
 export default function NotificationDropdown() {
+  const navigate = useNavigate();
+  const { unreadCount, setUnreadCount, recentNotification } = useNotifications();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch unread count on mount and every 30 seconds
+  // Prepend new notification to list if dropdown is open
   useEffect(() => {
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    if (recentNotification && open) {
+      setNotifications((prev) => {
+        const exists = prev.some((n) => n.id === recentNotification.id);
+        if (exists) return prev;
+        return [{ ...recentNotification, channel: 'IN_APP', status: 'SENT', readAt: null }, ...prev];
+      });
+    }
+  }, [recentNotification, open]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -25,15 +32,6 @@ export default function NotificationDropdown() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  async function fetchUnreadCount() {
-    try {
-      const count = await notificationService.getUnreadCount();
-      setUnreadCount(count);
-    } catch {
-      // Silently fail — non-critical
-    }
-  }
 
   async function fetchNotifications() {
     setLoading(true);
@@ -69,7 +67,7 @@ export default function NotificationDropdown() {
       );
     }
     if (notification.relatedRequestId) {
-      window.location.hash = `#/request/${notification.relatedRequestId}`;
+      navigate(`/request/${notification.relatedRequestId}`);
       setOpen(false);
     }
   }

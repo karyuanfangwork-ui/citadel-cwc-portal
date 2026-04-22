@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { addClient, removeClient } from '../utils/sseClients';
 
 const prisma = new PrismaClient();
 
@@ -94,6 +95,26 @@ class NotificationController {
             message: 'Notification deleted successfully',
         });
     });
+
+    streamNotifications = (req: AuthRequest, res: Response): void => {
+        const userId = req.user!.id;
+
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+
+        // Send a heartbeat every 30 s to keep the connection alive through proxies
+        const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 30000);
+
+        addClient(userId, res);
+
+        req.on('close', () => {
+            clearInterval(heartbeat);
+            removeClient(userId, res);
+        });
+    };
 }
 
 export const notificationController = new NotificationController();

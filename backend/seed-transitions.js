@@ -1,12 +1,11 @@
-import { PrismaClient } from '@prisma/client';
-
+/**
+ * Seed WorkflowTransition table from VALID_TRANSITIONS map.
+ * Run: node seed-transitions.js
+ */
+const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// ---------------------------------------------------------------------------
-// SEED REFERENCE — used for documentation and as fallback if DB is empty.
-// This map is NOT the runtime source of truth.
-// ---------------------------------------------------------------------------
-const VALID_TRANSITIONS: Record<string, string[]> = {
+const VALID_TRANSITIONS = {
   SUBMITTED: ['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'PENDING_CEO_APPROVAL', 'PENDING_MANAGER_APPROVAL_IT', 'PENDING_MANAGER_APPROVAL_FIN', 'ACKNOWLEDGED_IT'],
   IN_REVIEW: ['IN_PROGRESS', 'ACTION_REQUIRED', 'WAITING', 'REJECTED', 'RESOLVED'],
   IN_PROGRESS: ['ACTION_REQUIRED', 'WAITING', 'RESOLVED', 'REJECTED'],
@@ -32,10 +31,10 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   COMPLETED: ['ONBOARDING_SUBMITTED'],
   PENDING_MANAGER_APPROVAL_IT: ['MANAGER_APPROVED_IT', 'MANAGER_REJECTED_IT'],
   MANAGER_APPROVED_IT: ['PROCUREMENT_IN_PROGRESS'],
-  // FIXED: was PENDING_MANAGER_APPROVAL_IT (looping back to same manager who rejected)
+  // FIXED: was PENDING_MANAGER_APPROVAL_IT (looping)
   MANAGER_REJECTED_IT: ['SUBMITTED'],
   PENDING_VP_APPROVAL_IT: ['MANAGER_APPROVED_IT', 'VP_REJECTED_IT'],
-  // FIXED: was MANAGER_APPROVED_IT (circular — went back to manager instead of forward)
+  // FIXED: was MANAGER_APPROVED_IT (circular)
   VP_APPROVED_IT: ['PROCUREMENT_IN_PROGRESS'],
   VP_REJECTED_IT: [],
   PROCUREMENT_IN_PROGRESS: ['HARDWARE_ORDERED'],
@@ -58,7 +57,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   PENDING_DELIVERY_IT: ['RESOLVED'],
   PENDING_MANAGER_APPROVAL_FIN: ['MANAGER_APPROVED_FIN', 'MANAGER_REJECTED_FIN'],
   MANAGER_APPROVED_FIN: ['PENDING_FINANCE_HEAD_APPROVAL'],
-  // FIXED: was [] (dead-end — requester never notified)
+  // FIXED: was [] (dead-end)
   MANAGER_REJECTED_FIN: ['SUBMITTED'],
   PENDING_FINANCE_HEAD_APPROVAL: ['FINANCE_HEAD_APPROVED', 'FINANCE_HEAD_REJECTED'],
   FINANCE_HEAD_APPROVED: ['PAYMENT_PROCESSING'],
@@ -75,54 +74,32 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   OFFBOARDING_COMPLETED: [],
 };
 
-// ---------------------------------------------------------------------------
-// Runtime lookups — DB-first, fallback to seed map
-// ---------------------------------------------------------------------------
-
-/**
- * Check if a status transition is valid.
- * Uses DB as source of truth; falls back to the seed map if DB is empty.
- */
-export async function isValidTransition(from: string, to: string): Promise<boolean> {
-  const dbRows = await prisma.workflowTransition.count({
-    where: { fromStatus: from, toStatus: to, isActive: true },
-  });
-  if (dbRows > 0) return true;
-
-  // Fallback to seed map (for environments where the table hasn't been seeded yet)
-  const valid = VALID_TRANSITIONS[from];
-  return valid ? valid.includes(to) : false;
+function getLabel(toStatus) {
+  if (toStatus.includes('REJECTED') || toStatus.includes('REJECT')) return 'REJECT';
+  if (toStatus === 'SUBMITTED') return 'RETURN';
+  if (['RESOLVED', 'REIMBURSEMENT_CLOSED', 'OFFBOARDING_COMPLETED', 'PAYMENT_DONE_IT', 'PAYMENT_COMPLETED', 'PAYMENT_DONE_IT'].includes(toStatus)) return 'CLOSE';
+  if (toStatus.includes('PENDING') || toStatus === 'LOA_PENDING_APPROVAL') return 'SUBMIT';
+  if (toStatus.includes('APPROVED')) return 'APPROVE';
+  return 'ADVANCE';
 }
 
-/**
- * Get all valid next statuses from a given status.
- * Uses DB as source of truth; falls back to the seed map.
- */
-export async function getValidNextStatuses(from: string): Promise<string[]> {
-  const rows = await prisma.workflowTransition.findMany({
-    where: { fromStatus: from, isActive: true },
-    select: { toStatus: true },
-  });
-
-  if (rows.length > 0) {
-    return rows.map(r => r.toStatus);
+async function seed() {
+  console.log('Seeding WorkflowTransition table...');
+  let count = 0;
+  for (const [fromStatus, toList] of Object.entries(VALID_TRANSITIONS)) {
+    for (const toStatus of toList) {
+      const label = getLabel(toStatus);
+      const requiresComment = ['REJECT', 'RETURN'].includes(label);
+      await prisma.workflowTransition.upsert({
+        where: { fromStatus_toStatus: { fromStatus, toStatus } },
+        update: { transitionLabel: label, requiresComment },
+        create: { fromStatus, toStatus, transitionLabel: label, requiresComment, isActive: true },
+      });
+      count++;
+    }
   }
-
-  // Fallback to seed map
-  return VALID_TRANSITIONS[from] || [];
+  console.log(`Done. Inserted/upserted ${count} transitions.`);
+  await prisma.$disconnect();
 }
 
-/**
- * Get a specific transition's metadata from DB.
- * Returns null if the transition doesn't exist or is inactive.
- */
-export async function getTransitionMeta(
-  from: string,
-  to: string
-): Promise<{ transitionLabel: string | null; requiresComment: boolean } | null> {
-  const row = await prisma.workflowTransition.findUnique({
-    where: { fromStatus_toStatus: { fromStatus: from, toStatus: to } },
-    select: { transitionLabel: true, requiresComment: true },
-  });
-  return row;
-}
+seed().catch(e => { console.error(e); process.exit(1); });

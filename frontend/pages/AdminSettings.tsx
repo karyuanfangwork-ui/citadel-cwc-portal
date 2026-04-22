@@ -7,7 +7,9 @@ import { OnboardingTaskTemplate } from '../types';
 import apiClient from '../src/services/api';
 import CreateUserModal from '../src/components/admin/CreateUserModal';
 import { StatusDefinitionsTab } from '../src/components/admin/StatusDefinitionsTab';
+import { WorkflowTransitionTab } from '../src/components/admin/WorkflowTransitionTab';
 import { BannerConfigTab } from '../src/components/admin/BannerConfigTab';
+import { PermissionsTab } from '../src/components/admin/PermissionsTab';
 
 const CATEGORY_ICONS = [
     { name: 'laptop', label: 'Laptop/Hardware' },
@@ -60,7 +62,7 @@ const AdminSettings = () => {
     const [pendingAction, setPendingAction] = useState<{ message: string; onConfirm: () => Promise<void> } | null>(null);
     const [toastMsg, setToastMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null);
 
-    const [activeTab, setActiveTab] = useState<'service-desks' | 'users' | 'onboarding-tasks' | 'offboarding-tasks' | 'workflow-config' | 'banner-config' | 'status-definitions'>('service-desks');
+    const [activeTab, setActiveTab] = useState<'service-desks' | 'users' | 'onboarding-tasks' | 'offboarding-tasks' | 'workflow-config' | 'banner-config' | 'status-definitions' | 'permissions'>('service-desks');
     const [users, setUsers] = useState<any[]>([]);
     const [userPagination, setUserPagination] = useState({ page: 1, limit: 15, total: 0, totalPages: 1 });
     const [userSearch, setUserSearch] = useState('');
@@ -579,36 +581,71 @@ const AdminSettings = () => {
 
     if (loading) return <div className="p-8 text-center text-[#44546f] font-bold">Loading system settings...</div>;
 
+    const ADMIN_TABS = [
+        { id: 'service-desks',    label: 'Service Desks',     icon: 'support_agent',  group: 'Configuration' },
+        { id: 'users',            label: 'User Accounts',     icon: 'manage_accounts', group: 'Configuration' },
+        { id: 'permissions',      label: 'Permissions',       icon: 'shield_lock',    group: 'Configuration' },
+        { id: 'onboarding-tasks', label: 'Onboarding Tasks',  icon: 'checklist',      group: 'Workflows' },
+        { id: 'offboarding-tasks',label: 'Offboarding Tasks', icon: 'checklist_rtl',  group: 'Workflows' },
+        { id: 'workflow-config',  label: 'Workflow Config',   icon: 'account_tree',   group: 'Workflows' },
+        { id: 'status-definitions',label:'Request Statuses',  icon: 'fact_check',     group: 'Workflows' },
+        { id: 'banner-config',    label: 'Banner & Branding', icon: 'campaign',       group: 'Appearance' },
+    ] as const;
+
+    const activeTabMeta = ADMIN_TABS.find(t => t.id === activeTab);
+
     return (
-        <div className="max-w-[1240px] mx-auto px-6 py-12">
-            <div className="flex justify-between items-center mb-10">
-                <div>
-                    <h1 className="text-4xl font-black text-[#101418] tracking-tight">Admin Console</h1>
-                    <p className="text-[#44546f] mt-2 font-medium">Configure service desks, categories, and dynamic forms.</p>
-                </div>
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8">
+            {/* Page header */}
+            <div className="mb-8">
+                <h1 className="text-3xl font-black text-[#101418] tracking-tight">Admin Console</h1>
+                <p className="text-[#44546f] mt-1 text-sm">System configuration and management</p>
             </div>
 
-            {/* Tab Bar */}
-            <div className="flex gap-2 mb-8 border-b border-gray-200">
-                {([
-                    { id: 'service-desks', label: 'Service Desks', icon: 'support_agent' },
-                    { id: 'users', label: 'User Accounts', icon: 'manage_accounts' },
-                    { id: 'onboarding-tasks', label: 'Onboarding Tasks', icon: 'checklist' },
-                    { id: 'offboarding-tasks', label: 'Offboarding Tasks', icon: 'checklist_rtl' },
-                    { id: 'workflow-config', label: 'Workflow Config', icon: 'account_tree' },
-                    { id: 'banner-config', label: 'Banner Config', icon: 'campaign' },
-                    { id: 'status-definitions', label: 'Request Statuses', icon: 'fact_check' },
-                ] as const).map(tab => (
-                    <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-2 px-6 py-3 text-sm font-black uppercase tracking-widest border-b-2 transition-all -mb-[2px] ${activeTab === tab.id ? 'border-[#0052cc] text-[#0052cc]' : 'border-transparent text-[#44546f] hover:text-[#101418]'}`}
-                    >
-                        <span className="material-symbols-outlined text-lg">{tab.icon}</span>
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
+            <div className="flex gap-6 items-start">
+                {/* ── Sidebar nav ── */}
+                <aside className="w-56 flex-shrink-0 sticky top-20">
+                    <nav className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        {(['Configuration', 'Workflows', 'Appearance'] as const).map(group => {
+                            const items = ADMIN_TABS.filter(t => t.group === group);
+                            return (
+                                <div key={group}>
+                                    <div className="px-4 pt-4 pb-1 text-[10px] font-black uppercase tracking-widest text-[#8993a4]">{group}</div>
+                                    {items.map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-left transition-all rounded-lg mx-0 ${
+                                                activeTab === tab.id
+                                                    ? 'bg-[#e8f0fe] text-[#0052cc]'
+                                                    : 'text-[#44546f] hover:bg-gray-50 hover:text-[#101418]'
+                                            }`}
+                                        >
+                                            <span className={`material-symbols-outlined text-lg flex-shrink-0 ${activeTab === tab.id ? 'text-[#0052cc]' : 'text-[#8993a4]'}`}>{tab.icon}</span>
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            );
+                        })}
+                        <div className="h-3" />
+                    </nav>
+                </aside>
+
+                {/* ── Content area ── */}
+                <div className="flex-1 min-w-0">
+                    {/* Section header */}
+                    {activeTabMeta && (
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="w-9 h-9 rounded-xl bg-[#e8f0fe] flex items-center justify-center flex-shrink-0">
+                                <span className="material-symbols-outlined text-[#0052cc] text-lg">{activeTabMeta.icon}</span>
+                            </div>
+                            <div>
+                                <h2 className="text-lg font-black text-[#101418] leading-tight">{activeTabMeta.label}</h2>
+                                <p className="text-xs text-[#44546f]">{activeTabMeta.group}</p>
+                            </div>
+                        </div>
+                    )}
 
             {activeTab === 'service-desks' && (
             <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
@@ -1654,78 +1691,19 @@ const AdminSettings = () => {
             )}
 
             {/* Workflow Configuration Tab */}
-            {activeTab === 'workflow-config' && (
-                <div>
-                    <div className="mb-8 p-6 bg-blue-50 rounded-2xl border border-blue-200">
-                        <h3 className="text-lg font-black text-[#0052cc] mb-2">Workflow Configuration</h3>
-                        <p className="text-sm text-[#44546f]">Configure which request types require manager approval and which are handled directly by agents.</p>
-                    </div>
-
-                    {workflowLoading ? (
-                        <div className="flex justify-center py-12">
-                            <div className="animate-spin"><span className="material-symbols-outlined">hourglass_top</span></div>
-                        </div>
-                    ) : (
-                        <div className="space-y-6">
-                            {workflowServiceDesks.map((desk: any) => (
-                                <div key={desk.id} className="border border-gray-200 rounded-2xl overflow-hidden">
-                                    <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                                        <h4 className="font-black text-[#101418]">{desk.name}</h4>
-                                    </div>
-                                    <div className="divide-y divide-gray-200">
-                                        {desk.categories && desk.categories.map((cat: any) => (
-                                            <div key={cat.id} className="p-6">
-                                                <div className="flex items-center gap-3 mb-4">
-                                                    <span className="material-symbols-outlined text-xl">{cat.icon || 'folder'}</span>
-                                                    <div>
-                                                        <h5 className="font-bold text-[#101418]">{cat.name}</h5>
-                                                        <p className="text-xs text-[#44546f]">{cat.description}</p>
-                                                    </div>
-                                                </div>
-                                                {cat.requestTypes && cat.requestTypes.length > 0 ? (
-                                                    <div className="ml-10 space-y-3">
-                                                        {cat.requestTypes.map((type: any) => (
-                                                            <div key={type.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                                                <div className="flex items-center gap-3">
-                                                                    <span className="material-symbols-outlined text-lg">{type.icon || 'description'}</span>
-                                                                    <div>
-                                                                        <h6 className="font-bold text-sm text-[#101418]">{type.name}</h6>
-                                                                        <p className="text-xs text-[#44546f]">{type.description}</p>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center gap-4">
-                                                                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${type.requiresApproval ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                                                        {type.requiresApproval ? 'Requires Approval' : 'Simple Support'}
-                                                                    </span>
-                                                                    <button
-                                                                        onClick={() => handleWorkflowToggle(type.id, type.requiresApproval)}
-                                                                        disabled={workflowSaving === type.id}
-                                                                        className={`relative w-12 h-6 rounded-full transition-all ${type.requiresApproval ? 'bg-amber-600' : 'bg-emerald-600'} ${workflowSaving === type.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                                                                    >
-                                                                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${type.requiresApproval ? 'right-1' : 'left-1'}`} />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <p className="text-sm text-[#44546f] ml-10">No request types found</p>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
+            {activeTab === 'workflow-config' && <WorkflowTransitionTab />}
 
             {/* Banner Config Tab */}
             {activeTab === 'banner-config' && <BannerConfigTab />}
 
             {/* Request Statuses Tab */}
             {activeTab === 'status-definitions' && <StatusDefinitionsTab />}
+
+            {/* Permissions Tab */}
+            {activeTab === 'permissions' && <PermissionsTab />}
+
+                </div>{/* end content area */}
+            </div>{/* end flex row */}
 
             {/* Edit Request Type Name Modal */}
             {editingTypeName && (

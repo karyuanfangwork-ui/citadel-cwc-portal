@@ -2,6 +2,8 @@ import { Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
+import { sanitizeString } from '../utils/sanitize';
+import { auditLog } from '../utils/audit';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { tokenService } from '../services/token.service';
 
@@ -60,7 +62,11 @@ class UserController {
      * Update current user profile
      */
     updateMe = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { firstName, lastName, phone, avatarUrl, department, jobTitle } = req.body;
+        const { firstName: rawFirstName, lastName: rawLastName, phone, avatarUrl, department, jobTitle } = req.body;
+
+        // Sanitize name fields
+        const firstName = sanitizeString(rawFirstName);
+        const lastName = sanitizeString(rawLastName);
 
         const user = await prisma.user.update({
             where: { id: req.user!.id },
@@ -225,6 +231,14 @@ class UserController {
             },
         });
 
+        await auditLog(req, 'USER_UPDATED', 'user', id, {
+            firstName,
+            lastName,
+            department,
+            jobTitle,
+            isActive,
+        });
+
         res.json({
             status: 'success',
             data: { user },
@@ -263,6 +277,8 @@ class UserController {
             where: { id },
             data: { isActive: false },
         });
+
+        await auditLog(req, 'USER_DEACTIVATED', 'user', id, { isActive: false });
 
         res.json({
             status: 'success',
@@ -313,13 +329,19 @@ class UserController {
 
         if (!updated) throw new AppError('User not found after role update', 500);
 
+        const newRoleNames = updated.roles.map((ur: { role: { name: string } }) => ur.role.name);
+        await auditLog(req, 'ROLES_ASSIGNED', 'user', id, {
+            roles: newRoleNames,
+            targetEmail: updated.email,
+        });
+
         res.json({
             status: 'success',
             data: {
                 user: {
                     id: updated.id,
                     email: updated.email,
-                    roles: updated.roles.map((ur: { role: { name: string } }) => ur.role.name),
+                    roles: newRoleNames,
                 },
             },
         });
@@ -333,6 +355,48 @@ class UserController {
             orderBy: { name: 'asc' },
         });
         res.json({ status: 'success', data: { roles } });
+    });
+
+    /**
+     * List all permissions with which roles currently hold each (Admin only)
+     */
+    listPermissions = asyncHandler(async (_req: AuthRequest, res: Response) => {
+        const [permissions, roles] = await Promise.all([
+            prisma.permission.findMany({
+                include: { roles: { select: { roleId: true } } },
+                orderBy: [{ resource: 'asc' }, { action: 'asc' }],
+            }),
+            prisma.role.findMany({ orderBy: { name: 'asc' } }),
+        ]);
+        res.json({ status: 'success', data: { permissions, roles } });
+    });
+
+    /**
+     * Replace a role's permissions atomically (Admin only)
+     * Body: { permissionIds: string[] }
+     */
+    updateRolePermissions = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { roleId } = req.params;
+        const { permissionIds } = req.body as { permissionIds: string[] };
+
+        if (!Array.isArray(permissionIds)) {
+            throw new AppError('permissionIds must be an array', 400);
+        }
+
+        const role = await prisma.role.findUnique({ where: { id: roleId } });
+        if (!role) throw new AppError('Role not found', 404);
+
+        await prisma.$transaction([
+            prisma.rolePermission.deleteMany({ where: { roleId } }),
+            ...(permissionIds.length > 0
+                ? [prisma.rolePermission.createMany({
+                    data: permissionIds.map(pid => ({ roleId, permissionId: pid })),
+                    skipDuplicates: true,
+                })]
+                : []),
+        ]);
+
+        res.json({ status: 'success', data: { roleId, permissionIds } });
     });
 
     createUser = asyncHandler(async (req: AuthRequest, res: Response) => {

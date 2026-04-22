@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { requestService } from '../src/services/request.service';
@@ -77,6 +77,7 @@ const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
 // ── Main component ─────────────────────────────────────────────────────────
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [serviceDesks, setServiceDesks] = useState<ServiceDesk[]>([]);
   const [allRequests, setAllRequests] = useState<Request[]>([]);
@@ -116,13 +117,13 @@ const Dashboard = () => {
   const greeting = user ? getGreeting(user.firstName) : 'Welcome.';
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'var(--space-8)', paddingBottom: 'var(--space-16)' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
 
       {/* ── HERO ── */}
       <section style={{
         background: 'linear-gradient(135deg, var(--color-brand-900) 0%, var(--color-brand-700) 60%, var(--color-brand-500) 100%)',
         borderRadius: 'var(--radius-xl)',
-        padding: 'var(--space-10) var(--space-12)',
+        padding: 'var(--space-6) var(--space-6)',
         position: 'relative',
         overflow: 'hidden',
         marginBottom: 'var(--space-6)',
@@ -135,7 +136,7 @@ const Dashboard = () => {
           <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>
             {formatDate()}
           </div>
-          <h1 style={{ fontSize: 'var(--text-4xl)', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: 'var(--space-6)' }}>
+          <h1 style={{ fontSize: 'clamp(1.5rem, 5vw, var(--text-4xl))', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: 'var(--space-6)' }}>
             {greeting}{' '}
             <span style={{ color: 'rgba(255,255,255,0.65)', fontWeight: 400 }}>How can<br />we help you today?</span>
           </h1>
@@ -191,7 +192,7 @@ const Dashboard = () => {
 
       {/* ── STATS STRIP ── */}
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[0, 1, 2].map(i => (
             <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-5) var(--space-6)', display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
               <SkeletonBox w="44px" h="44px" />
@@ -203,7 +204,7 @@ const Dashboard = () => {
           ))}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[
             { label: 'Open Requests',    value: stats.open,           iconBg: 'var(--color-it-50)',  numColor: 'var(--color-brand-700)', icon: 'inbox' },
             { label: 'Action Required',  value: stats.actionRequired, iconBg: 'var(--color-fin-50)', numColor: 'var(--color-warning)',    icon: 'warning' },
@@ -240,7 +241,7 @@ const Dashboard = () => {
       </div>
 
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[0, 1, 2].map(i => (
             <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               <SkeletonBox w="48px" h="48px" />
@@ -256,7 +257,7 @@ const Dashboard = () => {
           <p style={{ fontSize: 'var(--text-sm)', marginTop: 4 }}>{error}</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {serviceDesks.map(desk => {
             const style = DESK_STYLE[desk.code] || { colorBar: '#6b7280', iconBg: '#f3f4f6', icon: 'help' };
             return (
@@ -310,87 +311,89 @@ const Dashboard = () => {
       </div>
 
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', marginBottom: 'var(--space-8)' }}>
-        {loading ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--color-surface-muted)' }}>
-                {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
-                  <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', textAlign: 'left' }}>
-                    <div style={{ height: 10, width: 60, background: 'var(--color-border)', borderRadius: 4 }} />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[0, 1, 2, 3, 4].map(i => (
-                <tr key={i} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                  {['80px', '200px', '100px', '80px', '60px'].map((w, j) => (
-                    <td key={j} style={{ padding: 'var(--space-4) var(--space-6)' }}>
-                      <div style={{ height: 12, width: w, background: 'var(--color-border)', borderRadius: 4 }} />
-                    </td>
+        <div className="overflow-x-auto">
+          {loading ? (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--color-surface-muted)' }}>
+                  {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
+                    <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', textAlign: 'left' }}>
+                      <div style={{ height: 10, width: 60, background: 'var(--color-border)', borderRadius: 4 }} />
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : recentRequests.length === 0 ? (
-          <div style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 'var(--space-4)', display: 'block', opacity: 0.3 }}>inbox</span>
-            <p style={{ fontWeight: 700, marginBottom: 4 }}>No requests yet</p>
-            <p style={{ fontSize: 'var(--text-sm)' }}>Create your first request to get started</p>
-          </div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--color-surface-muted)' }}>
-                {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
-                  <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'left' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {recentRequests.map(req => {
-                const statusCfg = STATUS_CONFIG[req.status as RequestStatus];
-                return (
-                  <tr
-                    key={req.id}
-                    style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    onClick={() => (window.location.hash = `#/request/${req.id}`)}
-                  >
-                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-brand-700)' }}>
-                      {req.referenceNumber}
-                    </td>
-                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                      {req.summary}
-                    </td>
-                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                      {req.serviceDesk?.name || 'N/A'}
-                    </td>
-                    <td style={{ padding: 'var(--space-4) var(--space-6)' }}>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                        padding: '3px 10px',
-                        borderRadius: 'var(--radius-full)',
-                        fontSize: 'var(--text-xs)', fontWeight: 700,
-                      }}
-                        className={`${statusCfg?.bg || 'bg-gray-100'} ${statusCfg?.color || 'text-gray-600'}`}
-                      >
-                        {statusCfg?.label || req.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
-                      {formatRelativeTime(req.updatedAt)}
-                    </td>
+              </thead>
+              <tbody>
+                {[0, 1, 2, 3, 4].map(i => (
+                  <tr key={i} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                    {['80px', '200px', '100px', '80px', '60px'].map((w, j) => (
+                      <td key={j} style={{ padding: 'var(--space-4) var(--space-6)' }}>
+                        <div style={{ height: 12, width: w, background: 'var(--color-border)', borderRadius: 4 }} />
+                      </td>
+                    ))}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+                ))}
+              </tbody>
+            </table>
+          ) : recentRequests.length === 0 ? (
+            <div style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 'var(--space-4)', display: 'block', opacity: 0.3 }}>inbox</span>
+              <p style={{ fontWeight: 700, marginBottom: 4 }}>No requests yet</p>
+              <p style={{ fontSize: 'var(--text-sm)' }}>Create your first request to get started</p>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--color-surface-muted)' }}>
+                  {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
+                    <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'left' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recentRequests.map(req => {
+                  const statusCfg = STATUS_CONFIG[req.status as RequestStatus];
+                  return (
+                    <tr
+                      key={req.id}
+                      style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      onClick={() => navigate(`/request/${req.id}`)}
+                    >
+                      <td style={{ padding: 'var(--space-4) var(--space-6)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-brand-700)' }}>
+                        {req.referenceNumber}
+                      </td>
+                      <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                        {req.summary}
+                      </td>
+                      <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+                        {req.serviceDesk?.name || 'N/A'}
+                      </td>
+                      <td style={{ padding: 'var(--space-4) var(--space-6)' }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          padding: '3px 10px',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: 'var(--text-xs)', fontWeight: 700,
+                        }}
+                          className={`${statusCfg?.bg || 'bg-gray-100'} ${statusCfg?.color || 'text-gray-600'}`}
+                        >
+                          {statusCfg?.label || req.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
+                        {formatRelativeTime(req.updatedAt)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {/* ── FOOTER CTAs ── */}

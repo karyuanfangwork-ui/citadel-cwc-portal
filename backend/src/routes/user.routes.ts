@@ -45,6 +45,20 @@ router.post('/:id/roles', authorize('ADMIN'), userController.assignRoles);
 router.get('/roles/all', authorize('ADMIN'), userController.listRoles);
 
 /**
+ * @route   GET /api/v1/users/permissions/all
+ * @desc    List all permissions with role assignments
+ * @access  Private (Admin only)
+ */
+router.get('/permissions/all', authorize('ADMIN'), userController.listPermissions);
+
+/**
+ * @route   PUT /api/v1/users/roles/:roleId/permissions
+ * @desc    Replace a role's permissions atomically
+ * @access  Private (Admin only)
+ */
+router.put('/roles/:roleId/permissions', authorize('ADMIN'), userController.updateRolePermissions);
+
+/**
  * @route   GET /api/v1/users/:id
  * @desc    Get user by ID
  * @access  Private (Admin only)

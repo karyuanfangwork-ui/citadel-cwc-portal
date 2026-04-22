@@ -22,6 +22,13 @@ router.get('/', notificationController.getNotifications);
 router.get('/unread-count', notificationController.getUnreadCount);
 
 /**
+ * @route   GET /api/v1/notifications/stream
+ * @desc    SSE stream for real-time notifications
+ * @access  Private
+ */
+router.get('/stream', notificationController.streamNotifications);
+
+/**
  * @route   PUT /api/v1/notifications/:id/read
  * @desc    Mark notification as read
  * @access  Private

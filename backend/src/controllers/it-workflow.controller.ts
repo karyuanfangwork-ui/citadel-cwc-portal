@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { notify } from '../services/notification.service';
+import { hasRole } from '../middleware/auth.middleware';
 import { config } from '../config';
 import multer from 'multer';
 import path from 'path';
@@ -821,8 +822,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CEO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CEO approval' });
-    const hasCeoRole = (currentUser as any)?.roles?.includes('CEO');
-    if (!hasCeoRole) return res.status(403).json({ error: 'Only the CEO can make this decision' });
+    if (!hasRole(req, 'CEO')) return res.status(403).json({ error: 'Only the CEO can make this decision' });
 
     if (decision === 'APPROVED') {
       await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT' } });
@@ -896,8 +896,7 @@ export const ctoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CTO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CTO approval' });
-    const hasCtoRole = (currentUser as any)?.roles?.includes('CTO');
-    if (!hasCtoRole) return res.status(403).json({ error: 'Only the CTO can make this decision' });
+    if (!hasRole(req, 'CTO')) return res.status(403).json({ error: 'Only the CTO can make this decision' });
 
     if (decision === 'APPROVED') {
       await prisma.request.update({ where: { id }, data: { status: 'CTO_APPROVED_IT' } });
@@ -1051,8 +1050,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CFO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CFO approval' });
-    const hasCfoRole = (currentUser as any)?.roles?.includes('CFO');
-    if (!hasCfoRole) return res.status(403).json({ error: 'Only the CFO can make this decision' });
+    if (!hasRole(req, 'CFO')) return res.status(403).json({ error: 'Only the CFO can make this decision' });
 
     if (decision === 'APPROVED') {
       await prisma.request.update({ where: { id }, data: { status: 'CFO_APPROVED_IT' } });

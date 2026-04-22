@@ -37,7 +37,13 @@
       "Bash(docker info *)",
       "Bash(docker compose *)",
       "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(64\\).toString\\('hex'\\)\\)\")",
-      "Bash(git checkout *)"
+      "Bash(git checkout *)",
+      "Bash(sed -n '215,240p' /Users/fangkaryuan/cwc2.0/citadel-cwc-portal/backend/src/controllers/user.controller.ts)",
+      "Bash(sed -n '260,280p' /Users/fangkaryuan/cwc2.0/citadel-cwc-portal/backend/src/controllers/user.controller.ts)",
+      "Bash(npx tsc *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(grep -E \"\\\\.tsx$\")"
     ]
   }
 }

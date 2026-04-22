@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG } from '../constants';
 import { useAuth } from '../src/context/AuthContext';
@@ -30,6 +30,7 @@ const PENDING_APPROVAL_STATUSES: Record<string, string> = {
 };
 
 const MyRequests = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const approvalRole = user?.roles?.find(r => ['CEO', 'CTO', 'CFO'].includes(r)) ?? null;
   const [filter, setFilter] = useState('open');
@@ -277,7 +278,7 @@ const MyRequests = () => {
                           <tr
                             key={req.id}
                             className="hover:bg-gray-50 border-t border-gray-100 cursor-pointer transition-colors"
-                            onClick={() => (window.location.hash = `#/request/${req.id}`)}
+                            onClick={() => navigate(`/request/${req.id}`)}
                           >
                             <td className="px-6 py-4 text-center">
                               <span

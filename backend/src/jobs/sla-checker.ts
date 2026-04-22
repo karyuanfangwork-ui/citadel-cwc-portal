@@ -1,7 +1,7 @@
 import { checkSlaBreaches } from '../services/sla.service';
 import { logger } from '../utils/logger';
 
-const CHECK_INTERVAL_MS = 15 * 60 * 1000;
+const CHECK_INTERVAL_MS = 1 * 60 * 1000;
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 

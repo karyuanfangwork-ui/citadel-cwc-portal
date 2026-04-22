@@ -75,8 +75,73 @@ export const adminService = {
         return response.data.data.roles as { id: string; name: string; description: string }[];
     },
 
+    async listPermissions() {
+        const response = await apiClient.get(`/users/permissions/all`);
+        return response.data.data as {
+            permissions: { id: string; name: string; resource: string; action: string; description: string | null; roles: { roleId: string }[] }[];
+            roles: { id: string; name: string; description: string | null }[];
+        };
+    },
+
+    async updateRolePermissions(roleId: string, permissionIds: string[]) {
+        const response = await apiClient.put(`/users/roles/${roleId}/permissions`, { permissionIds });
+        return response.data.data;
+    },
+
     async createUser(data: { firstName: string; lastName: string; email: string; department?: string }): Promise<{ user: { id: string; firstName: string; lastName: string; email: string; department: string | null; roles: string[] }; tempPassword: string }> {
         const response = await apiClient.post('/users', data);
         return response.data.data;
     },
+
+    // ── Workflow Transitions ────────────────────────────────────────
+
+    async listWorkflowTransitions() {
+        const response = await apiClient.get('/admin/workflow-transitions');
+        return response.data.data.transitions as WorkflowTransition[];
+    },
+
+    async createWorkflowTransition(data: WorkflowTransitionInput) {
+        const response = await apiClient.post('/admin/workflow-transitions', data);
+        return response.data.data.transition as WorkflowTransition;
+    },
+
+    async updateWorkflowTransition(id: string, data: Partial<WorkflowTransitionInput>) {
+        const response = await apiClient.put(`/admin/workflow-transitions/${id}`, data);
+        return response.data.data.transition as WorkflowTransition;
+    },
+
+    async deleteWorkflowTransition(id: string) {
+        const response = await apiClient.delete(`/admin/workflow-transitions/${id}`);
+        return response.data;
+    },
+
+    async listWorkflowStatuses() {
+        const response = await apiClient.get('/admin/workflow-transitions/statuses');
+        return response.data.data.statuses as string[];
+    },
 };
+
+// ── Shared Types ────────────────────────────────────────────────────
+
+export interface WorkflowTransition {
+    id: string;
+    fromStatus: string;
+    toStatus: string;
+    transitionLabel: string | null;
+    requiresComment: boolean;
+    autoAssignRole: string | null;
+    autoAssignUserId: string | null;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface WorkflowTransitionInput {
+    fromStatus: string;
+    toStatus: string;
+    transitionLabel?: string;
+    requiresComment?: boolean;
+    autoAssignRole?: string;
+    autoAssignUserId?: string;
+    isActive?: boolean;
+}
