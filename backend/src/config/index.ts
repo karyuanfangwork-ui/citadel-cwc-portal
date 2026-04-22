@@ -52,16 +52,11 @@ export const config = {
         s3Endpoint: process.env.S3_ENDPOINT || '', // For MinIO
     },
 
-    // Email
+    // Email (Resend)
     email: {
-        smtp: {
-            host: process.env.SMTP_HOST || 'localhost',
-            port: parseInt(process.env.SMTP_PORT || '1025', 10),
-            secure: process.env.SMTP_SECURE === 'true',
-            user: process.env.SMTP_USER || '',
-            password: process.env.SMTP_PASSWORD || '',
-        },
-        from: process.env.EMAIL_FROM || 'Help Center <noreply@helpdesk.com>',
+        resendApiKey: process.env.RESEND_API_KEY || '',
+        from: process.env.EMAIL_FROM || 'Help Center <help@helpdesk.com>',
+        replyTo: process.env.EMAIL_REPLY_TO || 'help@helpdesk.com',
     },
 
     // Elasticsearch

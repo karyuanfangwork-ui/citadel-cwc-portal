@@ -1,413 +1,303 @@
-# HELP CENTER — PRIORITIZED IMPLEMENTATION PLAN
-
-**Based on:** Audit Report dated April 21, 2026
-**Approach:** Impact-first, one task at a time
-
----
-
-## HOW TO READ THIS PLAN
-
-Each task has:
-- **Priority:** P0 (launch blocker) / P1 (high impact) / P2 ( polish)
-- **Impact:** Security / Workflow / UX / Operations
-- **Effort:** Small / Medium / Large
-- **Prerequisite:** What must be done first
+# CWC 2.0 — Implementation Plan
+> Tracking all bug fixes, gaps, and technical debt from the pre-launch audit.
+> Doc reference: `CWC_2.0_Service_Management_Platform.md` (v1.0, 2026-04-22)
 
 ---
 
-## PHASE 1 — P0 CRITICAL (Fix Before Anything Else)
+## How to Use This File
 
-These are launch blockers. Do not build anything new until these are done.
+- [ ] **Unchecked** = Not started
+- [x] **Checked** = Completed
+- ⚠️ **Flagged** = In progress / blocked
+- Each item has an owner, priority, and target phase field
+- Update `Last Updated` whenever changes are made
 
----
-
-### TASK 1: Add Input Sanitization (XSS Prevention) ✅ DONE
-**Priority:** P0 | **Impact:** Security | **Effort:** Small | **Files:** ~5
-
-**Why huge impact:**
-Your system accepts user text in descriptions, comments, and activity feeds. Without sanitization, any user can inject malicious JavaScript that steals session tokens of anyone who views that ticket. This is a critical data breach vector.
-
-**What to do:**
-```
-Backend:
-- npm install validator (or dompurify on frontend)
-- Add sanitization to request.controller.ts — summary, description fields
-- Add sanitization to requestActivity — message field
-- Add sanitization to user firstName/lastName fields
-
-Frontend:
-- npm install dompurify
-- Sanitize all {dangerouslySetInnerHTML} usage in RequestDetail.tsx
-- Sanitize comment/message rendering in ActivityFeed.tsx
-```
-
-**Verification:** Try creating a ticket with `<script>alert('xss')</script>` in the title. It should display as text, not execute.
+**Last Updated:** April 22, 2026 (v1.3 — G-001 + G-004 implemented)
+**Overall Status:** Pre-Launch — Internal Review
 
 ---
 
-### TASK 2: Fix File Upload Validation ✅ DONE
-**Priority:** P0 | **Impact:** Security | **Effort:** Small | **Files:** ~3
-
-**Why huge impact:**
-Right now anyone can upload an .exe, .php, or .bat file. This is the #1 way attackers gain initial access in internal tools.
-
-**What to do:**
-```
-Backend — request.controller.ts or a dedicated upload middleware:
-
-Allowed MIME types:
-- Images: image/jpeg, image/png, image/gif, image/webp
-- Documents: application/pdf, application/msword, 
-  application/vnd.openxmlformats-officedocument.wordprocessingml.document
-- Spreadsheets: application/vnd.ms-excel, 
-  application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-- Text: text/plain, text/csv
-
-Max file size: 10MB (already in app.ts body limit)
-
-Block list (reject outright):
-- application/x-msdownload
-- application/x-executable
-- application/x-sh
-- text/x-shellscript
-- Any application/javascript
-
-Virus scan stub (add now, integrate ClamAV later):
-- Save a flag `isScanned: false` (already in schema)
-- Log un-scanned files for manual review
-```
+## PART A — Critical Gaps (Must Fix Before Go-Live)
 
 ---
 
-### TASK 3: Make Workflow Transitions DB-Driven ✅ DONE
-**Priority:** P0 | **Impact:** Workflow | **Effort:** Large | **Files:** ~8
+### [x] G-001: Hiring Workflow Skips LOA_ACCEPTED Status Entirely
 
-**Why huge impact:**
-Right now every status transition lives in `workflowTransitions.ts` as a hardcoded map. To add a single new status or change approval logic you need a developer and a code deployment. This makes the system unmaintainable. Your 5 broken workflow transitions (VP_APPROVED_IT loop, rejection dead-ends) prove this approach has already caused bugs.
+**Location:**
+- Backend: `backend/src/controllers/loa.controller.ts` (`uploadSignedLOA` + `markLOAAccepted`)
+- Frontend: `frontend/pages/RequestDetail.tsx` (`handleMarkLOAAccepted`)
 
-**What to do:**
+**Impact:** The `LOA_ACCEPTED` state (defined in the spec as the step where the candidate signs and uploads the signed LOA) is never actually set. The workflow jumps directly from `LOA_ISSUED → COMPLETED` when the HR agent clicks "Mark LOA Accepted". The `LOA_ACCEPTED` state is bypassed and the audit trail is missing that step.
 
-```
-Step 1 — Seed current transitions into DB
-Use the existing RequestStatusDefinition table (which already exists!)
-Add a `nextStatuses` JSON field or a separate WorkflowTransition table:
+**Root Cause (confirmed):** Two separate bugs:
+1. `uploadSignedLOA` sets `signedLoaFileUrl` on the LOA record but does NOT advance the request status to `LOA_ACCEPTED`.
+2. `markLOAAccepted` checks `request.status !== 'LOA_ISSUED'` and sets `status: 'COMPLETED'` directly — bypassing `LOA_ACCEPTED` entirely.
 
-Table: WorkflowTransition
-- id
-- fromStatus (the current status)
-- toStatus (allowed next status)
-- transitionLabel: "Approve" | "Reject" | "Request Info"
-- requiresComment: boolean
-- autoAssignTo: optional role/userId hint
+**Fix (2 parts — COMPLETED):**
+- Part A: `uploadSignedLOA` — After saving `signedLoaFileUrl`, also call `prisma.request.update({ status: 'LOA_ACCEPTED' })` on the parent request. Also adds a separate `STATUS_CHANGE` activity log entry. ✅
+- Part B: `markLOAAccepted` — Changed the guard check from `!== 'LOA_ISSUED'` to `!== 'LOA_ACCEPTED'`. The `status: 'COMPLETED'` update was already correct. ✅
+- The `LOA_ACCEPTED → COMPLETED` transition row already existed in the DB (confirmed: 85 transitions, active). ✅
 
-Step 2 — Replace workflowTransitions.ts usage
-Change isValidTransition() to query DB instead of the hardcoded map.
-Keep the VALID_TRANSITIONS map as a SEED reference, not the source of truth.
+**Files Changed:** `backend/src/controllers/loa.controller.ts`
 
-Step 3 — Fix the broken transitions
-- VP_APPROVED_IT → PROCUREMENT_IN_PROGRESS (not back to MANAGER_APPROVED_IT)
-- MANAGER_REJECTED_FIN → SUBMITTED (notify requester)
-- MANAGER_REJECTED_IT → SUBMITTED (notify requester, refund budget hold)
-- HR_SCREENING completion → auto-create LOA_PENDING_APPROVAL record
-- Onboarding COMPLETED → RESOLVED (close parent request)
+**Verified:** TypeScript errors in `loa.controller.ts` are all pre-existing (missing `include` on Prisma queries, query param type issues). No new errors introduced by this fix.
 
-Step 4 — Add admin UI
-Use existing AdminSettings → workflow-config tab
-Read from DB, allow admin to add/remove transitions (with caution UX)
-```
-
-**Effort breakdown:**
-- DB schema change: 1 hour
-- Seed data migration: 2 hours
-- Refactor isValidTransition(): 3 hours
-- Fix 5 broken transitions: 4 hours
-- Admin UI: 6 hours
-- **Total: ~16 hours**
+**Priority:** Critical
+**Phase:** P0 — Go-Live Blockers
+**Owner:** __
+**Ticket:** __
+**Status:** ⚠️ COMPLETED — April 22, 2026
 
 ---
 
-### TASK 4: SLA Checker — 1 Minute Interval ✅ DONE
-**Priority:** P0 | **Impact:** Operations / Compliance | **Effort:** Tiny | **Files:** 1
+### [ ] G-002: Local File Storage — No Redundancy / CDN / Backup
 
-**Why huge impact:**
-Every 15 minutes means a ticket can be in SLA breach for nearly 15 minutes before anyone is notified. In regulated environments (IT, HR compliance) this is unacceptable.
-
-**What to do:**
-```
-backend/src/jobs/sla-checker.ts:
-
-Change: const CHECK_INTERVAL_MS = 15 * 60 * 1000;
-To:     const CHECK_INTERVAL_MS = 1 * 60 * 1000;
-
-Also add to the check:
-- resolvedAt should stop the SLA timer (already handled)
-- On status = WAITING, consider pausing SLA (debate with stakeholders first)
-```
+**Location:** File Upload System (Part 2 §2.4)
+**Impact:** Files are stored on the local filesystem. Data loss risk in production. File URLs break on server restart or redeployment.
+**Fix:** Migrate to AWS S3 or MinIO. Update `fileUploadService` to upload to S3, generate pre-signed URLs, remove local filesystem code. Migrate existing files. Set up lifecycle policies.
+**Priority:** Critical
+**Phase:** P0 — Go-Live Blockers
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-### TASK 5: Audit Trail — Make It Mandatory ✅ DONE
-**Priority:** P0 | **Impact:** Security / Compliance | **Effort:** Medium | **Files:** ~5
+### [ ] G-003: Real-time Notifications (No WebSocket/SSE)
 
-**Why huge impact:**
-Your AuditLog table exists but is not consistently called. Role changes, status overrides, and permission grants are not logged. If something goes wrong, you have no forensic trail.
-
-**What to do:**
-```
-Step 1 — Create an audit middleware/wrapper
-backend/src/utils/audit.ts:
-
-export function auditLog(action: string, resourceType: string) {
-  return async (req: AuthRequest, newValues: any, oldValues?: any) => {
-    await prisma.auditLog.create({
-      data: {
-        userId: req.user?.id,
-        userEmail: req.user?.email,
-        action,
-        resourceType,
-        resourceId: newValues.id,
-        oldValues: oldValues ?? undefined,
-        newValues,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent'),
-      }
-    });
-  };
-}
-
-Step 2 — Wrap these critical operations:
-- user.controller.ts — role assignment, user deactivation, user creation
-- request.controller.ts — status changes, assignment changes
-- approval.controller.ts — all approval/rejection actions
-- it-workflow.controller.ts — CFO/CTO/CEO approval actions
-
-Step 3 — Add audit log viewer in Admin settings
-```
+**Location:** Notification Architecture (Part 2 §2.3)
+**Impact:** Agents miss time-sensitive approvals and SLA alerts because notifications require page refresh.
+**Fix:** Implement Socket.IO on the backend server. Create a `NotificationContext` that subscribes to real-time events per user. Emit events on: `REQUEST_CREATED`, `STATUS_CHANGED`, `APPROVAL_REQUIRED`, `SLA_WARNING`, `SLA_BREACHED`, `COMMENT_ADDED`.
+**Priority:** Critical
+**Phase:** P0 — Go-Live Blockers
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-## PHASE 2 — P1 HIGH IMPACT (Do After P0)
+### [x] G-004: Email Delivery Not Verified in Production
+
+**Location:** Notification Architecture (Part 2 §2.3), Email Delivery
+**Impact:** Nodemailer was configured with `SMTP_HOST=localhost` + `PORT=1025` (Mailhog dev port) with no Mailhog running — all email silently failed. 8 `notify()` call-sites in `it-workflow.controller.ts` passed plain strings instead of `NotifyOptions`, so they never fired templates or emails. `notify()` had no type signature so TypeScript accepted these invalid calls.
+
+**Fix (COMPLETED):**
+- Replaced Nodemailer with Resend SDK in `backend/src/services/email.service.ts` ✅
+- Updated `backend/src/config/index.ts` to use `RESEND_API_KEY` (removed SMTP config) ✅
+- Updated `backend/.env` and `.env.example` with `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO` placeholders ✅
+- Fixed 6 broken `notify()` calls in `it-workflow.controller.ts` (plain string → proper `NotifyOptions` with event types) ✅
+- Added 13 missing `NotificationTemplate` entries to `backend/prisma/seed.ts` (all new event types) ✅
+
+**New Notification Templates Added:**
+- `MANAGER_APPROVAL_REQUIRED`, `MANAGER_APPROVED`, `MANAGER_REJECTED`
+- `PROCUREMENT_INITIATED`, `HARDWARE_ORDERED`, `HARDWARE_RECEIVED`, `HARDWARE_DELIVERED`
+- `VP_APPROVAL_REQUIRED`, `VP_APPROVED`, `VP_REJECTED`
+- `REQUEST_REJECTED`, `ACTION_REQUIRED`
+
+**Files Changed:**
+- `backend/src/services/email.service.ts`
+- `backend/src/config/index.ts`
+- `backend/src/controllers/it-workflow.controller.ts`
+- `backend/prisma/seed.ts`
+- `backend/.env`
+- `backend/.env.example`
+
+**To Enable Email:** Set `RESEND_API_KEY` in `backend/.env`. Get a free key at https://resend.com. By default, with no API key, emails are silently skipped (logs a warning) so the app continues working without it.
+
+**Priority:** Critical
+**Phase:** P0 — Go-Live Blockers
+**Owner:** __
+**Ticket:** __
+**Status:** ✅ COMPLETED — April 22, 2026
 
 ---
 
-### TASK 6: Fix CFO/CTO Role — Put in Role Table ✅ DONE
-**Priority:** P1 | **Impact:** Security | **Effort:** Small | **Files:** ~5
-
-**Why huge impact:**
-CEO, CTO, and CFO are checked as string literals in `request.controller.ts` (`req.user!.roles.includes('CTO')`). Everyone else uses the Role/Permission tables. This inconsistency means:
-- You can't revoke CTO access via admin UI
-- Permissions are not audited
-- Role checks are scattered across the codebase
-
-**What to do:**
-```
-1. Add CEO, CTO, CFO to the roles table (seed in prisma/seed.ts)
-2. Replace all string literal role checks with proper Role table lookups
-3. Search entire codebase:
-   - "includes('CEO')" → use Role-based check
-   - "includes('CTO')" → use Role-based check
-   - "includes('CFO')" → use Role-based check
-4. Remove the special case OR clauses in getAllRequests
-   Replace with proper permission-based filtering
-```
+## PART B — High Priority Gaps (Fix in Sprint 1 Post-Launch)
 
 ---
 
-### TASK 7: Real-Time Notifications (WebSocket or SSE) ✅ DONE
-**Priority:** P1 | **Impact:** UX / Engagement | **Effort:** Medium | **Files:** ~8
+### [ ] G-005: SLA Clock Does Not Pause During Approval Wait Time
 
-**Why huge impact:**
-Right now users must refresh the page to see new notifications. This creates a poor experience and means urgent SLA breaches or approval requests are missed.
-
-**Two options (choose one):**
-
-**Option A — Server-Sent Events (Easier, recommended for MVP)**
-```
-Backend:
-- npm install express-sse-ts
-- Add SSE endpoint: GET /api/v1/notifications/stream
-- On any notification.create, push to connected SSE clients
-
-Frontend:
-- In AuthContext, open EventSource to /notifications/stream
-- On message, increment notification badge and show toast
-- No page refresh needed
-```
-
-**Option B — Socket.io (More scalable later)**
-```
-- More setup, but handles reconnection automatically
-- Better for if you add chat later
-```
-
-**Recommended:** Option A (SSE) — 1 day vs 3 days for Socket.io
+**Location:** SLA Engine / SLA Rules (Part 2 §R-003, §2.6)
+**Impact:** Finance and HR requests appear to breach SLA even when waiting on external approvers — unfair to agents.
+**Fix:** Track `approvalStartAt` timestamp when a request enters any `PENDING_*_APPROVAL` status, and `approvalEndAt` when it exits. Modify SLA elapsed calculation to exclude `approvalStartAt → approvalEndAt` intervals. Update SLA checker background job accordingly.
+**Priority:** High
+**Phase:** P1 — Sprint 1
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-### TASK 8: Replace HashRouter with BrowserRouter ✅ DONE
-**Priority:** P1 | **Impact:** UX | **Effort:** Small | **Files:** 1
+### [ ] G-006: Reporting — No Charts or Data Export
 
-**Why huge impact:**
-- URLs look unprofessional: `helpdesk.com/#/request/123`
-- Cannot copy/share a clean link
-- Poor SEO if any part goes public
-- Analytics tools can't track hash routes properly
-
-**What to do:**
-```
-1. In frontend/App.tsx:
-   Change: import { HashRouter } from 'react-router-dom';
-   To:     import { BrowserRouter, createHistory } from 'react-router-dom';
-
-2. For production deployment, configure your server:
-   - Nginx: try_files $uri $uri/ /index.html
-   - Or deploy to Netlify/Vercel which handles this automatically
-
-3. Update any hardcoded hash-based navigation:
-   - Search for window.location.hash in codebase
-   - Replace with navigate() from react-router-dom
-
-4. Update Vite config for proper base path if not at root
-```
+**Location:** Reports page (Part 1 §1.4, Part 7 G-006)
+**Impact:** Management cannot generate compliance reports or present KPI dashboards. Reports page shows counts only.
+**Fix:** Add chart visualizations (Recharts or Chart.js) for: resolution time trends, SLA performance by department, request volume by type/status. Implement CSV export endpoint (`GET /reports/export?format=csv`) and PDF generation endpoint.
+**Priority:** High
+**Phase:** P1 — Sprint 1
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-### TASK 9: Mobile Responsive Layout ✅ DONE
-**Priority:** P1 | **Impact:** UX | **Effort:** Medium | **Files:** ~10
+### [ ] G-007: No Optimistic Locking on Request Updates
 
-**Why huge impact:**
-Your entire UI is desktop-first. Staff who work in warehouses, factories, or field locations will be on mobile. A broken mobile experience means they bypass the system entirely.
-
-**What to do:**
-```
-Priority pages to make mobile-friendly (in order):
-1. Dashboard — service desk cards (already likely responsive)
-2. MyRequests — table → card list on mobile
-3. RequestDetail — sidebar collapses, action buttons stack
-4. HRServices / ITSupport / GroupFinance — category grid → scrollable list
-5. CreateRequest — form fields stack vertically
-
-Quick wins with existing Tailwind:
-- Replace hidden sm:block with proper responsive classes
-- tables → div-based cards on mobile (use sm:grid for breakpoint)
-- Sticky headers work on mobile already
-- Action buttons in RequestDetail need a sticky bottom bar on mobile
-
-Time estimate: 1-2 days focused work
-```
+**Location:** All PATCH `/requests/:id/status` and comment/file update endpoints
+**Impact:** Two agents editing simultaneously can overwrite each other's changes. Risk of lost updates.
+**Fix:** Add a `version` integer field (or `updatedAt` check) to the `Request` model. On every PATCH, include a `WHERE version = :expectedVersion` clause. If 0 rows affected, return `409 Conflict` with the current server state. Frontend shows "This request was updated by another user" dialog on 409.
+**Priority:** High
+**Phase:** P1 — Sprint 1
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-### TASK 10: Build Permission Matrix UI ✅ DONE
-**Priority:** P1 | **Impact:** Security / Admin | **Effort:** Medium | **Files:** ~6
+### [ ] G-008: Admin Workflow Builder Has No Dead-End Detection
 
-**Why huge impact:**
-You have a full Role/Permission/UserRole schema but the only way to assign permissions is through direct database manipulation. Admins cannot manage who can do what.
-
-**What to do:**
-```
-1. In AdminSettings.tsx — add a new tab: "Permissions"
-2. Show all roles in a matrix: Rows = roles, Columns = resources
-3. Each cell: checkbox for CREATE / READ / UPDATE / DELETE
-4. On change, update RolePermission table
-5. Replace hardcoded permission checks in controllers with:
-   - A hasPermission(user, resource, action) helper
-   - Use it in all controllers
-
-Permissions to model:
-- request: create, read, read-own, read-all, update, delete
-- user: create, read, update, delete, assign-role
-- report: read
-- admin: access-settings, manage-workflow, manage-templates
-- approval: approve, reject
-```
+**Location:** Admin Settings → Workflow Transitions tab (Part 6 §6.2, Part 7 G-008)
+**Impact:** Admins can configure transitions that create dead-end states (no outgoing paths). Entire request type workflows can silently break.
+**Fix:** Before saving any new transition, run a graph validation pass: build a directed graph of all transitions for the affected request type, detect nodes with zero outgoing edges that are not valid terminal states (`RESOLVED`, `CLOSED`, `REJECTED`, `COMPLETED`). Show a warning dialog with the affected statuses before confirming the save.
+**Priority:** High
+**Phase:** P1 — Sprint 1
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-## PHASE 3 — P2 POLISH (Do After P1)
+### [ ] G-009: Approval Tracked as Status Changes — No ApprovalQueue Model
+
+**Location:** HR Approval Chain (Part 4 §4.3.4), Finance Approval Chain (Part 5 §5.3.2)
+**Impact:** Single point of failure if designated approver is unavailable. Parallel approval (multiple approvers at same level) not supported.
+**Fix:** Create a new `ApprovalQueue` model in Prisma: `{ id, requestId, approverUserId, level, status (PENDING/APPROVED/REJECTED), comment, decidedAt }`. Replace inline status-change-based approval logic with `ApprovalQueue` lookups. Support approval delegation via an `ApprovalDelegation` table.
+**Priority:** High
+**Phase:** P1 — Sprint 1
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-### TASK 11: Add Report Export (CSV)
-**Priority:** P2 | **Impact:** Operations | **Effort:** Small | **Files:** ~3
-
-**Why:** Reports page has data but no way to export. Managers need to share with leadership.
+## PART C — Technical Debt (Refactoring)
 
 ---
 
-### TASK 12: Empty States & Loading Skeletons
-**Priority:** P2 | **Impact:** UX | **Effort:** Small | **Files:** ~5
+### [ ] T-001: Decompose RequestDetail.tsx (2,395 LOC)
 
-**Why:** Blank pages with no guidance confuse users. Every table and list needs an empty state illustration + CTA.
+**Location:** `frontend/pages/RequestDetail.tsx`
+**Impact:** Too large to maintain safely. Single file touching many concerns (display, actions, comments, file uploads, approvals, activity timeline).
+**Fix:** Break into focused sub-components:
+- `RequestHeader.tsx` — title, status badge, priority, requester info
+- `StatusTimeline.tsx` — activity log / audit trail
+- `ApprovalActions.tsx` — approve/reject buttons and logic
+- `RequestComments.tsx` — comment thread
+- `RequestAttachments.tsx` — file list and upload
+- `RequestFormFields.tsx` — dynamic form fields by request type
+- `SlaBadge.tsx` — SLA countdown and breach warning
 
----
-
-### TASK 13: Add Breadcrumbs
-**Priority:** P2 | **Impact:** UX | **Effort:** Small | **Files:** ~3
-
-**Why:** Users in deep IT workflows (12+ status changes) lose track of where they are.
-
----
-
-### TASK 14: Notification Read/Unread + Pagination
-**Priority:** P2 | **Impact:** UX | **Effort:** Small | **Files:** ~3
-
-**Why:** NotificationDropdown grows forever. No way to mark as read.
-
----
-
-### TASK 15: Onboarding Auto-Create System User
-**Priority:** P2 | **Impact:** Operations | **Effort:** Medium | **Files:** ~4
-
-**Why:** When onboarding completes, the new hire still doesn't have a system account. Must be created manually.
+**Priority:** Technical Debt
+**Phase:** P1 — Sprint 1
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-## EXECUTION ORDER (One-by-One)
+### [ ] T-002: Decompose AdminSettings.tsx (1,805 LOC)
 
-```
-Week 1: ✅ COMPLETE
-  [x] Task 1 — Input Sanitization (P0)
-  [x] Task 2 — File Upload Validation (P0)
+**Location:** `frontend/pages/AdminSettings.tsx`
+**Impact:** Same problem as T-001. All admin features in one massive file.
+**Fix:** The file already has tabs. Extract each tab into its own component (some already exist as separate files under `src/components/admin/`):
+- `ServiceDesksTab.tsx` — service desk and category management
+- `UsersTab.tsx` — user management (already partially separated via `CreateUserModal`)
+- `OnboardingTasksTab.tsx` — onboarding template management
+- `OffboardingTasksTab.tsx` — offboarding template management
+- `WorkflowConfigTab.tsx` — workflow configuration (already `WorkflowTransitionTab.tsx`)
+- `BannerConfigTab.tsx` — banner management (already separate)
+- `StatusDefinitionsTab.tsx` — status definitions (already separate)
+- `PermissionsTab.tsx` — permissions matrix (already separate)
 
-Week 2: ✅ COMPLETE
-  [x] Task 4 — SLA 1-Minute Interval (P0)
-  [x] Task 6 — CFO/CTO Roles in DB (P1)
-
-Week 3: ✅ COMPLETE
-  [x] Task 3 — DB-Driven Workflows (P0)
-
-Week 4: ✅ COMPLETE
-  [x] Task 5 — Mandatory Audit Trail (P0)
-  [x] Task 8 — BrowserRouter (P1)
-
-Week 5: ✅ COMPLETE
-  [x] Task 7 — Real-Time Notifications (P1)
-  [x] Task 9 — Mobile Responsive (P1)
-
-Week 6: ✅ COMPLETE
-  [x] Task 10 — Permission Matrix UI (P1)
-
-Week 7-8: ← CURRENT
-  [ ] Tasks 11-15 (P2 items)
-
-Total: ~8 weeks for MVP-ready
-```
+**Priority:** Technical Debt
+**Phase:** P1 — Sprint 1
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-## QUICK WINS FIRST (1-Day Tasks)
+### [ ] T-003: CEO/CFO/CTO String Checks — Not Part of RBAC
 
-These give immediate wins with minimal effort:
-
-1. **Task 4** — SLA 1 minute (change 1 number, 5 minutes)
-2. **Task 8** — HashRouter → BrowserRouter (1 file change + nginx config)
-3. **Task 12** — Empty states (add conditional renders with friendly messages)
-4. **Task 14** — Notification read/unread (add a boolean column + toggle)
-5. **Task 2** — File type block list (30 lines of validation code)
+**Location:** Inline string checks scattered across backend and frontend (Part 7 T-003)
+**Impact:** Not manageable via Admin UI. Adding/removing executives requires code changes.
+**Fix:** Add a `ExecutiveRole` column to the `User` model (enum: `NONE`, `CEO`, `CFO`, `CTO`). Replace all `user.roles.includes('CEO')` with `user.executiveRole === 'CEO'`. Add an "Executive Roles" section in the Admin Settings Users tab to assign/toggle these.
+**Priority:** Technical Debt
+**Phase:** P1 — Sprint 1
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
 
 ---
 
-*Plan version: 1.1*
-*Created: April 21, 2026*
-*Last updated: April 21, 2026 — Tasks 1–6 complete (all P0s + Task 6 P1)*
+### [ ] T-004: SLA Checker Uses setInterval — Not Resilient
+
+**Location:** Background job / SLA checker (Part 7 T-004)
+**Impact:** SLA checker runs on `setInterval`. Dies silently if the Node process crashes. Missed SLA events are not recovered.
+**Fix:** Replace `setInterval` with BullMQ (Redis-backed job queue). Each SLA check becomes an idempotent job that can be retried. Use a cron schedule (`*/15 * * * *`). Add a "last notified at" flag per request to prevent duplicate notifications.
+**Priority:** Technical Debt
+**Phase:** P2 — Sprint 2+
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
+
+---
+
+### [ ] T-005: Full-Text Search Uses SQL ILIKE — Doesn't Scale
+
+**Location:** Search functionality (Part 7 T-005)
+**Impact:** `ILIKE` queries do not scale past ~100k records. Search performance degrades as the database grows.
+**Fix (Short term):** Add PostgreSQL GIN indexes on the columns most commonly searched (`summary`, `description`). Use `tsvector` for structured full-text search. No new infrastructure required.
+**Fix (Long term):** Implement Elasticsearch. This is a Phase 4 initiative per the roadmap.
+**Priority:** Technical Debt
+**Phase:** P2 — Sprint 2+ (short-term GIN indexes); P4 (Elasticsearch)
+**Owner:** __
+**Ticket:** __
+**Status:** Not started
+
+---
+
+## PART D — Phase 2 Enhancements (Q2–Q3 2026)
+
+> These are planned features from the roadmap that aren't bugs but are needed for operational maturity.
+
+| ID | Initiative | Business Value | Priority |
+|:---|:---|:---|:---:|
+| P2-01 | Real-time WebSocket notifications | Agents receive instant alerts without refreshing | P0 |
+| P2-02 | Cloud file storage (S3/MinIO) | Secure, scalable storage with CDN and backups | P0 |
+| P2-03 | Email delivery verification | Ensure all approval requests reach users | P0 |
+| P2-04 | Hiring workflow closure (G-001) | Complete LOA→COMPLETED transition | P0 |
+| P2-05 | SLA business-hours engine | SLA clock respects business hours and approval wait | P1 |
+| P2-06 | Approval delegation | Designate backup approvers so workflows never block | P1 |
+| P2-07 | Report export (CSV/PDF) | Extract compliance-ready reports for audits | P1 |
+| P2-08 | KPI dashboard with charts | Visual resolution time, SLA performance, volume | P1 |
+
+---
+
+## PART E — Completed Items
+
+| ID | Item | Completed Date | Notes |
+|:---|:---|:---|:---|
+| ~~G-001~~ | ~~G-001: Hiring Workflow LOA_ACCEPTED fix~~ | ~~Apr 22 2026~~ | ~~2-part fix in `loa.controller.ts`: `uploadSignedLOA` now sets `status: 'LOA_ACCEPTED'`, `markLOAAccepted` guards on `LOA_ACCEPTED` instead of `LOA_ISSUED`. Both include activity log entries.~~ |
+| ~~T3-6~~ | ~~Workflow-config tab in AdminSettings~~ | ~~Apr 22 2026~~ | ~~Fully implemented: `WorkflowTransitionTab.tsx` (326 LOC), wired in `AdminSettings.tsx` line 1694, all CRUD endpoints mounted at `/admin/workflow-transitions`. DB table `workflow_transitions` has 85 rows seeded.~~ |
+
+---
+
+## Change Log
+
+| Version | Date | Author | Changes |
+|:---|:---|:---|:---|
+| 1.2 | 2026-04-22 | Claude | G-001 fully implemented (Part A + Part B in `loa.controller.ts`). Status updated to COMPLETED. |
+| 1.1 | 2026-04-22 | Claude | G-001 root cause confirmed and documented (2-part bug in `uploadSignedLOA` + `markLOAAccepted`). G-001 DB state verified (transition row exists). T3-6 verified as complete. |
+| 1.0 | 2026-04-22 | Platform Team | Initial plan from pre-launch audit document |

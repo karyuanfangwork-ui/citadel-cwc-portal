@@ -119,7 +119,7 @@ export async function submitForApproval(req: Request, res: Response) {
     });
 
     if (managerId) {
-      await notify(managerId, `Request ${id} has been submitted for your approval.`);
+      await notify({ userId: managerId, eventType: 'MANAGER_APPROVAL_REQUIRED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
     return res.json({ success: true, message: 'Request submitted for manager approval' });
@@ -299,7 +299,7 @@ export async function markProcurement(req: Request, res: Response) {
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Procurement has been initiated for your IT request ${id}.`);
+      await notify({ userId: request.requesterId, eventType: 'PROCUREMENT_INITIATED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
     return res.json({ success: true, message: 'Request marked as procurement in progress' });
@@ -342,7 +342,7 @@ export async function markFulfilled(req: Request, res: Response) {
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Your IT request ${id} has been fulfilled and resolved.`);
+      await notify({ userId: request.requesterId, eventType: 'REQUEST_RESOLVED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
     return res.json({ success: true, message: 'Request closed and resolved' });
@@ -405,7 +405,7 @@ export async function markHardwareOrdered(req: Request, res: Response) {
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Your hardware for IT request ${id} has been ordered${orderNumber ? `. Order number: ${orderNumber}` : ''}.`);
+      await notify({ userId: request.requesterId, eventType: 'HARDWARE_ORDERED', variables: { requestId: String(id), orderNumber: orderNumber || '' }, relatedRequestId: String(id) });
     }
 
     return res.json({ success: true, message: 'Hardware marked as ordered' });
@@ -465,10 +465,10 @@ export async function markHardwareReceived(req: Request, res: Response) {
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Your hardware for IT request ${id} has arrived and is being set up.`);
+      await notify({ userId: request.requesterId, eventType: 'HARDWARE_RECEIVED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
     if (request.assignedToId && request.assignedToId !== request.requesterId) {
-      await notify(request.assignedToId, `Hardware received for IT request ${id}. Please provision and close.`);
+      await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: String(id), action: 'hardware_provision' }, relatedRequestId: String(id) });
     }
 
     return res.json({ success: true, message: 'Hardware marked as received' });
@@ -532,7 +532,7 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Your hardware for IT request ${id} is ready for pickup/delivery.`);
+      await notify({ userId: request.requesterId, eventType: 'HARDWARE_DELIVERED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
     return res.json({ success: true, message: 'Software provisioned' });

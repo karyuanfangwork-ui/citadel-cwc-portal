@@ -405,7 +405,14 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
             }
         });
 
-        // Create activity log
+        // Advance request status to LOA_ACCEPTED (candidate has signed)
+        // FIX G-001 Part A: the LOA_ACCEPTED state was being skipped entirely
+        await prisma.request.update({
+            where: { id },
+            data: { status: 'LOA_ACCEPTED' }
+        });
+
+        // Create activity log for the signed LOA upload
         await prisma.requestActivity.create({
             data: {
                 requestId: id,
@@ -414,6 +421,19 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
                 authorRole: 'HR Agent',
                 activityType: 'ATTACHMENT',
                 message: `Signed LOA uploaded: ${file.originalname}`,
+                isSystemGenerated: false
+            }
+        });
+
+        // Create activity log for the status change to LOA_ACCEPTED
+        await prisma.requestActivity.create({
+            data: {
+                requestId: id,
+                authorId: userId,
+                authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                authorRole: 'HR Agent',
+                activityType: 'STATUS_CHANGE',
+                message: `Status changed to LOA_ACCEPTED — candidate has signed the Letter of Appointment`,
                 isSystemGenerated: false
             }
         });
@@ -454,10 +474,10 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
             });
         }
 
-        if (request.status !== 'LOA_ISSUED') {
+        if (request.status !== 'LOA_ACCEPTED') {
             return res.status(400).json({
                 status: 'error',
-                message: 'Request must be in LOA_ISSUED status to mark as accepted'
+                message: 'Request must be in LOA_ACCEPTED status to mark as accepted'
             });
         }
 

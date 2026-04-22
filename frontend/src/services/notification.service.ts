@@ -17,8 +17,8 @@ interface NotificationsResponse {
 }
 
 const notificationService = {
-  async getNotifications(page = 1): Promise<NotificationsResponse> {
-    const response = await api.get(`/notifications?page=${page}`);
+  async getNotifications(page = 1, limit = 10): Promise<NotificationsResponse> {
+    const response = await api.get(`/notifications?page=${page}&limit=${limit}`);
     return response.data;
   },
 

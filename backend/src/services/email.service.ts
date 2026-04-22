@@ -1,24 +1,34 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
-const transporter = nodemailer.createTransport({
-  host: config.email.smtp.host,
-  port: config.email.smtp.port,
-  secure: config.email.smtp.secure,
-  auth: config.email.smtp.user
-    ? { user: config.email.smtp.user, pass: config.email.smtp.password }
-    : undefined,
-});
+const resend = new Resend(config.email.resendApiKey);
 
-export async function sendEmail(to: string, subject: string, body: string): Promise<boolean> {
+export async function sendEmail(
+  to: string,
+  subject: string,
+  body: string
+): Promise<boolean> {
+  // Silently skip if Resend is not configured (no API key)
+  if (!config.email.resendApiKey) {
+    logger.warn(`Resend not configured — email to ${to} skipped (set RESEND_API_KEY to enable)`);
+    return false;
+  }
+
   try {
-    await transporter.sendMail({
+    const { error } = await resend.emails.send({
       from: config.email.from,
       to,
       subject,
       html: body,
+      replyTo: config.email.replyTo,
     });
+
+    if (error) {
+      logger.error(`Resend error sending to ${to}: ${error.message}`);
+      return false;
+    }
+
     logger.info(`Email sent to ${to}: ${subject}`);
     return true;
   } catch (error) {
