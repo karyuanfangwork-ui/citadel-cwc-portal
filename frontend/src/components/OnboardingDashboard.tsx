@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { OnboardingRequest, OnboardingTask, OnboardingProgress, RequestPriority, RequestItem } from '../../types';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 interface OnboardingDashboardProps {
     requestId: string;
@@ -10,6 +11,7 @@ interface OnboardingDashboardProps {
 
 const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) => {
     const { user } = useAuth();
+    const toast = useToast();
     const navigate = useNavigate();
     const [onboarding, setOnboarding] = useState<OnboardingRequest | null>(null);
     const [request, setRequest] = useState<RequestItem | null>(null);

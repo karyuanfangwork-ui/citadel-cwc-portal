@@ -3,7 +3,10 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NotificationProvider, useNotifications } from './src/context/NotificationContext';
+import { ToastProvider } from './src/context/ToastContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
+import ToastContainer from './src/components/ToastContainer';
 import Login from './src/pages/Login';
 import Register from './src/pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -247,14 +250,26 @@ const AppShell = () => {
               <Route path="/it" element={<ProtectedRoute><ITSupport /></ProtectedRoute>} />
               <Route path="/finance" element={<ProtectedRoute><GroupFinance /></ProtectedRoute>} />
               <Route path="/my-requests" element={<ProtectedRoute><MyRequests /></ProtectedRoute>} />
-              <Route path="/request/:id" element={<ProtectedRoute><RequestDetail /></ProtectedRoute>} />
+              <Route path="/request/:id" element={
+                <ProtectedRoute>
+                  <ErrorBoundary>
+                    <RequestDetail />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              } />
               <Route path="/it/hardware" element={<Navigate to="/it" replace />} />
               <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requireAdmin><Reports /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
               <Route path="/kb" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
               <Route path="/kb/:slug" element={<ProtectedRoute><ArticleDetail /></ProtectedRoute>} />
-              <Route path="/admin/settings" element={<ProtectedRoute requireAdmin><AdminSettings /></ProtectedRoute>} />
+              <Route path="/admin/settings" element={
+                <ProtectedRoute requireAdmin>
+                  <ErrorBoundary>
+                    <AdminSettings />
+                  </ErrorBoundary>
+                </ProtectedRoute>
+              } />
               <Route path="/:deskType/:deskId/create/:categoryId" element={<ProtectedRoute><CreateRequest /></ProtectedRoute>} />
             </Routes>
           </main>
@@ -269,7 +284,12 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppShell />
+        <ToastProvider>
+          <ErrorBoundary>
+            <AppShell />
+            <ToastContainer />
+          </ErrorBoundary>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

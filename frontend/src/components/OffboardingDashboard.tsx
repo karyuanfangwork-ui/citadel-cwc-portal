@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 interface OffboardingTask {
     id: string;
@@ -46,6 +47,7 @@ interface Props {
 
 const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete }) => {
     const { user } = useAuth();
+    const toast = useToast();
     const [offboarding, setOffboarding] = useState<OffboardingRequest | null>(null);
     const [progress, setProgress] = useState<OffboardingProgress | null>(null);
     const [loading, setLoading] = useState(true);
@@ -182,7 +184,7 @@ const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete }) => {
             await fetchData();
             onComplete?.();
         } catch (err: any) {
-            alert(err.response?.data?.message || err.message || 'Failed to complete offboarding');
+            toast.error('Completion Failed', err.response?.data?.message || err.message || 'Failed to complete offboarding');
         } finally {
             setCompleting(false);
         }
