@@ -93,7 +93,7 @@ Each task has:
 
 | ID | Task | Priority | Effort | Owner | Status | Notes |
 |----|------|----------|--------|-------|--------|-------|
-| **CODE-001** | Decompose `AdminSettings.tsx` (1,808 LOC) | P1 | 2 days | | [ ] | Extract each tab into separate component |
+|| **CODE-001** | Decompose `AdminSettings.tsx` (1,808 LOC) | P1 | 2 days | | [x] | ✅ Complete - Extracted into 10 components + hook + constants. AdminSettings reduced from 1,808 → 339 lines.
 | **CODE-002** | Decompose `RequestDetail.tsx` (665 LOC) | P1 | 2 days | | [ ] | Extract header, timeline, comments, attachments |
 | **CODE-003** | Add React error boundaries | P1 | 1 day | | [ ] | Catch and display component errors |
 | **CODE-004** | Add loading states/skeleton loaders | P1 | 2 days | | [ ] | For all async operations |
