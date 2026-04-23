@@ -228,6 +228,9 @@ const NotificationToast = () => {
 
 const AppShell = () => {
   const { user } = useAuth();
+  const location = useLocation();
+  const showFooter = location.pathname !== '/login' && location.pathname !== '/register';
+  
   return (
     <NotificationProvider userId={user?.id ?? null}>
       <div className="flex flex-col min-h-screen">
@@ -255,7 +258,7 @@ const AppShell = () => {
               <Route path="/:deskType/:deskId/create/:categoryId" element={<ProtectedRoute><CreateRequest /></ProtectedRoute>} />
             </Routes>
           </main>
-          <Footer />
+          {showFooter && <Footer />}
           <NotificationToast />
         </div>
       </NotificationProvider>

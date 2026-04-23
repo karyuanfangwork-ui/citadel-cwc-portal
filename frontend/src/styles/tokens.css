@@ -1,11 +1,11 @@
 :root {
-  /* ── BRAND ── */
-  --color-brand-900: #0747a6;
-  --color-brand-700: #0052cc;
-  --color-brand-500: #0065ff;
-  --color-brand-300: #4c9aff;
-  --color-brand-100: #deebff;
-  --color-brand-50:  #eff6ff;
+  /* ── BRAND (Citadel Workplace Connect) ── */
+  --color-brand-900: #13214a;  /* Deep navy - darkest */
+  --color-brand-700: #1D2D5E;  /* Citadel navy - primary */
+  --color-brand-500: #4A8DB8;  /* Citadel steel blue */
+  --color-brand-300: #5BBFE8;  /* Citadel sky blue */
+  --color-brand-100: #d0e8f5;
+  --color-brand-50:  #eaf5fc;
 
   /* ── SERVICE DESK ACCENTS ── */
   --color-it-500:  #0052cc;

@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+
+  <!--
+    CITADEL LOGO MARK - faithfully recreated from reference image
+    Structure: 2 overlapping thick-stroked rounded rect outlines
+      1. Back: sky-blue COMPLETE rounded rect, top-left position
+      2. Front: steel-blue C-SHAPED rounded rect (open on right), offset bottom-right
+
+    Both shapes are stroke-only (fill=none) so white background shows through,
+    creating the white interior visible in the original logo.
+
+    ViewBox: 100x100  — all geometry + stroke extents confirmed within bounds
+  -->
+
+  <!-- Layer 1 (back): sky-blue complete rounded rect outline -->
+  <!-- Rect: x=6 y=6 w=62 h=62 rx=14 → right=68 bottom=68 -->
+  <!-- Stroke outer reach: left=1, top=1, right=73, bottom=73  ✓ -->
+  <rect
+    x="6" y="6" width="62" height="62" rx="14" ry="14"
+    stroke="#5BBFE8" stroke-width="10" fill="none"
+  />
+
+  <!--
+    Layer 2 (front): steel-blue C-shaped rounded rect, open on the RIGHT side
+    Rect bounds: x=18 y=18 → x=80 y=80, rx=14
+    Corner centres:
+      top-right    (66, 32)  → arc: (80,32) → (66,18)
+      top-left     (32, 32)  → arc: (32,18) → (18,32)
+      bottom-left  (32, 66)  → arc: (18,66) → (32,80)
+      bottom-right (66, 66)  → arc: (66,80) → (80,66)
+    All arcs sweep CCW (sweep-flag=0) as we travel LEFT across top, DOWN on left, RIGHT across bottom
+    Stroke outer reach: left=13, top=13, right=85, bottom=85  ✓
+  -->
+  <path
+    d="M 80,32
+       A 14,14,0,0,0,66,18
+       L 32,18
+       A 14,14,0,0,0,18,32
+       L 18,66
+       A 14,14,0,0,0,32,80
+       L 66,80
+       A 14,14,0,0,0,80,66"
+    stroke="#4A8DB8" stroke-width="10" stroke-linecap="round" fill="none"
+  />
+
+</svg>
