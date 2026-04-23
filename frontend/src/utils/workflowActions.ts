@@ -287,17 +287,19 @@ export function getWorkflowActions(
       description: 'Update background check and references check status.',
       variant: 'primary',
     });
-    if (screeningCompleted && !hasLOA) {
+    if (!hasLOA) {
       actions.push({
         type: 'UPLOAD_LOA',
         label: 'Upload LOA Document',
-        description: 'Screening complete. Upload the draft Letter of Acceptance.',
+        description: screeningCompleted
+          ? 'Screening complete. Upload the draft Letter of Acceptance.'
+          : 'Upload the draft Letter of Acceptance for the candidate.',
         variant: 'success',
       });
     }
   }
 
-  if (canAct && isHR && isNewHiring && status === 'LOA_ISSUED' && hasSignedLOA) {
+  if (canAct && isHR && isNewHiring && status === 'LOA_ACCEPTED' && hasSignedLOA) {
     actions.push({
       type: 'MARK_LOA_ACCEPTED',
       label: 'Mark LOA Accepted',

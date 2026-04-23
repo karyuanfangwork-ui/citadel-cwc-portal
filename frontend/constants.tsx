@@ -72,6 +72,12 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.PAYMENT_PROCESSING]: { label: 'Payment Processing', color: 'text-amber-700', bg: 'bg-amber-100', icon: 'payments' },
   [RequestStatus.PAYMENT_COMPLETED]: { label: 'Payment Completed', color: 'text-green-700', bg: 'bg-green-100', icon: 'paid' },
   [RequestStatus.REIMBURSEMENT_CLOSED]: { label: 'Reimbursement Closed', color: 'text-gray-700', bg: 'bg-gray-100', icon: 'lock' },
+  [RequestStatus.OFFBOARDING_SUBMITTED]: { label: 'Offboarding Submitted', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'logout' },
+  [RequestStatus.OFFBOARDING_NOTICE_PERIOD]: { label: 'Notice Period', color: 'text-yellow-700', bg: 'bg-yellow-100', icon: 'schedule' },
+  [RequestStatus.OFFBOARDING_KNOWLEDGE_TRANSFER]: { label: 'Knowledge Transfer', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'swap_horiz' },
+  [RequestStatus.OFFBOARDING_FINAL_WEEK]: { label: 'Final Week', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'event' },
+  [RequestStatus.OFFBOARDING_EXIT_PROCEDURES]: { label: 'Exit Procedures', color: 'text-red-700', bg: 'bg-red-100', icon: 'assignment_return' },
+  [RequestStatus.OFFBOARDING_COMPLETED]: { label: 'Offboarding Completed', color: 'text-green-700', bg: 'bg-green-100', icon: 'check_circle' },
 };
 
 export const MOCK_REQUESTS = [

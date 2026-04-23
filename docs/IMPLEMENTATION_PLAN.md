@@ -12,7 +12,7 @@
 - Each item has an owner, priority, and target phase field
 - Update `Last Updated` whenever changes are made
 
-**Last Updated:** April 22, 2026 (v1.3 — G-001 + G-004 implemented)
+**Last Updated:** April 22, 2026 (v1.4 — G-001, G-002, G-003, G-004 implemented)
 **Overall Status:** Pre-Launch — Internal Review
 
 ---
@@ -50,29 +50,29 @@
 
 ---
 
-### [ ] G-002: Local File Storage — No Redundancy / CDN / Backup
+### [x] G-002: Local File Storage — No Redundancy / CDN / Backup
 
 **Location:** File Upload System (Part 2 §2.4)
 **Impact:** Files are stored on the local filesystem. Data loss risk in production. File URLs break on server restart or redeployment.
-**Fix:** Migrate to AWS S3 or MinIO. Update `fileUploadService` to upload to S3, generate pre-signed URLs, remove local filesystem code. Migrate existing files. Set up lifecycle policies.
+**Fix:** Migrated to DigitalOcean Spaces (S3-compatible). `backend/src/services/s3.service.ts` handles all uploads/presigned URLs. Local filesystem code removed.
 **Priority:** Critical
 **Phase:** P0 — Go-Live Blockers
 **Owner:** __
 **Ticket:** __
-**Status:** Not started
+**Status:** ✅ COMPLETED — April 22, 2026
 
 ---
 
-### [ ] G-003: Real-time Notifications (No WebSocket/SSE)
+### [x] G-003: Real-time Notifications (No WebSocket/SSE)
 
 **Location:** Notification Architecture (Part 2 §2.3)
 **Impact:** Agents miss time-sensitive approvals and SLA alerts because notifications require page refresh.
-**Fix:** Implement Socket.IO on the backend server. Create a `NotificationContext` that subscribes to real-time events per user. Emit events on: `REQUEST_CREATED`, `STATUS_CHANGED`, `APPROVAL_REQUIRED`, `SLA_WARNING`, `SLA_BREACHED`, `COMMENT_ADDED`.
+**Fix:** Implemented SSE (Server-Sent Events). `backend/src/utils/sseClients.ts` manages per-user connections. `notificationSse.routes.ts` exposes the SSE endpoint. `notification.service.ts` pushes events on status changes. Frontend `NotificationDropdown` subscribes via `EventSource`.
 **Priority:** Critical
 **Phase:** P0 — Go-Live Blockers
 **Owner:** __
 **Ticket:** __
-**Status:** Not started
+**Status:** ✅ COMPLETED — April 22, 2026
 
 ---
 
@@ -290,6 +290,8 @@
 | ID | Item | Completed Date | Notes |
 |:---|:---|:---|:---|
 | ~~G-001~~ | ~~G-001: Hiring Workflow LOA_ACCEPTED fix~~ | ~~Apr 22 2026~~ | ~~2-part fix in `loa.controller.ts`: `uploadSignedLOA` now sets `status: 'LOA_ACCEPTED'`, `markLOAAccepted` guards on `LOA_ACCEPTED` instead of `LOA_ISSUED`. Both include activity log entries.~~ |
+| ~~G-002~~ | ~~G-002: S3 file storage migration~~ | ~~Apr 22 2026~~ | ~~Migrated to DigitalOcean Spaces via `s3.service.ts`. Local filesystem storage removed.~~ |
+| ~~G-003~~ | ~~G-003: Real-time SSE notifications~~ | ~~Apr 22 2026~~ | ~~SSE implemented via `sseClients.ts` + `notificationSse.routes.ts`. Frontend `NotificationDropdown` uses `EventSource`.~~ |
 | ~~T3-6~~ | ~~Workflow-config tab in AdminSettings~~ | ~~Apr 22 2026~~ | ~~Fully implemented: `WorkflowTransitionTab.tsx` (326 LOC), wired in `AdminSettings.tsx` line 1694, all CRUD endpoints mounted at `/admin/workflow-transitions`. DB table `workflow_transitions` has 85 rows seeded.~~ |
 
 ---

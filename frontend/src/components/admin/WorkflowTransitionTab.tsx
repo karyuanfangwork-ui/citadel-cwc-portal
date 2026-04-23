@@ -253,7 +253,7 @@ export const WorkflowTransitionTab: React.FC = () => {
           {Object.keys(grouped).length === 0 && (
             <div className="text-center py-12 text-sm text-[#44546f]">No transitions configured</div>
           )}
-          {Object.entries(grouped)
+          {(Object.entries(grouped) as [string, WorkflowTransition[]][])
             .sort(([a], [b]) => a.localeCompare(b))
             .map(([fromStatus, items]) => (
               <div key={fromStatus} className="border border-gray-200 rounded-2xl overflow-hidden">

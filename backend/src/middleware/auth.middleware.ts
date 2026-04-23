@@ -11,6 +11,8 @@ export interface AuthRequest extends Request {
     user?: {
         id: string;
         email: string;
+        firstName: string;
+        lastName: string;
         roles: string[];
     };
     jti?: string;
@@ -76,6 +78,8 @@ export const authenticate = async (
         req.user = {
             id: user.id,
             email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
             roles: user.roles.map((ur) => ur.role.name),
         };
         // Populate jti and tokenExp so logout can revoke the specific token
@@ -137,6 +141,8 @@ export const optionalAuth = async (
             req.user = {
                 id: user.id,
                 email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
                 roles: user.roles.map((ur) => ur.role.name),
             };
         }
@@ -224,6 +230,8 @@ export const sseAuth = async (
         req.user = {
             id: user.id,
             email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
             roles: user.roles.map((ur) => ur.role.name),
         };
         req.jti = decoded.jti;

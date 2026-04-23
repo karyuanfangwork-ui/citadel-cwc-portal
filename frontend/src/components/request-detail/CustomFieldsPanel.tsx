@@ -23,6 +23,7 @@ const HR_FIELD_LABELS: Record<string, string> = {
   requirements: 'Requirements',
   budget: 'Budget',
   position_title: 'Position Title',
+  selectedCandidateName: 'Candidate Name',
 };
 
 const IT_FIELD_LABELS: Record<string, string> = {
@@ -107,7 +108,8 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
   if (!customFields || Object.keys(customFields).length === 0) return null;
 
   const labels = getFieldLabels(serviceDeskCode);
-  const entries = Object.entries(customFields).filter(([_, v]) => v !== null && v !== undefined && v !== '');
+  const HIDDEN_KEYS = new Set(['selectedCandidateId']);
+  const entries = Object.entries(customFields).filter(([k, v]) => !HIDDEN_KEYS.has(k) && v !== null && v !== undefined && v !== '');
 
   if (entries.length === 0) return null;
 

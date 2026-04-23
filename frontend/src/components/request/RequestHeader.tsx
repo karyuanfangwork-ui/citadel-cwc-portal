@@ -1,0 +1,274 @@
+import React from 'react';
+import { Link } from 'react-router-dom';
+import ActionBanner from '@/src/components/request-detail/ActionBanner';
+import { detectRequestRole } from '@/src/utils/roleDetection';
+
+interface Activity {
+  id: string;
+  activityType: string;
+  message: string;
+  authorName: string;
+  authorRole: string | null;
+  isSystemGenerated: boolean;
+  isInternal: boolean;
+  createdAt: string;
+}
+
+interface RequestChild {
+  id: string;
+  referenceNumber: string;
+  summary: string;
+  status: string;
+}
+
+interface RequestHeaderProps {
+  request: {
+    id: string;
+    referenceNumber: string;
+    summary: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    assignedTo?: { firstName: string; lastName: string } | null;
+    requesterId: string;
+    serviceDesk?: { code: string };
+    childRequests?: RequestChild[];
+  };
+  activities: Activity[];
+  user: { id: string; roles?: string[]; firstName: string; lastName: string } | null;
+  onActionClick: () => void;
+  onScheduleInterview: () => void;
+  onInterviewFeedback: () => void;
+  onLOAApproval: () => void;
+  onStartHRScreening: () => void;
+  onMarkLOAIssued: () => void;
+  onAdvanceOnboardingPhase?: () => void;
+  onCompleteOnboarding?: () => void;
+  onAdvanceOffboardingPhase?: () => void;
+  onCompleteOffboarding?: () => void;
+}
+
+const RequestHeader: React.FC<RequestHeaderProps> = ({
+  request,
+  activities,
+  user,
+  onActionClick,
+  onScheduleInterview,
+  onInterviewFeedback,
+  onLOAApproval,
+  onStartHRScreening,
+  onMarkLOAIssued,
+}) => {
+  const getStatusSteps = (currentStatus: string) => {
+    if (request.serviceDesk?.code === 'HR') {
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
+        { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
+        { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
+        { label: 'Feedback', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'radio_button_checked' },
+        { label: 'Screening', status: 'HR_SCREENING', icon: 'radio_button_checked' },
+        { label: 'LOA', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
+      ];
+
+      const statusOrder = [
+        'SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'MANAGER_APPROVED',
+        'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING',
+        'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED',
+        'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_COMPLETED'
+      ];
+
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    if (request.serviceDesk?.code === 'IT') {
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
+        { label: 'IT Review', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
+        { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+      ];
+
+      const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'MANAGER_APPROVED_IT', 'PENDING_INVOICE_IT', 'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'PAYMENT_PROCESSING_IT', 'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT', 'RESOLVED'];
+
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    if (request.serviceDesk?.code === 'FINANCE') {
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'Manager Review', status: 'PENDING_MANAGER_APPROVAL_FIN', icon: 'radio_button_checked' },
+        { label: 'Finance Head', status: 'PENDING_FINANCE_HEAD_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
+        { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
+      ];
+
+      const statusOrder = [
+        'SUBMITTED', 'PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_APPROVED_FIN',
+        'PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_APPROVED',
+        'PAYMENT_PROCESSING', 'PAYMENT_DONE', 'COMPLETED',
+      ];
+
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    const allSteps = [
+      { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+      { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
+      { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
+      { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+    ];
+
+    const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'RESOLVED', 'APPROVED', 'REJECTED'];
+    const currentIndex = statusOrder.indexOf(currentStatus);
+    return allSteps.map((step) => ({
+      ...step,
+      active: statusOrder.indexOf(step.status) <= currentIndex,
+    }));
+  };
+
+  const steps = getStatusSteps(request.status);
+  const currentRole = detectRequestRole({
+    userRoles: user?.roles || [],
+    userId: user?.id || '',
+    requesterId: request.requesterId,
+    requestStatus: request.status,
+    serviceDeskCode: request.serviceDesk?.code || '',
+  });
+
+  // Build timestamp map from status change activities
+  const statusTimestamps: Record<string, string> = {};
+  activities
+    .filter(a => a.activityType === 'STATUS_CHANGE' || (a.isSystemGenerated && a.message.includes('status')))
+    .forEach(a => {
+      const match = a.message.match(/status.*?to\s+(\w+)/i) || a.message.match(/(\w+_?\w+)/);
+      if (match) {
+        statusTimestamps[match[1]] = a.createdAt;
+      }
+    });
+  statusTimestamps['SUBMITTED'] = request.createdAt;
+
+  const handleActionClick = () => {
+    if (currentRole === 'agent' && request.status === 'MANAGER_APPROVED') {
+      onScheduleInterview();
+    } else if (currentRole === 'hiring_manager' && request.status === 'INTERVIEW_SCHEDULED') {
+      onInterviewFeedback();
+    } else if (currentRole === 'agent' && request.status === 'INTERVIEW_FEEDBACK_PENDING') {
+      onStartHRScreening();
+    } else if (currentRole === 'hiring_manager' && request.status === 'LOA_PENDING_APPROVAL') {
+      onLOAApproval();
+    } else if (currentRole === 'agent' && request.status === 'LOA_APPROVED') {
+      onMarkLOAIssued();
+    } else {
+      const actionsSection = document.querySelector('[data-actions-sidebar]');
+      if (actionsSection) actionsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  return (
+    <>
+      <nav className="flex items-center gap-2 mb-6 text-sm font-medium text-[#44546f]">
+        <Link to="/" className="hover:text-[#0052cc]">
+          Help Center
+        </Link>
+        <span className="material-symbols-outlined text-sm">chevron_right</span>
+        <Link to="/my-requests" className="hover:text-[#0052cc]">
+          My Requests
+        </Link>
+        <span className="material-symbols-outlined text-sm">chevron_right</span>
+        <span className="text-[#101418] font-bold">{request.referenceNumber}</span>
+      </nav>
+
+      {/* Status Progress */}
+      <div className="mb-10 bg-white border border-gray-100 p-8 rounded-xl shadow-sm">
+        <div className="flex items-center justify-between relative">
+          {steps.map((step, idx) => (
+            <React.Fragment key={step.label}>
+              <div
+                className={`flex flex-col items-center gap-2 z-10 ${step.active ? 'text-[#0052cc]' : 'text-[#8993a4]'
+                  }`}
+              >
+                <span
+                  className={`material-symbols-outlined !text-2xl ${!step.active ? 'opacity-30' : ''}`}
+                >
+                  {step.icon}
+                </span>
+                <span className="text-xs font-bold uppercase tracking-wider">{step.label}</span>
+                {step.active && statusTimestamps[step.status] && (
+                  <span className="text-[9px] text-[#8993a4] font-normal">
+                    {new Date(statusTimestamps[step.status]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </span>
+                )}
+              </div>
+              {idx < steps.length - 1 && (
+                <div
+                  className={`h-0.5 flex-grow mx-4 ${steps[idx + 1].active ? 'bg-[#0052cc]' : 'bg-gray-100'
+                    }`}
+                ></div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+      </div>
+
+      <ActionBanner
+        role={currentRole}
+        status={request.status}
+        assignedToName={request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}` : undefined}
+        onActionClick={handleActionClick}
+      />
+
+      {/* Child Requests Banner (Onboarding Tickets Created) */}
+      {request.childRequests && request.childRequests.length > 0 && (
+        <div className="mb-6 flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          <span className="font-medium">Onboarding ticket created:</span>
+          {request.childRequests.map((child, idx) => (
+            <span key={child.id}>
+              {idx > 0 && ', '}
+              <Link
+                to={`/#/requests/${child.id}`}
+                className="font-semibold underline hover:text-green-900"
+              >
+                {child.referenceNumber}
+              </Link>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Closed banner for terminal workflow statuses */}
+      {['OFFBOARDING_COMPLETED', 'ONBOARDING_COMPLETED', 'REIMBURSEMENT_CLOSED'].includes(request.status) && (
+        <div className="mb-8 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 shadow-sm flex items-center gap-4">
+          <div className="size-12 rounded-full bg-green-600 flex items-center justify-center shrink-0">
+            <span className="material-symbols-outlined text-2xl text-white">task_alt</span>
+          </div>
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h3 className="text-lg font-bold text-green-900">Ticket Closed</h3>
+              <span className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-full">
+                {request.status.replace(/_/g, ' ')}
+              </span>
+            </div>
+            <p className="text-sm text-green-700">This request has been completed and closed.</p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export default RequestHeader;

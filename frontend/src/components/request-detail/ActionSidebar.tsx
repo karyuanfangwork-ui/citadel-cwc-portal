@@ -177,7 +177,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
     new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 
   return (
-    <aside className="w-80 shrink-0 bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm self-start sticky top-6">
+    <aside className="w-full bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
 
       {/* Zone 1 — Next Action Panel */}
       {actions.length > 0 && (

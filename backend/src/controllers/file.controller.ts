@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 export const fileController = {
     async downloadFile(req: Request, res: Response) {
         try {
-            const key = Array.isArray(req.params.key) ? req.params.key[0] : req.params.key;
+            const key = (req.params as any)[0] || req.params.key;
             if (!key) {
                 return res.status(400).json({ status: 'error', message: 'File key is required' });
             }

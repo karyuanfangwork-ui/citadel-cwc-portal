@@ -42,7 +42,7 @@ export const adminService = {
         return response.data.data.categories;
     },
 
-    async createService(data: { categoryId: string; name: string; description?: string; icon?: string; requiresApproval?: boolean; slaHours?: number | null }) {
+    async createService(data: { categoryId: string; name: string; description?: string; icon?: string; requiresApproval?: boolean; slaHours?: number | null; requiredRole?: string | null }) {
         const response = await apiClient.post(`/service-desks/request-types`, data);
         return response.data.data.requestType;
     },
