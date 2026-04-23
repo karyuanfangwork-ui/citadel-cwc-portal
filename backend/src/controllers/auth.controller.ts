@@ -10,6 +10,7 @@ import { logger } from '../utils/logger';
 import { tokenService } from '../services/token.service';
 import { passwordResetService } from '../services/password-reset.service';
 import { sendEmail } from '../services/email.service';
+import { validatePassword, checkPasswordBreach } from '../utils/password';
 
 const prisma = new PrismaClient();
 
@@ -69,6 +70,23 @@ function clearAuthCookies(res: Response): void {
 class AuthController {
     register = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { email, password, firstName, lastName, department, jobTitle } = req.body;
+
+        // Password validation
+        const validation = validatePassword(password, email, firstName, lastName);
+        if (!validation.isValid) {
+            throw new AppError(validation.errors.join(', '), 400);
+        }
+
+        // Optional: Breach check (can be disabled in config)
+        if (config.security?.checkPasswordBreach) {
+            const breachCheck = await checkPasswordBreach(password);
+            if (breachCheck.isPwned) {
+                throw new AppError(
+                    `This password has been found in ${breachCheck.count} data breaches. Please choose a different password.`,
+                    400
+                );
+            }
+        }
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
@@ -278,6 +296,12 @@ class AuthController {
 
     resetPassword = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { token, newPassword } = req.body;
+
+        // Password validation
+        const validation = validatePassword(newPassword);
+        if (!validation.isValid) {
+            throw new AppError(validation.errors.join(', '), 400);
+        }
 
         const record = await passwordResetService.validateToken(token);
         if (!record) {

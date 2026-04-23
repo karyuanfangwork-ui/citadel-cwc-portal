@@ -1,11 +1,12 @@
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, ExecutiveRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { sanitizeString } from '../utils/sanitize';
 import { auditLog } from '../utils/audit';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { tokenService } from '../services/token.service';
+import { validateExecutiveRoleAssignment } from '../utils/executive-role';
 
 const prisma = new PrismaClient();
 
@@ -215,7 +216,7 @@ class UserController {
      */
     updateUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const { id } = req.params;
-        const { firstName, lastName, email, phone, department, jobTitle, isActive, managerId, agentTeam } = req.body;
+        const { firstName, lastName, email, phone, department, jobTitle, isActive, managerId, agentTeam, executiveRole } = req.body;
 
         // Email update logic
         if (email) {
@@ -239,6 +240,23 @@ class UserController {
             req.body.email = normalizedEmail;
         }
 
+        // Validate executive role assignment if being set/changed
+        if (executiveRole !== undefined) {
+            const user = await prisma.user.findUnique({
+                where: { id },
+                select: { department: true, jobTitle: true, email: true },
+            });
+            if (user && executiveRole) {
+                const validation = validateExecutiveRoleAssignment(
+                    { department: user.department, jobTitle: user.jobTitle } as any,
+                    executiveRole as ExecutiveRole
+                );
+                if (!validation.valid) {
+                    throw new AppError(validation.reason || 'Invalid executive role assignment', 400);
+                }
+            }
+        }
+
         const user = await prisma.user.update({
             where: { id },
             data: {
@@ -251,6 +269,7 @@ class UserController {
                 isActive,
                 managerId,
                 agentTeam,
+                executiveRole: executiveRole || null,
             },
         });
 
@@ -261,6 +280,7 @@ class UserController {
             department,
             jobTitle,
             isActive,
+            executiveRole,
         });
 
         res.json({

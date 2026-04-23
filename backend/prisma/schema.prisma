@@ -11,6 +11,15 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Executive approval tiers for high-value requests
+enum ExecutiveRole {
+  CEO
+  CTO
+  CFO
+  COO
+  CHRO
+}
+
 // ============================================================================
 // USERS & AUTHENTICATION
 // ============================================================================
@@ -28,6 +37,7 @@ model User {
   managerId     String?   @map("manager_id") @db.Uuid
   isActive      Boolean   @default(true) @map("is_active")
   agentTeam     String?   @map("agent_team") @db.VarChar(50)
+  executiveRole ExecutiveRole? @map("executive_role")
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
   lastLoginAt   DateTime? @map("last_login_at") @db.Timestamp(6)

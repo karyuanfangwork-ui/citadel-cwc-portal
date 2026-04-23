@@ -1346,8 +1346,8 @@ const AdminSettings = () => {
             {/* Category Edit Modal */}
             {modalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden scale-in">
-                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between">
+                    <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden scale-in flex flex-col max-h-[90vh]">
+                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                             <h2 className="text-3xl font-black text-[#101418]">
                                 {editingCategory ? 'Edit Category' : 'New Category'}
                             </h2>
@@ -1356,7 +1356,7 @@ const AdminSettings = () => {
                             </button>
                         </div>
 
-                        <form onSubmit={handleSave} className="p-10">
+                        <form onSubmit={handleSave} className="p-10 overflow-y-auto">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Category Display Name *</label>
@@ -1476,14 +1476,14 @@ const AdminSettings = () => {
             {/* New Service Modal */}
             {serviceModalOpen && selectedCategory && (
                 <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[#091e42]/70 backdrop-blur-sm">
-                    <div className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl overflow-hidden scale-in">
-                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between">
+                    <div className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl overflow-hidden scale-in flex flex-col max-h-[90vh]">
+                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                             <h2 className="text-2xl font-black text-[#101418]">New Service</h2>
                             <button onClick={() => setServiceModalOpen(false)} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400">
                                 <span className="material-symbols-outlined text-3xl">close</span>
                             </button>
                         </div>
-                        <form onSubmit={handleCreateService} className="p-10 space-y-6">
+                        <form onSubmit={handleCreateService} className="p-10 space-y-6 overflow-y-auto">
                             <div>
                                 <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Service Name *</label>
                                 <input
@@ -1562,8 +1562,8 @@ const AdminSettings = () => {
             {/* Role Assignment Modal */}
             {roleModalUser && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl overflow-hidden scale-in">
-                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between">
+                    <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl overflow-hidden scale-in flex flex-col max-h-[90vh]">
+                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                             <div>
                                 <h2 className="text-2xl font-black text-[#101418]">Assign Roles</h2>
                                 <p className="text-sm text-[#44546f] mt-1">{roleModalUser.firstName} {roleModalUser.lastName}</p>
@@ -1572,7 +1572,7 @@ const AdminSettings = () => {
                                 <span className="material-symbols-outlined text-3xl">close</span>
                             </button>
                         </div>
-                        <div className="p-10">
+                        <div className="p-10 overflow-y-auto">
                             <p className="text-xs font-black text-[#44546f] uppercase tracking-widest mb-6">Select one or more roles</p>
                             <div className="space-y-3">
                                 {availableRoles.map(role => (
@@ -1641,8 +1641,8 @@ const AdminSettings = () => {
             {/* Agent Team Assignment Modal */}
             {roleModalUser && showAgentTeamModal && (
                 <div className="fixed inset-0 z-[81] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
-                    <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl overflow-hidden scale-in">
-                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between">
+                    <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl overflow-hidden scale-in flex flex-col max-h-[90vh]">
+                        <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                             <div>
                                 <h2 className="text-2xl font-black text-[#101418]">Assign Agent Team</h2>
                                 <p className="text-sm text-[#44546f] mt-1">{roleModalUser.firstName} {roleModalUser.lastName}</p>
@@ -1651,7 +1651,7 @@ const AdminSettings = () => {
                                 <span className="material-symbols-outlined text-3xl">close</span>
                             </button>
                         </div>
-                        <div className="p-10">
+                        <div className="p-10 overflow-y-auto">
                             <p className="text-xs font-black text-[#44546f] uppercase tracking-widest mb-6">Select the team this agent manages</p>
                             <div className="space-y-3">
                                 {['IT', 'HR', 'Finance'].map(team => (

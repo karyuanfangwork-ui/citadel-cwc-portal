@@ -12,6 +12,7 @@ interface UserEditModalProps {
     isActive: boolean;
     managerId?: string | null;
     agentTeam?: string | null;
+    executiveRole?: string | null;
   };
   isOpen: boolean;
   onClose: () => void;
@@ -28,6 +29,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
     jobTitle: '',
     isActive: true,
     agentTeam: '',
+    executiveRole: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +45,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
         jobTitle: user.jobTitle || '',
         isActive: user.isActive,
         agentTeam: user.agentTeam || '',
+        executiveRole: user.executiveRole || '',
       });
     }
   }, [user]);
@@ -66,8 +69,8 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
           <h2 className="text-lg font-bold text-gray-900">Edit Employee</h2>
           <button
             onClick={onClose}
@@ -77,7 +80,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
               {error}
@@ -175,6 +178,27 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               placeholder="e.g., IT Support, HR Services"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+              Executive Role
+            </label>
+            <select
+              value={formData.executiveRole}
+              onChange={(e) => setFormData({ ...formData, executiveRole: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="">None</option>
+              <option value="CEO">CEO</option>
+              <option value="CTO">CTO</option>
+              <option value="CFO">CFO</option>
+              <option value="COO">COO</option>
+              <option value="CHRO">CHRO</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Assign C-level executive role for high-value approval workflows
+            </p>
           </div>
 
           <div className="flex items-center gap-2">

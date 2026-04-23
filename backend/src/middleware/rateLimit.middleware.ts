@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { config } from '../config';
+import { logger } from '../utils/logger';
 
 // General API rate limiter
 export const apiLimiter = rateLimit({
@@ -12,6 +13,14 @@ export const apiLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (_req, res, _next, options) => {
+        logger.warn('Rate limit exceeded', {
+            ip: _req.ip,
+            path: _req.path,
+            userAgent: _req.headers['user-agent'],
+        });
+        res.status(options.statusCode).json(options.message);
+    },
 });
 
 // Strict rate limiter for auth endpoints
@@ -25,6 +34,14 @@ export const authLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (_req, res, _next, options) => {
+        logger.warn('Auth rate limit exceeded', {
+            ip: _req.ip,
+            path: _req.path,
+            userAgent: _req.headers['user-agent'],
+        });
+        res.status(options.statusCode).json(options.message);
+    },
 });
 
 // File upload rate limiter
@@ -51,4 +68,12 @@ export const passwordResetLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (_req, res, _next, options) => {
+        logger.warn('Password reset rate limit exceeded', {
+            ip: _req.ip,
+            path: _req.path,
+            userAgent: _req.headers['user-agent'],
+        });
+        res.status(options.statusCode).json(options.message);
+    },
 });

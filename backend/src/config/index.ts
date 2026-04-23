@@ -102,6 +102,12 @@ export const config = {
         url: process.env.APP_URL || 'http://localhost:5173',
         adminEmail: process.env.ADMIN_EMAIL || 'admin@helpdesk.com',
     },
+
+    // Security
+    security: {
+        checkPasswordBreach: process.env.CHECK_PASSWORD_BREACH === 'true',
+        passwordMinLength: parseInt(process.env.PASSWORD_MIN_LENGTH || '8', 10),
+    },
 };
 
 // Validate critical config — enforced in ALL environments, not just production

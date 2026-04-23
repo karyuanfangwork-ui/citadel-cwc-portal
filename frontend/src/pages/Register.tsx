@@ -175,6 +175,23 @@ const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Password strength calculation
+  const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
+    const checks = [
+      password.length >= 8,
+      /[A-Z]/.test(password),
+      /[a-z]/.test(password),
+      /[0-9]/.test(password),
+      /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+    ];
+    const score = checks.filter(Boolean).length;
+    const labels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+    const colors = ['var(--color-danger)', 'var(--color-warning)', '#f59e0b', 'var(--color-brand-500)', 'var(--color-success)'];
+    return { score, label: labels[score], color: colors[score] };
+  };
+
+  const passwordStrength = getPasswordStrength(formData.password);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -260,7 +277,17 @@ const Register = () => {
             <FormInput id="email" name="email" type="email" label="Email address" icon="mail" autoComplete="email" required value={formData.email} onChange={handleChange} />
 
             {/* Row 3: Password */}
-            <FormInput id="password" name="password" type="password" label="Password" icon="lock" required value={formData.password} onChange={handleChange} placeholder="At least 8 characters" />
+            <div>
+              <FormInput id="password" name="password" type="password" label="Password" icon="lock" required value={formData.password} onChange={handleChange} placeholder="At least 8 characters" />
+              {formData.password && (
+                <div style={{ marginTop: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <div style={{ flex: 1, height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{ width: `${(passwordStrength.score / 5) * 100}%`, height: '100%', background: passwordStrength.color, transition: 'width 0.2s, background 0.2s' }} />
+                  </div>
+                  <span style={{ fontSize: 'var(--text-xs)', color: passwordStrength.color, fontWeight: 600, minWidth: '60px' }}>{passwordStrength.label}</span>
+                </div>
+              )}
+            </div>
 
             {/* Row 4: Confirm Password */}
             <FormInput id="confirmPassword" name="confirmPassword" type="password" label="Confirm Password" icon="lock" required value={formData.confirmPassword} onChange={handleChange} />

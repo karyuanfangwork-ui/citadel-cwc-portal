@@ -43,7 +43,10 @@
       "Bash(npx tsc *)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:api.github.com)",
-      "Bash(grep -E \"\\\\.tsx$\")"
+      "Bash(grep -E \"\\\\.tsx$\")",
+      "Bash(npx vite *)",
+      "Bash(kill 18714 56110 57005 57719 57873)",
+      "Bash(kill 58357)"
     ]
   }
 }
