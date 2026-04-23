@@ -60,6 +60,51 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
   onMarkLOAIssued,
 }) => {
   const getStatusSteps = (currentStatus: string) => {
+    // 1. Onboarding Workflow
+    if (currentStatus.startsWith('ONBOARDING_')) {
+      const allSteps = [
+        { label: 'Submitted', status: 'ONBOARDING_SUBMITTED', icon: 'check_circle' },
+        { label: 'HR Approval', status: 'ONBOARDING_PENDING_HR_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Pre-Arrival', status: 'ONBOARDING_PRE_ARRIVAL_SETUP', icon: 'radio_button_checked' },
+        { label: 'Day 1', status: 'ONBOARDING_DAY_1_ORIENTATION', icon: 'radio_button_checked' },
+        { label: 'Week 1', status: 'ONBOARDING_WEEK_1_INTEGRATION', icon: 'radio_button_checked' },
+        { label: 'Completed', status: 'ONBOARDING_COMPLETED', icon: 'check_circle' },
+      ];
+      const statusOrder = [
+        'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP',
+        'ONBOARDING_READY_FOR_DAY_1', 'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION',
+        'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE', 
+        'ONBOARDING_COMPLETED'
+      ];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    // 2. Offboarding Workflow
+    if (currentStatus.startsWith('OFFBOARDING_')) {
+      const allSteps = [
+        { label: 'Submitted', status: 'OFFBOARDING_SUBMITTED', icon: 'check_circle' },
+        { label: 'Notice Period', status: 'OFFBOARDING_NOTICE_PERIOD', icon: 'radio_button_checked' },
+        { label: 'KT Phase', status: 'OFFBOARDING_KNOWLEDGE_TRANSFER', icon: 'radio_button_checked' },
+        { label: 'Final Week', status: 'OFFBOARDING_FINAL_WEEK', icon: 'radio_button_checked' },
+        { label: 'Exit Proc', status: 'OFFBOARDING_EXIT_PROCEDURES', icon: 'radio_button_checked' },
+        { label: 'Completed', status: 'OFFBOARDING_COMPLETED', icon: 'check_circle' },
+      ];
+      const statusOrder = [
+        'OFFBOARDING_SUBMITTED', 'OFFBOARDING_NOTICE_PERIOD', 'OFFBOARDING_KNOWLEDGE_TRANSFER',
+        'OFFBOARDING_FINAL_WEEK', 'OFFBOARDING_EXIT_PROCEDURES', 'OFFBOARDING_COMPLETED'
+      ];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    // 3. HR Recruitment Workflow (Standard HR fallback)
     if (request.serviceDesk?.code === 'HR') {
       const allSteps = [
         { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
@@ -71,14 +116,12 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'LOA', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked' },
         { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
       ];
-
       const statusOrder = [
         'SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'MANAGER_APPROVED',
         'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING',
         'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED',
-        'COMPLETED', 'ONBOARDING_SUBMITTED', 'ONBOARDING_COMPLETED'
+        'COMPLETED'
       ];
-
       const currentIndex = statusOrder.indexOf(currentStatus);
       return allSteps.map((step) => ({
         ...step,
@@ -86,6 +129,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
       }));
     }
 
+    // 4. IT Workflow
     if (request.serviceDesk?.code === 'IT') {
       const allSteps = [
         { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
@@ -93,9 +137,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'IT Review', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
         { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
       ];
-
       const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'MANAGER_APPROVED_IT', 'PENDING_INVOICE_IT', 'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'PAYMENT_PROCESSING_IT', 'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT', 'RESOLVED'];
-
       const currentIndex = statusOrder.indexOf(currentStatus);
       return allSteps.map((step) => ({
         ...step,
@@ -103,6 +145,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
       }));
     }
 
+    // 5. Finance Workflow
     if (request.serviceDesk?.code === 'FINANCE') {
       const allSteps = [
         { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
@@ -111,13 +154,11 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
         { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
       ];
-
       const statusOrder = [
         'SUBMITTED', 'PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_APPROVED_FIN',
         'PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_APPROVED',
         'PAYMENT_PROCESSING', 'PAYMENT_DONE', 'COMPLETED',
       ];
-
       const currentIndex = statusOrder.indexOf(currentStatus);
       return allSteps.map((step) => ({
         ...step,
@@ -125,13 +166,13 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
       }));
     }
 
+    // Fallback
     const allSteps = [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
       { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
       { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
       { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
     ];
-
     const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'RESOLVED', 'APPROVED', 'REJECTED'];
     const currentIndex = statusOrder.indexOf(currentStatus);
     return allSteps.map((step) => ({

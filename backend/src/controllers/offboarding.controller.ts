@@ -1,31 +1,23 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { uploadSingleFile } from '../middleware/upload.middleware';
+import { notify } from '../services/notification.service';
+import { auditLog } from '../utils/audit';
+import path from 'path';
+import fs from 'fs';
 
 const prisma = new PrismaClient();
 
-// Shared S3-backed multer — resignation letter upload
 export const resignationUpload = { single: (field: string) => uploadSingleFile(field) };
 
 export const createOffboardingRequest = async (req: Request, res: Response) => {
     try {
         const { id: requestId } = req.params;
-        const {
-            employeeFirstName,
-            employeeLastName,
-            employeeEmail,
-            department,
-            managerId,
-            lastWorkingDay,
-            reasonForDeparture,
-        } = req.body;
-
+        const { employeeFirstName, employeeLastName, employeeEmail, department, managerId, lastWorkingDay, reasonForDeparture } = req.body;
         const request = await prisma.request.findUnique({ where: { id: requestId } });
         if (!request) return res.status(404).json({ error: 'Request not found' });
-
         const existing = await prisma.offboardingRequest.findUnique({ where: { requestId } });
         if (existing) return res.status(400).json({ error: 'Offboarding request already exists for this request' });
-
         const offboarding = await prisma.offboardingRequest.create({
             data: {
                 requestId,
@@ -44,12 +36,10 @@ export const createOffboardingRequest = async (req: Request, res: Response) => {
                 manager: { select: { id: true, firstName: true, lastName: true, email: true } },
             },
         });
-
         await prisma.request.update({
             where: { id: requestId },
             data: { status: 'OFFBOARDING_SUBMITTED' },
         });
-
         res.status(201).json(offboarding);
     } catch (error) {
         console.error('Error creating offboarding request:', error);
@@ -60,7 +50,6 @@ export const createOffboardingRequest = async (req: Request, res: Response) => {
 export const getOffboardingRequest = async (req: Request, res: Response) => {
     try {
         const { id: requestId } = req.params;
-
         const offboarding = await prisma.offboardingRequest.findUnique({
             where: { requestId },
             include: {
@@ -69,15 +58,11 @@ export const getOffboardingRequest = async (req: Request, res: Response) => {
                 employee: { select: { id: true, firstName: true, lastName: true, email: true } },
                 tasks: {
                     orderBy: { createdAt: 'asc' },
-                    include: {
-                        assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
-                    },
+                    include: { assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } } },
                 },
             },
         });
-
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
-
         res.json(offboarding);
     } catch (error) {
         console.error('Error fetching offboarding request:', error);
@@ -89,6 +74,11 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
     try {
         const { id: requestId } = req.params;
         const { overallStatus, currentPhase, exitInterviewScheduledDate, ...rest } = req.body;
+        const user = (req as any).user;
+
+        const currentRequest = await prisma.request.findUnique({ where: { id: requestId } });
+        if (!currentRequest) return res.status(404).json({ error: 'Request not found' });
+
         const updates = {
             ...rest,
             ...(exitInterviewScheduledDate !== undefined && {
@@ -98,7 +88,6 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
             }),
         };
 
-        // Gate: advancing to FINAL_WEEK requires resignation letter + exit interview date
         if (currentPhase === 'FINAL_WEEK') {
             const current = await prisma.offboardingRequest.findUnique({
                 where: { requestId },
@@ -118,7 +107,6 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
             }
         }
 
-        // Gate: can only complete from EXIT_PROCEDURES phase — check BEFORE updating
         if (overallStatus === 'COMPLETED') {
             const current = await prisma.offboardingRequest.findUnique({
                 where: { requestId },
@@ -154,17 +142,52 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
             'EXIT_PROCEDURES':     'OFFBOARDING_EXIT_PROCEDURES',
         };
 
+        let finalStatus = currentRequest.status;
         if (currentPhase && statusMap[currentPhase]) {
-            await prisma.request.update({
-                where: { id: requestId },
-                data: { status: statusMap[currentPhase] as any },
-            });
+            finalStatus = statusMap[currentPhase] as any;
         }
 
         if (overallStatus === 'COMPLETED') {
+            finalStatus = 'OFFBOARDING_COMPLETED';
+        }
+
+        if (finalStatus !== currentRequest.status) {
             await prisma.request.update({
                 where: { id: requestId },
-                data: { status: 'OFFBOARDING_COMPLETED', closedAt: new Date() },
+                data: { 
+                    status: finalStatus as any,
+                    ...(finalStatus === 'OFFBOARDING_COMPLETED' && { closedAt: new Date() })
+                },
+            });
+
+            await prisma.requestActivity.create({
+                data: {
+                    requestId: requestId,
+                    authorId: user?.id,
+                    authorName: user ? `${user.firstName} ${user.lastName}` : 'System',
+                    authorRole: user?.roles?.[0] || 'SYSTEM',
+                    activityType: 'STATUS_CHANGE',
+                    message: `Status changed to ${finalStatus}`,
+                    isSystemGenerated: true,
+                    metadata: { newStatus: finalStatus },
+                },
+            });
+
+            await notify({
+                userId: currentRequest.requesterId,
+                eventType: 'STATUS_CHANGED',
+                variables: {
+                    referenceNumber: currentRequest.referenceNumber,
+                    newStatus: finalStatus,
+                },
+                relatedRequestId: requestId,
+            });
+
+            await auditLog(req, 'STATUS_CHANGED', 'request', requestId, {
+                newStatus: finalStatus,
+                referenceNumber: currentRequest.referenceNumber,
+            }, {
+                oldStatus: currentRequest.status,
             });
         }
 
@@ -179,10 +202,8 @@ export const createOffboardingTask = async (req: Request, res: Response) => {
     try {
         const { id: requestId } = req.params;
         const { taskName, taskDescription, taskCategory, assignedTo, dueDate, priority } = req.body;
-
         const offboarding = await prisma.offboardingRequest.findUnique({ where: { requestId } });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
-
         const task = await prisma.offboardingTask.create({
             data: {
                 offboardingId: offboarding.id,
@@ -197,7 +218,6 @@ export const createOffboardingTask = async (req: Request, res: Response) => {
                 assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
             },
         });
-
         res.status(201).json(task);
     } catch (error) {
         console.error('Error creating offboarding task:', error);
@@ -208,13 +228,11 @@ export const createOffboardingTask = async (req: Request, res: Response) => {
 export const getOffboardingTasks = async (req: Request, res: Response) => {
     try {
         const { id: requestId } = req.params;
-
         const offboarding = await prisma.offboardingRequest.findUnique({
             where: { requestId },
             select: { id: true },
         });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
-
         const tasks = await prisma.offboardingTask.findMany({
             where: { offboardingId: offboarding.id },
             include: {
@@ -223,7 +241,6 @@ export const getOffboardingTasks = async (req: Request, res: Response) => {
             },
             orderBy: { createdAt: 'asc' },
         });
-
         res.json(tasks);
     } catch (error) {
         console.error('Error fetching offboarding tasks:', error);
@@ -236,34 +253,28 @@ export const updateOffboardingTask = async (req: Request, res: Response) => {
         const { taskId } = req.params;
         const { status, completedBy, notes, ...updates } = req.body;
         const userRoles = (req as any).user?.roles || [];
-
         const task = await prisma.offboardingTask.findUnique({
             where: { id: taskId },
             include: { offboarding: { include: { request: true } } },
         });
         if (!task) return res.status(404).json({ error: 'Task not found' });
-
         const currentUser = await prisma.user.findUnique({
             where: { id: (req as any).user?.id },
             select: { agentTeam: true },
         });
-
         const isAdmin = userRoles.includes('ADMIN');
         const isAgent = userRoles.includes('AGENT');
         const userAgentTeam = currentUser?.agentTeam?.toUpperCase() || '';
         const taskCategory = task.taskCategory?.toUpperCase() || '';
-
         const hasPermission = isAdmin ||
             (isAgent && userAgentTeam === 'IT' && taskCategory === 'IT') ||
             (isAgent && userAgentTeam === 'HR' && ['HR', 'ADMIN', 'TRAINING'].includes(taskCategory));
-
         if (!hasPermission) {
             return res.status(403).json({
                 error: 'You do not have permission to update this task',
                 message: `${taskCategory} tasks can only be updated by ${taskCategory === 'IT' ? 'IT agents' : 'HR agents'}`,
             });
         }
-
         const updatedTask = await prisma.offboardingTask.update({
             where: { id: taskId },
             data: {
@@ -277,7 +288,6 @@ export const updateOffboardingTask = async (req: Request, res: Response) => {
                 assignedToUser: { select: { id: true, firstName: true, lastName: true, email: true } },
             },
         });
-
         res.json(updatedTask);
     } catch (error) {
         console.error('Error updating offboarding task:', error);
@@ -299,17 +309,14 @@ export const deleteOffboardingTask = async (req: Request, res: Response) => {
 export const getOffboardingProgress = async (req: Request, res: Response) => {
     try {
         const { id: requestId } = req.params;
-
         const offboarding = await prisma.offboardingRequest.findUnique({
             where: { requestId },
             include: { tasks: true },
         });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
-
         const totalTasks = offboarding.tasks.length;
         const completedTasks = offboarding.tasks.filter(t => t.status === 'COMPLETED').length;
         const completionPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
         res.json({
             overallStatus: offboarding.overallStatus,
             currentPhase: offboarding.currentPhase,
@@ -332,14 +339,10 @@ export const uploadResignationLetter = async (req: Request, res: Response) => {
         const file = (req as any).file;
         const userId = (req as any).user?.id;
         const userName = `${(req as any).user?.firstName || ''} ${(req as any).user?.lastName || ''}`.trim();
-
         if (!file) return res.status(400).json({ error: 'File is required' });
-
         const offboarding = await prisma.offboardingRequest.findUnique({ where: { requestId } });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
-
-        const fileUrl = (file as any).key;   // S3 key
-
+        const fileUrl = (file as any).key;
         await prisma.offboardingRequest.update({
             where: { requestId },
             data: {
@@ -348,7 +351,6 @@ export const uploadResignationLetter = async (req: Request, res: Response) => {
                 resignationLetterAttached: true,
             },
         });
-
         await prisma.requestActivity.create({
             data: {
                 requestId,
@@ -360,12 +362,7 @@ export const uploadResignationLetter = async (req: Request, res: Response) => {
                 isSystemGenerated: false,
             },
         });
-
-        res.json({
-            fileUrl,
-            fileName: file.originalname,
-            resignationLetterAttached: true,
-        });
+        res.json({ fileUrl, fileName: file.originalname, resignationLetterAttached: true });
     } catch (error) {
         console.error('Error uploading resignation letter:', error);
         res.status(500).json({ error: 'Failed to upload resignation letter' });
@@ -375,15 +372,12 @@ export const uploadResignationLetter = async (req: Request, res: Response) => {
 export const deleteResignationLetter = async (req: Request, res: Response) => {
     try {
         const { id: requestId } = req.params;
-
         const offboarding = await prisma.offboardingRequest.findUnique({ where: { requestId } });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
-
         if (offboarding.resignationLetterUrl) {
             const filePath = path.join(__dirname, '../../', offboarding.resignationLetterUrl);
             if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         }
-
         await prisma.offboardingRequest.update({
             where: { requestId },
             data: {
@@ -392,7 +386,6 @@ export const deleteResignationLetter = async (req: Request, res: Response) => {
                 resignationLetterAttached: false,
             },
         });
-
         res.json({ message: 'Resignation letter removed' });
     } catch (error) {
         console.error('Error deleting resignation letter:', error);
@@ -405,9 +398,7 @@ export async function createDefaultOffboardingTasks(offboardingId: string, lastW
         where: { isActive: true },
         orderBy: { displayOrder: 'asc' },
     });
-
     if (templates.length === 0) return;
-
     await prisma.offboardingTask.createMany({
         data: templates.map(t => ({
             offboardingId,
