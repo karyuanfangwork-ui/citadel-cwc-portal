@@ -86,28 +86,12 @@ export function getRequiredExecutiveRole(requestType: string, amount?: number): 
 
 /**
  * Validate that a user can be assigned an executive role
- * (e.g., check if they have appropriate department/level)
+ * Admins can assign any executive role without restrictions
  */
 export function validateExecutiveRoleAssignment(
     user: Pick<User, 'department' | 'jobTitle'>,
     role: ExecutiveRole
 ): { valid: boolean; reason?: string } {
-    // Basic validation - can be extended with business rules
-    if (!user.jobTitle || !user.department) {
-        return { valid: false, reason: 'User must have job title and department set' };
-    }
-
-    // CEO/CTO/CFO typically should have 'Executive' or 'C-Level' in job title
-    const seniorTitles = ['chief', 'executive', 'c-level', 'director', 'vp', 'vice'];
-    const jobTitleLower = user.jobTitle.toLowerCase();
-    const isSenior = seniorTitles.some(t => jobTitleLower.includes(t));
-
-    if (['CEO', 'CTO', 'CFO', 'COO', 'CHRO'].includes(role) && !isSenior) {
-        return {
-            valid: false,
-            reason: `Executive role ${role} requires a senior job title (Chief, Executive, Director, VP)`,
-        };
-    }
-
+    // No validation - admins can assign executive roles freely
     return { valid: true };
 }

@@ -29,7 +29,16 @@ class ReportsController {
                 prisma.request.count({
                     where: {
                         deletedAt: null,
-                        status: { notIn: CLOSED_STATUSES as unknown as any[] },
+                        status: {
+                            notIn: [
+                                'RESOLVED',
+                                'CLOSED',
+                                'REJECTED',
+                                'COMPLETED',
+                                'PAYMENT_COMPLETED',
+                                'REIMBURSEMENT_CLOSED',
+                            ],
+                        },
                     },
                 }),
 
@@ -37,7 +46,14 @@ class ReportsController {
                 prisma.request.count({
                     where: {
                         deletedAt: null,
-                        status: { in: RESOLVED_STATUSES as unknown as any[] },
+                        status: {
+                            in: [
+                                'RESOLVED',
+                                'CLOSED',
+                                'COMPLETED',
+                                'PAYMENT_COMPLETED',
+                            ],
+                        },
                     },
                 }),
 
@@ -46,7 +62,16 @@ class ReportsController {
                     where: {
                         deletedAt: null,
                         assignedToId: null,
-                        status: { notIn: CLOSED_STATUSES as unknown as any[] },
+                        status: {
+                            notIn: [
+                                'RESOLVED',
+                                'CLOSED',
+                                'REJECTED',
+                                'COMPLETED',
+                                'PAYMENT_COMPLETED',
+                                'REIMBURSEMENT_CLOSED',
+                            ],
+                        },
                     },
                 }),
 

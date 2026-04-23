@@ -78,7 +78,8 @@ class RequestController {
         }
 
         if (assignedToId) {
-            where.assignedToId = assignedToId;
+            // Handle special 'none' value meaning unassigned
+            where.assignedToId = assignedToId === 'none' ? null : assignedToId;
         }
 
         if (priority) {
