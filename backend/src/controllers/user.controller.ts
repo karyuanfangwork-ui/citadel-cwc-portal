@@ -215,13 +215,36 @@ class UserController {
      */
     updateUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const { id } = req.params;
-        const { firstName, lastName, phone, department, jobTitle, isActive, managerId, agentTeam } = req.body;
+        const { firstName, lastName, email, phone, department, jobTitle, isActive, managerId, agentTeam } = req.body;
+
+        // Email update logic
+        if (email) {
+            const normalizedEmail = email.trim().toLowerCase();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(normalizedEmail)) {
+                throw new AppError('Invalid email format', 400);
+            }
+
+            const existing = await prisma.user.findFirst({
+                where: { 
+                    email: normalizedEmail,
+                    NOT: { id } 
+                }
+            });
+            if (existing) {
+                throw new AppError('Email already in use by another user', 409);
+            }
+
+            // Update the email in the data object for the final update call
+            req.body.email = normalizedEmail;
+        }
 
         const user = await prisma.user.update({
             where: { id },
             data: {
-                firstName,
-                lastName,
+                firstName: firstName ? sanitizeString(firstName) : undefined,
+                lastName: lastName ? sanitizeString(lastName) : undefined,
+                email: req.body.email,
                 phone,
                 department,
                 jobTitle,
@@ -234,6 +257,7 @@ class UserController {
         await auditLog(req, 'USER_UPDATED', 'user', id, {
             firstName,
             lastName,
+            email: req.body.email,
             department,
             jobTitle,
             isActive,
@@ -420,8 +444,8 @@ class UserController {
         const TEMP_PASSWORD = 'abc@123';
         const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
 
-        const userRole = await prisma.role.findFirst({ where: { name: 'USER' } });
-        if (!userRole) throw new AppError('USER role not found in database', 500);
+        const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
+        if (!normalStaffRole) throw new AppError('NORMAL_STAFF role not found in database', 500);
 
         const newUser = await prisma.user.create({
             data: {
@@ -432,7 +456,7 @@ class UserController {
                 department: department || null,
                 isActive: true,
                 roles: {
-                    create: { roleId: userRole.id },
+                    create: { roleId: normalStaffRole.id },
                 },
             },
             include: {

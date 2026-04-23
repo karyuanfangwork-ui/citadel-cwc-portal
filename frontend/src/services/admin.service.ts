@@ -60,8 +60,8 @@ export const adminService = {
         return response.data.data as { users: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
     },
 
-    async updateUserStatus(userId: string, isActive: boolean) {
-        const response = await apiClient.put(`/users/${userId}`, { isActive });
+    async updateUser(userId: string, data: Partial<{ firstName: string; lastName: string; email: string; phone: string; department: string; jobTitle: string; isActive: boolean; managerId: string; agentTeam: string }>) {
+        const response = await apiClient.put(`/users/${userId}`, data);
         return response.data.data.user;
     },
 

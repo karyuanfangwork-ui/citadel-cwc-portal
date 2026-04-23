@@ -66,7 +66,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose })
                         </div>
                         <div>
                             <h2 className="font-bold text-base text-gray-900">Create User</h2>
-                            <p className="text-xs text-gray-500">New account · USER role · Temp password</p>
+                            <p className="text-xs text-gray-500">New account · NORMAL_STAFF role · Temp password</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">

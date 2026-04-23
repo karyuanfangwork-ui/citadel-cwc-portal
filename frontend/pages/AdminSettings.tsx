@@ -6,6 +6,7 @@ import FormBuilder from '../src/components/FormBuilder';
 import { OnboardingTaskTemplate } from '../types';
 import apiClient from '../src/services/api';
 import CreateUserModal from '../src/components/admin/CreateUserModal';
+import UserEditModal from '../src/components/admin/UserEditModal';
 import { StatusDefinitionsTab } from '../src/components/admin/StatusDefinitionsTab';
 import { WorkflowTransitionTab } from '../src/components/admin/WorkflowTransitionTab';
 import { BannerConfigTab } from '../src/components/admin/BannerConfigTab';
@@ -74,6 +75,8 @@ const AdminSettings = () => {
     const [showAgentTeamModal, setShowAgentTeamModal] = useState(false);
     const [selectedAgentTeam, setSelectedAgentTeam] = useState<string>('');
     const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+    const [showEditUserModal, setShowEditUserModal] = useState(false);
+    const [editingUser, setEditingUser] = useState<any | null>(null);
 
     // Onboarding Task Templates state
     const [templates, setTemplates] = useState<OnboardingTaskTemplate[]>([]);
@@ -470,13 +473,20 @@ const AdminSettings = () => {
 
     const handleToggleUserStatus = async (user: any) => {
         try {
-            await adminService.updateUserStatus(user.id, !user.isActive);
+            await adminService.updateUser(user.id, { isActive: !user.isActive });
             fetchUsers(userPagination.page);
             showToast('success', `Account ${!user.isActive ? 'enabled' : 'disabled'}.`);
         } catch (err) {
             console.error('Error toggling user status:', err);
             showToast('error', 'Failed to update account status.');
         }
+    };
+
+    const handleEditUser = async (data: any) => {
+        if (!editingUser) return;
+        await adminService.updateUser(editingUser.id, data);
+        fetchUsers(userPagination.page);
+        showToast('success', 'User updated successfully.');
     };
 
     const handleSaveRoles = async () => {
@@ -924,6 +934,13 @@ const AdminSettings = () => {
                                             </td>
                                             <td className="px-8 py-5 text-right">
                                                 <div className="flex justify-end gap-2">
+                                                    <button
+                                                        onClick={() => { setEditingUser(user); setShowEditUserModal(true); }}
+                                                        className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                        title="Edit user details"
+                                                    >
+                                                        <span className="material-symbols-outlined text-xl">edit</span>
+                                                    </button>
                                                     <button
                                                         onClick={() => { setRoleModalUser(user); setRoleModalSelected(user.roles?.map((ur: any) => ur.role?.name || ur) || []); }}
                                                         className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
@@ -1768,6 +1785,14 @@ const AdminSettings = () => {
                     </div>
                 </div>
             )}
+
+            {/* UserEditModal */}
+            <UserEditModal
+                user={editingUser}
+                isOpen={showEditUserModal}
+                onClose={() => { setShowEditUserModal(false); setEditingUser(null); }}
+                onSave={handleEditUser}
+            />
 
             {/* Toast */}
             {toastMsg && (

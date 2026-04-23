@@ -70,6 +70,15 @@ async function main() {
         },
     });
 
+    const normalStaffRole = await prisma.role.upsert({
+        where: { name: 'NORMAL_STAFF' },
+        update: {},
+        create: {
+            name: 'NORMAL_STAFF',
+            description: 'Normal staff member who can create requests and access knowledge base',
+        },
+    });
+
     const ceoRole = await prisma.role.upsert({
         where: { name: 'CEO' },
         update: {},
@@ -250,9 +259,26 @@ async function main() {
             update: {},
             create: { ...userData, passwordHash: testPassword, isActive: true },
         });
-        await assignRoles(u.id, [userRole.id]);
+        await assignRoles(u.id, [normalStaffRole.id]);
     }
-    console.log('✅ Test users created (password: password123)');
+    console.log('✅ Test users created with NORMAL_STAFF role (password: password123)');
+
+    // --- Legacy USER role test account (for backward compatibility testing) ---
+    const legacyUser = await prisma.user.upsert({
+        where: { email: 'user@helpdesk.com' },
+        update: {},
+        create: {
+            email: 'user@helpdesk.com',
+            passwordHash: await bcrypt.hash('user123', 10),
+            firstName: 'Regular',
+            lastName: 'User',
+            department: 'General',
+            jobTitle: 'Staff',
+            isActive: true,
+        },
+    });
+    await assignRoles(legacyUser.id, [userRole.id]);
+    console.log('✅ Legacy USER account created (email: user@helpdesk.com, password: user123)');
 
     // Create Service Categories for IT
     const itCategories = [
