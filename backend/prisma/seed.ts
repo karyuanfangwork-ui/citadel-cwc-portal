@@ -3,8 +3,15 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+// Safety flag: Set RETAIN_ADMIN_CONFIG=true to preserve all admin console settings
+// Only re-seeds account management (users, roles, permissions)
+const RETAIN_ADMIN_CONFIG = process.env.RETAIN_ADMIN_CONFIG === 'true';
+
 async function main() {
     console.log('🌱 Starting database seed...');
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⚠️  RETAIN_ADMIN_CONFIG enabled - preserving admin console settings');
+    }
 
     // Create Service Desks
     const itDesk = await prisma.serviceDesk.upsert({
@@ -157,92 +164,92 @@ async function main() {
     };
 
     // --- System accounts ---
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    const hashedPassword = await bcrypt.hash('abc@123', 10);
     const adminUser = await prisma.user.upsert({
-        where: { email: 'admin@helpdesk.com' },
+        where: { email: 'admin@test.local' },
         update: {},
         create: {
-            email: 'admin@helpdesk.com',
+            email: 'admin@test.local',
             passwordHash: hashedPassword,
-            firstName: 'System',
-            lastName: 'Administrator',
+            firstName: 'Fang',
+            lastName: 'Kar Yuan',
             department: 'IT',
-            jobTitle: 'System Administrator',
+            jobTitle: 'Administrator',
             isActive: true,
         },
     });
     await assignRoles(adminUser.id, [adminRole.id, agentRole.id, hiringManagerRole.id]);
-    console.log('✅ Admin user created (email: admin@helpdesk.com, password: admin123)');
+    console.log('✅ Admin user created (email: admin@test.local, password: abc@123)');
 
     const ceoUser = await prisma.user.upsert({
-        where: { email: 'ceo@company.com' },
+        where: { email: 'ceo@test.local' },
         update: {},
         create: {
-            email: 'ceo@company.com',
-            passwordHash: await bcrypt.hash('ceo123', 10),
-            firstName: 'Chief',
-            lastName: 'Executive',
+            email: 'ceo@test.local',
+            passwordHash: hashedPassword,
+            firstName: 'Emily',
+            lastName: 'Chow',
             department: 'Executive',
             jobTitle: 'Chief Executive Officer',
             isActive: true,
         },
     });
     await assignRoles(ceoUser.id, [ceoRole.id, hiringManagerRole.id]);
-    console.log('✅ CEO user created (email: ceo@company.com, password: ceo123)');
+    console.log('✅ CEO user created (email: ceo@test.local, password: abc@123)');
 
     const ctoUser = await prisma.user.upsert({
-        where: { email: 'cto@company.com' },
+        where: { email: 'cto@test.local' },
         update: {},
         create: {
-            email: 'cto@company.com',
-            passwordHash: await bcrypt.hash('cto123', 10),
-            firstName: 'Alex',
-            lastName: 'Tech',
+            email: 'cto@test.local',
+            passwordHash: hashedPassword,
+            firstName: 'Raymond',
+            lastName: 'Kueh',
             isActive: true,
         },
     });
     await assignRoles(ctoUser.id, [ctoRole.id]);
-    console.log('✅ CTO user created (email: cto@company.com, password: cto123)');
+    console.log('✅ CTO user created (email: cto@test.local, password: abc@123)');
 
     const cfoUser = await prisma.user.upsert({
-        where: { email: 'cfo@company.com' },
+        where: { email: 'cfo@test.local' },
         update: {},
         create: {
-            email: 'cfo@company.com',
-            passwordHash: await bcrypt.hash('cfo123', 10),
-            firstName: 'Jordan',
-            lastName: 'Finance',
+            email: 'cfo@test.local',
+            passwordHash: hashedPassword,
+            firstName: 'Saravanan',
+            lastName: 'Ramaiah',
             isActive: true,
         },
     });
     await assignRoles(cfoUser.id, [cfoRole.id]);
-    console.log('✅ CFO user created (email: cfo@company.com, password: cfo123)');
+    console.log('✅ CFO user created (email: cfo@test.local, password: abc@123)');
 
     const groupCeoRole = await prisma.role.findUniqueOrThrow({ where: { name: 'GROUP_CEO' } });
     const groupCeoUser = await prisma.user.upsert({
-        where: { email: 'groupceo@company.com' },
+        where: { email: 'groupceo@test.local' },
         update: {},
         create: {
-            email: 'groupceo@company.com',
-            passwordHash: await bcrypt.hash('groupceo123', 10),
-            firstName: 'Group',
-            lastName: 'CEO',
+            email: 'groupceo@test.local',
+            passwordHash: hashedPassword,
+            firstName: 'Alain',
+            lastName: 'Boey',
             department: 'Executive',
             jobTitle: 'Group Chief Executive Officer',
             isActive: true,
         },
     });
     await assignRoles(groupCeoUser.id, [groupCeoRole.id]);
-    console.log('✅ Group CEO user created (email: groupceo@company.com, password: groupceo123)');
+    console.log('✅ Group CEO user created (email: groupceo@test.local, password: abc@123)');
 
     // --- Agent accounts ---
-    const agentPassword = await bcrypt.hash('password123', 10);
+    const agentPassword = await bcrypt.hash('abc@123', 10);
 
     const agentAccounts = [
-        { email: 'agent@helpdesk.com',     firstName: 'Support', lastName: 'Agent',       department: 'IT',      jobTitle: 'IT Support Specialist',    roles: [agentRole.id] },
-        { email: 'itagent@company.com',     firstName: 'Agent',   lastName: 'IT one',      department: '',        jobTitle: '',                          roles: [agentRole.id, userRole.id] },
-        { email: 'hr@company.com',          firstName: 'Agent',   lastName: 'HR one',      department: '',        jobTitle: '',                          roles: [agentRole.id, userRole.id] },
-        { email: 'finance@company.com',     firstName: 'Agent',   lastName: 'Finance one', department: '',        jobTitle: '',                          roles: [agentRole.id, userRole.id] },
+        { email: 'finance@test.local',     firstName: 'Zahidah', lastName: 'Zahidah',     department: 'Finance', jobTitle: 'Finance Agent',             roles: [agentRole.id] },
+        { email: 'it@test.local',          firstName: 'Tham',    lastName: 'Ming Kai',    department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id] },
+        { email: 'it2@test.local',         firstName: 'Naila',   lastName: 'Naila',       department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id] },
+        { email: 'hr@test.local',          firstName: 'Sasha',   lastName: 'Nair',        department: 'HR',      jobTitle: 'HR Agent',                  roles: [agentRole.id] },
     ];
 
     for (const acc of agentAccounts) {
@@ -261,13 +268,13 @@ async function main() {
         });
         await assignRoles(u.id, acc.roles);
     }
-    console.log('✅ Agent accounts created (password: password123)');
+    console.log('✅ Agent accounts created (password: abc@123)');
 
     // --- Regular test users ---
-    const testPassword = await bcrypt.hash('password123', 10);
+    const testPassword = await bcrypt.hash('abc@123', 10);
     const testUsers = [
-        { email: 'john.doe@company.com',   firstName: 'John', lastName: 'Doe',   department: 'Engineering', jobTitle: 'Software Engineer' },
-        { email: 'jane.smith@company.com', firstName: 'Jane', lastName: 'Smith', department: 'Marketing',   jobTitle: 'Marketing Manager' },
+        { email: 'john.doe@test.local',   firstName: 'John', lastName: 'Doe',   department: 'Engineering', jobTitle: 'Software Engineer' },
+        { email: 'jane.smith@test.local', firstName: 'Jane', lastName: 'Smith', department: 'Marketing',   jobTitle: 'Marketing Manager' },
     ];
 
     for (const userData of testUsers) {
@@ -278,7 +285,7 @@ async function main() {
         });
         await assignRoles(u.id, [normalStaffRole.id]);
     }
-    console.log('✅ Test users created with NORMAL_STAFF role (password: password123)');
+    console.log('✅ Test users created with NORMAL_STAFF role (password: abc@123)');
 
     // --- Legacy USER role test account (for backward compatibility testing) ---
     const legacyUser = await prisma.user.upsert({
@@ -286,7 +293,7 @@ async function main() {
         update: {},
         create: {
             email: 'user@helpdesk.com',
-            passwordHash: await bcrypt.hash('user123', 10),
+            passwordHash: await bcrypt.hash('abc@123', 10),
             firstName: 'Regular',
             lastName: 'User',
             department: 'General',
@@ -295,7 +302,7 @@ async function main() {
         },
     });
     await assignRoles(legacyUser.id, [userRole.id]);
-    console.log('✅ Legacy USER account created (email: user@helpdesk.com, password: user123)');
+    console.log('✅ Legacy USER account created (email: user@helpdesk.com, password: abc@123)');
 
     // Create Service Categories for IT
     const itCategories = [
@@ -361,9 +368,8 @@ async function main() {
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
                 data: {
-                    serviceCategoryId: cat.id,
+                    serviceCategory: { connect: { id: cat.id } },
                     isActive: true,
-                    workflowType: category.workflowType,
                     ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
                 }
             });
@@ -374,21 +380,19 @@ async function main() {
                 data: {
                     code: category.requestTypeCode,
                     isActive: true,
-                    workflowType: category.workflowType,
                     ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
                 }
             });
         } else {
             await prisma.requestType.create({
                 data: {
-                    serviceCategoryId: cat.id,
+                    serviceCategory: { connect: { id: cat.id } },
                     code: category.requestTypeCode,
                     name: category.requestTypeName,
                     description: `Submit a request for ${category.name.toLowerCase()} assistance.`,
                     icon: category.icon,
                     formConfig,
                     isActive: true,
-                    workflowType: category.workflowType,
                     ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
                 }
             });
@@ -483,18 +487,18 @@ async function main() {
             // Backfill structural fields only
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategoryId: category.id, isActive: true, workflowType: cat.workflowType },
+                data: { serviceCategory: { connect: { id: category.id } }, isActive: true },
             });
         } else if (existingLegacy) {
             // Assign code to legacy record without touching name/formConfig
             await prisma.requestType.update({
                 where: { id: existingLegacy.id },
-                data: { code: cat.requestTypeCode, isActive: true, workflowType: cat.workflowType },
+                data: { code: cat.requestTypeCode, isActive: true },
             });
         } else {
             await prisma.requestType.create({
                 data: {
-                    serviceCategoryId: category.id,
+                    serviceCategory: { connect: { id: category.id } },
                     code: cat.requestTypeCode,
                     name: cat.requestTypeName,
                     description: cat.description,
@@ -502,7 +506,6 @@ async function main() {
                     isActive: true,
                     requiredRole: cat.requiredRole,
                     formConfig: cat.formConfig,
-                    workflowType: cat.workflowType,
                 },
             });
         }
@@ -580,24 +583,23 @@ async function main() {
         if (existingByCode) {
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategoryId: category.id, isActive: true, workflowType: cat.workflowType },
+                data: { serviceCategory: { connect: { id: category.id } }, isActive: true },
             });
         } else if (existingLegacy) {
             await prisma.requestType.update({
                 where: { id: existingLegacy.id },
-                data: { code: cat.requestTypeCode, isActive: true, workflowType: cat.workflowType },
+                data: { code: cat.requestTypeCode, isActive: true },
             });
         } else {
             await prisma.requestType.create({
                 data: {
-                    serviceCategoryId: category.id,
+                    serviceCategory: { connect: { id: category.id } },
                     code: cat.requestTypeCode,
                     name: cat.requestTypeName,
                     description: cat.description,
                     slaHours: 72,
                     isActive: true,
                     formConfig: cat.formConfig,
-                    workflowType: cat.workflowType,
                 },
             });
         }
@@ -606,7 +608,10 @@ async function main() {
     console.log('✅ Finance categories created');
 
     // Create Notification Templates
-    const templates = [
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping notification templates (RETAIN_ADMIN_CONFIG enabled)');
+    } else {
+        const templates = [
         {
             name: 'request_created',
             eventType: 'REQUEST_CREATED',
@@ -793,19 +798,23 @@ async function main() {
         },
     ];
 
-    for (const template of templates) {
-        await prisma.notificationTemplate.upsert({
-            where: { name: template.name },
-            update: {},
-            create: template,
-        });
+        for (const template of templates) {
+            await prisma.notificationTemplate.upsert({
+                where: { name: template.name },
+                update: {},
+                create: template,
+            });
+        }
+
+        console.log('✅ Notification templates created');
     }
 
-    console.log('✅ Notification templates created');
-
     // Seed onboarding task templates
-    const existingTemplates = await prisma.onboardingTaskTemplate.count();
-    if (existingTemplates === 0) {
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping onboarding task templates (RETAIN_ADMIN_CONFIG enabled)');
+    } else {
+        const existingTemplates = await prisma.onboardingTaskTemplate.count();
+        if (existingTemplates === 0) {
         await prisma.onboardingTaskTemplate.createMany({
             data: [
                 { taskName: 'Create Active Directory Account', taskDescription: 'Set up AD account with appropriate permissions', taskCategory: 'IT', priority: 'CRITICAL', dueDayOffset: -5, displayOrder: 1 },
@@ -822,14 +831,18 @@ async function main() {
                 { taskName: 'Enroll in Benefits', taskDescription: 'Health insurance, 401k, and other benefits enrollment', taskCategory: 'HR', priority: 'HIGH', dueDayOffset: 30, displayOrder: 12 },
             ],
         });
-        console.log('✅ Onboarding task templates seeded');
-    } else {
-        console.log('⏭️  Onboarding task templates already exist, skipping');
+            console.log('✅ Onboarding task templates seeded');
+        } else {
+            console.log('⏭️  Onboarding task templates already exist, skipping');
+        }
     }
 
     // Seed offboarding task templates
-    const existingOffboardingTemplates = await prisma.offboardingTaskTemplate.count();
-    if (existingOffboardingTemplates === 0) {
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping offboarding task templates (RETAIN_ADMIN_CONFIG enabled)');
+    } else {
+        const existingOffboardingTemplates = await prisma.offboardingTaskTemplate.count();
+        if (existingOffboardingTemplates === 0) {
         await prisma.offboardingTaskTemplate.createMany({
             data: [
                 { taskName: 'Notify IT of Departure', taskDescription: 'Alert IT team of employee last working day to schedule account deactivation', taskCategory: 'HR', priority: 'HIGH', dueDayOffset: -10, displayOrder: 1 },
@@ -846,13 +859,17 @@ async function main() {
                 { taskName: 'Return Physical Access Badge', taskDescription: 'Collect and deactivate physical building access badge', taskCategory: 'IT', priority: 'HIGH', dueDayOffset: 0, displayOrder: 12 },
             ],
         });
-        console.log('✅ Offboarding task templates seeded');
-    } else {
-        console.log('⏭️  Offboarding task templates already exist, skipping');
+            console.log('✅ Offboarding task templates seeded');
+        } else {
+            console.log('⏭️  Offboarding task templates already exist, skipping');
+        }
     }
 
     // Banner Configs — default configs matching former hardcoded ActionBanner logic
-    const defaultBanners = [
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping banner configs (RETAIN_ADMIN_CONFIG enabled)');
+    } else {
+        const defaultBanners = [
         // Staff role
         { role: 'staff', status: 'SUBMITTED',       icon: 'hourglass_top', title: 'Request Submitted',           description: 'Your request has been received and is waiting to be picked up by our team.', colorScheme: 'blue'    },
         { role: 'staff', status: 'IN_REVIEW',        icon: 'visibility',    title: 'Under Review',                description: '{{assignedToName}} is reviewing your request.',                            colorScheme: 'indigo'  },
@@ -881,17 +898,21 @@ async function main() {
         { role: 'hiring_manager', status: 'LOA_PENDING_APPROVAL',    icon: 'approval',      title: 'Your Action: Approve / Reject LOA',      description: 'Review the Letter of Acceptance and make an approval decision.',                              colorScheme: 'indigo'  },
     ];
 
-    for (const banner of defaultBanners) {
-        await prisma.bannerConfig.upsert({
-            where: { role_status: { role: banner.role, status: banner.status } },
-            update: {},
-            create: { ...banner, isActive: true },
-        });
+        for (const banner of defaultBanners) {
+            await prisma.bannerConfig.upsert({
+                where: { role_status: { role: banner.role, status: banner.status } },
+                update: {},
+                create: { ...banner, isActive: true },
+            });
+        }
+        console.log(`Seeded ${defaultBanners.length} default banner configs`);
     }
-    console.log(`Seeded ${defaultBanners.length} default banner configs`);
 
     // Request Status Definitions
-    const statusDefinitions = [
+    if (RETAIN_ADMIN_CONFIG) {
+        console.log('⏭️  Skipping request status definitions (RETAIN_ADMIN_CONFIG enabled)');
+    } else {
+        const statusDefinitions = [
         // GENERAL
         { code: 'SUBMITTED',           label: 'Submitted',              category: 'GENERAL', displayOrder: 1 },
         { code: 'IN_REVIEW',           label: 'In Review',              category: 'GENERAL', displayOrder: 2 },
@@ -972,14 +993,15 @@ async function main() {
         { code: 'TICKET_CLOSED_FIN',               label: 'Ticket Closed (Finance)',             category: 'FINANCE', displayOrder: 82 },
     ];
 
-    for (const def of statusDefinitions) {
-        await prisma.requestStatusDefinition.upsert({
-            where: { code: def.code },
-            update: {},
-            create: { ...def, isActive: true },
-        });
+        for (const def of statusDefinitions) {
+            await prisma.requestStatusDefinition.upsert({
+                where: { code: def.code },
+                update: {},
+                create: { ...def, isActive: true },
+            });
+        }
+        console.log(`Seeded ${statusDefinitions.length} request status definitions`);
     }
-    console.log(`Seeded ${statusDefinitions.length} request status definitions`);
     console.log('🎉 Database seeding completed!');
 }
 

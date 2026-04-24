@@ -67,6 +67,12 @@ const MyRequests = () => {
         filters.requestTypeId = selectedRequestTypeId;
       }
 
+      // "My Requests" = requests created by the current user
+      // For "pending_approval": show requests where user is an approver (not created by them)
+      if (filter === 'open' || filter === 'all') {
+        filters.requesterId = user?.id;
+      }
+
       if (filter === 'pending_approval' && approvalRole) {
         filters.status = PENDING_APPROVAL_STATUSES[approvalRole];
       }

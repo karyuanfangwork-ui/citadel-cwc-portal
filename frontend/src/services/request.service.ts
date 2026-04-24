@@ -6,6 +6,7 @@ interface RequestFilters {
     limit?: number;
     status?: RequestStatus;
     serviceDeskId?: string;
+    requesterId?: string;
     search?: string;
     requestTypeId?: string;
 }
@@ -26,6 +27,7 @@ export const requestService = {
         if (filters.limit) params.append('limit', filters.limit.toString());
         if (filters.status) params.append('status', filters.status);
         if (filters.serviceDeskId) params.append('serviceDeskId', filters.serviceDeskId);
+        if (filters.requesterId) params.append('requesterId', filters.requesterId);
         if (filters.search) params.append('search', filters.search);
         if (filters.requestTypeId) params.append('requestTypeId', filters.requestTypeId);
 

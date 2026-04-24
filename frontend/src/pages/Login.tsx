@@ -326,9 +326,10 @@ const Login = () => {
               letterSpacing: '0.5px', marginBottom: 'var(--space-2)',
             }}>Test Accounts</div>
             {[
-              { role: 'Admin', email: 'admin@helpdesk.com', pass: 'admin123' },
-              { role: 'Agent', email: 'agent@helpdesk.com', pass: 'agent123' },
-              { role: 'User',  email: 'user@helpdesk.com',  pass: 'user123'  },
+              { role: 'Admin', email: 'admin@test.local', pass: 'abc@123' },
+              { role: 'CEO', email: 'ceo@test.local', pass: 'abc@123' },
+              { role: 'IT Agent', email: 'it@test.local', pass: 'abc@123' },
+              { role: 'Staff', email: 'john.doe@test.local', pass: 'abc@123' },
             ].map(({ role, email: demoEmail, pass }) => (
               <div key={role} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',

@@ -113,7 +113,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose })
                                         type="email"
                                         value={form.email}
                                         onChange={handleChange}
-                                        placeholder="john.doe@company.com"
+                                        placeholder="john.doe@test.local"
                                         className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
                                     />
                                 </div>
