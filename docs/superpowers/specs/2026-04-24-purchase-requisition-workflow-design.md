@@ -129,7 +129,7 @@ Add label entry for `finalizedAmount` → display as `MYR {value}` formatted.
 | `CFO` | CFO approval step |
 | `GROUP_CEO` (new role or existing admin) | Group CEO approval step |
 
-Group CEO can be mapped to the existing `ADMIN` role or a new `GROUP_CEO` role — to be confirmed during implementation based on what roles exist in the seed data.
+Group CEO uses a dedicated `GROUP_CEO` role, seeded into the database alongside the existing CEO/CFO roles.
 
 ---
 
