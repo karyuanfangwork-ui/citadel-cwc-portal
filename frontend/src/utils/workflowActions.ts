@@ -32,7 +32,10 @@ export type WorkflowActionType =
   | 'ADVANCE_ONBOARDING_PHASE'
   | 'COMPLETE_ONBOARDING'
   | 'ADVANCE_OFFBOARDING_PHASE'
-  | 'COMPLETE_OFFBOARDING';
+  | 'COMPLETE_OFFBOARDING'
+  | 'START_IT_REVIEW'
+  | 'MARK_IN_PROGRESS'
+  | 'RESOLVE_IT';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -169,6 +172,16 @@ export function getWorkflowActions(
         type: 'SUBMIT_FOR_APPROVAL',
         label: 'Submit for Manager Approval',
         description: 'Route this IT request to a manager for sign-off.',
+        variant: 'primary',
+      });
+    }
+
+    // GET_IT_HELP (and similar non-approval, non-procurement IT tickets) basic lifecycle
+    if (status === 'SUBMITTED' && !isProcurement && !isHR && !requiresApproval) {
+      actions.push({
+        type: 'START_IT_REVIEW',
+        label: 'Start Review',
+        description: 'Begin reviewing this request and move it to In Review.',
         variant: 'primary',
       });
     }
@@ -359,6 +372,24 @@ export function getWorkflowActions(
       label: 'Route to CEO for Approval',
       description: 'Route this hiring request to the CEO for sign-off.',
       variant: 'primary',
+    });
+  }
+
+  if (canAct && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_REVIEW') {
+    actions.push({
+      type: 'MARK_IN_PROGRESS',
+      label: 'Mark In Progress',
+      description: 'Start actively working on this request.',
+      variant: 'primary',
+    });
+  }
+
+  if (canAct && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_PROGRESS') {
+    actions.push({
+      type: 'RESOLVE_IT',
+      label: 'Resolve Ticket',
+      description: 'Mark this request as resolved and close it.',
+      variant: 'success',
     });
   }
 

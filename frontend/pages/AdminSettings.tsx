@@ -332,6 +332,20 @@ const AdminSettings = () => {
                     </div>
                 </div>
             )}
+
+            {/* Form Builder Modal */}
+            {admin.formBuilderOpen && admin.selectedType && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+                        <FormBuilder
+                            initialFields={admin.selectedType.formConfig || []}
+                            onSave={admin.handleSaveFormConfig}
+                            onCancel={() => admin.setFormBuilderOpen(false)}
+                            title={`Configure Form: ${admin.selectedType.name}`}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

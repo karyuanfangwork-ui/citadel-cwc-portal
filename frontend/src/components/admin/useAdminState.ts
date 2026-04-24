@@ -191,6 +191,9 @@ export interface UseAdminStateReturn {
     setTemplateForm: (form: TemplateForm) => void;
     setOffboardingTemplateForm: (form: OffboardingTemplateForm) => void;
     setPendingAction: (action: PendingAction | null) => void;
+    setEditTypeForm: (form: { name: string; description: string }) => void;
+    setEditingTypeName: (type: { id: string; name: string; description: string } | null) => void;
+    setFormBuilderOpen: (open: boolean) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -908,5 +911,8 @@ export function useAdminState(): UseAdminStateReturn {
         setTemplateForm,
         setOffboardingTemplateForm,
         setPendingAction,
+        setEditTypeForm,
+        setEditingTypeName,
+        setFormBuilderOpen,
     };
 }

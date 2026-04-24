@@ -1,5 +1,8 @@
 import React, { lazy, Suspense, useState } from 'react';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
+import itWorkflowService from '../../services/it-workflow.service';
+import { requestService } from '../../services/request.service';
+import { RequestStatus } from '../../../types';
 import SLAIndicator from './SLAIndicator';
 
 const WorkflowApproveModal = lazy(() => import('./WorkflowApproveModal'));
@@ -65,6 +68,7 @@ interface ActionSidebarProps {
   onCompleteOnboarding?: () => void;
   onAdvanceOffboardingPhase?: () => void;
   onCompleteOffboarding?: () => void;
+  onResolveRequest?: () => void;
 }
 
 const PRIORITY_COLOURS: Record<string, string> = {
@@ -108,9 +112,11 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   onCompleteOnboarding,
   onAdvanceOffboardingPhase,
   onCompleteOffboarding,
+  onResolveRequest,
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [directActionLoading, setDirectActionLoading] = useState(false);
 
   const isAssigned = !!assignedTo;
   const isDesignatedApprover = approvals.some(
@@ -160,6 +166,21 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'COMPLETE_ONBOARDING': if (onCompleteOnboarding) onCompleteOnboarding(); break;
       case 'ADVANCE_OFFBOARDING_PHASE': if (onAdvanceOffboardingPhase) onAdvanceOffboardingPhase(); break;
       case 'COMPLETE_OFFBOARDING': if (onCompleteOffboarding) onCompleteOffboarding(); break;
+      case 'START_IT_REVIEW':
+        setDirectActionLoading(true);
+        itWorkflowService.submitForApproval(requestId, '')
+          .then(handleSuccess)
+          .catch(e => setActionError(e?.response?.data?.error || 'Failed to start review'))
+          .finally(() => setDirectActionLoading(false));
+        break;
+      case 'MARK_IN_PROGRESS':
+        setDirectActionLoading(true);
+        requestService.updateStatus(requestId, RequestStatus.IN_PROGRESS)
+          .then(handleSuccess)
+          .catch(e => setActionError(e?.response?.data?.error || 'Failed to update status'))
+          .finally(() => setDirectActionLoading(false));
+        break;
+      case 'RESOLVE_IT': if (onResolveRequest) onResolveRequest(); break;
       default:
         console.warn('[ActionSidebar] Unhandled action type:', type);
     }
@@ -196,9 +217,10 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
                 <p className="text-xs text-blue-600 mb-2 leading-relaxed">{action.description}</p>
                 <button
                   onClick={() => handleActionClick(action.type)}
-                  className={buttonClass(action.variant)}
+                  disabled={directActionLoading}
+                  className={`${buttonClass(action.variant)} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  {action.label}
+                  {directActionLoading && (action.type === 'START_IT_REVIEW' || action.type === 'MARK_IN_PROGRESS') ? 'Processing...' : action.label}
                 </button>
               </div>
             ))}

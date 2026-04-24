@@ -94,10 +94,10 @@ Each task has:
 | ID | Task | Priority | Effort | Owner | Status | Notes |
 |----|------|----------|--------|-------|--------|-------|
 || **CODE-001** | Decompose `AdminSettings.tsx` (1,808 LOC) | P1 | 2 days | | [x] | ✅ Complete - Extracted into 10 components + hook + constants. AdminSettings reduced from 1,808 → 339 lines.
-| **CODE-002** | Decompose `RequestDetail.tsx` (665 LOC) | P1 | 2 days | | [ ] | Extract header, timeline, comments, attachments |
-| **CODE-003** | Add React error boundaries | P1 | 1 day | | [ ] | Catch and display component errors |
+| **CODE-002** | Decompose `RequestDetail.tsx` (665 LOC) | P1 | 2 days | | [x] | ✅ Complete - Extracted into custom hook + FinanceWorkflowPanel. RequestDetail reduced from 665 → 257 lines.
+| **CODE-003** | Add React error boundaries | P1 | 1 day | | [x] | ✅ Complete - ErrorBoundary, ErrorFallback, withErrorBoundary HOC. Wrapped App + key routes.
 | **CODE-004** | Add loading states/skeleton loaders | P1 | 2 days | | [ ] | For all async operations |
-| **CODE-005** | Add toast notification system | P1 | 2 days | | [ ] | Replace browser alerts |
+| **CODE-005** | Add toast notification system | P1 | 2 days | | [x] | ✅ Complete - ToastContext, ToastContainer. Replaced 38 alert() calls with toast.error/success/warning.
 
 ### Reporting & Export
 
