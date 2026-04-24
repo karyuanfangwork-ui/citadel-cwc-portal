@@ -105,7 +105,7 @@ class KBController {
     });
 
     markHelpful = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { helpful } = req.body;
 
         const article = await prisma.knowledgeBaseArticle.update({
@@ -146,7 +146,7 @@ class KBController {
     });
 
     updateArticle = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { title, slug, content, excerpt, category, tags } = req.body;
 
         const article = await prisma.knowledgeBaseArticle.update({
@@ -161,7 +161,7 @@ class KBController {
     });
 
     deleteArticle = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         await prisma.knowledgeBaseArticle.update({
             where: { id },
@@ -175,7 +175,7 @@ class KBController {
     });
 
     publishArticle = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const article = await prisma.knowledgeBaseArticle.update({
             where: { id },

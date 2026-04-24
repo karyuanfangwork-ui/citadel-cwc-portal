@@ -171,6 +171,7 @@ const RequestDetailContainer: React.FC = () => {
                         onCompleteOnboarding={rq.handleCompleteOnboarding}
                         onAdvanceOffboardingPhase={rq.handleAdvanceOffboardingPhase}
                         onCompleteOffboarding={rq.handleCompleteOffboarding}
+                        onResolveRequest={() => rq.handleStatusChange('RESOLVED')}
                     />
                 </div>
             </div>

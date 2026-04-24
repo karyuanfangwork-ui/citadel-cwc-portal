@@ -13,11 +13,12 @@ export const uploadInvoice = { single: (field: string) => uploadSingleFile(field
 
 export async function submitForApproval(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { managerId, notes } = req.body;
 
+    // Only validate managerId if it's a non-empty string
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (managerId && !uuidRegex.test(managerId)) {
+    if (managerId && typeof managerId === 'string' && managerId.trim() && !uuidRegex.test(managerId)) {
       return res.status(400).json({ error: 'Invalid managerId: must be a valid UUID' });
     }
 
@@ -93,7 +94,7 @@ export async function submitForApproval(req: Request, res: Response) {
 
 export async function managerDecision(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { decision, comments } = req.body;
     const currentUser = (req as any).user;
 
@@ -223,7 +224,7 @@ export async function managerDecision(req: Request, res: Response) {
 
 export async function markProcurement(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { orderNumber, vendor, estimatedDelivery } = req.body;
 
     const request = await prisma.request.findUnique({ where: { id } });
@@ -273,7 +274,7 @@ export async function markProcurement(req: Request, res: Response) {
 
 export async function markFulfilled(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { notes } = req.body;
 
     const request = await prisma.request.findUnique({ where: { id } });
@@ -316,7 +317,7 @@ export async function markFulfilled(req: Request, res: Response) {
 
 export async function markHardwareOrdered(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { orderNumber, vendor, trackingNumber } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -379,7 +380,7 @@ export async function markHardwareOrdered(req: Request, res: Response) {
 
 export async function markHardwareReceived(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { receivedDate, notes, assetTag } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -442,7 +443,7 @@ export async function markHardwareReceived(req: Request, res: Response) {
 
 export async function markSoftwareProvisioned(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { provisioningNotes, softwareInstalled } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -691,7 +692,7 @@ export const resubmitRequest = async (req: Request, res: Response) => {
 
 export const getSuggestedManager = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const request = await prisma.request.findUnique({
       where: { id: id as string },
       include: { requester: true }

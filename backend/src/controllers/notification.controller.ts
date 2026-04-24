@@ -55,7 +55,7 @@ class NotificationController {
     });
 
     markAsRead = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const notification = await prisma.notification.update({
             where: { id },
@@ -84,7 +84,7 @@ class NotificationController {
     });
 
     deleteNotification = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         await prisma.notification.delete({
             where: { id },

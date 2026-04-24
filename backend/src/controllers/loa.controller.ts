@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
  */
 export const uploadLOA = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const userId = (req as any).user?.id;
         const file = (req as any).file;
 
@@ -102,7 +102,7 @@ export const uploadLOA = async (req: Request, res: Response) => {
  */
 export const routeLOAForApproval = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { comments } = req.body;
         const userId = (req as any).user?.id;
 
@@ -174,7 +174,7 @@ export const routeLOAForApproval = async (req: Request, res: Response) => {
  */
 export const managerApproveLOA = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
 
@@ -277,7 +277,7 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
  */
 export const markLOAIssued = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -357,7 +357,7 @@ export const markLOAIssued = async (req: Request, res: Response) => {
  */
 export const uploadSignedLOA = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const userId = (req as any).user?.id;
         const file = (req as any).file;
 
@@ -457,7 +457,7 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
  */
 export const markLOAAccepted = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -576,7 +576,7 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
  */
 export const getLOADetails = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const loa = await prisma.letterOfAcceptance.findUnique({
             where: { requestId: id },

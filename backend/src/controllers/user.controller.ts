@@ -102,7 +102,7 @@ class UserController {
      * Get user by ID (Admin only)
      */
     getUserById = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const user = await prisma.user.findUnique({
             where: { id },
@@ -215,7 +215,7 @@ class UserController {
      * Update user by ID (Admin only)
      */
     updateUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { firstName, lastName, email, phone, department, jobTitle, isActive, managerId, agentTeam, executiveRole } = req.body;
 
         // Email update logic
@@ -314,7 +314,7 @@ class UserController {
      * Delete user by ID (Admin only)
      */
     deleteUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         // Soft delete by deactivating
         await prisma.user.update({

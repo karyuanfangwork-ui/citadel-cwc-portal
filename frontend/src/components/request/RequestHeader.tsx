@@ -227,17 +227,21 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
     }
     
     if (workflowCode === 'FINANCE') {
+      // Finance Purchase Requisition Workflow: CFO -> Group CEO approval chain
       const allSteps = [
-        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
-        { label: 'Manager Review', status: 'PENDING_MANAGER_APPROVAL_FIN', icon: 'radio_button_checked' },
-        { label: 'Finance Head', status: 'PENDING_FINANCE_HEAD_APPROVAL', icon: 'radio_button_checked' },
-        { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
-        { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
+        { label: 'Submitted', status: 'FINANCE_PENDING_ACK', icon: 'check_circle' },
+        { label: 'Acknowledged', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
+        { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked' },
+        { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Payment', status: 'PAYMENT_PROCESSING_FIN', icon: 'radio_button_checked' },
+        { label: 'Completed', status: 'TICKET_CLOSED_FIN', icon: 'check_circle' },
       ];
       const statusOrder = [
-        'SUBMITTED', 'PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_APPROVED_FIN',
-        'PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_APPROVED',
-        'PAYMENT_PROCESSING', 'PAYMENT_DONE', 'COMPLETED',
+        'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS',
+        'PENDING_CFO_APPROVAL_FIN', 'CFO_APPROVED_FIN', 'CFO_REJECTED_FIN',
+        'PENDING_GROUP_CEO_APPROVAL', 'GROUP_CEO_APPROVED', 'GROUP_CEO_REJECTED',
+        'PAYMENT_PROCESSING_FIN', 'AWAITING_PAYMENT_CONFIRMATION', 'PAYMENT_CONFIRMED_FIN',
+        'TICKET_CLOSED_FIN'
       ];
       const currentIndex = statusOrder.indexOf(currentStatus);
       return allSteps.map((step) => ({
@@ -280,18 +284,21 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
     }
 
     if (request.serviceDesk?.code === 'FINANCE') {
-      // Legacy Finance fallback
+      // Legacy Finance fallback - default to Purchase Requisition workflow
       const allSteps = [
-        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
-        { label: 'Manager Review', status: 'PENDING_MANAGER_APPROVAL_FIN', icon: 'radio_button_checked' },
-        { label: 'Finance Head', status: 'PENDING_FINANCE_HEAD_APPROVAL', icon: 'radio_button_checked' },
-        { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
-        { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
+        { label: 'Submitted', status: 'FINANCE_PENDING_ACK', icon: 'check_circle' },
+        { label: 'Acknowledged', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
+        { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked' },
+        { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Payment', status: 'PAYMENT_PROCESSING_FIN', icon: 'radio_button_checked' },
+        { label: 'Completed', status: 'TICKET_CLOSED_FIN', icon: 'check_circle' },
       ];
       const statusOrder = [
-        'SUBMITTED', 'PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_APPROVED_FIN',
-        'PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_APPROVED',
-        'PAYMENT_PROCESSING', 'PAYMENT_DONE', 'COMPLETED',
+        'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS',
+        'PENDING_CFO_APPROVAL_FIN', 'CFO_APPROVED_FIN', 'CFO_REJECTED_FIN',
+        'PENDING_GROUP_CEO_APPROVAL', 'GROUP_CEO_APPROVED', 'GROUP_CEO_REJECTED',
+        'PAYMENT_PROCESSING_FIN', 'AWAITING_PAYMENT_CONFIRMATION', 'PAYMENT_CONFIRMED_FIN',
+        'TICKET_CLOSED_FIN'
       ];
       const currentIndex = statusOrder.indexOf(currentStatus);
       return allSteps.map((step) => ({

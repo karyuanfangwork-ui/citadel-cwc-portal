@@ -24,7 +24,7 @@ class ServiceDeskController {
     });
 
     getServiceDeskById = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const serviceDesk = await prisma.serviceDesk.findUnique({
             where: { id: id as string },
@@ -47,7 +47,7 @@ class ServiceDeskController {
     });
 
     getCategories = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const categories = await prisma.serviceCategory.findMany({
             where: {
@@ -64,7 +64,7 @@ class ServiceDeskController {
     });
 
     getAllCategoriesAdmin = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const categories = await prisma.serviceCategory.findMany({
             where: { serviceDeskId: id as string },
@@ -81,7 +81,7 @@ class ServiceDeskController {
     });
 
     getRequestTypes = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params; // serviceDeskId
+        const id = String(req.params.id); // serviceDeskId
         const { categoryId } = req.query;
 
         const where: any = {
@@ -129,7 +129,7 @@ class ServiceDeskController {
     });
 
     updateServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { name, code, description, isActive } = req.body;
 
         const serviceDesk = await prisma.serviceDesk.update({
@@ -144,7 +144,7 @@ class ServiceDeskController {
     });
 
     deleteServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         await prisma.serviceDesk.update({
             where: { id },
@@ -160,7 +160,7 @@ class ServiceDeskController {
     // --- Category Management Methods ---
 
     createCategory = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { id } = req.params; // serviceDeskId
+        const id = String(req.params.id); // serviceDeskId
         const { name, description, icon, colorClass, displayOrder } = req.body;
 
         const category = await prisma.serviceCategory.create({

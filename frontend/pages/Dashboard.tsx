@@ -35,6 +35,10 @@ const RESOLVED_STATUSES = new Set<string>([
   RequestStatus.OFFBOARDING_COMPLETED,
   RequestStatus.PAYMENT_COMPLETED,
   RequestStatus.LOA_ACCEPTED,
+  'TICKET_CLOSED_FIN',
+  'CFO_REJECTED_FIN',
+  'GROUP_CEO_REJECTED',
+  'PAYMENT_CONFIRMED_FIN',
 ]);
 
 function getGreeting(firstName: string): string {

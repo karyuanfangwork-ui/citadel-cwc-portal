@@ -31,8 +31,13 @@ const ScheduleInterviewModal = lazy(() => import('./ScheduleInterviewModal'));
 const UpdateScreeningModal = lazy(() => import('./UpdateScreeningModal'));
 const UploadLOAModal = lazy(() => import('./UploadLOAModal'));
 const UploadSignedLOAModal = lazy(() => import('./UploadSignedLOAModal'));
+const FinAcknowledgeModal = lazy(() => import('./FinAcknowledgeModal'));
+const RouteToCeoFinModal = lazy(() => import('./RouteToCeoFinModal'));
+const FinDecisionModal = lazy(() => import('./FinDecisionModal'));
+const MarkPaymentCompleteFinModal = lazy(() => import('./MarkPaymentCompleteFinModal'));
+const CloseTicketFinModal = lazy(() => import('./CloseTicketFinModal'));
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -166,6 +171,13 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'COMPLETE_ONBOARDING': if (onCompleteOnboarding) onCompleteOnboarding(); break;
       case 'ADVANCE_OFFBOARDING_PHASE': if (onAdvanceOffboardingPhase) onAdvanceOffboardingPhase(); break;
       case 'COMPLETE_OFFBOARDING': if (onCompleteOffboarding) onCompleteOffboarding(); break;
+      case 'FIN_ACKNOWLEDGE': setOpenModal('FIN_ACKNOWLEDGE'); break;
+      case 'SET_FINALIZED_AMOUNT':
+      case 'ROUTE_TO_CEO_FIN': setOpenModal('ROUTE_TO_CEO_FIN'); break;
+      case 'CFO_DECISION_FIN': setOpenModal('CFO_DECISION_FIN'); break;
+      case 'GROUP_CEO_DECISION_FIN': setOpenModal('GROUP_CEO_DECISION_FIN'); break;
+      case 'MARK_PAYMENT_COMPLETE_FIN': setOpenModal('MARK_PAYMENT_COMPLETE_FIN'); break;
+      case 'CLOSE_TICKET_FIN': setOpenModal('CLOSE_TICKET_FIN'); break;
       case 'START_IT_REVIEW':
         setDirectActionLoading(true);
         itWorkflowService.submitForApproval(requestId, '')
@@ -420,6 +432,52 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       {openModal === 'UPLOAD_SIGNED_LOA' && (
         <Suspense fallback={null}>
           <UploadSignedLOAModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'FIN_ACKNOWLEDGE' && (
+        <Suspense fallback={null}>
+          <FinAcknowledgeModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'ROUTE_TO_CEO_FIN' && (
+        <Suspense fallback={null}>
+          <RouteToCeoFinModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'CFO_DECISION_FIN' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="CFO Decision"
+            subtitle="Finance Workflow · Purchase Requisition"
+            onDecision={async (decision, comments) => {
+              const financeWorkflowService = (await import('../../services/finance-workflow.service')).default;
+              await financeWorkflowService.cfoDecision(requestId, decision, comments);
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'GROUP_CEO_DECISION_FIN' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="Group CEO Decision"
+            subtitle="Finance Workflow · Purchase Requisition"
+            onDecision={async (decision, comments) => {
+              const financeWorkflowService = (await import('../../services/finance-workflow.service')).default;
+              await financeWorkflowService.groupCeoDecision(requestId, decision, comments);
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'MARK_PAYMENT_COMPLETE_FIN' && (
+        <Suspense fallback={null}>
+          <MarkPaymentCompleteFinModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'CLOSE_TICKET_FIN' && (
+        <Suspense fallback={null}>
+          <CloseTicketFinModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
     </aside>

@@ -28,7 +28,7 @@ export const config = {
     // Cookies
     cookie: {
         secure: process.env.NODE_ENV === 'production',
-        sameSite: (process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none') || 'strict',
+        sameSite: (process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none') || 'lax',
         domain: process.env.COOKIE_DOMAIN || undefined,
     },
 
@@ -95,6 +95,9 @@ export const config = {
     },
     // Hardware VP Approval
     hardwareVpApprovalThreshold: parseInt(process.env.HARDWARE_VP_APPROVAL_THRESHOLD || '2500', 10),
+
+    // Finance Group CEO Approval threshold (amounts above this require Group CEO approval)
+    groupCeoApprovalThreshold: parseInt(process.env.GROUP_CEO_APPROVAL_THRESHOLD || '15000', 10),
 
     // Application
     app: {

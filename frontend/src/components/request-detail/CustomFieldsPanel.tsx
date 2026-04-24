@@ -54,6 +54,8 @@ const FINANCE_FIELD_LABELS: Record<string, string> = {
   vendor: 'Vendor',
   costCenter: 'Cost Center',
   projectCode: 'Project Code',
+  finalizedAmount: 'Finalized Amount (MYR)',
+  paymentReference: 'Payment Reference',
 };
 
 function getFieldLabels(code: string): Record<string, string> {

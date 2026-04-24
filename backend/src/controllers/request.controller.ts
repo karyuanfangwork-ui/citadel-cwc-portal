@@ -57,10 +57,18 @@ class RequestController {
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else if (hasRole(req, 'CFO')) {
-                // CFO can see their own requests and any IT request pending CFO approval
+                // CFO can see their own requests, IT requests pending CFO approval, and Finance Purchase Requisitions pending CFO approval
                 where.OR = [
                     { requesterId: req.user!.id },
                     { status: 'PENDING_CFO_APPROVAL_IT' },
+                    { status: 'PENDING_CFO_APPROVAL_FIN' },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            } else if (hasRole(req, 'GROUP_CEO')) {
+                // GROUP_CEO can see their own requests and Finance Purchase Requisitions pending Group CEO approval
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { status: 'PENDING_GROUP_CEO_APPROVAL' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else {
@@ -195,16 +203,19 @@ class RequestController {
           }
         }
 
-        // Detect manual onboarding/offboarding submission
+        // Detect manual onboarding/offboarding/finance submission
         const requestType = requestTypeId
             ? await prisma.requestType.findUnique({ where: { id: requestTypeId } })
             : null;
         const isManualOnboarding = requestType?.code === 'EMPLOYEE_ONBOARDING';
         const isManualOffboarding = requestType?.code === 'EMPLOYEE_OFFBOARDING';
+        const isPurchaseRequisition = requestType?.code === 'PURCHASE_REQUISITION';
         const initialStatus = isManualOnboarding
             ? 'ONBOARDING_SUBMITTED'
             : isManualOffboarding
             ? 'OFFBOARDING_SUBMITTED'
+            : isPurchaseRequisition
+            ? 'FINANCE_PENDING_ACK'
             : 'SUBMITTED';
 
         // Auto-generate description from form fields
@@ -450,7 +461,7 @@ class RequestController {
      * Get request by ID
      */
     getRequestById = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const request = await prisma.request.findFirst({
             where: {
@@ -572,6 +583,11 @@ class RequestController {
         );
         const isCFOApprover = hasRole(req, 'CFO') && (
             request.status === 'PENDING_CFO_APPROVAL_IT' ||
+            request.status === 'PENDING_CFO_APPROVAL_FIN' ||
+            isDesignatedApprover
+        );
+        const isGroupCeoApprover = hasRole(req, 'GROUP_CEO') && (
+            request.status === 'PENDING_GROUP_CEO_APPROVAL' ||
             isDesignatedApprover
         );
 
@@ -580,7 +596,8 @@ class RequestController {
             !hasRole(req, 'ADMIN', 'AGENT') &&
             !isCEOApprover &&
             !isCTOApprover &&
-            !isCFOApprover
+            !isCFOApprover &&
+            !isGroupCeoApprover
         ) {
             throw new AppError('You do not have permission to view this request', 403);
         }
@@ -595,7 +612,7 @@ class RequestController {
      * Update request
      */
     updateRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { summary: rawSummary, description: rawDescription, priority } = req.body;
 
         // Sanitize highest-risk text fields
@@ -638,7 +655,7 @@ class RequestController {
      * Delete request (soft delete)
      */
     deleteRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -668,7 +685,7 @@ class RequestController {
      * Get request activities
      */
     getRequestActivities = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -700,7 +717,7 @@ class RequestController {
      * Add activity/comment to request
      */
     addActivity = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { message: rawMessage, isInternal } = req.body;
 
         // Sanitize comment message before storing
@@ -761,7 +778,7 @@ class RequestController {
      * Max size: 10MB | isScanned: false flag set for future virus scanning
      */
     uploadAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const file = req.file;
 
         if (!file) {
@@ -882,7 +899,7 @@ class RequestController {
      * Assign request to agent
      */
     assignRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { assignedToId } = req.body;
 
         const request = await prisma.request.update({
@@ -949,7 +966,7 @@ class RequestController {
      * Update request status
      */
     updateStatus = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { status } = req.body;
 
         // Fetch current request to validate transition

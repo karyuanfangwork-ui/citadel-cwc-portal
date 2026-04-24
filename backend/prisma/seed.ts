@@ -218,6 +218,23 @@ async function main() {
     await assignRoles(cfoUser.id, [cfoRole.id]);
     console.log('✅ CFO user created (email: cfo@company.com, password: cfo123)');
 
+    const groupCeoRole = await prisma.role.findUniqueOrThrow({ where: { name: 'GROUP_CEO' } });
+    const groupCeoUser = await prisma.user.upsert({
+        where: { email: 'groupceo@company.com' },
+        update: {},
+        create: {
+            email: 'groupceo@company.com',
+            passwordHash: await bcrypt.hash('groupceo123', 10),
+            firstName: 'Group',
+            lastName: 'CEO',
+            department: 'Executive',
+            jobTitle: 'Group Chief Executive Officer',
+            isActive: true,
+        },
+    });
+    await assignRoles(groupCeoUser.id, [groupCeoRole.id]);
+    console.log('✅ Group CEO user created (email: groupceo@company.com, password: groupceo123)');
+
     // --- Agent accounts ---
     const agentPassword = await bcrypt.hash('password123', 10);
 
@@ -939,16 +956,20 @@ async function main() {
         { code: 'PAYMENT_PROCESSING_IT',           label: 'Payment Processing (IT)',         category: 'IT', displayOrder: 61 },
         { code: 'PAYMENT_DONE_IT',                 label: 'Payment Done (IT)',               category: 'IT', displayOrder: 62 },
         { code: 'PENDING_DELIVERY_IT',             label: 'Pending Delivery (IT)',           category: 'IT', displayOrder: 63 },
-        // FINANCE WORKFLOW
-        { code: 'PENDING_MANAGER_APPROVAL_FIN',    label: 'Pending Manager Approval (Finance)', category: 'FINANCE', displayOrder: 70 },
-        { code: 'MANAGER_APPROVED_FIN',            label: 'Manager Approved (Finance)',         category: 'FINANCE', displayOrder: 71 },
-        { code: 'MANAGER_REJECTED_FIN',            label: 'Manager Rejected (Finance)',         category: 'FINANCE', displayOrder: 72 },
-        { code: 'PENDING_FINANCE_HEAD_APPROVAL',   label: 'Pending Finance Head Approval',      category: 'FINANCE', displayOrder: 73 },
-        { code: 'FINANCE_HEAD_APPROVED',           label: 'Finance Head Approved',              category: 'FINANCE', displayOrder: 74 },
-        { code: 'FINANCE_HEAD_REJECTED',           label: 'Finance Head Rejected',             category: 'FINANCE', displayOrder: 75 },
-        { code: 'PAYMENT_PROCESSING',              label: 'Payment Processing',                 category: 'FINANCE', displayOrder: 76 },
-        { code: 'PAYMENT_COMPLETED',               label: 'Payment Completed',                  category: 'FINANCE', displayOrder: 77 },
-        { code: 'REIMBURSEMENT_CLOSED',            label: 'Reimbursement Closed',               category: 'FINANCE', displayOrder: 78 },
+        // FINANCE WORKFLOW - PURCHASE REQUISITION
+        { code: 'FINANCE_PENDING_ACK',             label: 'Pending Finance Acknowledgement',     category: 'FINANCE', displayOrder: 70 },
+        { code: 'FINANCE_ACKNOWLEDGED',            label: 'Finance Acknowledged',                category: 'FINANCE', displayOrder: 71 },
+        { code: 'FINANCE_IN_PROGRESS',             label: 'Finance In Progress',                 category: 'FINANCE', displayOrder: 72 },
+        { code: 'PENDING_CFO_APPROVAL_FIN',        label: 'Pending CFO Approval (Finance)',      category: 'FINANCE', displayOrder: 73 },
+        { code: 'CFO_APPROVED_FIN',                label: 'CFO Approved (Finance)',              category: 'FINANCE', displayOrder: 74 },
+        { code: 'CFO_REJECTED_FIN',                label: 'CFO Rejected (Finance)',              category: 'FINANCE', displayOrder: 75 },
+        { code: 'PENDING_GROUP_CEO_APPROVAL',      label: 'Pending Group CEO Approval',          category: 'FINANCE', displayOrder: 76 },
+        { code: 'GROUP_CEO_APPROVED',              label: 'Group CEO Approved',                  category: 'FINANCE', displayOrder: 77 },
+        { code: 'GROUP_CEO_REJECTED',              label: 'Group CEO Rejected',                  category: 'FINANCE', displayOrder: 78 },
+        { code: 'PAYMENT_PROCESSING_FIN',          label: 'Payment Processing (Finance)',        category: 'FINANCE', displayOrder: 79 },
+        { code: 'AWAITING_PAYMENT_CONFIRMATION',   label: 'Awaiting Payment Confirmation',        category: 'FINANCE', displayOrder: 80 },
+        { code: 'PAYMENT_CONFIRMED_FIN',           label: 'Payment Confirmed (Finance)',         category: 'FINANCE', displayOrder: 81 },
+        { code: 'TICKET_CLOSED_FIN',               label: 'Ticket Closed (Finance)',             category: 'FINANCE', displayOrder: 82 },
     ];
 
     for (const def of statusDefinitions) {

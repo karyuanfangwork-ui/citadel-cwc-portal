@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
  */
 export const scheduleInterview = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const {
             candidateId,
             interviewDate,
@@ -142,7 +142,7 @@ export const scheduleInterview = async (req: Request, res: Response) => {
  */
 export const submitInterviewFeedback = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const {
             decision,
             overallRating,
@@ -267,7 +267,7 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
  */
 export const updateInterviewSchedule = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const {
             interviewDate,
             interviewTime,
@@ -333,7 +333,7 @@ export const updateInterviewSchedule = async (req: Request, res: Response) => {
  */
 export const getInterviewDetails = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         // Get interview schedule and feedback
         const [interviewSchedule, interviewFeedback] = await Promise.all([

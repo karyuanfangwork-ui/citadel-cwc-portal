@@ -1,291 +1,222 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
+import { config } from '../config';
 
 const prisma = new PrismaClient();
 
-/**
- * Submit request for manager approval
- * POST /finance-workflow/requests/:id/submit-for-manager
- */
-export const submitForManager = async (req: Request, res: Response) => {
+// Get threshold from config (configurable via GROUP_CEO_APPROVAL_THRESHOLD env var)
+const GROUP_CEO_THRESHOLD = config.groupCeoApprovalThreshold;
+
+async function logActivity(requestId: string, message: string, authorId?: string) {
+    await prisma.requestActivity.create({
+        data: {
+            requestId,
+            authorId: authorId || null,
+            authorName: 'System',
+            activityType: 'STATUS_CHANGE',
+            message,
+            isSystemGenerated: true,
+        },
+    });
+}
+
+/** POST /finance-workflow/requests/:id/acknowledge */
+export const acknowledge = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
-        const { managerId, notes } = req.body;
-
-        const request = await prisma.request.findUnique({
-            where: { id },
-            include: { serviceDesk: true }
-        });
-
+        const id = String(req.params.id);
+        const { notes } = req.body;
+        
+        const request = await prisma.request.findUnique({ where: { id } });
         if (!request) {
-            return res.status(404).json({ status: 'error', message: 'Request not found' });
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
         }
 
-        if (request.serviceDesk.code !== 'FINANCE') {
-            return res.status(400).json({ status: 'error', message: 'Request does not belong to the Finance service desk' });
-        }
-
-        const updatedRequest = await prisma.request.update({
+        const updated = await prisma.request.update({
             where: { id },
-            data: { status: 'PENDING_MANAGER_APPROVAL_FIN' }
+            data: { status: RequestStatus.FINANCE_ACKNOWLEDGED },
         });
 
-        await prisma.requestApproval.create({
-            data: {
-                requestId: id,
-                approverType: 'MANAGER',
-                approverId: managerId,
-                status: 'PENDING'
-            }
-        });
+        await logActivity(id, `Finance agent acknowledged request${notes ? ': ' + notes : ''}`);
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_ACKNOWLEDGED', variables: { requestId: id }, relatedRequestId: id });
 
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorName: 'System',
-                activityType: 'SYSTEM',
-                message: `Request submitted for manager approval${notes ? ': ' + notes : ''}`,
-                isSystemGenerated: true
-            }
-        });
-
-        await notify({
-            userId: managerId,
-            eventType: 'FINANCE_MANAGER_APPROVAL_REQUESTED',
-            variables: { requestId: id },
-            relatedRequestId: id
-        });
-
-        res.json({ status: 'success', data: { request: updatedRequest } });
+        res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
-        console.error('Error submitting for manager approval:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to submit for manager approval' });
+        console.error('acknowledge error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to acknowledge request' });
     }
 };
 
-/**
- * Manager approves or rejects the request
- * POST /finance-workflow/requests/:id/manager-decision
- */
-export const managerDecision = async (req: Request, res: Response) => {
+/** POST /finance-workflow/requests/:id/set-finalized-amount */
+export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
+        const { finalizedAmount, notes } = req.body;
+
+        if (finalizedAmount === undefined || isNaN(Number(finalizedAmount)) || Number(finalizedAmount) <= 0) {
+            res.status(400).json({ status: 'error', message: 'finalizedAmount must be a positive number' });
+            return;
+        }
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        const existingFields = (request.customFields as Record<string, unknown>) || {};
+        const updated = await prisma.request.update({
+            where: { id },
+            data: {
+                status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
+                customFields: { ...existingFields, finalizedAmount: Number(finalizedAmount) },
+            },
+        });
+
+        await logActivity(id, `Finalized amount set to MYR ${finalizedAmount}. Routed to CFO for approval${notes ? ': ' + notes : ''}`);
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('setFinalizedAmountAndRouteCfo error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to route to CFO' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/cfo-decision */
+export const cfoDecision = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id);
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
 
-        if (!decision || !['APPROVED', 'REJECTED'].includes(decision)) {
-            return res.status(400).json({ status: 'error', message: 'Decision must be APPROVED or REJECTED' });
+        if (!['APPROVED', 'REJECTED'].includes(decision)) {
+            res.status(400).json({ status: 'error', message: 'decision must be APPROVED or REJECTED' });
+            return;
         }
 
         const request = await prisma.request.findUnique({ where: { id } });
-
         if (!request) {
-            return res.status(404).json({ status: 'error', message: 'Request not found' });
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
         }
 
-        const newStatus = decision === 'APPROVED' ? 'MANAGER_APPROVED_FIN' : 'MANAGER_REJECTED_FIN';
-
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: { status: newStatus }
-        });
-
-        await prisma.requestApproval.updateMany({
-            where: { requestId: id, approverId: userId, status: 'PENDING' },
-            data: { status: decision as 'APPROVED' | 'REJECTED', comments: comments || null }
-        });
-
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorId: userId,
-                authorName: 'System',
-                activityType: decision === 'APPROVED' ? 'APPROVAL' : 'REJECTION',
-                message: `Manager ${decision === 'APPROVED' ? 'approved' : 'rejected'} request${comments ? ': ' + comments : ''}`,
-                isSystemGenerated: true
-            }
-        });
-
-        await notify({
-            userId: request.requesterId,
-            eventType: 'FINANCE_MANAGER_DECISION',
-            variables: { requestId: id, decision },
-            relatedRequestId: id
-        });
-
-        res.json({ status: 'success', data: { request: updatedRequest } });
-    } catch (error) {
-        console.error('Error processing manager decision:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to process manager decision' });
-    }
-};
-
-/**
- * Submit request for finance head approval
- * POST /finance-workflow/requests/:id/submit-for-finance-head
- */
-export const submitForFinanceHead = async (req: Request, res: Response) => {
-    try {
-        const { id } = req.params;
-        const { financeHeadId, notes } = req.body;
-
-        const request = await prisma.request.findUnique({ where: { id } });
-
-        if (!request) {
-            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        let newStatus: RequestStatus;
+        if (decision === 'REJECTED') {
+            newStatus = RequestStatus.CFO_REJECTED_FIN;
+        } else {
+            const fields = (request.customFields as Record<string, unknown>) || {};
+            const amount = Number(fields.finalizedAmount ?? 0);
+            newStatus = amount > GROUP_CEO_THRESHOLD ? RequestStatus.PENDING_GROUP_CEO_APPROVAL : RequestStatus.PAYMENT_PROCESSING_FIN;
         }
 
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: { status: 'PENDING_FINANCE_HEAD_APPROVAL' }
-        });
+        const updated = await prisma.request.update({ where: { id }, data: { status: newStatus } });
 
         await prisma.requestApproval.create({
-            data: {
-                requestId: id,
-                approverType: 'FINANCE_HEAD',
-                approverId: financeHeadId,
-                status: 'PENDING'
-            }
+            data: { requestId: id, approverType: 'CFO', approverId: userId, status: decision, comments: comments || null },
         });
 
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorName: 'System',
-                activityType: 'SYSTEM',
-                message: `Request submitted for finance head approval${notes ? ': ' + notes : ''}`,
-                isSystemGenerated: true
-            }
-        });
+        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL ? 'Group CEO (amount > MYR ' + GROUP_CEO_THRESHOLD + ')' : 'payment processing'}`;
+        await logActivity(id, `CFO ${verb}${comments ? ': ' + comments : ''}`, userId);
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
-        await notify({
-            userId: financeHeadId,
-            eventType: 'FINANCE_HEAD_APPROVAL_REQUESTED',
-            variables: { requestId: id },
-            relatedRequestId: id
-        });
-
-        res.json({ status: 'success', data: { request: updatedRequest } });
+        res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
-        console.error('Error submitting for finance head approval:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to submit for finance head approval' });
+        console.error('cfoDecision error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to process CFO decision' });
     }
 };
 
-/**
- * Finance head approves or rejects the request
- * POST /finance-workflow/requests/:id/finance-head-decision
- */
-export const financeHeadDecision = async (req: Request, res: Response) => {
+/** POST /finance-workflow/requests/:id/group-ceo-decision */
+export const groupCeoDecision = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
 
-        if (!decision || !['APPROVED', 'REJECTED'].includes(decision)) {
-            return res.status(400).json({ status: 'error', message: 'Decision must be APPROVED or REJECTED' });
+        if (!['APPROVED', 'REJECTED'].includes(decision)) {
+            res.status(400).json({ status: 'error', message: 'decision must be APPROVED or REJECTED' });
+            return;
         }
 
         const request = await prisma.request.findUnique({ where: { id } });
-
         if (!request) {
-            return res.status(404).json({ status: 'error', message: 'Request not found' });
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
         }
 
-        const newStatus = decision === 'APPROVED' ? 'FINANCE_HEAD_APPROVED' : 'FINANCE_HEAD_REJECTED';
+        const newStatus = decision === 'APPROVED' ? RequestStatus.PAYMENT_PROCESSING_FIN : RequestStatus.GROUP_CEO_REJECTED;
+        const updated = await prisma.request.update({ where: { id }, data: { status: newStatus } });
 
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: { status: newStatus }
+        await prisma.requestApproval.create({
+            data: { requestId: id, approverType: 'GROUP_CEO', approverId: userId, status: decision, comments: comments || null },
         });
 
-        await prisma.requestApproval.updateMany({
-            where: { requestId: id, approverId: userId, status: 'PENDING' },
-            data: { status: decision as 'APPROVED' | 'REJECTED', comments: comments || null }
-        });
+        const verb = decision === 'APPROVED' ? 'approved — routed to payment processing' : 'rejected';
+        await logActivity(id, `Group CEO ${verb}${comments ? ': ' + comments : ''}`, userId);
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_GROUP_CEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorId: userId,
-                authorName: 'System',
-                activityType: decision === 'APPROVED' ? 'APPROVAL' : 'REJECTION',
-                message: `Finance head ${decision === 'APPROVED' ? 'approved' : 'rejected'} request${comments ? ': ' + comments : ''}`,
-                isSystemGenerated: true
-            }
-        });
-
-        await notify({
-            userId: request.requesterId,
-            eventType: 'FINANCE_HEAD_DECISION',
-            variables: { requestId: id, decision },
-            relatedRequestId: id
-        });
-
-        res.json({ status: 'success', data: { request: updatedRequest } });
+        res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
-        console.error('Error processing finance head decision:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to process finance head decision' });
+        console.error('groupCeoDecision error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to process Group CEO decision' });
     }
 };
 
-/**
- * Mark payment status
- * POST /finance-workflow/requests/:id/mark-payment
- */
-export const markPayment = async (req: Request, res: Response) => {
+/** POST /finance-workflow/requests/:id/mark-payment-complete */
+export const markPaymentComplete = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { id } = req.params;
-        const { paymentStatus, paymentReference, notes } = req.body;
-
-        if (!paymentStatus || !['PROCESSING', 'COMPLETED'].includes(paymentStatus)) {
-            return res.status(400).json({ status: 'error', message: 'paymentStatus must be PROCESSING or COMPLETED' });
-        }
+        const id = String(req.params.id);
+        const { paymentReference, notes } = req.body;
 
         const request = await prisma.request.findUnique({ where: { id } });
-
         if (!request) {
-            return res.status(404).json({ status: 'error', message: 'Request not found' });
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
         }
 
-        const newStatus = paymentStatus === 'PROCESSING' ? 'PAYMENT_PROCESSING' : 'PAYMENT_COMPLETED';
-
-        const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
-
-        const updatedRequest = await prisma.request.update({
+        const existingFields = (request.customFields as Record<string, unknown>) || {};
+        const updated = await prisma.request.update({
             where: { id },
             data: {
-                status: newStatus,
-                ...(paymentStatus === 'COMPLETED' ? { resolvedAt: new Date() } : {}),
-                customFields: {
-                    ...existingCustomFields,
-                    paymentReference: paymentReference || null
-                }
-            }
+                status: RequestStatus.AWAITING_PAYMENT_CONFIRMATION,
+                customFields: { ...existingFields, paymentReference: paymentReference || null },
+            },
         });
 
-        await prisma.requestActivity.create({
-            data: {
-                requestId: id,
-                authorName: 'System',
-                activityType: 'SYSTEM',
-                message: `Payment marked as ${paymentStatus.toLowerCase()}${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`,
-                isSystemGenerated: true
-            }
-        });
+        await logActivity(id, `Payment marked complete${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`);
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_PAYMENT_COMPLETE', variables: { requestId: id }, relatedRequestId: id });
 
-        await notify({
-            userId: request.requesterId,
-            eventType: 'FINANCE_PAYMENT_UPDATE',
-            variables: { requestId: id, paymentStatus },
-            relatedRequestId: id
-        });
-
-        res.json({ status: 'success', data: { request: updatedRequest } });
+        res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
-        console.error('Error marking payment:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to mark payment' });
+        console.error('markPaymentComplete error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to mark payment complete' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/close */
+export const closeTicket = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id);
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        const updated = await prisma.request.update({
+            where: { id },
+            data: { status: RequestStatus.TICKET_CLOSED_FIN, resolvedAt: new Date() },
+        });
+
+        await logActivity(id, 'Ticket closed by Finance Agent');
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_TICKET_CLOSED', variables: { requestId: id }, relatedRequestId: id });
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('closeTicket error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to close ticket' });
     }
 };

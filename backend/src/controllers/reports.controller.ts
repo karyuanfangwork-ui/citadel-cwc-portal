@@ -1,22 +1,22 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../utils/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { RequestStatus } from '@prisma/client';
 
-const RESOLVED_STATUSES = [
-    'RESOLVED',
-    'CLOSED',
-    'COMPLETED',
-    'PAYMENT_COMPLETED',
-] as const;
+const RESOLVED_STATUSES: RequestStatus[] = [
+    RequestStatus.RESOLVED,
+    RequestStatus.COMPLETED,
+    RequestStatus.PAYMENT_COMPLETED,
+];
 
-const CLOSED_STATUSES = [
-    'RESOLVED',
-    'CLOSED',
-    'REJECTED',
-    'COMPLETED',
-    'PAYMENT_COMPLETED',
-    'REIMBURSEMENT_CLOSED',
-] as const;
+const CLOSED_STATUSES: RequestStatus[] = [
+    RequestStatus.RESOLVED,
+    RequestStatus.REJECTED,
+    RequestStatus.COMPLETED,
+    RequestStatus.PAYMENT_COMPLETED,
+    RequestStatus.REIMBURSEMENT_CLOSED,
+    RequestStatus.TICKET_CLOSED_FIN,
+];
 
 class ReportsController {
     getSummary = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -29,16 +29,7 @@ class ReportsController {
                 prisma.request.count({
                     where: {
                         deletedAt: null,
-                        status: {
-                            notIn: [
-                                'RESOLVED',
-                                'CLOSED',
-                                'REJECTED',
-                                'COMPLETED',
-                                'PAYMENT_COMPLETED',
-                                'REIMBURSEMENT_CLOSED',
-                            ],
-                        },
+                        status: { notIn: CLOSED_STATUSES },
                     },
                 }),
 
@@ -46,14 +37,7 @@ class ReportsController {
                 prisma.request.count({
                     where: {
                         deletedAt: null,
-                        status: {
-                            in: [
-                                'RESOLVED',
-                                'CLOSED',
-                                'COMPLETED',
-                                'PAYMENT_COMPLETED',
-                            ],
-                        },
+                        status: { in: RESOLVED_STATUSES },
                     },
                 }),
 
@@ -62,16 +46,7 @@ class ReportsController {
                     where: {
                         deletedAt: null,
                         assignedToId: null,
-                        status: {
-                            notIn: [
-                                'RESOLVED',
-                                'CLOSED',
-                                'REJECTED',
-                                'COMPLETED',
-                                'PAYMENT_COMPLETED',
-                                'REIMBURSEMENT_CLOSED',
-                            ],
-                        },
+                        status: { notIn: CLOSED_STATUSES },
                     },
                 }),
 
@@ -196,7 +171,7 @@ class ReportsController {
                 where: {
                     deletedAt: null,
                     assignedToId: { not: null },
-                    status: { notIn: CLOSED_STATUSES as unknown as any[] },
+                    status: { notIn: CLOSED_STATUSES },
                 },
                 _count: { id: true },
                 orderBy: { _count: { id: 'desc' } },
@@ -235,7 +210,7 @@ class ReportsController {
             const now = new Date();
             const openFilter = {
                 deletedAt: null,
-                status: { notIn: CLOSED_STATUSES as unknown as any[] },
+                status: { notIn: CLOSED_STATUSES },
             };
 
             const [withinSla, breached, noSla] = await Promise.all([

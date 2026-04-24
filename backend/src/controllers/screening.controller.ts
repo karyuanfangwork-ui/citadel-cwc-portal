@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
  */
 export const startHRScreening = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -102,7 +102,7 @@ export const startHRScreening = async (req: Request, res: Response) => {
  */
 export const updateScreeningStatus = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const {
             backgroundCheckStatus,
             backgroundCheckNotes,
@@ -229,7 +229,7 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
  */
 export const getScreeningDetails = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const hrScreening = await prisma.hRScreening.findUnique({
             where: { requestId: id },

@@ -35,7 +35,15 @@ export type WorkflowActionType =
   | 'COMPLETE_OFFBOARDING'
   | 'START_IT_REVIEW'
   | 'MARK_IN_PROGRESS'
-  | 'RESOLVE_IT';
+  | 'RESOLVE_IT'
+  // Finance Purchase Requisition workflow actions
+  | 'FIN_ACKNOWLEDGE'
+  | 'SET_FINALIZED_AMOUNT'
+  | 'ROUTE_TO_CEO_FIN'
+  | 'CFO_DECISION_FIN'
+  | 'GROUP_CEO_DECISION_FIN'
+  | 'MARK_PAYMENT_COMPLETE_FIN'
+  | 'CLOSE_TICKET_FIN';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -131,6 +139,66 @@ export function getWorkflowActions(
       description: 'Review and approve or reject this request as CFO.',
       variant: 'primary',
     });
+  }
+
+  // Finance Purchase Requisition — Executive approver actions (not gated by canAct)
+  const isPurchaseRequisition = requestTypeCode === 'PURCHASE_REQUISITION' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('purchase requisition'));
+
+  if (isPurchaseRequisition) {
+    if (userRoles.includes('CFO') && status === 'PENDING_CFO_APPROVAL_FIN') {
+      actions.push({
+        type: 'CFO_DECISION_FIN',
+        label: 'CFO Approval Decision',
+        description: 'Review and approve or reject this Purchase Requisition as CFO.',
+        variant: 'primary',
+      });
+    }
+
+    if (userRoles.includes('GROUP_CEO') && status === 'PENDING_GROUP_CEO_APPROVAL') {
+      actions.push({
+        type: 'GROUP_CEO_DECISION_FIN',
+        label: 'Group CEO Approval Decision',
+        description: 'Review and approve or reject this high-value Purchase Requisition as Group CEO.',
+        variant: 'primary',
+      });
+    }
+
+    // Finance Agent / Admin actions
+    if (canAct) {
+      if (status === 'FINANCE_PENDING_ACK') {
+        actions.push({
+          type: 'FIN_ACKNOWLEDGE',
+          label: 'Acknowledge Request',
+          description: 'Acknowledge this Purchase Requisition and begin your review.',
+          variant: 'primary',
+        });
+      }
+      if (status === 'FINANCE_ACKNOWLEDGED') {
+        actions.push({
+          type: 'ROUTE_TO_CEO_FIN',
+          label: 'Set Amount & Route to CFO',
+          description: 'Enter the finalized amount and route this request to the CFO for approval.',
+          variant: 'warning',
+        });
+      }
+      if (status === 'PAYMENT_PROCESSING_FIN') {
+        actions.push({
+          type: 'MARK_PAYMENT_COMPLETE_FIN',
+          label: 'Mark Payment Complete',
+          description: 'Enter payment reference and mark the payment as completed.',
+          variant: 'success',
+        });
+      }
+      if (status === 'AWAITING_PAYMENT_CONFIRMATION') {
+        actions.push({
+          type: 'CLOSE_TICKET_FIN',
+          label: 'Close Ticket',
+          description: 'Payment confirmed. Close this ticket to complete the Purchase Requisition.',
+          variant: 'success',
+        });
+      }
+    }
   }
 
   // Hiring manager actions — must be above the canAct guard as hiring managers are not agents/admins

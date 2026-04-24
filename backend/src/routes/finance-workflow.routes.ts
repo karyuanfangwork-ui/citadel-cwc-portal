@@ -1,15 +1,23 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
-import { submitForManager, managerDecision, submitForFinanceHead, financeHeadDecision, markPayment } from '../controllers/finance-workflow.controller';
+import {
+    acknowledge,
+    setFinalizedAmountAndRouteCfo,
+    cfoDecision,
+    groupCeoDecision,
+    markPaymentComplete,
+    closeTicket,
+} from '../controllers/finance-workflow.controller';
 
 const router = Router();
-
 router.use(authenticate);
 
-router.post('/requests/:id/submit-for-manager', authorize('ADMIN', 'AGENT'), submitForManager);
-router.post('/requests/:id/manager-decision', managerDecision);
-router.post('/requests/:id/submit-for-finance-head', authorize('ADMIN', 'AGENT'), submitForFinanceHead);
-router.post('/requests/:id/finance-head-decision', financeHeadDecision);
-router.post('/requests/:id/mark-payment', authorize('ADMIN', 'AGENT'), markPayment);
+// Purchase Requisition Workflow
+router.post('/requests/:id/acknowledge', authorize('ADMIN', 'AGENT'), acknowledge);
+router.post('/requests/:id/set-finalized-amount-and-route-ceo', authorize('ADMIN', 'AGENT'), setFinalizedAmountAndRouteCfo);
+router.post('/requests/:id/cfo-decision', authorize('CFO'), cfoDecision);
+router.post('/requests/:id/group-ceo-decision', authorize('GROUP_CEO'), groupCeoDecision);
+router.post('/requests/:id/mark-payment-complete', authorize('ADMIN', 'AGENT'), markPaymentComplete);
+router.post('/requests/:id/close', authorize('ADMIN', 'AGENT'), closeTicket);
 
 export default router;
