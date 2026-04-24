@@ -404,10 +404,10 @@ const Dashboard = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Can't find what you're looking for?</span>
         {[
-          { icon: 'menu_book', label: 'Browse Knowledge Base' },
-          { icon: 'forum',     label: 'Chat with Support' },
+          { icon: 'menu_book', label: 'Browse Knowledge Base', to: '/kb' },
+          { icon: 'forum',     label: 'Chat with Support', to: null },
         ].map(btn => (
-          <button key={btn.label} style={{
+          <button key={btn.label} onClick={btn.to ? () => navigate(btn.to) : undefined} style={{
             display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
             padding: 'var(--space-3) var(--space-5)',
             background: 'var(--color-surface)',

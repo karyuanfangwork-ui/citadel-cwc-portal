@@ -244,6 +244,74 @@ class RequestController {
             finalDescription = `Employee offboarding request for ${name}. Last working day: ${lastDay}. Contact: ${email}. Reason: ${reason}.`;
         }
 
+        // Auto-generate description for Purchase Requisition (finance)
+        if (isPurchaseRequisition && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const requestTypeData = requestType?.formConfig as any[] | null;
+            
+            // Build description from customFields, using formConfig labels for unknown field IDs
+            const parts: string[] = [];
+            
+            // Map customFields to readable descriptions
+            for (const [key, value] of Object.entries(cf)) {
+                if (value === null || value === undefined || value === '') continue;
+                
+                // Skip file uploads in description
+                if (typeof value === 'object' && value.s3Key) continue;
+                
+                // Find label from formConfig for dynamic field IDs
+                let label = key;
+                if (requestTypeData && Array.isArray(requestTypeData)) {
+                    const field = requestTypeData.find((f: any) => f.id === key);
+                    if (field?.label) {
+                        const labelLower = field.label.toLowerCase();
+                        // Order matters: check more specific matches first
+                        if (labelLower.includes('justification')) {
+                            label = 'Justification';
+                        } else if (labelLower.includes('type of purchase') || labelLower.includes('purchase type')) {
+                            label = 'Purchase Type';
+                        } else if (labelLower.includes('vendor')) {
+                            label = 'Vendor';
+                        } else if (labelLower.includes('bu') || labelLower.includes('business unit')) {
+                            label = 'Business Unit';
+                        } else {
+                            label = field.label;
+                        }
+                    }
+                }
+                
+                parts.push(`${label}: ${value}`);
+            }
+            
+            if (parts.length > 0) {
+                finalDescription = `Purchase requisition - ${parts.join('. ')}.`;
+            } else {
+                finalDescription = 'Purchase requisition submitted.';
+            }
+        }
+
+        // Auto-generate description for Inter-Company Chargeback (finance)
+        if (requestType?.code === 'INTERCOMPANY_CHARGEBACK' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const fromEntity = cf.chargeFromEntity || cf.chargeFromEntity || 'Unknown entity';
+            const toEntity = cf.chargeToEntity || 'Unknown entity';
+            const amount = cf.amount ? `RM ${cf.amount}` : 'Amount TBD';
+            const costCenter = cf.costCenter || 'Not specified';
+            const desc = cf.description || 'No description provided';
+            finalDescription = `Inter-company chargeback from ${fromEntity} to ${toEntity}. Amount: ${amount}. Cost center: ${costCenter}. Details: ${desc}.`;
+        }
+
+        // Auto-generate description for Budget Proposal (finance)
+        if (requestType?.code === 'BUDGET_PROPOSAL' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const department = cf.department || 'Unknown department';
+            const period = cf.budgetPeriod || 'Unspecified period';
+            const totalAmount = cf.totalAmount ? `RM ${cf.totalAmount}` : 'Amount TBD';
+            const breakdown = cf.breakdown || 'No breakdown provided';
+            const justification = cf.justification || 'No justification provided';
+            finalDescription = `Budget proposal for ${department} - ${period}. Total requested: ${totalAmount}. Breakdown: ${breakdown}. Justification: ${justification}.`;
+        }
+
         // Create request, hardware details, and initial activity in a single transaction
         const request = await prisma.$transaction(async (tx) => {
             const createdRequest = await tx.request.create({

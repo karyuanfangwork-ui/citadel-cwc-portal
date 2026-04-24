@@ -22,7 +22,7 @@ export default function KnowledgeBase() {
       (a) =>
         a.title.toLowerCase().includes(q) ||
         (a.excerpt ?? '').toLowerCase().includes(q) ||
-        a.tags.some((t) => t.toLowerCase().includes(q))
+        a.tags?.some((t: string) => t.toLowerCase().includes(q))
     );
   }, [articles, search]);
 
@@ -176,7 +176,7 @@ export default function KnowledgeBase() {
                     </p>
                   )}
                   {/* Tags */}
-                  {article.tags.length > 0 && (
+                  {article.tags && article.tags.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
                       {article.tags.map((tag) => (
                         <span

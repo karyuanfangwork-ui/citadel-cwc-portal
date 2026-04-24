@@ -232,7 +232,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (isAdmin) {
+  if (canAct) {
     // Only non-procurement IT requests with requiresApproval flag go through manager approval
     // HR hiring requests go to CEO approval instead — skip this action for HR
     if (status === 'SUBMITTED' && !isProcurement && !isHR && requiresApproval) {

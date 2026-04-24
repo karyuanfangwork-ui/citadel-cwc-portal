@@ -1002,6 +1002,118 @@ async function main() {
         }
         console.log(`Seeded ${statusDefinitions.length} request status definitions`);
     }
+    // ── Seed Knowledge Base Articles ──
+    const kbArticles = [
+        // IT Support articles
+        {
+            serviceDeskId: itDesk.id,
+            title: 'How to Reset Your Password',
+            slug: 'how-to-reset-your-password',
+            content: `## Password Reset Guide\n\nIf you have forgotten your password or your account has been locked, follow these steps to regain access.\n\n### Self-Service Password Reset\n\n1. Go to the login page and click **"Forgot Password"**\n2. Enter your company email address\n3. Check your inbox for the reset link (valid for 30 minutes)\n4. Click the link and set a new password\n5. Password requirements: minimum 8 characters, at least one uppercase, one lowercase, and one number\n\n### Contact IT Support\n\nIf self-service reset is unavailable:\n- Submit an IT Support request under the **Account & Access** category\n- An agent will verify your identity and reset your password\n- New temporary credentials will be sent to your registered email\n\n### Common Issues\n\n- **Reset link expired**: Request a new one — links expire after 30 minutes\n- **Didn't receive email**: Check spam/junk folder, or contact IT\n- **Account locked**: Wait 15 minutes before retrying, or contact IT Support`,
+            excerpt: 'Step-by-step guide to resetting your company password via self-service or IT Support.',
+            category: 'Account & Access',
+            tags: ['password', 'reset', 'account', 'login'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: itDesk.id,
+            title: 'VPN Setup and Troubleshooting',
+            slug: 'vpn-setup-and-troubleshooting',
+            content: `## VPN Configuration Guide\n\nAll remote workers must use the company VPN to access internal resources securely.\n\n### Installing the VPN Client\n\n1. Download the VPN client from the IT Downloads portal\n2. Run the installer with default settings\n3. When prompted, enter the server address: **vpn.citadelgroup.local**\n4. Use your standard company credentials to authenticate\n\n### Connecting to the VPN\n\n1. Launch the VPN client\n2. Select **"Corporate Network"** profile\n3. Enter your username and password\n4. Click **Connect**\n5. Wait for the status to show **"Connected"**\n\n### Troubleshooting\n\n- **Connection timeout**: Check your internet connection, then try an alternate server (vpn2.citadelgroup.local)\n- **Authentication failed**: Ensure you are using your current credentials — try resetting your password first\n- **Slow performance**: Switch to the nearest server region in client settings\n- **Client won't start**: Reinstall the client or run the repair tool from IT Downloads`,
+            excerpt: 'Configure and troubleshoot the company VPN for secure remote access.',
+            category: 'Network & Connectivity',
+            tags: ['vpn', 'remote', 'network', 'security'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: itDesk.id,
+            title: 'Requesting New Software or Hardware',
+            slug: 'requesting-new-software-or-hardware',
+            content: `## Software & Hardware Procurement\n\nNeed new software or equipment? Follow the procurement process below.\n\n### Software Requests\n\n1. Check the **Approved Software Catalog** first — if the software is listed, submit an IT request under **Software & Applications**\n2. For software NOT in the catalog, submit an **IT Procurement** request with:\n   - Software name and version\n   - Business justification\n   - Number of licenses needed\n   - Approximate cost (if known)\n3. The request will go through manager approval, then IT review\n\n### Hardware Requests\n\n1. Submit an **IT Procurement** request under the **Hardware & Devices** category\n2. Include:\n   - Type of hardware (laptop, monitor, peripherals)\n   - Preferred specifications\n   - Business justification\n3. Standard hardware configurations are pre-approved — custom specs require additional review\n\n### Turnaround Time\n\n- **Standard software**: 1–2 business days after approval\n- **New software (not in catalog)**: 5–10 business days\n- **Standard hardware**: 3–5 business days after approval\n- **Custom hardware**: 2–4 weeks`,
+            excerpt: 'How to request new software licenses or hardware through the procurement workflow.',
+            category: 'Software & Applications',
+            tags: ['procurement', 'software', 'hardware', 'request'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: itDesk.id,
+            title: 'Setting Up Multi-Factor Authentication (MFA)',
+            slug: 'setting-up-multi-factor-authentication',
+            content: `## MFA Setup Guide\n\nMFA is mandatory for all company accounts. Set it up using Microsoft Authenticator or your preferred TOTP app.\n\n### Step-by-Step Setup\n\n1. Log in to the **Security Settings** portal\n2. Click **"Enable MFA"**\n3. Scan the QR code with Microsoft Authenticator (or Google Authenticator)\n4. Enter the 6-digit verification code to confirm setup\n5. Save your **recovery codes** in a secure location — you will need these if you lose access to your authenticator app\n\n### Using MFA Daily\n\n- You will be prompted for a verification code each time you log in\n- Codes refresh every 30 seconds\n- Some applications support "Remember this device for 30 days"\n\n### Lost or Broken Device\n\n1. Use one of your **recovery codes** to log in\n2. Go to Security Settings → MFA → **"Reset MFA Device"**\n3. Set up MFA on your new device\n4. If you have no recovery codes, contact IT Support immediately`,
+            excerpt: 'Configure MFA on your account for enhanced security compliance.',
+            category: 'Account & Access',
+            tags: ['mfa', 'security', 'authentication', '2fa'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        // HR articles
+        {
+            serviceDeskId: hrDesk.id,
+            title: 'Leave of Absence (LOA) Policy and Application',
+            slug: 'leave-of-absence-policy-and-application',
+            content: `## Leave of Absence Guide\n\nEmployees may apply for various types of leave through the HR Services portal.\n\n### Leave Types\n\n| Type | Entitlement | Approval |\n|------|-------------|----------|\n| Annual Leave | 14 days/year | Manager |\n| Medical Leave | 14 days/year | Manager + MC |\n| Emergency Leave | As needed | Manager |\n| Unpaid Leave | Case-by-case | Manager + HR |\n\n### How to Apply\n\n1. Navigate to **HR Services** → **Leave Management**\n2. Select the leave type\n3. Fill in the dates and reason\n4. Upload supporting documents (e.g., medical certificate)\n5. Submit for manager approval\n\n### Important Notes\n\n- Annual leave must be applied **at least 3 days in advance**\n- Medical leave requires a valid MC submitted within **24 hours**\n- Leave balance can be checked on your HR dashboard\n- Unconsumed annual leave may be carried forward (max 5 days) to the next year`,
+            excerpt: 'Understand leave types, entitlements, and how to apply through the HR portal.',
+            category: 'Leave Management',
+            tags: ['leave', 'loa', 'vacation', 'hr', 'policy'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: hrDesk.id,
+            title: 'Employee Benefits Overview',
+            slug: 'employee-benefits-overview',
+            content: `## Benefits Package\n\nCitadel Group offers a comprehensive benefits package for all permanent employees.\n\n### Medical & Insurance\n\n- **Group Hospitalization**: Full coverage under company panel hospitals\n- **Outpatient**: RM 500/year reimbursement for non-panel visits\n- **Dental**: RM 300/year for basic dental procedures\n\n### Allowances\n\n- **Transport**: RM 200/month for eligible roles\n- **Meal**: RM 15/day for overtime beyond 7:30 PM\n- **Communication**: RM 50/month mobile allowance\n\n### Professional Development\n\n- **Training Budget**: RM 3,000/year per employee\n- **Certification Fee**: One professional certification per year (full reimbursement)\n- **Conference Attendance**: Subject to manager approval\n\n### How to Claim\n\nSubmit a request through **HR Services** → **Benefits & Claims** with supporting receipts. Claims are processed within 5 business days.`,
+            excerpt: 'Overview of medical, insurance, allowances, and professional development benefits.',
+            category: 'Benefits & Compensation',
+            tags: ['benefits', 'insurance', 'allowance', 'medical', 'hr'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        // Finance articles
+        {
+            serviceDeskId: financeDesk.id,
+            title: 'How to Submit an Expense Claim',
+            slug: 'how-to-submit-an-expense-claim',
+            content: `## Expense Claim Process\n\nFollow these steps to submit and track your business expense claims.\n\n### Eligible Expenses\n\n- Business travel (flights, hotels, transport)\n- Client entertainment (meals, events)\n- Office supplies (when procured independently)\n- Training and certifications\n\n### Submitting a Claim\n\n1. Navigate to **Group Finance** → **Expense Claims**\n2. Click **"New Claim"**\n3. Fill in expense details:\n   - Category and sub-category\n   - Amount and currency\n   - Date of expense\n   - Business justification\n4. Upload supporting receipts (PDF or image)\n5. Submit for manager approval\n\n### Approval Workflow\n\n1. **Manager Review** — Verifies business justification\n2. **Finance Review** — Validates receipts and compliance\n3. **CFO Approval** — For claims above RM 5,000\n4. **Payment Processing** — 5–7 business days after final approval\n\n### Claim Limits\n\n- Maximum per claim: RM 50,000\n- Receipt required for any item above RM 50\n- Claims must be submitted within **30 days** of the expense date`,
+            excerpt: 'Step-by-step guide for submitting and tracking business expense claims.',
+            category: 'Expense Management',
+            tags: ['expense', 'claim', 'reimbursement', 'finance'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: financeDesk.id,
+            title: 'Purchase Requisition Guide',
+            slug: 'purchase-requisition-guide',
+            content: `## Purchase Requisition (PR) Process\n\nAll departmental purchases must go through the formal requisition workflow.\n\n### When to Submit a PR\n\n- Office equipment and furniture\n- Software subscriptions and licenses\n- Consulting and professional services\n- Any purchase exceeding RM 500\n\n### PR Workflow\n\n1. **Submit Request** via Group Finance → Purchase Requisition\n2. **Finance Acknowledgement** — Finance verifies budget allocation\n3. **Finance Processing** — PO created and sent to vendor\n4. **CFO Approval** — Required for purchases above RM 10,000\n5. **Group CEO Approval** — Required for purchases above RM 50,000\n6. **Payment** — Processed after goods/services received\n\n### Required Information\n\n- Item description and specifications\n- Quantity and estimated unit cost\n- Preferred vendor (if any)\n- Budget code / cost center\n- Expected delivery date\n- Business justification\n\n### Turnaround Time\n\n- Under RM 10,000: 5–7 business days\n- RM 10,000–50,000: 10–15 business days\n- Above RM 50,000: 15–20 business days`,
+            excerpt: 'Complete guide for submitting and tracking purchase requisitions through approval workflow.',
+            category: 'Procurement',
+            tags: ['purchase', 'requisition', 'procurement', 'finance', 'approval'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+    ];
+
+    for (const article of kbArticles) {
+        await prisma.knowledgeBaseArticle.upsert({
+            where: { slug: article.slug },
+            update: {},
+            create: article,
+        });
+    }
+    console.log(`✅ Seeded ${kbArticles.length} knowledge base articles`);
+
     console.log('🎉 Database seeding completed!');
 }
 

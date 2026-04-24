@@ -45,7 +45,7 @@ export default function AgentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'mine' | 'unassigned'>('mine');
+  const [activeTab, setActiveTab] = useState<'mine' | 'unassigned' | 'resolved'>('mine');
   const [myTickets, setMyTickets] = useState<TicketRow[]>([]);
   const [unassignedTickets, setUnassignedTickets] = useState<TicketRow[]>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
@@ -58,8 +58,8 @@ export default function AgentDashboard() {
     async function fetchData() {
       setLoading(true);
       try {
-        const myParams: Record<string, any> = { assignedToId: user?.id, limit: 50 };
-        const unParams: Record<string, any> = { assignedToId: 'none', limit: 50 };
+        const myParams: Record<string, any> = { assignedToId: user?.id, limit: 100 };
+        const unParams: Record<string, any> = { assignedToId: 'none', limit: 100 };
         if (selectedRequestTypeId) {
           myParams.requestTypeId = selectedRequestTypeId;
           unParams.requestTypeId = selectedRequestTypeId;
@@ -114,15 +114,28 @@ export default function AgentDashboard() {
   }, [myTickets, unassignedTickets]);
 
   const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN', 'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN'];
-  const tickets = (activeTab === 'mine' ? myTickets : unassignedTickets).filter(t => !CLOSED_STATUSES.includes(t.status));
+
+  const openTickets = myTickets.filter(t => !CLOSED_STATUSES.includes(t.status));
+  const resolvedTickets = myTickets.filter(t => CLOSED_STATUSES.includes(t.status));
+
+  const tickets = activeTab === 'mine' ? openTickets
+    : activeTab === 'resolved' ? resolvedTickets
+    : unassignedTickets;
 
   const cards = [
     {
       label: 'My Open Tickets',
-      value: myTickets.filter(t => !CLOSED_STATUSES.includes(t.status)).length,
+      value: openTickets.length,
       icon: 'confirmation_number',
       color: 'text-blue-600',
       bg: 'bg-blue-50',
+    },
+    {
+      label: 'Resolved',
+      value: resolvedTickets.length,
+      icon: 'task_alt',
+      color: 'text-green-600',
+      bg: 'bg-green-50',
     },
     {
       label: 'Unassigned',
@@ -156,7 +169,7 @@ export default function AgentDashboard() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {cards.map(card => (
           <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
             <div className={`w-12 h-12 rounded-lg ${card.bg} flex items-center justify-center flex-shrink-0`}>
@@ -216,6 +229,21 @@ export default function AgentDashboard() {
             </span>
           )}
         </button>
+        <button
+          onClick={() => setActiveTab('resolved')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'resolved'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Resolved
+          {!loading && resolvedTickets.length > 0 && (
+            <span className="ml-2 bg-green-100 text-green-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+              {resolvedTickets.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Ticket Table */}
@@ -251,7 +279,9 @@ export default function AgentDashboard() {
               {selectedRequestTypeId
                 ? 'Try clearing the request type filter to see all tickets.'
                 : activeTab === 'mine'
-                ? 'You have no tickets assigned to you.'
+                ? 'You have no active tickets assigned to you.'
+                : activeTab === 'resolved'
+                ? 'You have no resolved tickets yet.'
                 : 'No unassigned tickets at the moment.'}
             </p>
           </div>
