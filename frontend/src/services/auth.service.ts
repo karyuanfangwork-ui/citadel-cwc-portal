@@ -25,7 +25,11 @@ interface AuthUser {
 export const authService = {
     async login(credentials: LoginCredentials): Promise<AuthUser & { accessToken?: string }> {
         const response = await apiClient.post('/auth/login', credentials);
-        return response.data.data.user;
+        // Backend returns { user, accessToken } - return both
+        return {
+            ...response.data.data.user,
+            accessToken: response.data.data.accessToken,
+        };
     },
 
     async register(data: RegisterData): Promise<AuthUser> {

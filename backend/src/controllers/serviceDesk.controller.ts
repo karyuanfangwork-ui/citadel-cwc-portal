@@ -99,6 +99,13 @@ class ServiceDeskController {
             where,
             include: {
                 serviceCategory: true,
+                workflow: {
+                    include: {
+                        steps: {
+                            orderBy: { displayOrder: 'asc' }
+                        }
+                    }
+                }
             },
         });
 
@@ -290,7 +297,7 @@ class ServiceDeskController {
 
     updateRequestType = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { typeId } = req.params;
-        const { name, description, icon, requiresApproval, slaHours, formConfig, isActive, requiredRole } = req.body;
+        const { name, description, icon, requiresApproval, slaHours, formConfig, isActive, requiredRole, workflowTypeId } = req.body;
 
         const requestType = await prisma.requestType.update({
             where: { id: typeId as string },
@@ -303,6 +310,7 @@ class ServiceDeskController {
                 formConfig,
                 isActive,
                 requiredRole: requiredRole !== undefined ? (requiredRole || null) : undefined,
+                workflowTypeId: workflowTypeId !== undefined ? (workflowTypeId || null) : undefined,
             }
         });
 

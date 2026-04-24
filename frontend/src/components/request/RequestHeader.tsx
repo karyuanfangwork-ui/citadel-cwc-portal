@@ -21,6 +21,16 @@ interface RequestChild {
   status: string;
 }
 
+interface WorkflowStep {
+  id: string;
+  label: string;
+  status: string;
+  icon: string;
+  displayOrder: number;
+  isInitial: boolean;
+  isFinal: boolean;
+}
+
 interface RequestHeaderProps {
   request: {
     id: string;
@@ -32,7 +42,17 @@ interface RequestHeaderProps {
     assignedTo?: { firstName: string; lastName: string } | null;
     requesterId: string;
     serviceDesk?: { code: string };
-    requestType?: { code: string; name: string };
+    requestType?: { 
+      code: string; 
+      name: string; 
+      workflowTypeId?: string;
+      workflow?: {
+        id: string;
+        code: string;
+        name: string;
+        steps: WorkflowStep[];
+      };
+    };
     childRequests?: RequestChild[];
   };
   activities: Activity[];
@@ -61,7 +81,22 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
   onMarkLOAIssued,
 }) => {
   const getStatusSteps = (currentStatus: string) => {
-    // 1. Onboarding Workflow
+    // 0. Check if workflow type from database with steps
+    const workflowData = request.requestType?.workflow;
+    if (workflowData && workflowData.steps && workflowData.steps.length > 0) {
+      // Use dynamic workflow steps from database
+      const steps = workflowData.steps.sort((a, b) => a.displayOrder - b.displayOrder);
+      const statusOrder = steps.map(s => s.status);
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return steps.map((step) => ({
+        label: step.label,
+        status: step.status,
+        icon: step.icon,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    // 1. Onboarding Workflow (legacy fallback)
     if (currentStatus.startsWith('ONBOARDING_')) {
       const allSteps = [
         { label: 'Submitted', status: 'ONBOARDING_SUBMITTED', icon: 'check_circle' },
@@ -105,101 +140,93 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
       }));
     }
 
-    // 3. HR Workflow - differentiate by request type
-    if (request.serviceDesk?.code === 'HR') {
-      // HR Hiring/Recruitment uses the full recruitment workflow
-      const HIRING_REQUEST_TYPES = ['NEW_HIRING', 'EMPLOYEE_ONBOARDING', 'EMPLOYEE_OFFBOARDING'];
-      const isHiringWorkflow = HIRING_REQUEST_TYPES.includes(request.requestType?.code || '');
-
-      if (isHiringWorkflow) {
-        // Recruitment Workflow: Interview -> Screening -> LOA
-        const allSteps = [
-          { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
-          { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
-          { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
-          { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
-          { label: 'Feedback', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'radio_button_checked' },
-          { label: 'Screening', status: 'HR_SCREENING', icon: 'radio_button_checked' },
-          { label: 'LOA', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked' },
-          { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
-        ];
-        const statusOrder = [
-          'SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'MANAGER_APPROVED',
-          'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING',
-          'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED',
-          'COMPLETED'
-        ];
-        const currentIndex = statusOrder.indexOf(currentStatus);
-        return allSteps.map((step) => ({
-          ...step,
-          active: statusOrder.indexOf(step.status) <= currentIndex,
-        }));
-      } else {
-        // General HR Support: simple workflow (HR_QUESTION, etc.)
-        const allSteps = [
-          { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
-          { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
-          { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
-          { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
-        ];
-        const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'RESOLVED'];
-        const currentIndex = statusOrder.indexOf(currentStatus);
-        return allSteps.map((step) => ({
-          ...step,
-          active: statusOrder.indexOf(step.status) <= currentIndex,
-        }));
-      }
+    // 3. Workflow by workflow code (takes precedence for legacy fallback)
+    const workflowCode = request.requestType?.workflow?.code;
+    
+    if (workflowCode === 'IT_PROCUREMENT') {
+      // IT Procurement Workflow: CEO -> CTO -> CFO approval chain
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'Acknowledged', status: 'ACKNOWLEDGED_IT', icon: 'radio_button_checked' },
+        { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL_IT', icon: 'radio_button_checked' },
+        { label: 'CTO Approval', status: 'PENDING_CTO_APPROVAL_IT', icon: 'radio_button_checked' },
+        { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'radio_button_checked' },
+        { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_IT', icon: 'radio_button_checked' },
+        { label: 'Payment', status: 'PAYMENT_PROCESSING_IT', icon: 'radio_button_checked' },
+        { label: 'Delivery', status: 'PENDING_DELIVERY_IT', icon: 'radio_button_checked' },
+        { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+      ];
+      const statusOrder = [
+        'SUBMITTED', 'ACKNOWLEDGED_IT', 'PENDING_CEO_APPROVAL_IT', 'CEO_APPROVED_IT',
+        'PENDING_CTO_APPROVAL_IT', 'CTO_APPROVED_IT', 'PENDING_INVOICE_IT',
+        'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'PAYMENT_PROCESSING_IT',
+        'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT', 'RESOLVED'
+      ];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
     }
-
-    // 4. IT Workflow
-    if (request.serviceDesk?.code === 'IT') {
-      // IT Procurement types use the full executive approval chain
-      const PROCUREMENT_REQUEST_TYPES = ['NEW_HARDWARE', 'SOFTWARE_INSTALLATION'];
-      const isProcurement = PROCUREMENT_REQUEST_TYPES.includes(request.requestType?.code || '');
-
-      if (isProcurement) {
-        // IT Procurement Workflow: CEO -> CTO -> CFO approval chain
-        const allSteps = [
-          { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
-          { label: 'Acknowledged', status: 'ACKNOWLEDGED_IT', icon: 'radio_button_checked' },
-          { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL_IT', icon: 'radio_button_checked' },
-          { label: 'CTO Approval', status: 'PENDING_CTO_APPROVAL_IT', icon: 'radio_button_checked' },
-          { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'radio_button_checked' },
-          { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_IT', icon: 'radio_button_checked' },
-          { label: 'Payment', status: 'PAYMENT_PROCESSING_IT', icon: 'radio_button_checked' },
-          { label: 'Delivery', status: 'PENDING_DELIVERY_IT', icon: 'radio_button_checked' },
-          { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
-        ];
-        const statusOrder = [
-          'SUBMITTED', 'ACKNOWLEDGED_IT', 'PENDING_CEO_APPROVAL_IT', 'CEO_APPROVED_IT',
-          'PENDING_CTO_APPROVAL_IT', 'CTO_APPROVED_IT', 'PENDING_INVOICE_IT',
-          'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'PAYMENT_PROCESSING_IT',
-          'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT', 'RESOLVED'
-        ];
-        const currentIndex = statusOrder.indexOf(currentStatus);
-        return allSteps.map((step) => ({
-          ...step,
-          active: statusOrder.indexOf(step.status) <= currentIndex,
-        }));
-      } else {
-        // Simple IT Workflow: Get IT help, Email management, etc.
-        const allSteps = [
-          { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
-          { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
-          { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
-          { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
-        ];
-        const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'RESOLVED'];
-        const currentIndex = statusOrder.indexOf(currentStatus);
-        return allSteps.map((step) => ({
-          ...step,
-          active: statusOrder.indexOf(step.status) <= currentIndex,
-        }));
-      }
+    
+    if (workflowCode === 'IT_SIMPLE') {
+      // Simple IT Workflow: Get IT help, Email management, etc.
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
+        { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
+        { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+      ];
+      const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'RESOLVED'];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
     }
-
-    // 5. Finance Workflow
-    if (request.serviceDesk?.code === 'FINANCE') {
+    
+    if (workflowCode === 'HR_RECRUITMENT') {
+      // HR Recruitment Workflow: Interview -> Screening -> LOA
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
+        { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
+        { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
+        { label: 'Feedback', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'radio_button_checked' },
+        { label: 'Screening', status: 'HR_SCREENING', icon: 'radio_button_checked' },
+        { label: 'LOA', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
+      ];
+      const statusOrder = [
+        'SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'MANAGER_APPROVED',
+        'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING',
+        'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED',
+        'COMPLETED'
+      ];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+    
+    if (workflowCode === 'HR_GENERAL') {
+      // General HR Support: simple workflow (HR_QUESTION, etc.)
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
+        { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
+        { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+      ];
+      const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'RESOLVED'];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+    
+    if (workflowCode === 'FINANCE') {
       const allSteps = [
         { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
         { label: 'Manager Review', status: 'PENDING_MANAGER_APPROVAL_FIN', icon: 'radio_button_checked' },
@@ -219,7 +246,61 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
       }));
     }
 
-    // Fallback
+    // 4. Fallback: Service Desk based logic (for legacy data without workflowType)
+    if (request.serviceDesk?.code === 'HR') {
+      // Legacy HR fallback - default to HR_GENERAL
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
+        { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
+        { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+      ];
+      const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'RESOLVED'];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    if (request.serviceDesk?.code === 'IT') {
+      // Legacy IT fallback - default to IT_SIMPLE
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
+        { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
+        { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+      ];
+      const statusOrder = ['SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'RESOLVED'];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    if (request.serviceDesk?.code === 'FINANCE') {
+      // Legacy Finance fallback
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'Manager Review', status: 'PENDING_MANAGER_APPROVAL_FIN', icon: 'radio_button_checked' },
+        { label: 'Finance Head', status: 'PENDING_FINANCE_HEAD_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
+        { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
+      ];
+      const statusOrder = [
+        'SUBMITTED', 'PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_APPROVED_FIN',
+        'PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_APPROVED',
+        'PAYMENT_PROCESSING', 'PAYMENT_DONE', 'COMPLETED',
+      ];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
+    // Final fallback
     const allSteps = [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
       { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },

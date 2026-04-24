@@ -283,15 +283,15 @@ async function main() {
     // Create Service Categories for IT
     const itCategories = [
         { name: 'Get IT help', icon: 'help', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1,
-          requestTypeName: 'Get IT Help Request', requestTypeCode: 'GET_IT_HELP' },
+          requestTypeName: 'Get IT Help Request', requestTypeCode: 'GET_IT_HELP', workflowType: 'IT_SIMPLE' },
         { name: 'Email Management', icon: 'mail', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
-          requestTypeName: 'Email Management Request', requestTypeCode: 'EMAIL_MANAGEMENT' },
+          requestTypeName: 'Email Management Request', requestTypeCode: 'EMAIL_MANAGEMENT', workflowType: 'IT_SIMPLE' },
         { name: 'Report System problem', icon: 'report', colorClass: 'bg-purple-50 text-purple-600', displayOrder: 3,
-          requestTypeName: 'Report System Problem Request', requestTypeCode: 'REPORT_SYSTEM_PROBLEM' },
+          requestTypeName: 'Report System Problem Request', requestTypeCode: 'REPORT_SYSTEM_PROBLEM', workflowType: 'IT_SIMPLE' },
         { name: 'Request Software Installation', icon: 'apps', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4,
-          requestTypeName: 'Software Installation Request', requestTypeCode: 'SOFTWARE_INSTALLATION' },
+          requestTypeName: 'Software Installation Request', requestTypeCode: 'SOFTWARE_INSTALLATION', workflowType: 'IT_PROCUREMENT' },
         { name: 'Request new hardware', icon: 'laptop', colorClass: 'bg-cyan-50 text-cyan-600', displayOrder: 5,
-          requestTypeName: 'Request New Hardware Request', requestTypeCode: 'NEW_HARDWARE' },
+          requestTypeName: 'Request New Hardware Request', requestTypeCode: 'NEW_HARDWARE', workflowType: 'IT_PROCUREMENT' },
     ];
 
     for (const category of itCategories) {
@@ -346,6 +346,7 @@ async function main() {
                 data: {
                     serviceCategoryId: cat.id,
                     isActive: true,
+                    workflowType: category.workflowType,
                     ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
                 }
             });
@@ -356,6 +357,7 @@ async function main() {
                 data: {
                     code: category.requestTypeCode,
                     isActive: true,
+                    workflowType: category.workflowType,
                     ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
                 }
             });
@@ -369,6 +371,7 @@ async function main() {
                     icon: category.icon,
                     formConfig,
                     isActive: true,
+                    workflowType: category.workflowType,
                     ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
                 }
             });
@@ -382,7 +385,7 @@ async function main() {
         {
             name: 'Question for HR', description: 'Ask HR a question or request general HR assistance',
             icon: 'contact_support', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1,
-            requestTypeName: 'Question for HR', requestTypeCode: 'HR_QUESTION',
+            requestTypeName: 'Question for HR', requestTypeCode: 'HR_QUESTION', workflowType: 'HR_GENERAL',
             formConfig: [
                 { id: 'field_1776666757696', label: 'What is your question ?', type: 'text', required: true },
                 { id: 'field_1776666848303', label: 'Provide as much detail as possible about your question', type: 'textarea', required: true },
@@ -393,7 +396,7 @@ async function main() {
         {
             name: 'New Hiring Request', description: 'Request to open a new position and hire a candidate',
             icon: 'person_add', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 2,
-            requestTypeName: 'New Hiring Request', requestTypeCode: 'NEW_HIRING',
+            requestTypeName: 'New Hiring Request', requestTypeCode: 'NEW_HIRING', workflowType: 'HR_RECRUITMENT',
             formConfig: [
                 { id: 'position', label: 'Job Title', type: 'text', required: true },
                 { id: 'department', label: 'Department', type: 'text', required: true },
@@ -407,7 +410,7 @@ async function main() {
         {
             name: 'New Employee Onboarding', description: 'Initiate onboarding process for a new hire',
             icon: 'how_to_reg', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 3,
-            requestTypeName: 'New Employee Onboarding', requestTypeCode: 'EMPLOYEE_ONBOARDING',
+            requestTypeName: 'New Employee Onboarding', requestTypeCode: 'EMPLOYEE_ONBOARDING', workflowType: 'ONBOARDING',
             formConfig: [
                 { id: 'employeeName', label: 'Employee Full Name', type: 'text', required: true },
                 { id: 'employeeEmail', label: 'Employee Email', type: 'text', required: true },
@@ -420,7 +423,7 @@ async function main() {
         {
             name: 'Offboard an Employee', description: 'Initiate offboarding process for a departing employee',
             icon: 'person_remove', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 4,
-            requestTypeName: 'Offboard an Employee', requestTypeCode: 'EMPLOYEE_OFFBOARDING',
+            requestTypeName: 'Offboard an Employee', requestTypeCode: 'EMPLOYEE_OFFBOARDING', workflowType: 'OFFBOARDING',
             formConfig: [
                 { id: 'employeeName', label: 'Employee Full Name', type: 'text', required: true },
                 { id: 'employeeEmail', label: 'Employee Email', type: 'text', required: true },
@@ -463,13 +466,13 @@ async function main() {
             // Backfill structural fields only
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategoryId: category.id, isActive: true },
+                data: { serviceCategoryId: category.id, isActive: true, workflowType: cat.workflowType },
             });
         } else if (existingLegacy) {
             // Assign code to legacy record without touching name/formConfig
             await prisma.requestType.update({
                 where: { id: existingLegacy.id },
-                data: { code: cat.requestTypeCode, isActive: true },
+                data: { code: cat.requestTypeCode, isActive: true, workflowType: cat.workflowType },
             });
         } else {
             await prisma.requestType.create({
@@ -482,6 +485,7 @@ async function main() {
                     isActive: true,
                     requiredRole: cat.requiredRole,
                     formConfig: cat.formConfig,
+                    workflowType: cat.workflowType,
                 },
             });
         }
@@ -494,7 +498,7 @@ async function main() {
         {
             name: 'Purchase Requisition', description: 'Submit a request to purchase goods or services',
             icon: 'shopping_cart', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1,
-            requestTypeName: 'Purchase Requisition', requestTypeCode: 'PURCHASE_REQUISITION',
+            requestTypeName: 'Purchase Requisition', requestTypeCode: 'PURCHASE_REQUISITION', workflowType: 'FINANCE',
             formConfig: [
                 { id: 'itemName', label: 'Item / Service Name', type: 'text', required: true },
                 { id: 'quantity', label: 'Quantity', type: 'number', required: true },
@@ -506,7 +510,7 @@ async function main() {
         {
             name: 'Inter-Company Chargeback', description: 'Request a chargeback between internal company entities',
             icon: 'swap_horiz', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
-            requestTypeName: 'Inter-Company Chargeback', requestTypeCode: 'INTERCOMPANY_CHARGEBACK',
+            requestTypeName: 'Inter-Company Chargeback', requestTypeCode: 'INTERCOMPANY_CHARGEBACK', workflowType: 'FINANCE',
             formConfig: [
                 { id: 'chargeFromEntity', label: 'Charge From Entity', type: 'text', required: true },
                 { id: 'chargeToEntity', label: 'Charge To Entity', type: 'text', required: true },
@@ -518,7 +522,7 @@ async function main() {
         {
             name: 'Submit Budget Proposal', description: 'Submit a budget proposal for approval',
             icon: 'account_balance', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 3,
-            requestTypeName: 'Submit Budget Proposal', requestTypeCode: 'BUDGET_PROPOSAL',
+            requestTypeName: 'Submit Budget Proposal', requestTypeCode: 'BUDGET_PROPOSAL', workflowType: 'FINANCE',
             formConfig: [
                 { id: 'department', label: 'Department', type: 'text', required: true },
                 { id: 'budgetPeriod', label: 'Budget Period (e.g. Q1 2026)', type: 'text', required: true },
@@ -559,12 +563,12 @@ async function main() {
         if (existingByCode) {
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategoryId: category.id, isActive: true },
+                data: { serviceCategoryId: category.id, isActive: true, workflowType: cat.workflowType },
             });
         } else if (existingLegacy) {
             await prisma.requestType.update({
                 where: { id: existingLegacy.id },
-                data: { code: cat.requestTypeCode, isActive: true },
+                data: { code: cat.requestTypeCode, isActive: true, workflowType: cat.workflowType },
             });
         } else {
             await prisma.requestType.create({
@@ -576,6 +580,7 @@ async function main() {
                     slaHours: 72,
                     isActive: true,
                     formConfig: cat.formConfig,
+                    workflowType: cat.workflowType,
                 },
             });
         }

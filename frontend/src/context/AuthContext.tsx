@@ -45,8 +45,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, []);
 
     const login = async (email: string, password: string) => {
-        const { accessToken: token } = await authService.login({ email, password });
-        setAccessToken(token ?? null);
+        const response = await authService.login({ email, password });
+        setUser({
+            id: response.id,
+            email: response.email,
+            firstName: response.firstName,
+            lastName: response.lastName,
+            roles: response.roles,
+            agentTeam: response.agentTeam,
+        });
+        setAccessToken(response.accessToken ?? null);
     };
 
     const register = async (data: RegisterData) => {

@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { serviceDeskService } from '../../services/serviceDesk.service';
 import { adminService, CategoryData } from '../../services/admin.service';
+import workflowService, { WorkflowType } from '../../services/workflow.service';
 import apiClient from '../../services/api';
 import { OnboardingTaskTemplate } from '../../../types';
 import { AdminTabId } from './adminConstants';
@@ -85,9 +86,11 @@ export interface UseAdminStateReturn {
     serviceFormData: ServiceFormData;
     selectedType: any;
     formBuilderOpen: boolean;
-    editingTypeName: { id: string; name: string; description: string } | null;
-    editTypeForm: { name: string; description: string };
+    editingTypeName: { id: string; name: string; description: string; workflowTypeId?: string } | null;
+    editTypeForm: { name: string; description: string; workflowTypeId: string };
     savingTypeName: boolean;
+    workflowTypes: WorkflowType[];
+    workflowTypesLoading: boolean;
 
     // Users
     users: any[];
@@ -132,6 +135,7 @@ export interface UseAdminStateReturn {
 
     // Service Desk Handlers
     fetchServiceDesks: () => Promise<void>;
+    fetchWorkflowTypes: () => Promise<void>;
     fetchCategories: (deskId: string) => Promise<void>;
     handleDeskChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
     openAddModal: () => void;
@@ -191,7 +195,7 @@ export interface UseAdminStateReturn {
     setTemplateForm: (form: TemplateForm) => void;
     setOffboardingTemplateForm: (form: OffboardingTemplateForm) => void;
     setPendingAction: (action: PendingAction | null) => void;
-    setEditTypeForm: (form: { name: string; description: string }) => void;
+    setEditTypeForm: (form: { name: string; description: string; workflowType: string }) => void;
     setEditingTypeName: (type: { id: string; name: string; description: string } | null) => void;
     setFormBuilderOpen: (open: boolean) => void;
 }
@@ -233,9 +237,11 @@ export function useAdminState(): UseAdminStateReturn {
     });
     const [selectedType, setSelectedType] = useState<any>(null);
     const [formBuilderOpen, setFormBuilderOpen] = useState(false);
-    const [editingTypeName, setEditingTypeName] = useState<{ id: string; name: string; description: string } | null>(null);
-    const [editTypeForm, setEditTypeForm] = useState({ name: '', description: '' });
+    const [editingTypeName, setEditingTypeName] = useState<{ id: string; name: string; description: string; workflowTypeId?: string } | null>(null);
+    const [editTypeForm, setEditTypeForm] = useState({ name: '', description: '', workflowTypeId: '' });
     const [savingTypeName, setSavingTypeName] = useState(false);
+    const [workflowTypes, setWorkflowTypes] = useState<WorkflowType[]>([]);
+    const [workflowTypesLoading, setWorkflowTypesLoading] = useState(false);
 
     // ── Users State ────────────────────────────────────────────────────────
     const [users, setUsers] = useState<any[]>([]);
@@ -330,6 +336,18 @@ export function useAdminState(): UseAdminStateReturn {
             console.error('Error fetching service desks:', err);
         } finally {
             setLoading(false);
+        }
+    }, []);
+
+    const fetchWorkflowTypes = useCallback(async () => {
+        setWorkflowTypesLoading(true);
+        try {
+            const workflows = await workflowService.getWorkflowTypes();
+            setWorkflowTypes(workflows);
+        } catch (err) {
+            console.error('Error fetching workflow types:', err);
+        } finally {
+            setWorkflowTypesLoading(false);
         }
     }, []);
 
@@ -589,8 +607,8 @@ export function useAdminState(): UseAdminStateReturn {
     }, [selectedType, selectedDesk, selectedCategory, showToast]);
 
     const openEditTypeName = useCallback((type: any) => {
-        setEditingTypeName({ id: type.id, name: type.name, description: type.description || '' });
-        setEditTypeForm({ name: type.name, description: type.description || '' });
+        setEditingTypeName({ id: type.id, name: type.name, description: type.description || '', workflowTypeId: type.workflowTypeId });
+        setEditTypeForm({ name: type.name, description: type.description || '', workflowTypeId: type.workflowTypeId || '' });
     }, []);
 
     const handleSaveTypeName = useCallback(async () => {
@@ -600,9 +618,10 @@ export function useAdminState(): UseAdminStateReturn {
             await serviceDeskService.updateRequestType(editingTypeName.id, {
                 name: editTypeForm.name,
                 description: editTypeForm.description,
+                workflowTypeId: editTypeForm.workflowTypeId || null,
             });
             setRequestTypes(prev => prev.map(t =>
-                t.id === editingTypeName.id ? { ...t, name: editTypeForm.name, description: editTypeForm.description } : t
+                t.id === editingTypeName.id ? { ...t, name: editTypeForm.name, description: editTypeForm.description, workflowTypeId: editTypeForm.workflowTypeId } : t
             ));
             showToast('success', 'Request type updated successfully.');
             setEditingTypeName(null);
@@ -775,7 +794,8 @@ export function useAdminState(): UseAdminStateReturn {
 
     useEffect(() => {
         fetchServiceDesks();
-    }, [fetchServiceDesks]);
+        fetchWorkflowTypes();
+    }, [fetchServiceDesks, fetchWorkflowTypes]);
 
     useEffect(() => {
         if (activeTab === 'onboarding-tasks') {
@@ -818,6 +838,8 @@ export function useAdminState(): UseAdminStateReturn {
         editingTypeName,
         editTypeForm,
         savingTypeName,
+        workflowTypes,
+        workflowTypesLoading,
 
         // Users
         users,
@@ -862,6 +884,7 @@ export function useAdminState(): UseAdminStateReturn {
 
         // Handlers
         fetchServiceDesks,
+        fetchWorkflowTypes,
         fetchCategories,
         handleDeskChange,
         openAddModal,

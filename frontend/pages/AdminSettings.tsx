@@ -305,6 +305,21 @@ const AdminSettings = () => {
                                         disabled={admin.savingTypeName}
                                     />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-[#101418] mb-2">Workflow Type</label>
+                                    <select
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none bg-white"
+                                        value={admin.editTypeForm.workflowTypeId}
+                                        onChange={e => admin.setEditTypeForm({ ...admin.editTypeForm, workflowTypeId: e.target.value })}
+                                        disabled={admin.savingTypeName || admin.workflowTypesLoading}
+                                    >
+                                        <option value="">Default (by Service Desk)</option>
+                                        {admin.workflowTypes.map(wt => (
+                                            <option key={wt.id} value={wt.id}>{wt.name}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-[#8993a4] mt-1">Determines the status stepper displayed for this request type.</p>
+                                </div>
                             </div>
                             <div className="flex gap-3 justify-end mt-6">
                                 <button

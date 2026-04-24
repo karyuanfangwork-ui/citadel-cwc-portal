@@ -22,6 +22,7 @@ import bannerConfigRoutes from './bannerConfig.routes';
 import requestStatusDefinitionRoutes from './requestStatusDefinition.routes';
 import workflowTransitionRoutes from './workflowTransition.routes';
 import fileRoutes from './file.routes';
+import workflowRoutes from './workflow.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -48,6 +49,7 @@ router.use('/admin/onboarding-templates', onboardingTemplateRoutes);
 router.use('/admin/offboarding-templates', offboardingTemplateRoutes);
 router.use('/it-workflow', itWorkflowRoutes);
 router.use('/finance-workflow', financeWorkflowRoutes);
+router.use('/admin/workflows', workflowRoutes);
 router.use('/reports', reportsRoutes);
 router.use('/admin/banner-configs', bannerConfigRoutes);
 router.use('/admin/status-definitions', requestStatusDefinitionRoutes);

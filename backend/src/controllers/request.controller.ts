@@ -476,7 +476,17 @@ class RequestController {
                     },
                 },
                 serviceDesk: true,
-                requestType: true,
+                requestType: {
+                    include: {
+                        workflow: {
+                            include: {
+                                steps: {
+                                    orderBy: { displayOrder: 'asc' as const }
+                                }
+                            }
+                        }
+                    }
+                },
                 itHardwareRequest: true,
                 parentRequest: {
                     select: {
