@@ -36,20 +36,23 @@ CWC 2.0 is an Enterprise Help Center / Service Desk system supporting IT Support
 
 ### Frontend
 - **Framework:** React 19 + TypeScript + Vite
-- **Routing:** React Router v7 with `HashRouter` (defined in `frontend/App.tsx`)
+- **Routing:** React Router v7 (defined in `frontend/App.tsx`)
 - **Path alias:** `@` maps to `frontend/` root
 - **API client:** Axios, base URL from `VITE_API_URL` env var
 - **Auth context:** `frontend/src/context/AuthContext`
 - **Page components split across two dirs:** `frontend/pages/` (main pages) and `frontend/src/pages/` (auth pages like Login/Register)
 - **Shared components:** `frontend/src/components/`
-- **AI integration:** Gemini API key exposed via `process.env.GEMINI_API_KEY` in Vite config
+- **RBAC:** `requirePermission()` middleware enforces fine-grained permissions (loaded in auth middleware, cached in Redis 5min TTL)
 
 ### Key Domain Areas
 - **Service Desks:** IT Support (5 categories), HR Services (4 categories), Group Finance (3 categories)
 - **Workflows:** Request creation, approvals, interviews, screening, LOA, onboarding
 - **Roles:** Admin, Agent, End User
 
-### Default Seed Credentials
-- Admin: `admin@helpdesk.com` / `admin123`
-- Agent: `agent@helpdesk.com` / `agent123`
-- User: `user@helpdesk.com` / `user123`
+### Seed Accounts (use @test.local domain, password: abc@123)
+- Admin: `admin@test.local` / `abc@123`
+- HR: `hr@test.local` / `abc@123`
+- IT: `it@test.local` / `abc@123`
+- CEO: `ceo@test.local` / `abc@123`
+- Group CEO: `groupceo@company.com` / `groupceo123`
+- Legacy: `user@helpdesk.com` / `abc@123`

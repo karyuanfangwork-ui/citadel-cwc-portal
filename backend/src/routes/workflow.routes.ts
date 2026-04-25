@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import {
     getWorkflowTypes,
     getWorkflowType,
@@ -15,17 +15,17 @@ import {
 
 const router = Router();
 
-// All routes require authentication
-router.use(authenticate, authorize('ADMIN'));
+// Get workflow type by code (authenticated only, no special permission needed)
+router.get('/code/:code', authenticate, getWorkflowTypeByCode);
+
+// All other routes require authentication + workflow:manage permission
+router.use(authenticate, requirePermission('workflow:manage'));
 
 // Get all workflow types
 router.get('/', getWorkflowTypes);
 
 // Get workflow type by ID
 router.get('/:id', getWorkflowType);
-
-// Get workflow type by code (authenticated)
-router.get('/code/:code', getWorkflowTypeByCode);
 
 // Create workflow type
 router.post('/', createWorkflowType);

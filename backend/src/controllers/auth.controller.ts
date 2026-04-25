@@ -285,7 +285,7 @@ class AuthController {
                 userId: user.id,
                 eventType: 'PASSWORD_RESET',
                 variables: {
-                    userName: user.name || user.email,
+                    userName: `${user.firstName} ${user.lastName}`.trim() || user.email,
                     resetUrl,
                 },
             });

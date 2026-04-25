@@ -1,11 +1,11 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { listTemplates, createTemplate, updateTemplate, deleteTemplate } from '../controllers/onboardingTemplate.controller';
 
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(requirePermission('admin:settings'));
 
 router.get('/', listTemplates);
 router.post('/', createTemplate);

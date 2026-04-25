@@ -408,15 +408,15 @@ async function main() {
     // Create Service Categories for IT
     const itCategories = [
         { name: 'Get IT help', icon: 'help', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1,
-          requestTypeName: 'Get IT Help Request', requestTypeCode: 'GET_IT_HELP', workflowType: 'IT_SIMPLE' },
+          requestTypeName: 'Get IT Help Request', requestTypeCode: 'GET_IT_HELP', workflowType: 'IT_SIMPLE', slaHours: 24 },
         { name: 'Email Management', icon: 'mail', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
-          requestTypeName: 'Email Management Request', requestTypeCode: 'EMAIL_MANAGEMENT', workflowType: 'IT_SIMPLE' },
+          requestTypeName: 'Email Management Request', requestTypeCode: 'EMAIL_MANAGEMENT', workflowType: 'IT_SIMPLE', slaHours: 24 },
         { name: 'Report System problem', icon: 'report', colorClass: 'bg-purple-50 text-purple-600', displayOrder: 3,
-          requestTypeName: 'Report System Problem Request', requestTypeCode: 'REPORT_SYSTEM_PROBLEM', workflowType: 'IT_SIMPLE' },
+          requestTypeName: 'Report System Problem Request', requestTypeCode: 'REPORT_SYSTEM_PROBLEM', workflowType: 'IT_SIMPLE', slaHours: 24 },
         { name: 'Request Software Installation', icon: 'apps', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4,
-          requestTypeName: 'Software Installation Request', requestTypeCode: 'SOFTWARE_INSTALLATION', workflowType: 'IT_PROCUREMENT' },
+          requestTypeName: 'Software Installation Request', requestTypeCode: 'SOFTWARE_INSTALLATION', workflowType: 'IT_PROCUREMENT', slaHours: 48 },
         { name: 'Request new hardware', icon: 'laptop', colorClass: 'bg-cyan-50 text-cyan-600', displayOrder: 5,
-          requestTypeName: 'Request New Hardware Request', requestTypeCode: 'NEW_HARDWARE', workflowType: 'IT_PROCUREMENT' },
+          requestTypeName: 'Request New Hardware Request', requestTypeCode: 'NEW_HARDWARE', workflowType: 'IT_PROCUREMENT', slaHours: 72 },
     ];
 
     for (const category of itCategories) {
@@ -471,7 +471,8 @@ async function main() {
                 data: {
                     serviceCategory: { connect: { id: cat.id } },
                     isActive: true,
-                    ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
+                    ...(category.slaHours ? { slaHours: category.slaHours } : {}),
+                    ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
                 }
             });
         } else if (existingLegacy) {
@@ -481,7 +482,8 @@ async function main() {
                 data: {
                     code: category.requestTypeCode,
                     isActive: true,
-                    ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
+                    ...(category.slaHours ? { slaHours: category.slaHours } : {}),
+                    ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
                 }
             });
         } else {
@@ -494,7 +496,8 @@ async function main() {
                     icon: category.icon,
                     formConfig,
                     isActive: true,
-                    ...(category.requestTypeCode === 'NEW_HARDWARE' ? { slaHours: 72, requiresApproval: true } : {}),
+                    ...(category.slaHours ? { slaHours: category.slaHours } : {}),
+                    ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
                 }
             });
         }

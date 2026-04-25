@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NotificationProvider, useNotifications } from './src/context/NotificationContext';
 import { ToastProvider } from './src/context/ToastContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
+import { hasPermission, hasAnyRole } from './src/utils/permissions';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import ToastContainer from './src/components/ToastContainer';
 import Login from './src/pages/Login';
@@ -49,10 +50,10 @@ const Header = () => {
   const navLinks = [
     { to: '/', label: 'Dashboard', show: true },
     { to: '/my-requests', label: 'My Requests', show: true },
-    { to: '/agent', label: 'Agent Dashboard', show: !!(user?.roles?.includes('ADMIN') || user?.roles?.includes('AGENT')) },
-    { to: '/reports', label: 'Reports', show: !!user?.roles?.includes('ADMIN') },
+    { to: '/agent', label: 'Agent Dashboard', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
+    { to: '/reports', label: 'Reports', show: hasPermission(user, 'report:read') },
     { to: '/kb', label: 'Knowledge Base', show: true },
-    { to: '/admin/settings', label: 'Admin Settings', show: !!user?.roles?.includes('ADMIN') },
+    { to: '/admin/settings', label: 'Admin Settings', show: hasPermission(user, 'admin:access') },
   ].filter(l => l.show);
 
   return (
@@ -259,12 +260,12 @@ const AppShell = () => {
               } />
               <Route path="/it/hardware" element={<Navigate to="/it" replace />} />
               <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
-              <Route path="/reports" element={<ProtectedRoute requireAdmin><Reports /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute requirePermission="report:read"><Reports /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
               <Route path="/kb" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
               <Route path="/kb/:slug" element={<ProtectedRoute><ArticleDetail /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
-                <ProtectedRoute requireAdmin>
+                <ProtectedRoute requirePermission="admin:access">
                   <ErrorBoundary>
                     <AdminSettings />
                   </ErrorBoundary>

@@ -1,10 +1,9 @@
 import { Response, NextFunction } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
-import * as fs from 'fs';
-import * as path from 'path';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 import { notify, notifyMultiple } from '../services/notification.service';
+import { s3Service } from '../services/s3.service';
 import { createDefaultOnboardingTasks } from '../services/onboarding.service';
 import { sanitizeString, sanitizeComment } from '../utils/sanitize';
 import { auditLog } from '../utils/audit';
@@ -956,11 +955,11 @@ class RequestController {
     });
 
     /**
-     * Download attachment
-     * Serves the file from local disk storage via the storageUrl path.
+    /**
+     * Serves the file from S3 via presigned URL redirect.
      * Sets Content-Disposition header for browser download.
      */
-    downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { id, attachmentId } = req.params;
 
         // Verify the attachment belongs to the request and is not deleted
@@ -976,35 +975,24 @@ class RequestController {
             throw new AppError('Attachment not found', 404);
         }
 
-        // Resolve absolute path — storagePath is stored as an absolute path from diskStorage
-        const absolutePath = path.resolve(attachment.storagePath);
-
-        // Security: ensure the resolved path is actually inside the uploads directory
-        const uploadsDir = path.resolve(process.cwd(), 'uploads');
-        if (!absolutePath.startsWith(uploadsDir)) {
-            logger.warn(`[DOWNLOAD] Blocked path traversal attempt: ${absolutePath}`);
-            throw new AppError('Invalid file path', 400);
+        // storagePath now stores the S3 object key (e.g. "cwc/uuid-ext")
+        const s3Key = attachment.storagePath;
+        if (!s3Key) {
+            throw new AppError('File key is missing', 400);
         }
 
-        // Verify file exists on disk
-        if (!fs.existsSync(absolutePath)) {
-            logger.error(`[DOWNLOAD] File not found on disk: ${absolutePath}`);
-            throw new AppError('File not found on server', 404);
+        try {
+            // Generate a presigned URL (valid for 15 minutes) with response-content-disposition
+            // so the browser downloads with the original filename
+            const presignedUrl = await s3Service.getPresignedUrl(s3Key, 0.25, {
+                'response-content-disposition': `attachment; filename="${encodeURIComponent(attachment.fileName)}"`,
+                'response-content-type': attachment.mimeType || 'application/octet-stream',
+            });
+            return res.redirect(presignedUrl);
+        } catch (error: any) {
+            logger.error(`[DOWNLOAD] Failed to generate presigned URL for key ${s3Key}: ${error?.message || error}`);
+            throw new AppError('Could not generate download link', 500);
         }
-
-        // Set Content-Type — fall back to application/octet-stream if unknown
-        const contentType = attachment.mimeType || 'application/octet-stream';
-
-        // Set Content-Disposition to trigger browser download with original filename
-        const disposition = `attachment; filename="${encodeURIComponent(attachment.fileName)}"`;
-
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Content-Disposition', disposition);
-        res.setHeader('Content-Length', fs.statSync(absolutePath).size);
-
-        // Stream the file to the response
-        const fileStream = fs.createReadStream(absolutePath);
-        fileStream.pipe(res);
     });
 
     /**

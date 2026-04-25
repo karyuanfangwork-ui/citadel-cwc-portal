@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import reportsController from '../controllers/reports.controller';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 
 const router = Router();
 router.use(authenticate);
-router.use(authorize('ADMIN', 'AGENT'));
+router.use(requirePermission('report:read'));
 
 router.get('/summary', reportsController.getSummary);
 router.get('/by-status', reportsController.byStatus);

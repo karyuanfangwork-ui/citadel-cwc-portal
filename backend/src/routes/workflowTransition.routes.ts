@@ -1,14 +1,14 @@
 import { Router } from 'express';
 import { WorkflowTransitionController } from '../controllers/workflowTransition.controller';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 
 const router = Router();
 const controller = new WorkflowTransitionController();
 
 router.get('/statuses', authenticate, controller.getStatuses);
-router.get('/', authenticate, authorize('ADMIN'), controller.getAll);
-router.post('/', authenticate, authorize('ADMIN'), controller.create);
-router.put('/:id', authenticate, authorize('ADMIN'), controller.update);
-router.delete('/:id', authenticate, authorize('ADMIN'), controller.delete);
+router.get('/', authenticate, controller.getAll);
+router.post('/', authenticate, requirePermission('workflow:manage'), controller.create);
+router.put('/:id', authenticate, requirePermission('workflow:manage'), controller.update);
+router.delete('/:id', authenticate, requirePermission('workflow:manage'), controller.delete);
 
 export default router;

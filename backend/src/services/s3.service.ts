@@ -25,13 +25,24 @@ export class S3Service {
      * Generates a time-limited presigned URL for downloading a file
      * @param key The file key (UUID + extension)
      * @param expiresH Hours until the link expires (default 1 hour)
+     * @param overrideParams Optional S3 GetObject overrides (e.g. ResponseContentDisposition, ResponseContentType)
      */
-    async getPresignedUrl(key: string, expiresH: number = 1): Promise<string> {
+    async getPresignedUrl(key: string, expiresH: number = 1, overrideParams?: Record<string, string>): Promise<string> {
         try {
-            const command = new GetObjectCommand({
+            const getObjectInput: any = {
                 Bucket: config.s3.bucket,
                 Key: key,
-            });
+            };
+            // Map common override keys to S3 SDK param names
+            if (overrideParams) {
+                if (overrideParams['response-content-disposition']) {
+                    getObjectInput.ResponseContentDisposition = overrideParams['response-content-disposition'];
+                }
+                if (overrideParams['response-content-type']) {
+                    getObjectInput.ResponseContentType = overrideParams['response-content-type'];
+                }
+            }
+            const command = new GetObjectCommand(getObjectInput);
             
             const url = await getSignedUrl(this.client, command, { 
                 expiresIn: expiresH * 3600 
