@@ -194,7 +194,10 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
         { label: 'Feedback', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'radio_button_checked' },
         { label: 'Screening', status: 'HR_SCREENING', icon: 'radio_button_checked' },
-        { label: 'LOA', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'LOA Pending', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'LOA Approved', status: 'LOA_APPROVED', icon: 'radio_button_checked' },
+        { label: 'LOA Issued', status: 'LOA_ISSUED', icon: 'radio_button_checked' },
+        { label: 'LOA Accepted', status: 'LOA_ACCEPTED', icon: 'radio_button_checked' },
         { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
       ];
       const statusOrder = [

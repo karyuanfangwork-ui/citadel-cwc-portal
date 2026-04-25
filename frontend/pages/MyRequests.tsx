@@ -23,16 +23,19 @@ interface Request {
   } | null;
 }
 
-const PENDING_APPROVAL_STATUSES: Record<string, string> = {
-  CEO: 'PENDING_CEO_APPROVAL_IT',
-  CTO: 'PENDING_CTO_APPROVAL_IT',
-  CFO: 'PENDING_CFO_APPROVAL_IT',
+const PENDING_APPROVAL_STATUSES: Record<string, string[]> = {
+  CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT'],
+  CTO: ['PENDING_CTO_APPROVAL_IT'],
+  CFO: ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN'],
+  GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
+  HIRING_MANAGER: ['PENDING_MANAGER_REVIEW'],
+  FINANCE_HEAD: ['PENDING_FINANCE_HEAD_APPROVAL'],
 };
 
 const MyRequests = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const approvalRole = user?.roles?.find(r => ['CEO', 'CTO', 'CFO'].includes(r)) ?? null;
+  const approvalRole = user?.roles?.find(r => Object.keys(PENDING_APPROVAL_STATUSES).includes(r)) ?? null;
   const [filter, setFilter] = useState('open');
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +77,8 @@ const MyRequests = () => {
       }
 
       if (filter === 'pending_approval' && approvalRole) {
-        filters.status = PENDING_APPROVAL_STATUSES[approvalRole];
+        const statuses = PENDING_APPROVAL_STATUSES[approvalRole];
+        filters.status = statuses.join(',');
       }
 
       const data = await requestService.getAllRequests(filters);

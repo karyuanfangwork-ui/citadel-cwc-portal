@@ -4,7 +4,7 @@ import { RequestStatus, RequestPriority } from '../../types';
 interface RequestFilters {
     page?: number;
     limit?: number;
-    status?: RequestStatus;
+    status?: string;  // Single status or comma-separated for multiple
     serviceDeskId?: string;
     requesterId?: string;
     search?: string;

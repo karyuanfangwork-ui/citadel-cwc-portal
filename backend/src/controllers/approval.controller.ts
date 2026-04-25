@@ -437,7 +437,7 @@ export const managerDecision = async (req: Request, res: Response): Promise<void
             const selectedCandidate = request.candidateResumes.find((r: any) => r.id === selectedCandidateId);
             if (selectedCandidate) {
                 customFields.selectedCandidateId = selectedCandidateId;
-                customFields.selectedCandidateName = selectedCandidate.candidateName;
+                customFields.selectedCandidateName = selectedCandidate.candidateName || 'Unknown Candidate';
             }
         }
 

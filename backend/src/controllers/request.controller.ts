@@ -79,7 +79,11 @@ class RequestController {
         }
 
         if (status) {
-            where.status = status;
+            // Support comma-separated status values for multi-status filters
+            const statusValues = (status as string).split(',');
+            where.status = statusValues.length === 1
+                ? statusValues[0]
+                : { in: statusValues };
         }
 
         if (serviceDeskId) {
@@ -242,6 +246,58 @@ class RequestController {
             const email = cf.employeeEmail || 'Not provided';
             const reason = cf.reason || 'Not specified';
             finalDescription = `Employee offboarding request for ${name}. Last working day: ${lastDay}. Contact: ${email}. Reason: ${reason}.`;
+        }
+
+        // Auto-generate description for New Hiring Request (HR recruitment)
+        if (requestType?.code === 'NEW_HIRING' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = requestType?.formConfig as any[] | null;
+
+            const parts: string[] = [];
+            for (const [key, value] of Object.entries(cf)) {
+                if (value === null || value === undefined || value === '') continue;
+                if (typeof value === 'object' && value.s3Key) continue;
+
+                let label = key;
+                if (formConfig && Array.isArray(formConfig)) {
+                    const field = formConfig.find((f: any) => f.id === key);
+                    if (field?.label) label = field.label;
+                }
+
+                parts.push(`${label}: ${value}`);
+            }
+
+            if (parts.length > 0) {
+                finalDescription = `New hiring request - ${parts.join('. ')}.`;
+            } else {
+                finalDescription = 'New hiring request submitted.';
+            }
+        }
+
+        // Auto-generate description for HR General questions
+        if (requestType?.code === 'HR_QUESTION' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = requestType?.formConfig as any[] | null;
+
+            const parts: string[] = [];
+            for (const [key, value] of Object.entries(cf)) {
+                if (value === null || value === undefined || value === '') continue;
+                if (typeof value === 'object' && value.s3Key) continue;
+
+                let label = key;
+                if (formConfig && Array.isArray(formConfig)) {
+                    const field = formConfig.find((f: any) => f.id === key);
+                    if (field?.label) label = field.label;
+                }
+
+                parts.push(`${label}: ${value}`);
+            }
+
+            if (parts.length > 0) {
+                finalDescription = `HR inquiry - ${parts.join('. ')}.`;
+            } else {
+                finalDescription = 'HR inquiry submitted.';
+            }
         }
 
         // Auto-generate description for Purchase Requisition (finance)
