@@ -57,6 +57,9 @@ export const config = {
         resendApiKey: process.env.RESEND_API_KEY || '',
         from: process.env.EMAIL_FROM || 'Help Center <help@helpdesk.com>',
         replyTo: process.env.EMAIL_REPLY_TO || 'help@helpdesk.com',
+        // Dev-only: redirect all outgoing emails to this address (bypasses
+        // Resend test-domain restriction that limits recipients to account owner)
+        devRecipient: process.env.EMAIL_DEV_RECIPIENT || '',
     },
 
     // Elasticsearch

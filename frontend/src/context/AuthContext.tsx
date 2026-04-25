@@ -7,6 +7,7 @@ interface User {
     firstName: string;
     lastName: string;
     roles?: string[];
+    permissions?: string[];
     agentTeam?: string | null;
 }
 
@@ -52,6 +53,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             firstName: response.firstName,
             lastName: response.lastName,
             roles: response.roles,
+            permissions: response.permissions,
             agentTeam: response.agentTeam,
         });
         setAccessToken(response.accessToken ?? null);

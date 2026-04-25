@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { userController } from '../controllers/user.controller';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, authorize, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { updateProfileSchema } from '../validators/user.validator';
 
@@ -47,16 +47,16 @@ router.get('/roles/all', authorize('ADMIN'), userController.listRoles);
 /**
  * @route   GET /api/v1/users/permissions/all
  * @desc    List all permissions with role assignments
- * @access  Private (Admin only)
+ * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.get('/permissions/all', authorize('ADMIN'), userController.listPermissions);
+router.get('/permissions/all', requirePermission('admin:access'), userController.listPermissions);
 
 /**
  * @route   PUT /api/v1/users/roles/:roleId/permissions
  * @desc    Replace a role's permissions atomically
- * @access  Private (Admin only)
+ * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.put('/roles/:roleId/permissions', authorize('ADMIN'), userController.updateRolePermissions);
+router.put('/roles/:roleId/permissions', requirePermission('admin:settings'), userController.updateRolePermissions);
 
 /**
  * @route   GET /api/v1/users/:id

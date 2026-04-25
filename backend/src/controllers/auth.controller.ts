@@ -3,13 +3,14 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { permissionService } from '../services/permission.service';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { tokenService } from '../services/token.service';
 import { passwordResetService } from '../services/password-reset.service';
-import { sendEmail } from '../services/email.service';
+import { notify } from '../services/notification.service';
 import { validatePassword, checkPasswordBreach } from '../utils/password';
 
 const prisma = new PrismaClient();
@@ -172,6 +173,7 @@ class AuthController {
                     lastName: user.lastName,
                     roles: user.roles.map((ur) => ur.role.name),
                     agentTeam: user.agentTeam,
+                    permissions: await permissionService.getUserPermissions(user.id),
                 },
                 accessToken, // exposed for SSE EventSource auth
             },
@@ -279,14 +281,14 @@ class AuthController {
             const { plainToken } = await passwordResetService.createToken(user.id);
             const resetUrl = `${config.app.url}/#/reset-password?token=${plainToken}`;
 
-            await sendEmail(
-                user.email,
-                'Password Reset Request',
-                `<p>You requested a password reset for your Help Center account.</p>
-                <p>Click the link below to reset your password. This link expires in 15 minutes.</p>
-                <p><a href="${resetUrl}">${resetUrl}</a></p>
-                <p>If you did not request this, you can safely ignore this email.</p>`
-            );
+            await notify({
+                userId: user.id,
+                eventType: 'PASSWORD_RESET',
+                variables: {
+                    userName: user.name || user.email,
+                    resetUrl,
+                },
+            });
 
             logger.info(`Password reset email sent to: ${email}`);
         }).catch((err) => {

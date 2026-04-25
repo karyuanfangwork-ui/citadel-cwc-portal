@@ -3,6 +3,7 @@ import { PrismaClient, ExecutiveRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { sanitizeString } from '../utils/sanitize';
+import { permissionService } from '../services/permission.service';
 import { auditLog } from '../utils/audit';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { tokenService } from '../services/token.service';
@@ -52,6 +53,7 @@ class UserController {
                     jobTitle: user.jobTitle,
                     manager: user.manager,
                     roles: user.roles.map((ur) => ur.role.name),
+                    permissions: req.user?.permissions || [],
                     agentTeam: user.agentTeam,
                     createdAt: user.createdAt,
                 },
@@ -366,6 +368,9 @@ class UserController {
         // Force-revoke active tokens so new roles take effect immediately
         await tokenService.revokeAllForUser(id);
 
+        // Invalidate RBAC cache for this user since their roles changed
+        await permissionService.invalidateUserPermissionsCache(id);
+
         const updated = await prisma.user.findUnique({
             where: { id },
             include: { roles: { include: { role: true } } },
@@ -439,6 +444,9 @@ class UserController {
                 })]
                 : []),
         ]);
+
+        // Invalidate all RBAC cache — role permission changes affect every user with this role
+        await permissionService.invalidateAllPermissionsCache();
 
         res.json({ status: 'success', data: { roleId, permissionIds } });
     });

@@ -20,6 +20,8 @@ interface AuthUser {
     firstName: string;
     lastName: string;
     roles?: string[];
+    permissions?: string[];
+    agentTeam?: string | null;
 }
 
 export const authService = {

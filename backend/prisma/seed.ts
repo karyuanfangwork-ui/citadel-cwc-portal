@@ -130,14 +130,22 @@ async function main() {
 
     console.log('✅ Roles created');
 
-    // Create Permissions
+    console.log('📋 Creating permission list...');
     const permissions = [
         { name: 'request:create', resource: 'request', action: 'create', description: 'Create new requests' },
         { name: 'request:read', resource: 'request', action: 'read', description: 'View requests' },
         { name: 'request:update', resource: 'request', action: 'update', description: 'Update requests' },
         { name: 'request:delete', resource: 'request', action: 'delete', description: 'Delete requests' },
+        { name: 'request:approve', resource: 'request', action: 'approve', description: 'Approve requests' },
+        { name: 'request:assign', resource: 'request', action: 'assign', description: 'Assign requests to agents' },
         { name: 'user:manage', resource: 'user', action: 'manage', description: 'Manage users' },
         { name: 'admin:access', resource: 'admin', action: 'access', description: 'Access admin panel' },
+        { name: 'admin:settings', resource: 'admin', action: 'settings', description: 'Modify system settings' },
+        { name: 'report:read', resource: 'report', action: 'read', description: 'View reports' },
+        { name: 'kb:manage', resource: 'kb', action: 'manage', description: 'Manage knowledge base articles' },
+        { name: 'notification:manage', resource: 'notification', action: 'manage', description: 'Manage notification templates' },
+        { name: 'workflow:manage', resource: 'workflow', action: 'manage', description: 'Manage workflow transitions' },
+        { name: 'banner:manage', resource: 'banner', action: 'manage', description: 'Manage banner configurations' },
     ];
 
     for (const perm of permissions) {
@@ -149,6 +157,99 @@ async function main() {
     }
 
     console.log('✅ Permissions created');
+
+    // --- Seed RolePermission assignments ---
+    // This maps each role to the permissions they should have at runtime.
+    // The requirePermission() middleware reads from this join table to enforce RBAC.
+    console.log('🔗 Assigning permissions to roles...');
+
+    // Fetch all roles and create a lookup map
+    const allRoles = await prisma.role.findMany();
+    const roleMap = new Map<string, string>();
+    for (const r of allRoles) {
+        roleMap.set(r.name, r.id);
+    }
+
+    // Fetch all permissions
+    const allPerms = await prisma.permission.findMany();
+    const permMap = new Map<string, string>();
+    for (const p of allPerms) {
+        permMap.set(p.name, p.id);
+    }
+
+    // Permission assignment per role
+    // ADMIN gets everything
+    const adminPerms = [
+        'request:create', 'request:read', 'request:update', 'request:delete',
+        'request:approve', 'request:assign',
+        'user:manage',
+        'admin:access', 'admin:settings',
+        'report:read',
+        'kb:manage',
+        'notification:manage',
+        'workflow:manage',
+        'banner:manage',
+    ];
+
+    // AGENT gets full request CRUD + assign, no admin/user/report/banner/workflow
+    const agentPerms = [
+        'request:create', 'request:read', 'request:update', 'request:delete',
+        'request:approve', 'request:assign',
+    ];
+
+    // NORMAL_STAFF and USER can create and read their own requests
+    const staffPerms = [
+        'request:create', 'request:read',
+    ];
+
+    // Executive approvers get request:read + request:approve
+    const executivePerms = [
+        'request:read', 'request:approve',
+    ];
+
+    // HIRING_MANAGER gets request:create, request:read + approve
+    const hiringManagerPerms = [
+        'request:create', 'request:read', 'request:approve',
+    ];
+
+    const rolePermissionMap: Record<string, string[]> = {
+        ADMIN: adminPerms,
+        AGENT: agentPerms,
+        USER: staffPerms,
+        NORMAL_STAFF: staffPerms,
+        CEO: executivePerms,
+        CTO: executivePerms,
+        CFO: executivePerms,
+        GROUP_CEO: executivePerms,
+        HIRING_MANAGER: hiringManagerPerms,
+    };
+
+    // Upsert RolePermission records: clear existing and recreate
+    for (const [roleName, permNames] of Object.entries(rolePermissionMap)) {
+        const roleId = roleMap.get(roleName);
+        if (!roleId) {
+            console.log(`  ⚠️ Role not found: ${roleName} — skipping`);
+            continue;
+        }
+
+        // Delete existing permissions for this role (clean slate)
+        await prisma.rolePermission.deleteMany({ where: { roleId } });
+
+        // Create new RolePermission records
+        for (const permName of permNames) {
+            const permId = permMap.get(permName);
+            if (!permId) {
+                console.log(`  ⚠️ Permission not found: ${permName} — skipping`);
+                continue;
+            }
+            await prisma.rolePermission.create({
+                data: { roleId, permissionId: permId },
+            });
+        }
+        console.log(`  ✅ ${roleName}: ${permNames.length} permissions`);
+    }
+
+    console.log('✅ Role permissions assigned');
 
     const hiringManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'HIRING_MANAGER' } });
 
@@ -615,193 +716,257 @@ async function main() {
         {
             name: 'request_created',
             eventType: 'REQUEST_CREATED',
-            emailSubject: 'New Request Created - {{referenceNumber}}',
-            emailBody: 'Your request {{referenceNumber}} has been created successfully. We will review it shortly.',
+            emailSubject: 'New Request #{{requestId}} — {{requestTitle}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>New Request Submitted</h2><p>Hello {{userName}},</p><p>A new request has been submitted by <strong>{{requesterName}}</strong>:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Category</td><td style='padding:8px 12px;border:1px solid #eee;'>{{categoryName}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Priority</td><td style='padding:8px 12px;border:1px solid #eee;'>{{priority}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Request Created',
-            pushBody: 'Your request {{referenceNumber}} has been submitted.',
+            pushBody: 'Your request #{{requestId}} has been submitted.',
         },
         {
             name: 'request_status_changed',
             eventType: 'STATUS_CHANGED',
-            emailSubject: 'Request {{referenceNumber}} - Status Updated',
-            emailBody: 'The status of your request {{referenceNumber}} has been updated to {{newStatus}}.',
+            emailSubject: 'Request #{{requestId}} — Status Updated to {{newStatus}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Status Update</h2><p>Hello {{userName}},</p><p>The status of request <strong>#{{requestId}} — {{requestTitle}}</strong> has been updated:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Previous</td><td style='padding:8px 12px;border:1px solid #eee;'>{{oldStatus}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Current</td><td style='padding:8px 12px;border:1px solid #eee;'><span style='display:inline-block;padding:4px 12px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>{{newStatus}}</span></td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Changed By</td><td style='padding:8px 12px;border:1px solid #eee;'>{{changedBy}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Status Updated',
-            pushBody: 'Request {{referenceNumber}} is now {{newStatus}}.',
+            pushBody: 'Request #{{requestId}} is now {{newStatus}}.',
         },
         {
             name: 'request_assigned',
             eventType: 'REQUEST_ASSIGNED',
-            emailSubject: 'Request {{referenceNumber}} - Assigned to You',
-            emailBody: 'You have been assigned to request {{referenceNumber}}: {{summary}}. Please review and take action.',
+            emailSubject: 'Request #{{requestId}} Assigned to You',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Request Assigned</h2><p>Hello {{userName}},</p><p>Request <strong>#{{requestId}} — {{requestTitle}}</strong> has been assigned to <strong>{{assigneeName}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Assignee</td><td style='padding:8px 12px;border:1px solid #eee;'>{{assigneeName}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'New Assignment',
-            pushBody: 'Request {{referenceNumber}} assigned to you.',
+            pushBody: 'Request #{{requestId}} assigned to you.',
         },
         {
             name: 'comment_added',
             eventType: 'COMMENT_ADDED',
-            emailSubject: 'New Comment on Request {{referenceNumber}}',
-            emailBody: 'A new comment has been added to request {{referenceNumber}}. Please check the request for details.',
+            emailSubject: 'New Comment on Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>New Comment</h2><p>Hello {{userName}},</p><p><strong>{{commenterName}}</strong> added a comment on request <strong>#{{requestId}} — {{requestTitle}}</strong>:</p><div style='background:#f4f5f7;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #1a1a2e;'>{{commentText}}</div><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'New Comment',
-            pushBody: 'New comment on {{referenceNumber}}.',
+            pushBody: 'New comment on request #{{requestId}}.',
         },
         {
             name: 'sla_breached',
             eventType: 'SLA_BREACHED',
-            emailSubject: 'SLA Breach Alert - Request {{referenceNumber}}',
-            emailBody: 'Request {{referenceNumber}} has exceeded its SLA deadline. Please take immediate action.',
+            emailSubject: '⚠️ SLA Breach — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#e53e3e;'>SLA Breach Alert</h2><p>Hello {{userName}},</p><p>An SLA deadline has been breached on the following request:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>SLA Deadline</td><td style='padding:8px 12px;border:1px solid #eee;color:#e53e3e;font-weight:600;'>{{slaDeadline}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#e53e3e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Take Action</a></p>",
             pushTitle: 'SLA Breach',
-            pushBody: 'Request {{referenceNumber}} has breached its SLA.',
+            pushBody: 'Request #{{requestId}} has breached its SLA.',
         },
         {
             name: 'manager_approval_required',
             eventType: 'MANAGER_APPROVAL_REQUIRED',
-            emailSubject: 'Request {{requestId}} Requires Your Approval',
-            emailBody: 'A request ({{requestId}}) has been submitted for manager approval. Please review and take action.',
+            emailSubject: 'Approval Needed — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Approval Required</h2><p>Hello {{userName}},</p><p>Your approval is requested for the following IT support request:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Requester</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requesterName}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
             pushTitle: 'Approval Required',
-            pushBody: 'Request {{requestId}} needs your approval.',
+            pushBody: 'Request #{{requestId}} needs your approval.',
         },
         {
             name: 'manager_approved',
             eventType: 'MANAGER_APPROVED',
-            emailSubject: 'Your Request {{requestId}} Was Approved',
-            emailBody: 'Your request ({{requestId}}) has been approved by the manager. It is now being processed.',
+            emailSubject: 'Request #{{requestId}} — Manager Approved',
+            emailBody: "<h2 style='margin:0 0 16px;color:#2e7d32;'>Manager Approved</h2><p>Hello {{userName}},</p><p>The manager has <strong>approved</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>APPROVED</span></p><p>The request will proceed to the next stage in the workflow.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Request Approved',
-            pushBody: 'Your request {{requestId}} was approved.',
+            pushBody: 'Your request #{{requestId}} was approved by the manager.',
         },
         {
             name: 'manager_rejected',
             eventType: 'MANAGER_REJECTED',
-            emailSubject: 'Your Request {{requestId}} Was Declined',
-            emailBody: 'Your request ({{requestId}}) has been declined by the manager. Please contact your HR representative for more information.',
+            emailSubject: 'Request #{{requestId}} — Manager Rejected',
+            emailBody: "<h2 style='margin:0 0 16px;color:#e53e3e;'>Manager Rejected</h2><p>Hello {{userName}},</p><p>The manager has <strong>rejected</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fde8e8;color:#e53e3e;border-radius:4px;font-weight:600;'>REJECTED</span></p><p>Reason: {{rejectionReason}}</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Request Declined',
-            pushBody: 'Your request {{requestId}} was declined.',
+            pushBody: 'Your request #{{requestId}} was declined by the manager.',
         },
         {
             name: 'procurement_initiated',
             eventType: 'PROCUREMENT_INITIATED',
-            emailSubject: 'Procurement Started - Request {{requestId}}',
-            emailBody: 'Procurement has been initiated for your IT hardware request ({{requestId}}). We will update you once the items are ordered.',
+            emailSubject: 'Procurement Started — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Procurement Initiated</h2><p>Hello {{userName}},</p><p>Procurement has been initiated for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fff3e0;color:#e65100;border-radius:4px;font-weight:600;'>PROCUREMENT IN PROGRESS</span></p><p>The IT team is now sourcing the required hardware/software.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Procurement Started',
-            pushBody: 'Procurement for {{requestId}} has begun.',
+            pushBody: 'Procurement for request #{{requestId}} has begun.',
         },
         {
             name: 'hardware_ordered',
             eventType: 'HARDWARE_ORDERED',
-            emailSubject: 'Hardware Ordered - Request {{requestId}}',
-            emailBody: 'Your hardware for request ({{requestId}}) has been ordered{{orderNumber ? ". Order number: " + orderNumber : ""}}. We will notify you when it arrives.',
+            emailSubject: 'Hardware Ordered — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Hardware Ordered</h2><p>Hello {{userName}},</p><p>The hardware for request <strong>#{{requestId}} — {{requestTitle}}</strong> has been ordered.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e3f2fd;color:#1565c0;border-radius:4px;font-weight:600;'>ORDERED</span></p><p>You will be notified when the item is received.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Hardware Ordered',
-            pushBody: 'Hardware for {{requestId}} has been ordered.',
+            pushBody: 'Hardware for request #{{requestId}} has been ordered.',
         },
         {
             name: 'hardware_received',
             eventType: 'HARDWARE_RECEIVED',
-            emailSubject: 'Hardware Arrived - Request {{requestId}}',
-            emailBody: 'Your hardware for request ({{requestId}}) has arrived and is being set up. You will be notified when it is ready.',
+            emailSubject: 'Hardware Received — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Hardware Received</h2><p>Hello {{userName}},</p><p>The hardware for request <strong>#{{requestId}} — {{requestTitle}}</strong> has been received and is being prepared for provisioning.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>RECEIVED</span></p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Hardware Arrived',
-            pushBody: 'Hardware for {{requestId}} has arrived.',
+            pushBody: 'Hardware for request #{{requestId}} has arrived.',
         },
         {
             name: 'hardware_delivered',
             eventType: 'HARDWARE_DELIVERED',
-            emailSubject: 'Hardware Ready - Request {{requestId}}',
-            emailBody: 'Your hardware for request ({{requestId}}) is ready for pickup or delivery. Please contact IT to arrange collection.',
+            emailSubject: 'Delivered — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#2e7d32;'>Delivered</h2><p>Hello {{userName}},</p><p>Your request <strong>#{{requestId}} — {{requestTitle}}</strong> has been fulfilled and delivered.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>DELIVERED</span></p><p>If you have any issues, please create a new support ticket.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Hardware Ready',
-            pushBody: 'Hardware for {{requestId}} is ready for pickup.',
+            pushBody: 'Hardware for request #{{requestId}} is ready.',
         },
         {
             name: 'vp_approval_required',
             eventType: 'VP_APPROVAL_REQUIRED',
-            emailSubject: 'High-Value Request {{requestId}} Requires VP Approval',
-            emailBody: 'A high-value hardware request ({{requestId}}, ${{price}}) requires VP approval. Please review and take action.',
+            emailSubject: 'VP Approval Needed — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>VP Approval Required</h2><p>Hello {{userName}},</p><p>VICE PRESIDENT approval is required for this high-value IT request:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Requester</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requesterName}}</td></tr></table><p>This request requires VP-level authorization due to the estimated value.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
             pushTitle: 'VP Approval Required',
-            pushBody: 'Request {{requestId}} requires VP approval.',
+            pushBody: 'Request #{{requestId}} requires VP approval.',
         },
         {
             name: 'vp_approved',
             eventType: 'VP_APPROVED',
-            emailSubject: 'Request {{requestId}} VP Approved',
-            emailBody: 'Your request ({{requestId}}) has been approved by the VP. Procurement will proceed.',
+            emailSubject: 'Request #{{requestId}} — VP Approved',
+            emailBody: "<h2 style='margin:0 0 16px;color:#2e7d32;'>VP Approved</h2><p>Hello {{userName}},</p><p>The Vice President has <strong>approved</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>VP APPROVED</span></p><p>The request will now proceed to procurement or fulfillment.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'VP Approved',
-            pushBody: 'Request {{requestId}} VP approved.',
+            pushBody: 'Your request #{{requestId}} was approved by the VP.',
         },
         {
             name: 'vp_rejected',
             eventType: 'VP_REJECTED',
-            emailSubject: 'Request {{requestId}} Declined by VP',
-            emailBody: 'Your request ({{requestId}}) has been declined by the VP{{comments ? ". Reason: " + comments : ""}}.',
+            emailSubject: 'Request #{{requestId}} — VP Rejected',
+            emailBody: "<h2 style='margin:0 0 16px;color:#e53e3e;'>VP Rejected</h2><p>Hello {{userName}},</p><p>The Vice President has <strong>rejected</strong> request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fde8e8;color:#e53e3e;border-radius:4px;font-weight:600;'>VP REJECTED</span></p><p>Reason: {{rejectionReason}}</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'VP Declined',
-            pushBody: 'Request {{requestId}} was declined by VP.',
+            pushBody: 'Your request #{{requestId}} was declined by the VP.',
         },
         {
             name: 'request_rejected',
             eventType: 'REQUEST_REJECTED',
-            emailSubject: 'Request {{requestId}} Was Declined',
-            emailBody: 'Your request ({{requestId}}) has been declined{{rejectedBy ? " by " + rejectedBy : ""}}{{comments ? ". Reason: " + comments : ""}}.',
+            emailSubject: 'Request #{{requestId}} — Rejected by {{approverRole}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#e53e3e;'>Request Rejected</h2><p>Hello {{userName}},</p><p>Request <strong>#{{requestId}} — {{requestTitle}}</strong> has been rejected by <strong>{{approverRole}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fde8e8;color:#e53e3e;border-radius:4px;font-weight:600;'>REJECTED</span></p><p>Reason: {{rejectionReason}}</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Request Declined',
-            pushBody: 'Request {{requestId}} was declined.',
+            pushBody: 'Request #{{requestId}} was declined.',
         },
         {
             name: 'action_required',
             eventType: 'ACTION_REQUIRED',
-            emailSubject: 'Action Required - Request {{requestId}}',
-            emailBody: 'An action is required for request ({{requestId}}){{action ? ": " + action : ""}}. Please log in to take the required action.',
+            emailSubject: 'Action Required — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#f6ad55;'>Action Required</h2><p>Hello {{userName}},</p><p>Action is needed on request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#fff3e0;color:#e65100;border-radius:4px;font-weight:600;'>ACTION NEEDED</span></p><p>Please review and take the necessary steps.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Take Action</a></p>",
             pushTitle: 'Action Required',
-            pushBody: 'Request {{requestId}} requires your action.',
+            pushBody: 'Request #{{requestId}} requires your action.',
         },
         {
             name: 'finance_manager_approval_requested',
             eventType: 'FINANCE_MANAGER_APPROVAL_REQUESTED',
-            emailSubject: 'Finance Approval Required - Request {{requestId}}',
-            emailBody: 'Request {{requestId}} has been submitted for finance manager approval. Please review and take action.',
+            emailSubject: 'Finance Approval Required — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Approval Required</h2><p>Hello {{userName}},</p><p>Your approval is required for finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
             pushTitle: 'Finance Approval Required',
-            pushBody: 'Request {{requestId}} needs finance manager approval.',
+            pushBody: 'Request #{{requestId}} needs finance approval.',
         },
         {
             name: 'finance_manager_decision',
             eventType: 'FINANCE_MANAGER_DECISION',
-            emailSubject: 'Finance Manager Decision - Request {{requestId}}',
-            emailBody: 'Your request {{requestId}} has been reviewed by the finance manager. Decision: {{decision}}.',
+            emailSubject: 'Finance Manager Decision — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Manager Decision</h2><p>Hello {{userName}},</p><p>The finance manager has made a decision on request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
             pushTitle: 'Finance Manager Decision',
-            pushBody: 'Finance manager reviewed {{requestId}}: {{decision}}.',
+            pushBody: 'Finance manager reviewed request #{{requestId}}.',
         },
         {
             name: 'finance_head_approval_requested',
             eventType: 'FINANCE_HEAD_APPROVAL_REQUESTED',
-            emailSubject: 'Finance Head Approval Required - Request {{requestId}}',
-            emailBody: 'Request {{requestId}} requires finance head approval. Please review and take action.',
+            emailSubject: 'Finance Head Approval Required — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Head Approval Required</h2><p>Hello {{userName}},</p><p>Finance head approval is required for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
             pushTitle: 'Finance Head Approval Required',
-            pushBody: 'Request {{requestId}} needs finance head approval.',
+            pushBody: 'Request #{{requestId}} needs finance head approval.',
         },
         {
             name: 'finance_head_decision',
             eventType: 'FINANCE_HEAD_DECISION',
-            emailSubject: 'Finance Head Decision - Request {{requestId}}',
-            emailBody: 'Your request {{requestId}} has been reviewed by the finance head. Decision: {{decision}}.',
+            emailSubject: 'Finance Head Decision — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Head Decision</h2><p>Hello {{userName}},</p><p>The finance head has made a decision on request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
             pushTitle: 'Finance Head Decision',
-            pushBody: 'Finance head reviewed {{requestId}}: {{decision}}.',
+            pushBody: 'Finance head reviewed request #{{requestId}}.',
         },
         {
             name: 'finance_payment_update',
             eventType: 'FINANCE_PAYMENT_UPDATE',
-            emailSubject: 'Payment Update - Request {{requestId}}',
-            emailBody: 'Payment status update for request {{requestId}}: {{paymentStatus}}.',
+            emailSubject: 'Payment Update — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Payment Update</h2><p>Hello {{userName}},</p><p>There is a payment status update for finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Payment Update',
-            pushBody: 'Payment update for {{requestId}}: {{paymentStatus}}.',
+            pushBody: 'Payment update for request #{{requestId}}.',
         },
         {
             name: 'request_resolved',
             eventType: 'REQUEST_RESOLVED',
-            emailSubject: 'Request Resolved - {{referenceNumber}}',
-            emailBody: 'Your request {{referenceNumber}} has been resolved. Thank you for contacting us.',
+            emailSubject: 'Resolved — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#2e7d32;'>Request Resolved</h2><p>Hello {{userName}},</p><p>Request <strong>#{{requestId}} — {{requestTitle}}</strong> has been resolved.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>RESOLVED</span></p><p>If the issue persists, you can reopen this request within 7 days.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
             pushTitle: 'Request Resolved',
-            pushBody: 'Request {{referenceNumber}} has been resolved.',
+            pushBody: 'Request #{{requestId}} has been resolved.',
+        },
+        {
+            name: 'approval_required',
+            eventType: 'APPROVAL_REQUIRED',
+            emailSubject: '{{approverRole}} Approval Needed — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Executive Approval Required</h2><p>Hello {{userName}},</p><p><strong>{{approverRole}}</strong> approval is required for request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Approval Level</td><td style='padding:8px 12px;border:1px solid #eee;'>{{approvalLevel}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#f6ad55;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review &amp; Approve</a></p>",
+            pushTitle: 'Approval Required',
+            pushBody: 'Request #{{requestId}} needs {{approverRole}} approval.',
+        },
+        {
+            name: 'finance_acknowledged',
+            eventType: 'FINANCE_ACKNOWLEDGED',
+            emailSubject: 'Finance Acknowledged — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Finance Acknowledged</h2><p>Hello {{userName}},</p><p>Your finance request <strong>#{{requestId}} — {{requestTitle}}</strong> has been acknowledged by the Finance team.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e3f2fd;color:#1565c0;border-radius:4px;font-weight:600;'>ACKNOWLEDGED</span></p><p>The request is being reviewed and will be routed to the appropriate approver.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+            pushTitle: 'Finance Request Acknowledged',
+            pushBody: 'Finance request #{{requestId}} acknowledged.',
+        },
+        {
+            name: 'finance_routed_cfo',
+            eventType: 'FINANCE_ROUTED_CFO',
+            emailSubject: 'CFO Review — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Routed to CFO</h2><p>Hello {{userName}},</p><p>Finance request <strong>#{{requestId}} — {{requestTitle}}</strong> has been routed to the Chief Financial Officer for approval.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+            pushTitle: 'Routed to CFO',
+            pushBody: 'Request #{{requestId}} routed to CFO.',
+        },
+        {
+            name: 'finance_cfo_decision',
+            eventType: 'FINANCE_CFO_DECISION',
+            emailSubject: 'CFO Decision — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>CFO Decision</h2><p>Hello {{userName}},</p><p>The CFO has made a decision on finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
+            pushTitle: 'CFO Decision',
+            pushBody: 'CFO reviewed request #{{requestId}}.',
+        },
+        {
+            name: 'finance_group_ceo_decision',
+            eventType: 'FINANCE_GROUP_CEO_DECISION',
+            emailSubject: 'Group CEO Decision — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Group CEO Decision</h2><p>Hello {{userName}},</p><p>The Group CEO has made a decision on finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p>This request was escalated to Group CEO level due to the amount exceeding the CFO approval threshold.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
+            pushTitle: 'Group CEO Decision',
+            pushBody: 'Group CEO reviewed request #{{requestId}}.',
+        },
+        {
+            name: 'finance_payment_complete',
+            eventType: 'FINANCE_PAYMENT_COMPLETE',
+            emailSubject: 'Payment Complete — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#2e7d32;'>Payment Complete</h2><p>Hello {{userName}},</p><p>Payment has been completed for finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Payment Ref</td><td style='padding:8px 12px;border:1px solid #eee;'>{{paymentRef}}</td></tr></table><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>PAID</span></p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+            pushTitle: 'Payment Complete',
+            pushBody: 'Payment for request #{{requestId}} completed.',
+        },
+        {
+            name: 'finance_ticket_closed',
+            eventType: 'FINANCE_TICKET_CLOSED',
+            emailSubject: 'Closed — Request #{{requestId}}',
+            emailBody: "<h2 style='margin:0 0 16px;color:#2e7d32;'>Request Closed</h2><p>Hello {{userName}},</p><p>Finance request <strong>#{{requestId}} — {{requestTitle}}</strong> has been formally closed.</p><p style='margin:8px 0;'><span style='display:inline-block;padding:6px 16px;background:#e8f5e9;color:#2e7d32;border-radius:4px;font-weight:600;'>CLOSED</span></p><p>All approvals and payments for this request have been completed.</p><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
+            pushTitle: 'Request Closed',
+            pushBody: 'Finance request #{{requestId}} closed.',
+        },
+        {
+            name: 'password_reset',
+            eventType: 'PASSWORD_RESET',
+            emailSubject: 'Password Reset Request — Citadel Help Center',
+            emailBody: "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Password Reset</h2><p>Hello {{userName}},</p><p>You requested a password reset for your Citadel Help Center account.</p><p>Click the button below to reset your password. This link expires in <strong>15 minutes</strong>.</p><p style='margin:24px 0;'><a href='{{resetUrl}}' style='display:inline-block;padding:12px 24px;background:#e53e3e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Reset Password</a></p><p style='font-size:13px;color:#666;'>If the button doesn't work, copy and paste this URL into your browser:<br/><a href='{{resetUrl}}' style='color:#1a1a2e;word-break:break-all;'>{{resetUrl}}</a></p><p style='margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:13px;color:#999;'>If you did not request this, you can safely ignore this email. Your password will remain unchanged.</p>",
+            pushTitle: 'Password Reset',
+            pushBody: 'Password reset requested for your account.',
         },
     ];
 
         for (const template of templates) {
             await prisma.notificationTemplate.upsert({
                 where: { name: template.name },
-                update: {},
+                update: { emailSubject: template.emailSubject, emailBody: template.emailBody },
                 create: template,
             });
         }

@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from './error.middleware';
 import { config } from '../config';
 import { tokenService } from '../services/token.service';
+import { permissionService } from '../services/permission.service';
 
 const prisma = new PrismaClient();
 
@@ -14,6 +15,7 @@ export interface AuthRequest extends Request {
         firstName: string;
         lastName: string;
         roles: string[];
+        permissions: string[];
     };
     jti?: string;
     tokenExp?: number;
@@ -75,12 +77,23 @@ export const authenticate = async (
             throw new AppError('User not found or inactive', 401);
         }
 
+        const roles = user.roles.map((ur) => ur.role.name);
+
+        // Load permission names from cache or DB
+        let permissions: string[] = [];
+        try {
+            permissions = await permissionService.getUserPermissions(user.id);
+        } catch {
+            // Non-critical — fall back to empty set (role-based auth still works)
+        }
+
         req.user = {
             id: user.id,
             email: user.email,
             firstName: user.firstName,
             lastName: user.lastName,
-            roles: user.roles.map((ur) => ur.role.name),
+            roles,
+            permissions,
         };
         // Populate jti and tokenExp so logout can revoke the specific token
         req.jti = decoded.jti;
@@ -138,12 +151,22 @@ export const optionalAuth = async (
         });
 
         if (user?.isActive) {
+            const roles = user.roles.map((ur) => ur.role.name);
+
+            let permissions: string[] = [];
+            try {
+                permissions = await permissionService.getUserPermissions(user.id);
+            } catch {
+                // Non-critical
+            }
+
             req.user = {
                 id: user.id,
                 email: user.email,
                 firstName: user.firstName,
                 lastName: user.lastName,
-                roles: user.roles.map((ur) => ur.role.name),
+                roles,
+                permissions,
             };
         }
 
@@ -227,12 +250,22 @@ export const sseAuth = async (
             return;
         }
 
+        const roles = user.roles.map((ur) => ur.role.name);
+
+        let permissions: string[] = [];
+        try {
+            permissions = await permissionService.getUserPermissions(user.id);
+        } catch {
+            // Non-critical
+        }
+
         req.user = {
             id: user.id,
             email: user.email,
             firstName: user.firstName,
             lastName: user.lastName,
-            roles: user.roles.map((ur) => ur.role.name),
+            roles,
+            permissions,
         };
         req.jti = decoded.jti;
         req.tokenExp = decoded.exp;
@@ -258,6 +291,39 @@ export const authorize = (...roles: string[]) => {
         if (!hasRole) {
             return next(new AppError('Insufficient permissions', 403));
         }
+        next();
+    };
+};
+
+/**
+ * Permission-based authorization middleware.
+ *
+ * Checks that the authenticated user has the specified permission name.
+ * Permission names follow the format `resource:action` (e.g. `request:create`, `admin:access`).
+ *
+ * Usage:
+ *   router.get('/data', authenticate, requirePermission('report:read'), controller.getData);
+ *
+ * The permission is checked against `req.user.permissions` which is loaded
+ * during authentication from the RolePermission join table (with Redis caching).
+ */
+export const requirePermission = (...permissionNames: string[]) => {
+    return (req: AuthRequest, _res: Response, next: NextFunction) => {
+        if (!req.user) {
+            return next(new AppError('Not authenticated', 401));
+        }
+
+        const hasPermission = permissionNames.some((name) =>
+            req.user!.permissions.includes(name)
+        );
+
+        if (!hasPermission) {
+            return next(new AppError(
+                `Missing required permission: ${permissionNames.join(' or ')}`,
+                403
+            ));
+        }
+
         next();
     };
 };

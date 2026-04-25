@@ -2,16 +2,19 @@ import prisma from '../utils/prisma';
 import { sendEmail, renderTemplate } from './email.service';
 import { logger } from '../utils/logger';
 import { pushToUser } from '../utils/sseClients';
+import { config } from '../config';
 
 interface NotifyOptions {
   userId: string;
   eventType: string;
   variables: Record<string, string>;
   relatedRequestId?: string;
+  /** If true, wrap the rendered email body in the branded layout (default: true) */
+  wrapInLayout?: boolean;
 }
 
 export async function notify(options: NotifyOptions): Promise<void> {
-  const { userId, eventType, variables, relatedRequestId } = options;
+  const { userId, eventType, variables, relatedRequestId, wrapInLayout = true } = options;
 
   try {
     // Find template
@@ -19,11 +22,14 @@ export async function notify(options: NotifyOptions): Promise<void> {
       where: { eventType, isActive: true },
     });
 
+    // Auto-inject appUrl into variables so templates can use {{appUrl}}
+    const enrichedVars = { ...variables, appUrl: variables.appUrl || config.app.url };
+
     const subject = template
-      ? renderTemplate(template.emailSubject ?? '', variables)
+      ? renderTemplate(template.emailSubject ?? '', enrichedVars)
       : `Notification: ${eventType}`;
     const body = template
-      ? renderTemplate(template.emailBody ?? '', variables)
+      ? renderTemplate(template.emailBody ?? '', enrichedVars)
       : `Event: ${eventType}`;
 
     // Create in-app notification
@@ -50,7 +56,7 @@ export async function notify(options: NotifyOptions): Promise<void> {
     // Send email notification
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     if (user?.email) {
-      const emailSent = await sendEmail(user.email, subject, body);
+      const emailSent = await sendEmail(user.email, subject, body, { wrapInLayout });
 
       // Also create an EMAIL notification record for tracking
       await prisma.notification.create({
