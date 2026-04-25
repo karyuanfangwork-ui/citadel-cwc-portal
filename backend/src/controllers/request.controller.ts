@@ -235,9 +235,8 @@ class RequestController {
             const name = cf.employeeName || 'Unknown';
             const jobTitle = cf.jobTitle || 'Not specified';
             const dept = cf.department || 'Not specified';
-            const startDate = cf.startDate || 'TBD';
             const email = cf.employeeEmail || 'Not provided';
-            finalDescription = `New employee onboarding request for ${name} (${jobTitle}) in ${dept}. Start date: ${startDate}. Contact: ${email}.`;
+            finalDescription = `New employee onboarding request for ${name} (${jobTitle}) in ${dept}. Contact: ${email}.`;
         }
         if (isManualOffboarding && !description) {
             const cf = (customFields || {}) as Record<string, any>;
@@ -463,7 +462,7 @@ class RequestController {
                         authorName: 'System',
                         authorRole: 'SYSTEM',
                         activityType: 'SYSTEM',
-                        message: `Onboarding workflow initialised for ${firstName} ${lastName}. Start date: ${startDate.toDateString()}.`,
+                        message: `Onboarding workflow initialised for ${firstName} ${lastName}.`,
                         isSystemGenerated: true,
                     },
                 });

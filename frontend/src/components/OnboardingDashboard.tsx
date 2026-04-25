@@ -22,6 +22,12 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
     const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
     const [completing, setCompleting] = useState(false);
     const [advancingPhase, setAdvancingPhase] = useState(false);
+    const [editingStartDate, setEditingStartDate] = useState(false);
+    const [startDateInput, setStartDateInput] = useState('');
+    const [savingStartDate, setSavingStartDate] = useState(false);
+
+    const isAdminOrHRAgent = user?.roles?.includes('ADMIN') ||
+        (user?.roles?.includes('AGENT') && (user as any)?.agentTeam?.toUpperCase() === 'HR');
 
     useEffect(() => {
         fetchOnboardingData();
@@ -131,8 +137,6 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
         }
     };
 
-    const isAdminOrHRAgent = user?.roles?.includes('ADMIN') ||
-        (user?.roles?.includes('AGENT') && (user as any)?.agentTeam?.toUpperCase() === 'HR');
     const allTasksDone = (progress?.tasks?.total ?? 0) > 0 && progress?.tasks?.pending === 0;
     const isCompleted = onboarding?.overallStatus === 'COMPLETED';
     const canComplete = (isAdminOrHRAgent ?? false) && allTasksDone && !isCompleted;
@@ -163,6 +167,43 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
         } finally {
             setAdvancingPhase(false);
         }
+    };
+
+    const handleSaveStartDate = async () => {
+        if (!startDateInput || savingStartDate) return;
+        setSavingStartDate(true);
+        try {
+            const res = await apiClient.patch(`/onboarding/requests/${requestId}/onboarding/start-date`, {
+                startDate: startDateInput,
+            });
+            setOnboarding(prev => prev ? { ...prev, startDate: res.data.startDate } : prev);
+            setEditingStartDate(false);
+            toast.success('Start Date Updated', `Start date has been updated to ${new Date(startDateInput).toLocaleDateString('en-GB')}`);
+            // Refresh activities to show audit log
+            await fetchOnboardingData();
+        } catch (err: any) {
+            toast.error('Update Failed', err.response?.data?.error || err.message || 'Failed to update start date');
+        } finally {
+            setSavingStartDate(false);
+        }
+    };
+
+    const handleEditStartDate = () => {
+        if (onboarding?.startDate) {
+            const d = new Date(onboarding.startDate);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            setStartDateInput(`${yyyy}-${mm}-${dd}`);
+        } else {
+            const d = new Date();
+            d.setDate(d.getDate() + 7);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            setStartDateInput(`${yyyy}-${mm}-${dd}`);
+        }
+        setEditingStartDate(true);
     };
 
     const getTaskIcon = (status: string, taskId?: string) => {
@@ -302,9 +343,51 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                         <span className="material-symbols-outlined text-gray-400 text-xl">calendar_today</span>
                         <div>
                             <p className="text-sm text-gray-500">Start Date</p>
-                            <p className="font-medium text-gray-900">
-                                {formatDate(onboarding.startDate)}
-                            </p>
+                            {editingStartDate ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="date"
+                                        value={startDateInput}
+                                        onChange={e => setStartDateInput(e.target.value)}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        disabled={savingStartDate}
+                                    />
+                                    <button
+                                        onClick={handleSaveStartDate}
+                                        disabled={savingStartDate || !startDateInput}
+                                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingStartDate ? (
+                                            <span className="material-symbols-outlined text-sm animate-spin">autorenew</span>
+                                        ) : (
+                                            <span className="material-symbols-outlined text-sm">check</span>
+                                        )}
+                                        {savingStartDate ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button
+                                        onClick={() => setEditingStartDate(false)}
+                                        disabled={savingStartDate}
+                                        className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">
+                                        {formatDate(onboarding.startDate)}
+                                    </p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button
+                                            onClick={handleEditStartDate}
+                                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                                            title="Edit start date"
+                                        >
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     {onboarding.newHirePhone && (

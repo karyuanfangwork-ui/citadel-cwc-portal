@@ -211,7 +211,9 @@ export function getWorkflowActions(
     });
   }
 
-  if (userRoles.includes('HIRING_MANAGER') && status === 'LOA_PENDING_APPROVAL') {
+  // LOA approval — only the hiring manager (i.e. the requester) for this specific request,
+  // and only when the HR agent has uploaded the LOA and routed it for approval
+  if (isRequester && status === 'LOA_PENDING_APPROVAL' && hasLOA) {
     actions.push({
       type: 'LOA_APPROVAL',
       label: 'Approve / Reject LOA',

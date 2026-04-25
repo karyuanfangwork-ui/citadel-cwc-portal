@@ -24,6 +24,9 @@ const HR_FIELD_LABELS: Record<string, string> = {
   budget: 'Budget',
   position_title: 'Position Title',
   selectedCandidateName: 'Candidate Name',
+  jobPostedAt: 'Job Posted At',
+  jobPostingUrl: 'Job Posting URL',
+  jobPostingNotes: 'Job Posting Notes',
 };
 
 const IT_FIELD_LABELS: Record<string, string> = {
@@ -81,7 +84,13 @@ function formatPayment(value: Record<string, any>): React.ReactNode {
   );
 }
 
-function formatValue(key: string, value: any): React.ReactNode {
+// Keys whose values are ISO date strings that should be formatted
+const DATE_KEYS = new Set([
+  'jobPostedAt', 'startedAt', 'completedAt', 'createdAt', 'updatedAt',
+  'receiptDate', 'approvalDate', 'acceptedDate',
+]);
+
+function formatValue(key: string, value: any, fieldType?: string): React.ReactNode {
   if (value === null || value === undefined || value === '') return '\u2014';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.join(', ');
@@ -102,6 +111,21 @@ function formatValue(key: string, value: any): React.ReactNode {
       );
     }
     return JSON.stringify(value);
+  }
+  // Detect and format ISO date strings
+  if (typeof value === 'string' && DATE_KEYS.has(key) && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return new Date(value).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  // Format currency fields with MYR prefix
+  if (fieldType === 'currency') {
+    const num = Number(value);
+    if (!isNaN(num)) return `MYR ${num.toLocaleString()}`;
   }
   return String(value);
 }
@@ -129,6 +153,14 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
     return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
   };
 
+  const getFieldType = (key: string): string | undefined => {
+    if (formConfig) {
+      const field = formConfig.find(f => f.id === key);
+      if (field?.type) return field.type;
+    }
+    return undefined;
+  };
+
   return (
     <section>
       <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-6">
@@ -142,7 +174,7 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
               <dt className="w-44 shrink-0 text-sm font-semibold text-[#44546f]">
                 {getLabel(key)}
               </dt>
-              <dd className="text-sm text-[#101418] flex-1">{formatValue(key, value)}</dd>
+              <dd className="text-sm text-[#101418] flex-1">{formatValue(key, value, getFieldType(key))}</dd>
             </div>
           ))}
         </dl>

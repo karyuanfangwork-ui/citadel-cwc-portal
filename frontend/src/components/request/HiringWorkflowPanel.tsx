@@ -174,7 +174,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
             <div>
               <h3 className="font-bold text-blue-900">Selected Candidate</h3>
               <p className="text-sm text-blue-700 font-medium">
-                {request.customFields.selectedCandidateName || 'The candidate'} has been approved for hire.
+                {request.customFields.selectedCandidateName || 'The candidate'} has been approved for schedule interview.
               </p>
             </div>
           </div>

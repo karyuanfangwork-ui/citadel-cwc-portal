@@ -355,6 +355,81 @@ export const completeMilestone = async (req: Request, res: Response) => {
     }
 };
 
+/**
+ * Update onboarding start date
+ * PATCH /api/v1/requests/:id/onboarding/start-date
+ * Only ADMIN or HR AGENT can update the start date
+ */
+export const updateStartDate = async (req: Request, res: Response) => {
+    try {
+        const { id: requestId } = req.params;
+        const { startDate } = req.body;
+        const user = (req as any).user;
+        const userRoles = user?.roles || [];
+
+        if (!startDate) {
+            return res.status(400).json({ error: 'startDate is required' });
+        }
+
+        const parsedDate = new Date(startDate);
+        if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({ error: 'Invalid startDate format' });
+        }
+
+        // Permission check — ADMIN or HR agent only
+        const isAdmin = userRoles.includes('ADMIN');
+        const isHRAgent = userRoles.includes('AGENT');
+        let isHR = false;
+        if (isHRAgent) {
+            const dbUser = await prisma.user.findUnique({
+                where: { id: user?.id },
+                select: { agentTeam: true },
+            });
+            isHR = dbUser?.agentTeam?.toUpperCase() === 'HR';
+        }
+
+        if (!isAdmin && !isHR) {
+            return res.status(403).json({ error: 'Only ADMIN or HR agent can update the start date' });
+        }
+
+        const onboarding = await prisma.onboardingRequest.findUnique({ where: { requestId } });
+        if (!onboarding) {
+            return res.status(404).json({ error: 'Onboarding request not found' });
+        }
+
+        const oldStartDate = onboarding.startDate;
+
+        const updated = await prisma.onboardingRequest.update({
+            where: { requestId },
+            data: { startDate: parsedDate },
+        });
+
+        // Audit log
+        await prisma.requestActivity.create({
+            data: {
+                requestId,
+                authorId: user?.id,
+                authorName: user ? `${user.firstName} ${user.lastName}` : 'System',
+                authorRole: userRoles[0] || 'SYSTEM',
+                activityType: 'SYSTEM',
+                message: `Start date updated from ${new Date(oldStartDate).toLocaleDateString('en-GB')} to ${parsedDate.toLocaleDateString('en-GB')}`,
+                isSystemGenerated: true,
+            },
+        });
+
+        await auditLog(req, 'UPDATE', 'onboardingRequest', onboarding.id, {
+            field: 'startDate',
+            oldValue: oldStartDate,
+            newValue: parsedDate,
+        }, {});
+
+        res.json(updated);
+    } catch (error) {
+        console.error('Error updating onboarding start date:', error);
+        res.status(500).json({ error: 'Failed to update start date' });
+    }
+};
+
 export const assignBuddy = async (req: Request, res: Response) => {
     try {
         const { id: requestId } = req.params;

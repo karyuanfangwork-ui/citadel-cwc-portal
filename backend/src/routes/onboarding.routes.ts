@@ -11,6 +11,7 @@ import {
     completeMilestone,
     assignBuddy,
     getOnboardingProgress,
+    updateStartDate,
 } from '../controllers/onboarding.controller';
 
 const router = Router();
@@ -22,6 +23,7 @@ router.use(authenticate);
 router.post('/requests/:id/onboarding/create', createOnboardingRequest);
 router.get('/requests/:id/onboarding', getOnboardingRequest);
 router.put('/requests/:id/onboarding/update-status', updateOnboardingStatus);
+router.patch('/requests/:id/onboarding/start-date', updateStartDate);
 router.get('/requests/:id/onboarding/progress', getOnboardingProgress);
 
 // Onboarding task routes

@@ -186,11 +186,13 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
     }
     
     if (workflowCode === 'HR_RECRUITMENT') {
-      // HR Recruitment Workflow: Interview -> Screening -> LOA
+      // HR Recruitment Workflow: CEO Approval -> Job Posted -> Manager Review -> Interview -> Screening -> LOA
       const allSteps = [
         { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
         { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
-        { label: 'In Progress', status: 'IN_PROGRESS', icon: 'radio_button_checked' },
+        { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Job Posted', status: 'JOB_POSTED', icon: 'radio_button_checked' },
+        { label: 'Manager Review', status: 'PENDING_MANAGER_REVIEW', icon: 'radio_button_checked' },
         { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
         { label: 'Feedback', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'radio_button_checked' },
         { label: 'Screening', status: 'HR_SCREENING', icon: 'radio_button_checked' },
@@ -201,9 +203,12 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
       ];
       const statusOrder = [
-        'SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS', 'MANAGER_APPROVED',
-        'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'HR_SCREENING',
-        'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED',
+        'SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS',
+        'PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED',
+        'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED',
+        'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'CANDIDATE_REJECTED_INTERVIEW',
+        'HR_SCREENING',
+        'LOA_PENDING_APPROVAL', 'LOA_REJECTED', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED',
         'COMPLETED'
       ];
       const currentIndex = statusOrder.indexOf(currentStatus);
