@@ -166,7 +166,7 @@ export function getWorkflowActions(
 
     // Finance Agent / Admin actions
     if (canAct) {
-      if (status === 'FINANCE_PENDING_ACK') {
+      if (status === 'FINANCE_PENDING_ACK' || (isPurchaseRequisition && status === 'SUBMITTED')) {
         actions.push({
           type: 'FIN_ACKNOWLEDGE',
           label: 'Acknowledge Request',
@@ -237,7 +237,7 @@ export function getWorkflowActions(
   if (canAct) {
     // Only non-procurement IT requests with requiresApproval flag go through manager approval
     // HR hiring requests go to CEO approval instead — skip this action for HR
-    if (status === 'SUBMITTED' && !isProcurement && !isHR && requiresApproval) {
+    if (status === 'SUBMITTED' && !isProcurement && !isHR && requiresApproval && serviceDeskCode === 'IT') {
       actions.push({
         type: 'SUBMIT_FOR_APPROVAL',
         label: 'Submit for Manager Approval',
@@ -247,7 +247,7 @@ export function getWorkflowActions(
     }
 
     // GET_IT_HELP (and similar non-approval, non-procurement IT tickets) basic lifecycle
-    if (status === 'SUBMITTED' && !isProcurement && !isHR && !requiresApproval) {
+    if (status === 'SUBMITTED' && !isProcurement && !isHR && !requiresApproval && serviceDeskCode === 'IT') {
       actions.push({
         type: 'START_IT_REVIEW',
         label: 'Start Review',

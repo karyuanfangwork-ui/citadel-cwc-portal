@@ -303,7 +303,7 @@ const CreateRequest = () => {
         <div className="max-w-[1240px] mx-auto px-6 py-12">
             {/* Breadcrumbs */}
             <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#44546f]">
-                <Link to="/" className="hover:text-[#0052cc]">Help Center</Link>
+                <Link to="/" className="hover:text-[#0052cc]">CWC</Link>
                 <span className="material-symbols-outlined text-sm">chevron_right</span>
                 <Link to={`/${deskType}`} className="hover:text-[#0052cc]">{getDeskName()}</Link>
                 <span className="material-symbols-outlined text-sm">chevron_right</span>

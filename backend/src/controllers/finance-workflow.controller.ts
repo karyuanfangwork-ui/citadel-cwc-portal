@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
+import { auditLog } from '../utils/audit';
 import { config } from '../config';
 
 const prisma = new PrismaClient();
@@ -39,6 +40,11 @@ export const acknowledge = async (req: Request, res: Response): Promise<void> =>
         });
 
         await logActivity(id, `Finance agent acknowledged request${notes ? ': ' + notes : ''}`);
+        await auditLog(req as any, 'FINANCE_ACKNOWLEDGED', 'request', id, {
+            status: RequestStatus.FINANCE_ACKNOWLEDGED,
+            previousStatus: request.status,
+            notes: notes || null,
+        }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_ACKNOWLEDGED', variables: { requestId: id }, relatedRequestId: id });
 
         res.json({ status: 'success', data: { request: updated } });
@@ -75,6 +81,12 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
         });
 
         await logActivity(id, `Finalized amount set to MYR ${finalizedAmount}. Routed to CFO for approval${notes ? ': ' + notes : ''}`);
+        await auditLog(req as any, 'FINANCE_ROUTED_CFO', 'request', id, {
+            status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
+            previousStatus: request.status,
+            finalizedAmount: Number(finalizedAmount),
+            notes: notes || null,
+        }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
 
         res.json({ status: 'success', data: { request: updated } });
@@ -119,6 +131,13 @@ export const cfoDecision = async (req: Request, res: Response): Promise<void> =>
 
         const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL ? 'Group CEO (amount > MYR ' + GROUP_CEO_THRESHOLD + ')' : 'payment processing'}`;
         await logActivity(id, `CFO ${verb}${comments ? ': ' + comments : ''}`, userId);
+        await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
+            decision,
+            approverType: 'CFO',
+            newStatus,
+            previousStatus: request.status,
+            comments: comments || null,
+        }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
         res.json({ status: 'success', data: { request: updated } });
@@ -155,6 +174,13 @@ export const groupCeoDecision = async (req: Request, res: Response): Promise<voi
 
         const verb = decision === 'APPROVED' ? 'approved — routed to payment processing' : 'rejected';
         await logActivity(id, `Group CEO ${verb}${comments ? ': ' + comments : ''}`, userId);
+        await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
+            decision,
+            approverType: 'GROUP_CEO',
+            newStatus,
+            previousStatus: request.status,
+            comments: comments || null,
+        }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_GROUP_CEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
         res.json({ status: 'success', data: { request: updated } });
@@ -186,6 +212,11 @@ export const markPaymentComplete = async (req: Request, res: Response): Promise<
         });
 
         await logActivity(id, `Payment marked complete${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`);
+        await auditLog(req as any, 'FINANCE_PAYMENT_COMPLETE', 'request', id, {
+            status: RequestStatus.AWAITING_PAYMENT_CONFIRMATION,
+            previousStatus: request.status,
+            paymentReference: paymentReference || null,
+        }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_PAYMENT_COMPLETE', variables: { requestId: id }, relatedRequestId: id });
 
         res.json({ status: 'success', data: { request: updated } });
@@ -212,6 +243,11 @@ export const closeTicket = async (req: Request, res: Response): Promise<void> =>
         });
 
         await logActivity(id, 'Ticket closed by Finance Agent');
+        await auditLog(req as any, 'FINANCE_TICKET_CLOSED', 'request', id, {
+            status: RequestStatus.TICKET_CLOSED_FIN,
+            previousStatus: request.status,
+            resolvedAt: new Date().toISOString(),
+        }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_TICKET_CLOSED', variables: { requestId: id }, relatedRequestId: id });
 
         res.json({ status: 'success', data: { request: updated } });

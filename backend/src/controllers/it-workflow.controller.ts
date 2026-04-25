@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { hasRole } from '../middleware/auth.middleware';
+import { auditLog } from '../utils/audit';
 import { config } from '../config';
 import path from 'path';
 import { uploadSingleFile } from '../middleware/upload.middleware';
@@ -52,6 +53,10 @@ export async function submitForApproval(req: Request, res: Response) {
         },
       });
 
+      await auditLog(req as any, 'IT_SUBMIT_REVIEW', 'request', String(id), {
+        status: 'IN_REVIEW',
+        previousStatus: request.status,
+      }, { status: request.status });
       return res.json({ success: true, message: 'Request submitted for review' });
     }
 
@@ -85,6 +90,10 @@ export async function submitForApproval(req: Request, res: Response) {
       await notify({ userId: managerId, eventType: 'MANAGER_APPROVAL_REQUIRED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_SUBMIT_APPROVAL', 'request', String(id), {
+      status: request.requestType?.requiresApproval ? 'PENDING_MANAGER_APPROVAL_IT' : 'IN_REVIEW',
+      previousStatus: request.status,
+    }, { status: request.status });
     return res.json({ success: true, message: 'Request submitted for manager approval' });
   } catch (error) {
     console.error('submitForApproval error:', error);
@@ -215,6 +224,11 @@ export async function managerDecision(req: Request, res: Response) {
       }
     }
 
+    await auditLog(req as any, 'IT_MANAGER_DECISION', 'request', String(id), {
+      decision,
+      approverType: 'MANAGER',
+      previousStatus: 'PENDING_MANAGER_APPROVAL_IT',
+    }, { status: 'PENDING_MANAGER_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by manager` });
   } catch (error) {
     console.error('managerDecision error:', error);
@@ -265,6 +279,12 @@ export async function markProcurement(req: Request, res: Response) {
       await notify({ userId: request.requesterId, eventType: 'PROCUREMENT_INITIATED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_PROCUREMENT', 'request', String(id), {
+      status: 'PROCUREMENT_IN_PROGRESS',
+      previousStatus: request.status,
+      orderNumber: orderNumber || null,
+      vendor: vendor || null,
+    }, { status: request.status });
     return res.json({ success: true, message: 'Request marked as procurement in progress' });
   } catch (error) {
     console.error('markProcurement error:', error);
@@ -308,6 +328,10 @@ export async function markFulfilled(req: Request, res: Response) {
       await notify({ userId: request.requesterId, eventType: 'REQUEST_RESOLVED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_FULFILLED', 'request', String(id), {
+      status: 'RESOLVED',
+      previousStatus: 'SOFTWARE_PROVISIONED',
+    }, { status: 'SOFTWARE_PROVISIONED' });
     return res.json({ success: true, message: 'Request closed and resolved' });
   } catch (error) {
     console.error('markFulfilled error:', error);
@@ -371,6 +395,12 @@ export async function markHardwareOrdered(req: Request, res: Response) {
       await notify({ userId: request.requesterId, eventType: 'HARDWARE_ORDERED', variables: { requestId: String(id), orderNumber: orderNumber || '' }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_HARDWARE_ORDERED', 'request', String(id), {
+      status: 'HARDWARE_ORDERED',
+      previousStatus: 'PROCUREMENT_IN_PROGRESS',
+      orderNumber: orderNumber || null,
+      vendor: vendor || null,
+    }, { status: 'PROCUREMENT_IN_PROGRESS' });
     return res.json({ success: true, message: 'Hardware marked as ordered' });
   } catch (error) {
     console.error('markHardwareOrdered error:', error);
@@ -434,6 +464,11 @@ export async function markHardwareReceived(req: Request, res: Response) {
       await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: String(id), action: 'hardware_provision' }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_HARDWARE_RECEIVED', 'request', String(id), {
+      status: 'HARDWARE_RECEIVED',
+      previousStatus: 'HARDWARE_ORDERED',
+      assetTag: assetTag || null,
+    }, { status: 'HARDWARE_ORDERED' });
     return res.json({ success: true, message: 'Hardware marked as received' });
   } catch (error) {
     console.error('markHardwareReceived error:', error);
@@ -498,6 +533,11 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
       await notify({ userId: request.requesterId, eventType: 'HARDWARE_DELIVERED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_SOFTWARE_PROVISIONED', 'request', String(id), {
+      status: 'SOFTWARE_PROVISIONED',
+      previousStatus: 'HARDWARE_RECEIVED',
+      softwareInstalled: softwareInstalled || null,
+    }, { status: 'HARDWARE_RECEIVED' });
     return res.json({ success: true, message: 'Software provisioned' });
   } catch (error) {
     console.error('markSoftwareProvisioned error:', error);
@@ -577,6 +617,12 @@ export const vpDecision = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Invalid decision. Must be APPROVED or REJECTED' });
     }
 
+    await auditLog(req as any, 'IT_VP_DECISION', 'request', String(id), {
+      decision,
+      approverType: 'VP',
+      previousStatus: 'PENDING_VP_APPROVAL_IT',
+      comments: comments || null,
+    }, { status: 'PENDING_VP_APPROVAL_IT' });
     const updated = await prisma.request.findUnique({ where: { id } });
     return res.json(updated);
   } catch (error) {
@@ -682,6 +728,11 @@ export const resubmitRequest = async (req: Request, res: Response) => {
       },
     });
 
+    await auditLog(req as any, 'IT_RESUBMIT', 'request', String(id), {
+      status: 'PENDING_MANAGER_APPROVAL_IT',
+      previousStatus: 'MANAGER_REJECTED_IT',
+      resubmitNotes: resubmitNotes || null,
+    }, { status: 'MANAGER_REJECTED_IT' });
     const updated = await prisma.request.findUnique({ where: { id } });
     return res.json(updated);
   } catch (error) {
@@ -766,6 +817,12 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
 
     await notify({ userId: ceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CEO' }, relatedRequestId: id });
 
+    await auditLog(req as any, 'IT_ACKNOWLEDGE_ROUTE_CEO', 'request', String(id), {
+      status: 'PENDING_CEO_APPROVAL_IT',
+      previousStatus: request.status,
+      ceoId,
+      notes: notes || null,
+    }, { status: request.status });
     return res.json({ success: true, message: 'Request acknowledged and routed to CEO' });
   } catch (error) {
     console.error('acknowledgeRequest error:', error);
@@ -840,6 +897,12 @@ export const ceoDecision = async (req: Request, res: Response) => {
       }
     }
 
+    await auditLog(req as any, 'IT_CEO_DECISION', 'request', String(id), {
+      decision,
+      approverType: 'CEO',
+      previousStatus: 'PENDING_CEO_APPROVAL_IT',
+      comments: comments || null,
+    }, { status: 'PENDING_CEO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CEO` });
   } catch (error) {
     console.error('ceoDecision error:', error);
@@ -910,6 +973,12 @@ export const ctoDecision = async (req: Request, res: Response) => {
       }
     }
 
+    await auditLog(req as any, 'IT_CTO_DECISION', 'request', String(id), {
+      decision,
+      approverType: 'CTO',
+      previousStatus: 'PENDING_CTO_APPROVAL_IT',
+      comments: comments || null,
+    }, { status: 'PENDING_CTO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CTO` });
   } catch (error) {
     console.error('ctoDecision error:', error);
@@ -994,6 +1063,11 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
       relatedRequestId: id,
     });
 
+    await auditLog(req as any, 'IT_ROUTE_CFO', 'request', String(id), {
+      status: 'PENDING_CFO_APPROVAL_IT',
+      previousStatus: request.status,
+      cfoId,
+    }, { status: request.status });
     return res.json({ success: true, message: 'Invoice uploaded and request routed to CFO for approval' });
   } catch (error) {
     console.error('routeToCfoApproval error:', error);
@@ -1064,6 +1138,12 @@ export const cfoDecision = async (req: Request, res: Response) => {
       }
     }
 
+    await auditLog(req as any, 'IT_CFO_DECISION', 'request', String(id), {
+      decision,
+      approverType: 'CFO',
+      previousStatus: 'PENDING_CFO_APPROVAL_IT',
+      comments: comments || null,
+    }, { status: 'PENDING_CFO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CFO` });
   } catch (error) {
     console.error('cfoDecision error:', error);
@@ -1117,6 +1197,13 @@ export const markPaymentDone = async (req: Request, res: Response) => {
       await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_delivery' }, relatedRequestId: id });
     }
 
+    await auditLog(req as any, 'IT_PAYMENT_DONE', 'request', String(id), {
+      status: 'PENDING_DELIVERY_IT',
+      previousStatus: 'PAYMENT_PROCESSING_IT',
+      paymentReference: paymentReference || null,
+      amount: Number(amount),
+      paymentDate,
+    }, { status: 'PAYMENT_PROCESSING_IT' });
     return res.json({ success: true, message: 'Payment marked as done, request routed to pending delivery' });
   } catch (error) {
     console.error('markPaymentDone error:', error);
@@ -1156,6 +1243,10 @@ export const completeDelivery = async (req: Request, res: Response) => {
       await notify({ userId: request.requesterId, eventType: 'REQUEST_RESOLVED', variables: { requestId: id }, relatedRequestId: id });
     }
 
+    await auditLog(req as any, 'IT_DELIVERY_COMPLETE', 'request', String(id), {
+      status: 'RESOLVED',
+      previousStatus: 'PENDING_DELIVERY_IT',
+    }, { status: 'PENDING_DELIVERY_IT' });
     return res.json({ success: true, message: 'Delivery completed and request resolved' });
   } catch (error) {
     console.error('completeDelivery error:', error);

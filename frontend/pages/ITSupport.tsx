@@ -89,7 +89,7 @@ const ITSupport = () => {
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#44546f]">
         <Link to="/" className="hover:text-[#0052cc]">
-          Help Center
+          CWC
         </Link>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
         <span className="text-[#101418] font-bold">{serviceDesk.name}</span>

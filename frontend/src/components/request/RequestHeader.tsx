@@ -237,7 +237,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
     if (workflowCode === 'FINANCE') {
       // Finance Purchase Requisition Workflow: CFO -> Group CEO approval chain
       const allSteps = [
-        { label: 'Submitted', status: 'FINANCE_PENDING_ACK', icon: 'check_circle' },
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
         { label: 'Acknowledged', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
         { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked' },
         { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked' },
@@ -245,7 +245,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'Completed', status: 'TICKET_CLOSED_FIN', icon: 'check_circle' },
       ];
       const statusOrder = [
-        'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS',
+        'SUBMITTED', 'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS',
         'PENDING_CFO_APPROVAL_FIN', 'CFO_APPROVED_FIN', 'CFO_REJECTED_FIN',
         'PENDING_GROUP_CEO_APPROVAL', 'GROUP_CEO_APPROVED', 'GROUP_CEO_REJECTED',
         'PAYMENT_PROCESSING_FIN', 'AWAITING_PAYMENT_CONFIRMATION', 'PAYMENT_CONFIRMED_FIN',
@@ -294,7 +294,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
     if (request.serviceDesk?.code === 'FINANCE') {
       // Legacy Finance fallback - default to Purchase Requisition workflow
       const allSteps = [
-        { label: 'Submitted', status: 'FINANCE_PENDING_ACK', icon: 'check_circle' },
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
         { label: 'Acknowledged', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
         { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked' },
         { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked' },
@@ -302,7 +302,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'Completed', status: 'TICKET_CLOSED_FIN', icon: 'check_circle' },
       ];
       const statusOrder = [
-        'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS',
+        'SUBMITTED', 'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS',
         'PENDING_CFO_APPROVAL_FIN', 'CFO_APPROVED_FIN', 'CFO_REJECTED_FIN',
         'PENDING_GROUP_CEO_APPROVAL', 'GROUP_CEO_APPROVED', 'GROUP_CEO_REJECTED',
         'PAYMENT_PROCESSING_FIN', 'AWAITING_PAYMENT_CONFIRMATION', 'PAYMENT_CONFIRMED_FIN',
@@ -372,7 +372,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
     <>
       <nav className="flex items-center gap-2 mb-6 text-sm font-medium text-[#44546f]">
         <Link to="/" className="hover:text-[#0052cc]">
-          Help Center
+          CWC
         </Link>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
         <Link to="/my-requests" className="hover:text-[#0052cc]">

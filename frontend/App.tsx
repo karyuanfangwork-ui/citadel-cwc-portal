@@ -65,7 +65,7 @@ const Header = () => {
               <div className="bg-[#0052cc] p-1.5 rounded-lg text-white">
                 <span className="material-symbols-outlined block">corporate_fare</span>
               </div>
-              <h2 className="text-[#101418] text-lg font-bold leading-tight tracking-tight">Help Center</h2>
+              <h2 className="text-[#101418] text-lg font-bold leading-tight tracking-tight">Citadel Workplace Connect</h2>
             </Link>
             <nav className="hidden md:flex items-center gap-8">
               {navLinks.map(link => (
@@ -201,8 +201,8 @@ const Footer = () => (
   <footer className="mt-auto border-t border-gray-100 py-10 bg-white">
     <div className="max-w-[1440px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
       <div className="flex items-center gap-2 opacity-50">
-        <span className="material-symbols-outlined text-xl">auto_awesome</span>
-        <span className="text-xs font-bold uppercase tracking-widest">Powered by Service Management</span>
+        <span className="material-symbols-outlined text-xl">corporate_fare</span>
+        <span className="text-xs font-bold uppercase tracking-widest">© 2026 Citadel Group Technologies Sdn Bhd</span>
       </div>
       <div className="flex gap-8 text-xs font-medium text-gray-500">
         <a href="#" className="hover:text-[#0052cc]">Privacy Policy</a>

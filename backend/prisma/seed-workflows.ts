@@ -71,7 +71,8 @@ const defaultWorkflows = [
     description: 'Finance purchase requisition workflow with CFO and Group CEO approval',
     displayOrder: 5,
     steps: [
-      { label: 'Submitted', status: 'FINANCE_PENDING_ACK', icon: 'check_circle', isInitial: true },
+      { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
+      { label: 'Pending Ack', status: 'FINANCE_PENDING_ACK', icon: 'radio_button_checked' },
       { label: 'Acknowledged', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
       { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked' },
       { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked' },

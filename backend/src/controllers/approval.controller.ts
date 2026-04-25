@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient, ApprovalStatus } from '@prisma/client';
+import { auditLog } from '../utils/audit';
 
 const prisma = new PrismaClient();
 
@@ -65,6 +66,13 @@ export const routeToCEO = async (req: Request, res: Response): Promise<void> => 
                 isSystemGenerated: true
             }
         });
+
+        await auditLog(req as any, 'APPROVAL_ROUTED', 'request', id, {
+            status: 'PENDING_CEO_APPROVAL',
+            previousStatus: request.status,
+            approverType: 'CEO',
+            ceoId: ceoId || null,
+        }, { status: request.status });
 
         res.json({
             status: 'success',
@@ -167,6 +175,13 @@ export const ceoDecision = async (req: Request, res: Response): Promise<void> =>
                 isSystemGenerated: false
             }
         });
+
+        await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
+            decision,
+            approverType: 'CEO',
+            newStatus,
+            comments: comments || null,
+        }, { status: 'PENDING_CEO_APPROVAL' });
 
         res.json({
             status: 'success',
@@ -331,6 +346,13 @@ export const routeToManager = async (req: Request, res: Response): Promise<void>
             }
         });
 
+        await auditLog(req as any, 'APPROVAL_ROUTED', 'request', id, {
+            status: 'PENDING_MANAGER_REVIEW',
+            previousStatus: request.status,
+            approverType: 'HIRING_MANAGER',
+            hiringManagerId: request.requesterId,
+        }, { status: request.status });
+
         // Transform BigInt to string in candidateResumes for JSON serialization
         const serializedResumes = request.candidateResumes.map((resume: any) => ({
             ...resume,
@@ -465,6 +487,14 @@ export const managerDecision = async (req: Request, res: Response): Promise<void
                 isSystemGenerated: false
             }
         });
+
+        await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
+            decision,
+            approverType: 'HIRING_MANAGER',
+            newStatus,
+            selectedCandidateId: selectedCandidateId || null,
+            comments: comments || null,
+        }, { status: request.status });
 
         // Transform BigInt to string in candidateResumes for JSON serialization
         const serializedResumes = updatedRequest.candidateResumes?.map((resume: any) => ({
