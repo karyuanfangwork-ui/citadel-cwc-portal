@@ -412,7 +412,6 @@ async function main() {
     // ── Entities ─────────────────────────────────────────────────────────────
     console.log('Seeding entities...');
 
-    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@test.local' } });
     const hrUser = await prisma.user.findUnique({ where: { email: 'hr@test.local' } });
 
     if (adminUser && hrUser) {
@@ -805,6 +804,15 @@ async function main() {
             emailBody: "<h2 style='margin:0 0 16px;color:#e53e3e;'>SLA Breach Alert</h2><p>Hello {{userName}},</p><p>An SLA deadline has been breached on the following request:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>SLA Deadline</td><td style='padding:8px 12px;border:1px solid #eee;color:#e53e3e;font-weight:600;'>{{slaDeadline}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#e53e3e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Take Action</a></p>",
             pushTitle: 'SLA Breach',
             pushBody: 'Request #{{requestId}} has breached its SLA.',
+        },
+        {
+            name: 'sla_escalated',
+            eventType: 'SLA_ESCALATED',
+            emailSubject: '🚨 SLA Escalation — Request #{{requestId}} requires attention',
+            emailBody: "<h2 style='margin:0 0 16px;color:#c05621;'>SLA Escalation Alert</h2><p>Hello {{userName}},</p><p>The following request has exceeded its SLA deadline and is being escalated to your attention:</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Reference</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Title</td><td style='padding:8px 12px;border:1px solid #eee;'>{{requestTitle}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>SLA Deadline</td><td style='padding:8px 12px;border:1px solid #eee;color:#c05621;font-weight:600;'>{{slaDeadline}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/#/requests/{{requestId}}' style='display:inline-block;padding:12px 24px;background:#c05621;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>Review Request</a></p>",
+            pushTitle: 'SLA Escalation',
+            pushBody: 'Request #{{requestId}} has been escalated due to SLA breach.',
+            isActive: true,
         },
         {
             name: 'manager_approval_required',

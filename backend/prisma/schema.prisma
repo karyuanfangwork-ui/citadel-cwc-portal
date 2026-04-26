@@ -230,10 +230,27 @@ model RequestType {
   workflow        WorkflowType?   @relation(fields: [workflowTypeId], references: [id], onDelete: SetNull)
   requests        Request[]
   entityRoutings  RequestTypeEntityRouting[]
+  escalationRules EscalationRule[]
 
   @@map("request_types")
   @@index([serviceCategoryId])
   @@index([workflowTypeId])
+}
+
+model EscalationRule {
+  id                      String      @id @default(uuid()) @db.Uuid
+  requestTypeId           String      @map("request_type_id") @db.Uuid
+  triggerHoursAfterBreach Int         @map("trigger_hours_after_breach")
+  notifyRoles             String[]    @map("notify_roles")
+  label                   String?
+  isActive                Boolean     @default(true) @map("is_active")
+  createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  requestType RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
+
+  @@index([requestTypeId])
+  @@map("escalation_rules")
 }
 
 model WorkflowType {
