@@ -360,6 +360,20 @@ const AdminSettings = () => {
                                     </select>
                                     <p className="text-xs text-[#8993a4] mt-1">Determines the status stepper displayed for this request type.</p>
                                 </div>
+                                <div className="flex flex-col gap-1">
+                                    <label className="block text-sm font-bold text-[#101418] mb-2">SLA Hours</label>
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        step={1}
+                                        placeholder="e.g. 24"
+                                        value={admin.editTypeForm.slaHours}
+                                        onChange={e => admin.setEditTypeForm({ ...admin.editTypeForm, slaHours: e.target.value })}
+                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none"
+                                        disabled={admin.savingTypeName}
+                                    />
+                                    <p className="text-xs text-[#8993a4] mt-1">Leave blank to disable SLA tracking for this request type.</p>
+                                </div>
                             </div>
                             <div className="flex gap-3 justify-end mt-6">
                                 <button

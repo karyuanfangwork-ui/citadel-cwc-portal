@@ -87,7 +87,7 @@ export interface UseAdminStateReturn {
     selectedType: any;
     formBuilderOpen: boolean;
     editingTypeName: { id: string; name: string; description: string; workflowTypeId?: string } | null;
-    editTypeForm: { name: string; description: string; workflowTypeId: string };
+    editTypeForm: { name: string; description: string; workflowTypeId: string; slaHours: string };
     savingTypeName: boolean;
     workflowTypes: WorkflowType[];
     workflowTypesLoading: boolean;
@@ -195,7 +195,7 @@ export interface UseAdminStateReturn {
     setTemplateForm: (form: TemplateForm) => void;
     setOffboardingTemplateForm: (form: OffboardingTemplateForm) => void;
     setPendingAction: (action: PendingAction | null) => void;
-    setEditTypeForm: (form: { name: string; description: string; workflowType: string }) => void;
+    setEditTypeForm: (form: { name: string; description: string; workflowTypeId: string; slaHours: string }) => void;
     setEditingTypeName: (type: { id: string; name: string; description: string } | null) => void;
     setFormBuilderOpen: (open: boolean) => void;
 }
@@ -238,7 +238,7 @@ export function useAdminState(): UseAdminStateReturn {
     const [selectedType, setSelectedType] = useState<any>(null);
     const [formBuilderOpen, setFormBuilderOpen] = useState(false);
     const [editingTypeName, setEditingTypeName] = useState<{ id: string; name: string; description: string; workflowTypeId?: string } | null>(null);
-    const [editTypeForm, setEditTypeForm] = useState({ name: '', description: '', workflowTypeId: '' });
+    const [editTypeForm, setEditTypeForm] = useState({ name: '', description: '', workflowTypeId: '', slaHours: '' });
     const [savingTypeName, setSavingTypeName] = useState(false);
     const [workflowTypes, setWorkflowTypes] = useState<WorkflowType[]>([]);
     const [workflowTypesLoading, setWorkflowTypesLoading] = useState(false);
@@ -608,7 +608,7 @@ export function useAdminState(): UseAdminStateReturn {
 
     const openEditTypeName = useCallback((type: any) => {
         setEditingTypeName({ id: type.id, name: type.name, description: type.description || '', workflowTypeId: type.workflowTypeId });
-        setEditTypeForm({ name: type.name, description: type.description || '', workflowTypeId: type.workflowTypeId || '' });
+        setEditTypeForm({ name: type.name, description: type.description || '', workflowTypeId: type.workflowTypeId || '', slaHours: type.slaHours != null ? String(type.slaHours) : '' });
     }, []);
 
     const handleSaveTypeName = useCallback(async () => {
@@ -619,9 +619,10 @@ export function useAdminState(): UseAdminStateReturn {
                 name: editTypeForm.name,
                 description: editTypeForm.description,
                 workflowTypeId: editTypeForm.workflowTypeId || null,
+                slaHours: editTypeForm.slaHours ? parseInt(editTypeForm.slaHours, 10) : null,
             });
             setRequestTypes(prev => prev.map(t =>
-                t.id === editingTypeName.id ? { ...t, name: editTypeForm.name, description: editTypeForm.description, workflowTypeId: editTypeForm.workflowTypeId } : t
+                t.id === editingTypeName.id ? { ...t, name: editTypeForm.name, description: editTypeForm.description, workflowTypeId: editTypeForm.workflowTypeId, slaHours: editTypeForm.slaHours ? parseInt(editTypeForm.slaHours, 10) : null } : t
             ));
             showToast('success', 'Request type updated successfully.');
             setEditingTypeName(null);
