@@ -22,8 +22,71 @@ export async function notify(options: NotifyOptions): Promise<void> {
       where: { eventType, isActive: true },
     });
 
-    // Auto-inject appUrl into variables so templates can use {{appUrl}}
-    const enrichedVars = { ...variables, appUrl: variables.appUrl || config.app.url };
+    // ── Auto-enrich variables from the database ──────────────────────
+    // Resolve the recipient user so we always have {{userName}}
+    const recipientUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { firstName: true, lastName: true, email: true },
+    });
+    const userName = recipientUser
+      ? `${recipientUser.firstName} ${recipientUser.lastName}`
+      : '';
+
+    // Resolve the related request so templates can use consistent variable names
+    // regardless of what individual controllers choose to pass in.
+    let requestVars: Record<string, string> = {};
+    if (relatedRequestId) {
+      const relatedReq = await prisma.request.findUnique({
+        where: { id: relatedRequestId },
+        select: {
+          referenceNumber: true,
+          summary: true,
+          status: true,
+          priority: true,
+          requester: { select: { firstName: true, lastName: true } },
+          assignedTo: { select: { firstName: true, lastName: true } },
+          serviceDesk: { select: { name: true } },
+          requestType: { select: { name: true } },
+        },
+      });
+
+      if (relatedReq) {
+        const requesterName = relatedReq.requester
+          ? `${relatedReq.requester.firstName} ${relatedReq.requester.lastName}`
+          : '';
+        const assigneeName = relatedReq.assignedTo
+          ? `${relatedReq.assignedTo.firstName} ${relatedReq.assignedTo.lastName}`
+          : '';
+
+        requestVars = {
+          // Primary canonical names the email templates use
+          requestId:       relatedReq.referenceNumber,
+          requestTitle:    relatedReq.summary,
+          // Legacy aliases: some controllers pass referenceNumber/summary instead
+          referenceNumber: relatedReq.referenceNumber,
+          summary:         relatedReq.summary,
+          // Contextual fields
+          status:          relatedReq.status,
+          priority:        relatedReq.priority ?? '',
+          requesterName,
+          assigneeName,
+          categoryName:    relatedReq.serviceDesk?.name ?? '',
+          requestTypeName: relatedReq.requestType?.name ?? '',
+        };
+      }
+    }
+
+    // Merge order (highest precedence last):
+    //   1. Auto-resolved request fields (base)
+    //   2. Caller-supplied variables (override — e.g. newStatus, comments, decision)
+    //   3. Recipient userName (always from DB, not caller)
+    //   4. appUrl
+    const enrichedVars: Record<string, string> = {
+      ...requestVars,
+      ...variables,
+      userName,
+      appUrl: variables.appUrl || config.app.url,
+    };
 
     const subject = template
       ? renderTemplate(template.emailSubject ?? '', enrichedVars)
@@ -53,10 +116,9 @@ export async function notify(options: NotifyOptions): Promise<void> {
       createdAt: inAppNotification.createdAt,
     });
 
-    // Send email notification
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
-    if (user?.email) {
-      const emailSent = await sendEmail(user.email, subject, body, { wrapInLayout });
+    // Send email notification (reuse the already-fetched user record)
+    if (recipientUser?.email) {
+      const emailSent = await sendEmail(recipientUser.email, subject, body, { wrapInLayout });
 
       // Also create an EMAIL notification record for tracking
       await prisma.notification.create({
