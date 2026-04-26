@@ -30,7 +30,7 @@ const kbService = {
   },
   async getArticleBySlug(slug: string): Promise<Article> {
     const response = await api.get(`/kb/articles/${slug}`);
-    const article = response.data?.data;
+    const article = response.data?.data?.article ?? response.data?.data;
     if (article) {
       article.tags = Array.isArray(article.tags) ? article.tags : [];
     }

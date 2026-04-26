@@ -14,6 +14,8 @@ interface UserAccountsTabProps {
     userSearch: string;
     userRoleFilter: string;
     availableRoles: { id: string; name: string; description: string }[];
+    entities?: { id: string; name: string; code: string }[];
+    approverEntityMap?: Record<string, string>;
     onSearch: (value: string) => void;
     onRoleFilter: (value: string) => void;
     onFetchUsers: (page: number) => void;
@@ -30,6 +32,8 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
     userSearch,
     userRoleFilter,
     availableRoles,
+    entities,
+    approverEntityMap,
     onSearch,
     onRoleFilter,
     onFetchUsers,
@@ -81,6 +85,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                             <tr className="text-[11px] font-black text-[#44546f] uppercase tracking-[0.2em]">
                                 <th className="px-8 py-5">User</th>
                                 <th className="px-8 py-5">Department</th>
+                                <th className="px-8 py-5">Entity</th>
                                 <th className="px-8 py-5">Roles</th>
                                 <th className="px-8 py-5">Agent Team</th>
                                 <th className="px-8 py-5">Status</th>
@@ -95,6 +100,22 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                         <div className="text-sm text-[#44546f]">{user.email}</div>
                                     </td>
                                     <td className="px-8 py-5 text-sm text-[#44546f]">{user.department || '—'}</td>
+                                    <td className="px-8 py-5 text-sm text-[#44546f]">
+                                        {(() => {
+                                            const entityName = entities?.find(e => e.id === user.entityId)?.name;
+                                            const approverFor = approverEntityMap?.[user.id];
+                                            return (
+                                                <div className="space-y-1">
+                                                    <div>{entityName || '—'}</div>
+                                                    {approverFor && (
+                                                        <span className="inline-flex px-2 py-0.5 bg-violet-50 text-violet-700 text-[10px] font-black uppercase rounded-full border border-violet-100">
+                                                            Approver: {approverFor}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
+                                    </td>
                                     <td className="px-8 py-5">
                                         <div className="flex flex-wrap gap-1">
                                             {user.roles?.map((ur: any) => (
@@ -156,7 +177,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                             ))}
                             {users.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-8 py-16 text-center text-[#44546f] font-bold">No users found.</td>
+                                    <td colSpan={7} className="px-8 py-16 text-center text-[#44546f] font-bold">No users found.</td>
                                 </tr>
                             )}
                         </tbody>

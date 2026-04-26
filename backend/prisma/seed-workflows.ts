@@ -71,14 +71,27 @@ const defaultWorkflows = [
     description: 'Finance purchase requisition workflow with CFO and Group CEO approval',
     displayOrder: 5,
     steps: [
-      { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
-      { label: 'Pending Ack', status: 'FINANCE_PENDING_ACK', icon: 'radio_button_checked' },
+      { label: 'Submitted', status: 'FINANCE_PENDING_ACK', icon: 'check_circle', isInitial: true },
       { label: 'Acknowledged', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
       { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked' },
       { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked' },
       { label: 'Payment', status: 'PAYMENT_PROCESSING_FIN', icon: 'radio_button_checked' },
       { label: 'Awaiting Confirmation', status: 'AWAITING_PAYMENT_CONFIRMATION', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'TICKET_CLOSED_FIN', icon: 'check_circle', isFinal: true },
+    ]
+  },
+  {
+    name: 'Inter-Company Chargeback',
+    code: 'INTERCOMPANY_CHARGEBACK',
+    description: 'Inter-company chargeback workflow with From Entity and To Entity approval, then Finance team review',
+    displayOrder: 8,
+    steps: [
+      { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
+      { label: 'From Entity Approver', status: 'PENDING_FROM_ENTITY_APPROVAL', icon: 'radio_button_checked' },
+      { label: 'To Entity Approver', status: 'PENDING_TO_ENTITY_APPROVAL', icon: 'radio_button_checked' },
+      { label: 'Finance Team', status: 'CHARGEBACK_FINANCE_REVIEW', icon: 'radio_button_checked' },
+      { label: 'Awaiting Confirmation', status: 'AWAITING_CHARGEBACK_CONFIRMATION', icon: 'radio_button_checked' },
+      { label: 'Completed', status: 'CHARGEBACK_COMPLETED', icon: 'check_circle', isFinal: true },
     ]
   },
   {
@@ -185,8 +198,8 @@ async function main() {
     'EMPLOYEE_ONBOARDING': 'ONBOARDING',
     'EMPLOYEE_OFFBOARDING': 'OFFBOARDING',
     'PURCHASE_REQUISITION': 'FINANCE',
-    'REIMBURSEMENT': 'FINANCE',
-    'FINANCE_GENERAL': 'FINANCE',
+    'INTERCOMPANY_CHARGEBACK': 'INTERCOMPANY_CHARGEBACK',
+    'BUDGET_PROPOSAL': 'FINANCE',
   };
 
   for (const [requestTypeCode, workflowCode] of Object.entries(requestTypeWorkflowMap)) {

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { entityService } from '../../services/entity.service';
 
 const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
@@ -90,7 +91,7 @@ const DATE_KEYS = new Set([
   'receiptDate', 'approvalDate', 'acceptedDate',
 ]);
 
-function formatValue(key: string, value: any, fieldType?: string): React.ReactNode {
+function formatValue(key: string, value: any, fieldType?: string, entityMap?: Record<string, string>): React.ReactNode {
   if (value === null || value === undefined || value === '') return '\u2014';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.join(', ');
@@ -127,11 +128,27 @@ function formatValue(key: string, value: any, fieldType?: string): React.ReactNo
     const num = Number(value);
     if (!isNaN(num)) return `MYR ${num.toLocaleString()}`;
   }
+  // Entity code display — resolve code to human-readable name
+  if (fieldType === 'entity' && entityMap && entityMap[String(value)]) {
+    return `${entityMap[String(value)]} (${value})`;
+  }
   return String(value);
 }
 
 const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, serviceDeskCode, formConfig }) => {
   if (!customFields || Object.keys(customFields).length === 0) return null;
+
+  const [entityNameMap, setEntityNameMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    entityService.listActiveEntities()
+      .then(entities => {
+        const map: Record<string, string> = {};
+        for (const e of entities) map[e.code] = e.name;
+        setEntityNameMap(map);
+      })
+      .catch(() => {});
+  }, []);
 
   const labels = getFieldLabels(serviceDeskCode);
   const HIDDEN_KEYS = new Set(['selectedCandidateId']);
@@ -174,7 +191,7 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
               <dt className="w-44 shrink-0 text-sm font-semibold text-[#44546f]">
                 {getLabel(key)}
               </dt>
-              <dd className="text-sm text-[#101418] flex-1">{formatValue(key, value, getFieldType(key))}</dd>
+              <dd className="text-sm text-[#101418] flex-1">{formatValue(key, value, getFieldType(key), entityNameMap)}</dd>
             </div>
           ))}
         </dl>

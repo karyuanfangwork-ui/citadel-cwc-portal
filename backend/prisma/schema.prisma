@@ -38,6 +38,7 @@ model User {
   isActive      Boolean   @default(true) @map("is_active")
   agentTeam     String?   @map("agent_team") @db.VarChar(50)
   executiveRole ExecutiveRole? @map("executive_role")
+  entityId      String?   @map("entity_id") @db.Uuid
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
   lastLoginAt   DateTime? @map("last_login_at") @db.Timestamp(6)
@@ -76,10 +77,14 @@ model User {
   onboardingCompletedBy     OnboardingRequest[]      @relation("OnboardingCompletedBy")
   onboardingTasksAssigned   OnboardingTask[]         @relation("OnboardingTaskAssignedTo")
   onboardingTasksCompleted  OnboardingTask[]         @relation("OnboardingTaskCompletedBy")
+  // Entity Relations
+  entity                Entity?                     @relation("UserEntity", fields: [entityId], references: [id])
+  approverForEntities   Entity[]                    @relation("EntityApprover")
 
   @@map("users")
   @@index([email])
   @@index([managerId])
+  @@index([entityId])
 }
 
 model Role {
@@ -224,6 +229,7 @@ model RequestType {
   serviceCategory ServiceCategory @relation(fields: [serviceCategoryId], references: [id], onDelete: Cascade)
   workflow        WorkflowType?   @relation(fields: [workflowTypeId], references: [id], onDelete: SetNull)
   requests        Request[]
+  entityRoutings  RequestTypeEntityRouting[]
 
   @@map("request_types")
   @@index([serviceCategoryId])
@@ -358,6 +364,16 @@ enum RequestStatus {
   AWAITING_PAYMENT_CONFIRMATION
   PAYMENT_CONFIRMED_FIN
   TICKET_CLOSED_FIN
+  // Inter-Company Chargeback Workflow
+  PENDING_FROM_ENTITY_APPROVAL
+  FROM_ENTITY_APPROVED
+  FROM_ENTITY_REJECTED
+  PENDING_TO_ENTITY_APPROVAL
+  TO_ENTITY_APPROVED
+  TO_ENTITY_REJECTED
+  CHARGEBACK_FINANCE_REVIEW
+  AWAITING_CHARGEBACK_CONFIRMATION
+  CHARGEBACK_COMPLETED
 }
 
 enum RequestPriority {
@@ -636,8 +652,9 @@ model RequestApproval {
   id            String         @id @default(uuid()) @db.Uuid
   requestId     String         @map("request_id") @db.Uuid
   
-  approverType  String         @map("approver_type") @db.VarChar(50) // 'CEO', 'HIRING_MANAGER'
+  approverType  String         @map("approver_type") @db.VarChar(50) // 'CEO', 'HIRING_MANAGER', 'ENTITY'
   approverId    String?        @map("approver_id") @db.Uuid
+  entityId      String?        @map("entity_id") @db.Uuid
   
   status        ApprovalStatus @default(PENDING)
   comments      String?        @db.Text
@@ -648,10 +665,12 @@ model RequestApproval {
   // Relations
   request  Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
   approver User?   @relation(fields: [approverId], references: [id])
+  entity   Entity? @relation("ApprovalEntity", fields: [entityId], references: [id])
   
   @@map("request_approvals")
   @@index([requestId])
   @@index([approverId])
+  @@index([entityId])
 }
 
 model CandidateResume {
@@ -1185,4 +1204,48 @@ model WorkflowTransition {
   @@index([fromStatus])
   @@index([toStatus])
   @@index([isActive])
+}
+
+// ============================================================================
+// ENTITY-BASED APPROVAL ROUTING
+// ============================================================================
+
+enum EntityRoutingMode {
+  REQUESTER_ENTITY
+  CUSTOM_FIELD
+}
+
+model Entity {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(200)
+  code        String   @unique @db.VarChar(50)
+  description String?  @db.Text
+  approverId  String   @map("approver_id") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  approver          User                       @relation("EntityApprover", fields: [approverId], references: [id])
+  users             User[]                     @relation("UserEntity")
+  requestApprovals  RequestApproval[]          @relation("ApprovalEntity")
+
+  @@map("entities")
+  @@index([approverId])
+}
+
+model RequestTypeEntityRouting {
+  id             String            @id @default(uuid()) @db.Uuid
+  requestTypeId  String            @map("request_type_id") @db.Uuid
+  routingMode    EntityRoutingMode @map("routing_mode")
+  customFieldKey String?           @map("custom_field_key") @db.VarChar(100)
+  label          String?           @db.VarChar(200)
+  isActive       Boolean           @default(true) @map("is_active")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  requestType RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
+
+  @@map("request_type_entity_routings")
+  @@index([requestTypeId])
 }

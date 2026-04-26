@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient, ApprovalStatus } from '@prisma/client';
 import { auditLog } from '../utils/audit';
+import { allEntityApprovalsResolved } from '../services/entityRouting.service';
 
 const prisma = new PrismaClient();
 
@@ -514,6 +515,143 @@ export const managerDecision = async (req: Request, res: Response): Promise<void
         res.status(500).json({
             status: 'error',
             message: 'Failed to process manager decision'
+        });
+    }
+};
+
+/**
+ * Entity approver approve or reject request
+ * POST /requests/:id/entity-decision
+ */
+export const entityDecision = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id);
+        const { approvalId, decision, comments } = req.body;
+        const userId = (req as any).user?.id;
+
+        if (!approvalId) {
+            res.status(400).json({
+                status: 'error',
+                message: 'approvalId is required'
+            });
+            return;
+        }
+
+        if (!decision || !['APPROVED', 'REJECTED'].includes(decision)) {
+            res.status(400).json({
+                status: 'error',
+                message: 'Decision must be either APPROVED or REJECTED'
+            });
+            return;
+        }
+
+        // Fetch the approval record
+        const approval = await prisma.requestApproval.findUnique({
+            where: { id: approvalId },
+        });
+
+        if (!approval) {
+            res.status(404).json({
+                status: 'error',
+                message: 'Approval record not found'
+            });
+            return;
+        }
+
+        if (approval.approverType !== 'ENTITY') {
+            res.status(400).json({
+                status: 'error',
+                message: 'This endpoint is only for entity approvals'
+            });
+            return;
+        }
+
+        if (approval.status !== ApprovalStatus.PENDING) {
+            res.status(400).json({
+                status: 'error',
+                message: 'Approval has already been processed'
+            });
+            return;
+        }
+
+        // Verify the user is the designated approver for this entity
+        if (approval.approverId !== userId) {
+            // Also allow admins to approve
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                include: { roles: { include: { role: true } } },
+            });
+            const isAdmin = user?.roles?.some((r: any) => r.role?.name === 'ADMIN') ?? false;
+            if (!isAdmin) {
+                res.status(403).json({
+                    status: 'error',
+                    message: 'You are not the designated approver for this entity'
+                });
+                return;
+            }
+        }
+
+        // Update the approval record
+        const updatedApproval = await prisma.requestApproval.update({
+            where: { id: approvalId },
+            data: {
+                status: decision as ApprovalStatus,
+                comments: comments || null,
+            },
+        });
+
+        // Check if all entity approvals are resolved
+        if (approval.approverType === 'ENTITY') {
+            const { allApproved, anyRejected } = await allEntityApprovalsResolved(approval.requestId);
+            if (anyRejected) {
+                await prisma.request.update({
+                    where: { id: approval.requestId },
+                    data: { status: 'REJECTED' },
+                });
+            } else if (allApproved) {
+                await prisma.request.update({
+                    where: { id: approval.requestId },
+                    data: { status: 'APPROVED' },
+                });
+            }
+        }
+
+        // Create activity log
+        await prisma.requestActivity.create({
+            data: {
+                requestId: approval.requestId,
+                authorId: userId,
+                authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                authorRole: 'Entity Approver',
+                activityType: decision === 'APPROVED' ? 'APPROVAL' : 'REJECTION',
+                message: `Entity approver ${decision.toLowerCase()} this request${comments ? ': ' + comments : ''}`,
+                isSystemGenerated: false,
+            },
+        });
+
+        await auditLog(req as any, 'APPROVAL_DECISION', 'request', approval.requestId, {
+            decision,
+            approverType: 'ENTITY',
+            approvalId,
+            comments: comments || null,
+        }, { status: decision });
+
+        const updatedRequest = await prisma.request.findUnique({
+            where: { id: approval.requestId },
+        });
+
+        res.json({
+            status: 'success',
+            data: {
+                request: updatedRequest,
+                approval: updatedApproval,
+            }
+        });
+    } catch (error) {
+        console.error('Error processing entity decision:', error);
+        res.status(500).json({
+            status: 'error',
+            message: 'Failed to process entity decision'
         });
     }
 };

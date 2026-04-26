@@ -405,6 +405,52 @@ async function main() {
     await assignRoles(legacyUser.id, [userRole.id]);
     console.log('✅ Legacy USER account created (email: user@helpdesk.com, password: abc@123)');
 
+    // ── Entities ─────────────────────────────────────────────────────────────
+    console.log('Seeding entities...');
+
+    const adminUser = await prisma.user.findUnique({ where: { email: 'admin@test.local' } });
+    const hrUser = await prisma.user.findUnique({ where: { email: 'hr@test.local' } });
+
+    if (adminUser && hrUser) {
+        await prisma.entity.upsert({
+            where: { code: 'CIT-MY' },
+            update: {},
+            create: {
+                name: 'Citadel Malaysia',
+                code: 'CIT-MY',
+                description: 'Citadel Malaysia Sdn Bhd',
+                approverId: adminUser.id,
+                isActive: true,
+            },
+        });
+
+        await prisma.entity.upsert({
+            where: { code: 'CIT-SG' },
+            update: {},
+            create: {
+                name: 'Citadel Singapore',
+                code: 'CIT-SG',
+                description: 'Citadel Singapore Pte Ltd',
+                approverId: hrUser.id,
+                isActive: true,
+            },
+        });
+
+        await prisma.entity.upsert({
+            where: { code: 'CIT-HK' },
+            update: {},
+            create: {
+                name: 'Citadel Hong Kong',
+                code: 'CIT-HK',
+                description: 'Citadel HK Limited',
+                approverId: adminUser.id,
+                isActive: true,
+            },
+        });
+    }
+
+    console.log('✅ Entities created');
+
     // Create Service Categories for IT
     const itCategories = [
         { name: 'Get IT help', icon: 'help', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1,
@@ -1242,6 +1288,105 @@ async function main() {
             excerpt: 'Overview of medical, insurance, allowances, and professional development benefits.',
             category: 'Benefits & Compensation',
             tags: ['benefits', 'insurance', 'allowance', 'medical', 'hr'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        // IT articles (continued)
+        {
+            serviceDeskId: itDesk.id,
+            title: 'Connecting to a Shared Printer',
+            slug: 'connecting-to-a-shared-printer',
+            content: `## Shared Printer Setup\n\nFollow these steps to connect to the office network printers.\n\n### Finding Available Printers\n\n1. Go to **Start → Settings → Devices → Printers & Scanners**\n2. Click **"Add a printer or scanner"**\n3. Wait for the list to populate — office printers appear automatically on the company network\n4. Select your floor/department printer and click **"Add device"**\n\n### Printer Naming Convention\n\n| Printer Name | Location |\n|---|---|\n| CWC-PRINT-L1 | Level 1, near reception |\n| CWC-PRINT-L2A | Level 2, Finance wing |\n| CWC-PRINT-L2B | Level 2, HR wing |\n| CWC-PRINT-L3 | Level 3, IT & Admin |\n\n### Common Issues\n\n- **Printer not found**: Ensure you are on the corporate Wi-Fi or connected via LAN — VPN does not route printer traffic\n- **Print job stuck**: Open the printer queue, cancel all jobs, and retry\n- **Low toner / paper jam**: Submit an IT support request under **Hardware & Devices** — do not attempt to clear jams yourself on large printers\n\n### Printing Tips\n\n- Use **duplex (double-sided)** printing by default to conserve paper\n- For confidential documents, use the **PIN Release** option — the document only prints when you enter your PIN at the printer`,
+            excerpt: 'How to connect to office network printers and resolve common printing issues.',
+            category: 'Hardware & Devices',
+            tags: ['printer', 'hardware', 'network', 'setup'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: itDesk.id,
+            title: 'Setting Up Company Email on Mobile',
+            slug: 'setting-up-company-email-on-mobile',
+            content: `## Company Email on Mobile Devices\n\nAccess your work email on your personal or company-issued mobile device using Microsoft Outlook.\n\n### Prerequisites\n\n- Install **Microsoft Outlook** from the App Store or Google Play\n- Your company email credentials (username@citadelgroup.com)\n- MFA must be set up on your account\n\n### Setup Steps (iOS & Android)\n\n1. Open **Outlook** and tap **Add Account**\n2. Enter your company email address and tap **Continue**\n3. On the Microsoft sign-in page, enter your password\n4. Complete the **MFA prompt** (approve in Authenticator app)\n5. Tap **"Allow"** when prompted to configure your device\n6. Outlook will sync your emails, calendar, and contacts automatically\n\n### Security Requirements\n\nConnecting your device to company email enrolls it in **Intune Mobile Device Management**. This allows IT to:\n- Enforce PIN/biometric lock on the device\n- Remotely wipe company data (not personal data) if the device is lost\n- Apply security policies (e.g., encryption)\n\n### Personal Device Policy\n\n- Only company data in the Outlook container is managed — personal apps and data are not affected\n- If you leave the company, only the Outlook/company data container will be wiped\n- If you do not want to enroll your personal device, request a company phone via IT Support`,
+            excerpt: 'Configure Microsoft Outlook on your mobile device to access company email securely.',
+            category: 'Email & Communication',
+            tags: ['email', 'mobile', 'outlook', 'setup', 'mdm'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: itDesk.id,
+            title: 'New Employee IT Onboarding Checklist',
+            slug: 'new-employee-it-onboarding-checklist',
+            content: `## IT Onboarding for New Employees\n\nWelcome to Citadel Group! Complete the following steps within your first week to get fully set up.\n\n### Day 1 Checklist\n\n- [ ] Collect your laptop from IT (Level 3 IT Helpdesk)\n- [ ] Log in with your temporary credentials provided by HR\n- [ ] **Change your password immediately** on first login\n- [ ] Set up **Multi-Factor Authentication (MFA)** — see the MFA Setup Guide in this Knowledge Base\n- [ ] Connect to **CWC-Corporate** Wi-Fi using your company credentials\n- [ ] Set up **Microsoft Outlook** with your company email\n\n### Week 1 Checklist\n\n- [ ] Join the company **Microsoft Teams** workspace\n- [ ] Set up company email on your mobile device (optional — see Mobile Email Guide)\n- [ ] Bookmark key internal tools: CWC Portal, HR Self-Service, Finance Portal\n- [ ] Review the **Acceptable Use Policy** (available in HR Knowledge Base)\n- [ ] Install any role-specific software via the **IT Self-Service Catalog**\n\n### Getting Help\n\nFor any IT issues during onboarding:\n- Walk-in: Level 3 IT Helpdesk (8:30 AM – 5:30 PM, Mon–Fri)\n- Submit a ticket: **IT Support → Account & Access** in this portal\n- Emergency: Call IT Helpdesk at ext. 1234`,
+            excerpt: 'Complete IT setup checklist for new employees covering devices, accounts, and software.',
+            category: 'Account & Access',
+            tags: ['onboarding', 'new employee', 'setup', 'checklist', 'it'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        // HR articles (continued)
+        {
+            serviceDeskId: hrDesk.id,
+            title: 'Understanding Your Payslip',
+            slug: 'understanding-your-payslip',
+            content: `## Payslip Guide\n\nYour monthly payslip is available in the HR Self-Service portal by the 25th of each month.\n\n### Accessing Your Payslip\n\n1. Log in to the **HR Services** portal\n2. Navigate to **My Profile → Payslips**\n3. Select the month you want to view\n4. Download as PDF for your records\n\n### Payslip Breakdown\n\n| Section | Description |\n|---|---|\n| Basic Salary | Your fixed monthly salary |\n| Allowances | Transport, meal, communication, and role-specific allowances |\n| Overtime | Calculated at 1.5x hourly rate for approved OT |\n| EPF (Employee) | 11% of gross salary contributed by you |\n| EPF (Employer) | 13% of gross salary contributed by Citadel |\n| SOCSO | Social security contribution (varies by salary band) |\n| EIS | Employment Insurance System deduction |\n| PCB / Income Tax | Monthly tax deduction based on your tax bracket |\n| **Net Pay** | **Amount deposited into your bank account** |\n\n### Salary Payment Schedule\n\n- Salaries are credited on the **last working day** of each month\n- Overtime and claims approved before the 15th are included in the same month's payslip\n- Disputes must be raised within **3 months** of the pay date\n\n### Payslip Queries\n\nSubmit a request via **HR Services → Payroll & Compensation** with your query and the relevant payslip month attached.`,
+            excerpt: 'How to read and understand your monthly payslip including deductions and contributions.',
+            category: 'Payroll & Compensation',
+            tags: ['payslip', 'salary', 'epf', 'pcb', 'payroll', 'hr'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: hrDesk.id,
+            title: 'Performance Review Process',
+            slug: 'performance-review-process',
+            content: `## Annual Performance Review Guide\n\nCitadel Group conducts a formal performance review cycle twice a year. Here's what to expect and how to prepare.\n\n### Review Cycle\n\n| Review | Period | Completion Deadline |\n|---|---|---|\n| Mid-Year Review | Jan – Jun | 31 July |\n| Year-End Review | Jul – Dec | 31 January |\n\n### The Review Process\n\n1. **Self-Assessment** — You complete a self-evaluation in the HR portal (opens 2 weeks before deadline)\n2. **Manager Assessment** — Your direct manager rates your performance and adds comments\n3. **Calibration** — Department heads align ratings across the team\n4. **Feedback Discussion** — One-on-one session with your manager to review outcomes\n5. **Final Sign-Off** — Both you and your manager acknowledge the review\n\n### Rating Scale\n\n| Rating | Description |\n|---|---|\n| 5 – Exceptional | Consistently exceeded all targets |\n| 4 – Exceeds Expectations | Regularly exceeded most targets |\n| 3 – Meets Expectations | Met all targets as expected |\n| 2 – Needs Improvement | Partially met targets; development plan required |\n| 1 – Unsatisfactory | Did not meet key targets |\n\n### Tips for a Strong Self-Assessment\n\n- Reference specific achievements with measurable outcomes\n- Align your contributions to your department's goals\n- Highlight cross-functional collaboration\n- Be honest about development areas and propose an action plan\n\n### Outcome\n\nYear-end ratings influence annual increment percentages and bonus eligibility. Ratings are confidential between you, your manager, and HR.`,
+            excerpt: 'Overview of the bi-annual performance review cycle, ratings, and how to prepare your self-assessment.',
+            category: 'Performance & Development',
+            tags: ['performance', 'review', 'appraisal', 'kpi', 'hr'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: hrDesk.id,
+            title: 'Work From Home (WFH) Policy',
+            slug: 'work-from-home-policy',
+            content: `## Remote Work Policy\n\nCitadel Group supports flexible working arrangements for eligible roles.\n\n### Eligibility\n\n- Permanent employees who have completed their **probation period**\n- Roles that do not require a physical presence (confirmed by your department head)\n- Employees with a satisfactory or above performance rating\n\n### WFH Entitlement\n\n- Up to **2 days per week** for eligible employees\n- WFH days cannot be on **Mondays or Fridays** without prior manager approval\n- Department heads may restrict WFH during peak periods or project deadlines\n\n### How to Apply\n\n1. Discuss with your manager and agree on a recurring WFH schedule\n2. Submit a **WFH arrangement request** via **HR Services → Flexible Work**\n3. HR will issue a formal confirmation within 3 business days\n\n### WFH Requirements\n\n- Must be reachable during core hours **(9:00 AM – 5:00 PM)**\n- Must have a stable internet connection (minimum 10 Mbps)\n- Must be connected to the **company VPN** when accessing internal systems\n- Must attend all scheduled meetings (video on for calls with clients or leadership)\n\n### Equipment\n\n- Employees are responsible for their own WFH setup\n- IT can loan a portable monitor or peripherals — submit an IT request under **Hardware & Devices**\n- Company-issued laptops must be used for all work activities`,
+            excerpt: 'Eligibility, entitlement, and requirements for the company Work From Home arrangement.',
+            category: 'Workplace Policies',
+            tags: ['wfh', 'remote work', 'flexible', 'policy', 'hr'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        // Finance articles (continued)
+        {
+            serviceDeskId: financeDesk.id,
+            title: 'Business Travel Policy and Booking Guide',
+            slug: 'business-travel-policy-and-booking-guide',
+            content: `## Business Travel Policy\n\nAll business travel must be pre-approved and booked through the company's designated channels.\n\n### Pre-Approval\n\n1. Submit a **Travel Request** via **Group Finance → Travel & Accommodation** at least **5 business days** before travel\n2. Include: destination, travel dates, purpose, and estimated costs\n3. Approval is required from your manager; trips above RM 5,000 also require Finance approval\n\n### Booking Channels\n\n- **Flights**: Book via the corporate travel portal (link in Finance intranet) — do NOT purchase independently without prior approval\n- **Hotels**: Use corporate rate hotels listed in the travel portal; max RM 350/night domestic, RM 600/night international\n- **Transport**: Company-arranged ground transport for airport transfers; Grab/taxi reimbursable with receipt\n\n### Allowances (Per Diem)\n\n| Location | Daily Meal Allowance |\n|---|---|\n| Domestic (within Malaysia) | RM 80/day |\n| ASEAN countries | RM 150/day |\n| Outside ASEAN | RM 250/day |\n\n### Claiming Travel Expenses\n\nAfter your trip:\n1. Collect all receipts (no receipt = no reimbursement for items above RM 50)\n2. Submit via **Group Finance → Expense Claims** within **14 days** of returning\n3. Attach flight itinerary and hotel invoice to the claim\n4. Per diem allowances do not require receipts`,
+            excerpt: 'Pre-approval requirements, booking channels, allowances, and reimbursement process for business travel.',
+            category: 'Expense Management',
+            tags: ['travel', 'expense', 'per diem', 'reimbursement', 'finance'],
+            isPublished: true,
+            publishedAt: new Date(),
+            authorId: adminUser.id,
+        },
+        {
+            serviceDeskId: financeDesk.id,
+            title: 'Budget Planning and Cost Center Guide',
+            slug: 'budget-planning-and-cost-center-guide',
+            content: `## Budget & Cost Center Guide\n\nUnderstanding how to use cost centers ensures accurate financial reporting and smooth approval of your procurement requests.\n\n### What is a Cost Center?\n\nA cost center is a unique code assigned to each department or project that tracks expenditure. Every purchase requisition and expense claim must include the correct cost center code.\n\n### Finding Your Cost Center\n\n1. Log in to the Finance portal\n2. Navigate to **My Department → Cost Center Info**\n3. Your primary cost center code is displayed on your profile\n4. For project-specific codes, contact your Finance Business Partner\n\n### Common Cost Center Codes\n\n| Department | Code |\n|---|---|\n| Human Resources | CC-HR-001 |\n| Information Technology | CC-IT-001 |\n| Group Finance | CC-FIN-001 |\n| Operations | CC-OPS-001 |\n| Executive Office | CC-EXEC-001 |\n\n### Annual Budget Cycle\n\n| Activity | Timeline |\n|---|---|\n| Department heads submit budget proposals | October |\n| Finance review and consolidation | November |\n| Management approval | December |\n| Budget takes effect | 1 January |\n\n### Budget Queries\n\nFor queries about budget availability, spending limits, or to request a budget reallocation, submit a request via **Group Finance → Budget Enquiry** and your assigned Finance Business Partner will respond within 2 business days.`,
+            excerpt: 'How cost center codes work, where to find yours, and how the annual budget cycle operates.',
+            category: 'Procurement',
+            tags: ['budget', 'cost center', 'finance', 'procurement', 'planning'],
             isPublished: true,
             publishedAt: new Date(),
             authorId: adminUser.id,

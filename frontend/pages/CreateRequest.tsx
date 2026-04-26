@@ -4,6 +4,7 @@ import { requestService } from '../src/services/request.service';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { useAuth } from '../src/context/AuthContext';
 import apiClient from '../src/services/api';
+import { entityService } from '../src/services/entity.service';
 
 const CreateRequest = () => {
     const { deskId, categoryId, deskType } = useParams<{ deskId: string; categoryId: string; deskType: string }>();
@@ -16,6 +17,7 @@ const CreateRequest = () => {
     const [submitting, setSubmitting] = useState(false);
     const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
     const [error, setError] = useState<string | null>(null);
+    const [entityOptions, setEntityOptions] = useState<{ code: string; name: string }[]>([]);
 
     const [formData, setFormData] = useState<any>({
         summary: '',
@@ -49,6 +51,13 @@ const CreateRequest = () => {
             fetchData();
         }
     }, [deskId, categoryId]);
+
+    // Fetch entity list once for entity-type dropdown fields
+    useEffect(() => {
+        entityService.listActiveEntities()
+            .then(setEntityOptions)
+            .catch(() => setEntityOptions([]));
+    }, []);
 
     const fetchData = async () => {
         try {
@@ -276,6 +285,26 @@ const CreateRequest = () => {
                         <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
                     </div>
                 );
+            case 'entity': {
+                const selected = formData.customFields[field.id] || '';
+                return (
+                    <div className="relative">
+                        <select
+                            required={field.required}
+                            className={`${commonClass} appearance-none`}
+                            value={selected}
+                            onChange={e => handleCustomFieldChange(field.id, e.target.value)}
+                            disabled={submitting}
+                        >
+                            <option value="" disabled>Select an entity...</option>
+                            {entityOptions.map(e => (
+                                <option key={e.code} value={e.code}>{e.name} ({e.code})</option>
+                            ))}
+                        </select>
+                        <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
+                    </div>
+                );
+            }
             default: // text
                 return (
                     <input

@@ -24,7 +24,7 @@ interface Request {
 }
 
 const PENDING_APPROVAL_STATUSES: Record<string, string[]> = {
-  CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT'],
+  CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT', 'PENDING_FROM_ENTITY_APPROVAL', 'PENDING_TO_ENTITY_APPROVAL'],
   CTO: ['PENDING_CTO_APPROVAL_IT'],
   CFO: ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN'],
   GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
@@ -70,10 +70,14 @@ const MyRequests = () => {
         filters.requestTypeId = selectedRequestTypeId;
       }
 
-      // "My Requests" = requests created by the current user
+      // "My Requests" = requests created by the current user (for end-users)
+      // Agents/Admins see all requests in the queue (no requesterId filter)
       // For "pending_approval": show requests where user is an approver (not created by them)
+      const isAgentOrAdmin = user?.roles?.some((r: string) => ['ADMIN', 'AGENT'].includes(r)) ?? false;
       if (filter === 'open' || filter === 'all') {
-        filters.requesterId = user?.id;
+        if (!isAgentOrAdmin) {
+          filters.requesterId = user?.id;
+        }
       }
 
       if (filter === 'pending_approval' && approvalRole) {

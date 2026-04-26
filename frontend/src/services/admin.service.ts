@@ -60,7 +60,7 @@ export const adminService = {
         return response.data.data as { users: any[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
     },
 
-    async updateUser(userId: string, data: Partial<{ firstName: string; lastName: string; email: string; phone: string; department: string; jobTitle: string; isActive: boolean; managerId: string; agentTeam: string }>) {
+    async updateUser(userId: string, data: Partial<{ firstName: string; lastName: string; email: string; phone: string; department: string; jobTitle: string; isActive: boolean; managerId: string; agentTeam: string; entityId: string | null }>) {
         const response = await apiClient.put(`/users/${userId}`, data);
         return response.data.data.user;
     },

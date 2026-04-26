@@ -43,7 +43,15 @@ export type WorkflowActionType =
   | 'CFO_DECISION_FIN'
   | 'GROUP_CEO_DECISION_FIN'
   | 'MARK_PAYMENT_COMPLETE_FIN'
-  | 'CLOSE_TICKET_FIN';
+  | 'CLOSE_TICKET_FIN'
+  // Inter-Company Chargeback workflow actions
+  | 'CHARGEBACK_SUBMIT'
+  | 'FROM_ENTITY_APPROVE'
+  | 'FROM_ENTITY_REJECT'
+  | 'TO_ENTITY_APPROVE'
+  | 'TO_ENTITY_REJECT'
+  | 'CHARGEBACK_MARK_CONFIRMED'
+  | 'CHARGEBACK_COMPLETE';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -198,6 +206,75 @@ export function getWorkflowActions(
           variant: 'success',
         });
       }
+    }
+  }
+
+  // Inter-Company Chargeback workflow
+  const isChargeback = requestTypeCode === 'INTERCOMPANY_CHARGEBACK' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('inter-company chargeback'));
+  // Finance actions — only finance desk agents/admins, not entity approvers or other staff
+  const isFinanceAgent = canAct && serviceDeskCode === 'FINANCE';
+
+  if (isChargeback) {
+    // Finance agent submits chargeback (SUBMITTED → PENDING_FROM_ENTITY_APPROVAL)
+    if (isFinanceAgent && status === 'SUBMITTED') {
+      actions.push({
+        type: 'CHARGEBACK_SUBMIT',
+        label: 'Submit for Entity Approval',
+        description: 'Submit this chargeback request to the From Entity approver.',
+        variant: 'primary',
+      });
+    }
+    // From Entity approver decision — only the designated approver can act
+    if (isDesignatedApprover && status === 'PENDING_FROM_ENTITY_APPROVAL') {
+      actions.push(
+        {
+          type: 'FROM_ENTITY_APPROVE',
+          label: 'Approve (From Entity)',
+          description: 'Approve this chargeback as the From Entity approver.',
+          variant: 'success',
+        },
+        {
+          type: 'FROM_ENTITY_REJECT',
+          label: 'Reject (From Entity)',
+          description: 'Reject this chargeback as the From Entity approver.',
+          variant: 'danger',
+        }
+      );
+    }
+    // To Entity approver decision — only the designated approver can act
+    if (isDesignatedApprover && status === 'PENDING_TO_ENTITY_APPROVAL') {
+      actions.push(
+        {
+          type: 'TO_ENTITY_APPROVE',
+          label: 'Approve (To Entity)',
+          description: 'Approve this chargeback as the To Entity approver.',
+          variant: 'success',
+        },
+        {
+          type: 'TO_ENTITY_REJECT',
+          label: 'Reject (To Entity)',
+          description: 'Reject this chargeback as the To Entity approver.',
+          variant: 'danger',
+        }
+      );
+    }
+    // Finance team actions — only finance agents/admins, not entity approvers or other staff
+    if (isFinanceAgent && status === 'CHARGEBACK_FINANCE_REVIEW') {
+      actions.push({
+        type: 'CHARGEBACK_MARK_CONFIRMED',
+        label: 'Mark as Confirmed',
+        description: 'Confirm the chargeback has been processed and await final confirmation.',
+        variant: 'warning',
+      });
+    }
+    if (isFinanceAgent && status === 'AWAITING_CHARGEBACK_CONFIRMATION') {
+      actions.push({
+        type: 'CHARGEBACK_COMPLETE',
+        label: 'Complete Chargeback',
+        description: 'Payment confirmed. Close this chargeback ticket.',
+        variant: 'success',
+      });
     }
   }
 

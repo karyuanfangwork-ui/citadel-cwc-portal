@@ -46,7 +46,10 @@
       "Bash(grep -E \"\\\\.tsx$\")",
       "Bash(npx vite *)",
       "Bash(kill 18714 56110 57005 57719 57873)",
-      "Bash(kill 58357)"
+      "Bash(kill 58357)",
+      "Bash(npm install *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }

@@ -45,6 +45,7 @@ class UserController {
                 user: {
                     id: user.id,
                     email: user.email,
+                    entityId: user.entityId,
                     firstName: user.firstName,
                     lastName: user.lastName,
                     phone: user.phone,
@@ -218,7 +219,7 @@ class UserController {
      */
     updateUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const id = String(req.params.id);
-        const { firstName, lastName, email, phone, department, jobTitle, isActive, managerId, agentTeam, executiveRole } = req.body;
+        const { firstName, lastName, email, phone, department, jobTitle, isActive, managerId, agentTeam, executiveRole, entityId } = req.body;
 
         // Email update logic
         if (email) {
@@ -272,6 +273,7 @@ class UserController {
                 managerId,
                 agentTeam,
                 executiveRole: executiveRole || null,
+                ...(entityId !== undefined && { entityId: entityId || null }),
             },
         });
 
@@ -305,6 +307,7 @@ class UserController {
                 firstName: true,
                 lastName: true,
                 email: true,
+                entityId: true,
             },
             orderBy: { firstName: 'asc' },
         });

@@ -18,7 +18,7 @@ import { CSS } from '@dnd-kit/utilities';
 interface FormField {
     id: string;
     label: string;
-    type: 'text' | 'textarea' | 'select' | 'date' | 'number' | 'currency' | 'file';
+    type: 'text' | 'textarea' | 'select' | 'date' | 'number' | 'currency' | 'file' | 'entity';
     required: boolean;
     options?: string[];
 }
@@ -93,6 +93,7 @@ const SortableField: React.FC<SortableFieldProps> = ({ field, onRemove, onUpdate
                         <option value="date">Date</option>
                         <option value="select">Dropdown (Select)</option>
                         <option value="file">File Upload</option>
+                        <option value="entity">Entity (Dropdown)</option>
                     </select>
                 </div>
 
@@ -163,6 +164,15 @@ const SortableField: React.FC<SortableFieldProps> = ({ field, onRemove, onUpdate
                                 Add
                             </button>
                         </div>
+                    </div>
+                )}
+
+                {field.type === 'entity' && (
+                    <div className="sm:col-span-12 mt-2 pt-3 border-t border-gray-200/50">
+                        <p className="text-xs text-[#44546f] italic">
+                            Options are auto-populated from the Entity master list. No manual options needed.
+                            The stored value will be the entity code (e.g. CIT-MY).
+                        </p>
                     </div>
                 )}
             </div>

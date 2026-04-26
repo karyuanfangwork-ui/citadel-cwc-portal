@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../src/context/AuthContext';
 import FormBuilder from '../src/components/FormBuilder';
 import CreateUserModal from '../src/components/admin/CreateUserModal';
@@ -7,6 +7,7 @@ import { StatusDefinitionsTab } from '../src/components/admin/StatusDefinitionsT
 import { WorkflowTransitionTab } from '../src/components/admin/WorkflowTransitionTab';
 import { BannerConfigTab } from '../src/components/admin/BannerConfigTab';
 import { PermissionsTab } from '../src/components/admin/PermissionsTab';
+import { EntitiesTab } from '../src/components/admin/EntitiesTab';
 import { useAdminState } from '../src/components/admin/useAdminState';
 import { ADMIN_TABS, CATEGORY_ICONS, COLOR_THEMES } from '../src/components/admin/adminConstants';
 import { ServiceDesksTab } from '../src/components/admin/ServiceDesksTab';
@@ -17,10 +18,36 @@ import { CategoryModal } from '../src/components/admin/CategoryModal';
 import { ServiceModal } from '../src/components/admin/ServiceModal';
 import { RoleAssignmentModal } from '../src/components/admin/RoleAssignmentModal';
 import { AgentTeamModal } from '../src/components/admin/AgentTeamModal';
+import { entityService, Entity } from '../src/services/entity.service';
 
 const AdminSettings = () => {
     const { logout } = useAuth();
     const admin = useAdminState();
+
+    // ── Entities state ──
+    const [entities, setEntities] = useState<Entity[]>([]);
+
+    // ── Build approverEntityMap: userId → entity name ──
+    const approverEntityMap = useMemo(() => {
+        const map: Record<string, string> = {};
+        for (const entity of entities) {
+            if (entity.approverId && entity.isActive) {
+                map[entity.approverId] = entity.name;
+            }
+        }
+        return map;
+    }, [entities]);
+
+    const fetchEntities = useCallback(async () => {
+        try {
+            const data = await entityService.listEntities();
+            setEntities(data);
+        } catch {}
+    }, []);
+
+    useEffect(() => {
+        fetchEntities();
+    }, [fetchEntities]);
 
     const activeTabMeta = ADMIN_TABS.find(t => t.id === admin.activeTab);
 
@@ -111,6 +138,8 @@ const AdminSettings = () => {
                             userSearch={admin.userSearch}
                             userRoleFilter={admin.userRoleFilter}
                             availableRoles={admin.availableRoles}
+                            entities={entities}
+                            approverEntityMap={approverEntityMap}
                             onSearch={(value) => { admin.userSearch = value; admin.fetchUsers(1, value, admin.userRoleFilter); }}
                             onRoleFilter={(value) => { admin.userRoleFilter = value; admin.fetchUsers(1, admin.userSearch, value); }}
                             onFetchUsers={admin.fetchUsers}
@@ -158,6 +187,14 @@ const AdminSettings = () => {
                     {admin.activeTab === 'banner-config' && <BannerConfigTab />}
                     {admin.activeTab === 'status-definitions' && <StatusDefinitionsTab />}
                     {admin.activeTab === 'permissions' && <PermissionsTab />}
+
+                    {admin.activeTab === 'entities' && (
+                        <EntitiesTab
+                            entities={entities}
+                            users={admin.users.map(u => ({ id: u.id, firstName: u.firstName, lastName: u.lastName, email: u.email }))}
+                            onRefresh={fetchEntities}
+                        />
+                    )}
 
                 </div>{/* end content area */}
             </div>{/* end flex row */}
@@ -230,6 +267,7 @@ const AdminSettings = () => {
                 isOpen={admin.showEditUserModal}
                 onClose={() => { admin.setShowEditUserModal(false); admin.setEditingUser(null); }}
                 onSave={admin.handleEditUser}
+                entities={entities}
             />
 
             {/* Confirm Dialog */}

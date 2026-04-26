@@ -17,12 +17,14 @@ import onboardingTemplateRoutes from './onboardingTemplate.routes';
 import offboardingTemplateRoutes from './offboardingTemplate.routes';
 import itWorkflowRoutes from './it-workflow.routes';
 import financeWorkflowRoutes from './finance-workflow.routes';
+import chargebackWorkflowRoutes from './chargeback-workflow.routes';
 import reportsRoutes from './reports.routes';
 import bannerConfigRoutes from './bannerConfig.routes';
 import requestStatusDefinitionRoutes from './requestStatusDefinition.routes';
 import workflowTransitionRoutes from './workflowTransition.routes';
 import fileRoutes from './file.routes';
 import workflowRoutes from './workflow.routes';
+import entityRoutes from './entity.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -49,12 +51,14 @@ router.use('/admin/onboarding-templates', onboardingTemplateRoutes);
 router.use('/admin/offboarding-templates', offboardingTemplateRoutes);
 router.use('/it-workflow', itWorkflowRoutes);
 router.use('/finance-workflow', financeWorkflowRoutes);
+router.use('/chargeback-workflow', chargebackWorkflowRoutes);
 router.use('/admin/workflows', workflowRoutes);
 router.use('/reports', reportsRoutes);
 router.use('/admin/banner-configs', bannerConfigRoutes);
 router.use('/admin/status-definitions', requestStatusDefinitionRoutes);
 router.use('/admin/workflow-transitions', workflowTransitionRoutes);
 router.use('/files', fileRoutes);
+router.use('/admin/entities', entityRoutes);
 
 export default router;
 

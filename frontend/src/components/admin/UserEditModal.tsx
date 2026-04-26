@@ -13,13 +13,15 @@ interface UserEditModalProps {
     managerId?: string | null;
     agentTeam?: string | null;
     executiveRole?: string | null;
+    entityId?: string | null;
   };
   isOpen: boolean;
   onClose: () => void;
   onSave: (data: any) => Promise<void>;
+  entities?: { id: string; name: string; code: string }[];
 }
 
-const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, onSave }) => {
+const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, onSave, entities }) => {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -30,6 +32,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
     isActive: true,
     agentTeam: '',
     executiveRole: '',
+    entityId: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
         isActive: user.isActive,
         agentTeam: user.agentTeam || '',
         executiveRole: user.executiveRole || '',
+        entityId: user.entityId || '',
       });
     }
   }, [user]);
@@ -56,7 +60,10 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
     setError(null);
 
     try {
-      await onSave(formData);
+      await onSave({
+        ...formData,
+        entityId: formData.entityId || null,
+      });
       onClose();
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'Failed to update user');
@@ -178,6 +185,24 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               placeholder="e.g., IT Support, HR Services"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+              Entity (Subsidiary)
+            </label>
+            <select
+              value={formData.entityId}
+              onChange={(e) => setFormData({ ...formData, entityId: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="">None</option>
+              {entities?.map(entity => (
+                <option key={entity.id} value={entity.id}>
+                  {entity.name} ({entity.code})
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

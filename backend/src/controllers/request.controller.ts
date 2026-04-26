@@ -8,6 +8,7 @@ import { createDefaultOnboardingTasks } from '../services/onboarding.service';
 import { sanitizeString, sanitizeComment } from '../utils/sanitize';
 import { auditLog } from '../utils/audit';
 import { logger } from '../utils/logger';
+import { applyEntityRouting } from '../services/entityRouting.service';
 
 const prisma = new PrismaClient();
 
@@ -41,12 +42,14 @@ class RequestController {
         // Exception: CEO can see requests in hiring workflow
         if (!hasRole(req, 'ADMIN', 'AGENT')) {
             if (hasRole(req, 'CEO')) {
-                // CEO can see their own requests, hiring workflow requests, IT approval requests, and any request where they are a designated approver
+                // CEO can see their own requests, hiring workflow requests, IT approval requests, chargeback from-entity requests, and any request where they are a designated approver
                 const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
                 where.OR = [
                     { requesterId: req.user!.id },
                     { status: { in: ceoHiringStatuses } },
                     { status: 'PENDING_CEO_APPROVAL_IT' },
+                    { status: 'PENDING_FROM_ENTITY_APPROVAL' },
+                    { status: 'PENDING_TO_ENTITY_APPROVAL' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else if (hasRole(req, 'CTO')) {
@@ -72,8 +75,11 @@ class RequestController {
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else {
-                // Regular users only see their own requests
-                where.requesterId = req.user!.id;
+                // Regular users see their own requests + any requests where they are a designated approver (e.g. entity approver for chargeback)
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
             }
         }
 
@@ -219,12 +225,15 @@ class RequestController {
         const isManualOnboarding = requestType?.code === 'EMPLOYEE_ONBOARDING';
         const isManualOffboarding = requestType?.code === 'EMPLOYEE_OFFBOARDING';
         const isPurchaseRequisition = requestType?.code === 'PURCHASE_REQUISITION';
+        const isIntercompanyChargeback = requestType?.code === 'INTERCOMPANY_CHARGEBACK';
         const initialStatus = isManualOnboarding
             ? 'ONBOARDING_SUBMITTED'
             : isManualOffboarding
             ? 'OFFBOARDING_SUBMITTED'
             : isPurchaseRequisition
             ? 'FINANCE_PENDING_ACK'
+            : isIntercompanyChargeback
+            ? 'SUBMITTED'
             : 'SUBMITTED';
 
         // Auto-generate description from form fields
@@ -549,6 +558,16 @@ class RequestController {
             );
         }
 
+        // Apply entity-based approval routing if configured for this request type
+        if (requestTypeId) {
+            await applyEntityRouting({
+                requestId: request.id,
+                requestTypeId,
+                requesterId: request.requesterId,
+                customFields: (customFields || {}) as Record<string, any>,
+            });
+        }
+
         // Notify requester
         await notify({
             userId: request.requesterId,
@@ -669,11 +688,13 @@ class RequestController {
                     },
                 },
                 approvals: {
-                    select: {
-                        id: true,
-                        approverId: true,
-                        approverType: true,
-                        status: true,
+                    include: {
+                        approver: {
+                            select: { id: true, firstName: true, lastName: true, email: true },
+                        },
+                        entity: {
+                            select: { id: true, name: true, code: true },
+                        },
                     },
                 },
             },

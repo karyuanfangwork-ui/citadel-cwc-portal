@@ -11,6 +11,7 @@ import RequestHeader from '../src/components/request/RequestHeader';
 import RequestFormFields from '../src/components/request/RequestFormFields';
 import HiringWorkflowPanel from '../src/components/request/HiringWorkflowPanel';
 import ApprovalActions from '../src/components/request/ApprovalActions';
+import { EntityApprovalsPanel } from '../src/components/EntityApprovalsPanel';
 import ResolutionModal from '../src/components/request/modals/ResolutionModal';
 import RejectionModal from '../src/components/request/modals/RejectionModal';
 import CompleteOnboardingModal from '../src/components/request/modals/CompleteOnboardingModal';
@@ -137,6 +138,7 @@ const RequestDetailContainer: React.FC = () => {
                         onReviseAndResubmit={rq.handleReviseAndResubmit}
                         onReopenForNewCandidates={rq.handleReopenForNewCandidates}
                     />
+                    <EntityApprovalsPanel approvals={request.approvals || []} />
                     <ActionSidebar
                         requestId={request.id}
                         status={request.status}

@@ -802,7 +802,7 @@ export function useAdminState(): UseAdminStateReturn {
             fetchTemplates();
         } else if (activeTab === 'offboarding-tasks') {
             fetchOffboardingTemplates();
-        } else if (activeTab === 'users') {
+        } else if (activeTab === 'users' || activeTab === 'entities') {
             fetchUsers(1, '', '');
             fetchRoles();
         } else if (activeTab === 'workflow-config') {

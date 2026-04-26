@@ -37,7 +37,7 @@ const FinDecisionModal = lazy(() => import('./FinDecisionModal'));
 const MarkPaymentCompleteFinModal = lazy(() => import('./MarkPaymentCompleteFinModal'));
 const CloseTicketFinModal = lazy(() => import('./CloseTicketFinModal'));
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -178,6 +178,31 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'GROUP_CEO_DECISION_FIN': setOpenModal('GROUP_CEO_DECISION_FIN'); break;
       case 'MARK_PAYMENT_COMPLETE_FIN': setOpenModal('MARK_PAYMENT_COMPLETE_FIN'); break;
       case 'CLOSE_TICKET_FIN': setOpenModal('CLOSE_TICKET_FIN'); break;
+      case 'CHARGEBACK_SUBMIT':
+        setDirectActionLoading(true);
+        import('../../services/chargeback-workflow.service').then(m => m.default.submitChargeback(requestId))
+          .then(handleSuccess)
+          .catch(e => setActionError(e?.response?.data?.error || 'Failed to submit chargeback'))
+          .finally(() => setDirectActionLoading(false));
+        break;
+      case 'FROM_ENTITY_APPROVE': setOpenModal('FROM_ENTITY_APPROVE'); break;
+      case 'FROM_ENTITY_REJECT': setOpenModal('FROM_ENTITY_REJECT'); break;
+      case 'TO_ENTITY_APPROVE': setOpenModal('TO_ENTITY_APPROVE'); break;
+      case 'TO_ENTITY_REJECT': setOpenModal('TO_ENTITY_REJECT'); break;
+      case 'CHARGEBACK_MARK_CONFIRMED':
+        setDirectActionLoading(true);
+        import('../../services/chargeback-workflow.service').then(m => m.default.markConfirmed(requestId))
+          .then(handleSuccess)
+          .catch(e => setActionError(e?.response?.data?.error || 'Failed to mark confirmed'))
+          .finally(() => setDirectActionLoading(false));
+        break;
+      case 'CHARGEBACK_COMPLETE':
+        setDirectActionLoading(true);
+        import('../../services/chargeback-workflow.service').then(m => m.default.completeChargeback(requestId))
+          .then(handleSuccess)
+          .catch(e => setActionError(e?.response?.data?.error || 'Failed to complete chargeback'))
+          .finally(() => setDirectActionLoading(false));
+        break;
       case 'START_IT_REVIEW':
         setDirectActionLoading(true);
         itWorkflowService.submitForApproval(requestId, '')
@@ -232,7 +257,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
                   disabled={directActionLoading}
                   className={`${buttonClass(action.variant)} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  {directActionLoading && (action.type === 'START_IT_REVIEW' || action.type === 'MARK_IN_PROGRESS') ? 'Processing...' : action.label}
+                  {directActionLoading && (action.type === 'START_IT_REVIEW' || action.type === 'MARK_IN_PROGRESS' || action.type === 'CHARGEBACK_SUBMIT' || action.type === 'CHARGEBACK_MARK_CONFIRMED' || action.type === 'CHARGEBACK_COMPLETE') ? 'Processing...' : action.label}
                 </button>
               </div>
             ))}
@@ -478,6 +503,62 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       {openModal === 'CLOSE_TICKET_FIN' && (
         <Suspense fallback={null}>
           <CloseTicketFinModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'FROM_ENTITY_APPROVE' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="From Entity Approval"
+            subtitle="Inter-Company Chargeback"
+            onDecision={async (decision, comments) => {
+              const chargebackService = (await import('../../services/chargeback-workflow.service')).default;
+              await chargebackService.fromEntityDecision(requestId, decision, comments);
+              handleSuccess();
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'FROM_ENTITY_REJECT' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="From Entity Rejection"
+            subtitle="Inter-Company Chargeback"
+            onDecision={async (decision, comments) => {
+              const chargebackService = (await import('../../services/chargeback-workflow.service')).default;
+              await chargebackService.fromEntityDecision(requestId, 'REJECTED', comments);
+              handleSuccess();
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'TO_ENTITY_APPROVE' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="To Entity Approval"
+            subtitle="Inter-Company Chargeback"
+            onDecision={async (decision, comments) => {
+              const chargebackService = (await import('../../services/chargeback-workflow.service')).default;
+              await chargebackService.toEntityDecision(requestId, decision, comments);
+              handleSuccess();
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'TO_ENTITY_REJECT' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="To Entity Rejection"
+            subtitle="Inter-Company Chargeback"
+            onDecision={async (decision, comments) => {
+              const chargebackService = (await import('../../services/chargeback-workflow.service')).default;
+              await chargebackService.toEntityDecision(requestId, 'REJECTED', comments);
+              handleSuccess();
+            }}
+            onClose={() => setOpenModal(null)}
+          />
         </Suspense>
       )}
     </aside>
