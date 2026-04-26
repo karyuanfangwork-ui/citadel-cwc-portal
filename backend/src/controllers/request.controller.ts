@@ -579,9 +579,12 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
-        // Notify all admins
+        // Notify all admins (exclude the requester to avoid duplicate emails)
         const admins = await prisma.user.findMany({
-            where: { roles: { some: { role: { name: 'ADMIN' } } } },
+            where: {
+                roles: { some: { role: { name: 'ADMIN' } } },
+                id: { not: request.requesterId },
+            },
             select: { id: true },
         });
         await notifyMultiple(

@@ -119,6 +119,43 @@ export const adminService = {
         const response = await apiClient.get('/admin/workflow-transitions/statuses');
         return response.data.data.statuses as string[];
     },
+
+    // ── Notification Templates ──────────────────────────────────────
+
+    async listNotificationTemplates() {
+        const response = await apiClient.get('/admin/notification-templates');
+        return response.data.data.templates as NotificationTemplate[];
+    },
+
+    async listEventTypes() {
+        const response = await apiClient.get('/admin/notification-templates/event-types');
+        return response.data.data.eventTypes as EventTypeInfo[];
+    },
+
+    async getNotificationTemplate(id: string) {
+        const response = await apiClient.get(`/admin/notification-templates/${id}`);
+        return response.data.data.template as NotificationTemplate;
+    },
+
+    async createNotificationTemplate(data: NotificationTemplateInput) {
+        const response = await apiClient.post('/admin/notification-templates', data);
+        return response.data.data.template as NotificationTemplate;
+    },
+
+    async updateNotificationTemplate(id: string, data: Partial<NotificationTemplateInput>) {
+        const response = await apiClient.put(`/admin/notification-templates/${id}`, data);
+        return response.data.data.template as NotificationTemplate;
+    },
+
+    async deleteNotificationTemplate(id: string) {
+        const response = await apiClient.delete(`/admin/notification-templates/${id}`);
+        return response.data;
+    },
+
+    async sendTestEmail(templateId: string) {
+        const response = await apiClient.post(`/admin/notification-templates/${templateId}/test`);
+        return response.data;
+    },
 };
 
 // ── Shared Types ────────────────────────────────────────────────────
@@ -144,4 +181,37 @@ export interface WorkflowTransitionInput {
     autoAssignRole?: string;
     autoAssignUserId?: string;
     isActive?: boolean;
+}
+
+export interface NotificationTemplate {
+    id: string;
+    name: string;
+    eventType: string;
+    emailSubject: string | null;
+    emailBody: string | null;
+    smsBody: string | null;
+    pushTitle: string | null;
+    pushBody: string | null;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface NotificationTemplateInput {
+    name: string;
+    eventType: string;
+    emailSubject?: string;
+    emailBody?: string;
+    smsBody?: string;
+    pushTitle?: string;
+    pushBody?: string;
+    isActive?: boolean;
+}
+
+export interface EventTypeInfo {
+    eventType: string;
+    label: string;
+    category: string;
+    recipientDescription: string;
+    availableVariables: string[];
 }

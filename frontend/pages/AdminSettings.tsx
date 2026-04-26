@@ -6,6 +6,7 @@ import UserEditModal from '../src/components/admin/UserEditModal';
 import { StatusDefinitionsTab } from '../src/components/admin/StatusDefinitionsTab';
 import { WorkflowTransitionTab } from '../src/components/admin/WorkflowTransitionTab';
 import { BannerConfigTab } from '../src/components/admin/BannerConfigTab';
+import { EmailNotificationsTab } from '../src/components/admin/EmailNotificationsTab';
 import { PermissionsTab } from '../src/components/admin/PermissionsTab';
 import { EntitiesTab } from '../src/components/admin/EntitiesTab';
 import { useAdminState } from '../src/components/admin/useAdminState';
@@ -187,6 +188,7 @@ const AdminSettings = () => {
                     {admin.activeTab === 'banner-config' && <BannerConfigTab />}
                     {admin.activeTab === 'status-definitions' && <StatusDefinitionsTab />}
                     {admin.activeTab === 'permissions' && <PermissionsTab />}
+                    {admin.activeTab === 'email-notifications' && <EmailNotificationsTab />}
 
                     {admin.activeTab === 'entities' && (
                         <EntitiesTab

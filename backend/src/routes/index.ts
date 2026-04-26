@@ -22,6 +22,7 @@ import reportsRoutes from './reports.routes';
 import bannerConfigRoutes from './bannerConfig.routes';
 import requestStatusDefinitionRoutes from './requestStatusDefinition.routes';
 import workflowTransitionRoutes from './workflowTransition.routes';
+import notificationTemplateRoutes from './notificationTemplate.routes';
 import fileRoutes from './file.routes';
 import workflowRoutes from './workflow.routes';
 import entityRoutes from './entity.routes';
@@ -57,6 +58,7 @@ router.use('/reports', reportsRoutes);
 router.use('/admin/banner-configs', bannerConfigRoutes);
 router.use('/admin/status-definitions', requestStatusDefinitionRoutes);
 router.use('/admin/workflow-transitions', workflowTransitionRoutes);
+router.use('/admin/notification-templates', notificationTemplateRoutes);
 router.use('/files', fileRoutes);
 router.use('/admin/entities', entityRoutes);
 

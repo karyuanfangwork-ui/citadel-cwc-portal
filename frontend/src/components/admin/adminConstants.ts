@@ -38,6 +38,7 @@ export const ADMIN_TABS = [
     { id: 'users',            label: 'User Accounts',     icon: 'manage_accounts', group: 'Configuration' },
     { id: 'permissions',      label: 'Permissions',       icon: 'shield_lock',    group: 'Configuration' },
     { id: 'entities',         label: 'Entities',          icon: 'corporate_fare', group: 'Configuration' },
+    { id: 'email-notifications', label: 'Email Notifications', icon: 'mail', group: 'Configuration' },
     { id: 'onboarding-tasks', label: 'Onboarding Tasks',  icon: 'checklist',      group: 'Workflows' },
     { id: 'offboarding-tasks',label: 'Offboarding Tasks', icon: 'checklist_rtl',  group: 'Workflows' },
     { id: 'workflow-config',  label: 'Workflow Config',   icon: 'account_tree',   group: 'Workflows' },
