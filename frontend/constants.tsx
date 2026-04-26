@@ -78,6 +78,30 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.OFFBOARDING_FINAL_WEEK]: { label: 'Final Week', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'event' },
   [RequestStatus.OFFBOARDING_EXIT_PROCEDURES]: { label: 'Exit Procedures', color: 'text-red-700', bg: 'bg-red-100', icon: 'assignment_return' },
   [RequestStatus.OFFBOARDING_COMPLETED]: { label: 'Offboarding Completed', color: 'text-green-700', bg: 'bg-green-100', icon: 'check_circle' },
+  // Finance Purchase Requisition Statuses
+  [RequestStatus.FINANCE_PENDING_ACK]: { label: 'Pending Acknowledgement', color: 'text-amber-700', bg: 'bg-amber-100', icon: 'pending' },
+  [RequestStatus.FINANCE_ACKNOWLEDGED]: { label: 'Acknowledged', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'check_circle' },
+  [RequestStatus.FINANCE_IN_PROGRESS]: { label: 'In Progress', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'sync' },
+  [RequestStatus.PENDING_CFO_APPROVAL_FIN]: { label: 'Pending CFO Approval', color: 'text-amber-700', bg: 'bg-amber-100', icon: 'pending' },
+  [RequestStatus.CFO_APPROVED_FIN]: { label: 'CFO Approved', color: 'text-green-700', bg: 'bg-green-100', icon: 'check_circle' },
+  [RequestStatus.CFO_REJECTED_FIN]: { label: 'CFO Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
+  [RequestStatus.PENDING_GROUP_CEO_APPROVAL]: { label: 'Pending Group CEO', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'pending' },
+  [RequestStatus.GROUP_CEO_APPROVED]: { label: 'Group CEO Approved', color: 'text-green-700', bg: 'bg-green-100', icon: 'verified' },
+  [RequestStatus.GROUP_CEO_REJECTED]: { label: 'Group CEO Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
+  [RequestStatus.PAYMENT_PROCESSING_FIN]: { label: 'Payment Processing', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'payments' },
+  [RequestStatus.AWAITING_PAYMENT_CONFIRMATION]: { label: 'Awaiting Confirmation', color: 'text-amber-700', bg: 'bg-amber-100', icon: 'hourglass_empty' },
+  [RequestStatus.PAYMENT_CONFIRMED_FIN]: { label: 'Payment Confirmed', color: 'text-green-700', bg: 'bg-green-100', icon: 'paid' },
+  [RequestStatus.TICKET_CLOSED_FIN]: { label: 'Closed', color: 'text-gray-700', bg: 'bg-gray-100', icon: 'lock' },
+  // Inter-Company Chargeback Statuses
+  [RequestStatus.PENDING_FROM_ENTITY_APPROVAL]: { label: 'Pending From-Entity', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'pending' },
+  [RequestStatus.FROM_ENTITY_APPROVED]: { label: 'From-Entity Approved', color: 'text-green-700', bg: 'bg-green-100', icon: 'check_circle' },
+  [RequestStatus.FROM_ENTITY_REJECTED]: { label: 'From-Entity Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
+  [RequestStatus.PENDING_TO_ENTITY_APPROVAL]: { label: 'Pending To-Entity', color: 'text-indigo-700', bg: 'bg-indigo-100', icon: 'pending' },
+  [RequestStatus.TO_ENTITY_APPROVED]: { label: 'To-Entity Approved', color: 'text-green-700', bg: 'bg-green-100', icon: 'check_circle' },
+  [RequestStatus.TO_ENTITY_REJECTED]: { label: 'To-Entity Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
+  [RequestStatus.CHARGEBACK_FINANCE_REVIEW]: { label: 'Finance Review', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'account_balance' },
+  [RequestStatus.AWAITING_CHARGEBACK_CONFIRMATION]: { label: 'Awaiting Confirmation', color: 'text-amber-700', bg: 'bg-amber-100', icon: 'hourglass_empty' },
+  [RequestStatus.CHARGEBACK_COMPLETED]: { label: 'Chargeback Complete', color: 'text-green-700', bg: 'bg-green-100', icon: 'task_alt' },
 };
 
 export const MOCK_REQUESTS = [

@@ -70,14 +70,10 @@ const MyRequests = () => {
         filters.requestTypeId = selectedRequestTypeId;
       }
 
-      // "My Requests" = requests created by the current user (for end-users)
-      // Agents/Admins see all requests in the queue (no requesterId filter)
-      // For "pending_approval": show requests where user is an approver (not created by them)
-      const isAgentOrAdmin = user?.roles?.some((r: string) => ['ADMIN', 'AGENT'].includes(r)) ?? false;
+      // "My Requests" always shows requests created by the current user.
+      // Agents/Admins manage the full queue in Agent Dashboard — not here.
       if (filter === 'open' || filter === 'all') {
-        if (!isAgentOrAdmin) {
-          filters.requesterId = user?.id;
-        }
+        filters.requesterId = user?.id;
       }
 
       if (filter === 'pending_approval' && approvalRole) {
@@ -91,7 +87,7 @@ const MyRequests = () => {
 
       // Client-side filtering for open requests
       if (filter === 'open') {
-        const closedStatuses = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'COMPLETED'];
+        const closedStatuses = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'COMPLETED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN', 'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED', 'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED'];
         filteredRequests = filteredRequests.filter(
           (r: Request) => !closedStatuses.includes(r.status)
         );
