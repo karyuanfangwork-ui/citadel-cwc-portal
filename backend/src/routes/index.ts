@@ -26,6 +26,7 @@ import notificationTemplateRoutes from './notificationTemplate.routes';
 import fileRoutes from './file.routes';
 import workflowRoutes from './workflow.routes';
 import entityRoutes from './entity.routes';
+import escalationRuleRouter from './escalationRule.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
@@ -61,6 +62,7 @@ router.use('/admin/workflow-transitions', workflowTransitionRoutes);
 router.use('/admin/notification-templates', notificationTemplateRoutes);
 router.use('/files', fileRoutes);
 router.use('/admin/entities', entityRoutes);
+router.use('/sla', escalationRuleRouter);
 
 export default router;
 
