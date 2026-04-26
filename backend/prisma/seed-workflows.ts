@@ -133,34 +133,9 @@ async function main() {
     });
 
     if (existing) {
-      // Update existing workflow and its steps
-      await prisma.workflowType.update({
-        where: { id: existing.id },
-        data: {
-          name: workflow.name,
-          description: workflow.description,
-          displayOrder: workflow.displayOrder,
-        }
-      });
-
-      // Delete existing steps and recreate
-      await prisma.workflowStep.deleteMany({
-        where: { workflowTypeId: existing.id }
-      });
-
-      await prisma.workflowStep.createMany({
-        data: workflow.steps.map((step, index) => ({
-          workflowTypeId: existing.id,
-          label: step.label,
-          status: step.status,
-          icon: step.icon,
-          displayOrder: index + 1,
-          isInitial: step.isInitial || false,
-          isFinal: step.isFinal || false,
-        }))
-      });
-
-      console.log(`✅ Updated workflow: ${workflow.code}`);
+      // Do NOT overwrite name/description — admin may have edited them via console.
+      // Only backfill structural/relational fields if missing.
+      console.log(`⏭️  Workflow already exists: ${workflow.code} — preserving admin config`);
     } else {
       // Create new workflow with steps
       const created = await prisma.workflowType.create({
@@ -211,11 +186,16 @@ async function main() {
     });
 
     if (requestType && workflow) {
-      await prisma.requestType.update({
-        where: { id: requestType.id },
-        data: { workflowTypeId: workflow.id }
-      });
-      console.log(`✅ Linked ${requestTypeCode} to ${workflowCode}`);
+      // Only link if not already linked — never overwrite admin's workflow assignment
+      if (!requestType.workflowTypeId) {
+        await prisma.requestType.update({
+          where: { id: requestType.id },
+          data: { workflowTypeId: workflow.id }
+        });
+        console.log(`✅ Linked ${requestTypeCode} to ${workflowCode}`);
+      } else {
+        console.log(`⏭️  ${requestTypeCode} already linked to a workflow — preserving admin config`);
+      }
     }
   }
 

@@ -2,7 +2,6 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import { useRequestDetail } from '../src/components/request/useRequestDetail';
-import { FinanceWorkflowPanel } from '../src/components/request/FinanceWorkflowPanel';
 import OnboardingDashboard from '../src/components/OnboardingDashboard';
 import OffboardingDashboard from '../src/components/OffboardingDashboard';
 import ActionSidebar from '../src/components/request-detail/ActionSidebar';
@@ -106,15 +105,6 @@ const RequestDetailContainer: React.FC = () => {
                             <OffboardingDashboard requestId={request.id} onComplete={rq.fetchRequestData} />
                         </section>
                     ) : null}
-
-                    {/* Finance Workflow */}
-                    {request.serviceDesk?.code === 'FINANCE' && (
-                        <FinanceWorkflowPanel
-                            requestId={request.id}
-                            status={request.status}
-                            userRoles={user?.roles || []}
-                        />
-                    )}
 
                     <ActivityFeed
                         activities={activities}

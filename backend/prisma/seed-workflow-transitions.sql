@@ -1,4 +1,7 @@
 -- Seed workflow_transitions from VALID_TRANSITIONS map
+-- Uses ON CONFLICT DO NOTHING to be idempotent on re-run.
+-- Never overwrites admin-edited transitions in the database.
+--
 -- 5 broken transitions fixed:
 --   MANAGER_REJECTED_IT → SUBMITTED (was: PENDING_MANAGER_APPROVAL_IT — looping back)
 --   MANAGER_REJECTED_FIN → SUBMITTED (was: [] — dead-end)
@@ -6,7 +9,8 @@
 --   FINANCE_HEAD_REJECTED → SUBMITTED (was: [] — dead-end)
 --   CEO_REJECTED_IT → REJECTED (kept as-is — correct exit path)
 
-INSERT INTO "workflow_transitions" ("from_status", "to_status", "transition_label", "requires_comment", "auto_assign_role", "auto_assign_user_id", "is_active") VALUES
+INSERT INTO "workflow_transitions" ("from_status", "to_status", "transition_label", "requires_comment", "auto_assign_role", "auto_assign_user_id", "is_active")
+VALUES
 ('SUBMITTED', 'IN_REVIEW', 'ADVANCE', false, NULL, NULL, true),
 ('SUBMITTED', 'IN_PROGRESS', 'ADVANCE', false, NULL, NULL, true),
 ('SUBMITTED', 'REJECTED', 'REJECT', true, NULL, NULL, true),
@@ -90,4 +94,5 @@ INSERT INTO "workflow_transitions" ("from_status", "to_status", "transition_labe
 ('OFFBOARDING_NOTICE_PERIOD', 'OFFBOARDING_KNOWLEDGE_TRANSFER', 'ADVANCE', false, NULL, NULL, true),
 ('OFFBOARDING_KNOWLEDGE_TRANSFER', 'OFFBOARDING_FINAL_WEEK', 'ADVANCE', false, NULL, NULL, true),
 ('OFFBOARDING_FINAL_WEEK', 'OFFBOARDING_EXIT_PROCEDURES', 'ADVANCE', false, NULL, NULL, true),
-('OFFBOARDING_EXIT_PROCEDURES', 'OFFBOARDING_COMPLETED', 'CLOSE', false, NULL, NULL, true);
+('OFFBOARDING_EXIT_PROCEDURES', 'OFFBOARDING_COMPLETED', 'CLOSE', false, NULL, NULL, true)
+ON CONFLICT DO NOTHING;

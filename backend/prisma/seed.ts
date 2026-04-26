@@ -224,7 +224,10 @@ async function main() {
         HIRING_MANAGER: hiringManagerPerms,
     };
 
-    // Upsert RolePermission records: clear existing and recreate
+    // Upsert RolePermission records: only add seed-default assignments,
+    // never remove admin-added permissions (RETAIN_ADMIN_CONFIG has no effect here —
+    // we always preserve existing assignments)
+    let totalSeeded = 0;
     for (const [roleName, permNames] of Object.entries(rolePermissionMap)) {
         const roleId = roleMap.get(roleName);
         if (!roleId) {
@@ -232,21 +235,22 @@ async function main() {
             continue;
         }
 
-        // Delete existing permissions for this role (clean slate)
-        await prisma.rolePermission.deleteMany({ where: { roleId } });
-
-        // Create new RolePermission records
+        let roleSeeded = 0;
         for (const permName of permNames) {
             const permId = permMap.get(permName);
             if (!permId) {
                 console.log(`  ⚠️ Permission not found: ${permName} — skipping`);
                 continue;
             }
-            await prisma.rolePermission.create({
-                data: { roleId, permissionId: permId },
+            await prisma.rolePermission.upsert({
+                where: { roleId_permissionId: { roleId, permissionId: permId } },
+                update: {},
+                create: { roleId, permissionId: permId },
             });
+            roleSeeded++;
         }
-        console.log(`  ✅ ${roleName}: ${permNames.length} permissions`);
+        totalSeeded += roleSeeded;
+        console.log(`  ✅ ${roleName}: ${roleSeeded} seed-default permissions ensured`);
     }
 
     console.log('✅ Role permissions assigned');
@@ -1013,9 +1017,10 @@ async function main() {
     ];
 
         for (const template of templates) {
+            // Never overwrite emailSubject/emailBody — admin may have customized them
             await prisma.notificationTemplate.upsert({
                 where: { name: template.name },
-                update: { emailSubject: template.emailSubject, emailBody: template.emailBody },
+                update: {},
                 create: template,
             });
         }

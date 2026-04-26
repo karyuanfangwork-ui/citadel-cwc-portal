@@ -375,8 +375,11 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
           CWC
         </Link>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
-        <Link to="/my-requests" className="hover:text-[#0052cc]">
-          My Requests
+        <Link 
+          to={currentRole === 'agent' && user?.id !== request.requesterId ? "/agent" : "/my-requests"} 
+          className="hover:text-[#0052cc]"
+        >
+          {currentRole === 'agent' && user?.id !== request.requesterId ? "Agent Dashboard" : "My Requests"}
         </Link>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
         <span className="text-[#101418] font-bold">{request.referenceNumber}</span>
