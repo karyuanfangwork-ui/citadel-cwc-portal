@@ -61,3 +61,85 @@ export async function checkSlaBreaches(): Promise<number> {
     return 0;
   }
 }
+
+export async function checkEscalations(): Promise<number> {
+  const now = new Date();
+  let escalationsFired = 0;
+
+  try {
+    const breachedRequests = await prisma.request.findMany({
+      where: {
+        slaDueAt: { lte: now },
+        requestTypeId: { not: null },
+        status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
+      },
+      include: {
+        activities: {
+          where: { activityType: 'SYSTEM', message: { startsWith: 'SLA BREACH' } },
+          take: 1,
+        },
+      },
+    });
+
+    for (const req of breachedRequests) {
+      const breachActivity = req.activities[0];
+      if (!breachActivity?.metadata) continue;
+
+      const meta = breachActivity.metadata as { breachedAt?: string };
+      if (!meta.breachedAt) continue;
+      const breachedAt = new Date(meta.breachedAt);
+
+      const rules = await prisma.escalationRule.findMany({
+        where: { requestTypeId: req.requestTypeId!, isActive: true },
+        orderBy: { triggerHoursAfterBreach: 'asc' },
+      });
+
+      for (const rule of rules) {
+        const triggerAt = new Date(breachedAt.getTime() + rule.triggerHoursAfterBreach * 60 * 60 * 1000);
+        if (triggerAt > now) continue;
+
+        const alreadyFired = await prisma.requestActivity.findFirst({
+          where: {
+            requestId: req.id,
+            activityType: 'SYSTEM',
+            message: { startsWith: `SLA ESCALATION:${rule.id}` },
+          },
+        });
+        if (alreadyFired) continue;
+
+        await prisma.requestActivity.create({
+          data: {
+            requestId: req.id,
+            authorId: req.requesterId,
+            authorName: 'System',
+            activityType: 'SYSTEM',
+            message: `SLA ESCALATION:${rule.id} — Escalated ${rule.triggerHoursAfterBreach}h after breach${rule.label ? ` (${rule.label})` : ''}.`,
+            isSystemGenerated: true,
+            metadata: { ruleId: rule.id, triggeredAt: now.toISOString(), notifyRoles: rule.notifyRoles },
+          },
+        });
+
+        const usersToNotify = await prisma.user.findMany({
+          where: { roles: { some: { role: { name: { in: rule.notifyRoles } } } } },
+          select: { id: true },
+        });
+        const notifyIds = usersToNotify.map((u) => u.id);
+
+        if (notifyIds.length > 0) {
+          await notifyMultiple(notifyIds, 'SLA_ESCALATED', { referenceNumber: req.referenceNumber }, req.id);
+        }
+
+        logger.warn(`SLA escalation fired for request ${req.referenceNumber} (rule: ${rule.id}, +${rule.triggerHoursAfterBreach}h)`);
+        escalationsFired++;
+      }
+    }
+
+    if (escalationsFired > 0) {
+      logger.info(`Escalation check complete: ${escalationsFired} escalation(s) fired`);
+    }
+  } catch (error) {
+    logger.error('SLA escalation check failed', { error });
+  }
+
+  return escalationsFired;
+}
