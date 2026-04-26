@@ -49,7 +49,10 @@
       "Bash(kill 58357)",
       "Bash(npm install *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git commit *)",
+      "Bash(npx prisma *)",
+      "mcp__plugin_claude-mem_mcp-search__smart_outline"
     ]
   }
 }

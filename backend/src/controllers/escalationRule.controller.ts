@@ -15,14 +15,16 @@ export const escalationRuleController = {
   }),
 
   create: asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
-    const { requestTypeId, triggerHoursAfterBreach, notifyRoles, label } = req.body;
+    const { requestTypeId, notifyRoles, label } = req.body;
+    let { triggerHoursAfterBreach } = req.body;
     if (!requestTypeId || triggerHoursAfterBreach == null || !Array.isArray(notifyRoles)) {
       res.status(400).json({ message: 'requestTypeId, triggerHoursAfterBreach, and notifyRoles are required' });
       return;
     }
-    const parsed = Number(triggerHoursAfterBreach);
-    if (!Number.isInteger(parsed) || parsed <= 0) {
-      res.status(400).json({ message: 'triggerHoursAfterBreach must be a positive integer' });
+    // Coerce to number in case it arrives as a string
+    triggerHoursAfterBreach = Number(triggerHoursAfterBreach);
+    if (!Number.isInteger(triggerHoursAfterBreach) || triggerHoursAfterBreach < 0) {
+      res.status(400).json({ message: 'triggerHoursAfterBreach must be a non-negative integer' });
       return;
     }
     const VALID_ROLES = ['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_CEO'];
@@ -34,7 +36,7 @@ export const escalationRuleController = {
       const rule = await prisma.escalationRule.create({
         data: {
           requestTypeId,
-          triggerHoursAfterBreach: parsed,
+          triggerHoursAfterBreach,
           notifyRoles,
           label: label || null,
         },
@@ -56,7 +58,7 @@ export const escalationRuleController = {
       const rule = await prisma.escalationRule.update({
         where: { id },
         data: {
-          ...(triggerHoursAfterBreach != null && { triggerHoursAfterBreach: parseInt(triggerHoursAfterBreach, 10) }),
+          ...(triggerHoursAfterBreach != null && { triggerHoursAfterBreach: Number(triggerHoursAfterBreach) }),
           ...(notifyRoles !== undefined && { notifyRoles }),
           ...(label !== undefined && { label }),
           ...(isActive !== undefined && { isActive }),

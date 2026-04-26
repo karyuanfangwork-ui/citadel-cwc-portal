@@ -102,6 +102,16 @@ export const config = {
     // Finance Group CEO Approval threshold (amounts above this require Group CEO approval)
     groupCeoApprovalThreshold: parseInt(process.env.GROUP_CEO_APPROVAL_THRESHOLD || '15000', 10),
 
+    // SLA Checker Schedule
+    // Supports two modes:
+    //   'interval' — runs every SLA_CHECK_INTERVAL_MS milliseconds (default 60000 = 1 minute)
+    //   'cron'     — runs on a cron schedule defined by SLA_CRON_EXPRESSION (default '0 9 * * 1-5' = Mon-Fri 9am)
+    slaSchedule: {
+        mode: (process.env.SLA_SCHEDULE_MODE || 'cron') as 'interval' | 'cron',
+        intervalMs: parseInt(process.env.SLA_CHECK_INTERVAL_MS || '60000', 10),
+        cronExpression: process.env.SLA_CRON_EXPRESSION || '0 9 * * 1-5',
+    },
+
     // Application
     app: {
         name: process.env.APP_NAME || 'Enterprise Help Center',

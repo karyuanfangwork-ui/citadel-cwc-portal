@@ -43,6 +43,7 @@ export const ADMIN_TABS = [
     { id: 'offboarding-tasks',label: 'Offboarding Tasks', icon: 'checklist_rtl',  group: 'Workflows' },
     { id: 'workflow-config',  label: 'Workflow Config',   icon: 'account_tree',   group: 'Workflows' },
     { id: 'status-definitions',label:'Request Statuses',  icon: 'fact_check',     group: 'Workflows' },
+    { id: 'sla-escalation',  label: 'SLA Escalation',    icon: 'timer',          group: 'Workflows' },
     { id: 'banner-config',    label: 'Banner & Branding', icon: 'campaign',       group: 'Appearance' },
 ] as const;
 

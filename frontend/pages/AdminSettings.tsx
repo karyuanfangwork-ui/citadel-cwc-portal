@@ -9,6 +9,7 @@ import { BannerConfigTab } from '../src/components/admin/BannerConfigTab';
 import { EmailNotificationsTab } from '../src/components/admin/EmailNotificationsTab';
 import { PermissionsTab } from '../src/components/admin/PermissionsTab';
 import { EntitiesTab } from '../src/components/admin/EntitiesTab';
+import { SLAEscalationTab } from '../src/components/admin/SLAEscalationTab';
 import { useAdminState } from '../src/components/admin/useAdminState';
 import { ADMIN_TABS, CATEGORY_ICONS, COLOR_THEMES } from '../src/components/admin/adminConstants';
 import { ServiceDesksTab } from '../src/components/admin/ServiceDesksTab';
@@ -187,6 +188,7 @@ const AdminSettings = () => {
                     {admin.activeTab === 'workflow-config' && <WorkflowTransitionTab />}
                     {admin.activeTab === 'banner-config' && <BannerConfigTab />}
                     {admin.activeTab === 'status-definitions' && <StatusDefinitionsTab />}
+                    {admin.activeTab === 'sla-escalation' && <SLAEscalationTab />}
                     {admin.activeTab === 'permissions' && <PermissionsTab />}
                     {admin.activeTab === 'email-notifications' && <EmailNotificationsTab />}
 

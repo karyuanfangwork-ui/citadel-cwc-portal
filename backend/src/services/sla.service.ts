@@ -47,7 +47,7 @@ export async function checkSlaBreaches(): Promise<number> {
         if (!notifyIds.includes(a.id)) notifyIds.push(a.id);
       });
 
-      await notifyMultiple(notifyIds, 'SLA_BREACHED', { referenceNumber: req.referenceNumber }, req.id);
+      await notifyMultiple(notifyIds, 'SLA_BREACHED', { referenceNumber: req.referenceNumber, slaDeadline: req.slaDueAt?.toISOString() ?? '' }, req.id);
       logger.warn(`SLA breach detected for request ${req.referenceNumber}`);
     }
 
@@ -126,7 +126,12 @@ export async function checkEscalations(): Promise<number> {
         const notifyIds = usersToNotify.map((u) => u.id);
 
         if (notifyIds.length > 0) {
-          await notifyMultiple(notifyIds, 'SLA_ESCALATED', { referenceNumber: req.referenceNumber }, req.id);
+          await notifyMultiple(notifyIds, 'SLA_ESCALATED', {
+            referenceNumber: req.referenceNumber,
+            escalationHours: String(rule.triggerHoursAfterBreach),
+            escalationLabel: rule.label || '',
+            notifyRoles: rule.notifyRoles.join(', '),
+          }, req.id);
         }
 
         logger.warn(`SLA escalation fired for request ${req.referenceNumber} (rule: ${rule.id}, +${rule.triggerHoursAfterBreach}h)`);

@@ -62,4 +62,25 @@ export const serviceDeskService = {
         const response = await apiClient.delete(`/service-desks/request-types/${typeId}`);
         return response.data;
     },
+
+    // --- Escalation Rules ---
+
+    async getEscalationRules(requestTypeId: string) {
+        const response = await apiClient.get(`/sla/request-types/${requestTypeId}/escalation-rules`);
+        return response.data.data.rules;
+    },
+
+    async createEscalationRule(data: { requestTypeId: string; triggerHoursAfterBreach: number; notifyRoles: string[]; label?: string }) {
+        const response = await apiClient.post('/sla/escalation-rules', data);
+        return response.data.data.rule;
+    },
+
+    async updateEscalationRule(id: string, data: { triggerHoursAfterBreach?: number; notifyRoles?: string[]; label?: string; isActive?: boolean }) {
+        const response = await apiClient.put(`/sla/escalation-rules/${id}`, data);
+        return response.data.data.rule;
+    },
+
+    async deleteEscalationRule(id: string) {
+        await apiClient.delete(`/sla/escalation-rules/${id}`);
+    },
 };
