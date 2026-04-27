@@ -37,7 +37,7 @@ const FinDecisionModal = lazy(() => import('./FinDecisionModal'));
 const MarkPaymentCompleteFinModal = lazy(() => import('./MarkPaymentCompleteFinModal'));
 const CloseTicketFinModal = lazy(() => import('./CloseTicketFinModal'));
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -189,6 +189,11 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'FROM_ENTITY_REJECT': setOpenModal('FROM_ENTITY_REJECT'); break;
       case 'TO_ENTITY_APPROVE': setOpenModal('TO_ENTITY_APPROVE'); break;
       case 'TO_ENTITY_REJECT': setOpenModal('TO_ENTITY_REJECT'); break;
+      case 'MANAGER_APPROVE_EXPENSE': setOpenModal('MANAGER_APPROVE_EXPENSE'); break;
+      case 'MANAGER_REJECT_EXPENSE': setOpenModal('MANAGER_REJECT_EXPENSE'); break;
+      case 'FINANCE_HEAD_APPROVE_EXPENSE': setOpenModal('FINANCE_HEAD_APPROVE_EXPENSE'); break;
+      case 'FINANCE_HEAD_REJECT_EXPENSE': setOpenModal('FINANCE_HEAD_REJECT_EXPENSE'); break;
+      case 'MARK_EXPENSE_PAYMENT_COMPLETE': setOpenModal('MARK_EXPENSE_PAYMENT_COMPLETE'); break;
       case 'CHARGEBACK_MARK_CONFIRMED':
         setDirectActionLoading(true);
         import('../../services/chargeback-workflow.service').then(m => m.default.markConfirmed(requestId))
@@ -555,6 +560,76 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
             onDecision={async (decision, comments) => {
               const chargebackService = (await import('../../services/chargeback-workflow.service')).default;
               await chargebackService.toEntityDecision(requestId, 'REJECTED', comments);
+              handleSuccess();
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'MANAGER_APPROVE_EXPENSE' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="Manager Approval"
+            subtitle="Expense Reimbursement · Manager Review"
+            onDecision={async (decision, comments) => {
+              const financeWorkflowService = (await import('../../services/finance-workflow.service')).default;
+              await financeWorkflowService.managerApproveExpense(requestId, comments);
+              handleSuccess();
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'MANAGER_REJECT_EXPENSE' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="Manager Rejection"
+            subtitle="Expense Reimbursement · Manager Review"
+            onDecision={async (decision, comments) => {
+              const financeWorkflowService = (await import('../../services/finance-workflow.service')).default;
+              await financeWorkflowService.managerRejectExpense(requestId, comments);
+              handleSuccess();
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'FINANCE_HEAD_APPROVE_EXPENSE' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="Finance Head Approval"
+            subtitle="Expense Reimbursement · Finance Head Review"
+            onDecision={async (decision, comments) => {
+              const financeWorkflowService = (await import('../../services/finance-workflow.service')).default;
+              await financeWorkflowService.financeHeadApproveExpense(requestId, comments);
+              handleSuccess();
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'FINANCE_HEAD_REJECT_EXPENSE' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="Finance Head Rejection"
+            subtitle="Expense Reimbursement · Finance Head Review"
+            onDecision={async (decision, comments) => {
+              const financeWorkflowService = (await import('../../services/finance-workflow.service')).default;
+              await financeWorkflowService.financeHeadRejectExpense(requestId, comments);
+              handleSuccess();
+            }}
+            onClose={() => setOpenModal(null)}
+          />
+        </Suspense>
+      )}
+      {openModal === 'MARK_EXPENSE_PAYMENT_COMPLETE' && (
+        <Suspense fallback={null}>
+          <FinDecisionModal
+            title="Mark Payment Complete"
+            subtitle="Expense Reimbursement · Payment Processing"
+            onDecision={async (decision, comments) => {
+              const financeWorkflowService = (await import('../../services/finance-workflow.service')).default;
+              await financeWorkflowService.markExpensePaymentComplete(requestId, undefined, comments);
               handleSuccess();
             }}
             onClose={() => setOpenModal(null)}

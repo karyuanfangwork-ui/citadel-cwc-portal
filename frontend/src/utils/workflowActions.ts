@@ -51,7 +51,13 @@ export type WorkflowActionType =
   | 'TO_ENTITY_APPROVE'
   | 'TO_ENTITY_REJECT'
   | 'CHARGEBACK_MARK_CONFIRMED'
-  | 'CHARGEBACK_COMPLETE';
+  | 'CHARGEBACK_COMPLETE'
+  // Expense Reimbursement workflow actions
+  | 'MANAGER_APPROVE_EXPENSE'
+  | 'MANAGER_REJECT_EXPENSE'
+  | 'FINANCE_HEAD_APPROVE_EXPENSE'
+  | 'FINANCE_HEAD_REJECT_EXPENSE'
+  | 'MARK_EXPENSE_PAYMENT_COMPLETE';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -274,6 +280,75 @@ export function getWorkflowActions(
         label: 'Complete Chargeback',
         description: 'Payment confirmed. Close this chargeback ticket.',
         variant: 'success',
+      });
+    }
+  }
+
+  // ─── Expense Reimbursement Workflow ───
+  const isExpenseReimbursement = requestTypeCode === 'EXPENSE_CLAIM' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('expense claim'));
+
+  if (isExpenseReimbursement) {
+    // Finance agent: route submitted expense to manager
+    if (canAct && status === 'SUBMITTED') {
+      actions.push({
+        type: 'SUBMIT_FOR_APPROVAL',
+        label: 'Route to Manager Approval',
+        description: 'Route this expense claim to the requester\'s manager for approval.',
+        variant: 'primary',
+      });
+    }
+    // Manager approval — the requester's manager (isRequester gate doesn't apply here;
+    // manager is the designated approver or admin/agent can act on behalf)
+    if ((isDesignatedApprover || canAct) && status === 'PENDING_MANAGER_APPROVAL_FIN') {
+      actions.push(
+        {
+          type: 'MANAGER_APPROVE_EXPENSE',
+          label: 'Approve Expense Claim',
+          description: 'Approve this expense claim and forward to Finance Head.',
+          variant: 'success',
+        },
+        {
+          type: 'MANAGER_REJECT_EXPENSE',
+          label: 'Reject Expense Claim',
+          description: 'Reject this expense claim and return to the requester.',
+          variant: 'danger',
+        }
+      );
+    }
+    // Finance Head approval
+    if (canAct && status === 'PENDING_FINANCE_HEAD_APPROVAL') {
+      actions.push(
+        {
+          type: 'FINANCE_HEAD_APPROVE_EXPENSE',
+          label: 'Approve (Finance Head)',
+          description: 'Approve this expense claim as Finance Head and route to payment.',
+          variant: 'success',
+        },
+        {
+          type: 'FINANCE_HEAD_REJECT_EXPENSE',
+          label: 'Reject (Finance Head)',
+          description: 'Reject this expense claim as Finance Head.',
+          variant: 'danger',
+        }
+      );
+    }
+    // Payment processing
+    if (canAct && status === 'PAYMENT_PROCESSING') {
+      actions.push({
+        type: 'MARK_EXPENSE_PAYMENT_COMPLETE',
+        label: 'Mark Payment Complete',
+        description: 'Enter payment reference and mark the reimbursement as paid.',
+        variant: 'success',
+      });
+    }
+    // Requester can revise after manager/finance head rejection
+    if (isRequester && (status === 'MANAGER_REJECTED_FIN' || status === 'FINANCE_HEAD_REJECTED')) {
+      actions.push({
+        type: 'RESUBMIT_REQUEST',
+        label: 'Revise & Resubmit',
+        description: 'Revise your expense claim based on feedback and resubmit.',
+        variant: 'warning',
       });
     }
   }

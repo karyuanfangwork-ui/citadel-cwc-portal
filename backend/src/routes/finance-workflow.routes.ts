@@ -7,6 +7,11 @@ import {
     groupCeoDecision,
     markPaymentComplete,
     closeTicket,
+    managerApproveExpense,
+    managerRejectExpense,
+    financeHeadApproveExpense,
+    financeHeadRejectExpense,
+    markExpensePaymentComplete,
 } from '../controllers/finance-workflow.controller';
 
 const router = Router();
@@ -19,5 +24,12 @@ router.post('/requests/:id/cfo-decision', authorize('CFO'), cfoDecision);
 router.post('/requests/:id/group-ceo-decision', authorize('GROUP_CEO'), groupCeoDecision);
 router.post('/requests/:id/mark-payment-complete', authorize('ADMIN', 'AGENT'), markPaymentComplete);
 router.post('/requests/:id/close', authorize('ADMIN', 'AGENT'), closeTicket);
+
+// Expense Reimbursement Workflow
+router.post('/requests/:id/manager-approve-expense', authorize('ADMIN', 'AGENT'), managerApproveExpense);
+router.post('/requests/:id/manager-reject-expense', authorize('ADMIN', 'AGENT'), managerRejectExpense);
+router.post('/requests/:id/finance-head-approve-expense', authorize('ADMIN', 'AGENT'), financeHeadApproveExpense);
+router.post('/requests/:id/finance-head-reject-expense', authorize('ADMIN', 'AGENT'), financeHeadRejectExpense);
+router.post('/requests/:id/mark-expense-payment-complete', authorize('ADMIN', 'AGENT'), markExpensePaymentComplete);
 
 export default router;

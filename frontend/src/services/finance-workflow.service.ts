@@ -36,6 +36,33 @@ const financeWorkflowService = {
         return response.data;
     },
 
+    // ─── Expense Reimbursement Workflow ───
+
+    async managerApproveExpense(requestId: string, comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/manager-approve-expense`, { comments });
+        return response.data;
+    },
+
+    async managerRejectExpense(requestId: string, comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/manager-reject-expense`, { comments });
+        return response.data;
+    },
+
+    async financeHeadApproveExpense(requestId: string, comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/finance-head-approve-expense`, { comments });
+        return response.data;
+    },
+
+    async financeHeadRejectExpense(requestId: string, comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/finance-head-reject-expense`, { comments });
+        return response.data;
+    },
+
+    async markExpensePaymentComplete(requestId: string, paymentReference?: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/mark-expense-payment-complete`, { paymentReference, notes });
+        return response.data;
+    },
+
     async getUsersByRole(role: string): Promise<{ id: string; firstName: string; lastName: string; email: string }[]> {
         const response = await api.get('/users', { params: { role, limit: 100 } });
         return response.data.data.users.map((u: any) => ({

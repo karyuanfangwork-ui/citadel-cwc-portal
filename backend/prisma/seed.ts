@@ -128,6 +128,12 @@ async function main() {
         create: { name: 'HIRING_MANAGER', description: 'Can raise and manage HR hiring requests' }
     });
 
+    await prisma.role.upsert({
+        where: { name: 'FINANCE_HEAD' },
+        update: {},
+        create: { name: 'FINANCE_HEAD', description: 'Can approve expense reimbursement requests as Finance Head' }
+    });
+
     console.log('✅ Roles created');
 
     console.log('📋 Creating permission list...');
@@ -222,6 +228,7 @@ async function main() {
         CFO: executivePerms,
         GROUP_CEO: executivePerms,
         HIRING_MANAGER: hiringManagerPerms,
+        FINANCE_HEAD: executivePerms,
     };
 
     // Upsert RolePermission records: only add seed-default assignments,
@@ -701,6 +708,19 @@ async function main() {
                 { id: 'budgetPeriod', label: 'Budget Period (e.g. Q1 2026)', type: 'text', required: true },
                 { id: 'totalAmount', label: 'Total Amount Requested (RM)', type: 'currency', required: true },
                 { id: 'breakdown', label: 'Budget Breakdown', type: 'textarea', required: true },
+                { id: 'justification', label: 'Business Justification', type: 'textarea', required: true },
+            ],
+        },
+        {
+            name: 'Expense Claims',
+            description: 'Submit a business expense claim for reimbursement',
+            icon: 'receipt_long', colorClass: 'bg-rose-50 text-rose-600', displayOrder: 4,
+            requestTypeName: 'Expense Claim', requestTypeCode: 'EXPENSE_CLAIM', workflowType: 'EXPENSE_REIMBURSEMENT',
+            formConfig: [
+                { id: 'expenseCategory', label: 'Expense Category', type: 'text', required: true },
+                { id: 'expenseDate', label: 'Date of Expense', type: 'text', required: true },
+                { id: 'amount', label: 'Amount (RM)', type: 'currency', required: true },
+                { id: 'receiptNumber', label: 'Receipt / Reference Number', type: 'text', required: false },
                 { id: 'justification', label: 'Business Justification', type: 'textarea', required: true },
             ],
         },
@@ -1218,6 +1238,16 @@ async function main() {
         { code: 'AWAITING_PAYMENT_CONFIRMATION',   label: 'Awaiting Payment Confirmation',        category: 'FINANCE', displayOrder: 80 },
         { code: 'PAYMENT_CONFIRMED_FIN',           label: 'Payment Confirmed (Finance)',         category: 'FINANCE', displayOrder: 81 },
         { code: 'TICKET_CLOSED_FIN',               label: 'Ticket Closed (Finance)',             category: 'FINANCE', displayOrder: 82 },
+        // EXPENSE REIMBURSEMENT WORKFLOW
+        { code: 'PENDING_MANAGER_APPROVAL_FIN',     label: 'Pending Manager Approval (Expense)',  category: 'EXPENSE', displayOrder: 90 },
+        { code: 'MANAGER_APPROVED_FIN',             label: 'Manager Approved (Expense)',           category: 'EXPENSE', displayOrder: 91 },
+        { code: 'MANAGER_REJECTED_FIN',             label: 'Manager Rejected (Expense)',           category: 'EXPENSE', displayOrder: 92 },
+        { code: 'PENDING_FINANCE_HEAD_APPROVAL',    label: 'Pending Finance Head Approval',        category: 'EXPENSE', displayOrder: 93 },
+        { code: 'FINANCE_HEAD_APPROVED',            label: 'Finance Head Approved',                category: 'EXPENSE', displayOrder: 94 },
+        { code: 'FINANCE_HEAD_REJECTED',            label: 'Finance Head Rejected',                category: 'EXPENSE', displayOrder: 95 },
+        { code: 'PAYMENT_PROCESSING',               label: 'Payment Processing',                   category: 'EXPENSE', displayOrder: 96 },
+        { code: 'PAYMENT_COMPLETED',                label: 'Payment Completed',                    category: 'EXPENSE', displayOrder: 97 },
+        { code: 'REIMBURSEMENT_CLOSED',              label: 'Reimbursement Closed',                 category: 'EXPENSE', displayOrder: 98 },
     ];
 
         for (const def of statusDefinitions) {

@@ -258,6 +258,28 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
       }));
     }
 
+    if (workflowCode === 'EXPENSE_REIMBURSEMENT') {
+      // Expense Reimbursement Workflow: Manager -> Finance Head -> Payment
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'Manager Approval', status: 'PENDING_MANAGER_APPROVAL_FIN', icon: 'radio_button_checked' },
+        { label: 'Finance Head', status: 'PENDING_FINANCE_HEAD_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
+        { label: 'Completed', status: 'REIMBURSEMENT_CLOSED', icon: 'check_circle' },
+      ];
+      const statusOrder = [
+        'SUBMITTED',
+        'PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_APPROVED_FIN', 'MANAGER_REJECTED_FIN',
+        'PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_APPROVED', 'FINANCE_HEAD_REJECTED',
+        'PAYMENT_PROCESSING', 'PAYMENT_COMPLETED', 'REIMBURSEMENT_CLOSED',
+      ];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+
     // 4. Fallback: Service Desk based logic (for legacy data without workflowType)
     if (request.serviceDesk?.code === 'HR') {
       // Legacy HR fallback - default to HR_GENERAL

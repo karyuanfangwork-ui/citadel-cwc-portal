@@ -256,3 +256,220 @@ export const closeTicket = async (req: Request, res: Response): Promise<void> =>
         res.status(500).json({ status: 'error', message: 'Failed to close ticket' });
     }
 };
+
+// ─── Expense Reimbursement Workflow Endpoints ───
+
+/** POST /finance-workflow/requests/:id/manager-approve-expense */
+export const managerApproveExpense = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id);
+        const { comments } = req.body;
+        const userId = (req as any).user?.id;
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== RequestStatus.PENDING_MANAGER_APPROVAL_FIN) {
+            res.status(400).json({ status: 'error', message: 'Request is not pending manager approval' });
+            return;
+        }
+
+        const updated = await prisma.request.update({
+            where: { id },
+            data: { status: RequestStatus.MANAGER_APPROVED_FIN },
+        });
+
+        await prisma.requestApproval.create({
+            data: { requestId: id, approverType: 'MANAGER', approverId: userId, status: 'APPROVED', comments: comments || null },
+        });
+
+        await logActivity(id, `Manager approved expense claim — routed to Finance Head${comments ? ': ' + comments : ''}`, userId);
+        await auditLog(req as any, 'EXPENSE_MANAGER_APPROVED', 'request', id, {
+            status: RequestStatus.MANAGER_APPROVED_FIN,
+            previousStatus: request.status,
+            comments: comments || null,
+        }, { status: request.status });
+        await notify({ userId: request.requesterId, eventType: 'EXPENSE_MANAGER_APPROVED', variables: { requestId: id }, relatedRequestId: id });
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('managerApproveExpense error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to approve expense claim' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/manager-reject-expense */
+export const managerRejectExpense = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id);
+        const { comments } = req.body;
+        const userId = (req as any).user?.id;
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== RequestStatus.PENDING_MANAGER_APPROVAL_FIN) {
+            res.status(400).json({ status: 'error', message: 'Request is not pending manager approval' });
+            return;
+        }
+
+        const updated = await prisma.request.update({
+            where: { id },
+            data: { status: RequestStatus.MANAGER_REJECTED_FIN },
+        });
+
+        await prisma.requestApproval.create({
+            data: { requestId: id, approverType: 'MANAGER', approverId: userId, status: 'REJECTED', comments: comments || null },
+        });
+
+        await logActivity(id, `Manager rejected expense claim — returned to requester${comments ? ': ' + comments : ''}`, userId);
+        await auditLog(req as any, 'EXPENSE_MANAGER_REJECTED', 'request', id, {
+            status: RequestStatus.MANAGER_REJECTED_FIN,
+            previousStatus: request.status,
+            comments: comments || null,
+        }, { status: request.status });
+        await notify({ userId: request.requesterId, eventType: 'EXPENSE_MANAGER_REJECTED', variables: { requestId: id }, relatedRequestId: id });
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('managerRejectExpense error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to reject expense claim' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/finance-head-approve-expense */
+export const financeHeadApproveExpense = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id);
+        const { comments } = req.body;
+        const userId = (req as any).user?.id;
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== RequestStatus.PENDING_FINANCE_HEAD_APPROVAL) {
+            res.status(400).json({ status: 'error', message: 'Request is not pending Finance Head approval' });
+            return;
+        }
+
+        const updated = await prisma.request.update({
+            where: { id },
+            data: { status: RequestStatus.FINANCE_HEAD_APPROVED },
+        });
+
+        await prisma.requestApproval.create({
+            data: { requestId: id, approverType: 'FINANCE_HEAD', approverId: userId, status: 'APPROVED', comments: comments || null },
+        });
+
+        await logActivity(id, `Finance Head approved expense claim — routed to payment processing${comments ? ': ' + comments : ''}`, userId);
+        await auditLog(req as any, 'EXPENSE_FINANCE_HEAD_APPROVED', 'request', id, {
+            status: RequestStatus.FINANCE_HEAD_APPROVED,
+            previousStatus: request.status,
+            comments: comments || null,
+        }, { status: request.status });
+        await notify({ userId: request.requesterId, eventType: 'EXPENSE_FINANCE_HEAD_APPROVED', variables: { requestId: id }, relatedRequestId: id });
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('financeHeadApproveExpense error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to approve expense claim' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/finance-head-reject-expense */
+export const financeHeadRejectExpense = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id);
+        const { comments } = req.body;
+        const userId = (req as any).user?.id;
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== RequestStatus.PENDING_FINANCE_HEAD_APPROVAL) {
+            res.status(400).json({ status: 'error', message: 'Request is not pending Finance Head approval' });
+            return;
+        }
+
+        const updated = await prisma.request.update({
+            where: { id },
+            data: { status: RequestStatus.FINANCE_HEAD_REJECTED },
+        });
+
+        await prisma.requestApproval.create({
+            data: { requestId: id, approverType: 'FINANCE_HEAD', approverId: userId, status: 'REJECTED', comments: comments || null },
+        });
+
+        await logActivity(id, `Finance Head rejected expense claim — returned to requester${comments ? ': ' + comments : ''}`, userId);
+        await auditLog(req as any, 'EXPENSE_FINANCE_HEAD_REJECTED', 'request', id, {
+            status: RequestStatus.FINANCE_HEAD_REJECTED,
+            previousStatus: request.status,
+            comments: comments || null,
+        }, { status: request.status });
+        await notify({ userId: request.requesterId, eventType: 'EXPENSE_FINANCE_HEAD_REJECTED', variables: { requestId: id }, relatedRequestId: id });
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('financeHeadRejectExpense error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to reject expense claim' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/mark-expense-payment-complete */
+export const markExpensePaymentComplete = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const id = String(req.params.id);
+        const { paymentReference, notes } = req.body;
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== RequestStatus.PAYMENT_PROCESSING) {
+            res.status(400).json({ status: 'error', message: 'Request is not in payment processing' });
+            return;
+        }
+
+        const existingFields = (request.customFields as Record<string, unknown>) || {};
+        const updated = await prisma.request.update({
+            where: { id },
+            data: {
+                status: RequestStatus.PAYMENT_COMPLETED,
+                customFields: { ...existingFields, paymentReference: paymentReference || null },
+            },
+        });
+
+        // auto-close the reimbursement after payment is marked complete
+        await prisma.request.update({
+            where: { id },
+            data: { status: RequestStatus.REIMBURSEMENT_CLOSED, resolvedAt: new Date() },
+        });
+
+        await logActivity(id, `Expense payment completed${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`);
+        await auditLog(req as any, 'EXPENSE_PAYMENT_COMPLETE', 'request', id, {
+            status: RequestStatus.REIMBURSEMENT_CLOSED,
+            previousStatus: request.status,
+            paymentReference: paymentReference || null,
+        }, { status: request.status });
+        await notify({ userId: request.requesterId, eventType: 'EXPENSE_PAYMENT_COMPLETE', variables: { requestId: id }, relatedRequestId: id });
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('markExpensePaymentComplete error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to mark expense payment complete' });
+    }
+};

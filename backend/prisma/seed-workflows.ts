@@ -121,6 +121,19 @@ const defaultWorkflows = [
       { label: 'Exit Proc', status: 'OFFBOARDING_EXIT_PROCEDURES', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'OFFBOARDING_COMPLETED', icon: 'check_circle', isFinal: true },
     ]
+  },
+  {
+    name: 'Expense Reimbursement',
+    code: 'EXPENSE_REIMBURSEMENT',
+    description: 'Expense claim workflow with manager and Finance Head approval, then payment processing',
+    displayOrder: 9,
+    steps: [
+      { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
+      { label: 'Manager Approval', status: 'PENDING_MANAGER_APPROVAL_FIN', icon: 'radio_button_checked' },
+      { label: 'Finance Head', status: 'PENDING_FINANCE_HEAD_APPROVAL', icon: 'radio_button_checked' },
+      { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
+      { label: 'Completed', status: 'REIMBURSEMENT_CLOSED', icon: 'check_circle', isFinal: true },
+    ]
   }
 ];
 
@@ -175,6 +188,7 @@ async function main() {
     'PURCHASE_REQUISITION': 'FINANCE',
     'INTERCOMPANY_CHARGEBACK': 'INTERCOMPANY_CHARGEBACK',
     'BUDGET_PROPOSAL': 'FINANCE',
+    'EXPENSE_CLAIM': 'EXPENSE_REIMBURSEMENT',
   };
 
   for (const [requestTypeCode, workflowCode] of Object.entries(requestTypeWorkflowMap)) {

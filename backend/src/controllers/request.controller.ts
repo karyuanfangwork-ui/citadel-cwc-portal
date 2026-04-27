@@ -60,11 +60,19 @@ class RequestController {
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else if (hasRole(req, 'CFO')) {
-                // CFO can see their own requests, IT requests pending CFO approval, and Finance Purchase Requisitions pending CFO approval
+                // CFO can see their own requests, IT requests pending CFO approval, Finance Purchase Requisitions pending CFO approval, and Expense Reimbursement requests pending Finance Head approval
                 where.OR = [
                     { requesterId: req.user!.id },
                     { status: 'PENDING_CFO_APPROVAL_IT' },
                     { status: 'PENDING_CFO_APPROVAL_FIN' },
+                    { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            } else if (hasRole(req, 'FINANCE_HEAD')) {
+                // FINANCE_HEAD can see their own requests and Expense Reimbursement requests pending Finance Head approval
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else if (hasRole(req, 'GROUP_CEO')) {
@@ -226,6 +234,7 @@ class RequestController {
         const isManualOffboarding = requestType?.code === 'EMPLOYEE_OFFBOARDING';
         const isPurchaseRequisition = requestType?.code === 'PURCHASE_REQUISITION';
         const isIntercompanyChargeback = requestType?.code === 'INTERCOMPANY_CHARGEBACK';
+        const isExpenseClaim = requestType?.code === 'EXPENSE_CLAIM';
         const initialStatus = isManualOnboarding
             ? 'ONBOARDING_SUBMITTED'
             : isManualOffboarding
@@ -234,6 +243,8 @@ class RequestController {
             ? 'FINANCE_PENDING_ACK'
             : isIntercompanyChargeback
             ? 'SUBMITTED'
+            : isExpenseClaim
+            ? 'PENDING_MANAGER_APPROVAL_FIN'
             : 'SUBMITTED';
 
         // Auto-generate description from form fields
