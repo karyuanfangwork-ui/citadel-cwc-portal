@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createOnboardingFromHiring } from '../services/onboarding.service';
+import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
@@ -142,6 +143,9 @@ export const routeLOAForApproval = async (req: Request, res: Response) => {
             data: { status: 'LOA_PENDING_APPROVAL' }
         });
 
+        // Pause SLA — request entered LOA_PENDING_APPROVAL
+        await pauseSla(id);
+
         // Create activity log
         await prisma.requestActivity.create({
             data: {
@@ -237,6 +241,9 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
             where: { id },
             data: { status: newStatus }
         });
+
+        // Resume SLA — leaving LOA_PENDING_APPROVAL
+        await resumeSla(id);
 
         // Create activity log
         const activityMessage = decision === 'APPROVE'

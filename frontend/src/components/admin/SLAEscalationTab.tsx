@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { serviceDeskService } from '../../services/serviceDesk.service';
+import workflowService, { WorkflowStep, WorkflowType } from '../../services/workflow.service';
 
 const AVAILABLE_ROLES = ['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_CEO'];
 
@@ -44,6 +45,12 @@ export function SLAEscalationTab() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+
+    // SLA Pause state
+    const [workflowTypes, setWorkflowTypes] = useState<WorkflowType[]>([]);
+    const [selectedWorkflowId, setSelectedWorkflowId] = useState('');
+    const [workflowSteps, setWorkflowSteps] = useState<WorkflowStep[]>([]);
+    const [pauseSaving, setPauseSaving] = useState<string | null>(null);
 
     useEffect(() => {
         serviceDeskService.getAllServiceDesks().then(setDesks).catch(() => {});
@@ -139,6 +146,30 @@ export function SLAEscalationTab() {
         const t = setTimeout(() => setSuccess(''), 3000);
         return () => clearTimeout(t);
     }, [success]);
+
+    // Load workflow types for SLA Pause config
+    useEffect(() => {
+        workflowService.getWorkflowTypes().then(setWorkflowTypes).catch(() => {});
+    }, []);
+
+    // Load workflow steps when a workflow is selected
+    useEffect(() => {
+        if (!selectedWorkflowId) { setWorkflowSteps([]); return; }
+        workflowService.getWorkflowType(selectedWorkflowId).then(wf => setWorkflowSteps(wf.steps || [])).catch(() => setWorkflowSteps([]));
+    }, [selectedWorkflowId]);
+
+    const handleToggleSlaPause = async (step: WorkflowStep) => {
+        setPauseSaving(step.id);
+        try {
+            await workflowService.updateWorkflowStep(selectedWorkflowId, step.id, { slaPause: !step.slaPause });
+            setWorkflowSteps(prev => prev.map(s => s.id === step.id ? { ...s, slaPause: !s.slaPause } : s));
+            setSuccess(`SLA pause ${step.slaPause ? 'disabled' : 'enabled'} for ${step.status}`);
+        } catch {
+            setError('Failed to update SLA pause setting.');
+        } finally {
+            setPauseSaving(null);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -311,6 +342,87 @@ export function SLAEscalationTab() {
                     </div>
                 </div>
             )}
+
+            {/* SLA Pause Configuration */}
+            <div className="border-t border-gray-200 pt-8 mt-8">
+                <div className="mb-4">
+                    <h2 className="text-lg font-black text-[#101418] mb-1">SLA Pause Configuration</h2>
+                    <p className="text-sm text-[#44546f]">
+                        Choose which workflow statuses should pause the SLA timer. When a request enters a paused status, the SLA clock stops until it leaves that status. This is typically used for approval/pending statuses where the assigned agent has no control over response time.
+                    </p>
+                </div>
+
+                <div className="mb-4">
+                    <label className="block text-xs font-bold text-[#101418] mb-1.5">Workflow</label>
+                    <select
+                        className="w-full max-w-md px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none bg-white"
+                        value={selectedWorkflowId}
+                        onChange={e => setSelectedWorkflowId(e.target.value)}
+                    >
+                        <option value="">Select workflow...</option>
+                        {workflowTypes.map(wt => (
+                            <option key={wt.id} value={wt.id}>{wt.name} ({wt.code})</option>
+                        ))}
+                    </select>
+                </div>
+
+                {selectedWorkflowId && workflowSteps.length > 0 && (
+                    <div className="overflow-x-auto rounded-xl border border-gray-200">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th className="text-left px-4 py-3 font-semibold text-gray-700">Status</th>
+                                    <th className="text-left px-4 py-3 font-semibold text-gray-700">Label</th>
+                                    <th className="text-left px-4 py-3 font-semibold text-gray-700">Pause SLA</th>
+                                    <th className="text-left px-4 py-3 font-semibold text-gray-700">Type</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {workflowSteps
+                                    .sort((a, b) => a.displayOrder - b.displayOrder)
+                                    .map(step => (
+                                        <tr key={step.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-4 py-3 font-mono text-xs text-indigo-700">{step.status}</td>
+                                            <td className="px-4 py-3 text-gray-900">{step.label}</td>
+                                            <td className="px-4 py-3">
+                                                <button
+                                                    onClick={() => handleToggleSlaPause(step)}
+                                                    disabled={pauseSaving === step.id}
+                                                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                                        step.slaPause
+                                                            ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                                                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                                    }`}
+                                                    title={step.slaPause ? 'Click to disable SLA pause' : 'Click to enable SLA pause'}
+                                                >
+                                                    {pauseSaving === step.id ? (
+                                                        <span className="animate-spin material-symbols-outlined text-sm">progress_activity</span>
+                                                    ) : (
+                                                        <span className="material-symbols-outlined text-sm">
+                                                            {step.slaPause ? 'pause_circle' : 'play_circle'}
+                                                        </span>
+                                                    )}
+                                                    {step.slaPause ? 'Paused' : 'Running'}
+                                                </button>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                {step.isInitial && <span className="text-xs px-2 py-0.5 bg-green-50 rounded-full text-green-700">Initial</span>}
+                                                {step.isFinal && <span className="text-xs px-2 py-0.5 bg-red-50 rounded-full text-red-600">Final</span>}
+                                                {!step.isInitial && !step.isFinal && <span className="text-xs text-gray-400">Step</span>}
+                                            </td>
+                                        </tr>
+                                    ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+
+                {selectedWorkflowId && workflowSteps.length === 0 && (
+                    <div className="text-sm text-[#8993a4] italic py-6 text-center bg-gray-50 rounded-xl">
+                        No steps configured for this workflow.
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

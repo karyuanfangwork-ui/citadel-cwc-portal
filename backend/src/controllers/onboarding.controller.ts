@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
+import { shouldResumeOnTransition, pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
@@ -183,6 +184,14 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
         }
 
         if (finalStatus !== currentRequest.status) {
+            // SLA pause/resume for onboarding status transitions
+            const { shouldPause, shouldResume } = await shouldResumeOnTransition(currentRequest.status, finalStatus);
+            if (shouldPause) {
+                await pauseSla(requestId);
+            } else if (shouldResume) {
+                await resumeSla(requestId);
+            }
+
             await prisma.request.update({
                 where: { id: requestId },
                 data: { 

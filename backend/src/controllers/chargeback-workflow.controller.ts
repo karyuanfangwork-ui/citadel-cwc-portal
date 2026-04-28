@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
+import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
@@ -67,6 +68,9 @@ export const submitChargeback = async (req: Request, res: Response): Promise<voi
                 },
             });
         }
+
+        // Pause SLA — request entered PENDING_FROM_ENTITY_APPROVAL
+        await pauseSla(id);
 
         await logActivity(id, 'Chargeback submitted — routed to From Entity approver' + (fromEntityCode ? ` (${fromEntityCode})` : ''), userId);
         await auditLog(req as any, 'CHARGEBACK_SUBMIT', 'request', id, {
@@ -178,6 +182,14 @@ export const fromEntityDecision = async (req: Request, res: Response): Promise<v
             data: { status: decision, comments: comments || null },
         });
 
+        // Resume SLA — leaving PENDING_FROM_ENTITY_APPROVAL
+        await resumeSla(id);
+
+        // If approved, pause SLA again — entering PENDING_TO_ENTITY_APPROVAL
+        if (decision === 'APPROVED') {
+            await pauseSla(id);
+        }
+
         const verb = decision === 'APPROVED' ? 'approved — routed to To Entity approver' : 'rejected';
         await logActivity(id, `From Entity approver ${verb}${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
@@ -253,6 +265,9 @@ export const toEntityDecision = async (req: Request, res: Response): Promise<voi
             where: { requestId: id, approverType: 'TO_ENTITY', status: 'PENDING' },
             data: { status: decision, comments: comments || null },
         });
+
+        // Resume SLA — leaving PENDING_TO_ENTITY_APPROVAL
+        await resumeSla(id);
 
         const verb = decision === 'APPROVED' ? 'approved — routed to Finance team for review' : 'rejected';
         await logActivity(id, `To Entity approver ${verb}${comments ? ': ' + comments : ''}`, userId);

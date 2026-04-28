@@ -11,6 +11,7 @@ router.get('/active', authenticate, entityController.listActiveEntities);
 router.get('/', authenticate, requirePermission('admin:settings'), entityController.listEntities);
 router.post('/', authenticate, requirePermission('admin:settings'), entityController.createEntity);
 router.put('/:id', authenticate, requirePermission('admin:settings'), entityController.updateEntity);
+router.post('/reorder', authenticate, requirePermission('admin:settings'), entityController.reorderEntities);
 
 // Routing rules — nested under request types
 router.get('/routing-rules/:requestTypeId', authenticate, requirePermission('admin:settings'), entityController.listRoutingRules);

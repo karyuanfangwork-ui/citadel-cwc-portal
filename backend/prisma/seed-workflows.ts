@@ -23,10 +23,10 @@ const defaultWorkflows = [
     steps: [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
       { label: 'Acknowledged', status: 'ACKNOWLEDGED_IT', icon: 'radio_button_checked' },
-      { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL_IT', icon: 'radio_button_checked' },
-      { label: 'CTO Approval', status: 'PENDING_CTO_APPROVAL_IT', icon: 'radio_button_checked' },
-      { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'radio_button_checked' },
-      { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_IT', icon: 'radio_button_checked' },
+      { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL_IT', icon: 'radio_button_checked', slaPause: true },
+      { label: 'CTO Approval', status: 'PENDING_CTO_APPROVAL_IT', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'radio_button_checked', slaPause: true },
+      { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_IT', icon: 'radio_button_checked', slaPause: true },
       { label: 'Payment', status: 'PAYMENT_PROCESSING_IT', icon: 'radio_button_checked' },
       { label: 'Delivery', status: 'PENDING_DELIVERY_IT', icon: 'radio_button_checked' },
       { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle', isFinal: true },
@@ -52,13 +52,13 @@ const defaultWorkflows = [
     steps: [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
       { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
-      { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL', icon: 'radio_button_checked' },
+      { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'Job Posted', status: 'JOB_POSTED', icon: 'radio_button_checked' },
-      { label: 'Manager Review', status: 'PENDING_MANAGER_REVIEW', icon: 'radio_button_checked' },
+      { label: 'Manager Review', status: 'PENDING_MANAGER_REVIEW', icon: 'radio_button_checked', slaPause: true },
       { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
       { label: 'Feedback', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'radio_button_checked' },
       { label: 'Screening', status: 'HR_SCREENING', icon: 'radio_button_checked' },
-      { label: 'LOA Pending', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked' },
+      { label: 'LOA Pending', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'LOA Approved', status: 'LOA_APPROVED', icon: 'radio_button_checked' },
       { label: 'LOA Issued', status: 'LOA_ISSUED', icon: 'radio_button_checked' },
       { label: 'LOA Accepted', status: 'LOA_ACCEPTED', icon: 'radio_button_checked' },
@@ -73,8 +73,8 @@ const defaultWorkflows = [
     steps: [
       { label: 'Submitted', status: 'FINANCE_PENDING_ACK', icon: 'check_circle', isInitial: true },
       { label: 'Acknowledged', status: 'FINANCE_ACKNOWLEDGED', icon: 'radio_button_checked' },
-      { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked' },
-      { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked' },
+      { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'Payment', status: 'PAYMENT_PROCESSING_FIN', icon: 'radio_button_checked' },
       { label: 'Awaiting Confirmation', status: 'AWAITING_PAYMENT_CONFIRMATION', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'TICKET_CLOSED_FIN', icon: 'check_circle', isFinal: true },
@@ -87,9 +87,9 @@ const defaultWorkflows = [
     displayOrder: 8,
     steps: [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
-      { label: 'From Entity Approver', status: 'PENDING_FROM_ENTITY_APPROVAL', icon: 'radio_button_checked' },
-      { label: 'To Entity Approver', status: 'PENDING_TO_ENTITY_APPROVAL', icon: 'radio_button_checked' },
-      { label: 'Finance Team', status: 'CHARGEBACK_FINANCE_REVIEW', icon: 'radio_button_checked' },
+      { label: 'From Entity Approver', status: 'PENDING_FROM_ENTITY_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'To Entity Approver', status: 'PENDING_TO_ENTITY_APPROVAL', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Finance Team', status: 'CHARGEBACK_FINANCE_REVIEW', icon: 'radio_button_checked', slaPause: true },
       { label: 'Awaiting Confirmation', status: 'AWAITING_CHARGEBACK_CONFIRMATION', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'CHARGEBACK_COMPLETED', icon: 'check_circle', isFinal: true },
     ]
@@ -101,7 +101,7 @@ const defaultWorkflows = [
     displayOrder: 6,
     steps: [
       { label: 'Submitted', status: 'ONBOARDING_SUBMITTED', icon: 'check_circle', isInitial: true },
-      { label: 'HR Approval', status: 'ONBOARDING_PENDING_HR_APPROVAL', icon: 'radio_button_checked' },
+      { label: 'HR Approval', status: 'ONBOARDING_PENDING_HR_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'Pre-Arrival', status: 'ONBOARDING_PRE_ARRIVAL_SETUP', icon: 'radio_button_checked' },
       { label: 'Day 1', status: 'ONBOARDING_DAY_1_ORIENTATION', icon: 'radio_button_checked' },
       { label: 'Week 1', status: 'ONBOARDING_WEEK_1_INTEGRATION', icon: 'radio_button_checked' },
@@ -129,8 +129,8 @@ const defaultWorkflows = [
     displayOrder: 9,
     steps: [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
-      { label: 'Manager Approval', status: 'PENDING_MANAGER_APPROVAL_FIN', icon: 'radio_button_checked' },
-      { label: 'Finance Head', status: 'PENDING_FINANCE_HEAD_APPROVAL', icon: 'radio_button_checked' },
+      { label: 'Manager Approval', status: 'PENDING_MANAGER_APPROVAL_FIN', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Finance Head', status: 'PENDING_FINANCE_HEAD_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'Payment', status: 'PAYMENT_PROCESSING', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'REIMBURSEMENT_CLOSED', icon: 'check_circle', isFinal: true },
     ]
@@ -165,6 +165,7 @@ async function main() {
               displayOrder: index + 1,
               isInitial: step.isInitial || false,
               isFinal: step.isFinal || false,
+              slaPause: step.slaPause || false,
             }))
           }
         }
@@ -172,6 +173,40 @@ async function main() {
 
       console.log(`✅ Created workflow: ${workflow.code}`);
     }
+  }
+
+  // Backfill slaPause on existing workflow steps (for databases seeded before the SLA pause feature)
+  const pauseStatuses = [
+    'PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT',
+    'PENDING_MANAGER_APPROVAL_IT', 'PENDING_MANAGER_APPROVAL_FIN', 'PENDING_MANAGER_REVIEW',
+    'PENDING_VP_APPROVAL_IT',
+    'PENDING_CTO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN',
+    'PENDING_FINANCE_HEAD_APPROVAL',
+    'PENDING_FROM_ENTITY_APPROVAL', 'PENDING_TO_ENTITY_APPROVAL',
+    'PENDING_GROUP_CEO_APPROVAL',
+    'ONBOARDING_PENDING_HR_APPROVAL',
+    'LOA_PENDING_APPROVAL',
+    'CHARGEBACK_FINANCE_REVIEW',
+    'PENDING_INVOICE_IT',
+  ];
+
+  const stepsNeedingPause = await prisma.workflowStep.findMany({
+    where: {
+      status: { in: pauseStatuses },
+      slaPause: false,
+    },
+  });
+
+  let backfilled = 0;
+  for (const step of stepsNeedingPause) {
+    await prisma.workflowStep.update({
+      where: { id: step.id },
+      data: { slaPause: true },
+    });
+    backfilled++;
+  }
+  if (backfilled > 0) {
+    console.log(`✅ Backfilled slaPause=true on ${backfilled} existing workflow steps`);
   }
 
   // Now link request types to workflows

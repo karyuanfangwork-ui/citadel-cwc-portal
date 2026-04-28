@@ -8,6 +8,7 @@ export interface Entity {
     code: string;
     description: string | null;
     approverId: string;
+    displayOrder: number;
     isActive: boolean;
     approver: {
         id: string;
@@ -65,5 +66,10 @@ export const entityService = {
     async deleteRoutingRule(requestTypeId: string, ruleId: string) {
         const res = await apiClient.delete(`/admin/entities/routing-rules/${requestTypeId}/${ruleId}`);
         return res.data;
+    },
+
+    async reorderEntity(id: string, direction: 'up' | 'down') {
+        const res = await apiClient.post('/admin/entities/reorder', { id, direction });
+        return res.data.data.entities;
     },
 };

@@ -11,7 +11,7 @@ class EntityController {
     listActiveEntities = asyncHandler(async (_req: AuthRequest, res: Response) => {
         const entities = await prisma.entity.findMany({
             where: { isActive: true },
-            orderBy: { name: 'asc' },
+            orderBy: { displayOrder: 'asc' },
             select: {
                 id: true,
                 name: true,
@@ -25,7 +25,7 @@ class EntityController {
 
     listEntities = asyncHandler(async (_req: AuthRequest, res: Response) => {
         const entities = await prisma.entity.findMany({
-            orderBy: { name: 'asc' },
+            orderBy: { displayOrder: 'asc' },
             include: {
                 approver: {
                     select: { id: true, firstName: true, lastName: true, email: true },
@@ -47,12 +47,17 @@ class EntityController {
             throw new AppError('Approver user not found or inactive', 400);
         }
 
+        // Auto-assign displayOrder: max existing + 10
+        const maxOrder = await prisma.entity.aggregate({ _max: { displayOrder: true } });
+        const nextOrder = (maxOrder._max.displayOrder ?? 0) + 10;
+
         const entity = await prisma.entity.create({
             data: {
                 name: name.trim(),
                 code: code.trim().toUpperCase(),
                 description: description?.trim() || null,
                 approverId,
+                displayOrder: nextOrder,
             },
             include: {
                 approver: {
@@ -95,6 +100,50 @@ class EntityController {
         });
 
         res.json({ status: 'success', data: { entity } });
+    });
+
+    // ── Reorder ─────────────────────────────────────────────────────
+
+    reorderEntities = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { id, direction }: { id: string; direction: 'up' | 'down' } = req.body;
+
+        if (!id || !['up', 'down'].includes(direction)) {
+            throw new AppError('id and direction (up|down) are required', 400);
+        }
+
+        const current = await prisma.entity.findUnique({ where: { id } });
+        if (!current) throw new AppError('Entity not found', 404);
+
+        const swapWith = direction === 'up'
+            ? await prisma.entity.findFirst({
+                where: { displayOrder: { lt: current.displayOrder } },
+                orderBy: { displayOrder: 'desc' },
+              })
+            : await prisma.entity.findFirst({
+                where: { displayOrder: { gt: current.displayOrder } },
+                orderBy: { displayOrder: 'asc' },
+              });
+
+        if (!swapWith) {
+            res.json({ status: 'success', data: { entities: null } });
+            return;
+        }
+
+        // Swap displayOrder values
+        const tempOrder = current.displayOrder;
+        await prisma.entity.update({ where: { id: current.id }, data: { displayOrder: swapWith.displayOrder } });
+        await prisma.entity.update({ where: { id: swapWith.id }, data: { displayOrder: tempOrder } });
+
+        const entities = await prisma.entity.findMany({
+            orderBy: { displayOrder: 'asc' },
+            include: {
+                approver: {
+                    select: { id: true, firstName: true, lastName: true, email: true },
+                },
+            },
+        });
+
+        res.json({ status: 'success', data: { entities } });
     });
 
     // ── Routing Rules CRUD ───────────────────────────────────────────

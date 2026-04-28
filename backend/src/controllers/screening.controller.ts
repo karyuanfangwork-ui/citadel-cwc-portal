@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
@@ -180,11 +181,15 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
                 where: { id },
                 data: { status: 'LOA_PENDING_APPROVAL' }
             });
+            // Pause SLA — request entered LOA_PENDING_APPROVAL
+            await pauseSla(id);
         } else if (calculatedStatus === 'REJECTED') {
             await prisma.request.update({
                 where: { id },
                 data: { status: 'REJECTED' }
             });
+            // Resume SLA — leaving approval pause status (if any)
+            await resumeSla(id);
         }
 
         // Create activity log

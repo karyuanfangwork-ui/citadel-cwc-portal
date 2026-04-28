@@ -9,6 +9,7 @@ export interface WorkflowStep {
   displayOrder: number;
   isInitial: boolean;
   isFinal: boolean;
+  slaPause: boolean;
 }
 
 export interface WorkflowType {
@@ -34,6 +35,7 @@ export interface CreateWorkflowData {
     icon?: string;
     isInitial?: boolean;
     isFinal?: boolean;
+    slaPause?: boolean;
   }[];
 }
 
@@ -51,6 +53,7 @@ export interface CreateStepData {
   icon?: string;
   isInitial?: boolean;
   isFinal?: boolean;
+  slaPause?: boolean;
 }
 
 export interface UpdateStepData {
@@ -59,6 +62,7 @@ export interface UpdateStepData {
   icon?: string;
   isInitial?: boolean;
   isFinal?: boolean;
+  slaPause?: boolean;
 }
 
 const workflowService = {

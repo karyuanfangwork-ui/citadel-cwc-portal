@@ -9,6 +9,7 @@ export async function checkSlaBreaches(): Promise<number> {
     const breachedRequests = await prisma.request.findMany({
       where: {
         slaDueAt: { lte: now },
+        slaPausedAt: null, // Skip paused requests — SLA clock is stopped
         status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
       },
       include: {
@@ -70,6 +71,7 @@ export async function checkEscalations(): Promise<number> {
     const breachedRequests = await prisma.request.findMany({
       where: {
         slaDueAt: { lte: now },
+        slaPausedAt: null, // Skip paused requests — SLA clock is stopped
         requestTypeId: { not: null },
         status: { notIn: ['RESOLVED', 'REIMBURSEMENT_CLOSED', 'REJECTED', 'COMPLETED', 'PAYMENT_COMPLETED'] },
       },

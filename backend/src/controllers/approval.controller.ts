@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { PrismaClient, ApprovalStatus } from '@prisma/client';
 import { auditLog } from '../utils/audit';
 import { allEntityApprovalsResolved } from '../services/entityRouting.service';
+import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
@@ -72,12 +73,14 @@ export const routeToCEO = async (req: Request, res: Response): Promise<void> => 
             status: 'PENDING_CEO_APPROVAL',
             previousStatus: request.status,
             approverType: 'CEO',
-            ceoId: ceoId || null,
-        }, { status: request.status });
+        ceoId: ceoId || null,
+    }, { status: request.status });
 
-        res.json({
-            status: 'success',
-            data: {
+    await pauseSla(id);
+
+    res.json({
+        status: 'success',
+        data: {
                 request: updatedRequest,
                 approval
             }
@@ -181,12 +184,14 @@ export const ceoDecision = async (req: Request, res: Response): Promise<void> =>
             decision,
             approverType: 'CEO',
             newStatus,
-            comments: comments || null,
-        }, { status: 'PENDING_CEO_APPROVAL' });
+        comments: comments || null,
+    }, { status: 'PENDING_CEO_APPROVAL' });
 
-        res.json({
-            status: 'success',
-            data: {
+    await resumeSla(id);
+
+    res.json({
+        status: 'success',
+        data: {
                 request: updatedRequest,
                 approval: updatedApproval
             }
@@ -354,6 +359,8 @@ export const routeToManager = async (req: Request, res: Response): Promise<void>
             hiringManagerId: request.requesterId,
         }, { status: request.status });
 
+    await pauseSla(id);
+
         // Transform BigInt to string in candidateResumes for JSON serialization
         const serializedResumes = request.candidateResumes.map((resume: any) => ({
             ...resume,
@@ -494,8 +501,10 @@ export const managerDecision = async (req: Request, res: Response): Promise<void
             approverType: 'HIRING_MANAGER',
             newStatus,
             selectedCandidateId: selectedCandidateId || null,
-            comments: comments || null,
-        }, { status: request.status });
+        comments: comments || null,
+    }, { status: request.status });
+
+    await resumeSla(id);
 
         // Transform BigInt to string in candidateResumes for JSON serialization
         const serializedResumes = updatedRequest.candidateResumes?.map((resume: any) => ({

@@ -165,7 +165,7 @@ export const deleteWorkflowType = asyncHandler(async (req: Request, res: Respons
 // @access  Private (Admin only)
 export const addWorkflowStep = asyncHandler(async (req: Request, res: Response) => {
     const id = req.params.id as string;
-    const { label, status, icon, isInitial, isFinal } = req.body;
+    const { label, status, icon, isInitial, isFinal, slaPause } = req.body;
 
     // Get current max display order
     const maxOrder = await prisma.workflowStep.aggregate({
@@ -183,7 +183,8 @@ export const addWorkflowStep = asyncHandler(async (req: Request, res: Response) 
             icon: icon || 'radio_button_checked',
             displayOrder: nextOrder,
             isInitial: isInitial || false,
-            isFinal: isFinal || false
+            isFinal: isFinal || false,
+            slaPause: slaPause || false
         }
     });
 
@@ -195,7 +196,7 @@ export const addWorkflowStep = asyncHandler(async (req: Request, res: Response) 
 // @access  Private (Admin only)
 export const updateWorkflowStep = asyncHandler(async (req: Request, res: Response) => {
     const stepId = req.params.stepId as string;
-    const { label, status, icon, isInitial, isFinal } = req.body;
+    const { label, status, icon, isInitial, isFinal, slaPause } = req.body;
 
     const step = await prisma.workflowStep.update({
         where: { id: stepId },
@@ -204,9 +205,16 @@ export const updateWorkflowStep = asyncHandler(async (req: Request, res: Respons
             status,
             icon,
             isInitial,
-            isFinal
+            isFinal,
+            ...(slaPause !== undefined && { slaPause })
         }
     });
+
+    // Invalidate SLA pause cache since slaPause flag may have changed
+    if (slaPause !== undefined) {
+        const { invalidateSlaPauseCache } = require('../services/sla-pause.service');
+        invalidateSlaPauseCache().catch(() => {});
+    }
 
     res.json(step);
 });

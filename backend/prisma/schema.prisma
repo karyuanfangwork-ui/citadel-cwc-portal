@@ -279,6 +279,7 @@ model WorkflowStep {
   displayOrder    Int      @map("display_order")
   isInitial       Boolean  @default(false) @map("is_initial")
   isFinal         Boolean  @default(false) @map("is_final")
+  slaPause        Boolean  @default(false) @map("sla_pause")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
@@ -428,10 +429,12 @@ model Request {
   customFields     Json?           @map("custom_fields") @db.JsonB
   
   // SLA Tracking
-  slaDueAt         DateTime?       @map("sla_due_at") @db.Timestamp(6)
-  firstResponseAt  DateTime?       @map("first_response_at") @db.Timestamp(6)
-  resolvedAt       DateTime?       @map("resolved_at") @db.Timestamp(6)
-  closedAt         DateTime?       @map("closed_at") @db.Timestamp(6)
+  slaDueAt             DateTime?       @map("sla_due_at") @db.Timestamp(6)
+  slaPausedAt          DateTime?       @map("sla_paused_at") @db.Timestamp(6)
+  slaPauseDurationMs   BigInt          @default(0) @map("sla_pause_duration_ms")
+  firstResponseAt      DateTime?       @map("first_response_at") @db.Timestamp(6)
+  resolvedAt           DateTime?       @map("resolved_at") @db.Timestamp(6)
+  closedAt             DateTime?       @map("closed_at") @db.Timestamp(6)
   
   // Timestamps
   createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
@@ -1241,6 +1244,7 @@ model Entity {
   description String?  @db.Text
   approverId  String   @map("approver_id") @db.Uuid
   isActive    Boolean  @default(true) @map("is_active")
+  displayOrder Int     @default(0) @map("display_order")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 

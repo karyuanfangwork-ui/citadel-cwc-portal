@@ -4,6 +4,7 @@ import { notify } from '../services/notification.service';
 import { hasRole } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
 import { config } from '../config';
+import { pauseSla, resumeSla } from '../services/sla-pause.service';
 import path from 'path';
 import { uploadSingleFile } from '../middleware/upload.middleware';
 
@@ -65,6 +66,7 @@ export async function submitForApproval(req: Request, res: Response) {
       where: { id },
       data: { status: 'PENDING_MANAGER_APPROVAL_IT' },
     });
+    await pauseSla(id);
 
     await prisma.requestApproval.create({
       data: {
@@ -151,6 +153,8 @@ export async function managerDecision(req: Request, res: Response) {
       if (price >= threshold) {
         // Route to VP approval
         await prisma.request.update({ where: { id }, data: { status: 'PENDING_VP_APPROVAL_IT' } });
+        await resumeSla(id);
+        await pauseSla(id);
 
         await prisma.requestApproval.updateMany({
           where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
@@ -178,6 +182,7 @@ export async function managerDecision(req: Request, res: Response) {
       } else {
         // Standard manager approval path
         await prisma.request.update({ where: { id }, data: { status: 'MANAGER_APPROVED_IT' } });
+        await resumeSla(id);
 
         await prisma.requestApproval.updateMany({
           where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
@@ -202,6 +207,7 @@ export async function managerDecision(req: Request, res: Response) {
     } else {
       // REJECTED
       await prisma.request.update({ where: { id }, data: { status: 'MANAGER_REJECTED_IT' } });
+      await resumeSla(id);
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
@@ -569,6 +575,7 @@ export const vpDecision = async (req: Request, res: Response) => {
 
     if (decision === 'APPROVED') {
       await prisma.request.update({ where: { id }, data: { status: 'MANAGER_APPROVED_IT' } });
+      await resumeSla(id);
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, status: 'PENDING' },
@@ -592,6 +599,7 @@ export const vpDecision = async (req: Request, res: Response) => {
       }
     } else if (decision === 'REJECTED') {
       await prisma.request.update({ where: { id }, data: { status: 'VP_REJECTED_IT' } });
+      await resumeSla(id);
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, status: 'PENDING' },
@@ -698,6 +706,7 @@ export const resubmitRequest = async (req: Request, res: Response) => {
       where: { id },
       data: { status: 'PENDING_MANAGER_APPROVAL_IT', customFields: updatedFields },
     });
+    await pauseSla(id);
 
     // Reset the approval or create a new pending one
     if (request.approvals.length > 0) {
@@ -793,6 +802,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
     if (!hasCeoRole) return res.status(400).json({ error: 'Selected user does not have CEO role' });
 
     await prisma.request.update({ where: { id }, data: { status: 'PENDING_CEO_APPROVAL_IT' } });
+    await pauseSla(id);
 
     await prisma.requestApproval.create({
       data: {
@@ -846,7 +856,9 @@ export const ceoDecision = async (req: Request, res: Response) => {
 
     if (decision === 'APPROVED') {
       await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_CTO_APPROVAL_IT' } });
+      await pauseSla(id);
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CEO', status: 'PENDING' },
@@ -874,6 +886,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
       }
     } else {
       await prisma.request.update({ where: { id }, data: { status: 'CEO_REJECTED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
@@ -926,7 +939,9 @@ export const ctoDecision = async (req: Request, res: Response) => {
 
     if (decision === 'APPROVED') {
       await prisma.request.update({ where: { id }, data: { status: 'CTO_APPROVED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_INVOICE_IT' } });
+      await pauseSla(id);
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CTO', status: 'PENDING' },
@@ -950,6 +965,7 @@ export const ctoDecision = async (req: Request, res: Response) => {
       }
     } else {
       await prisma.request.update({ where: { id }, data: { status: 'CTO_REJECTED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
@@ -1021,6 +1037,8 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
     }
 
     await prisma.request.update({ where: { id }, data: { status: 'PENDING_CFO_APPROVAL_IT' } });
+    await resumeSla(id);
+    await pauseSla(id);
 
     await prisma.requestApproval.create({
       data: {
@@ -1091,6 +1109,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
 
     if (decision === 'APPROVED') {
       await prisma.request.update({ where: { id }, data: { status: 'CFO_APPROVED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PAYMENT_PROCESSING_IT' } });
 
       await prisma.requestApproval.updateMany({
@@ -1115,6 +1134,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
       }
     } else {
       await prisma.request.update({ where: { id }, data: { status: 'CFO_REJECTED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({

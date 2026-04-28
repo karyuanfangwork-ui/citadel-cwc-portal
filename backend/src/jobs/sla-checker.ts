@@ -1,12 +1,14 @@
 import cron, { ScheduledTask } from 'node-cron';
 import { config } from '../config';
 import { checkSlaBreaches, checkEscalations } from '../services/sla.service';
+import { checkStalePauses } from '../services/sla-pause.service';
 import { logger } from '../utils/logger';
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let cronTask: ScheduledTask | null = null;
 
 async function runChecks(): Promise<void> {
+    await checkStalePauses().catch((err) => logger.error('Stale SLA pause check failed', { error: err }));
     await checkSlaBreaches().catch((err) => logger.error('SLA breach check failed', { error: err }));
     await checkEscalations().catch((err) => logger.error('SLA escalation check failed', { error: err }));
 }

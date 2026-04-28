@@ -9,6 +9,7 @@ import { sanitizeString, sanitizeComment } from '../utils/sanitize';
 import { auditLog } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { applyEntityRouting } from '../services/entityRouting.service';
+import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
@@ -208,6 +209,12 @@ class RequestController {
             }),
             prisma.request.count({ where }),
         ]);
+
+        // Add computed SLA pause info to each request in the list
+        for (const request of requests) {
+            (request as any).effectiveSlaDueAt = getEffectiveSlaDueAt(request);
+            (request as any).slaPaused = request.slaPausedAt !== null;
+        }
 
         res.json({
             status: 'success',
@@ -611,6 +618,11 @@ class RequestController {
             );
         }
 
+        // SLA: pause immediately if request is created in an approval status (e.g. EXPENSE_CLAIM → PENDING_MANAGER_APPROVAL_FIN)
+        if (isExpenseClaim) {
+            await pauseSla(request.id);
+        }
+
         // Apply entity-based approval routing if configured for this request type
         if (requestTypeId) {
             await applyEntityRouting({
@@ -826,6 +838,10 @@ class RequestController {
                 summary: request.summary,
             }).catch(() => {}); // fire-and-forget
         }
+
+        // Add computed effective SLA due date (accounts for pause time)
+        (request as any).effectiveSlaDueAt = getEffectiveSlaDueAt(request);
+        (request as any).slaPaused = request.slaPausedAt !== null;
 
         res.json({
             status: 'success',
@@ -1273,6 +1289,14 @@ class RequestController {
         }, {
             oldStatus: currentRequest.status,
         });
+
+        // SLA pause/resume for generic status transitions
+        const { shouldPause, shouldResume } = await shouldResumeOnTransition(currentRequest.status, status);
+        if (shouldPause) {
+            await pauseSla(id);
+        } else if (shouldResume) {
+            await resumeSla(id);
+        }
 
         res.json({
             status: 'success',

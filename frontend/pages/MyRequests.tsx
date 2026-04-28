@@ -13,6 +13,8 @@ interface Request {
   createdAt: string;
   updatedAt: string;
   isConfidential?: boolean;
+  slaPaused?: boolean;
+  slaDueAt?: string | null;
   serviceDesk?: {
     id: string;
     name: string;
@@ -316,15 +318,25 @@ const MyRequests = () => {
                               {req.serviceDesk?.name || 'N/A'}
                             </td>
                             <td className="px-6 py-4">
-                              <span
-                                className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100'} ${STATUS_CONFIG[req.status]?.color || 'text-gray-600'}`}
-                              >
-                                {STATUS_CONFIG[req.status]?.icon && (
-                                  <span className="material-symbols-outlined text-[12px] leading-none" aria-hidden="true">
-                                    {STATUS_CONFIG[req.status].icon}
+                              <span className="inline-flex items-center gap-1">
+                                {req.slaPaused && (
+                                  <span
+                                    className="material-symbols-outlined text-[14px] text-blue-500"
+                                    title="SLA timer paused — awaiting approval"
+                                  >
+                                    pause_circle
                                   </span>
                                 )}
-                                {STATUS_CONFIG[req.status]?.label || req.status}
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${STATUS_CONFIG[req.status]?.bg || 'bg-gray-100'} ${STATUS_CONFIG[req.status]?.color || 'text-gray-600'}`}
+                                >
+                                  {STATUS_CONFIG[req.status]?.icon && (
+                                    <span className="material-symbols-outlined text-[12px] leading-none" aria-hidden="true">
+                                      {STATUS_CONFIG[req.status].icon}
+                                    </span>
+                                  )}
+                                  {STATUS_CONFIG[req.status]?.label || req.status}
+                                </span>
                               </span>
                             </td>
                             <td className="px-6 py-4 text-[#44546f] whitespace-nowrap">

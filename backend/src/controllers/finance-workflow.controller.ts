@@ -3,6 +3,7 @@ import { PrismaClient, RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
 import { config } from '../config';
+import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
@@ -89,6 +90,8 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
 
+        await pauseSla(id);
+
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
         console.error('setFinalizedAmountAndRouteCfo error:', error);
@@ -140,6 +143,13 @@ export const cfoDecision = async (req: Request, res: Response): Promise<void> =>
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
+        await resumeSla(id);
+
+        // If routed to Group CEO, pause SLA again for PENDING_GROUP_CEO_APPROVAL
+        if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
+            await pauseSla(id);
+        }
+
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
         console.error('cfoDecision error:', error);
@@ -182,6 +192,9 @@ export const groupCeoDecision = async (req: Request, res: Response): Promise<voi
             comments: comments || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_GROUP_CEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
+
+        // Resume SLA — leaving PENDING_GROUP_CEO_APPROVAL
+        await resumeSla(id);
 
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
@@ -294,6 +307,8 @@ export const managerApproveExpense = async (req: Request, res: Response): Promis
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'EXPENSE_MANAGER_APPROVED', variables: { requestId: id }, relatedRequestId: id });
 
+        await resumeSla(id);
+
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
         console.error('managerApproveExpense error:', error);
@@ -335,6 +350,8 @@ export const managerRejectExpense = async (req: Request, res: Response): Promise
             comments: comments || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'EXPENSE_MANAGER_REJECTED', variables: { requestId: id }, relatedRequestId: id });
+
+        await resumeSla(id);
 
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
@@ -378,6 +395,8 @@ export const financeHeadApproveExpense = async (req: Request, res: Response): Pr
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'EXPENSE_FINANCE_HEAD_APPROVED', variables: { requestId: id }, relatedRequestId: id });
 
+        await resumeSla(id);
+
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
         console.error('financeHeadApproveExpense error:', error);
@@ -419,6 +438,8 @@ export const financeHeadRejectExpense = async (req: Request, res: Response): Pro
             comments: comments || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'EXPENSE_FINANCE_HEAD_REJECTED', variables: { requestId: id }, relatedRequestId: id });
+
+        await resumeSla(id);
 
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {

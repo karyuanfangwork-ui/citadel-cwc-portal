@@ -13,6 +13,7 @@ export const EntitiesTab: React.FC<EntitiesTabProps> = ({ entities, users, onRef
     const [form, setForm] = useState({ name: '', code: '', description: '', approverId: '' });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [reordering, setReordering] = useState<string | null>(null);
 
     const openCreate = () => {
         setForm({ name: '', code: '', description: '', approverId: '' });
@@ -60,6 +61,18 @@ export const EntitiesTab: React.FC<EntitiesTabProps> = ({ entities, users, onRef
         onRefresh();
     };
 
+    const handleReorder = async (id: string, direction: 'up' | 'down') => {
+        setReordering(id);
+        try {
+            await entityService.reorderEntity(id, direction);
+            onRefresh();
+        } catch {}
+        setReordering(null);
+    };
+
+    const isFirst = (idx: number) => idx === 0;
+    const isLast = (idx: number) => idx === entities.length - 1;
+
     return (
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
             {/* Header */}
@@ -85,12 +98,13 @@ export const EntitiesTab: React.FC<EntitiesTabProps> = ({ entities, users, onRef
                             <th className="px-8 py-5">Name</th>
                             <th className="px-8 py-5">Code</th>
                             <th className="px-8 py-5">Designated Approver</th>
+                            <th className="px-8 py-5">Reorder</th>
                             <th className="px-8 py-5">Status</th>
                             <th className="px-8 py-5 text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {entities.map((entity) => (
+                        {entities.map((entity, idx) => (
                             <tr key={entity.id} className={`hover:bg-gray-50/50 transition-colors ${!entity.isActive ? 'opacity-50' : ''}`}>
                                 <td className="px-8 py-5 font-bold text-[#101418]">
                                     <div>{entity.name}</div>
@@ -102,6 +116,30 @@ export const EntitiesTab: React.FC<EntitiesTabProps> = ({ entities, users, onRef
                                 <td className="px-8 py-5 text-sm text-[#44546f]">
                                     <div className="font-semibold text-[#101418]">{entity.approver.firstName} {entity.approver.lastName}</div>
                                     <div className="text-xs">{entity.approver.email}</div>
+                                </td>
+                                <td className="px-8 py-5">
+                                    <div className="flex gap-1">
+                                        <button
+                                            onClick={() => handleReorder(entity.id, 'up')}
+                                            disabled={isFirst(idx) || reordering === entity.id}
+                                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all border ${
+                                                isFirst(idx) ? 'opacity-20 cursor-not-allowed border-gray-100' : 'hover:bg-gray-100 border-gray-200 text-[#44546f] hover:text-[#0052cc]'
+                                            }`}
+                                            title="Move up"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">arrow_upward</span>
+                                        </button>
+                                        <button
+                                            onClick={() => handleReorder(entity.id, 'down')}
+                                            disabled={isLast(idx) || reordering === entity.id}
+                                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all border ${
+                                                isLast(idx) ? 'opacity-20 cursor-not-allowed border-gray-100' : 'hover:bg-gray-100 border-gray-200 text-[#44546f] hover:text-[#0052cc]'
+                                            }`}
+                                            title="Move down"
+                                        >
+                                            <span className="material-symbols-outlined text-lg">arrow_downward</span>
+                                        </button>
+                                    </div>
                                 </td>
                                 <td className="px-8 py-5">
                                     <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${entity.isActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
@@ -130,7 +168,7 @@ export const EntitiesTab: React.FC<EntitiesTabProps> = ({ entities, users, onRef
                         ))}
                         {entities.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="px-8 py-16 text-center text-[#44546f] font-bold">No entities configured yet.</td>
+                                <td colSpan={6} className="px-8 py-16 text-center text-[#44546f] font-bold">No entities configured yet.</td>
                             </tr>
                         )}
                     </tbody>
