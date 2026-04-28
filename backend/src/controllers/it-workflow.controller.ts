@@ -411,7 +411,7 @@ export async function markHardwareOrdered(req: Request, res: Response) {
 export async function markHardwareReceived(req: Request, res: Response) {
   try {
     const id = String(req.params.id);
-    const { receivedDate, notes, assetTag } = req.body;
+    const { receivedDate, notes, assetTag, serialNumber } = req.body;
 
     const request = await prisma.request.findUnique({
       where: { id },
@@ -441,10 +441,10 @@ export async function markHardwareReceived(req: Request, res: Response) {
 
     await prisma.iTHardwareRequest.update({
       where: { id: hardwareReq.id },
-      data: { procurementStatus: 'RECEIVED' },
+      data: { procurementStatus: 'RECEIVED', assetTag: assetTag || null, serialNumber: serialNumber || null },
     });
 
-    const noteMsg = [notes, assetTag ? `Asset tag: ${assetTag}` : null].filter(Boolean).join('. ');
+    const noteMsg = [notes, assetTag ? `Asset tag: ${assetTag}` : null, serialNumber ? `Serial number: ${serialNumber}` : null].filter(Boolean).join('. ');
 
     await prisma.requestActivity.create({
       data: {
@@ -453,7 +453,7 @@ export async function markHardwareReceived(req: Request, res: Response) {
         message: `Hardware received${noteMsg ? ': ' + noteMsg : ''}`,
         authorName: 'System',
         isSystemGenerated: true,
-        metadata: { receivedDate, notes, assetTag },
+        metadata: { receivedDate, notes, assetTag, serialNumber },
       },
     });
 
@@ -467,7 +467,7 @@ export async function markHardwareReceived(req: Request, res: Response) {
     await auditLog(req as any, 'IT_HARDWARE_RECEIVED', 'request', String(id), {
       status: 'HARDWARE_RECEIVED',
       previousStatus: 'HARDWARE_ORDERED',
-      assetTag: assetTag || null,
+      assetTag: assetTag || null, serialNumber: serialNumber || null,
     }, { status: 'HARDWARE_ORDERED' });
     return res.json({ success: true, message: 'Hardware marked as received' });
   } catch (error) {

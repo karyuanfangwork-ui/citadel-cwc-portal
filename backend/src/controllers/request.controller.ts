@@ -38,6 +38,11 @@ class RequestController {
             deletedAt: null,
         };
 
+        // Confidentiality gate: users without request:confidential permission
+        // cannot see confidential requests (unless they are the requester or a designated approver).
+        // ADMIN bypasses this gate entirely.
+        const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
+
         // Users can only see their own requests unless they're agents/admins
         // Exception: CEO can see requests in hiring workflow
         if (!hasRole(req, 'ADMIN', 'AGENT')) {
@@ -85,6 +90,41 @@ class RequestController {
             } else {
                 // Regular users see their own requests + any requests where they are a designated approver (e.g. entity approver for chargeback)
                 where.OR = [
+                    { requesterId: req.user!.id },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            }
+        }
+
+        // Apply confidentiality filter for non-ADMIN users without request:confidential permission.
+        // They can only see confidential requests where they are the requester or a designated approver.
+        if (!canSeeConfidential) {
+            // "where" already has OR conditions for non-ADMIN/AGENT users (or role-specific visibility).
+            // For ADMIN/AGENT without request:confidential, there are no OR conditions yet
+            // (they see everything normally). We need to exclude isConfidential=true
+            // unless the user is the requester or a designated approver.
+            if (where.OR) {
+                // Non-ADMIN/AGENT users already have OR conditions (their own requests, etc.)
+                // Wrap existing OR with confidentiality exclusion.
+                // Each OR branch already limits visibility to their own requests or relevant workflows.
+                // Additional clause: they can still see confidential if they're requester or approver.
+                where.AND = [
+                    ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                    {
+                        OR: [
+                            { isConfidential: false },
+                            { requesterId: req.user!.id },
+                            { approvals: { some: { approverId: req.user!.id } } },
+                        ],
+                    },
+                ];
+                // Remove the top-level OR since it's now first element of AND
+                delete where.OR;
+            } else {
+                // ADMIN/AGENT without request:confidential — they see all non-confidential,
+                // plus confidential requests where they are requester or approver.
+                where.OR = [
+                    { isConfidential: false },
                     { requesterId: req.user!.id },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
@@ -194,6 +234,7 @@ class RequestController {
             description: rawDescription,
             priority,
             customFields,
+            isConfidential,
         } = req.body;
 
         // Sanitize highest-risk text fields before storing
@@ -399,6 +440,7 @@ class RequestController {
                     description: finalDescription,
                     priority,
                     customFields,
+                    isConfidential: isConfidential === true,
                     status: initialStatus as any,
                     slaDueAt,
                 },
@@ -765,6 +807,26 @@ class RequestController {
             throw new AppError('You do not have permission to view this request', 403);
         }
 
+        // Confidentiality gate: non-ADMIN users without request:confidential
+        // cannot view confidential requests unless they are the requester.
+        // (Designated approvers with request:confidential can view; approvers without it cannot.)
+        if (
+            request.isConfidential &&
+            request.requesterId !== req.user!.id &&
+            !hasRole(req, 'ADMIN') &&
+            !(req.user?.permissions?.includes('request:confidential'))
+        ) {
+            throw new AppError('This request is confidential and cannot be viewed', 403);
+        }
+
+        // Audit: log access to confidential requests (only for non-requesters)
+        if (request.isConfidential && request.requesterId !== req.user!.id) {
+            auditLog(req, 'CONFIDENTIAL_VIEW', 'request', request.id, {
+                referenceNumber: request.referenceNumber,
+                summary: request.summary,
+            }).catch(() => {}); // fire-and-forget
+        }
+
         res.json({
             status: 'success',
             data: { request },
@@ -776,7 +838,7 @@ class RequestController {
      */
     updateRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const id = String(req.params.id);
-        const { summary: rawSummary, description: rawDescription, priority } = req.body;
+        const { summary: rawSummary, description: rawDescription, priority, isConfidential } = req.body;
 
         // Sanitize highest-risk text fields
         const summary = rawSummary !== undefined ? sanitizeString(rawSummary) : undefined;
@@ -805,6 +867,7 @@ class RequestController {
                 summary,
                 description,
                 priority,
+                ...(isConfidential !== undefined ? { isConfidential: isConfidential === true } : {}),
             },
         });
 
@@ -1008,6 +1071,19 @@ class RequestController {
 
         if (!attachment) {
             throw new AppError('Attachment not found', 404);
+        }
+
+        // Audit: log attachment download on confidential requests by non-requesters
+        const request = await prisma.request.findUnique({
+            where: { id },
+            select: { isConfidential: true, requesterId: true, referenceNumber: true },
+        });
+        if (request?.isConfidential && request.requesterId !== req.user?.id) {
+            auditLog(req, 'CONFIDENTIAL_ATTACHMENT_DOWNLOAD', 'request', id, {
+                referenceNumber: request.referenceNumber,
+                attachmentId,
+                fileName: attachment.fileName,
+            }).catch(() => {});
         }
 
         // storagePath now stores the S3 object key (e.g. "cwc/uuid-ext")

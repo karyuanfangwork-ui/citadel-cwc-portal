@@ -28,6 +28,7 @@ import workflowRoutes from './workflow.routes';
 import entityRoutes from './entity.routes';
 import escalationRuleRouter from './escalationRule.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
+import auditLogRoutes from './auditLog.routes';
 
 const router = Router();
 
@@ -62,6 +63,7 @@ router.use('/admin/workflow-transitions', workflowTransitionRoutes);
 router.use('/admin/notification-templates', notificationTemplateRoutes);
 router.use('/files', fileRoutes);
 router.use('/admin/entities', entityRoutes);
+router.use('/admin/audit-logs', auditLogRoutes);
 router.use('/sla', escalationRuleRouter);
 
 export default router;

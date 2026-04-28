@@ -144,6 +144,7 @@ async function main() {
         { name: 'request:delete', resource: 'request', action: 'delete', description: 'Delete requests' },
         { name: 'request:approve', resource: 'request', action: 'approve', description: 'Approve requests' },
         { name: 'request:assign', resource: 'request', action: 'assign', description: 'Assign requests to agents' },
+        { name: 'request:confidential', resource: 'request', action: 'confidential', description: 'View confidential requests' },
         { name: 'user:manage', resource: 'user', action: 'manage', description: 'Manage users' },
         { name: 'admin:access', resource: 'admin', action: 'access', description: 'Access admin panel' },
         { name: 'admin:settings', resource: 'admin', action: 'settings', description: 'Modify system settings' },
@@ -187,7 +188,7 @@ async function main() {
     // ADMIN gets everything
     const adminPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
-        'request:approve', 'request:assign',
+        'request:approve', 'request:assign', 'request:confidential',
         'user:manage',
         'admin:access', 'admin:settings',
         'report:read',

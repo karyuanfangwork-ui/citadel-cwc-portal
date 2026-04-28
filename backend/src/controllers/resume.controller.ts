@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { uploadSingleFile } from '../middleware/upload.middleware';
+import { AuthRequest } from '../middleware/auth.middleware';
+import { auditLog } from '../utils/audit';
 
 const prisma = new PrismaClient();
 
@@ -73,9 +75,21 @@ export const uploadResume = async (req: Request, res: Response): Promise<any> =>
  * Get all candidate resumes for a request
  * GET /requests/:id/resumes
  */
-export const getResumes = async (req: Request, res: Response): Promise<any> => {
+export const getResumes = async (req: AuthRequest, res: Response): Promise<any> => {
     try {
         const { id } = req.params as { id: string };
+
+        // Check confidentiality: log access to confidential request resumes
+        const request = await prisma.request.findUnique({
+            where: { id },
+            select: { id: true, isConfidential: true, requesterId: true, referenceNumber: true },
+        });
+        if (request?.isConfidential && request.requesterId !== req.user?.id) {
+            auditLog(req, 'CONFIDENTIAL_RESUME_ACCESS', 'request', request.id, {
+                referenceNumber: request.referenceNumber,
+                action: 'resume_list_view',
+            }).catch(() => {});
+        }
 
         const resumes = await prisma.candidateResume.findMany({
             where: { requestId: id },

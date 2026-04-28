@@ -12,6 +12,8 @@ interface HardwareReceivedModalProps {
 const HardwareReceivedModal: React.FC<HardwareReceivedModalProps> = ({ requestId, onSuccess, onClose }) => {
   const [receivedDate, setReceivedDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [assetTag, setAssetTag] = useState('');
+  const [serialNumber, setSerialNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { handleBackdropClick } = useModalDismiss(onClose);
@@ -21,7 +23,7 @@ const HardwareReceivedModal: React.FC<HardwareReceivedModalProps> = ({ requestId
     try {
       setSubmitting(true);
       setError(null);
-      await itWorkflowService.markHardwareReceived(requestId, { receivedDate, notes: notes || undefined });
+      await itWorkflowService.markHardwareReceived(requestId, { receivedDate, notes: notes || undefined, assetTag: assetTag || undefined, serialNumber: serialNumber || undefined });
       onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to mark hardware as received');
@@ -56,6 +58,32 @@ const HardwareReceivedModal: React.FC<HardwareReceivedModalProps> = ({ requestId
                 required
                 className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teal-400"
               />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Asset Tag <span className="font-normal normal-case text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={assetTag}
+                  onChange={e => setAssetTag(e.target.value)}
+                  placeholder="e.g. IT-00234"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teal-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                  Serial Number <span className="font-normal normal-case text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={serialNumber}
+                  onChange={e => setSerialNumber(e.target.value)}
+                  placeholder="e.g. SN-XZ1234"
+                  className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teal-400"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">

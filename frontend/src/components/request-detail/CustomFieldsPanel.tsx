@@ -37,6 +37,8 @@ const IT_FIELD_LABELS: Record<string, string> = {
   preferredVendor: 'Preferred Vendor',
   productUrl: 'Product URL',
   businessJustification: 'Business Justification',
+  serialNumber: 'Serial Number',
+  assetTag: 'Asset Tag',
   payment: 'Payment',
   // legacy keys — keep for backward compat until backfill runs
   hardwareType: 'Hardware Type',

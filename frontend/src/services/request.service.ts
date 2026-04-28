@@ -18,6 +18,7 @@ interface CreateRequestData {
     description?: string;
     priority?: RequestPriority;
     customFields?: Record<string, any>;
+    isConfidential?: boolean;
 }
 
 export const requestService = {

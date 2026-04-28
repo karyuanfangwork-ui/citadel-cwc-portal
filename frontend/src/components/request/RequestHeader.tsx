@@ -39,6 +39,7 @@ interface RequestHeaderProps {
     status: string;
     createdAt: string;
     updatedAt: string;
+    isConfidential?: boolean;
     assignedTo?: { firstName: string; lastName: string } | null;
     requesterId: string;
     serviceDesk?: { code: string };
@@ -405,6 +406,12 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         </Link>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
         <span className="text-[#101418] font-bold">{request.referenceNumber}</span>
+        {request.isConfidential && (
+          <span className="inline-flex items-center gap-1 ml-2 px-2 py-0.5 bg-red-50 border border-red-200 text-red-700 text-[10px] font-bold uppercase tracking-widest rounded">
+            <span className="material-symbols-outlined text-[12px]">lock</span>
+            Confidential
+          </span>
+        )}
       </nav>
 
       {/* Status Progress */}

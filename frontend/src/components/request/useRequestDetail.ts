@@ -85,6 +85,7 @@ export interface Request {
     id: string;
     title: string;
     status: string;
+    isConfidential?: boolean;
     category: { name: string; icon: string };
     service: { name: string };
     assignedTo?: { id: string; firstName: string; lastName: string };

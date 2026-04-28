@@ -21,7 +21,7 @@ const itWorkflowService = {
     const response = await api.post(`/it-workflow/requests/${requestId}/mark-hardware-ordered`, data);
     return response.data;
   },
-  async markHardwareReceived(requestId: string, data: { receivedDate?: string; notes?: string }) {
+  async markHardwareReceived(requestId: string, data: { receivedDate?: string; notes?: string; assetTag?: string; serialNumber?: string }) {
     const response = await api.post(`/it-workflow/requests/${requestId}/mark-hardware-received`, data);
     return response.data;
   },

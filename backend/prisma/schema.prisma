@@ -566,6 +566,8 @@ model ITHardwareRequest {
   procurementStatus       String?   @map("procurement_status") @db.VarChar(50)
   orderNumber             String?   @map("order_number") @db.VarChar(100)
   trackingNumber          String?   @map("tracking_number") @db.VarChar(100)
+  serialNumber            String?   @map("serial_number") @db.VarChar(100)
+  assetTag                String?   @map("asset_tag") @db.VarChar(100)
   
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)

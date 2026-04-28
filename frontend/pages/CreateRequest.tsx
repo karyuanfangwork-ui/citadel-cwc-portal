@@ -23,6 +23,7 @@ const CreateRequest = () => {
         summary: '',
         description: '',
         urgency: 'MEDIUM',
+        isConfidential: false,
         customFields: {}
     });
 
@@ -140,7 +141,8 @@ const CreateRequest = () => {
                 summary: formData.summary,
                 description: formData.description,
                 priority: formData.urgency as any,
-                customFields: formData.customFields
+                customFields: formData.customFields,
+                isConfidential: formData.isConfidential
             });
 
             navigate(`/request/${request.id}`);
@@ -486,6 +488,30 @@ const CreateRequest = () => {
                                                 </select>
                                                 <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
                                             </div>
+                                        </div>
+                                    )}
+
+                                    {/* Confidentiality Toggle — HR & Finance */}
+                                    {(deskType === 'hr' || deskType === 'finance') && (
+                                        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                                            <label className="flex items-center gap-3 cursor-pointer select-none">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.isConfidential}
+                                                    onChange={e => setFormData({ ...formData, isConfidential: e.target.checked })}
+                                                    disabled={submitting}
+                                                    className="w-5 h-5 rounded border-amber-400 text-amber-600 focus:ring-amber-500/30 accent-amber-600 cursor-pointer"
+                                                />
+                                                <div>
+                                                    <div className="flex items-center gap-1.5 text-sm font-bold text-amber-800">
+                                                        <span className="material-symbols-outlined text-[16px]">lock</span>
+                                                        Mark as Confidential
+                                                    </div>
+                                                    <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                                                        Only you, designated approvers, and authorized personnel will see this request. Other agents will not have access.
+                                                    </p>
+                                                </div>
+                                            </label>
                                         </div>
                                     )}
 

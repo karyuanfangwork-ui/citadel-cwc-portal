@@ -62,6 +62,17 @@ const RequestDetailContainer: React.FC = () => {
                 onMarkLOAIssued={rq.handleMarkLOAIssued}
             />
 
+            {/* Confidentiality Notice */}
+            {request.isConfidential && (
+                <div className="flex items-center gap-3 p-4 mb-6 bg-amber-50 border border-amber-300 rounded-xl">
+                    <span className="material-symbols-outlined text-amber-600 text-xl">lock</span>
+                    <div>
+                        <p className="text-sm font-bold text-amber-800">Confidential Request</p>
+                        <p className="text-xs text-amber-700">This request contains sensitive information. Access is restricted to the requester, designated approvers, and authorized personnel.</p>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col lg:flex-row gap-10">
                 <div className="flex-1 space-y-10">
                     <RequestFormFields request={request} activities={activities} />

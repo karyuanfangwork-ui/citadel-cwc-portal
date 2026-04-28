@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { asyncHandler } from '../middleware/error.middleware';
-import { AuthRequest } from '../middleware/auth.middleware';
+import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 
 const prisma = new PrismaClient();
 
@@ -23,17 +23,41 @@ class SearchController {
         const searchTerm = q as string;
         const limitNum = parseInt(limit as string, 10);
 
+        // Confidentiality gate: exclude confidential requests for unauthorized users
+        const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
+
         // Search across multiple resources
         const [requests, articles, users] = await Promise.all([
-            // Search requests
+            // Search requests — apply confidentiality filter
             prisma.request.findMany({
                 where: {
                     deletedAt: null,
-                    OR: [
-                        { referenceNumber: { contains: searchTerm, mode: 'insensitive' } },
-                        { summary: { contains: searchTerm, mode: 'insensitive' } },
-                        { description: { contains: searchTerm, mode: 'insensitive' } },
-                    ],
+                    ...(canSeeConfidential
+                        ? {
+                            OR: [
+                                { referenceNumber: { contains: searchTerm, mode: 'insensitive' } },
+                                { summary: { contains: searchTerm, mode: 'insensitive' } },
+                                { description: { contains: searchTerm, mode: 'insensitive' } },
+                            ],
+                        }
+                        : {
+                            AND: [
+                                {
+                                    OR: [
+                                        { isConfidential: false },
+                                        { requesterId: req.user!.id },
+                                    ],
+                                },
+                                {
+                                    OR: [
+                                        { referenceNumber: { contains: searchTerm, mode: 'insensitive' } },
+                                        { summary: { contains: searchTerm, mode: 'insensitive' } },
+                                        { description: { contains: searchTerm, mode: 'insensitive' } },
+                                    ],
+                                },
+                            ],
+                        }
+                    ),
                 },
                 take: limitNum,
                 include: {
@@ -92,16 +116,36 @@ class SearchController {
         const limitNum = parseInt(limit as string, 10);
         const skip = (pageNum - 1) * limitNum;
 
+        // Confidentiality gate: exclude confidential requests for unauthorized users
+        const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
+
         const where: any = {
             deletedAt: null,
         };
 
-        if (q) {
+        if (!canSeeConfidential) {
             where.OR = [
+                { isConfidential: false },
+                { requesterId: req.user!.id },
+            ];
+        }
+
+        if (q) {
+            const searchConditions = [
                 { referenceNumber: { contains: q as string, mode: 'insensitive' } },
                 { summary: { contains: q as string, mode: 'insensitive' } },
                 { description: { contains: q as string, mode: 'insensitive' } },
             ];
+            // If confidentiality filter already set OR, wrap both with AND
+            if (where.OR) {
+                where.AND = [
+                    { OR: where.OR },
+                    { OR: searchConditions },
+                ];
+                delete where.OR;
+            } else {
+                where.OR = searchConditions;
+            }
         }
 
         const [requests, total] = await Promise.all([

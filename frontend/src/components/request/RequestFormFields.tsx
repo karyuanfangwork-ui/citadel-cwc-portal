@@ -21,6 +21,7 @@ interface RequestFormFieldsProps {
     customFields?: Record<string, any>;
     serviceDesk?: { code: string };
     requestType?: { formConfig?: any[] };
+    itHardwareRequest?: { serialNumber?: string | null; assetTag?: string | null } | null;
   };
   activities: Activity[];
 }
@@ -58,7 +59,11 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({ request, activiti
 
         {/* Structured Custom Fields */}
         <CustomFieldsPanel
-          customFields={request.customFields}
+          customFields={{
+            ...request.customFields,
+            ...(request.itHardwareRequest?.assetTag ? { assetTag: request.itHardwareRequest.assetTag } : {}),
+            ...(request.itHardwareRequest?.serialNumber ? { serialNumber: request.itHardwareRequest.serialNumber } : {}),
+          }}
           serviceDeskCode={request.serviceDesk?.code || ''}
           formConfig={request.requestType?.formConfig}
         />

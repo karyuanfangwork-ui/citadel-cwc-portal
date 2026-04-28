@@ -12,6 +12,7 @@ interface Request {
   priority: string;
   createdAt: string;
   updatedAt: string;
+  isConfidential?: boolean;
   serviceDesk?: {
     id: string;
     name: string;
@@ -300,7 +301,12 @@ const MyRequests = () => {
                               </span>
                             </td>
                             <td className="px-6 py-4 font-mono font-bold text-[#0052cc]">
-                              {req.referenceNumber}
+                              <span className="flex items-center gap-1">
+                                {req.isConfidential && (
+                                  <span className="material-symbols-outlined text-[14px] text-red-500" title="Confidential">lock</span>
+                                )}
+                                {req.referenceNumber}
+                              </span>
                             </td>
                             <td className="px-6 py-4 font-semibold">{req.summary}</td>
                             <td className="px-6 py-4 text-[#44546f]">
