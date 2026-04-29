@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG } from '../constants';
 import { useAuth } from '../src/context/AuthContext';
+import { friendlyMessage } from '../src/utils/errorMessages';
 
 interface Request {
   id: string;
@@ -35,6 +37,17 @@ const PENDING_APPROVAL_STATUSES: Record<string, string[]> = {
   FINANCE_HEAD: ['PENDING_FINANCE_HEAD_APPROVAL'],
 };
 
+// Statuses that represent a terminal/closed state — used for server-side "open" filtering
+const RESOLVED_STATUSES = [
+  'RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED',
+  'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED',
+  'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT',
+  'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED',
+  'LOA_ACCEPTED', 'COMPLETED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN',
+  'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED',
+  'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED',
+];
+
 const MyRequests = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -60,50 +73,40 @@ const MyRequests = () => {
       setLoading(true);
       setError(null);
 
-      const filters: any = {
+      const apiFilters: any = {
         page,
         limit,
+        requesterId: user?.id,
       };
 
       if (searchTerm) {
-        filters.search = searchTerm;
+        apiFilters.search = searchTerm;
       }
 
       if (selectedRequestTypeId) {
-        filters.requestTypeId = selectedRequestTypeId;
+        apiFilters.requestTypeId = selectedRequestTypeId;
       }
 
-      // "My Requests" always shows requests created by the current user.
-      // Agents/Admins manage the full queue in Agent Dashboard — not here.
-      if (filter === 'open' || filter === 'all') {
-        filters.requesterId = user?.id;
-      }
-
-      if (filter === 'pending_approval' && approvalRole) {
-        const statuses = PENDING_APPROVAL_STATUSES[approvalRole];
-        filters.status = statuses.join(',');
-      }
-
-      const data = await requestService.getAllRequests(filters);
-
-      let filteredRequests = data.requests || [];
-
-      // Client-side filtering for open requests
+      // Server-side filtering by status
       if (filter === 'open') {
-        const closedStatuses = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'COMPLETED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN', 'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED', 'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED'];
-        filteredRequests = filteredRequests.filter(
-          (r: Request) => !closedStatuses.includes(r.status)
-        );
+        apiFilters.excludedStatuses = RESOLVED_STATUSES.join(',');
+      } else if (filter === 'pending_approval' && approvalRole) {
+        apiFilters.status = PENDING_APPROVAL_STATUSES[approvalRole].join(',');
+        // For pending_approval, the user is an approver — don't restrict to their own requests
+        delete apiFilters.requesterId;
       }
+      // filter === 'all' → no status filter needed
 
-      setRequests(filteredRequests);
+      const data = await requestService.getAllRequests(apiFilters);
+
+      setRequests(data.requests || []);
       setTotal(data.pagination?.total || 0);
       setTotalPages(data.pagination?.totalPages || 1);
 
       // Build unique request type options from results
       const seen = new Set<string>();
       const options: { id: string; name: string }[] = [];
-      filteredRequests.forEach((r: Request) => {
+      (data.requests || []).forEach((r: Request) => {
         if (r.requestType && !seen.has(r.requestType.id)) {
           seen.add(r.requestType.id);
           options.push({ id: r.requestType.id, name: r.requestType.name });
@@ -114,7 +117,7 @@ const MyRequests = () => {
       }
     } catch (err: any) {
       console.error('Error fetching requests:', err);
-      setError(err.message || 'Failed to load requests');
+      setError(friendlyMessage(err, 'Unable to load requests. Please refresh.'));
     } finally {
       setLoading(false);
     }
@@ -149,6 +152,10 @@ const MyRequests = () => {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
+      <Breadcrumbs items={[
+        { label: 'Home', to: '/' },
+        { label: 'My Requests' },
+      ]} />
       <h1 className="text-[#101418] text-3xl font-extrabold tracking-tight mb-8">My Requests</h1>
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -159,6 +166,8 @@ const MyRequests = () => {
                 setFilter('open');
                 setPage(1);
               }}
+              aria-pressed={filter === 'open'}
+              aria-label="Show open requests"
               className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${filter === 'open'
                   ? 'bg-[#0052cc]/10 text-[#0052cc] font-bold border-l-4 border-[#0052cc]'
                   : 'text-[#44546f] hover:bg-gray-100'
@@ -172,6 +181,8 @@ const MyRequests = () => {
                 setFilter('all');
                 setPage(1);
               }}
+              aria-pressed={filter === 'all'}
+              aria-label="Show all requests"
               className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${filter === 'all'
                   ? 'bg-[#0052cc]/10 text-[#0052cc] font-bold border-l-4 border-[#0052cc]'
                   : 'text-[#44546f] hover:bg-gray-100'
@@ -188,6 +199,8 @@ const MyRequests = () => {
                     setFilter('pending_approval');
                     setPage(1);
                   }}
+                  aria-pressed={filter === 'pending_approval'}
+                  aria-label="Show pending my approval"
                   className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${filter === 'pending_approval'
                       ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500'
                       : 'text-[#44546f] hover:bg-gray-100'
@@ -356,6 +369,7 @@ const MyRequests = () => {
                         className="p-1 rounded hover:bg-white disabled:opacity-30 border border-transparent hover:border-gray-200"
                         disabled={page === 1}
                         onClick={() => setPage(page - 1)}
+                        aria-label="Previous page"
                       >
                         <span className="material-symbols-outlined text-lg">chevron_left</span>
                       </button>
@@ -366,6 +380,7 @@ const MyRequests = () => {
                         className="p-1 rounded hover:bg-white disabled:opacity-30 border border-transparent hover:border-gray-200"
                         disabled={page === totalPages}
                         onClick={() => setPage(page + 1)}
+                        aria-label="Next page"
                       >
                         <span className="material-symbols-outlined text-lg">chevron_right</span>
                       </button>

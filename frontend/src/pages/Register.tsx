@@ -5,9 +5,6 @@ import citadelLogo from '../assets/citadel-logo-mark.svg';
 
 /* ─── Shared brand panel (copy from Login — identical markup) ───── */
 const brandPanelStyle: React.CSSProperties = {
-  width: '420px',
-  flexShrink: 0,
-  minHeight: '100vh',
   background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
   padding: 'var(--space-10) var(--space-8)',
   display: 'flex',
@@ -18,7 +15,7 @@ const brandPanelStyle: React.CSSProperties = {
 };
 
 const BrandPanel = () => (
-  <div style={brandPanelStyle}>
+  <div style={brandPanelStyle} className="w-full md:w-[420px] flex-shrink-0 min-h-[280px] md:min-h-screen">
     <div style={{
       position: 'absolute', top: '-60px', right: '-60px',
       width: '200px', height: '200px', borderRadius: '50%',
@@ -206,18 +203,13 @@ const Register = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex' }}>
+    <div className="flex flex-col md:flex-row min-h-screen">
       <BrandPanel />
 
       {/* Form panel — align-items flex-start so long form starts near top */}
-      <div style={{
-        flex: 1,
+      <div className="flex-1 flex md:items-start justify-center p-6 md:p-10 md:px-12" style={{
         background: 'var(--color-surface)',
         overflowY: 'auto',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        padding: 'var(--space-10) var(--space-12)',
       }}>
         <div style={{ width: '100%', maxWidth: '380px' }}>
 
@@ -255,7 +247,7 @@ const Register = () => {
             )}
 
             {/* Row 1: First + Last Name */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 'var(--space-3)' }}>
               <FormInput id="firstName" name="firstName" type="text" label="First Name" required value={formData.firstName} onChange={handleChange} />
               <FormInput id="lastName"  name="lastName"  type="text" label="Last Name"  required value={formData.lastName}  onChange={handleChange} />
             </div>
@@ -283,7 +275,7 @@ const Register = () => {
             <div style={{ borderTop: '1px solid var(--color-border)', margin: 'var(--space-2) 0 var(--space-5)' }} />
 
             {/* Row 5: Department + Job Title (optional) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 'var(--space-3)' }}>
               <FormInput
                 id="department" name="department" type="text"
                 label="Department"

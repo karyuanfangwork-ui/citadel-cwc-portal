@@ -5,9 +5,6 @@ import { useAuth } from '../context/AuthContext';
 
 /* ─── Shared brand panel ────────────────────────────────────────── */
 const brandPanelStyle: React.CSSProperties = {
-  width: '420px',
-  flexShrink: 0,
-  minHeight: '100vh',
   /* Citadel navy gradient matching brand identity */
   background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
   padding: 'var(--space-10) var(--space-8)',
@@ -25,7 +22,7 @@ const BrandPanel = ({
   headline: React.ReactNode;
   descriptor: string;
 }) => (
-  <div style={brandPanelStyle}>
+  <div style={brandPanelStyle} className="w-full md:w-[420px] flex-shrink-0 min-h-[280px] md:min-h-screen">
     {/* Decorative circles */}
     <div style={{
       position: 'absolute', top: '-60px', right: '-60px',
@@ -214,21 +211,16 @@ const Login = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex' }}>
+    <div className="flex flex-col md:flex-row min-h-screen">
       <BrandPanel
         headline={<>Support that moves<br /><span style={{ color: '#5BBFE8', fontWeight: 700 }}>at your speed.</span></>}
         descriptor="Submit IT, HR, and Finance requests. Track approvals. Get resolutions faster."
       />
 
       {/* Form panel */}
-      <div style={{
-        flex: 1,
+      <div className="flex-1 flex items-center justify-center p-6 md:p-12" style={{
         background: 'var(--color-surface)',
         overflowY: 'auto',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--space-12)',
       }}>
         <div style={{ width: '100%', maxWidth: '380px' }}>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../src/context/AuthContext';
+import Breadcrumbs from '../src/components/Breadcrumbs';
 import FormBuilder from '../src/components/FormBuilder';
 import CreateUserModal from '../src/components/admin/CreateUserModal';
 import UserEditModal from '../src/components/admin/UserEditModal';
@@ -56,6 +57,11 @@ const AdminSettings = () => {
 
     return (
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8">
+            {/* Breadcrumbs */}
+            <Breadcrumbs items={[
+                { label: 'Home', to: '/' },
+                { label: 'Admin Console' },
+            ]} />
             {/* Page header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-black text-[#101418] tracking-tight">Admin Console</h1>

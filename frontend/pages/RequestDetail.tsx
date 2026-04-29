@@ -11,6 +11,7 @@ import RequestFormFields from '../src/components/request/RequestFormFields';
 import HiringWorkflowPanel from '../src/components/request/HiringWorkflowPanel';
 import ApprovalActions from '../src/components/request/ApprovalActions';
 import { EntityApprovalsPanel } from '../src/components/EntityApprovalsPanel';
+import Breadcrumbs from '../src/components/Breadcrumbs';
 import ResolutionModal from '../src/components/request/modals/ResolutionModal';
 import RejectionModal from '../src/components/request/modals/RejectionModal';
 import CompleteOnboardingModal from '../src/components/request/modals/CompleteOnboardingModal';
@@ -50,6 +51,11 @@ const RequestDetailContainer: React.FC = () => {
 
     return (
         <div className="max-w-[1440px] mx-auto px-6 py-8">
+            <Breadcrumbs items={[
+                { label: 'Home', to: '/' },
+                { label: 'My Requests', to: '/my-requests' },
+                { label: request.referenceNumber },
+            ]} />
             <RequestHeader
                 request={request}
                 activities={activities}

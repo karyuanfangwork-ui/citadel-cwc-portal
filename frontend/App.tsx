@@ -103,7 +103,7 @@ const Header = () => {
             </form>
             <div className="flex gap-2">
               <NotificationDropdown />
-              <button className="hidden sm:flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors">
+              <button aria-label="Help" className="hidden sm:flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors">
                 <span className="material-symbols-outlined">help</span>
               </button>
             </div>
@@ -126,7 +126,7 @@ const Header = () => {
             <button
               className="md:hidden flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors"
               onClick={() => setMobileMenuOpen(o => !o)}
-              aria-label="Toggle menu"
+              aria-label="Open navigation menu"
             >
               <span className="material-symbols-outlined">{mobileMenuOpen ? 'close' : 'menu'}</span>
             </button>
@@ -223,7 +223,7 @@ const NotificationToast = () => {
         <p className="text-sm font-semibold text-[#101418] line-clamp-1">{toast.subject}</p>
         <p className="text-xs text-[#44546f] line-clamp-2 mt-0.5">{toast.body}</p>
       </div>
-      <button onClick={dismissToast} className="text-[#44546f] hover:text-[#101418] flex-shrink-0">
+      <button onClick={dismissToast} aria-label="Close notification" className="text-[#44546f] hover:text-[#101418] flex-shrink-0">
         <span className="material-symbols-outlined text-base">close</span>
       </button>
     </div>
@@ -238,8 +238,14 @@ const AppShell = () => {
   return (
     <NotificationProvider userId={user?.id ?? null}>
       <div className="flex flex-col min-h-screen">
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[999] focus:bg-brand-700 focus:text-white focus:px-4 focus:py-2 focus:rounded-cwc-md focus:text-sm focus:font-bold"
+        >
+          Skip to main content
+        </a>
         <Header />
-        <main className="flex-grow">
+        <main id="main-content" className="flex-grow">
           <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />

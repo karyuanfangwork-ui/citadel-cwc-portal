@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { useAuth } from '../src/context/AuthContext';
 import apiClient from '../src/services/api';
 import { entityService } from '../src/services/entity.service';
+import { friendlyMessage } from '../src/utils/errorMessages';
 
 const CreateRequest = () => {
     const { deskId, categoryId, deskType } = useParams<{ deskId: string; categoryId: string; deskType: string }>();
@@ -83,7 +85,7 @@ const CreateRequest = () => {
             }
         } catch (err: any) {
             console.error('Error fetching request data:', err);
-            setError('Failed to initialize request form.');
+            setError(friendlyMessage(err, 'Unable to load request form. Please try again.'));
         } finally {
             setLoading(false);
         }
@@ -148,7 +150,7 @@ const CreateRequest = () => {
             navigate(`/request/${request.id}`);
         } catch (err: any) {
             console.error('Error creating request:', err);
-            setError(err.response?.data?.message || 'Failed to create request. Please try again.');
+            setError(friendlyMessage(err, 'Failed to create request. Please try again.'));
         } finally {
             setSubmitting(false);
         }
@@ -333,13 +335,12 @@ const CreateRequest = () => {
     return (
         <div className="max-w-[1240px] mx-auto px-6 py-12">
             {/* Breadcrumbs */}
-            <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#44546f]">
-                <Link to="/" className="hover:text-[#0052cc]">CWC</Link>
-                <span className="material-symbols-outlined text-sm">chevron_right</span>
-                <Link to={`/${deskType}`} className="hover:text-[#0052cc]">{getDeskName()}</Link>
-                <span className="material-symbols-outlined text-sm">chevron_right</span>
-                <span className="text-[#101418] font-bold">{category?.name || 'Get help'}</span>
-            </nav>
+            <Breadcrumbs items={[
+                { label: 'Home', to: '/' },
+                { label: getDeskName(), to: `/${deskType}` },
+                { label: category?.name || 'Category' },
+                { label: 'New Request' },
+            ]} />
 
             {/* Header */}
             <div className="mb-10">

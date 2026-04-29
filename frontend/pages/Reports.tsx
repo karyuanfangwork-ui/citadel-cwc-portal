@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Breadcrumbs from '../src/components/Breadcrumbs';
 import reportsService, {
   ReportSummary,
   StatusCount,
@@ -57,6 +58,11 @@ export default function Reports() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8 space-y-8">
+      {/* Breadcrumbs */}
+      <Breadcrumbs items={[
+        { label: 'Home', to: '/' },
+        { label: 'Reports' },
+      ]} />
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>

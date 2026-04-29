@@ -22,6 +22,7 @@ class RequestController {
             page = '1',
             limit = '10',
             status,
+            excludedStatuses,
             serviceDeskId,
             assignedToId,
             priority,
@@ -138,6 +139,23 @@ class RequestController {
             where.status = statusValues.length === 1
                 ? statusValues[0]
                 : { in: statusValues };
+        }
+
+        if (excludedStatuses) {
+            // Support comma-separated excluded status values to filter out specific statuses
+            const excludedValues = (excludedStatuses as string).split(',');
+            if (where.status) {
+                // If both status and excludedStatuses are provided, combine with AND
+                const existingStatus = where.status;
+                delete where.status;
+                where.AND = [
+                    ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                    { status: existingStatus },
+                    { status: { notIn: excludedValues } },
+                ];
+            } else {
+                where.status = { notIn: excludedValues };
+            }
         }
 
         if (serviceDeskId) {

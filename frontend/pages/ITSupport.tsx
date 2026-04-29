@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
+import SkeletonCategoryCard from '../src/components/SkeletonCategoryCard';
+import { friendlyMessage } from '../src/utils/errorMessages';
 
 interface ServiceDesk {
   id: string;
@@ -45,7 +47,7 @@ const ITSupport = () => {
       }
     } catch (err: any) {
       console.error('Error fetching service desk:', err);
-      setError(err.message || 'Failed to load service desk');
+      setError(friendlyMessage(err, 'Unable to load IT Support categories. Please refresh or contact IT.'));
     } finally {
       setLoading(false);
     }
@@ -67,8 +69,10 @@ const ITSupport = () => {
   if (loading) {
     return (
       <div className="max-w-[1440px] mx-auto px-6 py-8">
-        <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0052cc]"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCategoryCard key={i} />
+          ))}
         </div>
       </div>
     );

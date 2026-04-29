@@ -5,6 +5,7 @@ import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG } from '../constants';
 import { RequestStatus } from '../types';
+import { friendlyMessage } from '../src/utils/errorMessages';
 
 interface ServiceDesk {
   id: string;
@@ -101,7 +102,7 @@ const Dashboard = () => {
         const requests: Request[] = requestsData.requests || [];
         setAllRequests(requests);
       } catch (err: any) {
-        setError(err.message || 'Failed to load dashboard data');
+        setError(friendlyMessage(err, 'Unable to load your dashboard. Please refresh the page.'));
       } finally {
         setLoading(false);
       }
@@ -124,39 +125,23 @@ const Dashboard = () => {
     <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
 
       {/* ── HERO ── */}
-      <section style={{
-        background: 'linear-gradient(135deg, var(--color-brand-900) 0%, var(--color-brand-700) 60%, var(--color-brand-500) 100%)',
-        borderRadius: 'var(--radius-xl)',
-        padding: 'var(--space-6) var(--space-6)',
-        position: 'relative',
-        overflow: 'hidden',
-        marginBottom: 'var(--space-6)',
-      }}>
+      <section className="bg-gradient-to-br from-brand-900 via-brand-700 to-[#2a4a7f] rounded-xl py-12 px-4 sm:px-8 relative overflow-hidden mb-6">
         {/* decorative circles */}
         <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
 
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>
+        <div className="relative z-10">
+          <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">
             {formatDate()}
           </div>
-          <h1 style={{ fontSize: 'clamp(1.5rem, 5vw, var(--text-4xl))', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: 'var(--space-6)' }}>
+          <h1 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-6">
             {greeting}{' '}
-            <span style={{ color: 'rgba(255,255,255,0.65)', fontWeight: 400 }}>How can<br />we help you today?</span>
+            <span className="text-white/65 font-normal">How can<br />we help you today?</span>
           </h1>
 
           {/* Search */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-            background: 'rgba(255,255,255,0.12)',
-            backdropFilter: 'blur(8px)',
-            border: '1.5px solid rgba(255,255,255,0.2)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 'var(--space-3) var(--space-4)',
-            maxWidth: 560,
-            transition: 'border-color 0.2s',
-          }}>
-            <span className="material-symbols-outlined" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 20 }}>search</span>
+          <div className="flex items-center gap-3 bg-white/12 backdrop-blur-sm border border-white/20 rounded-lg py-3 px-4 max-w-[560px] transition-colors duration-200">
+            <span className="material-symbols-outlined text-white/50 text-xl">search</span>
             <input
               type="text"
               placeholder="Search for hardware, leave requests, expenses..."
@@ -167,28 +152,16 @@ const Dashboard = () => {
               onFocus={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.5)'; }}
               onBlur={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.2)'; }}
             />
-            <button style={{
-              background: '#fff', color: 'var(--color-brand-700)',
-              border: 'none', borderRadius: 'var(--radius-md)',
-              padding: 'var(--space-2) var(--space-5)',
-              fontSize: 'var(--text-sm)', fontWeight: 800,
-              cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
-            }}>
+            <button className="bg-white text-brand-700 border-none rounded-cwc-md py-2 px-5 text-sm font-extrabold cursor-pointer font-sans whitespace-nowrap">
               Search
             </button>
           </div>
 
           {/* Quick tags */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginTop: 'var(--space-4)', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.45)' }}>Common:</span>
+          <div className="flex items-center gap-4 mt-4 flex-wrap">
+            <span className="text-xs text-white/45">Common:</span>
             {['VPN Setup', 'Reset Password', 'Payroll Calendar', 'Annual Leave'].map(tag => (
-              <span key={tag} style={{
-                fontSize: 'var(--text-xs)', fontWeight: 700,
-                color: 'rgba(255,255,255,0.75)',
-                background: 'rgba(255,255,255,0.1)',
-                borderRadius: 'var(--radius-full)',
-                padding: '3px 10px', cursor: 'pointer',
-              }}>{tag}</span>
+              <span key={tag} className="text-xs font-bold text-white/75 bg-white/10 rounded-full py-[3px] px-2.5 cursor-pointer">{tag}</span>
             ))}
           </div>
         </div>
@@ -214,25 +187,16 @@ const Dashboard = () => {
             { label: 'Action Required',  value: stats.actionRequired, iconBg: 'var(--color-fin-50)', numColor: 'var(--color-warning)',    icon: 'warning' },
             { label: 'Resolved All Time',value: stats.resolved,       iconBg: 'var(--color-hr-50)',  numColor: 'var(--color-success)',    icon: 'task_alt' },
           ].map(stat => (
-            <div key={stat.label} style={{
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 'var(--space-5) var(--space-6)',
-              display: 'flex', alignItems: 'center', gap: 'var(--space-4)',
-              boxShadow: 'var(--shadow-sm)',
-              transition: 'box-shadow 0.2s, transform 0.2s',
-              cursor: 'default',
-            }}
+            <div key={stat.label} className="bg-surface border border-border rounded-cwc-lg p-5 px-6 flex items-center gap-4 shadow-cwc-sm transition-shadow duration-200 cursor-default"
               onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-md)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-sm)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
             >
-              <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 22, color: stat.numColor }}>{stat.icon}</span>
+              <div className="w-11 h-11 rounded-cwc-md flex items-center justify-center shrink-0" style={{ background: stat.iconBg }}>
+                <span className="material-symbols-outlined text-[22px]" style={{ color: stat.numColor }}>{stat.icon}</span>
               </div>
               <div>
-                <div style={{ fontSize: 'var(--text-3xl)', fontWeight: 900, lineHeight: 1, color: stat.numColor }}>{stat.value}</div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600, marginTop: 2 }}>{stat.label}</div>
+                <div className="text-3xl font-black leading-none" style={{ color: stat.numColor }}>{stat.value}</div>
+                <div className="text-xs font-semibold mt-0.5 text-text-secondary">{stat.label}</div>
               </div>
             </div>
           ))}

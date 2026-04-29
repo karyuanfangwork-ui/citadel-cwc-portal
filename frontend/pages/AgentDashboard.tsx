@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import { STATUS_CONFIG } from '../constants';
+import Breadcrumbs from '../src/components/Breadcrumbs';
 import reportsService, { ReportSummary, SlaStatus } from '../src/services/reports.service';
 import api from '../src/services/api';
 import SkeletonRow from '../src/components/SkeletonRow';
@@ -181,6 +182,10 @@ export default function AgentDashboard() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
+      <Breadcrumbs items={[
+        { label: 'Home', to: '/' },
+        { label: 'Agent Dashboard' },
+      ]} />
       {/* Header */}
       <div className="mb-6 flex items-start justify-between">
         <div>

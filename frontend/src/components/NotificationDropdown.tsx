@@ -105,6 +105,7 @@ export default function NotificationDropdown() {
       {/* Bell button */}
       <button
         onClick={handleToggle}
+        aria-label="Notifications"
         className="relative flex items-center justify-center h-10 w-10 rounded-full bg-[#e8edf2] hover:bg-[#d0d8e2] transition-colors"
       >
         <span className="material-symbols-outlined text-[#0e141b] text-xl">notifications</span>

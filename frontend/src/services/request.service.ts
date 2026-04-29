@@ -5,6 +5,7 @@ interface RequestFilters {
     page?: number;
     limit?: number;
     status?: string;  // Single status or comma-separated for multiple
+    excludedStatuses?: string;  // Comma-separated statuses to exclude
     serviceDeskId?: string;
     requesterId?: string;
     search?: string;
@@ -27,6 +28,7 @@ export const requestService = {
         if (filters.page) params.append('page', filters.page.toString());
         if (filters.limit) params.append('limit', filters.limit.toString());
         if (filters.status) params.append('status', filters.status);
+        if (filters.excludedStatuses) params.append('excludedStatuses', filters.excludedStatuses);
         if (filters.serviceDeskId) params.append('serviceDeskId', filters.serviceDeskId);
         if (filters.requesterId) params.append('requesterId', filters.requesterId);
         if (filters.search) params.append('search', filters.search);
