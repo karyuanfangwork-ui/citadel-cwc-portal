@@ -79,8 +79,8 @@ const RequestDetailContainer: React.FC = () => {
                 </div>
             )}
 
-            <div className="flex flex-col lg:flex-row gap-10">
-                <div className="flex-1 space-y-10">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-10">
                     <RequestFormFields request={request} activities={activities} />
 
                     <HiringWorkflowPanel
@@ -130,10 +130,11 @@ const RequestDetailContainer: React.FC = () => {
                             rq.setActivities(prev => [...prev, newActivity]);
                         }}
                         canPostInternal={!!(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN'))}
+                        currentUser={user}
                     />
                 </div>
 
-                <div data-actions-sidebar className="w-80 shrink-0 flex flex-col gap-3 self-start sticky top-6">
+                <div data-actions-sidebar className="lg:col-span-1 flex flex-col gap-3 self-start sticky top-6">
                     <ApprovalActions
                         request={request}
                         interviewDetails={rq.interviewDetails}

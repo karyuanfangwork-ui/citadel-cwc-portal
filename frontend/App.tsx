@@ -7,6 +7,7 @@ import { ToastProvider } from './src/context/ToastContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { hasPermission, hasAnyRole } from './src/utils/permissions';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
 import Login from './src/pages/Login';
 import Register from './src/pages/Register';
@@ -134,11 +135,31 @@ const Header = () => {
         </div>
       </header>
 
-      {/* Mobile menu drawer */}
+      {/* Mobile slide-out drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)}>
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="absolute top-16 left-0 right-0 bg-white border-b border-gray-200 shadow-xl" onClick={e => e.stopPropagation()}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div
+            className="absolute top-0 left-0 w-72 h-full bg-white shadow-2xl flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-4 h-16 border-b border-gray-100">
+              <Link to="/" className="flex items-center gap-2 text-[#0052cc]" onClick={() => setMobileMenuOpen(false)}>
+                <div className="bg-[#0052cc] p-1.5 rounded-lg text-white">
+                  <span className="material-symbols-outlined block text-lg">corporate_fare</span>
+                </div>
+                <span className="text-sm font-bold text-[#101418]">CWC</span>
+              </Link>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close menu"
+                className="flex items-center justify-center rounded-lg h-9 w-9 text-[#44546f] hover:bg-gray-100 transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
             {/* Mobile search */}
             <form
               onSubmit={(e) => {
@@ -162,31 +183,33 @@ const Header = () => {
                 />
               </div>
             </form>
-            <nav className="flex flex-col py-2">
+
+            {/* Nav links */}
+            <nav className="flex flex-col py-2 flex-1 overflow-y-auto">
               {navLinks.map(link => (
                 <Link
                   key={link.to}
                   to={link.to}
                   className={`px-4 py-3 text-sm font-semibold transition-colors ${
-                    isActive(link.to) ? 'text-[#0052cc] bg-blue-50' : 'text-[#44546f] hover:bg-gray-50'
+                    isActive(link.to) ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50'
                   }`}
                 >
                   {link.label}
                 </Link>
               ))}
             </nav>
+
+            {/* User section at bottom */}
             {isAuthenticated && user && (
-              <div className="px-4 py-3 border-t border-gray-100 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
-                </div>
+              <div className="px-4 py-4 border-t border-gray-100">
+                <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
+                <p className="text-xs text-gray-500 mb-3">{user.email}</p>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1 rounded-lg px-3 py-2 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors text-sm font-semibold"
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors text-sm font-semibold justify-center"
                 >
                   <span className="material-symbols-outlined text-base">logout</span>
-                  Logout
+                  Sign Out
                 </button>
               </div>
             )}
@@ -290,14 +313,14 @@ const AppShell = () => {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <ToastProvider>
-          <ErrorBoundary>
+      <Sentry.ErrorBoundary fallback={<div>Something went wrong. Please refresh the page.</div>}>
+        <AuthProvider>
+          <ToastProvider>
             <AppShell />
             <ToastContainer />
-          </ErrorBoundary>
-        </ToastProvider>
-      </AuthProvider>
+          </ToastProvider>
+        </AuthProvider>
+      </Sentry.ErrorBoundary>
     </BrowserRouter>
   );
 }

@@ -7,10 +7,12 @@ import { useAuth } from '../src/context/AuthContext';
 import apiClient from '../src/services/api';
 import { entityService } from '../src/services/entity.service';
 import { friendlyMessage } from '../src/utils/errorMessages';
+import { useToast } from '../src/context/ToastContext';
 
 const CreateRequest = () => {
     const { deskId, categoryId, deskType } = useParams<{ deskId: string; categoryId: string; deskType: string }>();
     const navigate = useNavigate();
+    const toast = useToast();
 
     const [requestTypes, setRequestTypes] = useState<any[]>([]);
     const [selectedRequestType, setSelectedRequestType] = useState<any>(null);
@@ -148,6 +150,7 @@ const CreateRequest = () => {
             });
 
             navigate(`/request/${request.id}`);
+            toast.success('Request Created', 'Your request has been submitted successfully.');
         } catch (err: any) {
             console.error('Error creating request:', err);
             setError(friendlyMessage(err, 'Failed to create request. Please try again.'));

@@ -100,7 +100,7 @@ export default function Reports() {
       )}
 
       {/* 2-column grid — 4 panels */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* By Service Desk */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-800 mb-4">By Service Desk</h2>

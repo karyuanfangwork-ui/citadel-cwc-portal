@@ -300,7 +300,8 @@ export default function AgentDashboard() {
       {/* Ticket Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-6 px-6">
+          <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
@@ -318,6 +319,7 @@ export default function AgentDashboard() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : tickets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
             <span className="material-symbols-outlined text-5xl opacity-40">
@@ -337,7 +339,8 @@ export default function AgentDashboard() {
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-6 px-6">
+          <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
@@ -397,6 +400,7 @@ export default function AgentDashboard() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

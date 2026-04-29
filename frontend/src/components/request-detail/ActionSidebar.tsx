@@ -37,6 +37,9 @@ const FinDecisionModal = lazy(() => import('./FinDecisionModal'));
 const MarkPaymentCompleteFinModal = lazy(() => import('./MarkPaymentCompleteFinModal'));
 const CloseTicketFinModal = lazy(() => import('./CloseTicketFinModal'));
 
+import WorkflowActionModal from './WorkflowActionModal';
+import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
+
 type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | null;
 
 interface ActionSidebarProps {
@@ -326,23 +329,34 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
         </div>
       </div>
 
-      {/* Modals */}
-      {openModal === 'APPROVE' && (
+      {/* Modals — config-driven path (Phase 2) */}
+      {openModal && hasWorkflowModalConfig(openModal) && (
+        <WorkflowActionModal
+          open={!!openModal}
+          requestId={requestId}
+          config={WORKFLOW_MODAL_CONFIG[openModal]}
+          onSuccess={handleSuccess}
+          onClose={() => setOpenModal(null)}
+        />
+      )}
+
+      {/* Modals — legacy path (existing per-action modals) */}
+      {openModal === 'APPROVE' && !WORKFLOW_MODAL_CONFIG['APPROVE'] && (
         <Suspense fallback={null}>
           <WorkflowApproveModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
-      {openModal === 'REJECT' && (
+      {openModal === 'REJECT' && !WORKFLOW_MODAL_CONFIG['REJECT'] && (
         <Suspense fallback={null}>
           <WorkflowRejectModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
-      {openModal === 'SUBMIT_FOR_APPROVAL' && (
+      {openModal === 'SUBMIT_FOR_APPROVAL' && !WORKFLOW_MODAL_CONFIG['SUBMIT_FOR_APPROVAL'] && (
         <Suspense fallback={null}>
           <SubmitForApprovalModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
-      {openModal === 'PROCUREMENT' && (
+      {openModal === 'PROCUREMENT' && !WORKFLOW_MODAL_CONFIG['PROCUREMENT'] && (
         <Suspense fallback={null}>
           <ProcurementModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
