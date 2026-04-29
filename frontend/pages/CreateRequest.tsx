@@ -1,356 +1,83 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import React from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
-import { serviceDeskService } from '../src/services/serviceDesk.service';
-import { useAuth } from '../src/context/AuthContext';
-import apiClient from '../src/services/api';
-import { entityService } from '../src/services/entity.service';
-import { friendlyMessage } from '../src/utils/errorMessages';
 import { useToast } from '../src/context/ToastContext';
+import { friendlyMessage } from '../src/utils/errorMessages';
+import { useCreateRequestWizard, WizardStep, KB_ARTICLES } from '../src/components/create-request/useCreateRequestWizard';
+import WizardStepper from '../src/components/create-request/WizardStepper';
+import StepRequestType from '../src/components/create-request/StepRequestType';
+import StepDetails from '../src/components/create-request/StepDetails';
+import StepReview from '../src/components/create-request/StepReview';
+
+const WIZARD_STEPS: { id: WizardStep; label: string; icon: string }[] = [
+  { id: 'type', label: 'Request Type', icon: 'category' },
+  { id: 'details', label: 'Details', icon: 'edit_note' },
+  { id: 'review', label: 'Review & Submit', icon: 'task_alt' },
+];
 
 const CreateRequest = () => {
     const { deskId, categoryId, deskType } = useParams<{ deskId: string; categoryId: string; deskType: string }>();
     const navigate = useNavigate();
     const toast = useToast();
 
-    const [requestTypes, setRequestTypes] = useState<any[]>([]);
-    const [selectedRequestType, setSelectedRequestType] = useState<any>(null);
-    const [category, setCategory] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
-    const [submitting, setSubmitting] = useState(false);
-    const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
-    const [error, setError] = useState<string | null>(null);
-    const [entityOptions, setEntityOptions] = useState<{ code: string; name: string }[]>([]);
+    const wizard = useCreateRequestWizard(deskId!, categoryId!, deskType!);
 
-    const [formData, setFormData] = useState<any>({
-        summary: '',
-        description: '',
-        urgency: 'MEDIUM',
-        isConfidential: false,
-        customFields: {}
-    });
-
-    const { user } = useAuth();
-
-    const isRoleBlocked = !!(
-        selectedRequestType?.requiredRole &&
-        !user?.roles?.includes(selectedRequestType.requiredRole)
-    );
-
-    const URGENCY_OPTIONS = [
-        { value: 'LOW', label: 'Low - General inquiry or minor issue' },
-        { value: 'MEDIUM', label: 'Medium - Significant issue for a single user' },
-        { value: 'HIGH', label: 'High - Significant issue for multiple users' },
-        { value: 'CRITICAL', label: 'Critical - System wide issue or total work stoppage' },
-    ];
-
-    const KB_ARTICLES = [
-        { title: 'How to reset your corporate VPN', excerpt: 'Follow these steps if you\'re unable to establish a secure connection or lost your credentials...' },
-        { title: 'Setting up MFA for the first time', excerpt: 'Multi-factor authentication is required for all internal tools. Learn how to configure your...' },
-        { title: 'Common connection error codes', excerpt: 'A glossary of common error codes (403, 502, etc.) and what they mean for your setup.' },
-    ];
-
-    useEffect(() => {
-        if (deskId && categoryId) {
-            fetchData();
-        }
-    }, [deskId, categoryId]);
-
-    // Fetch entity list once for entity-type dropdown fields
-    useEffect(() => {
-        entityService.listActiveEntities()
-            .then(setEntityOptions)
-            .catch(() => setEntityOptions([]));
-    }, []);
-
-    const fetchData = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-
-            const cats = await serviceDeskService.getCategories(deskId!);
-            const currentCat = cats.find((c: any) => c.id === categoryId);
-            setCategory(currentCat || null);
-
-            const types = await serviceDeskService.getRequestTypes(deskId!, categoryId);
-
-            if (types && types.length > 0) {
-                setRequestTypes(types);
-
-                // Auto-select first type if only one exists
-                if (types.length === 1) {
-                    handleRequestTypeChange(types[0]);
-                }
-            } else {
-                setError('No active request types found for this category.');
-            }
-        } catch (err: any) {
-            console.error('Error fetching request data:', err);
-            setError(friendlyMessage(err, 'Unable to load request form. Please try again.'));
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const getDeskName = () => {
-        switch (deskType) {
-            case 'it': return 'IT Support';
-            case 'hr': return 'HR Services';
-            case 'finance': return 'Group Finance';
-            default: return 'Service Desk';
-        }
-    };
-
-    const handleRequestTypeChange = (type: any) => {
-        setSelectedRequestType(type);
-
-        // Initialize custom fields for the selected type
-        const initialCustom: any = {};
-        if (type.formConfig) {
-            type.formConfig.forEach((field: any) => {
-                initialCustom[field.id] = '';
-            });
-        }
-        setFormData(prev => ({
-            ...prev,
-            customFields: initialCustom,
-            summary: '',
-            description: ''
-        }));
-    };
-
-    const handleCustomFieldChange = (fieldId: string, value: string) => {
-        setFormData({
-            ...formData,
-            customFields: {
-                ...formData.customFields,
-                [fieldId]: value
-            }
-        });
-    };
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!deskId || !selectedRequestType) return;
-        if (isRoleBlocked) return; // safety guard, button is already disabled
+    const handleSubmit = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!deskId || !wizard.selectedRequestType) return;
+        if (wizard.isRoleBlocked) return;
 
         try {
-            setSubmitting(true);
-            setError(null);
+            wizard.setSubmitting(true);
+            wizard.setError(null);
 
             const request = await requestService.createRequest({
                 serviceDeskId: deskId,
-                requestTypeId: selectedRequestType.id,
-                summary: formData.summary,
-                description: formData.description,
-                priority: formData.urgency as any,
-                customFields: formData.customFields,
-                isConfidential: formData.isConfidential
+                requestTypeId: wizard.selectedRequestType.id,
+                summary: wizard.formData.summary,
+                description: wizard.formData.description,
+                priority: wizard.formData.urgency as any,
+                customFields: wizard.formData.customFields,
+                isConfidential: wizard.formData.isConfidential
             });
 
             navigate(`/request/${request.id}`);
             toast.success('Request Created', 'Your request has been submitted successfully.');
         } catch (err: any) {
             console.error('Error creating request:', err);
-            setError(friendlyMessage(err, 'Failed to create request. Please try again.'));
+            wizard.setError(friendlyMessage(err, 'Failed to create request. Please try again.'));
         } finally {
-            setSubmitting(false);
+            wizard.setSubmitting(false);
         }
     };
 
-    const renderDynamicField = (field: any) => {
-        const commonClass = "w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none transition-all placeholder:text-gray-400";
-
-        switch (field.type) {
-            case 'textarea':
-                return (
-                    <textarea
-                        required={field.required}
-                        rows={4}
-                        className={`${commonClass} resize-none`}
-                        placeholder={`Enter ${field.label.toLowerCase()}...`}
-                        value={formData.customFields[field.id] || ''}
-                        onChange={e => handleCustomFieldChange(field.id, e.target.value)}
-                        disabled={submitting}
-                    />
-                );
-            case 'date':
-                return (
-                    <input
-                        required={field.required}
-                        type="date"
-                        className={commonClass}
-                        value={formData.customFields[field.id] || ''}
-                        onChange={e => handleCustomFieldChange(field.id, e.target.value)}
-                        disabled={submitting}
-                    />
-                );
-            case 'number':
-                return (
-                    <input
-                        required={field.required}
-                        type="number"
-                        className={commonClass}
-                        placeholder="0"
-                        value={formData.customFields[field.id] || ''}
-                        onChange={e => handleCustomFieldChange(field.id, e.target.value)}
-                        disabled={submitting}
-                    />
-                );
-            case 'currency':
-                return (
-                    <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                            RM
-                        </span>
-                        <input
-                            required={field.required}
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className={`${commonClass} pl-14`}
-                            placeholder="0.00"
-                            value={formData.customFields[field.id] || ''}
-                            onChange={e => {
-                                handleCustomFieldChange(field.id, e.target.value);
-                            }}
-                            onBlur={e => {
-                                // Ensure 2 decimal places on blur
-                                const value = e.target.value;
-                                if (value && !isNaN(parseFloat(value))) {
-                                    handleCustomFieldChange(field.id, parseFloat(value).toFixed(2));
-                                }
-                            }}
-                            disabled={submitting}
-                        />
-                    </div>
-                );
-            case 'file': {
-                const fieldValue = formData.customFields[field.id];
-                const displayName = fieldValue?.fileName || fieldValue || null;
-                const isUploading = uploadingFields[field.id];
-                return (
-                    <div className="relative">
-                        <input
-                            required={field.required && !fieldValue}
-                            type="file"
-                            accept="image/*,.pdf,.doc,.docx,.txt"
-                            className="hidden"
-                            id={`file-${field.id}`}
-                            onChange={async e => {
-                                const file = e.target.files?.[0];
-                                if (!file) return;
-                                setUploadingFields(prev => ({ ...prev, [field.id]: true }));
-                                try {
-                                    const fd = new FormData();
-                                    fd.append('file', file);
-                                    const res = await apiClient.post('/files/upload', fd, {
-                                        headers: { 'Content-Type': 'multipart/form-data' },
-                                    });
-                                    handleCustomFieldChange(field.id, res.data.data);
-                                } catch {
-                                    setError('File upload failed. Please try again.');
-                                } finally {
-                                    setUploadingFields(prev => ({ ...prev, [field.id]: false }));
-                                }
-                            }}
-                            disabled={submitting || isUploading}
-                        />
-                        <label
-                            htmlFor={`file-${field.id}`}
-                            className="flex items-center justify-center gap-3 w-full px-4 py-6 bg-white border-2 border-dashed border-gray-300 rounded-lg hover:border-[#0052cc] hover:bg-blue-50/30 transition-all cursor-pointer group"
-                        >
-                            <span className="material-symbols-outlined text-3xl text-gray-400 group-hover:text-[#0052cc]">
-                                {isUploading ? 'hourglass_empty' : 'upload_file'}
-                            </span>
-                            <div className="text-left">
-                                <p className="text-sm font-bold text-[#101418] group-hover:text-[#0052cc]">
-                                    {isUploading ? 'Uploading...' : displayName || 'Click to upload or drag and drop'}
-                                </p>
-                                <p className="text-xs text-[#44546f]">PNG, JPG, PDF, DOC (max 10MB)</p>
-                            </div>
-                        </label>
-                    </div>
-                );
-            }
-            case 'select':
-                return (
-                    <div className="relative">
-                        <select
-                            required={field.required}
-                            className={`${commonClass} appearance-none`}
-                            value={formData.customFields[field.id] || ''}
-                            onChange={e => handleCustomFieldChange(field.id, e.target.value)}
-                            disabled={submitting}
-                        >
-                            <option value="" disabled>Select an option...</option>
-                            {field.options?.map((option: string, i: number) => (
-                                <option key={i} value={option}>{option}</option>
-                            ))}
-                        </select>
-                        <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
-                    </div>
-                );
-            case 'entity': {
-                const selected = formData.customFields[field.id] || '';
-                return (
-                    <div className="relative">
-                        <select
-                            required={field.required}
-                            className={`${commonClass} appearance-none`}
-                            value={selected}
-                            onChange={e => handleCustomFieldChange(field.id, e.target.value)}
-                            disabled={submitting}
-                        >
-                            <option value="" disabled>Select an entity...</option>
-                            {entityOptions.map(e => (
-                                <option key={e.code} value={e.code}>{e.name} ({e.code})</option>
-                            ))}
-                        </select>
-                        <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
-                    </div>
-                );
-            }
-            default: // text
-                return (
-                    <input
-                        required={field.required}
-                        type="text"
-                        className={commonClass}
-                        placeholder={`Enter ${field.label.toLowerCase()}...`}
-                        value={formData.customFields[field.id] || ''}
-                        onChange={e => handleCustomFieldChange(field.id, e.target.value)}
-                        disabled={submitting}
-                    />
-                );
-        }
-    };
-
-    if (loading) {
+    if (wizard.loading) {
         return (
             <div className="max-w-[1240px] mx-auto px-6 py-12 flex justify-center items-center h-[60vh]">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0052cc]"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-700"></div>
             </div>
         );
     }
+
+    const isUploading = Object.values(wizard.uploadingFields).some(Boolean);
 
     return (
         <div className="max-w-[1240px] mx-auto px-6 py-12">
             {/* Breadcrumbs */}
             <Breadcrumbs items={[
                 { label: 'Home', to: '/' },
-                { label: getDeskName(), to: `/${deskType}` },
-                { label: category?.name || 'Category' },
+                { label: wizard.getDeskName(), to: `/${deskType}` },
+                { label: wizard.category?.name || 'Category' },
                 { label: 'New Request' },
             ]} />
 
             {/* Header */}
             <div className="mb-10">
-                <h1 className="text-4xl font-bold text-[#101418] mb-2">
-                    {category?.name || 'Get help'}
+                <h1 className="text-4xl font-bold text-text-primary mb-2">
+                    {wizard.category?.name || 'Get help'}
                 </h1>
-                <p className="text-[#44546f] text-lg">
+                <p className="text-text-secondary text-lg">
                     Tell us what you need help with and we'll get back to you as soon as possible.
                 </p>
             </div>
@@ -358,186 +85,94 @@ const CreateRequest = () => {
             <div className="flex flex-col lg:flex-row gap-10">
                 {/* Main Form Area */}
                 <div className="flex-grow lg:max-w-[800px]">
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden border-t-4 border-t-[#0052cc]/10">
-                        <form onSubmit={handleSubmit} className="p-8 space-y-8">
-                            {error && (
-                                <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm font-medium">
-                                    {error}
-                                </div>
+                    <div className="bg-white rounded-cwc-xl border border-cwc-border shadow-cwc-sm overflow-hidden border-t-4 border-t-brand-700/10">
+                        {/* Wizard Stepper */}
+                        <div className="px-8 pt-8">
+                            <WizardStepper steps={WIZARD_STEPS} currentStep={wizard.step} />
+                        </div>
+
+                        <form onSubmit={handleSubmit} className="px-8 pb-8 space-y-8">
+                            {/* Step Content */}
+                            {wizard.step === 'type' && (
+                                <StepRequestType
+                                    requestTypes={wizard.requestTypes}
+                                    selectedRequestType={wizard.selectedRequestType}
+                                    onSelectType={wizard.setSelectedRequestType}
+                                    loading={false}
+                                    error={wizard.error}
+                                />
                             )}
 
-                            {/* Request Type Selector - Only show if multiple types exist */}
-                            {requestTypes.length > 1 && (
-                                <div className="pb-6 border-b border-gray-100">
-                                    <label className="block text-sm font-bold text-[#101418] mb-3">
-                                        Select Request Type <span className="text-red-500">*</span>
-                                    </label>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {requestTypes.map((type) => (
-                                            <button
-                                                key={type.id}
-                                                type="button"
-                                                onClick={() => handleRequestTypeChange(type)}
-                                                className={`p-5 rounded-xl border-2 text-left transition-all ${selectedRequestType?.id === type.id
-                                                    ? 'border-[#0052cc] bg-blue-50/50 shadow-md'
-                                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                                    }`}
-                                            >
-                                                <div className="flex items-start gap-3">
-                                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${selectedRequestType?.id === type.id
-                                                        ? 'bg-[#0052cc] text-white'
-                                                        : 'bg-gray-100 text-gray-500'
-                                                        }`}>
-                                                        <span className="material-symbols-outlined text-xl">{type.icon || 'mail'}</span>
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <h3 className="font-bold text-[#101418] mb-1">{type.name}</h3>
-                                                        <p className="text-xs text-[#44546f] leading-relaxed">{type.description}</p>
-                                                    </div>
-                                                    {selectedRequestType?.id === type.id && (
-                                                        <span className="material-symbols-outlined text-[#0052cc]">check_circle</span>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                    {!selectedRequestType && (
-                                        <p className="mt-3 text-sm text-amber-600 bg-amber-50 border border-amber-100 rounded-lg p-3">
-                                            ⚠️ Please select a request type to continue
-                                        </p>
-                                    )}
-                                </div>
+                            {wizard.step === 'details' && (
+                                <StepDetails
+                                    formData={wizard.formData}
+                                    setFormData={wizard.setFormData}
+                                    selectedRequestType={wizard.selectedRequestType}
+                                    entityOptions={wizard.entityOptions}
+                                    uploadingFields={wizard.uploadingFields}
+                                    setUploadingFields={wizard.setUploadingFields}
+                                    isRoleBlocked={wizard.isRoleBlocked}
+                                    deskType={deskType!}
+                                    submitting={wizard.submitting}
+                                    error={wizard.error}
+                                    setError={wizard.setError}
+                                    handleCustomFieldChange={wizard.handleCustomFieldChange}
+                                />
                             )}
 
-                            {/* Only show form fields if a request type is selected */}
-                            {selectedRequestType && (
-                                <>
-                                    {isRoleBlocked && (
-                                        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl mb-6">
-                                            <span className="material-symbols-outlined text-red-500 mt-0.5">lock</span>
-                                            <div>
-                                                <p className="text-sm font-bold text-red-700">Access Restricted</p>
-                                                <p className="text-sm text-red-600">
-                                                    You need the <strong>{selectedRequestType.requiredRole}</strong> role to submit this request type.
-                                                    Please contact your administrator.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Summary */}
-                                    <div>
-                                        <label className="block text-sm font-bold text-[#101418] mb-2 flex justify-between">
-                                            Summary <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                            required
-                                            type="text"
-                                            placeholder="Enter a brief summary"
-                                            className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none transition-all placeholder:text-gray-400"
-                                            value={formData.summary}
-                                            onChange={e => setFormData({ ...formData, summary: e.target.value })}
-                                            disabled={submitting}
-                                        />
-                                    </div>
-
-
-                                    {/* DYNAMIC FIELDS FROM ADMIN CONFIG */}
-                                    {selectedRequestType?.formConfig?.map((field: any) => (
-                                        <div key={field.id} className="scale-in">
-                                            <label className="block text-sm font-bold text-[#101418] mb-2 flex justify-between">
-                                                {field.label} {field.required && <span className="text-red-500">*</span>}
-                                            </label>
-                                            {renderDynamicField(field)}
-                                        </div>
-                                    ))}
-
-                                    {/* Description - Only for IT Support */}
-                                    {deskType === 'it' && (
-                                        <div>
-                                            <label className="block text-sm font-bold text-[#101418] mb-2">Description</label>
-                                            <div className="border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#0052cc]/20 focus-within:border-[#0052cc] transition-all">
-                                                <div className="bg-gray-50/50 border-b border-gray-100 px-4 py-2 flex gap-4">
-                                                    <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">format_bold</button>
-                                                    <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">format_italic</button>
-                                                    <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">format_list_bulleted</button>
-                                                    <button type="button" className="material-symbols-outlined text-gray-500 hover:text-[#0052cc] text-lg">link</button>
-                                                </div>
-                                                <textarea
-                                                    rows={8}
-                                                    placeholder="Provide additional details about your request..."
-                                                    className="w-full px-4 py-3 bg-white border-none text-base outline-none resize-none placeholder:text-gray-400"
-                                                    value={formData.description}
-                                                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                                    disabled={submitting}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Urgency - Only for IT Support */}
-                                    {deskType === 'it' && (
-                                        <div>
-                                            <label className="block text-sm font-bold text-[#101418] mb-2">Urgency</label>
-                                            <div className="relative">
-                                                <select
-                                                    className="w-full pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-lg text-base focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none transition-all appearance-none text-[#101418]"
-                                                    value={formData.urgency}
-                                                    onChange={e => setFormData({ ...formData, urgency: e.target.value })}
-                                                    disabled={submitting}
-                                                >
-                                                    {URGENCY_OPTIONS.map(opt => (
-                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                                    ))}
-                                                </select>
-                                                <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Confidentiality Toggle — HR & Finance */}
-                                    {(deskType === 'hr' || deskType === 'finance') && (
-                                        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                                            <label className="flex items-center gap-3 cursor-pointer select-none">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={formData.isConfidential}
-                                                    onChange={e => setFormData({ ...formData, isConfidential: e.target.checked })}
-                                                    disabled={submitting}
-                                                    className="w-5 h-5 rounded border-amber-400 text-amber-600 focus:ring-amber-500/30 accent-amber-600 cursor-pointer"
-                                                />
-                                                <div>
-                                                    <div className="flex items-center gap-1.5 text-sm font-bold text-amber-800">
-                                                        <span className="material-symbols-outlined text-[16px]">lock</span>
-                                                        Mark as Confidential
-                                                    </div>
-                                                    <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
-                                                        Only you, designated approvers, and authorized personnel will see this request. Other agents will not have access.
-                                                    </p>
-                                                </div>
-                                            </label>
-                                        </div>
-                                    )}
-
-                                    {/* Actions */}
-                                    <div className="pt-6 flex items-center gap-6">
-                                        <button
-                                            type="submit"
-                                            disabled={submitting || isRoleBlocked || Object.values(uploadingFields).some(Boolean)}
-                                            className="px-10 py-3 bg-[#0052cc] text-white font-bold rounded-lg hover:bg-[#0747a6] transition-all shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {submitting ? 'Sending...' : Object.values(uploadingFields).some(Boolean) ? 'Uploading...' : 'Send Request'}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => navigate(-1)}
-                                            className="px-6 py-3 text-[#44546f] font-bold hover:text-[#101418] transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                    </div>
-                                </>
+                            {wizard.step === 'review' && (
+                                <StepReview
+                                    formData={wizard.formData}
+                                    selectedRequestType={wizard.selectedRequestType}
+                                    deskType={deskType!}
+                                    entityOptions={wizard.entityOptions}
+                                    isRoleBlocked={wizard.isRoleBlocked}
+                                />
                             )}
+
+                            {/* Navigation Buttons */}
+                            <div className="pt-6 flex items-center gap-6 border-t border-cwc-border">
+                                {wizard.step !== 'type' && (
+                                    <button
+                                        type="button"
+                                        onClick={wizard.back}
+                                        className="px-6 py-3 text-text-secondary font-bold hover:text-text-primary transition-colors flex items-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">arrow_back</span>
+                                        Back
+                                    </button>
+                                )}
+
+                                {wizard.step !== 'review' && (
+                                    <button
+                                        type="button"
+                                        onClick={wizard.next}
+                                        disabled={!wizard.canProceed}
+                                        className="px-10 py-3 bg-brand-700 text-white font-bold rounded-cwc-md hover:bg-brand-900 transition-all shadow-cwc-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        Next
+                                        <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                                    </button>
+                                )}
+
+                                {wizard.step === 'review' && (
+                                    <button
+                                        type="submit"
+                                        disabled={wizard.submitting || wizard.isRoleBlocked || isUploading}
+                                        className="px-10 py-3 bg-brand-700 text-white font-bold rounded-cwc-md hover:bg-brand-900 transition-all shadow-cwc-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {wizard.submitting ? 'Sending...' : isUploading ? 'Uploading...' : 'Send Request'}
+                                    </button>
+                                )}
+
+                                <button
+                                    type="button"
+                                    onClick={() => navigate(-1)}
+                                    className="px-6 py-3 text-text-secondary font-bold hover:text-text-primary transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
                         </form>
                     </div>
                 </div>
@@ -545,14 +180,14 @@ const CreateRequest = () => {
                 {/* Sidebar */}
                 <div className="lg:w-[360px] space-y-8">
                     {/* Knowledge Base */}
-                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-                        <div className="flex items-center gap-2 text-[#0052cc] mb-6">
+                    <div className="bg-white rounded-cwc-xl border border-cwc-border shadow-cwc-sm p-6">
+                        <div className="flex items-center gap-2 text-brand-700 mb-6">
                             <span className="material-symbols-outlined">menu_book</span>
-                            <h3 className="font-bold text-lg text-[#101418]">Knowledge Base</h3>
+                            <h3 className="font-bold text-lg text-text-primary">Knowledge Base</h3>
                         </div>
 
-                        <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 mb-6">
-                            <p className="text-sm text-[#0052cc] leading-relaxed">
+                        <div className="bg-brand-50/50 border border-brand-100 rounded-cwc-md p-4 mb-6">
+                            <p className="text-sm text-brand-700 leading-relaxed">
                                 Start typing your summary to see related help articles in real-time.
                             </p>
                         </div>
@@ -560,25 +195,25 @@ const CreateRequest = () => {
                         <div className="space-y-6">
                             {KB_ARTICLES.map((article, i) => (
                                 <div key={i} className="group cursor-pointer">
-                                    <h4 className="font-bold text-[#101418] group-hover:text-[#0052cc] transition-colors mb-1">{article.title}</h4>
-                                    <p className="text-xs text-[#44546f] line-clamp-2 leading-normal">{article.excerpt}</p>
+                                    <h4 className="font-bold text-text-primary group-hover:text-brand-700 transition-colors mb-1">{article.title}</h4>
+                                    <p className="text-xs text-text-secondary line-clamp-2 leading-normal">{article.excerpt}</p>
                                 </div>
                             ))}
                         </div>
 
-                        <button className="w-full mt-8 py-3 border border-gray-200 rounded-lg text-sm font-bold text-[#101418] hover:bg-gray-50 transition-colors">
+                        <button className="w-full mt-8 py-3 border border-cwc-border rounded-cwc-md text-sm font-bold text-text-primary hover:bg-surface-muted transition-colors">
                             Search full knowledge base
                         </button>
                     </div>
 
                     {/* Immediate Help */}
-                    <div className="bg-[#091e42] rounded-2xl p-6 text-white relative overflow-hidden">
+                    <div className="bg-brand-900 rounded-cwc-xl p-6 text-white relative overflow-hidden">
                         <div className="relative z-10">
                             <h3 className="font-bold text-lg mb-2">Need immediate help?</h3>
                             <p className="text-gray-400 text-sm mb-6 leading-relaxed">
                                 Our IT support chat is available 24/7 for urgent technical issues.
                             </p>
-                            <button className="w-full py-3 bg-white text-[#091e42] font-bold rounded-lg hover:bg-gray-100 transition-colors">
+                            <button className="w-full py-3 bg-white text-brand-900 font-bold rounded-cwc-md hover:bg-gray-100 transition-colors">
                                 Start Live Chat
                             </button>
                         </div>

@@ -135,6 +135,36 @@ export const deleteResume = async (requestId: string, resumeId: string) => {
     return response.data;
 };
 
+// ============================================================================
+// APPROVER QUEUE SERVICES
+// ============================================================================
+
+/**
+ * Get all requests pending current user's approval
+ */
+export const getPendingApprovals = async (params?: {
+    page?: number;
+    limit?: number;
+    priority?: string;
+    serviceDeskCode?: string;
+}) => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.priority) query.set('priority', params.priority);
+    if (params?.serviceDeskCode) query.set('serviceDeskCode', params.serviceDeskCode);
+    const { data } = await apiClient.get(`/requests/pending-approvals?${query.toString()}`);
+    return data;
+};
+
+/**
+ * Bulk approve/reject requests
+ */
+export const bulkAction = async (action: 'approve' | 'reject', requestIds: string[], comment?: string) => {
+    const { data } = await apiClient.post('/requests/bulk-action', { action, requestIds, comment });
+    return data;
+};
+
 const approvalService = {
     routeToCEO,
     ceoDecision,
@@ -143,7 +173,9 @@ const approvalService = {
     managerDecision,
     uploadResume,
     getResumes,
-    deleteResume
+    deleteResume,
+    getPendingApprovals,
+    bulkAction,
 };
 
 export default approvalService;

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate 
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NotificationProvider, useNotifications } from './src/context/NotificationContext';
 import { ToastProvider } from './src/context/ToastContext';
+import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { hasPermission, hasAnyRole } from './src/utils/permissions';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -25,11 +26,13 @@ import Reports from './pages/Reports';
 import SearchResults from './pages/SearchResults';
 import KnowledgeBase from './pages/KnowledgeBase';
 import ArticleDetail from './pages/ArticleDetail';
+import ApprovalQueue from './pages/ApprovalQueue';
 
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, isAuthenticated } = useAuth();
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const isActive = (path: string) => location.pathname === path;
 
@@ -54,19 +57,20 @@ const Header = () => {
     { to: '/agent', label: 'Agent Dashboard', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
     { to: '/reports', label: 'Reports', show: hasPermission(user, 'report:read') },
     { to: '/kb', label: 'Knowledge Base', show: true },
+    { to: '/approvals', label: 'Approvals', show: hasAnyRole(user, ['CEO', 'CTO', 'CFO', 'GROUP_CEO', 'ADMIN', 'AGENT']) },
     { to: '/admin/settings', label: 'Admin Settings', show: hasPermission(user, 'admin:access') },
   ].filter(l => l.show);
 
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-[#f0f2f5] bg-white/80 backdrop-blur-md">
+      <header className="sticky top-0 z-50 w-full border-b border-cwc-border bg-surface/80 backdrop-blur-md">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4 sm:gap-8">
             <Link to="/" className="flex items-center gap-3 text-[#0052cc]">
               <div className="bg-[#0052cc] p-1.5 rounded-lg text-white">
                 <span className="material-symbols-outlined block">corporate_fare</span>
               </div>
-              <h2 className="text-[#101418] text-lg font-bold leading-tight tracking-tight">Citadel Workplace Connect</h2>
+              <h2 className="text-text-primary text-lg font-bold leading-tight tracking-tight">Citadel Workplace Connect</h2>
             </Link>
             <nav className="hidden md:flex items-center gap-8">
               {navLinks.map(link => (
@@ -74,7 +78,7 @@ const Header = () => {
                   key={link.to}
                   to={link.to}
                   className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
-                    isActive(link.to) ? 'text-[#0052cc] border-[#0052cc]' : 'text-[#44546f] border-transparent'
+                    isActive(link.to) ? 'text-[#0052cc] border-[#0052cc]' : 'text-text-secondary border-transparent'
                   }`}
                 >
                   {link.label}
@@ -94,7 +98,7 @@ const Header = () => {
               }}
               className="relative hidden sm:block"
             >
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#44546f] text-xl">search</span>
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xl">search</span>
               <input
                 name="q"
                 type="text"
@@ -103,8 +107,17 @@ const Header = () => {
               />
             </form>
             <div className="flex gap-2">
+              <button
+                onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : resolvedTheme === 'light' ? 'dark' : 'dark')}
+                aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+                className="p-2 rounded-lg hover:bg-surface-muted transition-colors text-text-secondary"
+              >
+                <span className="material-symbols-outlined text-xl">
+                  {resolvedTheme === 'dark' ? 'light_mode' : 'dark_mode'}
+                </span>
+              </button>
               <NotificationDropdown />
-              <button aria-label="Help" className="hidden sm:flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors">
+              <button aria-label="Help" className="hidden sm:flex items-center justify-center rounded-lg h-10 w-10 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors">
                 <span className="material-symbols-outlined">help</span>
               </button>
             </div>
@@ -116,7 +129,7 @@ const Header = () => {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center justify-center rounded-lg h-10 px-4 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors"
+                  className="flex items-center justify-center rounded-lg h-10 px-4 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors"
                 >
                   <span className="material-symbols-outlined mr-1">logout</span>
                   <span className="text-sm font-semibold">Logout</span>
@@ -125,7 +138,7 @@ const Header = () => {
             )}
             {/* Mobile hamburger */}
             <button
-              className="md:hidden flex items-center justify-center rounded-lg h-10 w-10 bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors"
+              className="md:hidden flex items-center justify-center rounded-lg h-10 w-10 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors"
               onClick={() => setMobileMenuOpen(o => !o)}
               aria-label="Open navigation menu"
             >
@@ -140,7 +153,7 @@ const Header = () => {
         <div className="md:hidden fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div
-            className="absolute top-0 left-0 w-72 h-full bg-white shadow-2xl flex flex-col"
+            className="absolute top-0 left-0 w-72 h-full bg-surface shadow-2xl flex flex-col"
             onClick={e => e.stopPropagation()}
           >
             {/* Drawer header */}
@@ -149,12 +162,12 @@ const Header = () => {
                 <div className="bg-[#0052cc] p-1.5 rounded-lg text-white">
                   <span className="material-symbols-outlined block text-lg">corporate_fare</span>
                 </div>
-                <span className="text-sm font-bold text-[#101418]">CWC</span>
+                <span className="text-sm font-bold text-text-primary">CWC</span>
               </Link>
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 aria-label="Close menu"
-                className="flex items-center justify-center rounded-lg h-9 w-9 text-[#44546f] hover:bg-gray-100 transition-colors"
+                className="flex items-center justify-center rounded-lg h-9 w-9 text-text-secondary hover:bg-gray-100 transition-colors"
               >
                 <span className="material-symbols-outlined">close</span>
               </button>
@@ -174,7 +187,7 @@ const Header = () => {
               className="px-4 pt-4"
             >
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#44546f] text-xl">search</span>
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xl">search</span>
                 <input
                   name="q"
                   type="text"
@@ -206,7 +219,7 @@ const Header = () => {
                 <p className="text-xs text-gray-500 mb-3">{user.email}</p>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-[#f0f2f5] text-[#101418] hover:bg-gray-200 transition-colors text-sm font-semibold justify-center"
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors text-sm font-semibold justify-center"
                 >
                   <span className="material-symbols-outlined text-base">logout</span>
                   Sign Out
@@ -293,6 +306,7 @@ const AppShell = () => {
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
               <Route path="/kb" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
               <Route path="/kb/:slug" element={<ProtectedRoute><ArticleDetail /></ProtectedRoute>} />
+              <Route path="/approvals" element={<ProtectedRoute><ApprovalQueue /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
                 <ProtectedRoute requirePermission="admin:access">
                   <ErrorBoundary>
@@ -314,12 +328,14 @@ export default function App() {
   return (
     <BrowserRouter>
       <Sentry.ErrorBoundary fallback={<div>Something went wrong. Please refresh the page.</div>}>
-        <AuthProvider>
-          <ToastProvider>
-            <AppShell />
-            <ToastContainer />
-          </ToastProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <AppShell />
+              <ToastContainer />
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </Sentry.ErrorBoundary>
     </BrowserRouter>
   );

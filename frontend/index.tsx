@@ -1,6 +1,7 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './src/i18n/config';
 import App from './App';
 import { initSentry } from './src/services/sentry';
 

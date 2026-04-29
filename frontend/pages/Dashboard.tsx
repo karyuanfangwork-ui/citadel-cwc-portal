@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { requestService } from '../src/services/request.service';
@@ -84,6 +85,7 @@ const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [serviceDesks, setServiceDesks] = useState<ServiceDesk[]>([]);
   const [allRequests, setAllRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +121,9 @@ const Dashboard = () => {
 
   const recentRequests = useMemo(() => allRequests.slice(0, 5), [allRequests]);
 
-  const greeting = user ? getGreeting(user.firstName) : 'Welcome.';
+  const greeting = user
+    ? t('dashboard.greeting', { period: new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening', name: user.firstName })
+    : 'Welcome.';
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
@@ -144,7 +148,7 @@ const Dashboard = () => {
             <span className="material-symbols-outlined text-white/50 text-xl">search</span>
             <input
               type="text"
-              placeholder="Search for hardware, leave requests, expenses..."
+              placeholder={t('dashboard.searchPlaceholder')}
               style={{
                 flex: 1, background: 'none', border: 'none', outline: 'none',
                 color: '#fff', fontSize: 'var(--text-base)', fontFamily: 'var(--font-sans)',
@@ -183,9 +187,9 @@ const Dashboard = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[
-            { label: 'Open Requests',    value: stats.open,           iconBg: 'var(--color-it-50)',  numColor: 'var(--color-brand-700)', icon: 'inbox' },
-            { label: 'Action Required',  value: stats.actionRequired, iconBg: 'var(--color-fin-50)', numColor: 'var(--color-warning)',    icon: 'warning' },
-            { label: 'Resolved All Time',value: stats.resolved,       iconBg: 'var(--color-hr-50)',  numColor: 'var(--color-success)',    icon: 'task_alt' },
+            { label: t('dashboard.openRequests'),    value: stats.open,           iconBg: 'var(--color-it-50)',  numColor: 'var(--color-brand-700)', icon: 'inbox' },
+            { label: t('dashboard.actionRequired'),  value: stats.actionRequired, iconBg: 'var(--color-fin-50)', numColor: 'var(--color-warning)',    icon: 'warning' },
+            { label: t('dashboard.resolvedAllTime'),value: stats.resolved,       iconBg: 'var(--color-hr-50)',  numColor: 'var(--color-success)',    icon: 'task_alt' },
           ].map(stat => (
             <div key={stat.label} className="bg-surface border border-border rounded-cwc-lg p-5 px-6 flex items-center gap-4 shadow-cwc-sm transition-shadow duration-200 cursor-default"
               onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-md)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)'; }}
@@ -272,9 +276,9 @@ const Dashboard = () => {
 
       {/* ── RECENT REQUESTS ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
-        <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>Recent Requests</h2>
+        <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>{t('dashboard.recentActivity')}</h2>
         <Link to="/my-requests" style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-brand-700)', textDecoration: 'none' }}>
-          View all →
+          {t('dashboard.viewAll')}
         </Link>
       </div>
 
