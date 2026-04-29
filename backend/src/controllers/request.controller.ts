@@ -820,13 +820,13 @@ class RequestController {
         }
 
         // Confidentiality gate: non-ADMIN users without request:confidential
-        // cannot view confidential requests unless they are the requester.
-        // (Designated approvers with request:confidential can view; approvers without it cannot.)
+        // cannot view confidential requests unless they are the requester or a designated approver.
         if (
             request.isConfidential &&
             request.requesterId !== req.user!.id &&
             !hasRole(req, 'ADMIN') &&
-            !(req.user?.permissions?.includes('request:confidential'))
+            !(req.user?.permissions?.includes('request:confidential')) &&
+            !isDesignatedApprover
         ) {
             throw new AppError('This request is confidential and cannot be viewed', 403);
         }
@@ -877,13 +877,23 @@ class RequestController {
             throw new AppError('You do not have permission to update this request', 403);
         }
 
+        // Restrict isConfidential toggle:
+        // - Requester can mark their own request confidential (toggle on)
+        // - ADMIN can toggle on/off on any request
+        // - AGENT can toggle on/off on any request
+        // - No one else can change isConfidential
+        let isConfidentialUpdate = isConfidential !== undefined ? { isConfidential: isConfidential === true } : {};
+        if (isConfidential !== undefined && existingRequest.requesterId !== req.user!.id && !hasRole(req, 'ADMIN', 'AGENT')) {
+            isConfidentialUpdate = {};
+        }
+
         const request = await prisma.request.update({
             where: { id },
             data: {
                 summary,
                 description,
                 priority,
-                ...(isConfidential !== undefined ? { isConfidential: isConfidential === true } : {}),
+                ...isConfidentialUpdate,
             },
         });
 
@@ -1089,14 +1099,25 @@ class RequestController {
             throw new AppError('Attachment not found', 404);
         }
 
-        // Audit: log attachment download on confidential requests by non-requesters
-        const request = await prisma.request.findUnique({
+        // Confidentiality gate: block unauthorized downloads on confidential requests
+        const attachmentRequest = await prisma.request.findUnique({
             where: { id },
-            select: { isConfidential: true, requesterId: true, referenceNumber: true },
-        });
-        if (request?.isConfidential && request.requesterId !== req.user?.id) {
+            select: {
+                isConfidential: true,
+                requesterId: true,
+                referenceNumber: true,
+                approvals: { select: { approverId: true } },
+            },
+        }) as any;
+        if (attachmentRequest?.isConfidential && attachmentRequest.requesterId !== req.user?.id) {
+            const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
+            const isDesignatedApprover = attachmentRequest.approvals?.some((a: any) => a.approverId === req.user?.id);
+            if (!canSeeConfidential && !isDesignatedApprover) {
+                throw new AppError('Attachments for this confidential request are restricted', 403);
+            }
+            // Audit: log download by authorized non-requesters
             auditLog(req, 'CONFIDENTIAL_ATTACHMENT_DOWNLOAD', 'request', id, {
-                referenceNumber: request.referenceNumber,
+                referenceNumber: attachmentRequest.referenceNumber,
                 attachmentId,
                 fileName: attachment.fileName,
             }).catch(() => {});

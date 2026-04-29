@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { uploadSingleFile } from '../middleware/upload.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
+import { hasRole } from '../middleware/auth.middleware';
 
 const prisma = new PrismaClient();
 
@@ -79,12 +80,24 @@ export const getResumes = async (req: AuthRequest, res: Response): Promise<any> 
     try {
         const { id } = req.params as { id: string };
 
-        // Check confidentiality: log access to confidential request resumes
+        // Check confidentiality: gate + log access to confidential request resumes
         const request = await prisma.request.findUnique({
             where: { id },
-            select: { id: true, isConfidential: true, requesterId: true, referenceNumber: true },
+            select: {
+                id: true,
+                isConfidential: true,
+                requesterId: true,
+                referenceNumber: true,
+                approvals: { select: { approverId: true } },
+            },
         });
         if (request?.isConfidential && request.requesterId !== req.user?.id) {
+            const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
+            const isDesignatedApprover = request.approvals?.some((a: any) => a.approverId === req.user?.id);
+            if (!canSeeConfidential && !isDesignatedApprover) {
+                return res.status(403).json({ status: 'error', message: 'Resumes for this confidential request are restricted' });
+            }
+            // Audit: log access by authorized non-requesters
             auditLog(req, 'CONFIDENTIAL_RESUME_ACCESS', 'request', request.id, {
                 referenceNumber: request.referenceNumber,
                 action: 'resume_list_view',

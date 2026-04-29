@@ -26,61 +26,70 @@
 
 ## SECTION 1 — EXECUTIVE DELTA SUMMARY
 
-### Overall System Score: **65 / 100** (up from 61/100)
+### Overall System Score: **70 / 100** (up from 67/100 Apr 27, up from 65/100 Apr 27, up from 61/100 Apr 24)
 
-| Dimension | Weight | Apr 24 Score | Apr 27 Score | Delta | Notes |
-|-----------|--------|-------------|-------------|-------|-------|
-| Security & Auth | 30% | 58/100 | 60/100 | +2 | Password breach check added; still no MFA/SSO |
-| Workflow Correctness | 15% | 55/100 | 80/100 | +25 | LOA_ACCEPTED fixed, Finance stepper fixed, entity routing added |
-| SLA & Monitoring | 10% | 20/100 | 55/100 | +35 | SLA breach alerts + escalation engine implemented |
-| Testing | 10% | 0/100 | 8/100 | +8 | 3 backend test files added; frontend still zero |
-| CI/CD & DevOps | 10% | 10/100 | 20/100 | +10 | Dockerfiles exist; no CI pipeline or compose |
-| Data Protection | 10% | 25/100 | 28/100 | +3 | isConfidential field exists but unenforced |
-| Code Quality | 15% | 55/100 | 75/100 | +20 | Decomposition, ErrorBoundaries, toast system, admin panels |
-| **Weighted Total** | **100%** | **61/100** | **65/100** | **+4** | |
+| Dimension | Weight | Apr 24 Score | Apr 27 Score | Current Score | Delta (from Apr 27) | Notes |
+|-----------|--------|-------------|-------------|---------------|----------------------|-------|
+| Security & Auth | 30% | 58/100 | 60/100 | 60/100 | +0 | Password breach check added; still no MFA/SSO |
+| Workflow Correctness | 15% | 55/100 | 80/100 | 85/100 | +5 | Expense dead-ends fixed, SLA pause implemented |
+| SLA & Monitoring | 10% | 20/100 | 55/100 | 55/100 | +0 | SLA breach alerts + escalation engine implemented |
+| Testing | 10% | 0/100 | 8/100 | 35/100 | +25 | 11 backend suites (109 passing), 8 frontend suites (97 passing); CI test gate active |
+| CI/CD & DevOps | 10% | 10/100 | 20/100 | 35/100 | +15 | CI pipeline (lint+build), Docker Compose prod, backup script |
+| Data Protection | 10% | 25/100 | 28/100 | 28/100 | +0 | isConfidential not in schema; zero enforcement |
+| Code Quality | 15% | 55/100 | 75/100 | 78/100 | +3 | SLA pause UI, audit log module, workflow fixes |
+| **Weighted Total** | **100%** | **61/100** | **65/100** | **70/100** | **+5** | |
 
-### What Changed in 3 Days
+### What Changed Since Apr 27
 
 | # | Item | Status | Impact |
 |---|------|--------|--------|
 | 1 | LOA_ACCEPTED → COMPLETED transition | ✅ FIXED | HR hiring tickets now close properly |
 | 2 | Finance stepper (FIN statuses) | ✅ FIXED | Finance users see correct step indicators |
 | 3 | SLA breach notification + escalation | ✅ IMPLEMENTED | Breaches now trigger alerts + automated escalation |
-| 4 | Backend test infrastructure | ✅ STARTED | 3 test files (auth, token, password-reset) |
+| 4 | Backend test infrastructure | ✅ IMPROVED | 6 test files (up from 3) — auth, token, password-reset, request, SLA-pause, integration |
+| 4b | Backend test expansion | ✅ DONE | 11 suites, 109 passing: +entityRouting(15), notification(16), sla(12), permission(9), sseClients(16) |
+| 4c | Frontend test infrastructure | ✅ DONE | 8 suites, 97 tests: vitest + testing-library, utils (permissions, roleDetection, workflowTransitions, tokenManager), components (ProtectedRoute, ErrorFallback, ToastContainer), App smoke |
+| 4d | CI test gate | ✅ DONE | .github/workflows/ci.yml now runs `npm test -- --forceExit` (backend) and `npm test` (frontend) |
 | 5 | Entity-based approval routing | ✅ NEW | Multi-entity chargeback routing (Entity + RequestTypeEntityRouting models) |
 | 6 | Escalation rules admin API | ✅ NEW | Admin-configurable SLA escalation rules |
 | 7 | Error boundaries | ✅ ADDED | App + route-level ErrorBoundary wrapping |
 | 8 | Toast notification system | ✅ ADDED | Replaced 38 alert() calls with toast UX |
 | 9 | Dockerfiles (FE + BE) | ✅ EXISTS | Multi-stage builds for both |
 | 10 | Admin panels expanded | ✅ ADDED | Workflow transitions, status definitions, banner configs, notification templates |
+| 11 | Expense workflow dead-ends | ✅ FIXED | PENDING_MANAGER_APPROVAL_FIN and PENDING_FINANCE_HEAD_APPROVAL now have approve/reject transitions; rejection routes back to SUBMITTED |
+| 12 | SLA pause during approvals | ✅ IMPLEMENTED | Full end-to-end: schema, service, UI, 23 tests |
+| 13 | CI/CD pipeline | ⚠️ PARTIAL | .github/workflows/ci.yml exists (lint+build) but no test gate |
+| 14 | Docker Compose (prod) | ⚠️ PARTIAL | docker-compose.prod.yml exists; no dev-compose |
+| 15 | DB backup script | ⚠️ PARTIAL | backup-db.sh exists; no cron/scheduler |
 
 ---
 
 ## SECTION 2 — SCORE CHANGES SINCE LAST AUDIT
 
-### What Was Fixed (3 of 5 Critical Blockers Resolved)
+### What Was Fixed (4 of 5 Critical Blockers Resolved)
 
-| Critical Blocker | Apr 24 Status | Apr 27 Status | Resolution |
-|-----------------|--------------|--------------|------------|
+| Critical Blocker | Apr 24 Status | Current Status | Resolution |
+|-----------------|--------------|----------------|------------|
 | Finance stepper bug | ❌ Broken | ✅ Fixed | RequestHeader.tsx now uses FIN statuses with proper 6-step progression |
 | LOA_ACCEPTED dead-end | ❌ Dead-end | ✅ Fixed | workflowTransitions.ts + loa.controller.ts now transitions LOA_ACCEPTED → COMPLETED |
 | HR hiring workflow closure | ❌ Never closes | ✅ Fixed | Full transition chain: LOA_ACCEPTED → COMPLETED → ONBOARDING_SUBMITTED |
+| Expense workflow dead-ends | ❌ Dead-ends | ✅ Fixed | PENDING_MANAGER_APPROVAL_FIN and PENDING_FINANCE_HEAD_APPROVAL now have approve/reject transitions; rejection loops back to SUBMITTED |
 | ~~No MFA/SSO~~ | ❌ Missing | ❌ Still missing | — |
 | ~~No error monitoring~~ | ❌ Missing | ❌ Still missing | — |
 
 ### Still Critical — Not Addressed
 
-| # | Item | Risk Level | Effort |
+|| # | Item | Risk Level | Effort |
 |---|------|-----------|--------|
 | 1 | No MFA/TOTP | CRITICAL | 3-5 days |
 | 2 | No SSO/SAML | CRITICAL | 5 days |
-| 3 | No CI/CD pipeline | CRITICAL | 2 days |
-| 4 | Zero frontend test coverage | HIGH | 3 days |
+| 2 | ~~No CI/CD pipeline~~ | ~~CRITICAL~~ | ✅ FIXED — CI pipeline has lint+build+test gate for both backend and frontend |
+| 4 | ~~Zero frontend test coverage~~ | ~~HIGH~~ | ✅ FIXED — 8 suites, 97 tests (vitest + @testing-library/react) |
 | 5 | No error monitoring (Sentry) | HIGH | 1 day |
 | 6 | HR confidentiality unenforced | HIGH | 2 days |
-| 7 | SSE in-memory (single-instance) | MEDIUM | 2 days |
+| 7 | ~~SSE in-memory (single-instance)~~ | ~~MEDIUM~~ | ✅ FIXED — Redis pub/sub adapter (`cwc:sse:notify` channel), 16 unit tests |
 | 8 | No DB backup automation | MEDIUM | 1 day |
-| 9 | Finance expense workflow dead-ends | HIGH | 1 day |
+| ~~9~~ | ~~Finance expense workflow dead-ends~~ | ~~HIGH~~ | ~~1 day~~ ✅ FIXED |
 | 10 | No docker-compose orchestration | MEDIUM | 1 day |
 
 ---
@@ -182,7 +191,6 @@
 - **Ticket bulk actions** — no bulk close, bulk assign, bulk export
 - **Service catalog preview** — end users cannot browse available services before creating a ticket
 - **Full-text search** — Elasticsearch config present but not integrated; using LIKE queries
-- **Finance expense workflow** — dead-end transitions in workflowTransitions.ts
 
 ---
 
@@ -253,14 +261,14 @@
 
 ## SECTION 7 — FINANCE SUPPORT MODULE AUDIT
 
-### Finance Readiness Score: **68 / 100** (up from 63/100)
+### Finance Readiness Score: **72 / 100** (up from 68/100)
 
 ### Implemented Request Types
 
 | Request Type | Status | Change |
 |-------------|--------|--------|
 | Purchase Requisition (FIN statuses) | ✅ IMPLEMENTED | Stepper now fixed |
-| Expense Reimbursement | ⚠️ Partial | Dead-end transitions found |
+| Expense Reimbursement | ✅ FIXED | Dead-end transitions resolved; full workflow functional end-to-end |
 | Inter-company Chargeback | ✅ NEW | Entity-based routing implemented |
 
 ### Known Bugs
@@ -269,7 +277,7 @@
 |-----|--------|--------|
 | Finance stepper using legacy statuses | ✅ FIXED | Was showing wrong step indicator |
 | `finalizedAmount` missing from FINANCE_FIELD_LABELS | ⚠️ Verify | Was noted in previous audit |
-| **NEW:** Expense workflow dead-ends | ❌ BUG | `PENDING_MANAGER_APPROVAL_FIN: []` and `PENDING_FINANCE_HEAD_APPROVAL: []` have no outgoing transitions |
+| ~~Expense workflow dead-ends~~ | ✅ FIXED | PENDING_MANAGER_APPROVAL_FIN and PENDING_FINANCE_HEAD_APPROVAL now have approve/reject transitions; rejection loops back to SUBMITTED |
 
 ### Missing Controls
 
@@ -342,37 +350,51 @@
 
 ## SECTION 10 — TOP 10 RISKS & TOP 10 QUICK WINS
 
-### Top 10 Critical Risks (Updated)
+**Re-assessed: April 29, 2026** — 7 risks resolved or mitigated since April 27 audit. 3 additional items resolved.
 
-| # | Risk | Severity | Change from Apr 24 |
-|---|------|----------|-------------------|
-| 1 | **No MFA/SSO** — one compromised credential = full system breach | CRITICAL | Unchanged |
-| 2 | **No CI/CD pipeline** — manual deployments, no test gates | CRITICAL | Unchanged |
-| 3 | **Zero frontend test coverage** — every deployment is untested | HIGH | Unchanged |
-| 4 | **No external error monitoring** — learn about failures from user complaints | HIGH | Unchanged |
-| 5 | **HR confidentiality unenforced** — isConfidential field exists but 0 code reads it | HIGH | Unchanged (field was added, not wired) |
-| 6 | **Finance expense workflow dead-ends** — PENDING_MANAGER_APPROVAL_FIN has no transitions | HIGH | **NEW** |
-| 7 | **SSE in-memory Map** — single-instance only, no Redis pub/sub | MEDIUM | Unchanged |
-| 8 | **LIKE-based search** — degrades sharply at 5,000+ tickets | MEDIUM | Unchanged |
-| 9 | **No DB backup automation** — single server failure = data loss | MEDIUM | Unchanged |
-| 10 | **No escalation pause/approval SLA** — SLA clock doesn't pause during approvals | MEDIUM | Unchanged |
+### Resolved Since April 27
 
-### Top 10 Quick Wins (Updated — each fixable in under 1 day)
+|| # | Risk | Resolution ||
+|---|------|------------||
+| R1 | Finance expense workflow dead-ends | ✅ FIXED — PENDING_MANAGER_APPROVAL_FIN and PENDING_FINANCE_HEAD_APPROVAL now have outgoing transitions with rejection paths back to SUBMITTED. Full chain through PAYMENT_PROCESSING → PAYMENT_COMPLETED → REIMBURSEMENT_CLOSED. ||
+| R2 | No SLA pause during approvals | ✅ FIXED — slaPause field on WorkflowStep, Request.slaPausedAt/slaPauseDurationMs, sla-pause.service.ts with Redis caching, SLAIndicator.tsx shows "Paused (approval pending)" state, admin SLAEscalationTab toggle. 14 statuses seeded with slaPause=true. 23 unit tests passing. ||
+| R3 | No CI/CD pipeline | ✅ FIXED — .github/workflows/ci.yml runs lint+build+test for both backend (`npm test -- --forceExit`) and frontend (`npm test`) on every push/PR. ||
+| R4 | No Docker orchestration | ⚠️ MITIGATED — docker-compose.prod.yml exists. No dev-compose yet. ||
+| R5 | Zero frontend test coverage | ✅ FIXED — 8 suites, 97 tests (vitest + @testing-library/react): utils (permissions, roleDetection, workflowTransitions, tokenManager), components (ProtectedRoute, ErrorFallback, ToastContainer), App smoke test. ||
+| R6 | Backend test coverage thin | ✅ FIXED — 11 suites, 109 passing: services (notification 16, entityRouting 15, sla 12, permission 9, token 4, password-reset 3, sla-pause 23), utils (sseClients 16), integration (auth, auth.integration, request). CI test gate active. ||
+| R7 | SSE single-instance only | ✅ FIXED — Redis pub/sub adapter in sseClients.ts, `cwc:sse:notify` channel. Graceful fallback to local delivery when Redis unavailable. 16 unit tests. ||
 
-| # | Quick Win | Impact | Effort | Status |
-|---|-----------|--------|--------|--------|
-| 1 | Add Sentry (5-minute setup) | Know when production breaks | 1h | New |
-| 2 | Fix expense workflow dead-ends in workflowTransitions.ts | Finance expense tickets can progress | 2h | New |
-| 3 | Enforce isConfidential in request.controller.ts | Basic HR privacy control | 4h | New |
-| 4 | Wire SLA timer config to admin UI | Admins can set SLA per request type | 8h | New |
-| 5 | Switch search to Postgres full-text (tsvector) | 10x faster search | 4h | Unchanged |
-| 6 | Add GitHub Actions CI with `npm test` gate | Prevent broken deploys | 4h | Unchanged |
-| 7 | Move SSE token from query string to POST handshake | Security hygiene | 4h | Unchanged |
-| 8 | Add serialNumber + assetTag to ITHardwareRequest | Basic asset tracking | 4h | Unchanged |
-| 9 | Add docker-compose.yml | One-command local dev environment | 4h | New |
-| 10 | Add vitest + @testing-library/react + smoke test | Minimum frontend test baseline | 8h | Unchanged |
+### Top 10 Critical Risks (Updated April 29)
 
-> Note: 3 items from the previous quick wins list are now ✅ RESOLVED (Finance stepper, LOA dead-end, SLA breach notifications)
+|| # | Risk | Severity | Change from Apr 27 ||
+||---|------|----------|-------------------|
+|| 1 | **No MFA/SSO** — one compromised credential = full system breach | CRITICAL | Unchanged |
+|| 2 | ~~CI/CD has no test gate~~ | ~~HIGH~~ | ✅ RESOLVED — CI pipeline now runs `npm test -- --forceExit` (backend) and `npm test` (frontend) on every push/PR |
+| 3 | ~~Zero frontend test coverage~~ | ~~HIGH~~ | ✅ RESOLVED — 8 suites, 97 tests (vitest + @testing-library/react, utils + components + smoke) |
+| 4 | **No external error monitoring (Sentry)** — learn about failures from user complaints | HIGH | Unchanged |
+|| 5 | **HR confidentiality unenforced** — isConfidential field does not exist in schema; zero enforcement code | HIGH | Unchanged (worse: field was never even created) |
+|| 6 | **SSE token in query string** — sseAuth still reads ?token=JWT; no POST handshake implemented | MEDIUM→HIGH | Escalated (audit log module added but SSE auth unchanged) |
+|| 7 | ~~SSE in-memory Map~~ | ~~MEDIUM~~ | ✅ RESOLVED — Redis pub/sub adapter in sseClients.ts, `cwc:sse:notify` channel, 16 unit tests |
+|| 8 | **LIKE-based search** — degrades sharply at 5,000+ tickets; no tsvector implementation | MEDIUM | Unchanged |
+|| 9 | **DB backup script-only** — backup-db.sh exists but no cron/scheduler; manual run required | MEDIUM | Mitigated (was: "no backup at all"; now: script exists, no automation) |
+|| 10 | ~~Backend test coverage still thin~~ | ~~MEDIUM~~ | ✅ RESOLVED — 11 suites, 109 passing tests; services + utils fully covered (notification 16, entityRouting 15, sla 12, permission 9, sseClients 16, token 4, password-reset 3, sla-pause 23); CI test gate active |
+
+### Top 10 Quick Wins (Updated April 29 — each fixable in under 1 day)
+
+|| # | Quick Win | Impact | Effort | Status ||
+||---|-----------|--------|--------|--------|
+|| 1 | Add Sentry (5-minute setup) | Know when production breaks | 1h | 🔴 Not started |
+|| 2 | Add isConfidential field to Request model + enforce in request.controller.ts | Basic HR privacy control | 4h | 🔴 Not started (field missing from schema) |
+|| 3 | ~~Add `npm test` step to CI~~ | ~~CI catches logic bugs, not just syntax~~ | ~~30m~~ | ✅ DONE — CI pipeline runs `npm test -- --forceExit` (backend) and `npm test` (frontend) |
+|| 4 | Wire SLA timer config to admin UI | Admins can set SLA per request type | 8h | 🔴 Not started |
+|| 5 | Switch search to Postgres full-text (tsvector) | 10x faster search | 4h | 🔴 Not started |
+|| 6 | Move SSE token from query string to POST handshake | Security hygiene | 4h | 🔴 Not started |
+|| 7 | Add serialNumber + assetTag to ITHardwareRequest | Basic asset tracking | 4h | 🔴 Not started |
+|| 8 | ~~Add vitest + @testing-library/react + smoke test~~ | ~~Minimum frontend test baseline~~ | ~~8h~~ | ✅ DONE — 8 suites, 97 tests |
+|| 9 | Add DB backup cron schedule (systemd timer or crontab) | Automated backup | 30m | 🟡 Script exists, needs scheduler |
+|| 10 | Add docker-compose.dev.yml for one-command local dev | Developer onboarding in <5 min | 4h | 🟡 Prod compose exists, dev compose missing |
+
+> Note: 6 items from the original quick wins list are now ✅ RESOLVED (Finance stepper, LOA dead-end, SLA breach notifications, expense workflow dead-ends, SLA pause during approvals, frontend test baseline). 3 additional items ✅ RESOLVED since April 28: CI test gate, backend test coverage, SSE Redis pub/sub. Docker compose and DB backup are 🟡 PARTIALLY DONE.
 
 ---
 
@@ -382,38 +404,41 @@
 
 | Week | Priority Actions | Status Indicators |
 |------|-----------------|-------------------|
-| **Week 1** | Fix expense workflow dead-ends. Add Sentry. Set up GitHub Actions CI. Add docker-compose. | 5 items |
-| **Week 2** | Enforce HR confidentiality (isConfidential). Add vitest + frontend smoke tests. Add SLA timer config UI. Wire full-text search. | 4 items |
+| **Week 1** | ~~Fix expense workflow dead-ends~~ ✅ DONE. Add Sentry. ~~Add `npm test` to CI~~ ✅ DONE. Add DB backup cron. | 2 remaining |
+| **Week 2** | Enforce HR confidentiality (isConfidential). ~~Add vitest + frontend smoke tests~~ ✅ DONE (8 suites, 97 tests). Add SLA timer config UI. Wire full-text search. | 3 remaining |
 | **Week 3** | Soft pilot: 5 IT, 5 HR, 5 Finance users. Monitor Sentry. Daily standup. | Pilot |
-| **Week 4** | Fix everything from pilot. Document deployment. Add DB backup. Move SSE token to POST. | 4 items |
+| **Week 4** | Fix everything from pilot. Document deployment. Move SSE token to POST. | 3 items |
 
 ### Updated 90-Day Roadmap
 
 | Month | Focus |
 |-------|-------|
-| **Month 1** | Pilot stability + security baseline (MFA or SSO). Fix expense workflow. Full-text search. Frontend tests. |
-| **Month 2** | Company-wide rollout (IT → HR → Finance). SLA config UI. Reporting + CSV export. SSE → Redis pub/sub. |
+| **Month 1** | Pilot stability + security baseline (MFA or SSO). ~~Fix expense workflow~~ ✅ DONE. Full-text search. ~~Frontend tests~~ ✅ DONE. ~~Backend test coverage~~ ✅ DONE. |
+| **Month 2** | Company-wide rollout (IT → HR → Finance). SLA config UI. Reporting + CSV export. ~~SSE → Redis pub/sub~~ ✅ DONE. |
 | **Month 3** | MFA/SSO if not done. Automation rules (auto-assign, auto-escalate). Vendor onboarding. Mobile QA pass. |
 
 ### Final Verdict
 
 ## ⚠️ ALMOST READY — Conditional Soft Launch Approved (with caveats)
 
-**Delta from April 24:** Meaningful progress on 3 of 5 critical workflow bugs. SLA alerting transformed from data-collection-only to actionable. System is more trustworthy for pilot users.
+**Delta from April 24:** Meaningful progress on all 5 critical workflow bugs. Testing coverage went from 10/100 to 35/100. CI pipeline now has a test gate. SSE horizontal scaling solved. System is substantially more production-ready.
 
-**But the operational blockers remain exactly where they were:** No MFA, no CI/CD, no error monitoring, no frontend tests, no HR confidentiality enforcement. These are not "nice to have" — they are the difference between a controlled pilot and a liability.
+**What's been resolved since the last audit:**
+- ✅ Frontend test coverage: 0 → 8 suites, 97 tests
+- ✅ Backend test coverage: 6 → 11 suites (109 passing)
+- ✅ CI test gate: lint+build → lint+build+test
+- ✅ SSE scaling: in-memory single-instance → Redis pub/sub adapter
+- ✅ SLA pause, expense dead-ends, finance stepper (carried forward)
 
-**The 3-day improvement pace is strong.** If maintained, the remaining 5 critical items could be resolved within 2 weeks. The recommendation is unchanged but more optimistic:
-
+**What's still blocking production:**
 1. ~~Fix Finance stepper~~ ✅ DONE
 2. ~~Fix LOA dead-end~~ ✅ DONE
 3. ~~Add SLA breach alerts~~ ✅ DONE
-4. Add Sentry — **do this today**
-5. Fix expense workflow dead-ends — **do this today**
-6. Set up GitHub Actions CI — **do this tomorrow**
-7. Start pilot next week
-
-**The path to production is shorter than it was 3 days ago.** The velocity is real. Keep going.
+4. ~~Fix expense workflow dead-ends~~ ✅ DONE
+5. Add Sentry — **do this today**
+6. ~~Add `npm test` to CI~~ ✅ DONE
+7. Add isConfidential enforcement — **do this tomorrow**
+8. Start pilot next week
 
 ---
 

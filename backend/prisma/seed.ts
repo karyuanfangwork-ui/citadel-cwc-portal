@@ -936,6 +936,59 @@ async function main() {
         console.log(`✅ Seeded escalation rules`);
     }
 
+    // ── Seed Confidential Sample Requests ──
+    // Create 2 HR requests with isConfidential=true for QA testing
+    const confidentialRequestType = await prisma.requestType.findFirst({ where: { code: 'HR_QUESTION' } });
+    if (confidentialRequestType) {
+        const hrDesk = await prisma.serviceDesk.findFirst({ where: { code: 'HR' } });
+        const hrCategory = await prisma.serviceCategory.findFirst({ where: { serviceDeskId: hrDesk?.id, slug: 'hr-question' } });
+        const endUserRole = await prisma.role.findFirst({ where: { name: 'END_USER' } });
+        const endUsers = endUserRole ? await prisma.user.findMany({
+            where: { roles: { some: { roleId: endUserRole.id } } },
+            take: 1,
+        }) : [];
+
+        if (hrDesk && endUsers.length > 0) {
+            await prisma.request.upsert({
+                where: { referenceNumber: 'HR-CONF-001' },
+                update: {},
+                create: {
+                    referenceNumber: 'HR-CONF-001',
+                    summary: 'Confidential HR inquiry about workplace harassment report',
+                    description: 'This is a confidential HR request regarding a sensitive workplace matter. Access should be restricted to the requester, designated approvers, and authorized personnel only.',
+                    serviceDeskId: hrDesk.id,
+                    serviceCategoryId: hrCategory?.id ?? null,
+                    requestTypeId: confidentialRequestType.id,
+                    requesterId: endUsers[0].id,
+                    priority: 'MEDIUM',
+                    status: 'SUBMITTED',
+                    isConfidential: true,
+                },
+            });
+            await prisma.request.upsert({
+                where: { referenceNumber: 'HR-CONF-002' },
+                update: {},
+                create: {
+                    referenceNumber: 'HR-CONF-002',
+                    summary: 'Confidential disciplinary action review',
+                    description: 'This is a confidential request related to a disciplinary proceeding. Only the requester and authorized HR personnel should have access.',
+                    serviceDeskId: hrDesk.id,
+                    serviceCategoryId: hrCategory?.id ?? null,
+                    requestTypeId: confidentialRequestType.id,
+                    requesterId: endUsers[0].id,
+                    priority: 'HIGH',
+                    status: 'SUBMITTED',
+                    isConfidential: true,
+                },
+            });
+            console.log('✅ Seeded 2 confidential HR requests for QA testing');
+        } else {
+            console.log('⏭️  Skipping confidential request seeding (missing HR desk or end users)');
+        }
+    } else {
+        console.log('⏭️  Skipping confidential request seeding (HR_QUESTION request type not found)');
+    }
+
     // ── Seed Knowledge Base Articles ──
     const kbArticles = [
         // IT Support articles

@@ -46,6 +46,7 @@ class SearchController {
                                     OR: [
                                         { isConfidential: false },
                                         { requesterId: req.user!.id },
+                                        { approvals: { some: { approverId: req.user!.id } } },
                                     ],
                                 },
                                 {
@@ -127,6 +128,7 @@ class SearchController {
             where.OR = [
                 { isConfidential: false },
                 { requesterId: req.user!.id },
+                { approvals: { some: { approverId: req.user!.id } } },
             ];
         }
 
