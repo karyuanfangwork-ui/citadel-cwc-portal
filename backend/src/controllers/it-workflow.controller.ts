@@ -417,7 +417,7 @@ export async function markHardwareOrdered(req: Request, res: Response) {
 export async function markHardwareReceived(req: Request, res: Response) {
   try {
     const id = String(req.params.id);
-    const { receivedDate, notes, assetTag, serialNumber } = req.body;
+    const { receivedDate, notes, assetTag, serialNumber, registerAsAsset = true } = req.body;
 
     const request = await prisma.request.findUnique({
       where: { id },
@@ -440,6 +440,34 @@ export async function markHardwareReceived(req: Request, res: Response) {
       return res.status(400).json({ error: 'No hardware request record found for this request' });
     }
 
+    // Auto-create Asset if requested and no duplicate assetTag
+    let assetId: string | null = null;
+    if (registerAsAsset && assetTag) {
+      const existingAsset = await prisma.asset.findFirst({
+        where: { OR: [{ assetTag }, ...(serialNumber ? [{ serialNumber }] : [])] },
+      });
+      if (!existingAsset) {
+        const authReq = req as any;
+        const createdById = authReq.user?.id;
+        if (createdById) {
+          const asset = await prisma.asset.create({
+            data: {
+              assetTag: assetTag.trim(),
+              serialNumber: serialNumber?.trim() || null,
+              name: hardwareReq.hardwareName,
+              category: 'LAPTOP',
+              vendor: hardwareReq.preferredVendor || null,
+              purchasePrice: hardwareReq.estimatedPrice ? Number(hardwareReq.estimatedPrice) : null,
+              status: 'IN_STOCK',
+              sourceRequestId: id,
+              createdById,
+            },
+          });
+          assetId = asset.id;
+        }
+      }
+    }
+
     await prisma.request.update({
       where: { id },
       data: { status: 'HARDWARE_RECEIVED' },
@@ -447,10 +475,15 @@ export async function markHardwareReceived(req: Request, res: Response) {
 
     await prisma.iTHardwareRequest.update({
       where: { id: hardwareReq.id },
-      data: { procurementStatus: 'RECEIVED', assetTag: assetTag || null, serialNumber: serialNumber || null },
+      data: {
+        procurementStatus: 'RECEIVED',
+        assetTag: assetTag || null,
+        serialNumber: serialNumber || null,
+        ...(assetId ? { assetId } : {}),
+      },
     });
 
-    const noteMsg = [notes, assetTag ? `Asset tag: ${assetTag}` : null, serialNumber ? `Serial number: ${serialNumber}` : null].filter(Boolean).join('. ');
+    const noteMsg = [notes, assetTag ? `Asset tag: ${assetTag}` : null, serialNumber ? `Serial: ${serialNumber}` : null, assetId ? 'Registered in asset registry' : null].filter(Boolean).join('. ');
 
     await prisma.requestActivity.create({
       data: {
@@ -459,7 +492,7 @@ export async function markHardwareReceived(req: Request, res: Response) {
         message: `Hardware received${noteMsg ? ': ' + noteMsg : ''}`,
         authorName: 'System',
         isSystemGenerated: true,
-        metadata: { receivedDate, notes, assetTag, serialNumber },
+        metadata: { receivedDate, notes, assetTag, serialNumber, assetId },
       },
     });
 
@@ -473,9 +506,10 @@ export async function markHardwareReceived(req: Request, res: Response) {
     await auditLog(req as any, 'IT_HARDWARE_RECEIVED', 'request', String(id), {
       status: 'HARDWARE_RECEIVED',
       previousStatus: 'HARDWARE_ORDERED',
-      assetTag: assetTag || null, serialNumber: serialNumber || null,
+      assetTag: assetTag || null, serialNumber: serialNumber || null, assetId,
     }, { status: 'HARDWARE_ORDERED' });
-    return res.json({ success: true, message: 'Hardware marked as received' });
+
+    return res.json({ success: true, message: 'Hardware marked as received', assetId });
   } catch (error) {
     console.error('markHardwareReceived error:', error);
     return res.status(500).json({ error: 'Internal server error' });

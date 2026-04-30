@@ -135,6 +135,22 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
             include: { request: true, tasks: true },
         });
 
+        // Close open AssetAssignments when hardwareReturned is toggled on
+        if (rest.hardwareReturned === true && offboarding.employeeId) {
+            const openAssignments = await prisma.assetAssignment.findMany({
+                where: { userId: offboarding.employeeId, returnedAt: null },
+            });
+            for (const assignment of openAssignments) {
+                await prisma.$transaction([
+                    prisma.assetAssignment.update({
+                        where: { id: assignment.id },
+                        data: { returnedAt: new Date(), notes: 'Returned during offboarding' },
+                    }),
+                    prisma.asset.update({ where: { id: assignment.assetId }, data: { status: 'IN_STOCK' } }),
+                ]);
+            }
+        }
+
         const statusMap: Record<string, string> = {
             'NOTICE_PERIOD':       'OFFBOARDING_NOTICE_PERIOD',
             'KNOWLEDGE_TRANSFER':  'OFFBOARDING_KNOWLEDGE_TRANSFER',

@@ -162,6 +162,10 @@ async function main() {
         { name: 'notification:manage', resource: 'notification', action: 'manage', description: 'Manage notification templates' },
         { name: 'workflow:manage', resource: 'workflow', action: 'manage', description: 'Manage workflow transitions' },
         { name: 'banner:manage', resource: 'banner', action: 'manage', description: 'Manage banner configurations' },
+        { name: 'asset:read', resource: 'asset', action: 'read', description: 'View IT asset registry and employee assets' },
+        { name: 'asset:write', resource: 'asset', action: 'write', description: 'Register, edit, assign, and return IT assets' },
+        { name: 'asset:import', resource: 'asset', action: 'import', description: 'Bulk CSV import of IT assets' },
+        { name: 'asset:delete', resource: 'asset', action: 'delete', description: 'Dispose or soft-delete IT assets' },
     ];
 
     for (const perm of permissions) {
@@ -205,12 +209,14 @@ async function main() {
         'notification:manage',
         'workflow:manage',
         'banner:manage',
+        'asset:read', 'asset:write', 'asset:import', 'asset:delete',
     ];
 
     // AGENT gets full request CRUD + assign, no admin/user/report/banner/workflow
     const agentPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
         'request:approve', 'request:assign',
+        'asset:read', 'asset:write',
     ];
 
     // NORMAL_STAFF and USER can create and read their own requests

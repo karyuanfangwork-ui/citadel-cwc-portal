@@ -14,6 +14,7 @@ const HardwareReceivedModal: React.FC<HardwareReceivedModalProps> = ({ requestId
   const [notes, setNotes] = useState('');
   const [assetTag, setAssetTag] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
+  const [registerAsAsset, setRegisterAsAsset] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { handleBackdropClick } = useModalDismiss(onClose);
@@ -23,7 +24,13 @@ const HardwareReceivedModal: React.FC<HardwareReceivedModalProps> = ({ requestId
     try {
       setSubmitting(true);
       setError(null);
-      await itWorkflowService.markHardwareReceived(requestId, { receivedDate, notes: notes || undefined, assetTag: assetTag || undefined, serialNumber: serialNumber || undefined });
+      await itWorkflowService.markHardwareReceived(requestId, {
+        receivedDate,
+        notes: notes || undefined,
+        assetTag: assetTag || undefined,
+        serialNumber: serialNumber || undefined,
+        registerAsAsset,
+      });
       onSuccess();
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to mark hardware as received');
@@ -84,6 +91,18 @@ const HardwareReceivedModal: React.FC<HardwareReceivedModalProps> = ({ requestId
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-teal-400"
                 />
               </div>
+            </div>
+            <div className="flex items-center gap-2 mt-3 p-3 bg-blue-50 rounded-lg">
+              <input
+                type="checkbox"
+                id="registerAsAsset"
+                checked={registerAsAsset}
+                onChange={e => setRegisterAsAsset(e.target.checked)}
+                className="rounded"
+              />
+              <label htmlFor="registerAsAsset" className="text-sm text-blue-800 font-medium cursor-pointer">
+                Register in IT Asset Registry
+              </label>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">

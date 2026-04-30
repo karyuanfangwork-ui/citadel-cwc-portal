@@ -133,18 +133,26 @@ class RequestController {
             }
         }
 
+        // Valid RequestStatus enum members for runtime validation
+        const validStatuses = Object.values(RequestStatus) as string[];
+
         if (status) {
             // Support comma-separated status values for multi-status filters
-            const statusValues = (status as string).split(',');
+            const statusValues = (status as string).split(',').filter(v => validStatuses.includes(v)) as RequestStatus[];
             where.status = statusValues.length === 1
                 ? statusValues[0]
-                : { in: statusValues };
+                : statusValues.length > 1
+                    ? { in: statusValues }
+                    : undefined;
         }
 
         if (excludedStatuses) {
             // Support comma-separated excluded status values to filter out specific statuses
-            const excludedValues = (excludedStatuses as string).split(',');
-            if (where.status) {
+            // Filter out any values that aren't valid RequestStatus members (e.g. stale frontend strings like "CLOSED")
+            const excludedValues = (excludedStatuses as string).split(',').filter(v => validStatuses.includes(v)) as RequestStatus[];
+            if (excludedValues.length === 0) {
+                // All values were invalid — skip filter entirely
+            } else if (where.status) {
                 // If both status and excludedStatuses are provided, combine with AND
                 const existingStatus = where.status;
                 delete where.status;
@@ -244,6 +252,172 @@ class RequestController {
                     total,
                     totalPages: Math.ceil(total / limitNum),
                 },
+            },
+        });
+    });
+
+    /**
+     * Get all requests pending current user's approval
+     * GET /api/v1/requests/pending-approvals
+     */
+    getPendingApprovals = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+        const userId = req.user!.id;
+        const userRoles = (req.user as any)?.roles?.map((r: any) => r.role?.name ?? r) ?? [];
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const { priority, serviceDeskCode } = req.query;
+
+        // Find pending approvals assigned to this user
+        const pendingApprovals = await prisma.requestApproval.findMany({
+            where: {
+                approverId: userId,
+                status: 'PENDING',
+            },
+            select: { requestId: true },
+        });
+        const requestIds = pendingApprovals.map(a => a.requestId);
+
+        // Also include requests in PENDING_* statuses if user has matching roles
+        const PENDING_APPROVAL_STATUSES: Record<string, string[]> = {
+            CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT', 'PENDING_CEO_APPROVAL_FIN', 'PENDING_GROUP_CEO_APPROVAL_FIN'],
+            CTO: ['PENDING_CTO_APPROVAL_IT'],
+            CFO: ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN', 'PENDING_FINANCE_HEAD_APPROVAL'],
+            GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
+            VP: ['PENDING_VP_APPROVAL_IT'],
+            MANAGER: ['PENDING_MANAGER_APPROVAL_IT', 'PENDING_MANAGER_APPROVAL_FIN', 'PENDING_MANAGER_REVIEW'],
+            HR: ['LOA_PENDING_APPROVAL', 'ONBOARDING_PENDING_HR_APPROVAL'],
+        };
+
+        const statusFilter: string[] = [];
+        for (const [role, statuses] of Object.entries(PENDING_APPROVAL_STATUSES)) {
+            if (userRoles.includes(role)) {
+                statusFilter.push(...statuses);
+            }
+        }
+        // Always include entity approval statuses for entity approvers
+        statusFilter.push('PENDING_FROM_ENTITY_APPROVAL', 'PENDING_TO_ENTITY_APPROVAL');
+
+        // Build where clause
+        const where: any = {
+            deletedAt: null,
+            OR: [
+                ...(requestIds.length > 0 ? [{ id: { in: requestIds } }] : []),
+                ...(statusFilter.length > 0 ? [{ status: { in: [...new Set(statusFilter)] } }] : []),
+            ],
+        };
+
+        if (priority) {
+            where.priority = priority as string;
+        }
+        if (serviceDeskCode) {
+            where.serviceDesk = { code: serviceDeskCode as string };
+        }
+
+        const [requests, total] = await Promise.all([
+            prisma.request.findMany({
+                where,
+                include: {
+                    requester: {
+                        select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+                    },
+                    assignedTo: {
+                        select: { id: true, firstName: true, lastName: true, email: true },
+                    },
+                    serviceDesk: { select: { id: true, name: true, code: true } },
+                    requestType: { select: { id: true, name: true } },
+                    approvals: {
+                        where: { status: 'PENDING' },
+                        include: {
+                            approver: { select: { id: true, firstName: true, lastName: true, email: true } },
+                            entity: { select: { id: true, name: true, code: true } },
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            prisma.request.count({ where }),
+        ]);
+
+        res.json({
+            status: 'success',
+            data: { requests },
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        });
+    });
+
+    /**
+     * Bulk approve or reject requests
+     * POST /api/v1/requests/bulk-action
+     */
+    bulkAction = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+        const userId = req.user!.id;
+        const { action, requestIds, comment } = req.body;
+
+        if (!['approve', 'reject'].includes(action)) {
+            throw new AppError('Action must be "approve" or "reject"', 400);
+        }
+        if (!Array.isArray(requestIds) || requestIds.length === 0) {
+            throw new AppError('requestIds must be a non-empty array', 400);
+        }
+
+        const approvalStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
+
+        // Verify user is an approver for these requests
+        const approvals = await prisma.requestApproval.findMany({
+            where: {
+                requestId: { in: requestIds },
+                approverId: userId,
+                status: 'PENDING',
+            },
+        });
+
+        const approvedRequestIds = approvals.map(a => a.requestId);
+
+        // Update approvals
+        await prisma.requestApproval.updateMany({
+            where: {
+                requestId: { in: approvedRequestIds },
+                approverId: userId,
+                status: 'PENDING',
+            },
+            data: {
+                status: approvalStatus,
+                comments: comment || null,
+            },
+        });
+
+        // Create activity for each request
+        for (const requestId of approvedRequestIds) {
+            await prisma.requestActivity.create({
+                data: {
+                    requestId,
+                    authorId: userId,
+                    authorName: `${req.user!.firstName || ''} ${req.user!.lastName || ''}`.trim() || 'Approver',
+                    activityType: 'STATUS_CHANGE',
+                    message: `Request ${action === 'approve' ? 'approved' : 'rejected'} by approver${comment ? ': ' + comment : ''}`,
+                    isSystemGenerated: true,
+                },
+            });
+
+            // Resume SLA if we just approved
+            if (action === 'approve') {
+                await resumeSla(requestId);
+            }
+        }
+
+        res.json({
+            status: 'success',
+            data: {
+                action,
+                processedCount: approvedRequestIds.length,
+                processedIds: approvedRequestIds,
             },
         });
     });

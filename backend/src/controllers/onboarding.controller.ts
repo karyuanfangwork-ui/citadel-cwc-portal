@@ -145,6 +145,28 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
             },
         });
 
+        // Create AssetAssignment when hardwareAssigned is toggled on with an assetId
+        if (updates.hardwareAssigned === true && updates.assetId) {
+            const asset = await prisma.asset.findUnique({ where: { id: updates.assetId } });
+            if (asset && asset.status !== 'ASSIGNED') {
+                const assignToUserId = onboarding.newHireId;
+                if (assignToUserId) {
+                    await prisma.$transaction([
+                        prisma.assetAssignment.create({
+                            data: {
+                                assetId: updates.assetId,
+                                userId: assignToUserId,
+                                assignedById: user?.id || onboarding.hiringManagerId,
+                                reason: 'Onboarding',
+                                linkedRequestId: requestId,
+                            },
+                        }),
+                        prisma.asset.update({ where: { id: updates.assetId }, data: { status: 'ASSIGNED' } }),
+                    ]);
+                }
+            }
+        }
+
         const statusMap: Record<string, string> = {
             'HR_APPROVAL': 'ONBOARDING_PENDING_HR_APPROVAL',
             'PRE_ARRIVAL': 'ONBOARDING_PRE_ARRIVAL_SETUP',

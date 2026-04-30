@@ -29,6 +29,20 @@ router.get('/', requestController.getAllRequests);
 router.post('/', validate(createRequestSchema), requestController.createRequest);
 
 /**
+ * @route   GET /api/v1/requests/pending-approvals
+ * @desc    Get all requests pending current user's approval
+ * @access  Private
+ */
+router.get('/pending-approvals', requirePermission('request:approve'), requestController.getPendingApprovals);
+
+/**
+ * @route   POST /api/v1/requests/bulk-action
+ * @desc    Bulk approve or reject requests
+ * @access  Private
+ */
+router.post('/bulk-action', requirePermission('request:approve'), requestController.bulkAction);
+
+/**
  * @route   GET /api/v1/requests/:id
  * @desc    Get request by ID
  * @access  Private

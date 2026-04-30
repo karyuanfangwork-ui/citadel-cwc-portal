@@ -14,7 +14,7 @@ const CACHE_TTL_SECONDS = 300; // 5 minutes
 export async function pauseSla(requestId: string): Promise<void> {
   const request = await prisma.request.findUnique({
     where: { id: requestId },
-    select: { id: true, slaPausedAt: true, referenceNumber: true },
+    select: { id: true, slaPausedAt: true, referenceNumber: true, requesterId: true },
   });
 
   if (!request) {
@@ -38,7 +38,7 @@ export async function pauseSla(requestId: string): Promise<void> {
   await prisma.requestActivity.create({
     data: {
       requestId,
-      authorId: request.id, // system-generated, use requester as placeholder
+      authorId: request.requesterId,
       authorName: 'System',
       activityType: 'SYSTEM',
       message: 'SLA timer paused — request entered approval status',

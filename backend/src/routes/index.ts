@@ -29,6 +29,7 @@ import entityRoutes from './entity.routes';
 import escalationRuleRouter from './escalationRule.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 import auditLogRoutes from './auditLog.routes';
+import assetRoutes from './asset.routes';
 
 const router = Router();
 
@@ -65,6 +66,7 @@ router.use('/files', fileRoutes);
 router.use('/admin/entities', entityRoutes);
 router.use('/admin/audit-logs', auditLogRoutes);
 router.use('/sla', escalationRuleRouter);
+router.use('/assets', assetRoutes);
 
 export default router;
 

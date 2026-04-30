@@ -20,6 +20,29 @@ enum ExecutiveRole {
   CHRO
 }
 
+enum AssetStatus {
+  IN_STOCK
+  ASSIGNED
+  RESERVED
+  PENDING_RETURN
+  IN_REPAIR
+  RETIRED
+  LOST
+  STOLEN
+  DISPOSED
+}
+
+enum AssetCategory {
+  LAPTOP
+  DESKTOP
+  MONITOR
+  PERIPHERAL
+  PHONE
+  NETWORK
+  SOFTWARE_LICENSE
+  OTHER
+}
+
 // ============================================================================
 // USERS & AUTHENTICATION
 // ============================================================================
@@ -80,6 +103,10 @@ model User {
   // Entity Relations
   entity                Entity?                     @relation("UserEntity", fields: [entityId], references: [id])
   approverForEntities   Entity[]                    @relation("EntityApprover")
+  // Asset Relations
+  createdAssets         Asset[]                     @relation("AssetCreatedBy")
+  assetAssignments      AssetAssignment[]           @relation("AssetAssignmentUser")
+  assetAssignedBy       AssetAssignment[]           @relation("AssetAssignmentAssignedBy")
 
   @@map("users")
   @@index([email])
@@ -462,6 +489,9 @@ model Request {
   offboardingRequest  OffboardingRequest?
   parentRequest       Request?          @relation("RequestChildren", fields: [parentRequestId], references: [id])
   childRequests       Request[]         @relation("RequestChildren")
+  // Asset Relations
+  sourceAssets        Asset[]           @relation("AssetSourceRequest")
+  assetAssignments    AssetAssignment[] @relation("AssetAssignmentRequest")
 
   @@map("requests")
   @@index([referenceNumber])
@@ -571,6 +601,7 @@ model ITHardwareRequest {
   trackingNumber          String?   @map("tracking_number") @db.VarChar(100)
   serialNumber            String?   @map("serial_number") @db.VarChar(100)
   assetTag                String?   @map("asset_tag") @db.VarChar(100)
+  assetId                 String?   @map("asset_id") @db.Uuid
   
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -578,6 +609,7 @@ model ITHardwareRequest {
   // Relations
   request           Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
   managerApprovedBy User?   @relation("HardwareManagerApproval", fields: [managerApprovedById], references: [id])
+  asset             Asset?  @relation(fields: [assetId], references: [id])
 
   @@map("it_hardware_requests")
 }
@@ -1271,4 +1303,60 @@ model RequestTypeEntityRouting {
 
   @@map("request_type_entity_routings")
   @@index([requestTypeId])
+}
+
+// ============================================================================
+// IT ASSET MANAGEMENT
+// ============================================================================
+
+model Asset {
+  id             String        @id @default(uuid()) @db.Uuid
+  assetTag       String        @unique @map("asset_tag") @db.VarChar(100)
+  serialNumber   String?       @unique @map("serial_number") @db.VarChar(100)
+  name           String        @db.VarChar(255)
+  category       AssetCategory
+  brand          String?       @db.VarChar(100)
+  model          String?       @db.VarChar(100)
+  purchaseDate   DateTime?     @map("purchase_date") @db.Date
+  purchasePrice  Decimal?      @map("purchase_price") @db.Decimal(10, 2)
+  vendor         String?       @db.VarChar(200)
+  warrantyExpiry DateTime?     @map("warranty_expiry") @db.Date
+  status         AssetStatus   @default(IN_STOCK)
+  notes          String?       @db.Text
+
+  sourceRequestId String? @map("source_request_id") @db.Uuid
+  createdById     String  @map("created_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  sourceRequest      Request?          @relation("AssetSourceRequest", fields: [sourceRequestId], references: [id])
+  createdBy          User              @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  assignments        AssetAssignment[]
+  itHardwareRequests ITHardwareRequest[]
+
+  @@map("assets")
+  @@index([status])
+  @@index([category])
+  @@index([createdById])
+}
+
+model AssetAssignment {
+  id              String    @id @default(uuid()) @db.Uuid
+  assetId         String    @map("asset_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  assignedById    String    @map("assigned_by_id") @db.Uuid
+  assignedAt      DateTime  @default(now()) @map("assigned_at") @db.Timestamp(6)
+  returnedAt      DateTime? @map("returned_at") @db.Timestamp(6)
+  reason          String?   @db.VarChar(200)
+  linkedRequestId String?   @map("linked_request_id") @db.Uuid
+  notes           String?   @db.Text
+
+  asset          Asset    @relation(fields: [assetId], references: [id])
+  user           User     @relation("AssetAssignmentUser", fields: [userId], references: [id])
+  assignedBy     User     @relation("AssetAssignmentAssignedBy", fields: [assignedById], references: [id])
+  linkedRequest  Request? @relation("AssetAssignmentRequest", fields: [linkedRequestId], references: [id])
+
+  @@map("asset_assignments")
+  @@index([assetId])
+  @@index([userId])
 }

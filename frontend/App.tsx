@@ -27,6 +27,7 @@ import SearchResults from './pages/SearchResults';
 import KnowledgeBase from './pages/KnowledgeBase';
 import ArticleDetail from './pages/ArticleDetail';
 import ApprovalQueue from './pages/ApprovalQueue';
+import AssetManagement from './pages/AssetManagement';
 
 const Header = () => {
   const location = useLocation();
@@ -57,7 +58,8 @@ const Header = () => {
     { to: '/agent', label: 'Agent Dashboard', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
     { to: '/reports', label: 'Reports', show: hasPermission(user, 'report:read') },
     { to: '/kb', label: 'Knowledge Base', show: true },
-    { to: '/approvals', label: 'Approvals', show: hasAnyRole(user, ['CEO', 'CTO', 'CFO', 'GROUP_CEO', 'ADMIN', 'AGENT']) },
+    { to: '/approvals', label: 'Approvals', show: hasPermission(user, 'request:approve') },
+    { to: '/assets', label: 'IT Assets', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
     { to: '/admin/settings', label: 'Admin Settings', show: hasPermission(user, 'admin:access') },
   ].filter(l => l.show);
 
@@ -306,7 +308,8 @@ const AppShell = () => {
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
               <Route path="/kb" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
               <Route path="/kb/:slug" element={<ProtectedRoute><ArticleDetail /></ProtectedRoute>} />
-              <Route path="/approvals" element={<ProtectedRoute><ApprovalQueue /></ProtectedRoute>} />
+              <Route path="/approvals" element={<ProtectedRoute requirePermission="request:approve"><ApprovalQueue /></ProtectedRoute>} />
+              <Route path="/assets" element={<ProtectedRoute requirePermission="asset:read"><AssetManagement /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
                 <ProtectedRoute requirePermission="admin:access">
                   <ErrorBoundary>

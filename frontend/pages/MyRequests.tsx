@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG } from '../constants';
@@ -28,15 +28,6 @@ interface Request {
   } | null;
 }
 
-const PENDING_APPROVAL_STATUSES: Record<string, string[]> = {
-  CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT', 'PENDING_FROM_ENTITY_APPROVAL', 'PENDING_TO_ENTITY_APPROVAL'],
-  CTO: ['PENDING_CTO_APPROVAL_IT'],
-  CFO: ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN'],
-  GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
-  HIRING_MANAGER: ['PENDING_MANAGER_REVIEW'],
-  FINANCE_HEAD: ['PENDING_FINANCE_HEAD_APPROVAL'],
-};
-
 // Statuses that represent a terminal/closed state — used for server-side "open" filtering
 const RESOLVED_STATUSES = [
   'RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED',
@@ -51,8 +42,7 @@ const RESOLVED_STATUSES = [
 const MyRequests = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const approvalRole = user?.roles?.find(r => Object.keys(PENDING_APPROVAL_STATUSES).includes(r)) ?? null;
-  const [filter, setFilter] = useState('open');
+  const [filter, setFilter] = useState<'open' | 'all'>('open');
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,10 +80,6 @@ const MyRequests = () => {
       // Server-side filtering by status
       if (filter === 'open') {
         apiFilters.excludedStatuses = RESOLVED_STATUSES.join(',');
-      } else if (filter === 'pending_approval' && approvalRole) {
-        apiFilters.status = PENDING_APPROVAL_STATUSES[approvalRole].join(',');
-        // For pending_approval, the user is an approver — don't restrict to their own requests
-        delete apiFilters.requesterId;
       }
       // filter === 'all' → no status filter needed
 
@@ -191,26 +177,6 @@ const MyRequests = () => {
               <span className="material-symbols-outlined text-[20px]">mark_email_read</span>
               All requests
             </button>
-            {approvalRole && (
-              <>
-                <div className="h-px bg-gray-200 my-2"></div>
-                <button
-                  onClick={() => {
-                    setFilter('pending_approval');
-                    setPage(1);
-                  }}
-                  aria-pressed={filter === 'pending_approval'}
-                  aria-label="Show pending my approval"
-                  className={`flex items-center gap-3 px-4 py-2.5 rounded text-sm transition-all ${filter === 'pending_approval'
-                      ? 'bg-amber-50 text-amber-700 font-bold border-l-4 border-amber-500'
-                      : 'text-[#44546f] hover:bg-gray-100'
-                    }`}
-                >
-                  <span className="material-symbols-outlined text-[20px]">pending_actions</span>
-                  Pending My Approval
-                </button>
-              </>
-            )}
             <div className="h-px bg-gray-200 my-2"></div>
             <a
               href="#"
