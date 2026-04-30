@@ -70,8 +70,9 @@ export interface WorkflowAction {
  * Returns the list of workflow actions available for a given status + role combo.
  * Returns empty array when no actions are available (section should be hidden).
  */
-// Stable codes for request types that go through the procurement workflow
-const PROCUREMENT_REQUEST_TYPE_CODES = ['NEW_HARDWARE', 'SOFTWARE_INSTALLATION'];
+// Only NEW_HARDWARE goes through the procurement workflow with asset registration.
+// SOFTWARE_INSTALLATION skips procurement — goes straight to delivery after payment.
+const PROCUREMENT_REQUEST_TYPE_CODES = ['NEW_HARDWARE'];
 
 function isProcurementRequest(requestTypeCode: string, requestTypeName: string): boolean {
   if (requestTypeCode) {
@@ -637,7 +638,7 @@ export function getWorkflowActions(
     actions.push({
       type: 'COMPLETE_DELIVERY',
       label: 'Complete Delivery',
-      description: 'Confirm hardware has been delivered to the requester.',
+      description: 'Confirm software has been delivered/installed for the requester.',
       variant: 'success',
     });
   }

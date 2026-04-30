@@ -279,7 +279,7 @@ class RequestController {
 
         // Also include requests in PENDING_* statuses if user has matching roles
         const PENDING_APPROVAL_STATUSES: Record<string, string[]> = {
-            CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT', 'PENDING_CEO_APPROVAL_FIN', 'PENDING_GROUP_CEO_APPROVAL_FIN'],
+            CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT', 'PENDING_CEO_APPROVAL_FIN'],
             CTO: ['PENDING_CTO_APPROVAL_IT'],
             CFO: ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN', 'PENDING_FINANCE_HEAD_APPROVAL'],
             GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
@@ -288,6 +288,7 @@ class RequestController {
             HR: ['LOA_PENDING_APPROVAL', 'ONBOARDING_PENDING_HR_APPROVAL'],
         };
 
+        const validStatuses = Object.values(RequestStatus) as string[];
         const statusFilter: string[] = [];
         for (const [role, statuses] of Object.entries(PENDING_APPROVAL_STATUSES)) {
             if (userRoles.includes(role)) {
@@ -296,13 +297,15 @@ class RequestController {
         }
         // Always include entity approval statuses for entity approvers
         statusFilter.push('PENDING_FROM_ENTITY_APPROVAL', 'PENDING_TO_ENTITY_APPROVAL');
+        // Filter out invalid enum values to prevent Prisma validation errors
+        const filteredStatusFilter = statusFilter.filter(s => validStatuses.includes(s));
 
         // Build where clause
         const where: any = {
             deletedAt: null,
             OR: [
                 ...(requestIds.length > 0 ? [{ id: { in: requestIds } }] : []),
-                ...(statusFilter.length > 0 ? [{ status: { in: [...new Set(statusFilter)] } }] : []),
+                ...(statusFilter.length > 0 ? [{ status: { in: Array.from(new Set(filteredStatusFilter)) } }] : []),
             ],
         };
 
@@ -355,6 +358,9 @@ class RequestController {
     /**
      * Bulk approve or reject requests
      * POST /api/v1/requests/bulk-action
+     *
+     * Workflow-aware: determines the correct status transition based on
+     * the request's current status and the approval's approverType.
      */
     bulkAction = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
         const userId = req.user!.id;
@@ -368,47 +374,188 @@ class RequestController {
         }
 
         const approvalStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
+        const userRoles = (req.user as any)?.roles?.map((r: any) => r.role?.name ?? r) ?? [];
 
-        // Verify user is an approver for these requests
+        // Find PENDING approvals where the user is either:
+        // 1. Directly assigned (approverId = userId), OR
+        // 2. Role-based (approverId is null AND approverType matches one of the user's roles)
         const approvals = await prisma.requestApproval.findMany({
             where: {
                 requestId: { in: requestIds },
-                approverId: userId,
                 status: 'PENDING',
+                OR: [
+                    { approverId: userId },
+                    { approverId: null, approverType: { in: userRoles } },
+                ],
             },
         });
+
+        // Stamp approverId on role-based approvals that were matched by type
+        for (const approval of approvals) {
+            if (!approval.approverId) {
+                await prisma.requestApproval.update({
+                    where: { id: approval.id },
+                    data: { approverId: userId },
+                });
+                approval.approverId = userId;
+            }
+        }
 
         const approvedRequestIds = approvals.map(a => a.requestId);
 
-        // Update approvals
-        await prisma.requestApproval.updateMany({
-            where: {
-                requestId: { in: approvedRequestIds },
-                approverId: userId,
-                status: 'PENDING',
-            },
-            data: {
-                status: approvalStatus,
-                comments: comment || null,
-            },
-        });
-
-        // Create activity for each request
-        for (const requestId of approvedRequestIds) {
-            await prisma.requestActivity.create({
+        if (approvedRequestIds.length === 0) {
+            res.json({
+                status: 'success',
                 data: {
-                    requestId,
-                    authorId: userId,
-                    authorName: `${req.user!.firstName || ''} ${req.user!.lastName || ''}`.trim() || 'Approver',
-                    activityType: 'STATUS_CHANGE',
-                    message: `Request ${action === 'approve' ? 'approved' : 'rejected'} by approver${comment ? ': ' + comment : ''}`,
-                    isSystemGenerated: true,
+                    action,
+                    processedCount: 0,
+                    processedIds: [],
                 },
             });
+            return;
+        }
 
-            // Resume SLA if we just approved
-            if (action === 'approve') {
-                await resumeSla(requestId);
+        // Fetch the requests that have matching approvals to determine workflow transitions
+        const requests = await prisma.request.findMany({
+            where: { id: { in: approvedRequestIds } },
+            select: { id: true, status: true, referenceNumber: true },
+        });
+
+        // Map: status → (approverType, decision) → next status
+        // This mirrors the workflow-specific controllers (it-workflow, approval, etc.)
+        const STATUS_TRANSITIONS: Record<string, Record<string, { approve: string; reject: string }>> = {
+            // CEO approvals — skip transient "APPROVED" states, go directly to next pending step
+            PENDING_CEO_APPROVAL: { CEO: { approve: 'CEO_APPROVED', reject: 'CEO_REJECTED' } },
+            PENDING_CEO_APPROVAL_IT: { CEO: { approve: 'PENDING_CTO_APPROVAL_IT', reject: 'CEO_REJECTED_IT' } },
+            PENDING_CEO_APPROVAL_FIN: { CEO: { approve: 'PENDING_CFO_APPROVAL_FIN', reject: 'CEO_REJECTED_IT' } },
+            // CTO approvals (IT workflow) — skip CTO_APPROVED_IT, go to PENDING_INVOICE_IT
+            PENDING_CTO_APPROVAL_IT: { CTO: { approve: 'PENDING_INVOICE_IT', reject: 'CTO_REJECTED_IT' } },
+            // CFO approvals — skip transient APPROVED states, go to next workflow step
+            PENDING_CFO_APPROVAL_IT: { CFO: { approve: 'PAYMENT_PROCESSING_IT', reject: 'CFO_REJECTED_IT' } },
+            PENDING_CFO_APPROVAL_FIN: { CFO: { approve: 'CFO_APPROVED_FIN', reject: 'CFO_REJECTED_FIN' } },
+            PENDING_CFO_APPROVAL: { CFO: { approve: 'CFO_APPROVED', reject: 'CFO_REJECTED' } },
+            PENDING_FINANCE_HEAD_APPROVAL: { CFO: { approve: 'FINANCE_HEAD_APPROVED', reject: 'FINANCE_HEAD_REJECTED' } },
+            // VP approvals (IT workflow)
+            PENDING_VP_APPROVAL_IT: { VP: { approve: 'VP_APPROVED_IT', reject: 'VP_REJECTED_IT' } },
+            // Manager approvals
+            PENDING_MANAGER_APPROVAL_IT: { MANAGER: { approve: 'MANAGER_APPROVED_IT', reject: 'MANAGER_REJECTED_IT' } },
+            PENDING_MANAGER_APPROVAL_FIN: { MANAGER: { approve: 'MANAGER_APPROVED_FIN', reject: 'MANAGER_REJECTED_FIN' } },
+            PENDING_MANAGER_REVIEW: { MANAGER: { approve: 'MANAGER_APPROVED', reject: 'IN_REVIEW' } },
+            // Group CEO approvals
+            PENDING_GROUP_CEO_APPROVAL: { GROUP_CEO: { approve: 'GROUP_CEO_APPROVED', reject: 'GROUP_CEO_REJECTED' } },
+            // HR approvals
+            LOA_PENDING_APPROVAL: { HR: { approve: 'LOA_APPROVED', reject: 'REJECTED' } },
+            ONBOARDING_PENDING_HR_APPROVAL: { HR: { approve: 'ONBOARDING_PRE_ARRIVAL_SETUP', reject: 'REJECTED' } },
+        };
+
+        // Approval types that should create a follow-up approval after approval
+        // When a cascading approval exists, the approval creates the next PENDING approval record
+        // and SLA is paused again for the next approver.
+        // When NO cascade exists (e.g. CTO approve → PENDING_INVOICE_IT), SLA stays resumed.
+        const CASCADING_APPROVALS: Record<string, { approverType: string; nextStatus: string }> = {
+            PENDING_CEO_APPROVAL_IT: { approverType: 'CTO', nextStatus: 'PENDING_CTO_APPROVAL_IT' },
+            PENDING_MANAGER_APPROVAL_IT: { approverType: 'VP', nextStatus: 'PENDING_VP_APPROVAL_IT' },
+            PENDING_VP_APPROVAL_IT: { approverType: 'CEO', nextStatus: 'PENDING_CEO_APPROVAL_IT' },
+        };
+
+        // Role display names for activity log
+        const ROLE_DISPLAY: Record<string, string> = {
+            CEO: 'CEO', CTO: 'CTO', CFO: 'CFO', VP: 'VP',
+            MANAGER: 'Manager', GROUP_CEO: 'Group CEO', HR: 'HR',
+            HIRING_MANAGER: 'Hiring Manager',
+        };
+
+        const processedIds: string[] = [];
+        const errors: { requestId: string; error: string }[] = [];
+
+        for (const approval of approvals) {
+            const request = requests.find(r => r.id === approval.requestId);
+            if (!request) continue;
+
+            const currentStatus = request.status;
+            const approverType = approval.approverType;
+
+            // Determine the new status
+            const transition = STATUS_TRANSITIONS[currentStatus]?.[approverType];
+            if (!transition) {
+                errors.push({ requestId: request.id, error: `No transition defined for status ${currentStatus} with approver type ${approverType}` });
+                continue;
+            }
+
+            const newStatus = action === 'approve' ? transition.approve : transition.reject;
+
+            try {
+                // Update approval record
+                await prisma.requestApproval.update({
+                    where: { id: approval.id },
+                    data: {
+                        status: approvalStatus,
+                        comments: comment || null,
+                    },
+                });
+
+                // Update request status
+                await prisma.request.update({
+                    where: { id: request.id },
+                    data: { status: newStatus as any },
+                });
+
+                // Create follow-up approval if this is a cascading approval
+                if (action === 'approve' && CASCADING_APPROVALS[currentStatus]) {
+                    const cascade = CASCADING_APPROVALS[currentStatus];
+                    await prisma.requestApproval.create({
+                        data: {
+                            requestId: request.id,
+                            approverType: cascade.approverType,
+                            status: 'PENDING',
+                        },
+                    });
+                }
+
+                // Resume SLA on approval, pause on next cascading step
+                if (action === 'approve') {
+                    await resumeSla(request.id);
+                    // If there's a cascading next step, pause SLA for next approver
+                    if (CASCADING_APPROVALS[currentStatus]) {
+                        await pauseSla(request.id);
+                    }
+                } else {
+                    // On rejection, resume SLA (was paused for approval) and set resolved
+                    await resumeSla(request.id);
+                    // For rejected statuses that end the workflow, mark resolved
+                    const rejectStatus = transition.reject;
+                    if (rejectStatus.includes('REJECTED')) {
+                        await prisma.request.update({
+                            where: { id: request.id },
+                            data: { resolvedAt: new Date() },
+                        });
+                    }
+                }
+
+                // Create activity log
+                const roleDisplay = ROLE_DISPLAY[approverType] || approverType;
+                await prisma.requestActivity.create({
+                    data: {
+                        requestId: request.id,
+                        authorId: userId,
+                        authorName: `${req.user!.firstName || ''} ${req.user!.lastName || ''}`.trim() || roleDisplay,
+                        activityType: action === 'approve' ? 'APPROVAL' : 'REJECTION',
+                        message: `${roleDisplay} ${action === 'approve' ? 'approved' : 'rejected'} this request${comment ? ': ' + comment : ''}`,
+                        isSystemGenerated: false,
+                    },
+                });
+
+                await auditLog(req as any, 'APPROVAL_DECISION', 'request', request.id, {
+                    decision: approvalStatus,
+                    approverType,
+                    newStatus,
+                    previousStatus: currentStatus,
+                }, { status: currentStatus });
+
+                processedIds.push(request.id);
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                errors.push({ requestId: request.id, error: msg });
             }
         }
 
@@ -416,8 +563,9 @@ class RequestController {
             status: 'success',
             data: {
                 action,
-                processedCount: approvedRequestIds.length,
-                processedIds: approvedRequestIds,
+                processedCount: processedIds.length,
+                processedIds,
+                ...(errors.length > 0 ? { errors } : {}),
             },
         });
     });
@@ -1509,6 +1657,80 @@ class RequestController {
             await pauseSla(id);
         } else if (shouldResume) {
             await resumeSla(id);
+        }
+
+        // Auto-create RequestApproval records for PENDING_APPROVAL statuses
+        // This ensures the bulkAction (Approve/Reject) endpoint can find these records
+        const PENDING_APPROVAL_TYPE_MAP: Record<string, string> = {
+            PENDING_CEO_APPROVAL: 'CEO',
+            PENDING_CEO_APPROVAL_IT: 'CEO',
+            PENDING_CEO_APPROVAL_FIN: 'CEO',
+            PENDING_CTO_APPROVAL_IT: 'CTO',
+            PENDING_CFO_APPROVAL_IT: 'CFO',
+            PENDING_CFO_APPROVAL_FIN: 'CFO',
+            PENDING_FINANCE_HEAD_APPROVAL: 'CFO',
+            PENDING_GROUP_CEO_APPROVAL: 'GROUP_CEO',
+            PENDING_VP_APPROVAL_IT: 'VP',
+            PENDING_MANAGER_APPROVAL_IT: 'MANAGER',
+            PENDING_MANAGER_APPROVAL_FIN: 'MANAGER',
+            PENDING_MANAGER_REVIEW: 'MANAGER',
+            LOA_PENDING_APPROVAL: 'HR',
+            ONBOARDING_PENDING_HR_APPROVAL: 'HR',
+        };
+
+        const approvalType = PENDING_APPROVAL_TYPE_MAP[status];
+        if (approvalType) {
+            // Find the user with the matching role to set as approverId
+            // Try executiveRole field first (for CEO, CTO, CFO, CHRO, COO), then fall back to UserRole
+            const EXECUTIVE_ROLES = ['CEO', 'CTO', 'CFO', 'CHRO', 'COO'] as const;
+            let approverId: string | null = null;
+
+            if (EXECUTIVE_ROLES.includes(approvalType as any)) {
+                // Try executiveRole field first, then fall back to UserRole
+                const byExecRole = await prisma.user.findFirst({
+                    where: { executiveRole: approvalType as any, isActive: true },
+                    select: { id: true },
+                });
+                if (byExecRole) {
+                    approverId = byExecRole.id;
+                } else {
+                    const byUserRole = await prisma.user.findFirst({
+                        where: { isActive: true, roles: { some: { role: { name: approvalType } } } },
+                        select: { id: true },
+                    });
+                    approverId = byUserRole?.id ?? null;
+                }
+            } else {
+                // For non-executive roles (GROUP_CEO, VP, MANAGER, HR), find by UserRole
+                const approverUser = await prisma.user.findFirst({
+                    where: {
+                        isActive: true,
+                        roles: { some: { role: { name: approvalType } } },
+                    },
+                    select: { id: true },
+                });
+                approverId = approverUser?.id ?? null;
+            }
+
+            // Check if an approval record already exists for this request+type+PENDING
+            const existingApproval = await prisma.requestApproval.findFirst({
+                where: {
+                    requestId: id,
+                    approverType: approvalType,
+                    status: 'PENDING',
+                },
+            });
+
+            if (!existingApproval) {
+                await prisma.requestApproval.create({
+                    data: {
+                        requestId: id,
+                        approverType: approvalType,
+                        approverId,
+                        status: 'PENDING',
+                    },
+                });
+            }
         }
 
         res.json({

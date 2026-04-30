@@ -145,7 +145,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
     const workflowCode = request.requestType?.workflow?.code;
     
     if (workflowCode === 'IT_PROCUREMENT') {
-      // IT Procurement Workflow: CEO -> CTO -> CFO approval chain
+      // IT Procurement Workflow (Software): CEO -> CTO -> CFO approval chain, then payment -> delivery
       const allSteps = [
         { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
         { label: 'Acknowledged', status: 'ACKNOWLEDGED_IT', icon: 'radio_button_checked' },
@@ -158,10 +158,40 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
       ];
       const statusOrder = [
-        'SUBMITTED', 'ACKNOWLEDGED_IT', 'PENDING_CEO_APPROVAL_IT', 'CEO_APPROVED_IT',
-        'PENDING_CTO_APPROVAL_IT', 'CTO_APPROVED_IT', 'PENDING_INVOICE_IT',
-        'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'PAYMENT_PROCESSING_IT',
+        'SUBMITTED', 'ACKNOWLEDGED_IT', 'PENDING_CEO_APPROVAL_IT',
+        'PENDING_CTO_APPROVAL_IT', 'PENDING_INVOICE_IT',
+        'PENDING_CFO_APPROVAL_IT', 'PAYMENT_PROCESSING_IT',
         'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT', 'RESOLVED'
+      ];
+      const currentIndex = statusOrder.indexOf(currentStatus);
+      return allSteps.map((step) => ({
+        ...step,
+        active: statusOrder.indexOf(step.status) <= currentIndex,
+      }));
+    }
+    
+    if (workflowCode === 'IT_HARDWARE_PROCUREMENT') {
+      // IT Hardware Procurement: Executive approval chain, then procurement with asset registration
+      const allSteps = [
+        { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
+        { label: 'Acknowledged', status: 'ACKNOWLEDGED_IT', icon: 'radio_button_checked' },
+        { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL_IT', icon: 'radio_button_checked' },
+        { label: 'CTO Approval', status: 'PENDING_CTO_APPROVAL_IT', icon: 'radio_button_checked' },
+        { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'radio_button_checked' },
+        { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_IT', icon: 'radio_button_checked' },
+        { label: 'Payment', status: 'PAYMENT_PROCESSING_IT', icon: 'radio_button_checked' },
+        { label: 'Procurement', status: 'PROCUREMENT_IN_PROGRESS', icon: 'radio_button_checked' },
+        { label: 'Ordered', status: 'HARDWARE_ORDERED', icon: 'radio_button_checked' },
+        { label: 'Received', status: 'HARDWARE_RECEIVED', icon: 'radio_button_checked' },
+        { label: 'Provisioned', status: 'SOFTWARE_PROVISIONED', icon: 'radio_button_checked' },
+        { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle' },
+      ];
+      const statusOrder = [
+        'SUBMITTED', 'ACKNOWLEDGED_IT', 'PENDING_CEO_APPROVAL_IT',
+        'PENDING_CTO_APPROVAL_IT', 'PENDING_INVOICE_IT',
+        'PENDING_CFO_APPROVAL_IT', 'PAYMENT_PROCESSING_IT',
+        'PAYMENT_DONE_IT', 'PROCUREMENT_IN_PROGRESS', 'HARDWARE_ORDERED',
+        'HARDWARE_RECEIVED', 'SOFTWARE_PROVISIONED', 'RESOLVED'
       ];
       const currentIndex = statusOrder.indexOf(currentStatus);
       return allSteps.map((step) => ({

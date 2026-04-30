@@ -18,14 +18,14 @@ const defaultWorkflows = [
   {
     name: 'IT Procurement',
     code: 'IT_PROCUREMENT',
-    description: 'IT hardware/software procurement with executive approval chain',
+    description: 'IT software procurement with executive approval chain (no asset registration)',
     displayOrder: 2,
     steps: [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
       { label: 'Acknowledged', status: 'ACKNOWLEDGED_IT', icon: 'radio_button_checked' },
       { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL_IT', icon: 'radio_button_checked', slaPause: true },
       { label: 'CTO Approval', status: 'PENDING_CTO_APPROVAL_IT', icon: 'radio_button_checked', slaPause: true },
-      { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'radio_button_checked' },
       { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_IT', icon: 'radio_button_checked', slaPause: true },
       { label: 'Payment', status: 'PAYMENT_PROCESSING_IT', icon: 'radio_button_checked' },
       { label: 'Delivery', status: 'PENDING_DELIVERY_IT', icon: 'radio_button_checked' },
@@ -33,10 +33,30 @@ const defaultWorkflows = [
     ]
   },
   {
+    name: 'IT Hardware Procurement',
+    code: 'IT_HARDWARE_PROCUREMENT',
+    description: 'IT hardware procurement with executive approval chain and asset registration',
+    displayOrder: 3,
+    steps: [
+      { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
+      { label: 'Acknowledged', status: 'ACKNOWLEDGED_IT', icon: 'radio_button_checked' },
+      { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL_IT', icon: 'radio_button_checked', slaPause: true },
+      { label: 'CTO Approval', status: 'PENDING_CTO_APPROVAL_IT', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Pending Invoice', status: 'PENDING_INVOICE_IT', icon: 'radio_button_checked' },
+      { label: 'CFO Approval', status: 'PENDING_CFO_APPROVAL_IT', icon: 'radio_button_checked', slaPause: true },
+      { label: 'Payment', status: 'PAYMENT_PROCESSING_IT', icon: 'radio_button_checked' },
+      { label: 'Procurement', status: 'PROCUREMENT_IN_PROGRESS', icon: 'radio_button_checked' },
+      { label: 'Ordered', status: 'HARDWARE_ORDERED', icon: 'radio_button_checked' },
+      { label: 'Received', status: 'HARDWARE_RECEIVED', icon: 'radio_button_checked' },
+      { label: 'Provisioned', status: 'SOFTWARE_PROVISIONED', icon: 'radio_button_checked' },
+      { label: 'Resolved', status: 'RESOLVED', icon: 'check_circle', isFinal: true },
+    ]
+  },
+  {
     name: 'HR General',
     code: 'HR_GENERAL',
     description: 'General HR support workflow (4 steps)',
-    displayOrder: 3,
+    displayOrder: 4,
     steps: [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
       { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
@@ -48,7 +68,7 @@ const defaultWorkflows = [
     name: 'HR Recruitment',
     code: 'HR_RECRUITMENT',
     description: 'HR hiring and recruitment workflow with CEO approval, interview stages, and LOA',
-    displayOrder: 4,
+    displayOrder: 5,
     steps: [
       { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle', isInitial: true },
       { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
@@ -214,7 +234,7 @@ async function main() {
     'GET_IT_HELP': 'IT_SIMPLE',
     'EMAIL_MANAGEMENT': 'IT_SIMPLE',
     'REPORT_SYSTEM_PROBLEM': 'IT_SIMPLE',
-    'NEW_HARDWARE': 'IT_PROCUREMENT',
+    'NEW_HARDWARE': 'IT_HARDWARE_PROCUREMENT',
     'SOFTWARE_INSTALLATION': 'IT_PROCUREMENT',
     'HR_QUESTION': 'HR_GENERAL',
     'NEW_HIRING': 'HR_RECRUITMENT',

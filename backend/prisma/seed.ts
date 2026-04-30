@@ -476,7 +476,7 @@ async function main() {
         { name: 'Request Software Installation', icon: 'apps', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4,
           requestTypeName: 'Software Installation Request', requestTypeCode: 'SOFTWARE_INSTALLATION', workflowType: 'IT_PROCUREMENT', slaHours: 48 },
         { name: 'Request new hardware', icon: 'laptop', colorClass: 'bg-cyan-50 text-cyan-600', displayOrder: 5,
-          requestTypeName: 'Request New Hardware Request', requestTypeCode: 'NEW_HARDWARE', workflowType: 'IT_PROCUREMENT', slaHours: 72 },
+          requestTypeName: 'Request New Hardware Request', requestTypeCode: 'NEW_HARDWARE', workflowType: 'IT_HARDWARE_PROCUREMENT', slaHours: 72 },
     ];
 
     for (const category of itCategories) {

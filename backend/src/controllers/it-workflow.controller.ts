@@ -1216,17 +1216,28 @@ export const markPaymentDone = async (req: Request, res: Response) => {
     if (amount === undefined || amount === null) return res.status(400).json({ error: 'amount is required' });
     if (!paymentDate) return res.status(400).json({ error: 'paymentDate is required' });
 
-    const request = await prisma.request.findUnique({ where: { id } });
+    const request = await prisma.request.findUnique({
+      where: { id },
+      include: { requestType: { include: { workflow: true } } },
+    });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PAYMENT_PROCESSING_IT') return res.status(400).json({ error: 'Request must be in PAYMENT_PROCESSING_IT status' });
 
+    const workflowCode = request.requestType?.workflow?.code || '';
+    const isHardwareProcurement = workflowCode === 'IT_HARDWARE_PROCUREMENT';
+
     const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
+
+    // Hardware procurement: after payment, go to procurement phase (order → receive → provision → resolve)
+    // Software procurement: after payment, go straight to delivery → resolve
+    const nextStatus = isHardwareProcurement ? 'PROCUREMENT_IN_PROGRESS' : 'PENDING_DELIVERY_IT';
+    const nextAction = isHardwareProcurement ? 'procurement' : 'delivery';
 
     await prisma.request.update({ where: { id }, data: { status: 'PAYMENT_DONE_IT' } });
     await prisma.request.update({
       where: { id },
       data: {
-        status: 'PENDING_DELIVERY_IT',
+        status: nextStatus,
         customFields: {
           ...existingCustomFields,
           payment: { paymentReference, amount, paymentDate, completedAt: new Date().toISOString() },
@@ -1238,7 +1249,7 @@ export const markPaymentDone = async (req: Request, res: Response) => {
       data: {
         requestId: id,
         activityType: 'SYSTEM',
-        message: `Payment completed. Reference: ${paymentReference}, Amount: ${amount}${notes ? '. ' + notes : ''}`,
+        message: `Payment completed. Reference: ${paymentReference}, Amount: ${amount}${notes ? '. ' + notes : ''}${isHardwareProcurement ? '. Proceeding to procurement phase.' : ''}`,
         authorName: currentUser.firstName || 'Finance Agent',
         authorRole: 'AGENT',
         isSystemGenerated: true,
@@ -1248,17 +1259,17 @@ export const markPaymentDone = async (req: Request, res: Response) => {
 
     const agentUsers = await prisma.user.findMany({ where: { roles: { some: { role: { name: { in: ['ADMIN', 'AGENT'] } } } } }, take: 5 });
     for (const agent of agentUsers) {
-      await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_delivery' }, relatedRequestId: id });
+      await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: `pending_${nextAction}` }, relatedRequestId: id });
     }
 
     await auditLog(req as any, 'IT_PAYMENT_DONE', 'request', String(id), {
-      status: 'PENDING_DELIVERY_IT',
+      status: nextStatus,
       previousStatus: 'PAYMENT_PROCESSING_IT',
       paymentReference: paymentReference || null,
       amount: Number(amount),
       paymentDate,
     }, { status: 'PAYMENT_PROCESSING_IT' });
-    return res.json({ success: true, message: 'Payment marked as done, request routed to pending delivery' });
+    return res.json({ success: true, message: `Payment marked as done, request routed to ${isHardwareProcurement ? 'procurement phase' : 'pending delivery'}` });
   } catch (error) {
     console.error('markPaymentDone error:', error);
     return res.status(500).json({ error: 'Internal server error' });
