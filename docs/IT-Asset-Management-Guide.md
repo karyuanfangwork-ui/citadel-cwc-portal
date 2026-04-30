@@ -91,8 +91,6 @@ They are connected: when hardware is received in the workflow, an **Asset record
 | `estimatedPrice` | Decimal? | Cost estimate |
 | `preferredVendor` / `productUrl` | String? | Vendor preference |
 | `businessJustification` | Text | Why needed |
-| `managerApprovalRequired` | Boolean | Default true |
-| `managerApprovedAt` / `managerApprovedById` | DateTime? / UUID? | Manager approval |
 | `procurementStatus` | String? | `ORDERED`, `RECEIVED`, `PROVISIONED` |
 | `orderNumber` / `trackingNumber` | String? | Procurement tracking |
 | `serialNumber` / `assetTag` | String? | Captured at receipt |
@@ -102,46 +100,9 @@ They are connected: when hardware is received in the workflow, an **Asset record
 
 ## 3. IT Hardware Request Workflow
 
-### 3.1 Standard Approval Flow (price < VP threshold)
+### 3.1 Executive Approval Flow (all procurement requests)
 
-```
-SUBMITTED
-  │  [Agent submits for approval]
-  ▼
-PENDING_MANAGER_APPROVAL_IT      ◄── SLA paused
-  │
-  ├── [Manager rejects] ──► MANAGER_REJECTED_IT ──► (Requester can resubmit)
-  │
-  └── [Manager approves]
-        │
-        ├── Price < $2,500 ──► MANAGER_APPROVED_IT
-        │
-        └── Price >= $2,500 ──► PENDING_VP_APPROVAL_IT
-                                      │
-                                      ├── [VP approves] ──► MANAGER_APPROVED_IT
-                                      └── [VP rejects]  ──► VP_REJECTED_IT
-
-MANAGER_APPROVED_IT
-  │  [Agent starts procurement]
-  ▼
-PROCUREMENT_IN_PROGRESS
-  │  [Agent marks ordered]
-  ▼
-HARDWARE_ORDERED
-  │  [Agent marks received — Asset auto-created]
-  ▼
-HARDWARE_RECEIVED
-  │  [Agent provisions software]
-  ▼
-SOFTWARE_PROVISIONED
-  │  [Agent marks fulfilled]
-  ▼
-RESOLVED (ticket closed)
-```
-
-### 3.2 High-Value Executive Approval Chain
-
-For very high-value requests, the agent can route through the executive chain:
+All IT hardware and software procurement requests go through the executive approval chain:
 
 ```
 SUBMITTED
@@ -149,14 +110,14 @@ SUBMITTED
   ▼
 PENDING_CEO_APPROVAL_IT          ◄── SLA paused
   │
-  ├── [CEO rejects] ──► CEO_REJECTED_IT
-  │
+  ├── [CEO rejects] ──► CEO_REJECTED_IT ──► REJECTED
+
   └── [CEO approves]
         ▼
 PENDING_CTO_APPROVAL_IT          ◄── SLA paused
   │
-  ├── [CTO rejects] ──► CTO_REJECTED_IT
-  │
+  ├── [CTO rejects] ──► CTO_REJECTED_IT ──► REJECTED
+
   └── [CTO approves]
         ▼
 PENDING_INVOICE_IT               ◄── Agent uploads invoice
@@ -164,30 +125,42 @@ PENDING_INVOICE_IT               ◄── Agent uploads invoice
   ▼
 PENDING_CFO_APPROVAL_IT          ◄── SLA paused
   │
-  ├── [CFO rejects] ──► CFO_REJECTED_IT
-  │
+  ├── [CFO rejects] ──► CFO_REJECTED_IT ──► REJECTED
+
   └── [CFO approves]
         ▼
 PAYMENT_PROCESSING_IT
   │  [Agent marks payment done]
   ▼
-PAYMENT_DONE_IT
-  │  [Agent completes delivery]
+PAYMENT_DONE_IT → PROCUREMENT_IN_PROGRESS (hardware) or PENDING_DELIVERY_IT (software)
+  │  [Hardware path continues below]
   ▼
-PENDING_DELIVERY_IT ──► ... → HARDWARE_RECEIVED → SOFTWARE_PROVISIONED → RESOLVED
+PROCUREMENT_IN_PROGRESS
+  │  [Agent starts procurement]
+  ▼
+HARDWARE_ORDERED
+  │  [Agent marks ordered]
+  ▼
+HARDWARE_RECEIVED
+  │  [Agent marks received — Asset auto-created]
+  ▼
+SOFTWARE_PROVISIONED
+  │  [Agent marks fulfilled]
+  ▼
+RESOLVED (ticket closed)
 ```
 
-### 3.3 Rejection & Resubmission
+### 3.2 Rejection Path
 
 When a request is rejected at any approval stage:
 - The requester receives a notification
-- The request sits in a rejected status (e.g. `MANAGER_REJECTED_IT`, `VP_REJECTED_IT`, etc.)
-- The **original requester** can edit hardware details (name, model, price, vendor, justification) and resubmit
+- The request sits in a rejected status (e.g. `CEO_REJECTED_IT`, `CTO_REJECTED_IT`, `CFO_REJECTED_IT`)
+- The **original requester** can edit the request details and resubmit
 - Resubmission resets the approval chain
 
-### 3.4 No-Approval Path
+### 3.3 No-Approval Path
 
-If the request type has `requiresApproval = false`, submitting for approval bypasses the manager step entirely:
+For non-procurement IT request types (Get IT Help, Email Management, Report System Problem) where `requiresApproval = false`, there is no approval step — the agent reviews and resolves directly:
 
 ```
 SUBMITTED ──► IN_REVIEW ──► [Agent handles directly] ──► RESOLVED
@@ -264,15 +237,14 @@ The assignment record can optionally link back to the original request via `link
 
 | Endpoint | Role Required |
 |----------|--------------|
-| Submit for approval | ADMIN, AGENT |
-| Mark procurement / ordered / received / provisioned / fulfilled | ADMIN, AGENT |
-| VP decision | ADMIN |
+| Acknowledge & route to CEO | ADMIN, AGENT |
 | CEO decision | CEO role |
 | CTO decision | CTO role |
+| Route to CFO / upload invoice | ADMIN, AGENT |
 | CFO decision | CFO role |
-| Route to CFO / acknowledge | ADMIN, AGENT |
-| Get suggested manager | Authenticated |
-| Resubmit | Original requester only |
+| Mark payment done | ADMIN, AGENT |
+| Complete delivery | ADMIN, AGENT |
+| Mark procurement / ordered / received / provisioned / fulfilled | ADMIN, AGENT |
 
 ---
 
@@ -306,14 +278,11 @@ On returning an asset, the agent selects the new status. Only these are allowed:
 
 The SLA timer **pauses** during these statuses (approval/pending states):
 
-- `PENDING_MANAGER_APPROVAL_IT`
-- `PENDING_VP_APPROVAL_IT`
 - `PENDING_CEO_APPROVAL_IT`
 - `PENDING_CTO_APPROVAL_IT`
 - `PENDING_CFO_APPROVAL_IT`
-- `MANAGER_REJECTED_IT` (while awaiting resubmit)
 
-When the status transitions out of these (approval granted, rejection, resubmission), `resumeSla()` is called. This means the SLA clock only ticks during active work phases like `PROCUREMENT_IN_PROGRESS`, `HARDWARE_ORDERED`, etc.
+When the status transitions out of these (approval granted or rejection), `resumeSla()` is called. This means the SLA clock only ticks during active work phases like `PROCUREMENT_IN_PROGRESS`, `HARDWARE_ORDERED`, etc.
 
 ---
 
@@ -322,27 +291,21 @@ When the status transitions out of these (approval granted, rejection, resubmiss
 | Event | Recipient | Trigger |
 |-------|-----------|---------|
 | `MANAGER_APPROVAL_REQUIRED` | Manager | Request submitted for approval |
-| `MANAGER_APPROVED` | Requester | Manager approves |
-| `MANAGER_REJECTED` | Requester | Manager rejects |
-| `VP_APPROVAL_REQUIRED` | VP/Admin | High-value escalation (>= threshold) |
-| `VP_APPROVED` / `VP_REJECTED` | Requester | VP decision |
+| `APPROVAL_REQUIRED` (CEO) | CEO user | Executive chain routed |
+| `APPROVAL_REQUIRED` (CTO) | CTO user | CTO approval needed |
+| `APPROVAL_REQUIRED` (CFO) | CFO user | CFO approval needed |
 | `PROCUREMENT_INITIATED` | Requester | Agent starts procurement |
 | `HARDWARE_ORDERED` | Requester | Agent marks ordered |
 | `HARDWARE_RECEIVED` | Requester | Agent marks received |
 | `HARDWARE_DELIVERED` | Requester | Software provisioned (implies delivery) |
 | `REQUEST_RESOLVED` | Requester | Request fulfilled |
-| `APPROVAL_REQUIRED` (CEO) | CEO user | Executive chain routed |
 | `ACTION_REQUIRED` | Assigned agent | Hardware ready for provisioning |
 
 ---
 
 ## 10. Configuration
 
-| Setting | Default | Environment Variable | Location |
-|---------|---------|---------------------|----------|
-| VP Approval Threshold | $2,500 | `HARDWARE_VP_APPROVAL_THRESHOLD` | `backend/src/config/index.ts` |
-
-When the `estimatedPrice` on an ITHardwareRequest >= this threshold, manager approval auto-escalates to VP.
+Currently no VP approval threshold is used — all IT procurement requests go through the full executive chain (CEO → CTO → CFO).
 
 ---
 
@@ -372,8 +335,8 @@ A: No Asset record is created. You can manually register the asset later via `/a
 **Q: Can I assign an asset to a user outside of a request?**
 A: Yes. Go to Asset Registry → View asset → Assign. The `linkedRequestId` is optional.
 
-**Q: What if a manager rejects and the requester wants to change the hardware?**
-A: The requester clicks "Resubmit" on the rejected ticket, which opens a modal to edit hardwareName, model, price, vendor, and justification. This resets the approval chain.
+**Q: What if a CEO/CTO/CFO rejects a request?**
+A: The requester can create a new request. The rejected request stays in the rejected status for audit records.
 
 **Q: How do I bulk-import existing assets?**
 A: Go to `/assets` → "Import CSV". Prepare a CSV with columns: assetTag, name, category, serialNumber, brand, model, purchaseDate, purchasePrice, vendor, warrantyExpiry, notes, assignedToEmail (optional — will auto-assign to that user).

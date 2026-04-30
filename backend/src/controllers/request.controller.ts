@@ -283,8 +283,8 @@ class RequestController {
             CTO: ['PENDING_CTO_APPROVAL_IT'],
             CFO: ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN', 'PENDING_FINANCE_HEAD_APPROVAL'],
             GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
-            VP: ['PENDING_VP_APPROVAL_IT'],
-            MANAGER: ['PENDING_MANAGER_APPROVAL_IT', 'PENDING_MANAGER_APPROVAL_FIN', 'PENDING_MANAGER_REVIEW'],
+            VP: [],
+            MANAGER: ['PENDING_MANAGER_APPROVAL_FIN', 'PENDING_MANAGER_REVIEW'],
             HR: ['LOA_PENDING_APPROVAL', 'ONBOARDING_PENDING_HR_APPROVAL'],
         };
 
@@ -435,10 +435,7 @@ class RequestController {
             PENDING_CFO_APPROVAL_FIN: { CFO: { approve: 'CFO_APPROVED_FIN', reject: 'CFO_REJECTED_FIN' } },
             PENDING_CFO_APPROVAL: { CFO: { approve: 'CFO_APPROVED', reject: 'CFO_REJECTED' } },
             PENDING_FINANCE_HEAD_APPROVAL: { CFO: { approve: 'FINANCE_HEAD_APPROVED', reject: 'FINANCE_HEAD_REJECTED' } },
-            // VP approvals (IT workflow)
-            PENDING_VP_APPROVAL_IT: { VP: { approve: 'VP_APPROVED_IT', reject: 'VP_REJECTED_IT' } },
             // Manager approvals
-            PENDING_MANAGER_APPROVAL_IT: { MANAGER: { approve: 'MANAGER_APPROVED_IT', reject: 'MANAGER_REJECTED_IT' } },
             PENDING_MANAGER_APPROVAL_FIN: { MANAGER: { approve: 'MANAGER_APPROVED_FIN', reject: 'MANAGER_REJECTED_FIN' } },
             PENDING_MANAGER_REVIEW: { MANAGER: { approve: 'MANAGER_APPROVED', reject: 'IN_REVIEW' } },
             // Group CEO approvals
@@ -454,8 +451,6 @@ class RequestController {
         // When NO cascade exists (e.g. CTO approve → PENDING_INVOICE_IT), SLA stays resumed.
         const CASCADING_APPROVALS: Record<string, { approverType: string; nextStatus: string }> = {
             PENDING_CEO_APPROVAL_IT: { approverType: 'CTO', nextStatus: 'PENDING_CTO_APPROVAL_IT' },
-            PENDING_MANAGER_APPROVAL_IT: { approverType: 'VP', nextStatus: 'PENDING_VP_APPROVAL_IT' },
-            PENDING_VP_APPROVAL_IT: { approverType: 'CEO', nextStatus: 'PENDING_CEO_APPROVAL_IT' },
         };
 
         // Role display names for activity log
@@ -1670,8 +1665,6 @@ class RequestController {
             PENDING_CFO_APPROVAL_FIN: 'CFO',
             PENDING_FINANCE_HEAD_APPROVAL: 'CFO',
             PENDING_GROUP_CEO_APPROVAL: 'GROUP_CEO',
-            PENDING_VP_APPROVAL_IT: 'VP',
-            PENDING_MANAGER_APPROVAL_IT: 'MANAGER',
             PENDING_MANAGER_APPROVAL_FIN: 'MANAGER',
             PENDING_MANAGER_REVIEW: 'MANAGER',
             LOA_PENDING_APPROVAL: 'HR',

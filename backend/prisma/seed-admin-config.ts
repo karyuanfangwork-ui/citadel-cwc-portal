@@ -602,14 +602,6 @@ export const SEED_STATUS_DEFINITIONS = [
     "isActive": true
   },
   {
-    "code": "PENDING_MANAGER_APPROVAL_IT",
-    "label": "Pending Manager Approval (IT)",
-    "description": null,
-    "category": "IT",
-    "displayOrder": 40,
-    "isActive": true
-  },
-  {
     "code": "OFFBOARDING_EXIT_PROCEDURES",
     "label": "Exit Procedures",
     "description": null,
@@ -623,46 +615,6 @@ export const SEED_STATUS_DEFINITIONS = [
     "description": null,
     "category": "OFFBOARDING",
     "displayOrder": 41,
-    "isActive": true
-  },
-  {
-    "code": "MANAGER_APPROVED_IT",
-    "label": "Manager Approved (IT)",
-    "description": null,
-    "category": "IT",
-    "displayOrder": 41,
-    "isActive": true
-  },
-  {
-    "code": "MANAGER_REJECTED_IT",
-    "label": "Manager Rejected (IT)",
-    "description": null,
-    "category": "IT",
-    "displayOrder": 42,
-    "isActive": true
-  },
-  {
-    "code": "PENDING_VP_APPROVAL_IT",
-    "label": "Pending VP Approval (IT)",
-    "description": null,
-    "category": "IT",
-    "displayOrder": 43,
-    "isActive": true
-  },
-  {
-    "code": "VP_APPROVED_IT",
-    "label": "VP Approved (IT)",
-    "description": null,
-    "category": "IT",
-    "displayOrder": 44,
-    "isActive": true
-  },
-  {
-    "code": "VP_REJECTED_IT",
-    "label": "VP Rejected (IT)",
-    "description": null,
-    "category": "IT",
-    "displayOrder": 45,
     "isActive": true
   },
   {
@@ -1341,15 +1293,6 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "isActive": true
   },
   {
-    "fromStatus": "MANAGER_APPROVED",
-    "toStatus": "INTERVIEW_SCHEDULED",
-    "transitionLabel": "ADVANCE",
-    "requiresComment": false,
-    "autoAssignRole": null,
-    "autoAssignUserId": null,
-    "isActive": true
-  },
-  {
     "fromStatus": "MANAGER_APPROVED_FIN",
     "toStatus": "PENDING_FINANCE_HEAD_APPROVAL",
     "transitionLabel": "SUBMIT",
@@ -1359,25 +1302,7 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "isActive": true
   },
   {
-    "fromStatus": "MANAGER_APPROVED_IT",
-    "toStatus": "PROCUREMENT_IN_PROGRESS",
-    "transitionLabel": "ADVANCE",
-    "requiresComment": false,
-    "autoAssignRole": null,
-    "autoAssignUserId": null,
-    "isActive": true
-  },
-  {
     "fromStatus": "MANAGER_REJECTED_FIN",
-    "toStatus": "SUBMITTED",
-    "transitionLabel": "RETURN",
-    "requiresComment": true,
-    "autoAssignRole": null,
-    "autoAssignUserId": null,
-    "isActive": true
-  },
-  {
-    "fromStatus": "MANAGER_REJECTED_IT",
     "toStatus": "SUBMITTED",
     "transitionLabel": "RETURN",
     "requiresComment": true,
@@ -1593,46 +1518,10 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "isActive": true
   },
   {
-    "fromStatus": "PENDING_MANAGER_APPROVAL_IT",
-    "toStatus": "MANAGER_APPROVED_IT",
-    "transitionLabel": "APPROVE",
-    "requiresComment": false,
-    "autoAssignRole": null,
-    "autoAssignUserId": null,
-    "isActive": true
-  },
-  {
-    "fromStatus": "PENDING_MANAGER_APPROVAL_IT",
-    "toStatus": "MANAGER_REJECTED_IT",
-    "transitionLabel": "REJECT",
-    "requiresComment": true,
-    "autoAssignRole": null,
-    "autoAssignUserId": null,
-    "isActive": true
-  },
-  {
     "fromStatus": "PENDING_MANAGER_REVIEW",
     "toStatus": "MANAGER_APPROVED",
     "transitionLabel": "APPROVE",
     "requiresComment": false,
-    "autoAssignRole": null,
-    "autoAssignUserId": null,
-    "isActive": true
-  },
-  {
-    "fromStatus": "PENDING_VP_APPROVAL_IT",
-    "toStatus": "MANAGER_APPROVED_IT",
-    "transitionLabel": "APPROVE",
-    "requiresComment": false,
-    "autoAssignRole": null,
-    "autoAssignUserId": null,
-    "isActive": true
-  },
-  {
-    "fromStatus": "PENDING_VP_APPROVAL_IT",
-    "toStatus": "VP_REJECTED_IT",
-    "transitionLabel": "REJECT",
-    "requiresComment": true,
     "autoAssignRole": null,
     "autoAssignUserId": null,
     "isActive": true
@@ -1702,27 +1591,9 @@ export const SEED_WORKFLOW_TRANSITIONS = [
   },
   {
     "fromStatus": "SUBMITTED",
-    "toStatus": "PENDING_MANAGER_APPROVAL_IT",
-    "transitionLabel": "SUBMIT",
-    "requiresComment": false,
-    "autoAssignRole": null,
-    "autoAssignUserId": null,
-    "isActive": true
-  },
-  {
-    "fromStatus": "SUBMITTED",
     "toStatus": "REJECTED",
     "transitionLabel": "REJECT",
     "requiresComment": true,
-    "autoAssignRole": null,
-    "autoAssignUserId": null,
-    "isActive": true
-  },
-  {
-    "fromStatus": "VP_APPROVED_IT",
-    "toStatus": "PROCUREMENT_IN_PROGRESS",
-    "transitionLabel": "ADVANCE",
-    "requiresComment": false,
     "autoAssignRole": null,
     "autoAssignUserId": null,
     "isActive": true
@@ -2035,15 +1906,6 @@ export const SEED_BANNER_CONFIGS = [
     "title": "Your Approval Required",
     "description": "This hiring request needs your approval to proceed. Review the details and make a decision.",
     "colorScheme": "purple",
-    "isActive": true
-  },
-  {
-    "role": "ceo",
-    "status": "PENDING_MANAGER_APPROVAL_IT",
-    "icon": "approval",
-    "title": "Your Approval Required",
-    "description": "This IT request has been routed to you for sign-off. Review the details and approve or reject.",
-    "colorScheme": "blue",
     "isActive": true
   },
   {

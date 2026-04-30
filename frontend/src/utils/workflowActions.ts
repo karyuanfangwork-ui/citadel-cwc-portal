@@ -1,14 +1,11 @@
 export type WorkflowActionType =
   | 'SUBMIT_FOR_APPROVAL'
-  | 'APPROVE'
-  | 'REJECT'
   | 'START_PROCUREMENT'
   | 'MARK_HARDWARE_ORDERED'
   | 'MARK_HARDWARE_RECEIVED'
   | 'MARK_SOFTWARE_PROVISIONED'
   | 'MARK_FULFILLED'
   | 'ASSIGN'
-  | 'VP_DECISION'
   | 'RESUBMIT_REQUEST'
   | 'ACKNOWLEDGE_IT'
   | 'CEO_DECISION'
@@ -107,25 +104,7 @@ export function getWorkflowActions(
 
   const actions: WorkflowAction[] = [];
 
-  // Designated approver (e.g. CEO as IT manager approver) can approve/reject
-  if (isDesignatedApprover && status === 'PENDING_MANAGER_APPROVAL_IT') {
-    actions.push(
-      {
-        type: 'APPROVE',
-        label: 'Approve',
-        description: 'Approve this IT request to proceed.',
-        variant: 'success',
-      },
-      {
-        type: 'REJECT',
-        label: 'Reject',
-        description: 'Reject this IT request and notify the requester.',
-        variant: 'danger',
-      }
-    );
-    return actions;
-  }
-
+  // Designated approver (e.g. CEO as IT manager approver) — removed (Scenario 3 dead code)
   // CEO/CTO/CFO decision blocks — must be above the canAct guard as these roles are not agents/admins
   if (userRoles.includes('CEO')) {
     if (status === 'PENDING_CEO_APPROVAL_IT' || status === 'PENDING_CEO_APPROVAL') {
@@ -388,18 +367,8 @@ export function getWorkflowActions(
   }
 
   if (canAct) {
-    // Only non-procurement IT requests with requiresApproval flag go through manager approval
+    // Only non-procurement IT requests basic lifecycle — no manager approval (Scenario 3 removed)
     // HR hiring requests go to CEO approval instead — skip this action for HR
-    if (status === 'SUBMITTED' && !isProcurement && !isHR && requiresApproval && serviceDeskCode === 'IT') {
-      actions.push({
-        type: 'SUBMIT_FOR_APPROVAL',
-        label: 'Submit for Manager Approval',
-        description: 'Route this IT request to a manager for sign-off.',
-        variant: 'primary',
-      });
-    }
-
-    // GET_IT_HELP (and similar non-approval, non-procurement IT tickets) basic lifecycle
     if (status === 'SUBMITTED' && !isProcurement && !isHR && !requiresApproval && serviceDeskCode === 'IT') {
       actions.push({
         type: 'START_IT_REVIEW',
@@ -408,14 +377,7 @@ export function getWorkflowActions(
         variant: 'primary',
       });
     }
-    if (status === 'MANAGER_APPROVED_IT' && isProcurement) {
-      actions.push({
-        type: 'START_PROCUREMENT',
-        label: 'Start Procurement',
-        description: 'Manager approved. Log vendor details and begin ordering.',
-        variant: 'warning',
-      });
-    }
+
   }
 
   if (canAct && status === 'PROCUREMENT_IN_PROGRESS' && isProcurement) {
@@ -448,41 +410,6 @@ export function getWorkflowActions(
       label: 'Close & Resolve',
       description: 'Confirm the item has been delivered to the requester and close the request.',
       variant: 'success',
-    });
-  }
-
-  if (isAdmin && status === 'PENDING_MANAGER_APPROVAL_IT') {
-    actions.push(
-      {
-        type: 'APPROVE',
-        label: 'Approve',
-        description: 'Approve this IT request to proceed.',
-        variant: 'success',
-      },
-      {
-        type: 'REJECT',
-        label: 'Reject',
-        description: 'Reject this IT request and notify the requester.',
-        variant: 'danger',
-      }
-    );
-  }
-
-  if (isAdmin && status === 'PENDING_VP_APPROVAL_IT') {
-    actions.push({
-      type: 'VP_DECISION',
-      label: 'VP Approval Decision',
-      description: 'Review and make a VP-level approval decision on this IT request.',
-      variant: 'primary',
-    });
-  }
-
-  if (isRequester && status === 'MANAGER_REJECTED_IT') {
-    actions.push({
-      type: 'RESUBMIT_REQUEST',
-      label: 'Revise & Resubmit',
-      description: 'Revise your request based on feedback and resubmit for approval.',
-      variant: 'warning',
     });
   }
 

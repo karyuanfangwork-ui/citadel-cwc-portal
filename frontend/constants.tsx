@@ -38,12 +38,7 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.ONBOARDING_MONTH_3_MILESTONE]: { label: '90-DAY MILESTONE', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'flag' },
   [RequestStatus.ONBOARDING_COMPLETED]: { label: 'ONBOARDING COMPLETE', color: 'text-green-800', bg: 'bg-green-200', icon: 'task_alt' },
   // IT Workflow Statuses
-  [RequestStatus.PENDING_MANAGER_APPROVAL_IT]: { label: 'Pending Manager Approval', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'pending' },
-  [RequestStatus.MANAGER_APPROVED_IT]: { label: 'Manager Approved', color: 'text-green-700', bg: 'bg-green-100', icon: 'check_circle' },
-  [RequestStatus.MANAGER_REJECTED_IT]: { label: 'Manager Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
-  [RequestStatus.PENDING_VP_APPROVAL_IT]: { label: 'Pending VP Approval', color: 'text-amber-700', bg: 'bg-amber-100', icon: 'pending' },
-  [RequestStatus.VP_APPROVED_IT]: { label: 'VP Approved', color: 'text-green-700', bg: 'bg-green-100', icon: 'verified' },
-  [RequestStatus.VP_REJECTED_IT]: { label: 'VP Rejected', color: 'text-red-700', bg: 'bg-red-100', icon: 'cancel' },
+
   [RequestStatus.PROCUREMENT_IN_PROGRESS]: { label: 'Procurement In Progress', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'shopping_cart' },
   [RequestStatus.HARDWARE_ORDERED]: { label: 'Hardware Ordered', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'local_shipping' },
   [RequestStatus.HARDWARE_RECEIVED]: { label: 'Hardware Received', color: 'text-teal-700', bg: 'bg-teal-100', icon: 'inventory' },

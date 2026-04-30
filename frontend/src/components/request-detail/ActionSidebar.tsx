@@ -1,28 +1,21 @@
 import React, { lazy, Suspense, useState } from 'react';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
-import itWorkflowService from '../../services/it-workflow.service';
 import { requestService } from '../../services/request.service';
 import { RequestStatus } from '../../../types';
 import SLAIndicator from './SLAIndicator';
 
-const WorkflowApproveModal = lazy(() => import('./WorkflowApproveModal'));
-const WorkflowRejectModal = lazy(() => import('./WorkflowRejectModal'));
-const SubmitForApprovalModal = lazy(() => import('./SubmitForApprovalModal'));
 const ProcurementModal = lazy(() => import('./ProcurementModal'));
 const FulfilmentModal = lazy(() => import('./FulfilmentModal'));
 const HardwareOrderedModal = lazy(() => import('./HardwareOrderedModal'));
 const HardwareReceivedModal = lazy(() => import('./HardwareReceivedModal'));
 const SoftwareProvisionedModal = lazy(() => import('./SoftwareProvisionedModal'));
 const AssignAgentModal = lazy(() => import('./AssignAgentModal'));
-const VpApprovalModal = lazy(() => import('./VpApprovalModal'));
-const ResubmitModal = lazy(() => import('./ResubmitModal'));
 const AcknowledgeModal = lazy(() => import('./AcknowledgeModal'));
 const CeoDecisionModal = lazy(() => import('./CeoDecisionModal'));
 const CtoDecisionModal = lazy(() => import('./CtoDecisionModal'));
 const PendingInvoiceModal = lazy(() => import('./PendingInvoiceModal'));
 const CfoDecisionModal = lazy(() => import('./CfoDecisionModal'));
 const PaymentDoneModal = lazy(() => import('./PaymentDoneModal'));
-const ManagerDecisionModal = lazy(() => import('./ManagerDecisionModal'));
 const CompleteDeliveryModal = lazy(() => import('./CompleteDeliveryModal'));
 const RouteToCEOHRModal = lazy(() => import('./RouteToCEOHRModal'));
 const MarkJobPostedModal = lazy(() => import('./MarkJobPostedModal'));
@@ -40,7 +33,7 @@ const CloseTicketFinModal = lazy(() => import('./CloseTicketFinModal'));
 import WorkflowActionModal from './WorkflowActionModal';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | null;
+type ModalType = 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -140,24 +133,18 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
 
   const handleActionClick = (type: WorkflowActionType) => {
     switch (type) {
-      case 'APPROVE': setOpenModal('APPROVE'); break;
-      case 'REJECT': setOpenModal('REJECT'); break;
-      case 'SUBMIT_FOR_APPROVAL': setOpenModal('SUBMIT_FOR_APPROVAL'); break;
       case 'START_PROCUREMENT': setOpenModal('PROCUREMENT'); break;
       case 'MARK_HARDWARE_ORDERED': setOpenModal('HARDWARE_ORDERED'); break;
       case 'MARK_HARDWARE_RECEIVED': setOpenModal('HARDWARE_RECEIVED'); break;
       case 'MARK_SOFTWARE_PROVISIONED': setOpenModal('SOFTWARE_PROVISIONED'); break;
       case 'MARK_FULFILLED': setOpenModal('FULFILMENT'); break;
       case 'ASSIGN': setOpenModal('ASSIGN'); break;
-      case 'VP_DECISION': setOpenModal('VP_DECISION'); break;
-      case 'RESUBMIT_REQUEST': setOpenModal('RESUBMIT_REQUEST'); break;
       case 'ACKNOWLEDGE_IT': setOpenModal('ACKNOWLEDGE_IT'); break;
       case 'CEO_DECISION': setOpenModal('CEO_DECISION'); break;
       case 'CTO_DECISION': setOpenModal('CTO_DECISION'); break;
       case 'ROUTE_TO_CFO': setOpenModal('ROUTE_TO_CFO'); break;
       case 'CFO_DECISION': setOpenModal('CFO_DECISION'); break;
       case 'PAYMENT_DONE': setOpenModal('PAYMENT_DONE'); break;
-      case 'MANAGER_DECISION': setOpenModal('MANAGER_DECISION'); break;
       case 'LOA_APPROVAL': if (onLOAApproval) onLOAApproval(); break;
       case 'ROUTE_TO_CEO_HR': setOpenModal('ROUTE_TO_CEO_HR'); break;
       case 'MARK_JOB_POSTED': setOpenModal('MARK_JOB_POSTED'); break;
@@ -213,7 +200,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
         break;
       case 'START_IT_REVIEW':
         setDirectActionLoading(true);
-        itWorkflowService.submitForApproval(requestId, '')
+        requestService.updateStatus(requestId, RequestStatus.IN_REVIEW)
           .then(handleSuccess)
           .catch(e => setActionError(e?.response?.data?.error || 'Failed to start review'))
           .finally(() => setDirectActionLoading(false));
@@ -341,27 +328,12 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       )}
 
       {/* Modals — legacy path (existing per-action modals) */}
-      {openModal === 'APPROVE' && !WORKFLOW_MODAL_CONFIG['APPROVE'] && (
-        <Suspense fallback={null}>
-          <WorkflowApproveModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
-        </Suspense>
-      )}
-      {openModal === 'REJECT' && !WORKFLOW_MODAL_CONFIG['REJECT'] && (
-        <Suspense fallback={null}>
-          <WorkflowRejectModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
-        </Suspense>
-      )}
-      {openModal === 'SUBMIT_FOR_APPROVAL' && !WORKFLOW_MODAL_CONFIG['SUBMIT_FOR_APPROVAL'] && (
-        <Suspense fallback={null}>
-          <SubmitForApprovalModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
-        </Suspense>
-      )}
       {openModal === 'PROCUREMENT' && !WORKFLOW_MODAL_CONFIG['PROCUREMENT'] && (
         <Suspense fallback={null}>
           <ProcurementModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
-      {openModal === 'HARDWARE_ORDERED' && (
+      {openModal === 'HARDWARE_ORDERED' && !WORKFLOW_MODAL_CONFIG['HARDWARE_ORDERED'] && (
         <Suspense fallback={null}>
           <HardwareOrderedModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
@@ -379,16 +351,6 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       {openModal === 'FULFILMENT' && (
         <Suspense fallback={null}>
           <FulfilmentModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
-        </Suspense>
-      )}
-      {openModal === 'VP_DECISION' && (
-        <Suspense fallback={null}>
-          <VpApprovalModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
-        </Suspense>
-      )}
-      {openModal === 'RESUBMIT_REQUEST' && (
-        <Suspense fallback={null}>
-          <ResubmitModal requestId={requestId} initialValues={{}} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
       {openModal === 'ACKNOWLEDGE_IT' && (
@@ -431,11 +393,6 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
             onSuccess={handleSuccess}
             onClose={() => setOpenModal(null)}
           />
-        </Suspense>
-      )}
-      {openModal === 'MANAGER_DECISION' && (
-        <Suspense fallback={null}>
-          <ManagerDecisionModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
       {openModal === 'COMPLETE_DELIVERY' && (

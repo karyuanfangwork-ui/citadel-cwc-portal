@@ -73,12 +73,6 @@ describe('detectRequestRole', () => {
       ).toBe('ceo');
     });
 
-    it('returns "ceo" when userRoles includes CEO and requestStatus is PENDING_MANAGER_APPROVAL_IT', () => {
-      expect(
-        detectRequestRole({ ...baseParams, userRoles: ['CEO'], requestStatus: 'PENDING_MANAGER_APPROVAL_IT' })
-      ).toBe('ceo');
-    });
-
     it('returns "ceo" when userRoles includes CEO and requestStatus is PENDING_CEO_APPROVAL_IT', () => {
       expect(
         detectRequestRole({ ...baseParams, userRoles: ['CEO'], requestStatus: 'PENDING_CEO_APPROVAL_IT' })
