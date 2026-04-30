@@ -86,7 +86,8 @@
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "tsx": "^4.19.2",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "xlsx": "^0.18.5"
   },
   "engines": {
     "node": ">=20.0.0",

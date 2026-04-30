@@ -8,7 +8,7 @@ export type AssetStatus =
 
 export type AssetCategory =
   | 'LAPTOP' | 'DESKTOP' | 'MONITOR' | 'PERIPHERAL'
-  | 'PHONE' | 'NETWORK' | 'SOFTWARE_LICENSE' | 'OTHER';
+  | 'PHONE' | 'NETWORK' | 'PRINTER' | 'SOFTWARE_LICENSE' | 'OTHER';
 
 export interface Asset {
   id: string;
@@ -91,6 +91,17 @@ const assetService = {
 
   async returnAsset(id: string, data: { notes?: string; newStatus?: AssetStatus }) {
     await api.post(`/assets/${id}/return`, data);
+  },
+
+  async listActiveAssignments(params?: { search?: string; page?: number; limit?: number }) {
+    const response = await api.get('/assets/assignments', { params });
+    return response.data.data as {
+      userAssignments: {
+        user: { id: string; firstName: string; lastName: string; email: string; department: string | null };
+        assignments: AssetAssignment[];
+      }[];
+      pagination: { page: number; limit: number; total: number; totalPages: number };
+    };
   },
 
   async getAssetsByUser(userId: string) {

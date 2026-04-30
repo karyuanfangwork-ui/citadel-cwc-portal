@@ -8,6 +8,13 @@ const router = Router();
 router.use(authenticate);
 
 /**
+ * @route   GET /assets/assignments
+ * @desc    List all active assignments grouped by user
+ * @access  Private (asset:read)
+ */
+router.get('/assignments', requirePermission('asset:read'), assetController.listActiveAssignments);
+
+/**
  * @route   GET /assets/by-user/:userId
  * @desc    Get active asset assignments for a specific user
  * @access  Private (asset:read)

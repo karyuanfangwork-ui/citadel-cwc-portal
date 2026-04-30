@@ -50,6 +50,22 @@ class AssetController {
                 { name: { contains: term, mode: 'insensitive' } },
                 { assetTag: { contains: term, mode: 'insensitive' } },
                 { serialNumber: { contains: term, mode: 'insensitive' } },
+                { brand: { contains: term, mode: 'insensitive' } },
+                { model: { contains: term, mode: 'insensitive' } },
+                // Search by assigned user name or email
+                { assignments: { some: { returnedAt: null, user: { OR: [
+                    { firstName: { contains: term, mode: 'insensitive' } },
+                    { lastName: { contains: term, mode: 'insensitive' } },
+                    { email: { contains: term, mode: 'insensitive' } },
+                ] } } } },
+                // Search by previously assigned user name or email
+                { assignments: { some: { returnedAt: { not: null }, user: { OR: [
+                    { firstName: { contains: term, mode: 'insensitive' } },
+                    { lastName: { contains: term, mode: 'insensitive' } },
+                    { email: { contains: term, mode: 'insensitive' } },
+                ] } } } },
+                // Search notes for original user info (imported data)
+                { notes: { contains: term, mode: 'insensitive' } },
             ];
         }
 
@@ -64,8 +80,8 @@ class AssetController {
                         select: { id: true, firstName: true, lastName: true, email: true },
                     },
                     assignments: {
-                        where: { returnedAt: null },
-                        take: 1,
+                        orderBy: { assignedAt: 'desc' },
+                        take: 2,
                         include: {
                             user: {
                                 select: { id: true, firstName: true, lastName: true, email: true },
@@ -442,6 +458,78 @@ class AssetController {
     });
 
     /**
+     * GET /assets/assignments
+     * List all active assignments, grouped by user.
+     * Returns each user with their active assignments and asset details.
+     */
+    listActiveAssignments = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { search, page = '1', limit = '20' } = req.query;
+        const pageNum = parseInt(page as string, 10);
+        const limitNum = parseInt(limit as string, 10);
+
+        // Find distinct users who have active assignments
+        const activeAssignments = await prisma.assetAssignment.findMany({
+            where: { returnedAt: null },
+            include: {
+                user: {
+                    select: { id: true, firstName: true, lastName: true, email: true, department: true },
+                },
+                asset: {
+                    select: {
+                        id: true, assetTag: true, name: true, category: true, brand: true, model: true, status: true,
+                    },
+                },
+                assignedBy: {
+                    select: { id: true, firstName: true, lastName: true },
+                },
+            },
+            orderBy: { assignedAt: 'desc' },
+        });
+
+        // Group by user
+        const userMap = new Map<string, {
+            user: { id: string; firstName: string; lastName: string; email: string; department: string | null };
+            assignments: typeof activeAssignments;
+        }>();
+
+        for (const a of activeAssignments) {
+            if (!userMap.has(a.userId)) {
+                userMap.set(a.userId, { user: a.user as any, assignments: [] });
+            }
+            userMap.get(a.userId)!.assignments.push(a);
+        }
+
+        // Convert to array and optionally filter by search
+        let userAssignments = Array.from(userMap.values());
+
+        if (search) {
+            const term = (search as string).toLowerCase();
+            userAssignments = userAssignments.filter(ua =>
+                ua.user.firstName.toLowerCase().includes(term) ||
+                ua.user.lastName.toLowerCase().includes(term) ||
+                ua.user.email.toLowerCase().includes(term)
+            );
+        }
+
+        // Paginate
+        const total = userAssignments.length;
+        const paginated = userAssignments.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+
+        res.json({
+            status: 'success',
+            data: {
+                userAssignments: paginated,
+                pagination: {
+                    page: pageNum,
+                    limit: limitNum,
+                    total,
+                    totalPages: Math.ceil(total / limitNum),
+                },
+            },
+        });
+    });
+
+    /**
      * GET /assets/by-user/:userId
      * Get a user's active assignments with asset details.
      */
@@ -478,7 +566,10 @@ class AssetController {
 
         res.json({
             status: 'success',
-            data: { assignments },
+            data: {
+                user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email },
+                assignments,
+            },
         });
     });
 

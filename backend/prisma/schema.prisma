@@ -39,6 +39,7 @@ enum AssetCategory {
   PERIPHERAL
   PHONE
   NETWORK
+  PRINTER
   SOFTWARE_LICENSE
   OTHER
 }
