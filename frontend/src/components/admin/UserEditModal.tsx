@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface UserEditModalProps {
   user: {
@@ -19,9 +21,13 @@ interface UserEditModalProps {
   onClose: () => void;
   onSave: (data: any) => Promise<void>;
   entities?: { id: string; name: string; code: string }[];
+  departments: string[];
 }
 
-const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, onSave, entities }) => {
+const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, onSave, entities, departments }) => {
+  const focusTrapRef = useFocusTrap(true);
+  const stableOnClose = useCallback(() => onClose(), [onClose]);
+  useEscapeKey(stableOnClose);
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -36,6 +42,10 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [emailChangeConfirmed, setEmailChangeConfirmed] = useState(false);
+
+  const originalEmail = user?.email || '';
+  const emailChanged = formData.email !== originalEmail && originalEmail !== '';
 
   useEffect(() => {
     if (user) {
@@ -53,6 +63,10 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
       });
     }
   }, [user]);
+
+  useEffect(() => {
+    setEmailChangeConfirmed(false);
+  }, [formData.email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,15 +89,20 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 flex flex-col max-h-[90vh] overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 flex-shrink-0">
-          <h2 className="text-lg font-bold text-gray-900">Edit Employee</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <span className="material-symbols-outlined text-xl">close</span>
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" ref={focusTrapRef} role="dialog" aria-modal="true" aria-label="Edit Employee">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh] overflow-hidden">
+        <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="size-9 rounded-lg bg-blue-50 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[#0052cc]">edit</span>
+            </div>
+            <div>
+              <h2 className="font-bold text-base text-gray-900">Edit Employee</h2>
+              <p className="text-xs text-gray-500">{user.firstName} {user.lastName}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <span className="material-symbols-outlined text-gray-400">close</span>
           </button>
         </div>
 
@@ -103,7 +122,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
                 type="text"
                 value={formData.firstName}
                 onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
                 required
               />
             </div>
@@ -115,7 +134,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
                 type="text"
                 value={formData.lastName}
                 onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
                 required
               />
             </div>
@@ -129,7 +148,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
               required
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -145,7 +164,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               type="tel"
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
             />
           </div>
 
@@ -158,8 +177,14 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
                 type="text"
                 value={formData.department}
                 onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                list="department-suggestions-edit"
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
               />
+              <datalist id="department-suggestions-edit">
+                {departments.map(d => (
+                  <option key={d} value={d} />
+                ))}
+              </datalist>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
@@ -169,7 +194,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
                 type="text"
                 value={formData.jobTitle}
                 onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
               />
             </div>
           </div>
@@ -182,7 +207,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               type="text"
               value={formData.agentTeam}
               onChange={(e) => setFormData({ ...formData, agentTeam: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
               placeholder="e.g., IT Support, HR Services"
             />
           </div>
@@ -194,7 +219,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
             <select
               value={formData.entityId}
               onChange={(e) => setFormData({ ...formData, entityId: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] bg-white"
             >
               <option value="">None</option>
               {entities?.map(entity => (
@@ -212,7 +237,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
             <select
               value={formData.executiveRole}
               onChange={(e) => setFormData({ ...formData, executiveRole: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] bg-white"
             >
               <option value="">None</option>
               <option value="CEO">CEO</option>
@@ -232,7 +257,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               id="isActive"
               checked={formData.isActive}
               onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+              className="w-4 h-4 text-[#0052cc] rounded focus:ring-[#0052cc]"
             />
             <label htmlFor="isActive" className="text-sm font-semibold text-gray-700">
               Active Account
@@ -242,23 +267,40 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
             </span>
           </div>
 
-          <div className="flex gap-3 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2.5 text-sm font-bold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
+          {emailChanged && !emailChangeConfirmed && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <p className="text-sm font-bold text-amber-800 mb-2">
+                ⚠️ You are changing this user's login email from <code className="bg-amber-100 px-1 rounded">{originalEmail}</code> to <code className="bg-amber-100 px-1 rounded">{formData.email}</code>
+              </p>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={emailChangeConfirmed}
+                  onChange={e => setEmailChangeConfirmed(e.target.checked)}
+                  className="w-4 h-4 text-amber-600 rounded"
+                />
+                <span className="text-sm font-semibold text-amber-700">Yes, update the login email</span>
+              </label>
+            </div>
+          )}
         </form>
+
+        <div className="flex justify-end gap-2 p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading || (emailChanged && !emailChangeConfirmed)}
+            className="px-4 py-2.5 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-[#0047b3] disabled:opacity-50"
+          >
+            {loading ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
       </div>
     </div>
   );

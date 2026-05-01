@@ -66,6 +66,7 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
   lastLoginAt   DateTime? @map("last_login_at") @db.Timestamp(6)
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamp(6)
 
   // Relations
   manager               User?                        @relation("UserManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)

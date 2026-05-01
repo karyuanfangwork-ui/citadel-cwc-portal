@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import FormBuilder from '../src/components/FormBuilder';
@@ -22,11 +23,27 @@ import { CategoryModal } from '../src/components/admin/CategoryModal';
 import { ServiceModal } from '../src/components/admin/ServiceModal';
 import { RoleAssignmentModal } from '../src/components/admin/RoleAssignmentModal';
 import { AgentTeamModal } from '../src/components/admin/AgentTeamModal';
+import { ResetPasswordModal } from '../src/components/admin';
 import { entityService, Entity } from '../src/services/entity.service';
 
 const AdminSettings = () => {
     const { logout } = useAuth();
     const admin = useAdminState();
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    // ── Sync tab from URL on mount ──
+    useEffect(() => {
+        const tabFromUrl = searchParams.get('tab');
+        if (tabFromUrl && ADMIN_TABS.some(t => t.id === tabFromUrl)) {
+            admin.setActiveTab(tabFromUrl as any);
+        }
+    }, []); // Only on mount
+
+    // ── Update URL when tab changes ──
+    const handleTabChange = (tabId: string) => {
+        admin.setActiveTab(tabId as any);
+        setSearchParams({ tab: tabId }, { replace: true });
+    };
 
     // ── Entities state ──
     const [entities, setEntities] = useState<Entity[]>([]);
@@ -80,7 +97,7 @@ const AdminSettings = () => {
                                     {items.map(tab => (
                                         <button
                                             key={tab.id}
-                                            onClick={() => admin.setActiveTab(tab.id)}
+                                            onClick={() => handleTabChange(tab.id)}
                                             className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-left transition-all rounded-lg mx-0 ${
                                                 admin.activeTab === tab.id
                                                     ? 'bg-[#e8f0fe] text-[#0052cc]'
@@ -155,6 +172,8 @@ const AdminSettings = () => {
                             onCreateUser={() => admin.setShowCreateUserModal(true)}
                             onEditUser={(user) => { admin.setEditingUser(user); admin.setShowEditUserModal(true); }}
                             onManageRoles={(user) => { admin.setRoleModalUser(user); admin.setRoleModalSelected(user.roles?.map((ur: any) => ur.role?.name || ur) || []); }}
+                            onResetPassword={(user) => admin.setResetPasswordUser(user)}
+                            onAssignAgentTeam={(user) => { admin.setRoleModalUser(user); admin.setShowAgentTeamModal(true); }}
                             onToggleUserStatus={admin.handleToggleUserStatus}
                         />
                     )}
@@ -270,6 +289,7 @@ const AdminSettings = () => {
                 <CreateUserModal
                     onSuccess={() => admin.fetchUsers(1, admin.userSearch, admin.userRoleFilter)}
                     onClose={() => admin.setShowCreateUserModal(false)}
+                    departments={admin.departments}
                 />
             )}
 
@@ -280,7 +300,17 @@ const AdminSettings = () => {
                 onClose={() => { admin.setShowEditUserModal(false); admin.setEditingUser(null); }}
                 onSave={admin.handleEditUser}
                 entities={entities}
+                departments={admin.departments}
             />
+
+            {/* Reset Password Modal */}
+            {admin.resetPasswordUser && (
+                <ResetPasswordModal
+                    user={admin.resetPasswordUser}
+                    onClose={() => admin.setResetPasswordUser(null)}
+                    onSuccess={() => admin.fetchUsers(admin.userPagination.page)}
+                />
+            )}
 
             {/* Confirm Dialog */}
             {admin.pendingAction && (

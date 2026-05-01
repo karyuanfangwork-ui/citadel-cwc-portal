@@ -28,3 +28,4 @@ export { AgentTeamModal } from './AgentTeamModal';
 // Existing Components (no changes)
 export { default as CreateUserModal } from './CreateUserModal';
 export { default as UserEditModal } from './UserEditModal';
+export { default as ResetPasswordModal } from './ResetPasswordModal';

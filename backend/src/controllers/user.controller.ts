@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import crypto from 'crypto';
 import { PrismaClient, ExecutiveRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
@@ -508,6 +509,48 @@ class UserController {
                 },
                 tempPassword: TEMP_PASSWORD,
             },
+        });
+    });
+
+    /**
+     * Reset a user's password (Admin only)
+     * Generates a temporary password, hashes it, updates the user,
+     * and revokes all active sessions.
+     */
+    resetUserPassword = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+        const id = String(req.params.id);
+
+        // Verify user exists
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) {
+            throw new AppError('User not found', 404);
+        }
+
+        // Generate a random 16-char temporary password
+        const tempPassword = crypto.randomBytes(12).toString('base64url').slice(0, 16);
+
+        // Hash the temporary password
+        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+        // Update the user's password and set passwordChangedAt
+        await prisma.user.update({
+            where: { id },
+            data: {
+                passwordHash: hashedPassword,
+                passwordChangedAt: new Date(),
+            },
+        });
+
+        // Revoke all active sessions so the user must log in with the new password
+        await tokenService.revokeAllForUser(id);
+
+        await auditLog(req, 'PASSWORD_RESET', 'user', id, {
+            targetEmail: user.email,
+        });
+
+        res.json({
+            status: 'success',
+            data: { tempPassword },
         });
     });
 }

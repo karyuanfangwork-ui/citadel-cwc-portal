@@ -42,12 +42,21 @@ CWC 2.0 is an Enterprise Help Center / Service Desk system supporting IT Support
 - **Auth context:** `frontend/src/context/AuthContext`
 - **Page components split across two dirs:** `frontend/pages/` (main pages) and `frontend/src/pages/` (auth pages like Login/Register)
 - **Shared components:** `frontend/src/components/`
+- **Frontend services:** `frontend/src/services/` — one file per domain (e.g. `asset.service.ts`, `approval.service.ts`, `it-workflow.service.ts`, etc.)
 - **RBAC:** `requirePermission()` middleware enforces fine-grained permissions (loaded in auth middleware, cached in Redis 5min TTL)
 
 ### Key Domain Areas
 - **Service Desks:** IT Support (5 categories), HR Services (4 categories), Group Finance (3 categories)
-- **Workflows:** Request creation, approvals, interviews, screening, LOA, onboarding
+- **Workflows:** Request creation, approvals, interviews, screening, LOA, onboarding, offboarding, chargeback
 - **Roles:** Admin, Agent, End User
+- **IT Asset Management (ITAM):** Asset registry, assignment tracking, lifecycle management (`frontend/pages/AssetManagement.tsx`, `backend/src/routes/asset.routes.ts`, `frontend/src/services/asset.service.ts`)
+  - Asset categories: LAPTOP, DESKTOP, MONITOR, PERIPHERAL, PHONE, NETWORK, PRINTER, SOFTWARE_LICENSE, OTHER
+  - Models: `Asset`, `AssetAssignment` in Prisma schema
+- **SLA & Escalation:** SLA hours configurable per request type; `EscalationRule` model with CRUD at `/api/v1/sla`; `checkEscalations()` in `sla.service.ts`; pause/resume via `sla-pause.service.ts`
+- **Notifications:** SSE (`/api/v1/notifications/sse`), templates (`notificationTemplate.routes.ts`), email via `email.service.ts`
+- **Reports:** `reports.routes.ts` + `reports.service.ts`
+- **Knowledge Base:** `kb.routes.ts` + `kb.service.ts`
+- **Entity routing:** `entityRouting.service.ts` — determines which agent/team handles a request
 
 ### Seed Accounts (use @test.local domain, password: abc@123)
 - Admin: `admin@test.local` / `abc@123`

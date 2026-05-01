@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useCallback } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface RoleAssignmentModalProps {
     isOpen: boolean;
@@ -19,21 +21,29 @@ export const RoleAssignmentModal: React.FC<RoleAssignmentModalProps> = ({
     onClose,
     onRoleToggle,
 }) => {
+    const focusTrapRef = useFocusTrap(true);
+    const stableOnClose = useCallback(() => onClose(), [onClose]);
+    useEscapeKey(stableOnClose);
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
-            <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl overflow-hidden scale-in flex flex-col max-h-[90vh]">
-                <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-                    <div>
-                        <h2 className="text-2xl font-black text-[#101418]">Assign Roles</h2>
-                        <p className="text-sm text-[#44546f] mt-1">{user.firstName} {user.lastName}</p>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" ref={focusTrapRef} role="dialog" aria-modal="true" aria-label="Assign Roles">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="size-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-[#0052cc]">admin_panel_settings</span>
+                        </div>
+                        <div>
+                            <h2 className="font-bold text-base text-gray-900">Assign Roles</h2>
+                            <p className="text-xs text-gray-500">{user.firstName} {user.lastName}</p>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400">
-                        <span className="material-symbols-outlined text-3xl">close</span>
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                        <span className="material-symbols-outlined text-gray-400">close</span>
                     </button>
                 </div>
-                <div className="p-10 overflow-y-auto">
+                <div className="p-5 overflow-y-auto">
                     <p className="text-xs font-black text-[#44546f] uppercase tracking-widest mb-6">Select one or more roles</p>
                     <div className="space-y-3">
                         {availableRoles.map(role => (
@@ -51,14 +61,14 @@ export const RoleAssignmentModal: React.FC<RoleAssignmentModalProps> = ({
                             </label>
                         ))}
                     </div>
-                    <div className="flex gap-4 mt-8">
-                        <button onClick={onClose} className="flex-1 py-4 bg-gray-100 text-[#44546f] font-black rounded-3xl hover:bg-gray-200 transition-all text-xs uppercase tracking-widest">Cancel</button>
-                        <button
-                            onClick={onSave}
-                            disabled={selectedRoles.length === 0}
-                            className="flex-1 py-4 bg-[#0052cc] text-white font-black rounded-3xl hover:bg-blue-700 transition-all text-xs uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
-                        >Save Roles</button>
-                    </div>
+                </div>
+                <div className="flex justify-end gap-2 p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+                    <button onClick={onClose} className="px-4 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">Cancel</button>
+                    <button
+                        onClick={onSave}
+                        disabled={selectedRoles.length === 0}
+                        className="px-4 py-2.5 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-[#0047b3] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >Save Roles</button>
                 </div>
             </div>
         </div>

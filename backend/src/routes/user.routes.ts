@@ -87,4 +87,11 @@ router.put('/:id', authorize('ADMIN'), userController.updateUser);
  */
 router.delete('/:id', authorize('ADMIN'), userController.deleteUser);
 
+/**
+ * @route   POST /api/v1/users/:id/reset-password
+ * @desc    Reset a user's password (generates temp password, revokes sessions)
+ * @access  Private (Admin only)
+ */
+router.post('/:id/reset-password', authorize('ADMIN'), userController.resetUserPassword);
+
 export default router;

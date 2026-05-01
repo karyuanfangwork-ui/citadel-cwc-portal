@@ -4,7 +4,7 @@
  * Returns a clean interface for tab and modal components
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { serviceDeskService } from '../../services/serviceDesk.service';
 import { adminService, CategoryData } from '../../services/admin.service';
@@ -106,6 +106,8 @@ export interface UseAdminStateReturn {
     showCreateUserModal: boolean;
     showEditUserModal: boolean;
     editingUser: any;
+    departments: string[];
+    resetPasswordUser: any | null;
 
     // Onboarding
     templates: OnboardingTaskTemplate[];
@@ -190,6 +192,7 @@ export interface UseAdminStateReturn {
     setShowCreateUserModal: (show: boolean) => void;
     setShowEditUserModal: (show: boolean) => void;
     setEditingUser: (user: any) => void;
+    setResetPasswordUser: (user: any | null) => void;
     setFormData: (data: CategoryData) => void;
     setServiceFormData: (data: ServiceFormData) => void;
     setTemplateForm: (form: TemplateForm) => void;
@@ -257,6 +260,14 @@ export function useAdminState(): UseAdminStateReturn {
     const [showCreateUserModal, setShowCreateUserModal] = useState(false);
     const [showEditUserModal, setShowEditUserModal] = useState(false);
     const [editingUser, setEditingUser] = useState<any | null>(null);
+    const [resetPasswordUser, setResetPasswordUser] = useState<any | null>(null);
+
+    // ── Computed: departments from existing users ──
+    const departments = useMemo(() => {
+        const deptSet = new Set<string>();
+        users.forEach(u => { if (u.department) deptSet.add(u.department); });
+        return Array.from(deptSet).sort();
+    }, [users]);
 
     // ── Onboarding State ───────────────────────────────────────────────────
     const [templates, setTemplates] = useState<OnboardingTaskTemplate[]>([]);
@@ -856,6 +867,8 @@ export function useAdminState(): UseAdminStateReturn {
         showCreateUserModal,
         showEditUserModal,
         editingUser,
+        departments,
+        resetPasswordUser,
 
         // Onboarding
         templates,
@@ -930,6 +943,7 @@ export function useAdminState(): UseAdminStateReturn {
         setShowCreateUserModal,
         setShowEditUserModal,
         setEditingUser,
+        setResetPasswordUser,
         setFormData,
         setServiceFormData,
         setTemplateForm,

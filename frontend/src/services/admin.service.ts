@@ -93,6 +93,11 @@ export const adminService = {
         return response.data.data;
     },
 
+    async resetUserPassword(userId: string): Promise<{ tempPassword: string }> {
+        const response = await apiClient.post(`/users/${userId}/reset-password`);
+        return response.data.data;
+    },
+
     // ── Workflow Transitions ────────────────────────────────────────
 
     async listWorkflowTransitions() {

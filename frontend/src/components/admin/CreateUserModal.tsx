@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { adminService } from '../../services/admin.service';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 
 interface CreateUserModalProps {
     onSuccess: () => void;
     onClose: () => void;
+    departments: string[];
 }
 
-const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose }) => {
+const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose, departments }) => {
+    const focusTrapRef = useFocusTrap(true);
+    const stableOnClose = useCallback(() => onClose(), [onClose]);
+    useEscapeKey(stableOnClose);
     const [phase, setPhase] = useState<'form' | 'success'>('form');
     const [form, setForm] = useState({ firstName: '', lastName: '', email: '', department: '' });
     const [tempPassword, setTempPassword] = useState('');
@@ -56,7 +62,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose })
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" ref={focusTrapRef} role="dialog" aria-modal="true" aria-label="Create User">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">
@@ -126,8 +132,14 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose })
                                         value={form.department}
                                         onChange={handleChange}
                                         placeholder="e.g. IT, HR, Finance"
+                                        list="department-suggestions-create"
                                         className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
                                     />
+                                    <datalist id="department-suggestions-create">
+                                        {departments.map(d => (
+                                            <option key={d} value={d} />
+                                        ))}
+                                    </datalist>
                                 </div>
                                 {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
                             </div>

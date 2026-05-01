@@ -1,4 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debouncedValue;
+}
 
 interface UserPagination {
     page: number;
@@ -22,6 +31,8 @@ interface UserAccountsTabProps {
     onCreateUser: () => void;
     onEditUser: (user: any) => void;
     onManageRoles: (user: any) => void;
+    onResetPassword: (user: any) => void;
+    onAssignAgentTeam: (user: any) => void;
     onToggleUserStatus: (user: any) => void;
 }
 
@@ -40,8 +51,31 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
     onCreateUser,
     onEditUser,
     onManageRoles,
+    onResetPassword,
+    onAssignAgentTeam,
     onToggleUserStatus,
 }) => {
+    const [searchInput, setSearchInput] = useState(userSearch);
+    const debouncedSearch = useDebounce(searchInput, 300);
+
+    useEffect(() => {
+        if (debouncedSearch !== userSearch) {
+            onSearch(debouncedSearch);
+        }
+    }, [debouncedSearch]);
+
+    useEffect(() => {
+        setSearchInput(userSearch);
+    }, [userSearch]);
+
+    const stats = useMemo(() => {
+        const total = userPagination.total;
+        const active = users.filter(u => u.isActive).length;
+        const disabled = users.filter(u => !u.isActive).length;
+        const agents = users.filter(u => u.roles?.some((ur: any) => ur.role?.name === 'AGENT')).length;
+        return { total, active, disabled, agents };
+    }, [users, userPagination.total]);
+
     return (
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
             {/* Header / Filters */}
@@ -52,8 +86,8 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                         type="text"
                         placeholder="Search by name or email..."
                         className="w-full pl-12 pr-6 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none"
-                        value={userSearch}
-                        onChange={e => onSearch(e.target.value)}
+                        value={searchInput}
+                        onChange={e => setSearchInput(e.target.value)}
                     />
                 </div>
                 <select
@@ -75,24 +109,56 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                 </button>
             </div>
 
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 px-8 pb-4">
+                {[
+                    { label: 'Total Users', value: stats.total, icon: 'group', color: 'bg-blue-50 text-blue-600' },
+                    { label: 'Active', value: stats.active, icon: 'check_circle', color: 'bg-emerald-50 text-emerald-600' },
+                    { label: 'Disabled', value: stats.disabled, icon: 'block', color: 'bg-gray-100 text-gray-500' },
+                    { label: 'Agents', value: stats.agents, icon: 'support_agent', color: 'bg-amber-50 text-amber-600' },
+                ].map(card => (
+                    <div key={card.label} className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-100 rounded-xl">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${card.color}`}>
+                            <span className="material-symbols-outlined text-lg">{card.icon}</span>
+                        </div>
+                        <div>
+                            <p className="text-xl font-black text-[#101418] leading-tight">{card.value}</p>
+                            <p className="text-[10px] font-bold text-[#44546f] uppercase tracking-wider">{card.label}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
             {/* Table */}
-            {usersLoading ? (
-                <div className="p-16 text-center text-[#44546f] font-bold">Loading users...</div>
-            ) : (
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead className="bg-gray-50/50 border-b border-gray-100">
-                            <tr className="text-[11px] font-black text-[#44546f] uppercase tracking-[0.2em]">
-                                <th className="px-8 py-5">User</th>
-                                <th className="px-8 py-5">Department</th>
-                                <th className="px-8 py-5">Entity</th>
-                                <th className="px-8 py-5">Roles</th>
-                                <th className="px-8 py-5">Agent Team</th>
-                                <th className="px-8 py-5">Status</th>
-                                <th className="px-8 py-5 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left" role="table" aria-label="User accounts">
+                    <thead className="bg-gray-50/50 border-b border-gray-100">
+                        <tr className="text-[11px] font-black text-[#44546f] uppercase tracking-[0.2em]">
+                            <th className="px-8 py-5">User</th>
+                            <th className="px-8 py-5">Department</th>
+                            <th className="px-8 py-5">Entity</th>
+                            <th className="px-8 py-5">Roles</th>
+                            <th className="px-8 py-5">Agent Team</th>
+                            <th className="px-8 py-5">Status</th>
+                            <th className="px-8 py-5 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    {usersLoading ? (
+                        <tbody className="divide-y divide-gray-100" role="status" aria-label="Loading users">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                                <tr key={i} className="animate-pulse">
+                                    <td className="px-8 py-5"><div className="h-4 bg-gray-200 rounded-lg w-32" /></td>
+                                    <td className="px-8 py-5"><div className="h-4 bg-gray-200 rounded-lg w-24" /></td>
+                                    <td className="px-8 py-5"><div className="h-4 bg-gray-200 rounded-lg w-20" /></td>
+                                    <td className="px-8 py-5"><div className="flex gap-1"><div className="h-5 bg-gray-200 rounded-full w-14" /><div className="h-5 bg-gray-200 rounded-full w-10" /></div></td>
+                                    <td className="px-8 py-5"><div className="h-5 bg-gray-200 rounded-full w-16" /></td>
+                                    <td className="px-8 py-5"><div className="h-5 bg-gray-200 rounded-full w-14" /></td>
+                                    <td className="px-8 py-5"><div className="flex gap-2 justify-end"><div className="h-10 w-10 bg-gray-200 rounded-xl" /><div className="h-10 w-10 bg-gray-200 rounded-xl" /></div></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    ) : (
+                    <tbody className="divide-y divide-gray-100">
                             {users.map(user => (
                                 <tr key={user.id} className={`hover:bg-gray-50/50 transition-colors ${!user.isActive ? 'opacity-50' : ''}`}>
                                     <td className="px-8 py-5">
@@ -145,6 +211,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                                 onClick={() => onEditUser(user)}
                                                 className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
                                                 title="Edit user details"
+                                                aria-label={`Edit ${user.firstName} ${user.lastName}`}
                                             >
                                                 <span className="material-symbols-outlined text-xl">edit</span>
                                             </button>
@@ -152,14 +219,24 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                                 onClick={() => onManageRoles(user)}
                                                 className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
                                                 title="Manage roles"
+                                                aria-label={`Manage roles for ${user.firstName} ${user.lastName}`}
                                             >
                                                 <span className="material-symbols-outlined text-xl">admin_panel_settings</span>
                                             </button>
+                                            <button
+                                                onClick={() => onResetPassword(user)}
+                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-amber-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                title="Reset password"
+                                                aria-label={`Reset password for ${user.firstName} ${user.lastName}`}
+                                            >
+                                                <span className="material-symbols-outlined text-xl">key</span>
+                                            </button>
                                             {user.roles?.some((ur: any) => ur.role?.name === 'AGENT') && (
                                                 <button
-                                                    onClick={() => onManageRoles(user)}
+                                                    onClick={() => onAssignAgentTeam(user)}
                                                     className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-amber-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
                                                     title="Assign agent team (IT/HR)"
+                                                    aria-label={`Assign agent team for ${user.firstName} ${user.lastName}`}
                                                 >
                                                     <span className="material-symbols-outlined text-xl">groups</span>
                                                 </button>
@@ -168,6 +245,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                                 onClick={() => onToggleUserStatus(user)}
                                                 className={`w-10 h-10 flex items-center justify-center hover:bg-white hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 ${user.isActive ? 'text-[#44546f] hover:text-red-600' : 'text-[#44546f] hover:text-emerald-600'}`}
                                                 title={user.isActive ? 'Disable account' : 'Enable account'}
+                                                aria-label={`${user.isActive ? 'Disable' : 'Enable'} ${user.firstName} ${user.lastName}`}
                                             >
                                                 <span className="material-symbols-outlined text-xl">{user.isActive ? 'block' : 'check_circle'}</span>
                                             </button>
@@ -177,13 +255,38 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                             ))}
                             {users.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="px-8 py-16 text-center text-[#44546f] font-bold">No users found.</td>
+                                    <td colSpan={7} className="px-8 py-16 text-center" role="status">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
+                                                <span className="material-symbols-outlined text-3xl text-gray-400">person_off</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-[#101418]">
+                                                    {userSearch || userRoleFilter ? 'No users match your filters' : 'No users yet'}
+                                                </p>
+                                                <p className="text-xs text-[#44546f] mt-1">
+                                                    {userSearch || userRoleFilter
+                                                        ? 'Try adjusting your search or role filter.'
+                                                        : 'Create your first user to get started.'}
+                                                </p>
+                                            </div>
+                                            {!userSearch && !userRoleFilter && (
+                                                <button
+                                                    onClick={onCreateUser}
+                                                    className="mt-1 flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white text-sm font-bold rounded-xl hover:bg-[#0047b3] transition-colors"
+                                                >
+                                                    <span className="material-symbols-outlined text-sm">person_add</span>
+                                                    Create User
+                                                </button>
+                                            )}
+                                        </div>
+                                    </td>
                                 </tr>
                             )}
                         </tbody>
-                    </table>
-                </div>
-            )}
+                    )}
+                </table>
+            </div>
 
             {/* Pagination */}
             {userPagination.totalPages > 1 && (
