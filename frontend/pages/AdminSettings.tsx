@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import Breadcrumbs from '../src/components/Breadcrumbs';
-import FormBuilder from '../src/components/FormBuilder';
+
 import CreateUserModal from '../src/components/admin/CreateUserModal';
 import UserEditModal from '../src/components/admin/UserEditModal';
 import { StatusDefinitionsTab } from '../src/components/admin/StatusDefinitionsTab';
@@ -16,6 +16,7 @@ import { SLAEscalationTab } from '../src/components/admin/SLAEscalationTab';
 import { useAdminState } from '../src/components/admin/useAdminState';
 import { ADMIN_TABS, CATEGORY_ICONS, COLOR_THEMES } from '../src/components/admin/adminConstants';
 import { ServiceDesksTab } from '../src/components/admin/ServiceDesksTab';
+import { ServiceDeskModal } from '../src/components/admin/ServiceDeskModal';
 import { UserAccountsTab } from '../src/components/admin/UserAccountsTab';
 import { OnboardingTasksTab } from '../src/components/admin/OnboardingTasksTab';
 import { OffboardingTasksTab } from '../src/components/admin/OffboardingTasksTab';
@@ -24,6 +25,8 @@ import { ServiceModal } from '../src/components/admin/ServiceModal';
 import { RoleAssignmentModal } from '../src/components/admin/RoleAssignmentModal';
 import { AgentTeamModal } from '../src/components/admin/AgentTeamModal';
 import { ResetPasswordModal } from '../src/components/admin';
+import { RequestTypeEditModal } from '../src/components/admin/RequestTypeEditModal';
+import { FormBuilderModal } from '../src/components/admin/FormBuilderModal';
 import { entityService, Entity } from '../src/services/entity.service';
 
 const AdminSettings = () => {
@@ -136,12 +139,18 @@ const AdminSettings = () => {
                             serviceDesks={admin.serviceDesks}
                             selectedDesk={admin.selectedDesk}
                             categories={admin.categories}
+                            categorySearch={admin.categorySearch}
+                            onCategorySearchChange={admin.setCategorySearch}
+                            filteredCategories={admin.filteredCategories}
                             selectedCategory={admin.selectedCategory}
                             requestTypes={admin.requestTypes}
                             availableRoles={admin.availableRoles}
                             formData={admin.formData}
                             modalOpen={admin.modalOpen}
                             serviceModalOpen={admin.serviceModalOpen}
+                            desksLoading={admin.desksLoading}
+                            categoriesLoading={admin.categoriesLoading}
+                            requestTypesLoading={admin.requestTypesLoading}
                             onDeskChange={admin.handleDeskChange}
                             onAddCategory={admin.openAddModal}
                             onEditCategory={admin.openEditModal}
@@ -151,8 +160,14 @@ const AdminSettings = () => {
                             onManageTypes={admin.handleManageTypes}
                             onOpenServiceModal={() => { if (admin.availableRoles.length === 0) admin.fetchRoles(); admin.setServiceModalOpen(true); }}
                             onDeleteService={admin.handleDeleteService}
+                            onReactivateService={admin.handleReactivateService}
+                            onEditService={admin.openEditServiceModal}
                             onEditTypeName={admin.openEditTypeName}
                             onOpenFormBuilder={admin.openFormBuilder}
+                            onAddDesk={admin.openAddDeskModal}
+                            onEditDesk={admin.openEditDeskModal}
+                            onDeleteDesk={admin.handleDeleteDesk}
+                            onReactivateDesk={admin.handleReactivateDesk}
                         />
                     )}
 
@@ -240,13 +255,24 @@ const AdminSettings = () => {
                 onFormDataChange={admin.setFormData}
             />
 
+            <ServiceDeskModal
+                isOpen={admin.deskModalOpen}
+                editingDesk={admin.editingDesk}
+                deskFormData={admin.deskFormData}
+                onSave={admin.handleSaveDesk}
+                onClose={() => admin.setDeskModalOpen(false)}
+                onFormDataChange={admin.setDeskFormData}
+            />
+
             <ServiceModal
                 isOpen={admin.serviceModalOpen}
                 selectedCategory={admin.selectedCategory}
                 availableRoles={admin.availableRoles}
                 serviceFormData={admin.serviceFormData}
+                editingService={admin.editingService}
                 onCreateService={admin.handleCreateService}
-                onClose={() => admin.setServiceModalOpen(false)}
+                onUpdateService={admin.handleUpdateService}
+                onClose={() => { admin.setServiceModalOpen(false); admin.setEditingService(null); }}
                 onFormDataChange={admin.setServiceFormData}
             />
 
@@ -350,111 +376,25 @@ const AdminSettings = () => {
             )}
 
             {/* Edit Request Type Name Modal */}
-            {admin.editingTypeName && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
-                        <div className="p-8">
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xl font-bold text-[#101418]">Edit Request Type</h2>
-                                <button
-                                    onClick={() => admin.setEditingTypeName(null)}
-                                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                                    disabled={admin.savingTypeName}
-                                >
-                                    <span className="material-symbols-outlined text-2xl">close</span>
-                                </button>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-[#101418] mb-2">Name</label>
-                                    <input
-                                        type="text"
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none"
-                                        value={admin.editTypeForm.name}
-                                        onChange={e => admin.setEditTypeForm({ ...admin.editTypeForm, name: e.target.value })}
-                                        disabled={admin.savingTypeName}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-[#101418] mb-2">Description</label>
-                                    <textarea
-                                        rows={3}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none resize-none"
-                                        value={admin.editTypeForm.description}
-                                        onChange={e => admin.setEditTypeForm({ ...admin.editTypeForm, description: e.target.value })}
-                                        disabled={admin.savingTypeName}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-[#101418] mb-2">Workflow Type</label>
-                                    <select
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none bg-white"
-                                        value={admin.editTypeForm.workflowTypeId}
-                                        onChange={e => admin.setEditTypeForm({ ...admin.editTypeForm, workflowTypeId: e.target.value })}
-                                        disabled={admin.savingTypeName || admin.workflowTypesLoading}
-                                    >
-                                        <option value="">Default (by Service Desk)</option>
-                                        {admin.workflowTypes.map(wt => (
-                                            <option key={wt.id} value={wt.id}>{wt.name}</option>
-                                        ))}
-                                    </select>
-                                    <p className="text-xs text-[#8993a4] mt-1">Determines the status stepper displayed for this request type.</p>
-                                </div>
-                                <div className="flex flex-col gap-1">
-                                    <label className="block text-sm font-bold text-[#101418] mb-2">SLA Hours</label>
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={1}
-                                        placeholder="e.g. 24"
-                                        value={admin.editTypeForm.slaHours}
-                                        onChange={e => admin.setEditTypeForm({ ...admin.editTypeForm, slaHours: e.target.value })}
-                                        className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 focus:border-[#0052cc] outline-none"
-                                        disabled={admin.savingTypeName}
-                                    />
-                                    <p className="text-xs text-[#8993a4] mt-1">Leave blank to disable SLA tracking for this request type.</p>
-                                </div>
-                            </div>
-                            <div className="flex gap-3 justify-end mt-6">
-                                <button
-                                    type="button"
-                                    className="px-6 py-2.5 text-sm font-bold text-[#44546f] hover:bg-gray-100 rounded-lg transition-colors"
-                                    onClick={() => admin.setEditingTypeName(null)}
-                                    disabled={admin.savingTypeName}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="button"
-                                    className="px-6 py-2.5 bg-[#0052cc] text-white text-sm font-bold rounded-lg hover:bg-[#0043a8] transition-colors disabled:opacity-50 flex items-center gap-2"
-                                    onClick={admin.handleSaveTypeName}
-                                    disabled={admin.savingTypeName || !admin.editTypeForm.name.trim()}
-                                >
-                                    {admin.savingTypeName ? (
-                                        <><span className="animate-spin material-symbols-outlined text-lg">progress_activity</span>Saving...</>
-                                    ) : (
-                                        <><span className="material-symbols-outlined text-lg">save</span>Save Changes</>
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <RequestTypeEditModal
+                isOpen={!!admin.editingTypeName}
+                editingTypeName={admin.editingTypeName}
+                editTypeForm={admin.editTypeForm}
+                savingTypeName={admin.savingTypeName}
+                workflowTypes={admin.workflowTypes}
+                workflowTypesLoading={admin.workflowTypesLoading}
+                onSave={admin.handleSaveTypeName}
+                onClose={() => admin.setEditingTypeName(null)}
+                onFormChange={admin.setEditTypeForm}
+            />
 
             {/* Form Builder Modal */}
-            {admin.formBuilderOpen && admin.selectedType && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
-                        <FormBuilder
-                            initialFields={admin.selectedType.formConfig || []}
-                            onSave={admin.handleSaveFormConfig}
-                            onCancel={() => admin.setFormBuilderOpen(false)}
-                            title={`Configure Form: ${admin.selectedType.name}`}
-                        />
-                    </div>
-                </div>
-            )}
+            <FormBuilderModal
+                isOpen={admin.formBuilderOpen && !!admin.selectedType}
+                selectedType={admin.selectedType}
+                onSave={admin.handleSaveFormConfig}
+                onClose={() => admin.setFormBuilderOpen(false)}
+            />
         </div>
     );
 };

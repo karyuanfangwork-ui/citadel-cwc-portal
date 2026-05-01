@@ -44,6 +44,13 @@ export interface OffboardingTemplateForm {
     displayOrder: number;
 }
 
+export interface DeskFormData {
+    name: string;
+    code: string;
+    description: string;
+    isActive: boolean;
+}
+
 export interface PendingAction {
     message: string;
     onConfirm: () => Promise<void>;
@@ -74,16 +81,26 @@ export interface UseAdminStateReturn {
     serviceDesks: any[];
     selectedDesk: any;
     categories: any[];
+    categorySearch: string;
+    setCategorySearch: (search: string) => void;
+    filteredCategories: any[];
     loading: boolean;
+    desksLoading: boolean;
+    categoriesLoading: boolean;
+    requestTypesLoading: boolean;
     selectedCategory: any;
     requestTypes: any[];
     formData: CategoryData;
     editingCategory: any;
     modalOpen: boolean;
+    deskModalOpen: boolean;
+    editingDesk: any | null;
+    deskFormData: DeskFormData;
 
     // Services
     serviceModalOpen: boolean;
     serviceFormData: ServiceFormData;
+    editingService: any | null;
     selectedType: any;
     formBuilderOpen: boolean;
     editingTypeName: { id: string; name: string; description: string; workflowTypeId?: string } | null;
@@ -148,11 +165,21 @@ export interface UseAdminStateReturn {
     handleMoveCategory: (cat: any, direction: 'up' | 'down') => Promise<void>;
     handleManageTypes: (cat: any) => Promise<void>;
     handleCreateService: (e: React.FormEvent) => Promise<void>;
+    handleUpdateService: (e: React.FormEvent) => Promise<void>;
     handleDeleteService: (typeId: string) => void;
+    handleReactivateService: (typeId: string) => void;
+    openEditServiceModal: (type: any) => void;
     openFormBuilder: (type: any) => void;
     handleSaveFormConfig: (fields: any[]) => Promise<void>;
     openEditTypeName: (type: any) => void;
     handleSaveTypeName: () => Promise<void>;
+
+    // Service Desk CRUD Handlers
+    openAddDeskModal: () => void;
+    openEditDeskModal: (desk: any) => void;
+    handleSaveDesk: (e: React.FormEvent) => Promise<void>;
+    handleDeleteDesk: (deskId: string) => void;
+    handleReactivateDesk: (deskId: string) => void;
 
     // User Handlers
     fetchUsers: (page?: number, search?: string, roleFilter?: string) => Promise<void>;
@@ -195,6 +222,13 @@ export interface UseAdminStateReturn {
     setResetPasswordUser: (user: any | null) => void;
     setFormData: (data: CategoryData) => void;
     setServiceFormData: (data: ServiceFormData) => void;
+    setEditingService: (service: any | null) => void;
+    setDeskModalOpen: (open: boolean) => void;
+    setEditingDesk: (desk: any | null) => void;
+    setDeskFormData: (data: DeskFormData) => void;
+    setDesksLoading: (loading: boolean) => void;
+    setCategoriesLoading: (loading: boolean) => void;
+    setRequestTypesLoading: (loading: boolean) => void;
     setTemplateForm: (form: TemplateForm) => void;
     setOffboardingTemplateForm: (form: OffboardingTemplateForm) => void;
     setPendingAction: (action: PendingAction | null) => void;
@@ -215,6 +249,9 @@ export function useAdminState(): UseAdminStateReturn {
     const [selectedDesk, setSelectedDesk] = useState<any>(null);
     const [categories, setCategories] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [desksLoading, setDesksLoading] = useState(false);
+    const [categoriesLoading, setCategoriesLoading] = useState(false);
+    const [requestTypesLoading, setRequestTypesLoading] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<any>(null);
     const [requestTypes, setRequestTypes] = useState<any[]>([]);
     const [formData, setFormData] = useState<CategoryData>({
@@ -228,6 +265,24 @@ export function useAdminState(): UseAdminStateReturn {
     const [editingCategory, setEditingCategory] = useState<any>(null);
     const [modalOpen, setModalOpen] = useState(false);
 
+    // ── Service Desk Modal State ───────────────────────────────────────────
+    const [deskModalOpen, setDeskModalOpen] = useState(false);
+    const [editingDesk, setEditingDesk] = useState<any | null>(null);
+    const [deskFormData, setDeskFormData] = useState<DeskFormData>({
+        name: '',
+        code: '',
+        description: '',
+        isActive: true,
+    });
+    const [categorySearch, setCategorySearch] = useState('');
+
+    // ── Computed: filtered categories by search ──
+    const filteredCategories = useMemo(() => {
+        if (!categorySearch.trim()) return categories;
+        const search = categorySearch.toLowerCase().trim();
+        return categories.filter(cat => cat.name?.toLowerCase().includes(search));
+    }, [categories, categorySearch]);
+
     // ── Services State ─────────────────────────────────────────────────────
     const [serviceModalOpen, setServiceModalOpen] = useState(false);
     const [serviceFormData, setServiceFormData] = useState<ServiceFormData>({
@@ -238,6 +293,7 @@ export function useAdminState(): UseAdminStateReturn {
         slaHours: '',
         requiredRole: '',
     });
+    const [editingService, setEditingService] = useState<any | null>(null);
     const [selectedType, setSelectedType] = useState<any>(null);
     const [formBuilderOpen, setFormBuilderOpen] = useState(false);
     const [editingTypeName, setEditingTypeName] = useState<{ id: string; name: string; description: string; workflowTypeId?: string } | null>(null);
@@ -335,6 +391,7 @@ export function useAdminState(): UseAdminStateReturn {
     // ───────────────────────────────────────────────────────────────────────
 
     const fetchServiceDesks = useCallback(async () => {
+        setDesksLoading(true);
         try {
             setLoading(true);
             const desks = await serviceDeskService.getAllServiceDesks();
@@ -347,6 +404,7 @@ export function useAdminState(): UseAdminStateReturn {
             console.error('Error fetching service desks:', err);
         } finally {
             setLoading(false);
+            setDesksLoading(false);
         }
     }, []);
 
@@ -363,11 +421,14 @@ export function useAdminState(): UseAdminStateReturn {
     }, []);
 
     const fetchCategories = useCallback(async (deskId: string) => {
+        setCategoriesLoading(true);
         try {
-            const cats = await adminService.getAllCategoriesAdmin(deskId);
+            const cats = await serviceDeskService.getAllCategoriesAdmin(deskId);
             setCategories(cats);
         } catch (err) {
             console.error('Error fetching categories:', err);
+        } finally {
+            setCategoriesLoading(false);
         }
     }, []);
 
@@ -488,9 +549,9 @@ export function useAdminState(): UseAdminStateReturn {
 
         try {
             if (editingCategory) {
-                await adminService.updateCategory(selectedDesk.id, editingCategory.id, formData);
+                await serviceDeskService.updateCategory(selectedDesk.id, editingCategory.id, formData);
             } else {
-                await adminService.createCategory(selectedDesk.id, formData);
+                await serviceDeskService.createCategory(selectedDesk.id, formData);
             }
             setModalOpen(false);
             fetchCategories(selectedDesk.id);
@@ -506,7 +567,7 @@ export function useAdminState(): UseAdminStateReturn {
             message: 'Deactivate this category? It will be hidden from users but can be restored.',
             onConfirm: async () => {
                 if (!selectedDesk) return;
-                await adminService.deleteCategory(selectedDesk.id, catId);
+                await serviceDeskService.deleteCategory(selectedDesk.id, catId);
                 fetchCategories(selectedDesk.id);
                 showToast('success', 'Category deactivated.');
             },
@@ -518,12 +579,86 @@ export function useAdminState(): UseAdminStateReturn {
             message: 'Reactivate this category? It will become visible to users again.',
             onConfirm: async () => {
                 if (!selectedDesk) return;
-                await adminService.updateCategory(selectedDesk.id, catId, { isActive: true });
+                await serviceDeskService.updateCategory(selectedDesk.id, catId, { isActive: true });
                 fetchCategories(selectedDesk.id);
                 showToast('success', 'Category reactivated.');
             },
         });
     }, [selectedDesk, fetchCategories, showToast]);
+
+    // ───────────────────────────────────────────────────────────────────────
+    // Service Desk CRUD Handlers
+    // ───────────────────────────────────────────────────────────────────────
+
+    const openAddDeskModal = useCallback(() => {
+        setEditingDesk(null);
+        setDeskFormData({
+            name: '',
+            code: '',
+            description: '',
+            isActive: true,
+        });
+        setDeskModalOpen(true);
+    }, []);
+
+    const openEditDeskModal = useCallback((desk: any) => {
+        setEditingDesk(desk);
+        setDeskFormData({
+            name: desk.name || '',
+            code: desk.code || '',
+            description: desk.description || '',
+            isActive: desk.isActive !== false,
+        });
+        setDeskModalOpen(true);
+    }, []);
+
+    const handleSaveDesk = useCallback(async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            if (editingDesk) {
+                await serviceDeskService.updateServiceDesk(editingDesk.id, {
+                    name: deskFormData.name,
+                    code: deskFormData.code,
+                    description: deskFormData.description,
+                    isActive: deskFormData.isActive,
+                });
+            } else {
+                await serviceDeskService.createServiceDesk({
+                    name: deskFormData.name,
+                    code: deskFormData.code,
+                    description: deskFormData.description || undefined,
+                });
+            }
+            setDeskModalOpen(false);
+            await fetchServiceDesks();
+            showToast('success', editingDesk ? 'Service desk updated.' : 'Service desk created.');
+        } catch (err) {
+            console.error('Error saving service desk:', err);
+            showToast('error', 'Failed to save service desk. Check that the code is unique.');
+        }
+    }, [editingDesk, deskFormData, fetchServiceDesks, showToast]);
+
+    const handleDeleteDesk = useCallback((deskId: string) => {
+        setPendingAction({
+            message: 'Delete this service desk? It will be soft-deleted and can be restored later.',
+            onConfirm: async () => {
+                await serviceDeskService.deleteServiceDesk(deskId);
+                await fetchServiceDesks();
+                showToast('success', 'Service desk deleted.');
+            },
+        });
+    }, [fetchServiceDesks, showToast]);
+
+    const handleReactivateDesk = useCallback((deskId: string) => {
+        setPendingAction({
+            message: 'Reactivate this service desk? It will become available again.',
+            onConfirm: async () => {
+                await serviceDeskService.updateServiceDesk(deskId, { isActive: true });
+                await fetchServiceDesks();
+                showToast('success', 'Service desk reactivated.');
+            },
+        });
+    }, [fetchServiceDesks, showToast]);
 
     const handleMoveCategory = useCallback(async (cat: any, direction: 'up' | 'down') => {
         if (!selectedDesk) return;
@@ -533,8 +668,8 @@ export function useAdminState(): UseAdminStateReturn {
         if (swapIdx < 0 || swapIdx >= sorted.length) return;
         const swapTarget = sorted[swapIdx];
         try {
-            await adminService.updateCategory(selectedDesk.id, cat.id, { displayOrder: swapTarget.displayOrder });
-            await adminService.updateCategory(selectedDesk.id, swapTarget.id, { displayOrder: cat.displayOrder });
+            await serviceDeskService.updateCategory(selectedDesk.id, cat.id, { displayOrder: swapTarget.displayOrder });
+            await serviceDeskService.updateCategory(selectedDesk.id, swapTarget.id, { displayOrder: cat.displayOrder });
             fetchCategories(selectedDesk.id);
         } catch (err) {
             console.error('Error reordering category:', err);
@@ -548,11 +683,14 @@ export function useAdminState(): UseAdminStateReturn {
             return;
         }
         setSelectedCategory(cat);
+        setRequestTypesLoading(true);
         try {
-            const types = await serviceDeskService.getRequestTypes(selectedDesk.id, cat.id);
+            const types = await serviceDeskService.getAllRequestTypesAdmin(selectedDesk.id, cat.id);
             setRequestTypes(types);
         } catch (err) {
             console.error('Error fetching request types:', err);
+        } finally {
+            setRequestTypesLoading(false);
         }
     }, [selectedDesk, selectedCategory]);
 
@@ -560,7 +698,7 @@ export function useAdminState(): UseAdminStateReturn {
         e.preventDefault();
         if (!selectedDesk || !selectedCategory) return;
         try {
-            await adminService.createService({
+            await serviceDeskService.createRequestType({
                 categoryId: selectedCategory.id,
                 name: serviceFormData.name,
                 description: serviceFormData.description,
@@ -586,13 +724,67 @@ export function useAdminState(): UseAdminStateReturn {
             onConfirm: async () => {
                 await serviceDeskService.deleteRequestType(typeId);
                 if (selectedCategory) {
-                    const types = await serviceDeskService.getRequestTypes(selectedDesk.id, selectedCategory.id);
+                    const types = await serviceDeskService.getAllRequestTypesAdmin(selectedDesk.id, selectedCategory.id);
                     setRequestTypes(types);
                 }
                 showToast('success', 'Service deactivated.');
             },
         });
     }, [selectedDesk, selectedCategory, showToast]);
+
+    const handleReactivateService = useCallback((typeId: string) => {
+        setPendingAction({
+            message: 'Reactivate this service? It will become available to users again.',
+            onConfirm: async () => {
+                await serviceDeskService.updateRequestType(typeId, { isActive: true });
+                if (selectedCategory) {
+                    const types = await serviceDeskService.getAllRequestTypesAdmin(selectedDesk.id, selectedCategory.id);
+                    setRequestTypes(types);
+                }
+                showToast('success', 'Service reactivated.');
+            },
+        });
+    }, [selectedDesk, selectedCategory, showToast]);
+
+    const openEditServiceModal = useCallback((type: any) => {
+        setEditingService(type);
+        setServiceFormData({
+            name: type.name,
+            description: type.description || '',
+            icon: type.icon || 'bolt',
+            requiresApproval: type.requiresApproval || false,
+            slaHours: type.slaHours != null ? String(type.slaHours) : '',
+            requiredRole: type.requiredRole || '',
+        });
+        if (availableRoles.length === 0) fetchRoles();
+        setServiceModalOpen(true);
+    }, [availableRoles.length, fetchRoles]);
+
+    const handleUpdateService = useCallback(async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingService) return;
+        try {
+            await serviceDeskService.updateRequestType(editingService.id, {
+                name: serviceFormData.name,
+                description: serviceFormData.description,
+                icon: serviceFormData.icon,
+                requiresApproval: serviceFormData.requiresApproval,
+                slaHours: serviceFormData.slaHours ? parseInt(serviceFormData.slaHours) : null,
+                requiredRole: serviceFormData.requiredRole || null,
+            });
+            setServiceModalOpen(false);
+            setEditingService(null);
+            setServiceFormData({ name: '', description: '', icon: 'bolt', requiresApproval: false, slaHours: '', requiredRole: '' });
+            if (selectedCategory) {
+                const types = await serviceDeskService.getAllRequestTypesAdmin(selectedDesk.id, selectedCategory.id);
+                setRequestTypes(types);
+            }
+            showToast('success', 'Service updated.');
+        } catch (err) {
+            console.error('Error updating service:', err);
+            showToast('error', 'Failed to update service.');
+        }
+    }, [editingService, serviceFormData, selectedDesk, selectedCategory, showToast]);
 
     const openFormBuilder = useCallback((type: any) => {
         setSelectedType(type);
@@ -835,16 +1027,26 @@ export function useAdminState(): UseAdminStateReturn {
         serviceDesks,
         selectedDesk,
         categories,
+        categorySearch,
+        setCategorySearch,
+        filteredCategories,
         loading,
+        desksLoading,
+        categoriesLoading,
+        requestTypesLoading,
         selectedCategory,
         requestTypes,
         formData,
         editingCategory,
         modalOpen,
+        deskModalOpen,
+        editingDesk,
+        deskFormData,
 
         // Services
         serviceModalOpen,
         serviceFormData,
+        editingService,
         selectedType,
         formBuilderOpen,
         editingTypeName,
@@ -909,11 +1111,22 @@ export function useAdminState(): UseAdminStateReturn {
         handleMoveCategory,
         handleManageTypes,
         handleCreateService,
+        handleUpdateService,
         handleDeleteService,
+        handleReactivateService,
+        openEditServiceModal,
         openFormBuilder,
         handleSaveFormConfig,
         openEditTypeName,
         handleSaveTypeName,
+
+        // Service Desk CRUD Handlers
+        openAddDeskModal,
+        openEditDeskModal,
+        handleSaveDesk,
+        handleDeleteDesk,
+        handleReactivateDesk,
+
         fetchUsers,
         fetchRoles,
         handleToggleUserStatus,
@@ -946,6 +1159,13 @@ export function useAdminState(): UseAdminStateReturn {
         setResetPasswordUser,
         setFormData,
         setServiceFormData,
+        setEditingService,
+        setDeskModalOpen,
+        setEditingDesk,
+        setDeskFormData,
+        setDesksLoading,
+        setCategoriesLoading,
+        setRequestTypesLoading,
         setTemplateForm,
         setOffboardingTemplateForm,
         setPendingAction,

@@ -1,6 +1,15 @@
 import { Router } from 'express';
 import { serviceDeskController } from '../controllers/serviceDesk.controller';
 import { authenticate, optionalAuth, requirePermission } from '../middleware/auth.middleware';
+import { validate } from '../middleware/validate.middleware';
+import {
+    createServiceDeskSchema,
+    updateServiceDeskSchema,
+    createCategorySchema,
+    updateCategorySchema,
+    createRequestTypeSchema,
+    updateRequestTypeSchema,
+} from '../validators/serviceDesk.validator';
 
 const router = Router();
 
@@ -43,18 +52,25 @@ router.use(authenticate, requirePermission('admin:settings'));
 router.get('/:id/categories/all', serviceDeskController.getAllCategoriesAdmin);
 
 /**
+ * @route   GET /api/v1/service-desks/:id/request-types/all
+ * @desc    Get ALL request types for a service desk (including inactive) — admin only
+ * @access  Private — requirePermission enforces RBAC at the permission level
+ */
+router.get('/:id/request-types/all', serviceDeskController.getAllRequestTypesAdmin);
+
+/**
  * @route   POST /api/v1/service-desks
  * @desc    Create service desk
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.post('/', serviceDeskController.createServiceDesk);
+router.post('/', validate(createServiceDeskSchema), serviceDeskController.createServiceDesk);
 
 /**
  * @route   PUT /api/v1/service-desks/:id
  * @desc    Update service desk
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.put('/:id', serviceDeskController.updateServiceDesk);
+router.put('/:id', validate(updateServiceDeskSchema), serviceDeskController.updateServiceDesk);
 
 /**
  * @route   DELETE /api/v1/service-desks/:id
@@ -70,14 +86,14 @@ router.delete('/:id', serviceDeskController.deleteServiceDesk);
  * @desc    Create category
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.post('/:id/categories', serviceDeskController.createCategory);
+router.post('/:id/categories', validate(createCategorySchema), serviceDeskController.createCategory);
 
 /**
  * @route   PUT /api/v1/service-desks/:id/categories/:categoryId
  * @desc    Update category
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.put('/:id/categories/:categoryId', serviceDeskController.updateCategory);
+router.put('/:id/categories/:categoryId', validate(updateCategorySchema), serviceDeskController.updateCategory);
 
 /**
  * @route   DELETE /api/v1/service-desks/:id/categories/:categoryId
@@ -93,14 +109,14 @@ router.delete('/:id/categories/:categoryId', serviceDeskController.deleteCategor
  * @desc    Create request type
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.post('/request-types', serviceDeskController.createRequestType);
+router.post('/request-types', validate(createRequestTypeSchema), serviceDeskController.createRequestType);
 
 /**
  * @route   PUT /api/v1/service-desks/request-types/:typeId
  * @desc    Update request type (including form configuration)
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.put('/request-types/:typeId', serviceDeskController.updateRequestType);
+router.put('/request-types/:typeId', validate(updateRequestTypeSchema), serviceDeskController.updateRequestType);
 
 /**
  * @route   DELETE /api/v1/service-desks/request-types/:typeId

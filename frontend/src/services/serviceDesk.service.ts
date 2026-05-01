@@ -25,11 +25,38 @@ export const serviceDeskService = {
         return response.data.data.requestTypes;
     },
 
-    async getRequestTypeById(typeName: string) { // Wait, I added getRequestTypeById in controller by ID
-        // Simplified for now, will use ID
+    async getAllRequestTypesAdmin(deskId: string, categoryId?: string) {
+        let url = `/service-desks/${deskId}/request-types/all`;
+        if (categoryId) {
+            url += `?categoryId=${categoryId}`;
+        }
+        const response = await apiClient.get(url);
+        return response.data.data.requestTypes;
+    },
+
+    // --- Admin Service Desk Management ---
+
+    async createServiceDesk(data: { name: string; code: string; description?: string }) {
+        const response = await apiClient.post('/service-desks', data);
+        return response.data.data.serviceDesk;
+    },
+
+    async updateServiceDesk(id: string, data: { name?: string; code?: string; description?: string; isActive?: boolean }) {
+        const response = await apiClient.put(`/service-desks/${id}`, data);
+        return response.data.data.serviceDesk;
+    },
+
+    async deleteServiceDesk(id: string) {
+        const response = await apiClient.delete(`/service-desks/${id}`);
+        return response.data;
     },
 
     // --- Admin Category Management ---
+
+    async getAllCategoriesAdmin(serviceDeskId: string) {
+        const response = await apiClient.get(`/service-desks/${serviceDeskId}/categories/all`);
+        return response.data.data.categories;
+    },
 
     async createCategory(serviceDeskId: string, data: any) {
         const response = await apiClient.post(`/service-desks/${serviceDeskId}/categories`, data);

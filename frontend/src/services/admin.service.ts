@@ -10,43 +10,6 @@ export interface CategoryData {
 }
 
 export const adminService = {
-    /**
-     * Create a new category for a service desk
-     */
-    async createCategory(serviceDeskId: string, data: CategoryData) {
-        const response = await apiClient.post(`/service-desks/${serviceDeskId}/categories`, data);
-        return response.data.data.category;
-    },
-
-    /**
-     * Update an existing category
-     */
-    async updateCategory(serviceDeskId: string, categoryId: string, data: Partial<CategoryData>) {
-        const response = await apiClient.put(`/service-desks/${serviceDeskId}/categories/${categoryId}`, data);
-        return response.data.data.category;
-    },
-
-    /**
-     * Delete (soft delete) a category
-     */
-    async deleteCategory(serviceDeskId: string, categoryId: string) {
-        const response = await apiClient.delete(`/service-desks/${serviceDeskId}/categories/${categoryId}`);
-        return response.data;
-    },
-
-    /**
-     * Get ALL categories for a service desk (including inactive) — admin only
-     */
-    async getAllCategoriesAdmin(serviceDeskId: string) {
-        const response = await apiClient.get(`/service-desks/${serviceDeskId}/categories/all`);
-        return response.data.data.categories;
-    },
-
-    async createService(data: { categoryId: string; name: string; description?: string; icon?: string; requiresApproval?: boolean; slaHours?: number | null; requiredRole?: string | null }) {
-        const response = await apiClient.post(`/service-desks/request-types`, data);
-        return response.data.data.requestType;
-    },
-
     // ── User Management ──────────────────────────────────────────
 
     async listUsers(params?: { page?: number; limit?: number; search?: string; role?: string; isActive?: boolean }) {

@@ -5,12 +5,18 @@ interface ServiceDesksTabProps {
     serviceDesks: any[];
     selectedDesk: any;
     categories: any[];
+    categorySearch: string;
+    onCategorySearchChange: (search: string) => void;
+    filteredCategories: any[];
     selectedCategory: any;
     requestTypes: any[];
     availableRoles: any[];
     formData: CategoryData;
     modalOpen: boolean;
     serviceModalOpen: boolean;
+    desksLoading: boolean;
+    categoriesLoading: boolean;
+    requestTypesLoading: boolean;
     onDeskChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
     onAddCategory: () => void;
     onEditCategory: (cat: any) => void;
@@ -20,20 +26,33 @@ interface ServiceDesksTabProps {
     onManageTypes: (cat: any) => void;
     onOpenServiceModal: () => void;
     onDeleteService: (typeId: string) => void;
+    onReactivateService: (typeId: string) => void;
+    onEditService: (type: any) => void;
     onEditTypeName: (type: any) => void;
     onOpenFormBuilder: (type: any) => void;
+    // Service Desk CRUD props
+    onAddDesk: () => void;
+    onEditDesk: (desk: any) => void;
+    onDeleteDesk: (deskId: string) => void;
+    onReactivateDesk: (deskId: string) => void;
 }
 
 export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
     serviceDesks,
     selectedDesk,
     categories,
+    categorySearch,
+    onCategorySearchChange,
+    filteredCategories,
     selectedCategory,
     requestTypes,
     availableRoles,
     formData,
     modalOpen,
     serviceModalOpen,
+    desksLoading,
+    categoriesLoading,
+    requestTypesLoading,
     onDeskChange,
     onAddCategory,
     onEditCategory,
@@ -43,9 +62,44 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
     onManageTypes,
     onOpenServiceModal,
     onDeleteService,
+    onReactivateService,
+    onEditService,
     onEditTypeName,
     onOpenFormBuilder,
+    onAddDesk,
+    onEditDesk,
+    onDeleteDesk,
+    onReactivateDesk,
 }) => {
+    // ── Empty state: no desks at all and not loading ──
+    if (serviceDesks.length === 0 && !desksLoading) {
+        return (
+            <div className="py-24 text-center">
+                <span className="material-symbols-outlined text-6xl text-gray-200 mb-6 block">support_agent</span>
+                <h3 className="text-xl font-black text-[#101418] mb-2">No Service Desks</h3>
+                <p className="text-[#44546f] mb-6">Create your first service desk to start organizing support categories.</p>
+                {onAddDesk && (
+                    <button
+                        onClick={onAddDesk}
+                        className="flex items-center gap-2 px-8 py-3.5 bg-[#0052cc] text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-sm uppercase tracking-widest text-xs mx-auto"
+                    >
+                        <span className="material-symbols-outlined text-xl">add</span>
+                        Add Service Desk
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    // ── Loading state: desks still loading ──
+    if (desksLoading) {
+        return (
+            <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm p-16 text-center">
+                <div className="h-8 w-8 border-4 border-[#0052cc] border-t-transparent rounded-full animate-spin mx-auto" />
+            </div>
+        );
+    }
+
     return (
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
             <div className="p-8 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gray-50/20">
@@ -53,28 +107,91 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                     <label className="text-sm font-bold text-[#44546f] uppercase tracking-wider">Service Desk</label>
                     <div className="relative">
                         <select
-                            className="pl-6 pr-12 py-3 bg-white border border-gray-200 rounded-2xl text-base font-bold text-[#101418] focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none cursor-pointer appearance-none transition-all"
+                            aria-label="Select service desk"
+                            className="pl-6 pr-12 py-3 bg-white border border-gray-200 rounded-2xl text-base font-bold text-[#101418] focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none cursor-pointer appearance-none transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                             value={selectedDesk?.id || ''}
                             onChange={onDeskChange}
+                            disabled={desksLoading}
                         >
-                            {serviceDesks.map(desk => (
-                                <option key={desk.id} value={desk.id}>{desk.name}</option>
-                            ))}
+                            {desksLoading ? (
+                                <option>Loading desks...</option>
+                            ) : (
+                                serviceDesks.map(desk => (
+                                    <option key={desk.id} value={desk.id}>{desk.name}</option>
+                                ))
+                            )}
                         </select>
                         <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
                     </div>
+
+                    {/* Edit / Delete / Reactivate buttons for selected desk */}
+                    {selectedDesk && (
+                        <div className="flex items-center gap-2 ml-2">
+                            <button
+                                onClick={() => onEditDesk(selectedDesk)}
+                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
+                                title="Edit service desk"
+                                aria-label="Edit service desk"
+                            >
+                                <span className="material-symbols-outlined text-xl">edit</span>
+                            </button>
+                            {selectedDesk.isActive !== false ? (
+                                <button
+                                    onClick={() => onDeleteDesk(selectedDesk.id)}
+                                    className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-red-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
+                                    title="Delete service desk"
+                                    aria-label="Delete service desk"
+                                >
+                                    <span className="material-symbols-outlined text-xl">delete</span>
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => onReactivateDesk(selectedDesk.id)}
+                                    className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-emerald-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
+                                    title="Reactivate service desk"
+                                    aria-label="Reactivate service desk"
+                                >
+                                    <span className="material-symbols-outlined text-xl">restore</span>
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </div>
-                <button
-                    onClick={onAddCategory}
-                    className="flex items-center gap-2 px-8 py-3.5 bg-[#0052cc] text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-sm uppercase tracking-widest text-xs"
-                >
-                    <span className="material-symbols-outlined text-xl">add</span>
-                    Add Category
-                </button>
+
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={onAddDesk}
+                        className="flex items-center gap-2 px-6 py-3.5 bg-[#0052cc] text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-sm uppercase tracking-widest text-xs"
+                    >
+                        <span className="material-symbols-outlined text-xl">add</span>
+                        Add Service Desk
+                    </button>
+                    <button
+                        onClick={onAddCategory}
+                        className="flex items-center gap-2 px-8 py-3.5 bg-white border border-gray-200 text-[#101418] font-black rounded-2xl hover:bg-gray-100 transition-all shadow-sm uppercase tracking-widest text-xs"
+                    >
+                        <span className="material-symbols-outlined text-xl">add</span>
+                        Add Category
+                    </button>
+                </div>
+            </div>
+
+            <div className="px-8 py-4 border-b border-gray-100 flex items-center gap-3">
+                <span className="material-symbols-outlined text-xl text-[#44546f]">search</span>
+                <input
+                    type="text"
+                    placeholder="Search categories..."
+                    className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all"
+                    value={categorySearch}
+                    onChange={e => onCategorySearchChange(e.target.value)}
+                />
+                {categorySearch && (
+                    <span className="text-xs text-[#44546f] font-bold">Showing {filteredCategories.length} of {categories.length} categories</span>
+                )}
             </div>
 
             <div className="overflow-x-auto">
-                <table className="w-full text-left">
+                <table role="table" aria-label={`Service categories for ${selectedDesk?.name || 'service desk'}`} className="w-full text-left">
                     <thead className="bg-gray-50/50 border-b border-gray-100">
                         <tr className="text-[11px] font-black text-[#44546f] uppercase tracking-[0.2em]">
                             <th className="px-8 py-5 w-20">Order</th>
@@ -86,7 +203,26 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                        {categories.map(cat => (
+                        {categoriesLoading ? (
+                            <>
+                                {[1, 2, 3].map(i => (
+                                    <tr key={`skeleton-${i}`}>
+                                        <td className="px-8 py-6"><div className="h-5 w-8 bg-gray-100 rounded animate-pulse" /></td>
+                                        <td className="px-8 py-6"><div className="h-5 w-12 bg-gray-100 rounded animate-pulse" /></td>
+                                        <td className="px-8 py-6"><div className="h-5 w-40 bg-gray-100 rounded animate-pulse" /></td>
+                                        <td className="px-8 py-6"><div className="h-5 w-16 bg-gray-100 rounded animate-pulse" /></td>
+                                        <td className="px-8 py-6"><div className="h-5 w-20 bg-gray-100 rounded animate-pulse" /></td>
+                                        <td className="px-8 py-6"><div className="h-5 w-20 bg-gray-100 rounded animate-pulse" /></td>
+                                    </tr>
+                                ))}
+                            </>
+                        ) : categories.length === 0 ? (
+                            <tr><td colSpan={6} className="px-8 py-16 text-center">
+                                <span className="material-symbols-outlined text-5xl text-gray-200 mb-4 block">category</span>
+                                <p className="text-[#44546f] font-bold">No categories yet. Add one to organize services.</p>
+                            </td></tr>
+                        ) : (
+                        filteredCategories.map(cat => (
                             <tr key={cat.id} className={`hover:bg-gray-50/50 transition-colors ${selectedCategory?.id === cat.id ? 'bg-blue-50/30' : ''} ${!cat.isActive ? 'opacity-50' : ''}`}>
                                 <td className="px-8 py-6">
                                     <div className="flex flex-col items-center gap-1">
@@ -94,6 +230,7 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                             onClick={() => onMoveCategory(cat, 'up')}
                                             className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-300 hover:text-[#0052cc] transition-all"
                                             title="Move up"
+                                            aria-label="Move category up"
                                         >
                                             <span className="material-symbols-outlined text-base">arrow_upward</span>
                                         </button>
@@ -102,6 +239,7 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                             onClick={() => onMoveCategory(cat, 'down')}
                                             className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-300 hover:text-[#0052cc] transition-all"
                                             title="Move down"
+                                            aria-label="Move category down"
                                         >
                                             <span className="material-symbols-outlined text-base">arrow_downward</span>
                                         </button>
@@ -117,41 +255,51 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                     <div className="text-sm text-[#44546f] max-w-xs truncate mt-1">{cat.description || 'No description'}</div>
                                 </td>
                                 <td className="px-8 py-6">
-                                    <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${cat.isActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${cat.isActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                                        <span className="material-symbols-outlined text-xs mr-1">{cat.isActive ? 'check' : 'pause'}</span>
                                         {cat.isActive ? 'Active' : 'Inactive'}
                                     </span>
                                 </td>
                                 <td className="px-8 py-6">
-                                    <button
-                                        onClick={() => onManageTypes(cat)}
-                                        className={`group flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${selectedCategory?.id === cat.id ? 'bg-[#0052cc] text-white border-[#0052cc] shadow-lg shadow-blue-100' : 'bg-white text-[#44546f] border-gray-200 hover:border-[#0052cc] hover:text-[#0052cc]'}`}
-                                    >
-                                        <span className="material-symbols-outlined text-xl">settings_input_component</span>
-                                        <span className="text-xs font-black uppercase tracking-widest">Manage</span>
-                                    </button>
+                                    <div className="flex items-center gap-3">
+                                        <span className="inline-flex px-2 py-0.5 bg-blue-50 text-[#0052cc] text-[10px] font-black rounded-full">
+                                            {cat._count?.requestTypes ?? 0}
+                                        </span>
+                                        <button
+                                            onClick={() => onManageTypes(cat)}
+                                            className={`group flex items-center gap-2 px-4 py-2 rounded-xl border transition-all ${selectedCategory?.id === cat.id ? 'bg-[#0052cc] text-white border-[#0052cc] shadow-lg shadow-blue-100' : 'bg-white text-[#44546f] border-gray-200 hover:border-[#0052cc] hover:text-[#0052cc]'}`}
+                                        >
+                                            <span className="material-symbols-outlined text-xl">settings_input_component</span>
+                                            <span className="text-xs font-black uppercase tracking-widest">Manage</span>
+                                            <span className="material-symbols-outlined text-sm">{selectedCategory?.id === cat.id ? 'expand_less' : 'expand_more'}</span>
+                                        </button>
+                                    </div>
                                 </td>
                                 <td className="px-8 py-6 text-right">
                                     <div className="flex justify-end gap-3">
                                         <button
                                             onClick={() => onEditCategory(cat)}
-                                            className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                            className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
                                             title="Edit category"
+                                            aria-label="Edit category"
                                         >
                                             <span className="material-symbols-outlined text-xl">edit</span>
                                         </button>
                                         {cat.isActive ? (
                                             <button
                                                 onClick={() => onDeleteCategory(cat.id)}
-                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-red-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-red-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
                                                 title="Deactivate category"
+                                                aria-label="Deactivate category"
                                             >
                                                 <span className="material-symbols-outlined text-xl">delete</span>
                                             </button>
                                         ) : (
                                             <button
                                                 onClick={() => onReactivateCategory(cat.id)}
-                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-emerald-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-emerald-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
                                                 title="Reactivate category"
+                                                aria-label="Reactivate category"
                                             >
                                                 <span className="material-symbols-outlined text-xl">restore</span>
                                             </button>
@@ -159,7 +307,8 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                     </div>
                                 </td>
                             </tr>
-                        ))}
+                        ))
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -184,8 +333,20 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {requestTypesLoading ? (
+                            <>
+                                {[1, 2, 3].map(i => (
+                                    <div key={`skeleton-card-${i}`} className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm">
+                                        <div className="h-12 w-12 bg-gray-100 rounded-2xl animate-pulse mb-6" />
+                                        <div className="h-5 w-3/4 bg-gray-100 rounded animate-pulse mb-3" />
+                                        <div className="h-4 w-1/2 bg-gray-100 rounded animate-pulse" />
+                                    </div>
+                                ))}
+                            </>
+                        ) : (
+                        <>
                         {requestTypes.map(type => (
-                            <div key={type.id} className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
+                            <div key={type.id} className={`bg-white p-8 rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden ${!type.isActive ? 'opacity-60' : ''}`}>
                                 <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50/30 rounded-full -mr-12 -mt-12 group-hover:scale-150 transition-transform duration-500"></div>
 
                                 <div className="relative z-10">
@@ -195,30 +356,56 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                         </div>
                                         <div className="flex gap-2">
                                             <button
-                                                onClick={() => onEditTypeName(type)}
-                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"
-                                                title="Edit Name & Description"
+                                                onClick={() => onEditService(type)}
+                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
+                                                title="Edit Service"
+                                                aria-label="Edit service"
                                             >
                                                 <span className="material-symbols-outlined text-[20px]">edit</span>
                                             </button>
                                             <button
                                                 onClick={() => onOpenFormBuilder(type)}
-                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-[#0052cc] hover:bg-blue-50 rounded-xl transition-all"
+                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-[#0052cc] hover:bg-blue-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
                                                 title="Configure Form Fields"
+                                                aria-label="Configure form fields"
                                             >
                                                 <span className="material-symbols-outlined text-[22px]">dynamic_form</span>
                                             </button>
-                                            <button
-                                                onClick={() => onDeleteService(type.id)}
-                                                className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                                                title="Deactivate service"
-                                            >
-                                                <span className="material-symbols-outlined text-[20px]">delete</span>
-                                            </button>
+                                            {type.isActive !== false ? (
+                                                <button
+                                                    onClick={() => onDeleteService(type.id)}
+                                                    className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
+                                                    title="Deactivate service"
+                                                    aria-label="Deactivate service"
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">delete</span>
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => onReactivateService(type.id)}
+                                                    className="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all focus-visible:ring-2 focus-visible:ring-[#0052cc] focus-visible:ring-offset-2"
+                                                    title="Reactivate service"
+                                                    aria-label="Reactivate service"
+                                                >
+                                                    <span className="material-symbols-outlined text-[20px]">restore</span>
+                                                </button>
+                                            )}
                                         </div>
                                     </div>
                                     <h4 className="font-black text-[#101418] text-lg mb-2">{type.name}</h4>
-                                    <p className="text-sm text-[#44546f] mb-6 line-clamp-2 min-h-[40px] leading-relaxed">{type.description || 'No description provided for this service.'}</p>
+                                    <p className="text-sm text-[#44546f] mb-4 line-clamp-2 min-h-[40px] leading-relaxed">{type.description || 'No description provided for this service.'}</p>
+
+                                    {type.isActive !== false ? (
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-600 border border-emerald-100 mb-2">
+                                            <span className="material-symbols-outlined text-xs mr-1">check</span>Active
+                                        </span>
+                                    ) : null}
+
+                                    {type.isActive === false && (
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 border border-gray-200 mb-4">
+                                            <span className="material-symbols-outlined text-xs mr-1">pause</span>Inactive
+                                        </span>
+                                    )}
 
                                     <div className="flex items-center justify-between pt-4 border-t border-gray-50">
                                         <span className="text-[10px] font-black uppercase tracking-[0.1em] text-[#0052cc] bg-blue-50 px-3 py-1 rounded-full">
@@ -234,6 +421,8 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
                                 <span className="material-symbols-outlined text-4xl text-gray-200 mb-4">inventory_2</span>
                                 <p className="text-[#44546f] font-bold">No services found for this category.</p>
                             </div>
+                        )}
+                        </>
                         )}
                     </div>
                 </div>

@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
+import { IconPicker } from './IconPicker';
 
 interface ServiceFormData {
     name: string;
@@ -14,7 +17,9 @@ interface ServiceModalProps {
     selectedCategory: any;
     availableRoles: { id: string; name: string; description: string }[];
     serviceFormData: ServiceFormData;
+    editingService?: any | null;
     onCreateService: (e: React.FormEvent) => void;
+    onUpdateService?: (e: React.FormEvent) => void;
     onClose: () => void;
     onFormDataChange: (data: ServiceFormData) => void;
 }
@@ -24,22 +29,30 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({
     selectedCategory,
     availableRoles,
     serviceFormData,
+    editingService,
     onCreateService,
+    onUpdateService,
     onClose,
     onFormDataChange,
 }) => {
+    const containerRef = useFocusTrap(isOpen);
+    const handleClose = useCallback(() => onClose(), [onClose]);
+    useEscapeKey(handleClose);
+
     if (!isOpen) return null;
 
+    const isEdit = !!editingService;
+
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[#091e42]/70 backdrop-blur-sm">
+        <div ref={containerRef} className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-[#091e42]/70 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label={isEdit ? 'Edit Service' : 'New Service'}>
             <div className="bg-white rounded-[40px] w-full max-w-lg shadow-2xl overflow-hidden scale-in flex flex-col max-h-[90vh]">
                 <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-                    <h2 className="text-2xl font-black text-[#101418]">New Service</h2>
-                    <button onClick={onClose} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400">
+                    <h2 className="text-2xl font-black text-[#101418]">{isEdit ? 'Edit Service' : 'New Service'}</h2>
+                    <button onClick={onClose} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400" aria-label="Close">
                         <span className="material-symbols-outlined text-3xl">close</span>
                     </button>
                 </div>
-                <form onSubmit={onCreateService} className="p-10 space-y-6 overflow-y-auto">
+                <form onSubmit={isEdit && onUpdateService ? onUpdateService : onCreateService} className="p-10 space-y-6 overflow-y-auto">
                     <div>
                         <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Service Name *</label>
                         <input
@@ -60,6 +73,10 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({
                             value={serviceFormData.description}
                             onChange={e => onFormDataChange({ ...serviceFormData, description: e.target.value })}
                         />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Icon</label>
+                        <IconPicker value={serviceFormData.icon} onChange={(icon) => onFormDataChange({ ...serviceFormData, icon })} />
                     </div>
                     <div className="grid grid-cols-2 gap-6">
                         <div>
@@ -100,7 +117,7 @@ export const ServiceModal: React.FC<ServiceModalProps> = ({
                     </div>
                     <div className="flex gap-6 pt-4">
                         <button type="button" onClick={onClose} className="flex-1 py-4 bg-gray-100 text-[#44546f] font-black rounded-3xl hover:bg-gray-200 transition-all text-xs uppercase tracking-widest">Cancel</button>
-                        <button type="submit" className="flex-1 py-4 bg-[#0052cc] text-white font-black rounded-3xl hover:bg-blue-700 transition-all text-xs uppercase tracking-widest">Create Service</button>
+                        <button type="submit" className="flex-1 py-4 bg-[#0052cc] text-white font-black rounded-3xl hover:bg-blue-700 transition-all text-xs uppercase tracking-widest">{isEdit ? 'Save Changes' : 'Create Service'}</button>
                     </div>
                 </form>
             </div>

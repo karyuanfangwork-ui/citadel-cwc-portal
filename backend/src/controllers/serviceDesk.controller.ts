@@ -1,21 +1,12 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { AppError, asyncHandler } from '../middleware/error.middleware';
+import { asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
-
-const prisma = new PrismaClient();
+import { auditLog } from '../utils/audit';
+import serviceDeskService from '../services/serviceDesk.service';
 
 class ServiceDeskController {
     getAllServiceDesks = asyncHandler(async (_req: AuthRequest, res: Response) => {
-        const serviceDesks = await prisma.serviceDesk.findMany({
-            where: { isActive: true },
-            include: {
-                categories: {
-                    where: { isActive: true },
-                    orderBy: { displayOrder: 'asc' },
-                },
-            },
-        });
+        const serviceDesks = await serviceDeskService.getAllServiceDesks();
 
         res.json({
             status: 'success',
@@ -25,20 +16,7 @@ class ServiceDeskController {
 
     getServiceDeskById = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
-
-        const serviceDesk = await prisma.serviceDesk.findUnique({
-            where: { id: id as string },
-            include: {
-                categories: {
-                    where: { isActive: true },
-                    orderBy: { displayOrder: 'asc' },
-                },
-            },
-        });
-
-        if (!serviceDesk) {
-            throw new AppError('Service desk not found', 404);
-        }
+        const serviceDesk = await serviceDeskService.getServiceDeskById(id);
 
         res.json({
             status: 'success',
@@ -48,14 +26,7 @@ class ServiceDeskController {
 
     getCategories = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
-
-        const categories = await prisma.serviceCategory.findMany({
-            where: {
-                serviceDeskId: id as string,
-                isActive: true,
-            },
-            orderBy: { displayOrder: 'asc' },
-        });
+        const categories = await serviceDeskService.getCategories(id);
 
         res.json({
             status: 'success',
@@ -65,14 +36,7 @@ class ServiceDeskController {
 
     getAllCategoriesAdmin = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
-
-        const categories = await prisma.serviceCategory.findMany({
-            where: { serviceDeskId: id as string },
-            orderBy: { displayOrder: 'asc' },
-            include: {
-                _count: { select: { requestTypes: true } },
-            },
-        });
+        const categories = await serviceDeskService.getAllCategoriesAdmin(id);
 
         res.json({
             status: 'success',
@@ -83,31 +47,18 @@ class ServiceDeskController {
     getRequestTypes = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id); // serviceDeskId
         const { categoryId } = req.query;
+        const requestTypes = await serviceDeskService.getRequestTypes(id, categoryId as string | undefined);
 
-        const where: any = {
-            serviceCategory: {
-                serviceDeskId: id,
-            },
-            isActive: true,
-        };
-
-        if (categoryId) {
-            where.serviceCategoryId = categoryId as string;
-        }
-
-        const requestTypes = await prisma.requestType.findMany({
-            where,
-            include: {
-                serviceCategory: true,
-                workflow: {
-                    include: {
-                        steps: {
-                            orderBy: { displayOrder: 'asc' }
-                        }
-                    }
-                }
-            },
+        res.json({
+            status: 'success',
+            data: { requestTypes },
         });
+    });
+
+    getAllRequestTypesAdmin = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const id = String(req.params.id); // serviceDeskId
+        const { categoryId } = req.query;
+        const requestTypes = await serviceDeskService.getAllRequestTypesAdmin(id, categoryId as string | undefined);
 
         res.json({
             status: 'success',
@@ -118,8 +69,11 @@ class ServiceDeskController {
     createServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { name, code, description } = req.body;
 
-        const serviceDesk = await prisma.serviceDesk.create({
-            data: { name, code, description },
+        const serviceDesk = await serviceDeskService.createServiceDesk({ name, code, description });
+
+        await auditLog(req, 'ADMIN_CREATE_SERVICE_DESK', 'ServiceDesk', serviceDesk.id, {
+            name: serviceDesk.name,
+            code: serviceDesk.code,
         });
 
         res.status(201).json({
@@ -132,9 +86,12 @@ class ServiceDeskController {
         const id = String(req.params.id);
         const { name, code, description, isActive } = req.body;
 
-        const serviceDesk = await prisma.serviceDesk.update({
-            where: { id },
-            data: { name, code, description, isActive },
+        const serviceDesk = await serviceDeskService.updateServiceDesk(id, { name, code, description, isActive });
+
+        await auditLog(req, 'ADMIN_UPDATE_SERVICE_DESK', 'ServiceDesk', serviceDesk.id, {
+            name: serviceDesk.name,
+            code: serviceDesk.code,
+            isActive: serviceDesk.isActive,
         });
 
         res.json({
@@ -146,9 +103,10 @@ class ServiceDeskController {
     deleteServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
 
-        await prisma.serviceDesk.update({
-            where: { id },
-            data: { isActive: false },
+        await serviceDeskService.deleteServiceDesk(id);
+
+        await auditLog(req, 'ADMIN_DELETE_SERVICE_DESK', 'ServiceDesk', id, {
+            deactivated: true,
         });
 
         res.json({
@@ -163,21 +121,23 @@ class ServiceDeskController {
         const id = String(req.params.id); // serviceDeskId
         const { name, description, icon, colorClass, displayOrder } = req.body;
 
-        const category = await prisma.serviceCategory.create({
-            data: {
-                serviceDeskId: id as string,
-                name,
-                description,
-                icon,
-                colorClass,
-                displayOrder: parseInt(displayOrder as string) || 0,
-                isActive: true
-            }
+        const category = await serviceDeskService.createCategory(id, {
+            name,
+            description,
+            icon,
+            colorClass,
+            displayOrder: parseInt(displayOrder as string) || 0,
+        });
+
+        await auditLog(req, 'ADMIN_CREATE_CATEGORY', 'Category', category.id, {
+            serviceDeskId: id,
+            name: category.name,
+            displayOrder: category.displayOrder,
         });
 
         res.status(201).json({
             status: 'success',
-            data: { category }
+            data: { category },
         });
     });
 
@@ -185,113 +145,67 @@ class ServiceDeskController {
         const { categoryId } = req.params;
         const { name, description, icon, colorClass, displayOrder, isActive } = req.body;
 
-        // If displayOrder is being updated, check for conflicts
-        if (displayOrder !== undefined) {
-            const category = await prisma.serviceCategory.findUnique({
-                where: { id: categoryId as string },
-                select: { serviceDeskId: true, displayOrder: true }
-            });
+        const updatedCategory = await serviceDeskService.updateCategory(categoryId as string, {
+            name,
+            description,
+            icon,
+            colorClass,
+            displayOrder: displayOrder !== undefined ? parseInt(displayOrder as string) : undefined,
+            isActive,
+        });
 
-            if (category) {
-                const newOrder = parseInt(displayOrder as string);
-
-                // If the order is changing, adjust other categories
-                if (category.displayOrder !== newOrder) {
-                    // Find if another category has this displayOrder
-                    const conflicting = await prisma.serviceCategory.findFirst({
-                        where: {
-                            serviceDeskId: category.serviceDeskId,
-                            displayOrder: newOrder,
-                            id: { not: categoryId as string }
-                        }
-                    });
-
-                    // If there's a conflict, swap the orders
-                    if (conflicting) {
-                        await prisma.serviceCategory.update({
-                            where: { id: conflicting.id },
-                            data: { displayOrder: category.displayOrder }
-                        });
-                    }
-                }
-            }
-        }
-
-        const updatedCategory = await prisma.serviceCategory.update({
-            where: { id: categoryId as string },
-            data: {
-                name,
-                description,
-                icon,
-                colorClass,
-                displayOrder: displayOrder !== undefined ? parseInt(displayOrder as string) : undefined,
-                isActive
-            }
+        await auditLog(req, 'ADMIN_UPDATE_CATEGORY', 'Category', updatedCategory.id, {
+            name: updatedCategory.name,
+            displayOrder: updatedCategory.displayOrder,
+            isActive: updatedCategory.isActive,
         });
 
         res.json({
             status: 'success',
-            data: { category: updatedCategory }
+            data: { category: updatedCategory },
         });
     });
 
     deleteCategory = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { categoryId } = req.params;
 
-        await prisma.serviceCategory.update({
-            where: { id: categoryId as string },
-            data: { isActive: false }
+        await serviceDeskService.deleteCategory(categoryId as string);
+
+        await auditLog(req, 'ADMIN_DELETE_CATEGORY', 'Category', categoryId as string, {
+            deactivated: true,
         });
 
         res.json({
             status: 'success',
-            message: 'Category deleted successfully'
+            message: 'Category deleted successfully',
         });
     });
 
     // --- Request Type Management Methods ---
 
-    getRequestTypeById = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { typeId } = req.params;
-
-        const requestType = await prisma.requestType.findUnique({
-            where: { id: typeId as string },
-            include: {
-                serviceCategory: true,
-            },
-        });
-
-        if (!requestType) {
-            throw new AppError('Request type not found', 404);
-        }
-
-        res.json({
-            status: 'success',
-            data: { requestType },
-        });
-    });
-
     createRequestType = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { categoryId } = req.body;
-        const { name, description, icon, requiresApproval, slaHours, formConfig, requiredRole } = req.body;
+        const { categoryId, name, description, icon, requiresApproval, slaHours, formConfig, requiredRole } = req.body;
 
-        const requestType = await prisma.requestType.create({
-            data: {
-                serviceCategoryId: categoryId,
-                name,
-                description,
-                icon,
-                requiresApproval: !!requiresApproval,
-                slaHours: parseInt(slaHours as string) || null,
-                formConfig: formConfig || [],
-                requiredRole: requiredRole || null,
-                isActive: true
-            }
+        const requestType = await serviceDeskService.createRequestType({
+            serviceCategoryId: categoryId,
+            name,
+            description,
+            icon,
+            requiresApproval: !!requiresApproval,
+            slaHours: parseInt(slaHours as string) || null,
+            formConfig: formConfig || [],
+            requiredRole: requiredRole || null,
+        });
+
+        await auditLog(req, 'ADMIN_CREATE_REQUEST_TYPE', 'RequestType', requestType.id, {
+            name: requestType.name,
+            serviceCategoryId: requestType.serviceCategoryId,
+            requiresApproval: requestType.requiresApproval,
         });
 
         res.status(201).json({
             status: 'success',
-            data: { requestType }
+            data: { requestType },
         });
     });
 
@@ -299,38 +213,42 @@ class ServiceDeskController {
         const { typeId } = req.params;
         const { name, description, icon, requiresApproval, slaHours, formConfig, isActive, requiredRole, workflowTypeId } = req.body;
 
-        const requestType = await prisma.requestType.update({
-            where: { id: typeId as string },
-            data: {
-                name,
-                description,
-                icon,
-                requiresApproval: requiresApproval !== undefined ? !!requiresApproval : undefined,
-                slaHours: slaHours !== undefined ? (parseInt(slaHours as string) || null) : undefined,
-                formConfig,
-                isActive,
-                requiredRole: requiredRole !== undefined ? (requiredRole || null) : undefined,
-                workflowTypeId: workflowTypeId !== undefined ? (workflowTypeId || null) : undefined,
-            }
+        const requestType = await serviceDeskService.updateRequestType(typeId as string, {
+            name,
+            description,
+            icon,
+            requiresApproval: requiresApproval !== undefined ? !!requiresApproval : undefined,
+            slaHours: slaHours !== undefined ? (parseInt(slaHours as string) || null) : undefined,
+            formConfig,
+            isActive,
+            requiredRole: requiredRole !== undefined ? (requiredRole || null) : undefined,
+            workflowTypeId: workflowTypeId !== undefined ? (workflowTypeId || null) : undefined,
+        });
+
+        await auditLog(req, 'ADMIN_UPDATE_REQUEST_TYPE', 'RequestType', requestType.id, {
+            name: requestType.name,
+            isActive: requestType.isActive,
+            requiresApproval: requestType.requiresApproval,
         });
 
         res.json({
             status: 'success',
-            data: { requestType }
+            data: { requestType },
         });
     });
 
     deleteRequestType = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { typeId } = req.params;
 
-        await prisma.requestType.update({
-            where: { id: typeId as string },
-            data: { isActive: false }
+        await serviceDeskService.deleteRequestType(typeId as string);
+
+        await auditLog(req, 'ADMIN_DELETE_REQUEST_TYPE', 'RequestType', typeId as string, {
+            deactivated: true,
         });
 
         res.json({
             status: 'success',
-            message: 'Request type deleted successfully'
+            message: 'Request type deleted successfully',
         });
     });
 }

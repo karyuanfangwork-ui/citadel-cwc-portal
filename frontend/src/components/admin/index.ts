@@ -21,9 +21,13 @@ export { PermissionsTab } from './PermissionsTab';
 
 // Modal Components
 export { CategoryModal } from './CategoryModal';
+export { IconPicker } from './IconPicker';
 export { ServiceModal } from './ServiceModal';
+export { ServiceDeskModal } from './ServiceDeskModal';
 export { RoleAssignmentModal } from './RoleAssignmentModal';
 export { AgentTeamModal } from './AgentTeamModal';
+export { RequestTypeEditModal } from './RequestTypeEditModal';
+export { FormBuilderModal } from './FormBuilderModal';
 
 // Existing Components (no changes)
 export { default as CreateUserModal } from './CreateUserModal';

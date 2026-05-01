@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useCallback } from 'react';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { useEscapeKey } from '../../hooks/useEscapeKey';
 import { CategoryData } from '../../services/admin.service';
 import { CATEGORY_ICONS, COLOR_THEMES } from './adminConstants';
+import { IconPicker } from './IconPicker';
 
 interface CategoryModalProps {
     isOpen: boolean;
@@ -19,16 +22,26 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
     onClose,
     onFormDataChange,
 }) => {
+    const containerRef = useFocusTrap(isOpen);
+    const handleClose = useCallback(() => onClose(), [onClose]);
+    useEscapeKey(handleClose);
+
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm">
-            <div className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden scale-in flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[#091e42]/60 backdrop-blur-sm" role="dialog" aria-modal="true">
+            <div
+                ref={containerRef}
+                className="bg-white rounded-[40px] w-full max-w-2xl shadow-2xl overflow-hidden scale-in flex flex-col max-h-[90vh]"
+                role="dialog"
+                aria-modal="true"
+                aria-label={editingCategory ? 'Edit Category' : 'New Category'}
+            >
                 <div className="px-10 py-8 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                     <h2 className="text-3xl font-black text-[#101418]">
                         {editingCategory ? 'Edit Category' : 'New Category'}
                     </h2>
-                    <button onClick={onClose} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400">
+                    <button onClick={onClose} className="p-3 hover:bg-gray-100 rounded-full transition-all text-gray-400" aria-label="Close">
                         <span className="material-symbols-outlined text-3xl">close</span>
                     </button>
                 </div>
@@ -58,20 +71,9 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                             />
                         </div>
 
-                        <div className="space-y-3">
-                            <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest">Visual Icon *</label>
-                            <div className="relative">
-                                <select
-                                    className="w-full pl-6 pr-12 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none cursor-pointer appearance-none transition-all"
-                                    value={formData.icon}
-                                    onChange={e => onFormDataChange({ ...formData, icon: e.target.value })}
-                                >
-                                    {CATEGORY_ICONS.map(icon => (
-                                        <option key={icon.name} value={icon.name}>{icon.label}</option>
-                                    ))}
-                                </select>
-                                <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
-                            </div>
+                        <div className="md:col-span-2">
+                            <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Visual Icon *</label>
+                            <IconPicker value={formData.icon} onChange={(icon) => onFormDataChange({ ...formData, icon })} />
                         </div>
 
                         <div className="space-y-3">
