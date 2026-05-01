@@ -65,6 +65,23 @@ function AssetRegistryTab() {
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      await assetService.exportAssetsCsv({
+        search: search || undefined,
+        status: (filterStatus as AssetStatus) || undefined,
+        category: (filterCategory as AssetCategory) || undefined,
+      });
+      toast.success('Export', 'CSV downloaded successfully');
+    } catch {
+      toast.error('Error', 'Failed to export CSV');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const fetchAssets = useCallback(async () => {
     setLoading(true);
@@ -107,6 +124,13 @@ function AssetRegistryTab() {
           {STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
         </select>
         <div className="ml-auto flex gap-2">
+          <button onClick={handleExportCsv} disabled={exporting} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5">
+            {exporting ? (
+              <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Exporting...</>
+            ) : (
+              <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Export CSV</>
+            )}
+          </button>
           <button onClick={() => setShowImportModal(true)} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
             ↑ Import CSV
           </button>
@@ -219,6 +243,22 @@ function EmployeeAssetsTab() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [returning, setReturning] = useState<string | null>(null);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      await assetService.exportAssetsCsv({
+        search: query || undefined,
+        status: 'ASSIGNED' as AssetStatus,
+      });
+      toast.success('Export', 'Employee asset assignments CSV downloaded');
+    } catch {
+      toast.error('Error', 'Failed to export CSV');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Load all active assignments on mount
   useEffect(() => {
@@ -293,8 +333,8 @@ function EmployeeAssetsTab() {
 
   return (
     <div>
-      {/* Search bar - filters the assignment list */}
-      <div className="mb-4">
+      {/* Search bar + Export - filters the assignment list */}
+      <div className="mb-4 flex items-center gap-3">
         <input
           type="text"
           placeholder="Search by employee name or email..."
@@ -302,6 +342,13 @@ function EmployeeAssetsTab() {
           onChange={e => setQuery(e.target.value)}
           className="w-80 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
+        <button onClick={handleExportCsv} disabled={exporting} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5">
+          {exporting ? (
+            <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Exporting...</>
+          ) : (
+            <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Export CSV</>
+          )}
+        </button>
       </div>
 
       {/* Stats */}

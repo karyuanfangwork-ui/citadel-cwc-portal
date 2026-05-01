@@ -116,6 +116,23 @@ const assetService = {
     const response = await api.post('/assets/import', { rows });
     return response.data.data as { imported: number; warnings: string[]; errors: string[] };
   },
+
+  async exportAssetsCsv(params: ListAssetsParams = {}) {
+    const response = await api.get('/assets/export', {
+      params,
+      responseType: 'blob',
+    });
+    // Trigger browser download
+    const blob = new Blob([response.data as BlobPart], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `assets_export_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
 };
 
 export default assetService;

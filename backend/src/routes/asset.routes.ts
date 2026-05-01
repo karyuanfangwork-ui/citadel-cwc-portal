@@ -22,6 +22,13 @@ router.get('/assignments', requirePermission('asset:read'), assetController.list
 router.get('/by-user/:userId', requirePermission('asset:read'), assetController.getAssetsByUser);
 
 /**
+ * @route   GET /assets/export
+ * @desc    Export assets as CSV (respects same filters as list)
+ * @access  Private (asset:read)
+ */
+router.get('/export', requirePermission('asset:read'), assetController.exportAssets);
+
+/**
  * @route   GET /assets
  * @desc    List assets with filters and pagination
  * @access  Private (asset:read)

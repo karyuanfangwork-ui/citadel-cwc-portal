@@ -7,6 +7,98 @@ const prisma = new PrismaClient();
 
 class AssetController {
     /**
+     * GET /assets/export
+     * Export assets as CSV file. Respects the same filters as listAssets.
+     * Requires asset:read permission (already enforced by route middleware).
+     */
+    exportAssets = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { status, category, search } = req.query;
+
+        const where: any = {};
+        if (status) where.status = status;
+        if (category) where.category = category;
+
+        if (search) {
+            const term = search as string;
+            where.OR = [
+                { name: { contains: term, mode: 'insensitive' } },
+                { assetTag: { contains: term, mode: 'insensitive' } },
+                { serialNumber: { contains: term, mode: 'insensitive' } },
+                { brand: { contains: term, mode: 'insensitive' } },
+                { model: { contains: term, mode: 'insensitive' } },
+                { assignments: { some: { returnedAt: null, user: { OR: [
+                    { firstName: { contains: term, mode: 'insensitive' } },
+                    { lastName: { contains: term, mode: 'insensitive' } },
+                    { email: { contains: term, mode: 'insensitive' } },
+                ] } } } },
+                { notes: { contains: term, mode: 'insensitive' } },
+            ];
+        }
+
+        const assets = await prisma.asset.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                createdBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+                assignments: {
+                    orderBy: { assignedAt: 'desc' },
+                    include: {
+                        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+                        assignedBy: { select: { id: true, firstName: true, lastName: true } },
+                    },
+                },
+            },
+        });
+
+        // Build CSV
+        const headers = [
+            'Asset Tag', 'Name', 'Category', 'Status', 'Serial Number',
+            'Brand', 'Model', 'Vendor', 'Purchase Date', 'Purchase Price',
+            'Warranty Expiry', 'Assigned To', 'Assigned Email', 'Assigned Date',
+            'Notes', 'Created At',
+        ];
+
+        const escapeCsv = (val: string | null | undefined) => {
+            if (val === null || val === undefined) return '';
+            const str = String(val);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
+        const rows = assets.map(asset => {
+            const currentAssignment = asset.assignments?.find(a => !a.returnedAt);
+            const assignee = currentAssignment?.user;
+            return [
+                escapeCsv(asset.assetTag),
+                escapeCsv(asset.name),
+                escapeCsv(asset.category),
+                escapeCsv(asset.status?.replace(/_/g, ' ')),
+                escapeCsv(asset.serialNumber),
+                escapeCsv(asset.brand),
+                escapeCsv(asset.model),
+                escapeCsv(asset.vendor),
+                escapeCsv(asset.purchaseDate ? new Date(asset.purchaseDate).toISOString().split('T')[0] : ''),
+                escapeCsv(asset.purchasePrice != null ? String(asset.purchasePrice) : ''),
+                escapeCsv(asset.warrantyExpiry ? new Date(asset.warrantyExpiry).toISOString().split('T')[0] : ''),
+                escapeCsv(assignee ? `${assignee.firstName} ${assignee.lastName}` : ''),
+                escapeCsv(assignee?.email ?? ''),
+                escapeCsv(currentAssignment?.assignedAt ? new Date(currentAssignment.assignedAt).toISOString().split('T')[0] : ''),
+                escapeCsv(asset.notes),
+                escapeCsv(new Date(asset.createdAt).toISOString().split('T')[0]),
+            ].join(',');
+        });
+
+        const csv = [headers.join(','), ...rows].join('\n');
+        const filename = `assets_export_${new Date().toISOString().split('T')[0]}.csv`;
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(csv);
+    });
+
+    /**
      * GET /assets
      * List assets with filtering by status, category, assignedTo, and search.
      * Paginated. Includes current (open) assignment.
