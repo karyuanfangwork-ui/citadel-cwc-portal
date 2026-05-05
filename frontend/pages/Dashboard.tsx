@@ -98,7 +98,7 @@ const Dashboard = () => {
         setError(null);
         const [desksData, requestsData] = await Promise.all([
           serviceDeskService.getAllServiceDesks(),
-          requestService.getAllRequests({ limit: 50 }),
+          requestService.getAllRequests({ limit: 50, requesterId: user?.id }),
         ]);
         setServiceDesks(desksData);
         const requests: Request[] = requestsData.requests || [];

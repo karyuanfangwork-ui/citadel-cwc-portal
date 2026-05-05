@@ -32,11 +32,12 @@ const HR_FIELD_LABELS: Record<string, string> = {
 
 const IT_FIELD_LABELS: Record<string, string> = {
   hardwareName: 'Hardware Name',
-  hardwareModel: 'Preferred Model',
+  hardwareModel: 'Model / Specifications',
   estimatedPrice: 'Estimated Price (USD)',
   preferredVendor: 'Preferred Vendor',
   productUrl: 'Product URL',
   businessJustification: 'Business Justification',
+  businessUnit: 'Business Unit',
   serialNumber: 'Serial Number',
   assetTag: 'Asset Tag',
   payment: 'Payment',
@@ -50,6 +51,11 @@ const IT_FIELD_LABELS: Record<string, string> = {
   hw_name: 'Hardware Name',
   hw_model: 'Preferred Model',
   hw_reason: 'Business Justification',
+  // old opaque field IDs (pre-migration) — resolve so legacy tickets aren't confusing
+  field_1777345359663: 'Request for (Name)',
+  field_1777345313368: 'Business Unit',
+  field_1777345397494: 'Device Type',
+  field_1777345423736: 'Attachment',
 };
 
 const FINANCE_FIELD_LABELS: Record<string, string> = {

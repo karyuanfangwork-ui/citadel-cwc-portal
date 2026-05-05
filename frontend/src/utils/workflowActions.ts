@@ -94,13 +94,19 @@ export function getWorkflowActions(
   hasResumes = false,
   screeningCompleted = false,
   hasLOA = false,
-  hasSignedLOA = false
+  hasSignedLOA = false,
+  assignedToId = '',
+  currentUserId = ''
 ): WorkflowAction[] {
   const isAdmin = userRoles.includes('ADMIN');
   const isAgent = userRoles.includes('AGENT');
   const canAct = isAdmin || isAgent;
   const isProcurement = isProcurementRequest(requestTypeCode, requestTypeName);
   const isHR = serviceDeskCode === 'HR';
+  // Procurement lifecycle actions: only assigned person + admin can act
+  // (prevents other agents from wrongly updating hardware status)
+  const isAssignedToMe = !!assignedToId && !!currentUserId && assignedToId === currentUserId;
+  const canActOnProcurement = canAct && (isAdmin || isAssignedToMe);
 
   const actions: WorkflowAction[] = [];
 
@@ -380,7 +386,7 @@ export function getWorkflowActions(
 
   }
 
-  if (canAct && status === 'PROCUREMENT_IN_PROGRESS' && isProcurement) {
+  if (canActOnProcurement && status === 'PROCUREMENT_IN_PROGRESS' && isProcurement) {
     actions.push({
       type: 'MARK_HARDWARE_ORDERED',
       label: 'Mark Hardware Ordered',
@@ -388,7 +394,7 @@ export function getWorkflowActions(
       variant: 'warning',
     });
   }
-  if (canAct && status === 'HARDWARE_ORDERED' && isProcurement) {
+  if (canActOnProcurement && status === 'HARDWARE_ORDERED' && isProcurement) {
     actions.push({
       type: 'MARK_HARDWARE_RECEIVED',
       label: 'Mark Hardware Received',
@@ -396,7 +402,7 @@ export function getWorkflowActions(
       variant: 'warning',
     });
   }
-  if (canAct && status === 'HARDWARE_RECEIVED' && isProcurement) {
+  if (canActOnProcurement && status === 'HARDWARE_RECEIVED' && isProcurement) {
     actions.push({
       type: 'MARK_SOFTWARE_PROVISIONED',
       label: 'Mark Software Provisioned',
@@ -404,7 +410,7 @@ export function getWorkflowActions(
       variant: 'warning',
     });
   }
-  if (canAct && status === 'SOFTWARE_PROVISIONED' && isProcurement) {
+  if (canActOnProcurement && status === 'SOFTWARE_PROVISIONED' && isProcurement) {
     actions.push({
       type: 'MARK_FULFILLED',
       label: 'Close & Resolve',

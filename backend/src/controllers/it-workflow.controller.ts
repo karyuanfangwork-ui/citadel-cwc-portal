@@ -6,8 +6,71 @@ import { auditLog } from '../utils/audit';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 import path from 'path';
 import { uploadSingleFile } from '../middleware/upload.middleware';
+import { logger } from '../utils/logger';
+
+/** Infer an IT asset category from the hardware name/description. */
+function inferCategoryFromName(name: string): string {
+  const lower = name.toLowerCase();
+  if (/\b(laptop|macbook|notebook|thinkpad)\b/i.test(lower)) return 'LAPTOP';
+  if (/\b(desktop|pc|workstation|imac)\b/i.test(lower)) return 'DESKTOP';
+  if (/\b(monitor|display|screen)\b/i.test(lower)) return 'MONITOR';
+  if (/\b(phone|iphone|mobile)\b/i.test(lower)) return 'PHONE';
+  if (/\b(printer|scanner)\b/i.test(lower)) return 'PRINTER';
+  if (/\b(router|switch|firewall|access.point|network)\b/i.test(lower)) return 'NETWORK';
+  if (/\b(peripheral|keyboard|mouse|headset|webcam|dock)\b/i.test(lower)) return 'PERIPHERAL';
+  if (/\b(software|license|subscription|office|adobe)\b/i.test(lower)) return 'SOFTWARE_LICENSE';
+  return 'LAPTOP';
+}
 
 const prisma = new PrismaClient();
+
+/**
+ * Reassign a request to the first active agent on the specified team.
+ * Creates an activity record and notifies the new assignee.
+ */
+async function reassignToTeam(requestId: string, referenceNumber: string, team: string): Promise<void> {
+  const agent = await prisma.user.findFirst({
+    where: {
+      agentTeam: team,
+      isActive: true,
+      roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
+    },
+    select: { id: true, firstName: true, lastName: true },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  if (!agent) {
+    logger.warn(`[IT-Workflow] No active ${team} agent found for reassignment of ${referenceNumber}`);
+    return;
+  }
+
+  const agentName = `${agent.firstName} ${agent.lastName}`;
+
+  await prisma.request.update({
+    where: { id: requestId },
+    data: { assignedToId: agent.id, assignedTeam: team },
+  });
+
+  await prisma.requestActivity.create({
+    data: {
+      requestId,
+      authorName: 'System',
+      activityType: 'ASSIGNMENT',
+      message: `Auto-reassigned to ${agentName} (${team} team) — workflow transition`,
+      isSystemGenerated: true,
+      metadata: { autoAssigned: true, assignedToId: agent.id, assignedTeam: team },
+    },
+  });
+
+  await notify({
+    userId: agent.id,
+    eventType: 'REQUEST_ASSIGNED',
+    variables: { referenceNumber, assignedToName: agentName },
+    relatedRequestId: requestId,
+  });
+
+  logger.info(`[IT-Workflow] Request ${referenceNumber} reassigned to ${agentName} (${team})`);
+}
 
 // Shared S3-backed multer — invoice upload
 export const uploadInvoice = { single: (field: string) => uploadSingleFile(field) };
@@ -20,6 +83,14 @@ export async function markProcurement(req: Request, res: Response) {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
     }
 
     const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
@@ -78,6 +149,14 @@ export async function markFulfilled(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
+    }
+
     if (request.status !== 'SOFTWARE_PROVISIONED') {
       return res.status(400).json({ error: 'Request must be in SOFTWARE_PROVISIONED status to close' });
     }
@@ -126,6 +205,14 @@ export async function markHardwareOrdered(req: Request, res: Response) {
     });
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
     }
 
     if (request.serviceDesk.code !== 'IT') {
@@ -197,6 +284,14 @@ export async function markHardwareReceived(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
+    }
+
     if (request.serviceDesk.code !== 'IT') {
       return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     }
@@ -224,8 +319,12 @@ export async function markHardwareReceived(req: Request, res: Response) {
             data: {
               assetTag: assetTag.trim(),
               serialNumber: serialNumber?.trim() || null,
-              name: hardwareReq.hardwareName,
-              category: 'LAPTOP',
+              name: hardwareReq.hardwareName && hardwareReq.hardwareName !== 'Unknown'
+                ? hardwareReq.hardwareName
+                : request.summary || 'Unspecified Hardware',
+              category: (hardwareReq.hardwareName && hardwareReq.hardwareName !== 'Unknown'
+                ? inferCategoryFromName(hardwareReq.hardwareName)
+                : 'LAPTOP') as any,
               vendor: hardwareReq.preferredVendor || null,
               purchasePrice: hardwareReq.estimatedPrice ? Number(hardwareReq.estimatedPrice) : null,
               status: 'IN_STOCK',
@@ -297,6 +396,14 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
     });
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
     }
 
     if (request.serviceDesk.code !== 'IT') {
@@ -712,6 +819,9 @@ export const cfoDecision = async (req: Request, res: Response) => {
       for (const agent of agentUsers) {
         await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'payment_processing' }, relatedRequestId: id });
       }
+
+      // Reassign to Finance agent for payment processing
+      await reassignToTeam(id, request.referenceNumber, 'FINANCE');
     } else {
       await prisma.request.update({ where: { id }, data: { status: 'CFO_REJECTED_IT' } });
       await resumeSla(id);
@@ -807,6 +917,9 @@ export const markPaymentDone = async (req: Request, res: Response) => {
     for (const agent of agentUsers) {
       await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: `pending_${nextAction}` }, relatedRequestId: id });
     }
+
+    // Reassign back to IT agent for procurement/delivery phase
+    await reassignToTeam(id, request.referenceNumber, 'IT');
 
     await auditLog(req as any, 'IT_PAYMENT_DONE', 'request', String(id), {
       status: nextStatus,

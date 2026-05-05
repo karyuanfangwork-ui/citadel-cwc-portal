@@ -133,13 +133,13 @@ export default function AgentDashboard() {
   const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN', 'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED', 'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED'];
 
   const openTickets = myTickets.filter(t => !CLOSED_STATUSES.includes(t.status));
-  const resolvedTickets = myTickets.filter(t => CLOSED_STATUSES.includes(t.status));
-
-  const openAllTickets = allTickets.filter(t => !CLOSED_STATUSES.includes(t.status));
+  const resolvedTickets = isAdmin
+    ? allTickets.filter(t => CLOSED_STATUSES.includes(t.status))
+    : myTickets.filter(t => CLOSED_STATUSES.includes(t.status));
 
   const tickets = activeTab === 'mine' ? openTickets
     : activeTab === 'resolved' ? resolvedTickets
-    : activeTab === 'all' ? openAllTickets
+    : activeTab === 'all' ? allTickets
     : unassignedTickets;
 
   const cards = [
@@ -273,9 +273,9 @@ export default function AgentDashboard() {
             }`}
           >
             All Tickets
-            {!loading && openAllTickets.length > 0 && (
+            {!loading && allTickets.length > 0 && (
               <span className="ml-2 bg-purple-100 text-purple-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
-                {openAllTickets.length}
+                {allTickets.length}
               </span>
             )}
           </button>

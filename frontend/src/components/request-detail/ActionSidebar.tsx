@@ -126,7 +126,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
     a => a.approverId === userId && a.status === 'PENDING'
   );
   const isRequester = !!(requesterId && userId && requesterId === userId);
-  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester, serviceDeskCode, requiresApproval ?? true, requestTypeCode, hasResumes, screeningCompleted, hasLOA, hasSignedLOA);
+  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester, serviceDeskCode, requiresApproval ?? true, requestTypeCode, hasResumes, screeningCompleted, hasLOA, hasSignedLOA, assignedTo?.id ?? '', userId);
 
   const handleSuccess = () => {
     setOpenModal(null);

@@ -102,17 +102,19 @@ class RequestController {
         // Apply confidentiality filter for non-ADMIN users without request:confidential permission.
         // They can only see confidential requests where they are the requester or a designated approver.
         if (!canSeeConfidential) {
-            // "where" already has OR conditions for non-ADMIN/AGENT users (or role-specific visibility).
-            // For ADMIN/AGENT without request:confidential, there are no OR conditions yet
-            // (they see everything normally). We need to exclude isConfidential=true
-            // unless the user is the requester or a designated approver.
             if (where.OR) {
-                // Non-ADMIN/AGENT users already have OR conditions (their own requests, etc.)
-                // Wrap existing OR with confidentiality exclusion.
-                // Each OR branch already limits visibility to their own requests or relevant workflows.
-                // Additional clause: they can still see confidential if they're requester or approver.
+                // Non-ADMIN/AGENT users already have visibility OR conditions (their own requests, etc.).
+                // We MUST preserve those visibility restrictions AND add confidentiality filtering.
+                // The confidentiality condition: show non-confidential OR (confidential + own/approver).
+                // We wrap the original OR with confidentiality by converting to AND:
+                //   AND[ original_visibility_OR, confidentiality_OR ]
+                // This ensures users only see requests within their visibility scope
+                // AND excludes confidential requests unless they own them or are an approver.
+                const visibilityOR = where.OR;
+                delete where.OR;
                 where.AND = [
                     ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                    { OR: visibilityOR },
                     {
                         OR: [
                             { isConfidential: false },
@@ -121,8 +123,6 @@ class RequestController {
                         ],
                     },
                 ];
-                // Remove the top-level OR since it's now first element of AND
-                delete where.OR;
             } else {
                 // ADMIN/AGENT without request:confidential — they see all non-confidential,
                 // plus confidential requests where they are requester or approver.
@@ -548,6 +548,32 @@ class RequestController {
                     previousStatus: currentStatus,
                 }, { status: currentStatus });
 
+                // Reassign to Finance team when CFO approves an IT purchase (payment processing)
+                if (action === 'approve' && currentStatus === 'PENDING_CFO_APPROVAL_IT') {
+                    const financeAgent = await prisma.user.findFirst({
+                        where: { agentTeam: 'FINANCE', isActive: true, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
+                        select: { id: true, firstName: true, lastName: true },
+                        orderBy: { createdAt: 'asc' },
+                    });
+                    if (financeAgent) {
+                        const agentName = `${financeAgent.firstName} ${financeAgent.lastName}`;
+                        await prisma.request.update({
+                            where: { id: request.id },
+                            data: { assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
+                        });
+                        await prisma.requestActivity.create({
+                            data: {
+                                requestId: request.id,
+                                authorName: 'System',
+                                activityType: 'ASSIGNMENT',
+                                message: `Auto-reassigned to ${agentName} (FINANCE team) — CFO approved, payment processing`,
+                                isSystemGenerated: true,
+                                metadata: { autoAssigned: true, assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
+                            },
+                        });
+                    }
+                }
+
                 processedIds.push(request.id);
             } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
@@ -806,19 +832,34 @@ class RequestController {
                 const reqType = createdRequest.requestType;
                 if (reqType && reqType.name.toLowerCase().includes('hardware')) {
                     const cf = (customFields || {}) as Record<string, any>;
-                    const rawPrice = cf.estimatedPrice;
+                    // Resolve form values by field ID or by matching formConfig labels
+                    // (handles both named keys like 'hardwareName' and dynamic IDs like 'field_1234')
+                    const formConfig: any[] = (reqType as any).formConfig || [];
+                    const resolveField = (...keys: string[]): any => {
+                        for (const k of keys) { if (cf[k]) return cf[k]; }
+                        return undefined;
+                    };
+                    const resolveByLabel = (labelMatch: string): any => {
+                        for (const f of formConfig) {
+                            if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                                if (cf[f.id]) return cf[f.id];
+                            }
+                        }
+                        return undefined;
+                    };
+                    const rawPrice = resolveField('estimatedPrice') || resolveByLabel('price') || resolveByLabel('estimated');
                     const estimatedPrice = rawPrice != null && rawPrice !== '' && !isNaN(Number(rawPrice))
                         ? parseFloat(String(rawPrice))
                         : null;
                     await tx.iTHardwareRequest.create({
                         data: {
                             requestId: createdRequest.id,
-                            hardwareName: cf.hardwareName || cf.hw_name || cf.hardwareType || 'Unknown',
-                            hardwareModel: cf.hardwareModel || cf.hw_model || cf.model || null,
+                            hardwareName: resolveField('hardwareName', 'hw_name', 'hardwareType') || resolveByLabel('hardware name') || resolveByLabel('device type') || 'Unknown',
+                            hardwareModel: resolveField('hardwareModel', 'hw_model', 'model') || resolveByLabel('model') || null,
                             estimatedPrice,
-                            preferredVendor: cf.preferredVendor || null,
-                            productUrl: cf.productUrl || null,
-                            businessJustification: cf.businessJustification || cf.hw_reason || cf.reason || '',
+                            preferredVendor: resolveField('preferredVendor', 'vendor') || resolveByLabel('vendor') || null,
+                            productUrl: resolveField('productUrl') || resolveByLabel('product url') || null,
+                            businessJustification: resolveField('businessJustification', 'hw_reason', 'reason') || resolveByLabel('justification') || '',
                         },
                     });
                 }
@@ -1575,14 +1616,19 @@ class RequestController {
         });
 
         // Create activity
+        const assigneeName = request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}`.trim() : 'agent';
         await prisma.requestActivity.create({
             data: {
                 requestId: id,
                 authorId: req.user!.id,
                 authorName: 'System',
                 activityType: 'ASSIGNMENT',
-                message: `Request assigned to agent`,
+                message: `Request assigned to ${assigneeName}`,
                 isSystemGenerated: true,
+                metadata: {
+                    autoAssigned: false,
+                    assignedToId,
+                },
             },
         });
 
