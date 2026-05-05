@@ -10,6 +10,7 @@ import RequestHeader from '../src/components/request/RequestHeader';
 import RequestFormFields from '../src/components/request/RequestFormFields';
 import HiringWorkflowPanel from '../src/components/request/HiringWorkflowPanel';
 import ApprovalActions from '../src/components/request/ApprovalActions';
+import { requestService } from '../src/services/request.service';
 import { EntityApprovalsPanel } from '../src/components/EntityApprovalsPanel';
 import ResolutionModal from '../src/components/request/modals/ResolutionModal';
 import RejectionModal from '../src/components/request/modals/RejectionModal';
@@ -120,7 +121,7 @@ const RequestDetailContainer: React.FC = () => {
                     <ActivityFeed
                         activities={activities}
                         onSubmitComment={async (text, isInternal) => {
-                            const newActivity = await rq.requestService.addActivity(request.id, text, isInternal);
+                            const newActivity = await requestService.addActivity(request.id, text, isInternal);
                             rq.setActivities(prev => [...prev, newActivity]);
                         }}
                         canPostInternal={!!(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN'))}
@@ -148,6 +149,7 @@ const RequestDetailContainer: React.FC = () => {
                         userId={user?.id || ''}
                         userName={user ? `${user.firstName} ${user.lastName}` : ''}
                         assignedTo={request.assignedTo || null}
+                        assignedTeam={request.assignedTeam || null}
                         approvals={request.approvals || []}
                         requestTypeName={request.requestType?.name || ''}
                         requestTypeCode={request.requestType?.code || ''}

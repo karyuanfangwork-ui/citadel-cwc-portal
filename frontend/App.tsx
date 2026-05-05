@@ -56,10 +56,10 @@ const Header = () => {
     { to: '/', label: 'Dashboard', show: true },
     { to: '/my-requests', label: 'My Requests', show: true },
     { to: '/agent', label: 'Agent Dashboard', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
-    { to: '/reports', label: 'Reports', show: hasPermission(user, 'report:read') },
-    { to: '/kb', label: 'Knowledge Base', show: true },
     { to: '/approvals', label: 'Approvals', show: hasPermission(user, 'request:approve') },
     { to: '/assets', label: 'IT Assets', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
+    { to: '/kb', label: 'Knowledge Base', show: true },
+    { to: '/reports', label: 'Reports', show: hasPermission(user, 'report:read') },
     { to: '/admin/settings', label: 'Admin Settings', show: hasPermission(user, 'admin:access') },
   ].filter(l => l.show);
 

@@ -5,6 +5,7 @@ class ServiceDeskService {
     async getAllServiceDesks() {
         return prisma.serviceDesk.findMany({
             where: { isActive: true },
+            orderBy: { createdAt: 'asc' },
             include: {
                 categories: {
                     where: { isActive: true },
@@ -32,16 +33,36 @@ class ServiceDeskService {
         return serviceDesk;
     }
 
-    async createServiceDesk(data: { name: string; code: string; description?: string }) {
+    async createServiceDesk(data: {
+        name: string; code: string; description?: string;
+        autoAssignTeam?: string; assignmentStrategy?: string;
+    }) {
         return prisma.serviceDesk.create({
-            data: { name: data.name, code: data.code, description: data.description },
+            data: {
+                name: data.name,
+                code: data.code,
+                description: data.description,
+                autoAssignTeam: data.autoAssignTeam || 'NONE',
+                assignmentStrategy: data.assignmentStrategy || 'ROUND_ROBIN',
+            },
         });
     }
 
-    async updateServiceDesk(id: string, data: { name?: string; code?: string; description?: string; isActive?: boolean }) {
+    async updateServiceDesk(id: string, data: {
+        name?: string; code?: string; description?: string; isActive?: boolean;
+        autoAssignTeam?: string; assignmentStrategy?: string; lastAssignedIndex?: number;
+    }) {
         return prisma.serviceDesk.update({
             where: { id },
-            data: { name: data.name, code: data.code, description: data.description, isActive: data.isActive },
+            data: {
+                ...(data.name !== undefined && { name: data.name }),
+                ...(data.code !== undefined && { code: data.code }),
+                ...(data.description !== undefined && { description: data.description }),
+                ...(data.isActive !== undefined && { isActive: data.isActive }),
+                ...(data.autoAssignTeam !== undefined && { autoAssignTeam: data.autoAssignTeam }),
+                ...(data.assignmentStrategy !== undefined && { assignmentStrategy: data.assignmentStrategy }),
+                ...(data.lastAssignedIndex !== undefined && { lastAssignedIndex: data.lastAssignedIndex }),
+            },
         });
     }
 

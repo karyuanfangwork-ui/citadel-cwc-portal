@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { adminService, WorkflowTransition, WorkflowTransitionInput } from '../../services/admin.service';
+import apiClient from '../../services/api';
 
-const ROLES = ['ADMIN', 'AGENT', 'USER', 'MANAGER', 'IT_SUPPORT', 'HR_AGENT', 'FINANCE_AGENT', 'CEO'];
+const ROLES = ['ADMIN', 'AGENT', 'USER', 'MANAGER', 'IT_SUPPORT', 'HR_AGENT', 'FINANCE_AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_CEO'];
 const LABEL_OPTIONS = ['APPROVE', 'REJECT', 'SUBMIT', 'ADVANCE', 'RETURN', 'ESCALATE', 'CLOSE'];
 
 const emptyForm = (): WorkflowTransitionInput => ({
@@ -25,6 +26,7 @@ export const WorkflowTransitionTab: React.FC = () => {
   const [error, setError] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [expandedFrom, setExpandedFrom] = useState<string | null>(null);
+  const [users, setUsers] = useState<{ id: string; firstName: string; lastName: string; email: string }[]>([]);
 
   useEffect(() => {
     fetchAll();
@@ -39,6 +41,11 @@ export const WorkflowTransitionTab: React.FC = () => {
       ]);
       setTransitions(t);
       setStatuses(s);
+      // Fetch active agents/admins for autoAssignUserId dropdown
+      try {
+        const uRes = await apiClient.get('/users', { params: { role: 'AGENT,ADMIN', limit: 200 } });
+        setUsers(uRes.data?.data?.users || uRes.data?.data || []);
+      } catch { /* non-critical — dropdown will be empty */ }
     } finally {
       setLoading(false);
     }
@@ -178,27 +185,38 @@ export const WorkflowTransitionTab: React.FC = () => {
                   <label className="block text-xs font-bold text-[#44546f] mb-1">Auto-Assign Role</label>
                   <select
                     value={form.autoAssignRole ?? ''}
-                    onChange={e => setForm(f => ({ ...f, autoAssignRole: e.target.value || undefined }))}
+                    onChange={e => setForm(f => ({ ...f, autoAssignRole: e.target.value || undefined, autoAssignUserId: e.target.value ? undefined : f.autoAssignUserId }))}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0052cc]"
                   >
                     <option value="">— none —</option>
                     {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                   </select>
+                  <p className="text-[10px] text-[#8993a4] mt-1">Assigns to the first active user with this role.</p>
                 </div>
-                <div className="flex items-center gap-3 pt-5">
-                  <label className="flex items-center gap-2 text-sm font-bold text-[#101418] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.requiresComment}
-                      onChange={e => setForm(f => ({ ...f, requiresComment: e.target.checked }))}
-                      className="w-4 h-4 rounded"
-                    />
-                    Requires Comment
-                  </label>
+                <div>
+                  <label className="block text-xs font-bold text-[#44546f] mb-1">Auto-Assign User</label>
+                  <select
+                    value={form.autoAssignUserId ?? ''}
+                    onChange={e => setForm(f => ({ ...f, autoAssignUserId: e.target.value || undefined, autoAssignRole: e.target.value ? undefined : f.autoAssignRole }))}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0052cc]"
+                  >
+                    <option value="">— none —</option>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName} ({u.email})</option>)}
+                  </select>
+                  <p className="text-[10px] text-[#8993a4] mt-1">Specific user takes priority over role.</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-6">
+                <label className="flex items-center gap-2 text-sm font-bold text-[#101418] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.requiresComment}
+                    onChange={e => setForm(f => ({ ...f, requiresComment: e.target.checked }))}
+                    className="w-4 h-4 rounded"
+                  />
+                  Requires Comment
+                </label>
                 <label className="flex items-center gap-2 text-sm font-bold text-[#101418] cursor-pointer">
                   <input
                     type="checkbox"
@@ -287,6 +305,9 @@ export const WorkflowTransitionTab: React.FC = () => {
                               )}
                               {t.autoAssignRole && (
                                 <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">→ {t.autoAssignRole}</span>
+                              )}
+                              {t.autoAssignUserId && (
+                                <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold">👤 specific user</span>
                               )}
                               {t.requiresComment && (
                                 <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">💬</span>

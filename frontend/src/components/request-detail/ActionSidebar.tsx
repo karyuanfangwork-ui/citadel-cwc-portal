@@ -42,6 +42,7 @@ interface ActionSidebarProps {
   userId: string;
   userName: string;
   assignedTo?: { id: string; firstName: string; lastName: string } | null;
+  assignedTeam?: string | null;
   approvals?: { id: string; approverId: string; approverType: string; status: string }[];
   requestTypeName?: string;
   requestTypeCode?: string;
@@ -86,6 +87,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   userId,
   userName,
   assignedTo,
+  assignedTeam,
   approvals = [],
   requestTypeName = '',
   requestTypeCode = '',
@@ -275,6 +277,12 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
               <p className={`text-sm font-bold ${assignedTo ? 'text-gray-900' : 'text-amber-600'}`}>
                 {assignedTo ? `${assignedTo.firstName} ${assignedTo.lastName}` : '⚠ Unassigned'}
               </p>
+              {assignedTo && assignedTeam && (
+                <span className="inline-flex items-center gap-1 mt-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider bg-[#0052cc]/5 text-[#0052cc] border border-[#0052cc]/10">
+                  <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>smart_toy</span>
+                  Auto → {assignedTeam}
+                </span>
+              )}
             </div>
           </div>
           {(userRoles.includes('ADMIN') || userRoles.includes('AGENT')) && (

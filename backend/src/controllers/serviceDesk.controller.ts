@@ -3,6 +3,7 @@ import { asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { auditLog } from '../utils/audit';
 import serviceDeskService from '../services/serviceDesk.service';
+import prisma from '../utils/prisma';
 
 class ServiceDeskController {
     getAllServiceDesks = asyncHandler(async (_req: AuthRequest, res: Response) => {
@@ -67,9 +68,13 @@ class ServiceDeskController {
     });
 
     createServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { name, code, description } = req.body;
+        const { name, code, description, autoAssignTeam, assignmentStrategy } = req.body;
 
-        const serviceDesk = await serviceDeskService.createServiceDesk({ name, code, description });
+        const serviceDesk = await serviceDeskService.createServiceDesk({
+            name, code, description,
+            autoAssignTeam: autoAssignTeam || 'NONE',
+            assignmentStrategy: assignmentStrategy || 'ROUND_ROBIN',
+        });
 
         await auditLog(req, 'ADMIN_CREATE_SERVICE_DESK', 'ServiceDesk', serviceDesk.id, {
             name: serviceDesk.name,
@@ -84,14 +89,19 @@ class ServiceDeskController {
 
     updateServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
-        const { name, code, description, isActive } = req.body;
+        const { name, code, description, isActive, autoAssignTeam, assignmentStrategy, lastAssignedIndex } = req.body;
 
-        const serviceDesk = await serviceDeskService.updateServiceDesk(id, { name, code, description, isActive });
+        const serviceDesk = await serviceDeskService.updateServiceDesk(id, {
+            name, code, description, isActive,
+            autoAssignTeam, assignmentStrategy, lastAssignedIndex,
+        });
 
         await auditLog(req, 'ADMIN_UPDATE_SERVICE_DESK', 'ServiceDesk', serviceDesk.id, {
             name: serviceDesk.name,
             code: serviceDesk.code,
             isActive: serviceDesk.isActive,
+            autoAssignTeam: serviceDesk.autoAssignTeam,
+            assignmentStrategy: serviceDesk.assignmentStrategy,
         });
 
         res.json({
@@ -249,6 +259,80 @@ class ServiceDeskController {
         res.json({
             status: 'success',
             message: 'Request type deleted successfully',
+        });
+    });
+
+    /**
+     * Get eligible agents for a service desk's auto-assign team
+     * GET /api/v1/service-desks/:id/agents
+     */
+    getTeamAgents = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const id = String(req.params.id);
+        const serviceDesk = await serviceDeskService.getServiceDeskById(id);
+
+        if (!serviceDesk) {
+            return res.status(404).json({ status: 'error', message: 'Service desk not found' });
+        }
+
+        const team = serviceDesk.autoAssignTeam || 'NONE';
+        if (team === 'NONE') {
+            return res.json({ status: 'success', data: { agents: [], team: 'NONE' } });
+        }
+
+        // Find all active agents with matching agentTeam
+        const agents = await prisma.user.findMany({
+            where: {
+                agentTeam: team,
+                isActive: true,
+                roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                agentTeam: true,
+                avatarUrl: true,
+            },
+            orderBy: { createdAt: 'asc' },
+        });
+
+        // Count open requests per agent (non-terminal statuses)
+        const TERMINAL_STATUSES = ['RESOLVED', 'COMPLETED', 'CANCELLED'];
+        const agentIds = agents.map((a) => a.id);
+
+        const openCountRows: { assigned_to_id: string; count: bigint }[] =
+            await prisma.$queryRaw`
+                SELECT assigned_to_id, COUNT(*)::bigint as count
+                FROM requests
+                WHERE assigned_to_id = ANY(${agentIds}::uuid[])
+                  AND status::text != ALL(${TERMINAL_STATUSES}::text[])
+                GROUP BY assigned_to_id
+            `;
+
+        const countMap = new Map<string, number>();
+        for (const row of openCountRows) {
+            countMap.set(row.assigned_to_id, Number(row.count));
+        }
+
+        const result = agents.map((a) => ({
+            id: a.id,
+            firstName: a.firstName,
+            lastName: a.lastName,
+            email: a.email,
+            avatarUrl: a.avatarUrl,
+            agentTeam: a.agentTeam,
+            openRequestCount: countMap.get(a.id) || 0,
+        }));
+
+        res.json({
+            status: 'success',
+            data: {
+                team,
+                assignmentStrategy: serviceDesk.assignmentStrategy,
+                lastAssignedIndex: serviceDesk.lastAssignedIndex,
+                agents: result,
+            },
         });
     });
 }

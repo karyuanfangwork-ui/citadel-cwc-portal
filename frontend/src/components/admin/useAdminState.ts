@@ -49,6 +49,8 @@ export interface DeskFormData {
     code: string;
     description: string;
     isActive: boolean;
+    autoAssignTeam: string;
+    assignmentStrategy: string;
 }
 
 export interface PendingAction {
@@ -273,6 +275,8 @@ export function useAdminState(): UseAdminStateReturn {
         code: '',
         description: '',
         isActive: true,
+        autoAssignTeam: 'NONE',
+        assignmentStrategy: 'ROUND_ROBIN',
     });
     const [categorySearch, setCategorySearch] = useState('');
 
@@ -597,6 +601,8 @@ export function useAdminState(): UseAdminStateReturn {
             code: '',
             description: '',
             isActive: true,
+            autoAssignTeam: 'NONE',
+            assignmentStrategy: 'ROUND_ROBIN',
         });
         setDeskModalOpen(true);
     }, []);
@@ -608,6 +614,8 @@ export function useAdminState(): UseAdminStateReturn {
             code: desk.code || '',
             description: desk.description || '',
             isActive: desk.isActive !== false,
+            autoAssignTeam: desk.autoAssignTeam || 'NONE',
+            assignmentStrategy: desk.assignmentStrategy || 'ROUND_ROBIN',
         });
         setDeskModalOpen(true);
     }, []);
@@ -621,12 +629,16 @@ export function useAdminState(): UseAdminStateReturn {
                     code: deskFormData.code,
                     description: deskFormData.description,
                     isActive: deskFormData.isActive,
+                    autoAssignTeam: deskFormData.autoAssignTeam,
+                    assignmentStrategy: deskFormData.assignmentStrategy,
                 });
             } else {
                 await serviceDeskService.createServiceDesk({
                     name: deskFormData.name,
                     code: deskFormData.code,
                     description: deskFormData.description || undefined,
+                    autoAssignTeam: deskFormData.autoAssignTeam,
+                    assignmentStrategy: deskFormData.assignmentStrategy,
                 });
             }
             setDeskModalOpen(false);

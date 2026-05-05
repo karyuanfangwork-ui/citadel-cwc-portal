@@ -9,6 +9,7 @@ import { sanitizeString, sanitizeComment } from '../utils/sanitize';
 import { auditLog } from '../utils/audit';
 import { logger } from '../utils/logger';
 import { applyEntityRouting } from '../services/entityRouting.service';
+import { autoAssignRequest } from '../services/autoAssignment.service';
 import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
@@ -968,6 +969,38 @@ class RequestController {
             });
         }
 
+        // Auto-assign the request based on ServiceDesk configuration
+        const assignResult = await autoAssignRequest(request.id);
+        if (assignResult.success && assignResult.assignedToId) {
+            // Create activity record for auto-assignment
+            await prisma.requestActivity.create({
+                data: {
+                    requestId: request.id,
+                    authorName: 'System',
+                    isSystemGenerated: true,
+                    activityType: 'ASSIGNMENT',
+                    message: `Auto-assigned to ${assignResult.agentName} (${assignResult.assignedTeam} team) via ${assignResult.strategy} strategy`,
+                    metadata: {
+                        autoAssigned: true,
+                        assignedToId: assignResult.assignedToId,
+                        assignedTeam: assignResult.assignedTeam,
+                        strategy: assignResult.strategy,
+                    },
+                },
+            });
+
+            // Notify the assigned agent
+            await notify({
+                userId: assignResult.assignedToId,
+                eventType: 'REQUEST_ASSIGNED',
+                variables: {
+                    referenceNumber: request.referenceNumber,
+                    summary: request.summary,
+                },
+                relatedRequestId: request.id,
+            });
+        }
+
         // Notify requester
         await notify({
             userId: request.requesterId,
@@ -1001,9 +1034,22 @@ class RequestController {
             requesterId: request.requesterId,
         });
 
+        // Re-fetch request to include auto-assigned agent info in response
+        const finalRequest = assignResult.success
+            ? await prisma.request.findUnique({
+                  where: { id: request.id },
+                  include: {
+                      requester: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+                      assignedTo: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+                      serviceDesk: true,
+                      requestType: true,
+                  },
+              })
+            : request;
+
         res.status(201).json({
             status: 'success',
-            data: { request },
+            data: { request: finalRequest },
         });
     });
 
@@ -1726,9 +1772,104 @@ class RequestController {
             }
         }
 
+        // ── WorkflowTransition auto-assign: reassign based on transition config ──
+        try {
+            const transition = await prisma.workflowTransition.findFirst({
+                where: {
+                    fromStatus: currentRequest.status,
+                    toStatus: status,
+                    isActive: true,
+                },
+            });
+
+            if (transition && (transition.autoAssignRole || transition.autoAssignUserId)) {
+                let assignToId: string | null = null;
+                let assignToName: string = '';
+
+                if (transition.autoAssignUserId) {
+                    // Specific user takes priority
+                    const targetUser = await prisma.user.findUnique({
+                        where: { id: transition.autoAssignUserId },
+                        select: { id: true, firstName: true, lastName: true, isActive: true },
+                    });
+                    if (targetUser?.isActive) {
+                        assignToId = targetUser.id;
+                        assignToName = `${targetUser.firstName} ${targetUser.lastName}`;
+                    }
+                } else if (transition.autoAssignRole) {
+                    // Find first active user with the matching role
+                    const targetUser = await prisma.user.findFirst({
+                        where: {
+                            isActive: true,
+                            roles: { some: { role: { name: transition.autoAssignRole } } },
+                        },
+                        select: { id: true, firstName: true, lastName: true },
+                        orderBy: { createdAt: 'asc' },
+                    });
+                    if (targetUser) {
+                        assignToId = targetUser.id;
+                        assignToName = `${targetUser.firstName} ${targetUser.lastName}`;
+                    }
+                }
+
+                if (assignToId) {
+                    await prisma.request.update({
+                        where: { id },
+                        data: { assignedToId: assignToId },
+                    });
+
+                    await prisma.requestActivity.create({
+                        data: {
+                            requestId: id,
+                            authorId: req.user!.id,
+                            authorName: 'System',
+                            activityType: 'ASSIGNMENT',
+                            message: `Auto-reassigned to ${assignToName} via workflow transition (${currentRequest.status} → ${status})`,
+                            isSystemGenerated: true,
+                            metadata: {
+                                autoAssigned: true,
+                                assignedToId: assignToId,
+                                transitionId: transition.id,
+                                fromStatus: currentRequest.status,
+                                toStatus: status,
+                                trigger: transition.autoAssignUserId ? 'autoAssignUserId' : 'autoAssignRole',
+                                triggerValue: transition.autoAssignUserId || transition.autoAssignRole,
+                            },
+                        },
+                    });
+
+                    await notify({
+                        userId: assignToId,
+                        eventType: 'REQUEST_ASSIGNED',
+                        variables: {
+                            referenceNumber: request.referenceNumber,
+                            assignedToName: assignToName,
+                        },
+                        relatedRequestId: request.id,
+                    });
+
+                    logger.info(`[WorkflowTransition] Request ${request.referenceNumber} auto-reassigned to ${assignToName} on ${currentRequest.status}→${status}`);
+                }
+            }
+        } catch (err) {
+            // Non-blocking: if transition auto-assign fails, status change still succeeds
+            logger.error(`[WorkflowTransition] Auto-assign failed for request ${id}:`, err);
+        }
+
+        // Re-fetch request after workflow transition auto-assign to include updated assignedToId
+        const finalRequest = await prisma.request.findUnique({
+            where: { id },
+            include: {
+                requester: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+                assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
+                serviceDesk: true,
+                requestType: true,
+            },
+        });
+
         res.json({
             status: 'success',
-            data: { request },
+            data: { request: finalRequest || request },
         });
     });
 }

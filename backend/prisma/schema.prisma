@@ -211,6 +211,11 @@ model ServiceDesk {
   isActive    Boolean   @default(true) @map("is_active")
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
+  // Auto-assignment config
+  autoAssignTeam    String  @default("NONE") @map("auto_assign_team") @db.VarChar(50)
+  assignmentStrategy String @default("ROUND_ROBIN") @map("assignment_strategy") @db.VarChar(20)
+  lastAssignedIndex Int     @default(0) @map("last_assigned_index")
+
   // Relations
   categories ServiceCategory[]
   requests   Request[]

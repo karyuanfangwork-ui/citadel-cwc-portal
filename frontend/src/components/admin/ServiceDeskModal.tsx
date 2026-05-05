@@ -102,6 +102,54 @@ export const ServiceDeskModal: React.FC<ServiceDeskModalProps> = ({
                                 <span className="text-sm font-black text-[#44546f] uppercase tracking-widest group-hover:text-[#101418] transition-colors">Service Desk Active</span>
                             </label>
                         </div>
+
+                        {/* ── Auto-Assignment Configuration ── */}
+                        <div className="md:col-span-2 mt-6 pt-6 border-t border-gray-100">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="w-10 h-10 bg-amber-50 rounded-xl flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-amber-600">smart_toy</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-black text-[#101418] uppercase tracking-wider">Auto-Assignment</h3>
+                                    <p className="text-xs text-[#44546f]">New tickets in this desk will be automatically assigned to agents on the selected team.</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Assign to Team</label>
+                                    <select
+                                        className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all cursor-pointer"
+                                        value={deskFormData.autoAssignTeam}
+                                        onChange={e => onFormDataChange({ ...deskFormData, autoAssignTeam: e.target.value })}
+                                    >
+                                        <option value="NONE">None (Manual assignment only)</option>
+                                        <option value="IT">IT Team</option>
+                                        <option value="HR">HR Team</option>
+                                        <option value="FINANCE">Finance Team</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-black text-[#44546f] uppercase tracking-widest mb-3">Assignment Strategy</label>
+                                    <select
+                                        className="w-full px-6 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                        value={deskFormData.assignmentStrategy}
+                                        onChange={e => onFormDataChange({ ...deskFormData, assignmentStrategy: e.target.value })}
+                                        disabled={deskFormData.autoAssignTeam === 'NONE'}
+                                    >
+                                        <option value="ROUND_ROBIN">Round Robin</option>
+                                        <option value="LEAST_LOADED">Least Loaded</option>
+                                        <option value="RANDOM">Random</option>
+                                    </select>
+                                    <p className="text-[10px] text-[#8993a4] mt-2 font-medium">
+                                        {deskFormData.assignmentStrategy === 'ROUND_ROBIN' && 'Cycles through agents in order, one after another.'}
+                                        {deskFormData.assignmentStrategy === 'LEAST_LOADED' && 'Assigns to the agent with the fewest open tickets.'}
+                                        {deskFormData.assignmentStrategy === 'RANDOM' && 'Picks a random agent from the team.'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="mt-12 flex gap-6">

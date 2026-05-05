@@ -73,6 +73,13 @@ router.post('/', validate(createServiceDeskSchema), serviceDeskController.create
 router.put('/:id', validate(updateServiceDeskSchema), serviceDeskController.updateServiceDesk);
 
 /**
+ * @route   GET /api/v1/service-desks/:id/agents
+ * @desc    Get eligible agents for a service desk's auto-assign team
+ * @access  Private — requirePermission enforces RBAC at the permission level
+ */
+router.get('/:id/agents', serviceDeskController.getTeamAgents);
+
+/**
  * @route   DELETE /api/v1/service-desks/:id
  * @desc    Delete service desk
  * @access  Private — requirePermission enforces RBAC at the permission level

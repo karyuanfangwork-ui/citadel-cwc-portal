@@ -89,6 +89,7 @@ export interface Request {
     category: { name: string; icon: string };
     service: { name: string };
     assignedTo?: { id: string; firstName: string; lastName: string };
+    assignedTeam?: string | null;
     candidateResumes?: CandidateResume[];
 }
 
@@ -96,6 +97,7 @@ interface UseRequestDetailReturn {
     id: string | undefined;
     request: Request | null;
     activities: Activity[];
+    setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
     resumes: CandidateResume[];
     interviewDetails: InterviewDetails | null;
     screeningDetails: HRScreening | null;
@@ -644,7 +646,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
     }, [id, fetchRequestData]);
 
     return {
-        id, request, activities, resumes, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
+        id, request, activities, setActivities, resumes, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
         showResolutionModal, showRejectionConfirm, showCompleteOnboardingConfirm, showUploadModal, showJobPostModal, showCEODecisionModal, showManagerDecisionModal, showScheduleInterviewModal, showEditInterviewModal, showInterviewFeedbackModal, showHRScreeningModal, showUploadLOAModal, showLOAApprovalModal, showUploadSignedLOAModal,
         resolutionComment, pendingStatus, rejectionPendingStatus,
         setResolutionComment, setShowResolutionModal, setShowRejectionConfirm, setShowCompleteOnboardingConfirm, setShowUploadModal, setShowJobPostModal, setShowCEODecisionModal, setShowManagerDecisionModal, setShowScheduleInterviewModal, setShowEditInterviewModal, setShowInterviewFeedbackModal, setShowHRScreeningModal, setShowUploadLOAModal, setShowLOAApprovalModal, setShowUploadSignedLOAModal,

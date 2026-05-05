@@ -103,29 +103,39 @@ export const ServiceDesksTab: React.FC<ServiceDesksTabProps> = ({
     return (
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
             <div className="p-8 border-b border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gray-50/20">
-                <div className="flex items-center gap-4">
-                    <label className="text-sm font-bold text-[#44546f] uppercase tracking-wider">Service Desk</label>
-                    <div className="relative">
-                        <select
-                            aria-label="Select service desk"
-                            className="pl-6 pr-12 py-3 bg-white border border-gray-200 rounded-2xl text-base font-bold text-[#101418] focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none cursor-pointer appearance-none transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                            value={selectedDesk?.id || ''}
-                            onChange={onDeskChange}
-                            disabled={desksLoading}
-                        >
-                            {desksLoading ? (
-                                <option>Loading desks...</option>
-                            ) : (
-                                serviceDesks.map(desk => (
-                                    <option key={desk.id} value={desk.id}>{desk.name}</option>
-                                ))
-                            )}
-                        </select>
-                        <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
-                    </div>
+                    <div className="flex items-center gap-4">
+                        <label className="text-sm font-bold text-[#44546f] uppercase tracking-wider">Service Desk</label>
+                        <div className="relative">
+                            <select
+                                aria-label="Select service desk"
+                                className="pl-6 pr-12 py-3 bg-white border border-gray-200 rounded-2xl text-base font-bold text-[#101418] focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none cursor-pointer appearance-none transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                                value={selectedDesk?.id || ''}
+                                onChange={onDeskChange}
+                                disabled={desksLoading}
+                            >
+                                {desksLoading ? (
+                                    <option>Loading desks...</option>
+                                ) : (
+                                    serviceDesks.map(desk => (
+                                        <option key={desk.id} value={desk.id}>{desk.name}</option>
+                                    ))
+                                )}
+                            </select>
+                            <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">expand_more</span>
+                        </div>
 
-                    {/* Edit / Delete / Reactivate buttons for selected desk */}
-                    {selectedDesk && (
+                        {/* Auto-assign badge */}
+                        {selectedDesk?.autoAssignTeam && selectedDesk.autoAssignTeam !== 'NONE' && (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100">
+                                <span className="material-symbols-outlined text-xs">smart_toy</span>
+                                Auto-assign → {selectedDesk.autoAssignTeam}
+                                <span className="text-amber-400/60 mx-0.5">•</span>
+                                {selectedDesk.assignmentStrategy === 'ROUND_ROBIN' ? 'Round Robin' : selectedDesk.assignmentStrategy === 'LEAST_LOADED' ? 'Least Loaded' : 'Random'}
+                            </span>
+                        )}
+
+                        {/* Edit / Delete / Reactivate buttons for selected desk */}
+                        {selectedDesk && (
                         <div className="flex items-center gap-2 ml-2">
                             <button
                                 onClick={() => onEditDesk(selectedDesk)}

@@ -9,6 +9,8 @@ export const createServiceDeskSchema = z.object({
             .regex(/^[A-Z0-9_]+$/, 'Code must contain only uppercase letters, numbers, and underscores'),
         description: z.string().optional(),
         isActive: z.boolean().default(true),
+        autoAssignTeam: z.string().max(50).optional(),
+        assignmentStrategy: z.enum(['ROUND_ROBIN', 'LEAST_LOADED', 'RANDOM']).default('ROUND_ROBIN'),
     }),
 });
 
@@ -22,6 +24,9 @@ export const updateServiceDeskSchema = z.object({
             .optional(),
         description: z.string().optional(),
         isActive: z.boolean().optional(),
+        autoAssignTeam: z.string().max(50).optional(),
+        assignmentStrategy: z.enum(['ROUND_ROBIN', 'LEAST_LOADED', 'RANDOM']).optional(),
+        lastAssignedIndex: z.number().int().min(0).optional(),
     }),
 });
 

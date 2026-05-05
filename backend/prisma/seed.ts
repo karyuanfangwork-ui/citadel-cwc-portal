@@ -26,34 +26,40 @@ async function main() {
     // Create Service Desks
     const itDesk = await prisma.serviceDesk.upsert({
         where: { code: 'IT' },
-        update: {},
+        update: RETAIN_ADMIN_CONFIG ? {} : { autoAssignTeam: 'IT' },
         create: {
             name: 'IT Support',
             code: 'IT',
             description: 'Technical support for hardware, software, and infrastructure',
             isActive: true,
+            autoAssignTeam: 'IT',
+            assignmentStrategy: 'ROUND_ROBIN',
         },
     });
 
     const hrDesk = await prisma.serviceDesk.upsert({
         where: { code: 'HR' },
-        update: {},
+        update: RETAIN_ADMIN_CONFIG ? {} : { autoAssignTeam: 'HR' },
         create: {
             name: 'HR Services',
             code: 'HR',
             description: 'Human resources support for employees',
             isActive: true,
+            autoAssignTeam: 'HR',
+            assignmentStrategy: 'ROUND_ROBIN',
         },
     });
 
     const financeDesk = await prisma.serviceDesk.upsert({
         where: { code: 'FINANCE' },
-        update: {},
+        update: RETAIN_ADMIN_CONFIG ? {} : { autoAssignTeam: 'FINANCE' },
         create: {
             name: 'Group Finance',
             code: 'FINANCE',
             description: 'Financial services and expense management',
             isActive: true,
+            autoAssignTeam: 'FINANCE',
+            assignmentStrategy: 'ROUND_ROBIN',
         },
     });
 
@@ -375,16 +381,16 @@ async function main() {
     const agentPassword = await bcrypt.hash('abc@123', 10);
 
     const agentAccounts = [
-        { email: 'finance@test.local',     firstName: 'Zahidah', lastName: 'Zahidah',     department: 'Finance', jobTitle: 'Finance Agent',             roles: [agentRole.id] },
-        { email: 'it@test.local',          firstName: 'Tham',    lastName: 'Ming Kai',    department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id] },
-        { email: 'it2@test.local',         firstName: 'Naila',   lastName: 'Naila',       department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id] },
-        { email: 'hr@test.local',          firstName: 'Sasha',   lastName: 'Nair',        department: 'HR',      jobTitle: 'HR Agent',                  roles: [agentRole.id] },
+        { email: 'finance@test.local',     firstName: 'Zahidah', lastName: 'Zahidah',     department: 'Finance', jobTitle: 'Finance Agent',             roles: [agentRole.id], agentTeam: 'FINANCE' },
+        { email: 'it@test.local',          firstName: 'Tham',    lastName: 'Ming Kai',    department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id], agentTeam: 'IT' },
+        { email: 'it2@test.local',         firstName: 'Naila',   lastName: 'Naila',       department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id], agentTeam: 'IT' },
+        { email: 'hr@test.local',          firstName: 'Sasha',   lastName: 'Nair',        department: 'HR',      jobTitle: 'HR Agent',                  roles: [agentRole.id], agentTeam: 'HR' },
     ];
 
     for (const acc of agentAccounts) {
         const u = await prisma.user.upsert({
             where: { email: acc.email },
-            update: {},
+            update: RETAIN_ADMIN_CONFIG ? {} : { agentTeam: acc.agentTeam },
             create: {
                 email: acc.email,
                 passwordHash: agentPassword,
@@ -393,6 +399,7 @@ async function main() {
                 department: acc.department || null,
                 jobTitle: acc.jobTitle || null,
                 isActive: true,
+                agentTeam: acc.agentTeam,
             },
         });
         await assignRoles(u.id, acc.roles);
