@@ -18,7 +18,8 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
-    "format": "prettier --write \"src/**/*.ts\""
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prisma:seed:clear-tickets": "tsx prisma/seed-clear-tickets.ts"
   },
   "keywords": [
     "help-desk",

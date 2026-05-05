@@ -9,6 +9,7 @@ import {
     SEED_OFFBOARDING_TEMPLATES,
     SEED_ESCALATION_RULES,
 } from './seed-admin-config';
+import { seedWorkflows } from './seed-workflows';
 
 const prisma = new PrismaClient();
 
@@ -524,26 +525,23 @@ async function main() {
         }) : null;
 
         if (existingByCode) {
-            // Only backfill structural fields — never overwrite name, description, or formConfig
+            // Only backfill structural fields — never overwrite admin-editable fields
+            // (name, description, formConfig, slaHours, requiresApproval, isActive)
             // so Admin UI edits are preserved across re-seeds
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
                 data: {
                     serviceCategory: { connect: { id: cat.id } },
-                    isActive: true,
-                    ...(category.slaHours ? { slaHours: category.slaHours } : {}),
-                    ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
+                    // Only backfill code if missing
+                    ...(existingByCode.code ? {} : { code: category.requestTypeCode }),
                 }
             });
         } else if (existingLegacy) {
-            // Backfill code onto legacy record without touching name/formConfig
+            // Backfill code onto legacy record without touching admin-editable fields
             await prisma.requestType.update({
                 where: { id: existingLegacy.id },
                 data: {
                     code: category.requestTypeCode,
-                    isActive: true,
-                    ...(category.slaHours ? { slaHours: category.slaHours } : {}),
-                    ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
                 }
             });
         } else {
@@ -648,16 +646,16 @@ async function main() {
             : null;
 
         if (existingByCode) {
-            // Backfill structural fields only
+            // Backfill structural fields only — never overwrite admin-editable fields
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategory: { connect: { id: category.id } }, isActive: true },
+                data: { serviceCategory: { connect: { id: category.id } } },
             });
         } else if (existingLegacy) {
-            // Assign code to legacy record without touching name/formConfig
+            // Assign code to legacy record without touching admin-editable fields
             await prisma.requestType.update({
                 where: { id: existingLegacy.id },
-                data: { code: cat.requestTypeCode, isActive: true },
+                data: { code: cat.requestTypeCode },
             });
         } else {
             await prisma.requestType.create({
@@ -758,14 +756,16 @@ async function main() {
             : null;
 
         if (existingByCode) {
+            // Backfill structural fields only — never overwrite admin-editable fields
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategory: { connect: { id: category.id } }, isActive: true },
+                data: { serviceCategory: { connect: { id: category.id } } },
             });
         } else if (existingLegacy) {
+            // Assign code to legacy record without touching admin-editable fields
             await prisma.requestType.update({
                 where: { id: existingLegacy.id },
-                data: { code: cat.requestTypeCode, isActive: true },
+                data: { code: cat.requestTypeCode },
             });
         } else {
             await prisma.requestType.create({
@@ -783,6 +783,10 @@ async function main() {
     }
 
     console.log('✅ Finance categories created');
+
+    // ── Workflow Types & Steps (from seed-workflows) ──
+    // Must run AFTER request types are created so linking works
+    await seedWorkflows(prisma, RETAIN_ADMIN_CONFIG);
 
     // Create Notification Templates (from seed-admin-config)
     if (RETAIN_ADMIN_CONFIG) {

@@ -236,7 +236,7 @@ AppShell (BrowserRouter)
 ├── /my-requests        → MyRequests (protected)
 ├── /request/:id        → RequestDetail (protected, ErrorBoundary)
 │   ├── RequestHeader with context-aware breadcrumb
-│   ├── ActionSidebar (15 workflow modals)
+│   ├── ActionSidebar (26+ workflow modals)
 │   ├── ActivityFeed
 │   ├── CustomFieldsPanel
 │   ├── SLAIndicator (with pause state)
@@ -245,6 +245,7 @@ AppShell (BrowserRouter)
 ├── /hr                 → HRServices (protected)
 ├── /it                 → ITSupport (protected)
 ├── /finance            → GroupFinance (protected)
+├── /it/hardware        → Redirect to /it
 ├── /:deskType/:deskId/create/:categoryId → CreateRequest (protected)
 ├── /agent              → AgentDashboard (protected, ADMIN/AGENT role)
 ├── /approvals          → ApprovalQueue (protected, request:approve permission)
@@ -314,8 +315,8 @@ AppShell (BrowserRouter)
 |-----------------|-------------|
 | **Description** | Agent/manager/executive performs workflow action on a request |
 | **Trigger**     | Authorized user clicks action button in RequestDetail |
-| **Flow**        | 1. Frontend checks valid transitions from WorkflowTransition table 2. Opens appropriate modal (37 modals for different actions) 3. User fills required fields (comments, decisions) 4. PATCH `/api/v1/requests/:id/status` or workflow-specific endpoint 5. Backend validates transition, updates status, logs activity 6. SLA pause/resume as needed 7. Notifications sent to relevant parties |
-| **Modals**      | ManagerDecisionModal, CEODecisionModal, CfoDecisionModal, RejectionModal, ResolutionModal, ScheduleInterviewModal, EditInterviewModal, InterviewFeedbackModal, LOAApprovalModal, CompleteOnboardingModal, AssignAgentModal, ResubmitModal, WorkflowApproveModal, WorkflowRejectModal, and more |
+| **Flow**        | 1. Frontend checks valid transitions from WorkflowTransition table 2. Opens appropriate modal (26+ modals across request/modals/ and request-detail/) 3. User fills required fields (comments, decisions) 4. PATCH `/api/v1/requests/:id/status` or workflow-specific endpoint 5. Backend validates transition, updates status, logs activity 6. SLA pause/resume as needed 7. Notifications sent to relevant parties |
+| **Modals**      | ManagerDecisionModal, CEODecisionModal, CfoDecisionModal, RejectionModal, ResolutionModal, ScheduleInterviewModal, EditInterviewModal, InterviewFeedbackModal, LOAApprovalModal, CompleteOnboardingModal, AssignAgentModal, ResubmitModal, WorkflowApproveModal, WorkflowRejectModal, CtoDecisionModal, WorkflowActionModal (general-purpose), and more (26+ modals across request/modals/ and request-detail/ directories) |
 
 ### 4.3 Onboarding & Offboarding
 
@@ -350,7 +351,7 @@ AppShell (BrowserRouter)
 │                    Presentation Layer                     │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐ │
 │  │ Pages    │  │Components│  │  Modals   │  │ Layouts │ │
-│  │ (17)     │  │ (43)     │  │  (15)     │  │         │ │
+│  │ (17)     │  │ (15+)    │  │ (26+)     │  │         │ │
 │  └────┬─────┘  └────┬─────┘  └──────────┘  └─────────┘ │
 │       │              │                                    │
 │  ┌────▼──────────────▼────┐                              │
@@ -398,7 +399,7 @@ frontend/
 ├── App.tsx                         # Root component, routing, Header, Footer, Sentry init
 ├── index.tsx                       # Entry point
 ├── index.html                      # HTML template
-├── constants.tsx                   # STATUS_CONFIG (76+ statuses), MOCK_REQUESTS
+├── constants.tsx                   # STATUS_CONFIG (94 statuses), MOCK_REQUESTS
 ├── types.ts                        # TypeScript types (RequestStatus enum, interfaces)
 ├── vite.config.ts                  # Vite configuration
 ├── pages/
@@ -433,14 +434,23 @@ frontend/
 │   │   ├── ToastContainer.tsx       # Toast notification renderer
 │   │   ├── Breadcrumbs.tsx          # Context-aware breadcrumb navigation
 │   │   ├── EntityApprovalsPanel.tsx # Entity-based approval routing panel
-│   │   ├── admin/                   # 21 admin setting components (12 tabs + 6 modals + 3 utils)
+│   │   ├── withErrorBoundary.tsx   # HOC for error boundary wrapping
+│   │   ├── ErrorFallback.tsx       # Error fallback UI component
+│   │   ├── ModalPortal.tsx         # Portal for modal rendering outside DOM hierarchy
+│   │   ├── ModalWrapper.tsx        # Reusable modal wrapper with backdrop
+│   │   ├── SkeletonCategoryCard.tsx # Loading skeleton for category cards
+│   │   ├── SkeletonRow.tsx         # Loading skeleton for table rows
+│   │   ├── admin/                   # 21 admin setting components (12 tabs + 11 modals + 3 utils)
 │   │   ├── request/                 # Request header, form fields, hiring panel, approval actions
-│   │   ├── request/modals/          # 9 workflow action modals
-│   │   └── create-request/          # StepDetails, StepRequestType
+│   │   ├── request/modals/          # 9 HR workflow modals (CEO, Manager, Rejection, Resolution, Interview, LOA, Onboarding)
+│   │   ├── request-detail/          # 25 request detail components (ActionSidebar, ActivityFeed, SLAIndicator, CustomFieldsPanel, ConfidentialDocumentsPanel, HiringWorkflowPanel, AssignAgentModal, WorkflowActionModal, + 17 workflow modals for IT/Finance/Chargeback)
+│   │   └── create-request/          # WizardStepper, useCreateRequestWizard
 │   ├── services/                   # 23 API service files (incl. asset.service.ts, sentry.ts)
 │   ├── hooks/
 │   │   ├── useBannerConfigs.ts     # Dashboard banner config hook
-│   │   └── useModalDismiss.ts      # Modal click-outside dismiss
+│   │   ├── useModalDismiss.ts      # Modal click-outside dismiss
+│   │   ├── useFocusTrap.ts         # Accessibility focus trap hook
+│   │   └── useEscapeKey.ts         # Escape key handler hook
 │   ├── utils/
 │   │   ├── permissions.ts          # RBAC permission checks
 │   │   ├── roleDetection.ts        # User role detection
@@ -490,7 +500,7 @@ frontend/
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                    Routes (31 files)                      │ │
+│  │                    Routes (30 files + index)                │ │
 │  │  /auth /users /requests /service-desks /notifications    │ │
 │  │  /kb /search /approvals /interviews /screening /loa       │ │
 │  │  /onboarding /offboarding /it-workflow /finance-workflow  │ │
@@ -499,7 +509,7 @@ frontend/
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                  Controllers (31 files)                   │ │
+│  │                    Controllers (30 files)                   │ │
 │  │  Auth, User, Request, Resume, ServiceDesk, Notification, │ │
 │  │  KB, Search, Approval, Interview, Screening, LOA,         │ │
 │  │  Onboarding, Offboarding, ITWorkflow, FinanceWorkflow,    │ │
@@ -510,14 +520,15 @@ frontend/
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                   Services (10 files)                     │ │
+│  │                   Services (11 files)                    │ │
 │  │  email, entityRouting, notification, onboarding,          │ │
-│  │  password-reset, permission, s3, sla, sla-pause, token    │ │
+│  │  password-reset, permission, s3, sla, sla-pause, token,  │ │
+│  │  serviceDesk                                              │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
 │  │                  Data Layer (Prisma ORM)                  │ │
-│  │  PostgreSQL — 43 models, 76 RequestStatus values          │ │
+│  │  PostgreSQL — 43 models, 94 RequestStatus values          │ │
 │  │  Redis (ioredis) — token blocklist, rate limiting,        │ │
 │  │                    permission cache, SLA state            │ │
 │  └──────────────────────────────────────────────────────────┘ │
@@ -533,9 +544,9 @@ backend/
 │   ├── index.ts                    # Server startup
 │   ├── config/
 │   │   └── index.ts                # Centralized config (env vars, thresholds)
-│   ├── controllers/                # 31 controller files
-│   ├── routes/                     # 31 route files + index.ts
-│   ├── services/                   # 10 business logic services
+│   ├── controllers/                # 30 controller files
+│   ├── routes/                     # 30 route files + index.ts + notificationSse
+│   ├── services/                   # 11 business logic services
 │   ├── middleware/
 │   │   ├── auth.middleware.ts       # JWT auth, role/permission authorization, SSE auth
 │   │   ├── error.middleware.ts      # Centralized error handler
@@ -543,7 +554,7 @@ backend/
 │   │   ├── rateLimit.middleware.ts  # API rate limiting (express-rate-limit + Redis)
 │   │   ├── upload.middleware.ts     # Multer file upload (S3 or local)
 │   │   └── validate.middleware.ts   # Request body validation (Zod)
-│   ├── validators/                 # Zod schemas (auth, request, user)
+│   ├── validators/                 # Zod schemas (auth, request, user, serviceDesk)
 │   ├── templates/
 │   │   └── email-layout.ts         # HTML email layout template
 │   ├── jobs/
@@ -551,7 +562,7 @@ backend/
 │   └── utils/
 │       └── logger.ts               # Winston logger
 ├── prisma/
-│   ├── schema.prisma               # 43 models, 1363 lines, 10 enums
+│   ├── schema.prisma               # 43 models, 1364 lines, 10 enums
 │   ├── migrations/                 # Database migrations
 │   ├── seed.ts                     # Database seeding (users, roles, permissions, service desks)
 │   ├── seed-admin-config.ts        # Admin configuration seed data
@@ -663,6 +674,7 @@ backend/
 | `/requests`                       | request.controller              | Protected | Request CRUD, status transitions, activity, attachments, resume upload/list/delete |
 | `/service-desks`                  | serviceDesk.controller          | Protected | Service desk/category/type listing |
 | `/notifications`                  | notification.controller         | Protected | Notification list, mark read, SSE stream |
+| `/notifications/sse`             | notificationSse.routes            | Protected | SSE notification stream (EventSource endpoint) |
 | `/kb`                             | kb.controller                   | Protected | Knowledge base article CRUD, search, voting |
 | `/search`                         | search.controller               | Protected | Global search (requests + KB articles) |
 | `/approvals`                      | approval.controller             | Protected | Multi-level approval actions |
@@ -741,7 +753,7 @@ Response: { status: "ok", timestamp, uptime, environment }
 
 CWC uses a database-driven workflow engine with configurable status transitions. The `WorkflowTransition` table defines valid `fromStatus → toStatus` pairs with metadata (label, requires comment, auto-assign rules).
 
-### 9.2 Status Enum (76 statuses)
+### 9.2 Status Enum (94 statuses)
 
 ```
 General (9): SUBMITTED, IN_REVIEW, ACTION_REQUIRED, APPROVED, REJECTED,
@@ -976,26 +988,26 @@ Production Environment (Docker Compose)
 
 | Type                   | Framework          | Location |
 |------------------------|--------------------|----------|
-| **Unit Tests**         | Jest + ts-jest     | `backend/src/__tests__/`, `backend/src/services/__tests__/`, `backend/src/controllers/__tests__/` |
+| **Unit Tests**         | Jest + ts-jest     | `backend/src/__tests__/`, `backend/src/services/__tests__/`, `backend/src/controllers/__tests__/`, `backend/src/utils/__tests__/` |
 | **Integration Tests**  | Jest + supertest   | `backend/src/__tests__/`, `backend/src/controllers/__tests__/` |
 | **Execution**          | `npm test` (single run) / `npm run test:watch` (watch) | — |
 | **Coverage**           | `npm run test:coverage` | Jest Istanbul reports |
 
-#### 12.1.1 Backend Test Coverage (11 suites, 112 unit/integration tests)
+#### 12.1.1 Backend Test Coverage (11 suites, 121 unit/integration tests)
 
 | Test Suite                        | Type        | Tests | Coverage Area |
 |-----------------------------------|-------------|-------|---------------|
-| `auth.test.ts`                    | Integration | 4     | Registration, login, token refresh (requires DB) |
-| `request.test.ts`                 | Integration | 5     | CRUD + list + filter (requires DB) |
+| `auth.test.ts`                    | Integration | 6     | Registration, login, token refresh (requires DB) |
+| `request.test.ts`                 | Integration | 7     | CRUD + list + filter (requires DB) |
 | `auth.integration.test.ts`        | Integration | 5     | Multi-browser session isolation (requires DB) |
 | `token.service.test.ts`           | Unit        | 4     | JWT jti revocation, user revocation timestamps |
-| `password-reset.service.test.ts`  | Unit        | 3     | Password reset token lifecycle |
+| `password-reset.service.test.ts`  | Unit        | 4     | Password reset token lifecycle |
 | `sla-pause.service.test.ts`       | Unit        | 23    | SLA pause/resume, effective due date, Redis caching |
 | `notification.service.test.ts`    | Unit        | 16    | notify(), notifyMultiple(), template rendering, SSE push, email send, variable merge |
-| `sla.service.test.ts`             | Unit        | 12    | SLA breach detection, escalation rules, skip paused/terminal, error handling |
+| `sla.service.test.ts`             | Unit        | 14    | SLA breach detection, escalation rules, skip paused/terminal, error handling |
 | `entityRouting.service.test.ts`   | Unit        | 15    | Entity routing (REQUESTER_ENTITY + CUSTOM_FIELD), dedup, inactive skip, approval resolution |
-| `permission.service.test.ts`      | Unit        | 9     | getUserPermissions (Redis cache + DB fallback), hasPermission, checkPermission, cache invalidation |
-| `sseClients.test.ts`              | Unit        | 16    | SSE client registry, Redis pub/sub adapter, addClient/removeClient, deliverLocal, pushToUser (local + Redis), broadcast, initSseRedis/disconnectSseRedis, disconnected client cleanup, multi-tab per user |
+| `permission.service.test.ts`      | Unit        | 11    | getUserPermissions (Redis cache + DB fallback), hasPermission, checkPermission, cache invalidation |
+| `sseClients.test.ts`              | Unit        | 16    | SSE client registry, Redis pub/sub adapter, addClient/removeClient, deliverLocal, pushToUser (local + Redis), broadcast, initSseRedis/disconnectSseRedis, disconnected client cleanup, multi-tab per user (`src/utils/__tests__/`) |
 
 #### 12.1.2 Test Pattern
 
@@ -1023,18 +1035,18 @@ All service unit tests follow the same pattern:
 | **Path alias**  | `@` → project root (matches vite.config.ts) |
 | **Smoke test**  | `frontend/src/App.test.tsx` — renders root without crashing |
 
-#### 12.2.2 Frontend Test Coverage (8 suites, 97 tests)
+#### 12.2.2 Frontend Test Coverage (8 suites, 91 tests)
 
 | Test Suite                    | Type      | Tests | Coverage Area |
 |-------------------------------|-----------|-------|---------------|
 | `App.test.tsx`                | Smoke     | 1     | Root render without crash |
-| `permissions.test.ts`         | Unit      | 17    | hasPermission, hasAnyPermission, hasAllPermissions, hasRole, hasAnyRole (null user, ADMIN bypass, OR/AND logic, empty/undefined arrays) |
-| `roleDetection.test.ts`       | Unit      | 24    | isHiringRequest, detectRequestRole (all 6 role paths: agent, ceo, cto, cfo, hiring_manager, staff; role precedence; exhaustive HIRING_STATUSES) |
+| `permissions.test.ts`         | Unit      | 23    | hasPermission, hasAnyPermission, hasAllPermissions, hasRole, hasAnyRole (null user, ADMIN bypass, OR/AND logic, empty/undefined arrays) |
+| `roleDetection.test.ts`       | Unit      | 28    | isHiringRequest, detectRequestRole (all 6 role paths: agent, ceo, cto, cfo, hiring_manager, staff; role precedence; exhaustive HIRING_STATUSES) |
 | `workflowTransitions.test.ts` | Unit      | 12    | isValidTransition (valid/invalid/unknown), getValidNextStatuses (terminal states, non-terminal, COMPLETED→ONBOARDING_SUBMITTED, IN_REVIEW transitions) |
 | `tokenManager.test.ts`        | Unit      | 6     | Deprecated token manager (getAccessToken→null, getRefreshToken→null, setTokens no-op, clearTokens no-op, isTokenExpired→false) |
 | `ProtectedRoute.test.tsx`     | Component | 8     | Loading spinner, unauthenticated redirect, authenticated render, requireAdmin, requirePermission (string/array), permission mismatch redirect |
 | `ErrorFallback.test.tsx`      | Component | 8     | Default title, custom title, error message display, fallback text, Try Again button, resetError click, showDetails toggle |
-| `ToastContainer.test.tsx`     | Component | 5     | Empty state, success/error/warning/info toast rendering via ToastProvider |
+| `ToastContainer.test.tsx`    | Component | 5     | Empty state, success/error/warning/info toast rendering via ToastProvider |
 
 ### 12.3 CI/CD Test Gate
 
@@ -1161,4 +1173,6 @@ See section 10.3 for required variables. Additional configuration:
 
 ---
 
-*This document reflects Citadel Workplace Connect v2.0.0 as of 2026-05-01. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (76 values), i18next foundation.*
+*This document reflects Citadel Workplace Connect v2.0.0 as of 2026-05-05. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (94 values), i18next foundation, notificationSse route, serviceDesk service, request-detail workflow modals (26+), accessibility hooks (useFocusTrap, useEscapeKey).*
+
+**Doc sync (2026-05-05):** Updated RequestStatus count (76→94), controller count (31→30), route files (+notificationSse), service count (10→11, +serviceDesk), validator count (+serviceDesk), schema lines (1363→1364), Prisma data layer (76→94 statuses), backend test counts (112→121), frontend test counts (97→91), admin modals (6→11), request-detail components documented, STATUS_CONFIG count (76+→94), workflow modals (15→26+), FSD modal description (9→26+ with directory split), added hooks (useFocusTrap, useEscapeKey), added notificationSSE route, corrected individual test per-suite counts.

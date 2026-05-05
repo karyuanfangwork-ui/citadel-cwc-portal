@@ -1,7 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
 const defaultWorkflows = [
   {
     name: 'IT Simple',
@@ -157,78 +155,83 @@ const defaultWorkflows = [
   }
 ];
 
-async function main() {
+export async function seedWorkflows(prisma: PrismaClient, retainAdminConfig: boolean = false) {
   console.log('🌱 Seeding workflow types...');
 
-  for (const workflow of defaultWorkflows) {
-    const existing = await prisma.workflowType.findUnique({
-      where: { code: workflow.code }
-    });
-
-    if (existing) {
-      // Do NOT overwrite name/description — admin may have edited them via console.
-      // Only backfill structural/relational fields if missing.
-      console.log(`⏭️  Workflow already exists: ${workflow.code} — preserving admin config`);
-    } else {
-      // Create new workflow with steps
-      const created = await prisma.workflowType.create({
-        data: {
-          name: workflow.name,
-          code: workflow.code,
-          description: workflow.description,
-          displayOrder: workflow.displayOrder,
-          steps: {
-            create: workflow.steps.map((step, index) => ({
-              label: step.label,
-              status: step.status,
-              icon: step.icon,
-              displayOrder: index + 1,
-              isInitial: step.isInitial || false,
-              isFinal: step.isFinal || false,
-              slaPause: step.slaPause || false,
-            }))
-          }
-        }
+  if (retainAdminConfig) {
+    console.log('⏭️  Skipping workflow types & steps (RETAIN_ADMIN_CONFIG enabled)');
+    // Still link request types to existing workflows if needed
+  } else {
+    for (const workflow of defaultWorkflows) {
+      const existing = await prisma.workflowType.findUnique({
+        where: { code: workflow.code }
       });
 
-      console.log(`✅ Created workflow: ${workflow.code}`);
+      if (existing) {
+        // Do NOT overwrite name/description — admin may have edited them via console.
+        // Also do NOT overwrite steps — admin may have added/removed/reordered steps.
+        console.log(`⏭️  Workflow already exists: ${workflow.code} — preserving admin config`);
+      } else {
+        // Create new workflow with steps
+        const created = await prisma.workflowType.create({
+          data: {
+            name: workflow.name,
+            code: workflow.code,
+            description: workflow.description,
+            displayOrder: workflow.displayOrder,
+            steps: {
+              create: workflow.steps.map((step, index) => ({
+                label: step.label,
+                status: step.status,
+                icon: step.icon,
+                displayOrder: index + 1,
+                isInitial: step.isInitial || false,
+                isFinal: step.isFinal || false,
+                slaPause: step.slaPause || false,
+              }))
+            }
+          }
+        });
+
+        console.log(`✅ Created workflow: ${workflow.code}`);
+      }
+    }
+
+    // Backfill slaPause on existing workflow steps (for databases seeded before the SLA pause feature)
+    const pauseStatuses = [
+      'PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT',
+      'PENDING_MANAGER_APPROVAL_FIN', 'PENDING_MANAGER_REVIEW',
+      'PENDING_CTO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN',
+      'PENDING_FINANCE_HEAD_APPROVAL',
+      'PENDING_FROM_ENTITY_APPROVAL', 'PENDING_TO_ENTITY_APPROVAL',
+      'PENDING_GROUP_CEO_APPROVAL',
+      'ONBOARDING_PENDING_HR_APPROVAL',
+      'LOA_PENDING_APPROVAL',
+      'CHARGEBACK_FINANCE_REVIEW',
+      'PENDING_INVOICE_IT',
+    ];
+
+    const stepsNeedingPause = await prisma.workflowStep.findMany({
+      where: {
+        status: { in: pauseStatuses },
+        slaPause: false,
+      },
+    });
+
+    let backfilled = 0;
+    for (const step of stepsNeedingPause) {
+      await prisma.workflowStep.update({
+        where: { id: step.id },
+        data: { slaPause: true },
+      });
+      backfilled++;
+    }
+    if (backfilled > 0) {
+      console.log(`✅ Backfilled slaPause=true on ${backfilled} existing workflow steps`);
     }
   }
 
-  // Backfill slaPause on existing workflow steps (for databases seeded before the SLA pause feature)
-  const pauseStatuses = [
-    'PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT',
-    'PENDING_MANAGER_APPROVAL_FIN', 'PENDING_MANAGER_REVIEW',
-    'PENDING_CTO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN',
-    'PENDING_FINANCE_HEAD_APPROVAL',
-    'PENDING_FROM_ENTITY_APPROVAL', 'PENDING_TO_ENTITY_APPROVAL',
-    'PENDING_GROUP_CEO_APPROVAL',
-    'ONBOARDING_PENDING_HR_APPROVAL',
-    'LOA_PENDING_APPROVAL',
-    'CHARGEBACK_FINANCE_REVIEW',
-    'PENDING_INVOICE_IT',
-  ];
-
-  const stepsNeedingPause = await prisma.workflowStep.findMany({
-    where: {
-      status: { in: pauseStatuses },
-      slaPause: false,
-    },
-  });
-
-  let backfilled = 0;
-  for (const step of stepsNeedingPause) {
-    await prisma.workflowStep.update({
-      where: { id: step.id },
-      data: { slaPause: true },
-    });
-    backfilled++;
-  }
-  if (backfilled > 0) {
-    console.log(`✅ Backfilled slaPause=true on ${backfilled} existing workflow steps`);
-  }
-
-  // Now link request types to workflows
+  // Link request types to workflows — always run (idempotent, only links if not already linked)
   const requestTypeWorkflowMap: Record<string, string> = {
     'GET_IT_HELP': 'IT_SIMPLE',
     'EMAIL_MANAGEMENT': 'IT_SIMPLE',
@@ -261,20 +264,11 @@ async function main() {
           data: { workflowTypeId: workflow.id }
         });
         console.log(`✅ Linked ${requestTypeCode} to ${workflowCode}`);
-      } else {
-        console.log(`⏭️  ${requestTypeCode} already linked to a workflow — preserving admin config`);
       }
     }
   }
 
-  console.log('🎉 Workflow seeding completed!');
+  console.log('✅ Workflow seeding completed!');
 }
 
-main()
-  .catch((e) => {
-    console.error('❌ Error seeding workflows:', e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+// To run standalone: npx tsx -e "import {PrismaClient} from '@prisma/client'; import {seedWorkflows} from './prisma/seed-workflows'; const p=new PrismaClient(); seedWorkflows(p).finally(()=>p.\$disconnect())"

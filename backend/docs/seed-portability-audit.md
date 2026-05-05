@@ -6,29 +6,44 @@ Audit of seed files vs live DB state to ensure migration to new server can repro
 
 ---
 
-## Current State: DB vs Seed Coverage
+## Current State: DB vs Seed Coverage (Updated May 2026)
 
-| Table | DB Count | seed-admin-config.ts | seed.ts | seed-workflows.ts | Gap? |
+| Table | DB Count | seed-admin-config.ts | seed.ts | seed-workflows.ts | Status |
 |---|---|---|---|---|---|
-| ServiceDesk | 3 | - | ✅ 3 (upsert) | - | No |
-| ServiceCategory | 13 | - | ✅ 13 (upsert) | - | No |
-| RequestType | 13 | - | ✅ 13 (code upsert) | - | No |
-| WorkflowType | 8 | - | - | ✅ 8 | No |
-| WorkflowStep | 55 | - | - | ✅ 55 (nested) | No |
-| NotificationTemplate | 32 | ✅ 32 | ✅ 20 (subset) | - | **DUPLICATE** — both files seed same table |
-| RequestStatusDefinition | 82 | ✅ 82 | ✅ ~70 (subset) | - | **DUPLICATE** — both files seed same table |
-| WorkflowTransition | 85 | ✅ 85 | ❌ Not seeded | - | **NOT CONNECTED** |
-| BannerConfig | 43 | ✅ 43 | ✅ 20 (subset) | - | **DUPLICATE** |
-| OnboardingTaskTemplate | 12 | ✅ 12 | ✅ 12 | - | **DUPLICATE** |
-| OffboardingTaskTemplate | 9 | ✅ 9 | ✅ 12 (outdated!) | - | **MISMATCH** — DB=9, seed.ts=12 |
-| EscalationRule | 2 | ✅ 2 | ❌ Not seeded | - | **NOT CONNECTED** |
-| Entity | 5 | - | ✅ 3 (CIT-MY, CIT-SG, CIT-HK) | - | **GAP** — DB has 5 (CG, CGT, CT360, CWP, NIU) |
-| KnowledgeBaseArticle | 16 | - | ✅ 16 (slug upsert) | - | No |
+| ServiceDesk | 3 | - | ✅ 3 (upsert, update:{}) | - | ✅ Safe |
+| ServiceCategory | 13 | - | ✅ 13 (upsert, update:{}) | - | ✅ Safe |
+| RequestType | 13 | - | ✅ 13 (code upsert, update={} on exist) | - | ✅ Fixed — no longer overwrites slaHours/requiresApproval/isActive |
+| WorkflowType | 8 | - | ✅ integrated | ✅ (called from seed.ts) | ✅ Fixed — now integrated, RETAIN_ADMIN_CONFIG-aware |
+| WorkflowStep | 55 | - | ✅ integrated | ✅ (called from seed.ts) | ✅ Fixed — now integrated, RETAIN_ADMIN_CONFIG-aware |
+| NotificationTemplate | 32 | ✅ 32 | ✅ upsert, update:{} | - | ✅ Safe |
+| RequestStatusDefinition | 82 | ✅ 82 | ✅ upsert, update:{} | - | ✅ Safe |
+| WorkflowTransition | 85 | ✅ 85 | ✅ upsert, update:{} | - | ✅ Safe |
+| BannerConfig | 43 | ✅ 43 | ✅ upsert, update:{} | - | ✅ Safe |
+| OnboardingTaskTemplate | 12 | ✅ 12 | ✅ create-only (skip if exists) | - | ✅ Safe |
+| OffboardingTaskTemplate | 9 | ✅ 9 | ✅ create-only (skip if exists) | - | ✅ Safe |
+| EscalationRule | 2 | ✅ 2 | ✅ create-only (skip if exists) | - | ✅ Safe |
+| Entity | 5 | - | ✅ 5 (upsert, update:{}) | - | ✅ Safe (updated from old 3 wrong codes) |
+| KnowledgeBaseArticle | 16 | - | ✅ 16 (slug upsert) | - | ✅ Safe |
 | RequestTypeEntityRouting | 0 | - | - | - | N/A (empty) |
 
 ---
 
-## Critical Finding: seed-admin-config.ts is ORPHANED
+## Fixes Applied (May 2026)
+
+### Fix 1: RequestType no longer overwrites admin-editable fields
+**Problem**: When existing RequestType found by code, seed.ts overwrote `slaHours`, `requiresApproval`, and `isActive` with seed defaults, clobbering admin console edits.
+
+**Fix**: All 3 RequestType update blocks (IT, HR, Finance) now only update the `serviceCategory` link and backfill `code` if missing. Admin-editable fields (name, description, formConfig, slaHours, requiresApproval, isActive) are never touched on existing records.
+
+### Fix 2: seed-workflows.ts integrated into main seed flow
+**Problem**: `seed-workflows.ts` was an orphaned file never called by `npm run prisma:seed`. Fresh DB seeds would miss all WorkflowType + WorkflowStep records.
+
+**Fix**: `seedWorkflows()` is now exported from `seed-workflows.ts`, imported and called from `seed.ts` after RequestTypes are created. It respects the `RETAIN_ADMIN_CONFIG` flag. Existing workflows are never modified.
+
+### Fix 3: RETAIN_ADMIN_CONFIG now covers WorkflowType/Step
+When `RETAIN_ADMIN_CONFIG=true` is set, the new `seedWorkflows()` call skips workflow creation entirely (matching the behavior of all other admin config tables).
+
+---
 
 `seed-admin-config.ts` contains the LATEST DB dump for 6 tables:
 - SEED_NOTIFICATION_TEMPLATES (32 entries)
