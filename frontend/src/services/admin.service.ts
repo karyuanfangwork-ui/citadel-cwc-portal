@@ -124,6 +124,16 @@ export const adminService = {
         const response = await apiClient.post(`/admin/notification-templates/${templateId}/test`);
         return response.data;
     },
+
+    async getEmailNotificationsEnabled(): Promise<boolean> {
+        const response = await apiClient.get('/admin/system-settings/email-notifications-enabled');
+        return response.data.data.enabled as boolean;
+    },
+
+    async setEmailNotificationsEnabled(enabled: boolean): Promise<boolean> {
+        const response = await apiClient.put('/admin/system-settings/email-notifications-enabled', { enabled });
+        return response.data.data.enabled as boolean;
+    },
 };
 
 // ── Shared Types ────────────────────────────────────────────────────
