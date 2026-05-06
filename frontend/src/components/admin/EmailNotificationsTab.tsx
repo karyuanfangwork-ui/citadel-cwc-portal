@@ -31,6 +31,8 @@ export const EmailNotificationsTab: React.FC = () => {
     const [editingEventType, setEditingEventType] = useState<EventTypeInfo | null>(null);
     const [saving, setSaving] = useState(false);
     const [sendingTest, setSendingTest] = useState<string | null>(null);
+    const [globalEmailEnabled, setGlobalEmailEnabled] = useState<boolean>(true);
+    const [togglingGlobal, setTogglingGlobal] = useState(false);
 
     // ── Form state for modal ────────────────────────────────────────
     const [formSubject, setFormSubject] = useState('');
@@ -47,12 +49,14 @@ export const EmailNotificationsTab: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const [tpls, evts] = await Promise.all([
+            const [tpls, evts, emailEnabled] = await Promise.all([
                 adminService.listNotificationTemplates(),
                 adminService.listEventTypes(),
+                adminService.getEmailNotificationsEnabled(),
             ]);
             setTemplates(tpls);
             setEventTypes(evts);
+            setGlobalEmailEnabled(emailEnabled);
         } catch (err: any) {
             setError(err.message || 'Failed to load notification data');
         } finally {
@@ -109,6 +113,20 @@ export const EmailNotificationsTab: React.FC = () => {
             showToast('error', 'Failed to toggle template status');
         }
     }, [showToast]);
+
+    // ── Global email toggle ─────────────────────────────────────────
+    const handleGlobalToggle = useCallback(async () => {
+        setTogglingGlobal(true);
+        try {
+            const newValue = await adminService.setEmailNotificationsEnabled(!globalEmailEnabled);
+            setGlobalEmailEnabled(newValue);
+            showToast('success', newValue ? 'All email notifications enabled' : 'All email notifications paused');
+        } catch {
+            showToast('error', 'Failed to update global email setting');
+        } finally {
+            setTogglingGlobal(false);
+        }
+    }, [globalEmailEnabled, showToast]);
 
     // ── Open edit modal ─────────────────────────────────────────────
     const openEditor = useCallback((evt: EventTypeInfo) => {
@@ -208,6 +226,39 @@ export const EmailNotificationsTab: React.FC = () => {
 
     return (
         <div className="space-y-5">
+            {/* Master email toggle */}
+            <div className={`rounded-2xl border p-5 flex items-center justify-between gap-4 ${globalEmailEnabled ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-300'}`}>
+                <div className="flex items-center gap-3">
+                    <span className={`material-symbols-outlined text-2xl ${globalEmailEnabled ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {globalEmailEnabled ? 'mark_email_read' : 'mail_off'}
+                    </span>
+                    <div>
+                        <p className={`text-sm font-black ${globalEmailEnabled ? 'text-emerald-900' : 'text-amber-900'}`}>
+                            {globalEmailEnabled ? 'Email Notifications Active' : 'Email Notifications Paused'}
+                        </p>
+                        <p className={`text-xs mt-0.5 ${globalEmailEnabled ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {globalEmailEnabled
+                                ? 'All configured email notifications will be sent normally.'
+                                : 'No email notifications are being sent system-wide, regardless of individual template settings.'}
+                        </p>
+                    </div>
+                </div>
+                <button
+                    onClick={handleGlobalToggle}
+                    disabled={togglingGlobal}
+                    className={`relative w-14 h-7 rounded-full transition-colors flex-shrink-0 disabled:opacity-50 ${globalEmailEnabled ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                    title={globalEmailEnabled ? 'Pause all emails' : 'Enable all emails'}
+                >
+                    {togglingGlobal ? (
+                        <span className="absolute inset-0 flex items-center justify-center">
+                            <span className="material-symbols-outlined text-white text-sm animate-spin">progress_activity</span>
+                        </span>
+                    ) : (
+                        <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${globalEmailEnabled ? 'left-8' : 'left-1'}`} />
+                    )}
+                </button>
+            </div>
+
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-4">
                 <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">

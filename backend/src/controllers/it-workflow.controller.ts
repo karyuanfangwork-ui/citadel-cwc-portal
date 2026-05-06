@@ -274,7 +274,7 @@ export async function markHardwareOrdered(req: Request, res: Response) {
 export async function markHardwareReceived(req: Request, res: Response) {
   try {
     const id = String(req.params.id);
-    const { receivedDate, notes, assetTag, serialNumber, registerAsAsset = true } = req.body;
+    const { receivedDate, notes, assetTag, serialNumber, registerAsAsset = false } = req.body;
 
     const request = await prisma.request.findUnique({
       where: { id },

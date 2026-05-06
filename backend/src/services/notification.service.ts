@@ -76,12 +76,14 @@ export async function notify(options: NotifyOptions): Promise<void> {
           : '';
 
         requestVars = {
-          // Primary canonical names the email templates use
+          // Primary display name — human-readable reference (e.g. "IT-5", "HR-12")
           requestId:       relatedReq.referenceNumber,
           requestTitle:    relatedReq.summary,
           // Legacy aliases: some controllers pass referenceNumber/summary instead
           referenceNumber: relatedReq.referenceNumber,
           summary:         relatedReq.summary,
+          // UUID for building links — must NOT be shown to users in display text
+          requestUuid:     relatedRequestId!,
           // Contextual fields
           status:          relatedReq.status,
           priority:        relatedReq.priority ?? '',
@@ -94,13 +96,14 @@ export async function notify(options: NotifyOptions): Promise<void> {
     }
 
     // Merge order (highest precedence last):
-    //   1. Auto-resolved request fields (base)
-    //   2. Caller-supplied variables (override — e.g. newStatus, comments, decision)
+    //   1. Caller-supplied variables (e.g. newStatus, comments, decision)
+    //   2. Auto-resolved request fields — override caller's requestId with
+    //      the human-readable referenceNumber (callers often pass the UUID)
     //   3. Recipient userName (always from DB, not caller)
     //   4. appUrl
     const enrichedVars: Record<string, string> = {
-      ...requestVars,
       ...variables,
+      ...requestVars,
       userName,
       appUrl: variables.appUrl || config.app.url,
     };
