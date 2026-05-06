@@ -1367,3 +1367,11 @@ model AssetAssignment {
   @@index([assetId])
   @@index([userId])
 }
+
+model SystemSetting {
+  key       String   @id @db.VarChar(100)
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("system_settings")
+}
