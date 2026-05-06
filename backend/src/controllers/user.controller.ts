@@ -16,7 +16,7 @@ class UserController {
     /**
      * Get current user profile
      */
-    getMe = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getMe = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const user = await prisma.user.findUnique({
             where: { id: req.user!.id },
             include: {
@@ -66,7 +66,7 @@ class UserController {
     /**
      * Update current user profile
      */
-    updateMe = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    updateMe = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { firstName: rawFirstName, lastName: rawLastName, phone, avatarUrl, department, jobTitle } = req.body;
 
         // Sanitize name fields
@@ -105,7 +105,7 @@ class UserController {
     /**
      * Get user by ID (Admin only)
      */
-    getUserById = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getUserById = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
 
         const user = await prisma.user.findUnique({
@@ -140,7 +140,7 @@ class UserController {
     /**
      * Get all users with pagination and filters (Admin only)
      */
-    getAllUsers = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getAllUsers = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const {
             page = '1',
             limit = '10',
@@ -218,7 +218,7 @@ class UserController {
     /**
      * Update user by ID (Admin only)
      */
-    updateUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    updateUser = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
         const { firstName, lastName, email, phone, department, jobTitle, isActive, managerId, agentTeam, executiveRole, entityId } = req.body;
 
@@ -297,7 +297,7 @@ class UserController {
     /**
      * Get all agents (AGENT or ADMIN roles)
      */
-    getAgents = asyncHandler(async (req: AuthRequest, res: Response) => {
+    getAgents = asyncHandler(async (_req: AuthRequest, res: Response) => {
         const agents = await prisma.user.findMany({
             where: {
                 roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
@@ -319,7 +319,7 @@ class UserController {
     /**
      * Delete user by ID (Admin only)
      */
-    deleteUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    deleteUser = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
 
         // Soft delete by deactivating
@@ -429,7 +429,7 @@ class UserController {
      * Body: { permissionIds: string[] }
      */
     updateRolePermissions = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { roleId } = req.params;
+        const roleId = req.params.roleId as string;
         const { permissionIds } = req.body as { permissionIds: string[] };
 
         if (!Array.isArray(permissionIds)) {
@@ -517,7 +517,7 @@ class UserController {
      * Generates a temporary password, hashes it, updates the user,
      * and revokes all active sessions.
      */
-    resetUserPassword = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    resetUserPassword = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
 
         // Verify user exists

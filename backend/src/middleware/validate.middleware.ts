@@ -1,9 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { AnyZodObject, ZodError } from 'zod';
-import { AppError } from './error.middleware';
 
 export const validate = (schema: AnyZodObject) => {
-    return async (req: Request, res: Response, next: NextFunction) => {
+    return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
         try {
             await schema.parseAsync({
                 body: req.body,
@@ -18,12 +17,13 @@ export const validate = (schema: AnyZodObject) => {
                     message: err.message,
                 }));
 
-                return res.status(400).json({
+                res.status(400).json({
                     status: 'error',
                     statusCode: 400,
                     message: 'Validation failed',
                     errors,
                 });
+                return;
             }
             next(error);
         }

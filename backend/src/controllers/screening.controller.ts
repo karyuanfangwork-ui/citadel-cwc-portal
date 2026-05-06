@@ -66,7 +66,7 @@ export const startHRScreening = async (req: Request, res: Response) => {
         });
 
         // Update request status
-        const updatedRequest = await prisma.request.update({
+        /* unused */ await await prisma.request.update({
             where: { id },
             data: { status: 'HR_SCREENING' }
         });

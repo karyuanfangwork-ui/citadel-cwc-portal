@@ -19,7 +19,7 @@ const CLOSED_STATUSES: RequestStatus[] = [
 ];
 
 class ReportsController {
-    getSummary = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    getSummary = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const [total, openRequests, resolvedRequests, unassignedRequests, avgResolution] = await Promise.all([
                 // Total tickets
@@ -87,7 +87,7 @@ class ReportsController {
         }
     };
 
-    byStatus = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    byStatus = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const grouped = await prisma.request.groupBy({
                 by: ['status'],
@@ -107,7 +107,7 @@ class ReportsController {
         }
     };
 
-    byServiceDesk = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    byServiceDesk = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const grouped = await prisma.request.groupBy({
                 by: ['serviceDeskId'],
@@ -144,7 +144,7 @@ class ReportsController {
         }
     };
 
-    byPriority = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    byPriority = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const grouped = await prisma.request.groupBy({
                 by: ['priority'],
@@ -164,7 +164,7 @@ class ReportsController {
         }
     };
 
-    agentWorkload = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    agentWorkload = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const grouped = await prisma.request.groupBy({
                 by: ['assignedToId'],
@@ -205,7 +205,7 @@ class ReportsController {
         }
     };
 
-    slaStatus = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    slaStatus = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const now = new Date();
             const openFilter = {

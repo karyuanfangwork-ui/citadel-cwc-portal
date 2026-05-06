@@ -88,10 +88,10 @@ const s3 = new S3Client({
 const storage = multerS3({
   s3: s3,
   bucket: config.s3.bucket,
-  metadata: (req, file, cb) => {
+  metadata: (_req, file, cb) => {
     cb(null, { fieldName: file.fieldname });
   },
-  key: (req, file, cb) => {
+  key: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     const uuid = crypto.randomUUID();
     cb(null, `cwc/${uuid}${ext}`);

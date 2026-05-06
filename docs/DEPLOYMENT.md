@@ -303,7 +303,7 @@ Internet
 
 ### C.2 Update Nginx Config for HTTP Only
 
-Create `/home/deploy/citadel-cwc-portal/nginx/conf.d/default.conf`:
+Create `/var/www/citadel-cwc-portal/nginx/conf.d/default.conf`:
 
 ```nginx
 server {
@@ -435,7 +435,7 @@ sudo ufw enable
 ### C.5 Deploy (Skip SSL Step)
 
 ```bash
-cd /home/deploy/citadel-cwc-portal
+cd /var/www/citadel-cwc-portal
 
 # Skip the certbot command — go straight to:
 docker compose -f docker-compose.prod.yml up -d --build
@@ -475,7 +475,7 @@ docker run --rm \
   --webroot \
   -w /var/www/certbot \
   -d cwc.citadelgroup.com.my \
-  --email admin@citadelgroup.com.my \
+  --email karyuan.fang@citadelgroup.com.my \
   --agree-tos \
   --no-eff-email
 ```
@@ -525,11 +525,11 @@ adduser deploy
 usermod -aG sudo deploy
 
 # Copy SSH key
-mkdir -p /home/deploy/.ssh
-cp ~/.ssh/authorized_keys /home/deploy/.ssh/
-chown -R deploy:deploy /home/deploy/.ssh
-chmod 700 /home/deploy/.ssh
-chmod 600 /home/deploy/.ssh/authorized_keys
+mkdir -p /root/.ssh
+cp ~/.ssh/authorized_keys /root/.ssh/
+chown -R root:root /root/.ssh
+chmod 700 /root/.ssh
+chmod 600 /root/.ssh/authorized_keys
 
 # Switch to deploy user
 su - deploy
@@ -547,7 +547,7 @@ sudo apt install -y docker-compose-plugin
 
 # Verify (log out and back in for group change to take effect)
 exit
-ssh deploy@YOUR_DROPLET_IP
+ssh root@YOUR_DROPLET_IP
 docker --version
 docker compose version
 ```
@@ -555,14 +555,14 @@ docker compose version
 ### A.3 Clone Repository
 
 ```bash
-cd /home/deploy
+cd /var/www
 git clone https://github.com/karyuanfangwork-ui/citadel-cwc-portal.git
 cd citadel-cwc-portal
 ```
 
 ### A.4 Create Environment File
 
-Create `/home/deploy/citadel-cwc-portal/.env`:
+Create `/var/www/citadel-cwc-portal/.env`:
 
 ```bash
 # ================================================================
@@ -629,12 +629,12 @@ VITE_API_URL=https://cwc.citadelgroup.com.my/api/v1
 
 Secure it:
 ```bash
-chmod 600 /home/deploy/citadel-cwc-portal/.env
+chmod 600 /var/www/citadel-cwc-portal/.env
 ```
 
 ### A.5 Configure Nginx for SSL
 
-Create `/home/deploy/citadel-cwc-portal/nginx/conf.d/default.conf`:
+Create `/var/www/citadel-cwc-portal/nginx/conf.d/default.conf`:
 
 ```nginx
 server {
@@ -722,7 +722,7 @@ docker run --rm \
   --webroot \
   -w /var/www/certbot \
   -d cwc.citadelgroup.com.my \
-  --email admin@citadelgroup.com.my \
+  --email karyuan.fang@citadelgroup.com.my \
   --agree-tos \
   --no-eff-email
 ```
@@ -730,7 +730,7 @@ docker run --rm \
 ### A.7 Start All Services
 
 ```bash
-cd /home/deploy/citadel-cwc-portal
+cd /var/www/citadel-cwc-portal
 
 # Build and start all containers
 docker compose -f docker-compose.prod.yml up -d --build
@@ -810,10 +810,10 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 ```bash
 # 1. SSH into server
-ssh deploy@cwc.citadelgroup.com.my
+ssh root@cwc.citadelgroup.com.my
 
 # 2. Pull latest code
-cd /home/deploy/citadel-cwc-portal
+cd /var/www/citadel-cwc-portal
 git pull origin main
 
 # 3. Rebuild and restart
@@ -896,11 +896,11 @@ adduser deploy
 usermod -aG sudo deploy
 
 # Copy SSH key for deploy user
-mkdir -p /home/deploy/.ssh
-cp ~/.ssh/authorized_keys /home/deploy/.ssh/
-chown -R deploy:deploy /home/deploy/.ssh
-chmod 700 /home/deploy/.ssh
-chmod 600 /home/deploy/.ssh/authorized_keys
+mkdir -p /root/.ssh
+cp ~/.ssh/authorized_keys /root/.ssh/
+chown -R root:root /root/.ssh
+chmod 700 /root/.ssh
+chmod 600 /root/.ssh/authorized_keys
 
 # Switch to deploy user
 su - deploy
@@ -1051,7 +1051,7 @@ redis-cli -a CHANGE_THIS_REDIS_PASSWORD ping
 ### 6.1 Clone the Repository
 
 ```bash
-cd /home/deploy
+cd /var/www
 git clone https://github.com/karyuanfangwork-ui/citadel-cwc-portal.git
 cd citadel-cwc-portal
 ```
@@ -1059,7 +1059,7 @@ cd citadel-cwc-portal
 ### 6.2 Install Backend Dependencies
 
 ```bash
-cd /home/deploy/citadel-cwc-portal/backend
+cd /var/www/citadel-cwc-portal/backend
 npm ci
 npx prisma generate
 ```
@@ -1067,7 +1067,7 @@ npx prisma generate
 ### 6.3 Install Frontend Dependencies
 
 ```bash
-cd /home/deploy/citadel-cwc-portal/frontend
+cd /var/www/citadel-cwc-portal/frontend
 npm ci
 ```
 
@@ -1077,7 +1077,7 @@ npm ci
 
 ### 7.1 Backend `.env` (CRITICAL)
 
-Create `/home/deploy/citadel-cwc-portal/backend/.env`:
+Create `/var/www/citadel-cwc-portal/backend/.env`:
 
 ```env
 # ================================================================
@@ -1157,7 +1157,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 ### 7.2 Frontend `.env`
 
-Create `/home/deploy/citadel-cwc-portal/frontend/.env.production`:
+Create `/var/www/citadel-cwc-portal/frontend/.env.production`:
 
 ```env
 VITE_API_URL=https://cwc.citadelgroup.com.my/api/v1
@@ -1169,8 +1169,8 @@ without rebuilding the frontend.
 ### 7.3 Secure the .env Files
 
 ```bash
-chmod 600 /home/deploy/citadel-cwc-portal/backend/.env
-chmod 600 /home/deploy/citadel-cwc-portal/frontend/.env.production
+chmod 600 /var/www/citadel-cwc-portal/backend/.env
+chmod 600 /var/www/citadel-cwc-portal/frontend/.env.production
 ```
 
 ---
@@ -1180,7 +1180,7 @@ chmod 600 /home/deploy/citadel-cwc-portal/frontend/.env.production
 ### 8.1 Run Migrations
 
 ```bash
-cd /home/deploy/citadel-cwc-portal/backend
+cd /var/www/citadel-cwc-portal/backend
 npx prisma migrate deploy
 ```
 
@@ -1189,7 +1189,7 @@ This applies all 29 migrations in order. **Do NOT use `prisma migrate dev`** in 
 ### 8.2 Seed Database (Fresh Install)
 
 ```bash
-cd /home/deploy/citadel-cwc-portal/backend
+cd /var/www/citadel-cwc-portal/backend
 npm run prisma:seed
 ```
 
@@ -1252,7 +1252,7 @@ pg_dump -U postgres -d help_center -F c \
   -f /tmp/cwc_admin_config_only.backup
 
 # Transfer to server
-scp /tmp/cwc_local_dump.backup deploy@YOUR_DROPLET_IP:/tmp/
+scp /tmp/cwc_local_dump.backup root@YOUR_DROPLET_IP:/tmp/
 ```
 
 **On the SERVER:**
@@ -1288,7 +1288,7 @@ cd /Users/fangkaryuan/cwc2.0/citadel-cwc-portal/backend
 
 **On the SERVER** (use RETAIN_ADMIN_CONFIG flag):
 ```bash
-cd /home/deploy/citadel-cwc-portal/backend
+cd /var/www/citadel-cwc-portal/backend
 
 # First seed: load everything (admin config from seed-admin-config.ts)
 npm run prisma:seed
@@ -1396,7 +1396,7 @@ These are the tables that hold admin console configuration:
 ### 10.1 Build Frontend
 
 ```bash
-cd /home/deploy/citadel-cwc-portal/frontend
+cd /var/www/citadel-cwc-portal/frontend
 
 # Make sure .env.production exists with VITE_API_URL
 npm run build
@@ -1407,7 +1407,7 @@ This outputs static files to `frontend/dist/`.
 ### 10.2 Build Backend
 
 ```bash
-cd /home/deploy/citadel-cwc-portal/backend
+cd /var/www/citadel-cwc-portal/backend
 npm run build
 ```
 
@@ -1416,7 +1416,7 @@ This compiles TypeScript to `backend/dist/`.
 ### 10.3 Create Required Directories
 
 ```bash
-cd /home/deploy/citadel-cwc-portal/backend
+cd /var/www/citadel-cwc-portal/backend
 mkdir -p uploads logs
 ```
 
@@ -1479,7 +1479,7 @@ server {
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
     # ---- Frontend (Static Files) ----
-    root /home/deploy/citadel-cwc-portal/frontend/dist;
+    root /var/www/citadel-cwc-portal/frontend/dist;
     index index.html;
 
     # Gzip compression
@@ -1574,7 +1574,7 @@ sudo certbot certonly \
   --webroot \
   -w /var/www/certbot \
   -d cwc.citadelgroup.com.my \
-  --email admin@citadelgroup.com.my \
+  --email karyuan.fang@citadelgroup.com.my \
   --agree-tos \
   --no-eff-email
 
@@ -1605,7 +1605,7 @@ sudo systemctl list-timers | grep certbot
 ### 13.1 Start the Backend
 
 ```bash
-cd /home/deploy/citadel-cwc-portal/backend
+cd /var/www/citadel-cwc-portal/backend
 
 # Start with PM2
 pm2 start dist/index.js \
@@ -1621,7 +1621,7 @@ pm2 startup
 
 ### 13.2 PM2 Ecosystem Config (Alternative)
 
-Create `/home/deploy/citadel-cwc-portal/ecosystem.config.js`:
+Create `/var/www/citadel-cwc-portal/ecosystem.config.js`:
 
 ```javascript
 module.exports = {
@@ -1629,7 +1629,7 @@ module.exports = {
     {
       name: 'cwc-backend',
       script: 'dist/index.js',
-      cwd: '/home/deploy/citadel-cwc-portal/backend',
+      cwd: '/var/www/citadel-cwc-portal/backend',
       instances: 1,
       exec_mode: 'fork',
       node_args: '--max-old-space-size=512',
@@ -1641,8 +1641,8 @@ module.exports = {
       max_restarts: 10,
       restart_delay: 5000,
       // Logs
-      error_file: '/home/deploy/citadel-cwc-portal/backend/logs/pm2-error.log',
-      out_file: '/home/deploy/citadel-cwc-portal/backend/logs/pm2-out.log',
+      error_file: '/var/www/citadel-cwc-portal/backend/logs/pm2-error.log',
+      out_file: '/var/www/citadel-cwc-portal/backend/logs/pm2-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       // Graceful shutdown
@@ -1680,10 +1680,10 @@ After initial setup, use this workflow for updates:
 
 ```bash
 # 1. SSH into server
-ssh deploy@cwc.citadelgroup.com.my
+ssh root@cwc.citadelgroup.com.my
 
 # 2. Pull latest code
-cd /home/deploy/citadel-cwc-portal
+cd /var/www/citadel-cwc-portal
 git pull origin main
 
 # 3. Backend: install deps + build + migrate
@@ -1713,14 +1713,14 @@ curl -s https://cwc.citadelgroup.com.my/health | jq
 The project includes `scripts/backup-db.sh`. Adapt it for native PostgreSQL:
 
 ```bash
-sudo nano /home/deploy/citadel-cwc-portal/scripts/backup-db-native.sh
+sudo nano /var/www/citadel-cwc-portal/scripts/backup-db-native.sh
 ```
 
 ```bash
 #!/bin/bash
 set -euo pipefail
 
-BACKUP_DIR="${BACKUP_DIR:-/home/deploy/backups}"
+BACKUP_DIR="${BACKUP_DIR:-/var/www/backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-30}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="${BACKUP_DIR}/help_center_${TIMESTAMP}.sql.gz"
@@ -1746,7 +1746,7 @@ echo "[$(date)] Backup complete."
 ```
 
 ```bash
-chmod +x /home/deploy/citadel-cwc-portal/scripts/backup-db-native.sh
+chmod +x /var/www/citadel-cwc-portal/scripts/backup-db-native.sh
 ```
 
 ### 15.2 Schedule Daily Backups
@@ -1754,14 +1754,14 @@ chmod +x /home/deploy/citadel-cwc-portal/scripts/backup-db-native.sh
 ```bash
 # Add pg_password to .pgpass for non-interactive backup
 echo "localhost:5432:help_center:cwc_admin:CHANGE_THIS_STRONG_PASSWORD" | \
-  sudo tee /home/deploy/.pgpass
-sudo chmod 600 /home/deploy/.pgpass
-sudo chown deploy:deploy /home/deploy/.pgpass
+  sudo tee /root/.pgpass
+sudo chmod 600 /root/.pgpass
+
 
 # Add to crontab (daily at 2 AM)
 crontab -e
 # Add:
-0 2 * * * /home/deploy/citadel-cwc-portal/scripts/backup-db-native.sh >> /home/deploy/logs/backup.log 2>&1
+0 2 * * * /var/www/citadel-cwc-portal/scripts/backup-db-native.sh >> /var/www/logs/backup.log 2>&1
 ```
 
 ### 15.3 Off-Site Backup (DigitalOcean Spaces)
@@ -1777,7 +1777,7 @@ s3cmd --configure
 # Secret Key: YOUR_S3_SECRET_KEY
 
 # Upload backup to Spaces
-s3cmd put /home/deploy/backups/help_center_*.sql.gz \
+s3cmd put /var/www/backups/help_center_*.sql.gz \
   s3://citadel-super-app/backups/
 ```
 
@@ -1861,7 +1861,7 @@ pm2 logs cwc-backend --lines 50
 # - Port 3000 in use → lsof -i :3000
 
 # Run backend manually for debugging
-cd /home/deploy/citadel-cwc-portal/backend
+cd /var/www/citadel-cwc-portal/backend
 NODE_ENV=production node dist/index.js
 ```
 
@@ -1895,13 +1895,13 @@ sudo grep "^bind" /etc/redis/redis.conf
 
 ```bash
 # Check that dist/ was built
-ls -la /home/deploy/citadel-cwc-portal/frontend/dist/
+ls -la /var/www/citadel-cwc-portal/frontend/dist/
 
 # Check index.html references correct asset paths
-cat /home/deploy/citadel-cwc-portal/frontend/dist/index.html | head -20
+cat /var/www/citadel-cwc-portal/frontend/dist/index.html | head -20
 
 # Verify VITE_API_URL was set during build
-grep -r "api/v1" /home/deploy/citadel-cwc-portal/frontend/dist/assets/*.js | head -3
+grep -r "api/v1" /var/www/citadel-cwc-portal/frontend/dist/assets/*.js | head -3
 # Should show: https://cwc.citadelgroup.com.my/api/v1
 ```
 
@@ -1909,7 +1909,7 @@ grep -r "api/v1" /home/deploy/citadel-cwc-portal/frontend/dist/assets/*.js | hea
 
 ```bash
 # Check backend .env has correct CORS_ORIGIN
-grep CORS_ORIGIN /home/deploy/citadel-cwc-portal/backend/.env
+grep CORS_ORIGIN /var/www/citadel-cwc-portal/backend/.env
 # Must be: CORS_ORIGIN=https://cwc.citadelgroup.com.my
 
 # Check Nginx is passing correct headers
@@ -1937,7 +1937,7 @@ sudo nginx -t
 
 ```bash
 # Verify S3 config
-grep "S3_" /home/deploy/citadel-cwc-portal/backend/.env
+grep "S3_" /var/www/citadel-cwc-portal/backend/.env
 
 # Test S3 connection from server
 node -e "
@@ -1971,14 +1971,14 @@ s3.send(new ListBucketsCommand({})).then(r => console.log(r)).catch(e => console
 
 | Path | Purpose |
 |------|---------|
-| `/home/deploy/citadel-cwc-portal/` | Application root |
-| `/home/deploy/citadel-cwc-portal/backend/` | Backend |
-| `/home/deploy/citadel-cwc-portal/frontend/dist/` | Frontend static build |
-| `/home/deploy/citadel-cwc-portal/backend/.env` | Backend env vars |
-| `/home/deploy/citadel-cwc-portal/frontend/.env.production` | Frontend env vars |
-| `/home/deploy/citadel-cwc-portal/backend/uploads/` | Uploaded files (if local storage) |
-| `/home/deploy/citadel-cwc-portal/backend/logs/` | Application logs |
-| `/home/deploy/backups/` | Database backups |
+| `/var/www/citadel-cwc-portal/` | Application root |
+| `/var/www/citadel-cwc-portal/backend/` | Backend |
+| `/var/www/citadel-cwc-portal/frontend/dist/` | Frontend static build |
+| `/var/www/citadel-cwc-portal/backend/.env` | Backend env vars |
+| `/var/www/citadel-cwc-portal/frontend/.env.production` | Frontend env vars |
+| `/var/www/citadel-cwc-portal/backend/uploads/` | Uploaded files (if local storage) |
+| `/var/www/citadel-cwc-portal/backend/logs/` | Application logs |
+| `/var/www/backups/` | Database backups |
 | `/etc/nginx/sites-available/cwc` | Nginx config |
 | `/etc/letsencrypt/live/cwc.citadelgroup.com.my/` | SSL certs |
 

@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 // @desc    Get all workflow types
 // @route   GET /api/v1/admin/workflows
 // @access  Private (Admin only)
-export const getWorkflowTypes = asyncHandler(async (req: Request, res: Response) => {
+export const getWorkflowTypes = asyncHandler(async (_req: Request, res: Response) => {
     const workflows = await prisma.workflowType.findMany({
         include: {
             steps: {

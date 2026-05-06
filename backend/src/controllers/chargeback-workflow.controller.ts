@@ -20,7 +20,7 @@ async function logActivity(requestId: string, message: string, authorId?: string
 }
 
 /** POST /chargeback-workflow/requests/:id/submit — Submit chargeback to From Entity approver */
-export const submitChargeback = async (req: Request, res: Response): Promise<void> => {
+export const submitChargeback = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const userId = (req as any).user?.id;
@@ -96,7 +96,7 @@ export const submitChargeback = async (req: Request, res: Response): Promise<voi
 };
 
 /** POST /chargeback-workflow/requests/:id/from-entity-decision */
-export const fromEntityDecision = async (req: Request, res: Response): Promise<void> => {
+export const fromEntityDecision = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { decision, comments } = req.body;
@@ -214,7 +214,7 @@ export const fromEntityDecision = async (req: Request, res: Response): Promise<v
 };
 
 /** POST /chargeback-workflow/requests/:id/to-entity-decision */
-export const toEntityDecision = async (req: Request, res: Response): Promise<void> => {
+export const toEntityDecision = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { decision, comments } = req.body;
@@ -293,7 +293,7 @@ export const toEntityDecision = async (req: Request, res: Response): Promise<voi
 };
 
 /** POST /chargeback-workflow/requests/:id/mark-confirmed */
-export const markConfirmed = async (req: Request, res: Response): Promise<void> => {
+export const markConfirmed = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { notes } = req.body;
@@ -331,7 +331,7 @@ export const markConfirmed = async (req: Request, res: Response): Promise<void> 
 };
 
 /** POST /chargeback-workflow/requests/:id/complete */
-export const completeChargeback = async (req: Request, res: Response): Promise<void> => {
+export const completeChargeback = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const userId = (req as any).user?.id;

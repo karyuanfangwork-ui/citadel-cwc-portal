@@ -10,7 +10,7 @@ const prisma = new PrismaClient();
  * Route request to CEO for approval
  * POST /requests/:id/route-to-ceo
  */
-export const routeToCEO = async (req: Request, res: Response): Promise<void> => {
+export const routeToCEO = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { comments, ceoId } = req.body;
@@ -98,7 +98,7 @@ export const routeToCEO = async (req: Request, res: Response): Promise<void> => 
  * CEO approve or reject request
  * POST /requests/:id/ceo-decision
  */
-export const ceoDecision = async (req: Request, res: Response): Promise<void> => {
+export const ceoDecision = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { decision, comments } = req.body; // decision: 'APPROVED' | 'REJECTED'
@@ -209,7 +209,7 @@ export const ceoDecision = async (req: Request, res: Response): Promise<void> =>
  * Mark request as job posted
  * POST /requests/:id/mark-job-posted
  */
-export const markJobPosted = async (req: Request, res: Response): Promise<void> => {
+export const markJobPosted = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { jobPostingUrl, notes } = req.body;
@@ -280,7 +280,7 @@ export const markJobPosted = async (req: Request, res: Response): Promise<void> 
  * Route request to hiring manager for review
  * POST /requests/:id/route-to-manager
  */
-export const routeToManager = async (req: Request, res: Response): Promise<void> => {
+export const routeToManager = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { comments } = req.body;
@@ -311,7 +311,7 @@ export const routeToManager = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        if (request.candidateResumes.length === 0) {
+        if ((request as any).candidateResumes.length === 0) {
             res.status(400).json({
                 status: 'error',
                 message: 'At least one candidate resume must be uploaded before routing to manager'
@@ -347,7 +347,7 @@ export const routeToManager = async (req: Request, res: Response): Promise<void>
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'ASSIGNMENT',
-                message: `Request routed to ${request.requester.firstName} ${request.requester.lastName} (Hiring Manager) for candidate review. ${request.candidateResumes.length} candidate(s) submitted.${comments ? ' ' + comments : ''}`,
+                message: `Request routed to ${request.requester.firstName} ${request.requester.lastName} (Hiring Manager) for candidate review. ${(request as any).candidateResumes.length} candidate(s) submitted.${comments ? ' ' + comments : ''}`,
                 isSystemGenerated: true
             }
         });
@@ -362,7 +362,7 @@ export const routeToManager = async (req: Request, res: Response): Promise<void>
     await pauseSla(id);
 
         // Transform BigInt to string in candidateResumes for JSON serialization
-        const serializedResumes = request.candidateResumes.map((resume: any) => ({
+        const serializedResumes = (request as any).candidateResumes.map((resume: any) => ({
             ...resume,
             fileSize: resume.fileSize.toString()
         }));
@@ -387,7 +387,7 @@ export const routeToManager = async (req: Request, res: Response): Promise<void>
  * Hiring manager approve or request changes
  * POST /requests/:id/manager-decision
  */
-export const managerDecision = async (req: Request, res: Response): Promise<void> => {
+export const managerDecision = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { decision, selectedCandidateId, comments } = req.body;
@@ -464,7 +464,7 @@ export const managerDecision = async (req: Request, res: Response): Promise<void
         // If approved and candidate selected, store in customFields
         const customFields = request.customFields as any || {};
         if (decision === 'APPROVED' && selectedCandidateId) {
-            const selectedCandidate = request.candidateResumes.find((r: any) => r.id === selectedCandidateId);
+            const selectedCandidate = (request as any).candidateResumes.find((r: any) => r.id === selectedCandidateId);
             if (selectedCandidate) {
                 customFields.selectedCandidateId = selectedCandidateId;
                 customFields.selectedCandidateName = selectedCandidate.candidateName || 'Unknown Candidate';
@@ -507,7 +507,7 @@ export const managerDecision = async (req: Request, res: Response): Promise<void
     await resumeSla(id);
 
         // Transform BigInt to string in candidateResumes for JSON serialization
-        const serializedResumes = updatedRequest.candidateResumes?.map((resume: any) => ({
+        const serializedResumes = (updatedRequest as any).candidateResumes?.map((resume: any) => ({
             ...resume,
             fileSize: resume.fileSize.toString()
         })) || [];
@@ -532,9 +532,8 @@ export const managerDecision = async (req: Request, res: Response): Promise<void
  * Entity approver approve or reject request
  * POST /requests/:id/entity-decision
  */
-export const entityDecision = async (req: Request, res: Response): Promise<void> => {
+export const entityDecision = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
         const { approvalId, decision, comments } = req.body;
         const userId = (req as any).user?.id;
 

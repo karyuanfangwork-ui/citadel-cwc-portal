@@ -215,7 +215,7 @@ export async function markHardwareOrdered(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
     }
 
-    if (request.serviceDesk.code !== 'IT') {
+    if (request.serviceDesk!.code !== 'IT') {
       return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     }
 
@@ -292,7 +292,7 @@ export async function markHardwareReceived(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
     }
 
-    if (request.serviceDesk.code !== 'IT') {
+    if (request.serviceDesk!.code !== 'IT') {
       return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     }
 
@@ -406,7 +406,7 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
       return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
     }
 
-    if (request.serviceDesk.code !== 'IT') {
+    if (request.serviceDesk!.code !== 'IT') {
       return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     }
 

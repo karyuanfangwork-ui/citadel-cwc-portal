@@ -14,7 +14,7 @@ export const escalationRuleController = {
     res.json({ data: { rules } });
   }),
 
-  create: asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
+  create: asyncHandler(async (req: AuthRequest, res: Response) => {
     const { requestTypeId, notifyRoles, label } = req.body;
     let { triggerHoursAfterBreach } = req.body;
     if (!requestTypeId || triggerHoursAfterBreach == null || !Array.isArray(notifyRoles)) {

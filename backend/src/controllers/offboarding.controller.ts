@@ -12,7 +12,7 @@ export const resignationUpload = { single: (field: string) => uploadSingleFile(f
 
 export const createOffboardingRequest = async (req: Request, res: Response) => {
     try {
-        const { id: requestId } = req.params;
+        const { id: requestId }  = req.params as Record<string, string>;
         const { employeeFirstName, employeeLastName, employeeEmail, department, managerId, lastWorkingDay, reasonForDeparture } = req.body;
         const request = await prisma.request.findUnique({ where: { id: requestId } });
         if (!request) return res.status(404).json({ error: 'Request not found' });
@@ -49,7 +49,7 @@ export const createOffboardingRequest = async (req: Request, res: Response) => {
 
 export const getOffboardingRequest = async (req: Request, res: Response) => {
     try {
-        const { id: requestId } = req.params;
+        const { id: requestId }  = req.params as Record<string, string>;
         const offboarding = await prisma.offboardingRequest.findUnique({
             where: { requestId },
             include: {
@@ -72,7 +72,7 @@ export const getOffboardingRequest = async (req: Request, res: Response) => {
 
 export const updateOffboardingStatus = async (req: Request, res: Response) => {
     try {
-        const { id: requestId } = req.params;
+        const { id: requestId }  = req.params as Record<string, string>;
         const { overallStatus, currentPhase, exitInterviewScheduledDate, ...rest } = req.body;
         const user = (req as any).user;
 
@@ -216,7 +216,7 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
 
 export const createOffboardingTask = async (req: Request, res: Response) => {
     try {
-        const { id: requestId } = req.params;
+        const { id: requestId }  = req.params as Record<string, string>;
         const { taskName, taskDescription, taskCategory, assignedTo, dueDate, priority } = req.body;
         const offboarding = await prisma.offboardingRequest.findUnique({ where: { requestId } });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
@@ -243,7 +243,7 @@ export const createOffboardingTask = async (req: Request, res: Response) => {
 
 export const getOffboardingTasks = async (req: Request, res: Response) => {
     try {
-        const { id: requestId } = req.params;
+        const { id: requestId }  = req.params as Record<string, string>;
         const offboarding = await prisma.offboardingRequest.findUnique({
             where: { requestId },
             select: { id: true },
@@ -266,7 +266,7 @@ export const getOffboardingTasks = async (req: Request, res: Response) => {
 
 export const updateOffboardingTask = async (req: Request, res: Response) => {
     try {
-        const { taskId } = req.params;
+        const { taskId }  = req.params as Record<string, string>;
         const { status, completedBy, notes, ...updates } = req.body;
         const userRoles = (req as any).user?.roles || [];
         const task = await prisma.offboardingTask.findUnique({
@@ -313,7 +313,7 @@ export const updateOffboardingTask = async (req: Request, res: Response) => {
 
 export const deleteOffboardingTask = async (req: Request, res: Response) => {
     try {
-        const { taskId } = req.params;
+        const { taskId }  = req.params as Record<string, string>;
         await prisma.offboardingTask.delete({ where: { id: taskId } });
         res.status(204).send();
     } catch (error) {
@@ -324,7 +324,7 @@ export const deleteOffboardingTask = async (req: Request, res: Response) => {
 
 export const getOffboardingProgress = async (req: Request, res: Response) => {
     try {
-        const { id: requestId } = req.params;
+        const { id: requestId }  = req.params as Record<string, string>;
         const offboarding = await prisma.offboardingRequest.findUnique({
             where: { requestId },
             include: { tasks: true },
@@ -351,7 +351,7 @@ export const getOffboardingProgress = async (req: Request, res: Response) => {
 
 export const uploadResignationLetter = async (req: Request, res: Response) => {
     try {
-        const { id: requestId } = req.params;
+        const { id: requestId }  = req.params as Record<string, string>;
         const file = (req as any).file;
         const userId = (req as any).user?.id;
         const userName = `${(req as any).user?.firstName || ''} ${(req as any).user?.lastName || ''}`.trim();
@@ -387,7 +387,7 @@ export const uploadResignationLetter = async (req: Request, res: Response) => {
 
 export const deleteResignationLetter = async (req: Request, res: Response) => {
     try {
-        const { id: requestId } = req.params;
+        const { id: requestId }  = req.params as Record<string, string>;
         const offboarding = await prisma.offboardingRequest.findUnique({ where: { requestId } });
         if (!offboarding) return res.status(404).json({ error: 'Offboarding request not found' });
         if (offboarding.resignationLetterUrl) {

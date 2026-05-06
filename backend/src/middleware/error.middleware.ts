@@ -18,18 +18,16 @@ export const errorHandler = (
     err: Error | AppError,
     req: Request,
     res: Response,
-    next: NextFunction
+    _next: NextFunction
 ) => {
     // Default error values
     let statusCode = 500;
     let message = 'Internal Server Error';
-    let isOperational = false;
 
     // Check if it's our custom AppError
     if (err instanceof AppError) {
         statusCode = err.statusCode;
         message = err.message;
-        isOperational = err.isOperational;
     }
 
     // Log error
@@ -55,7 +53,8 @@ export const errorHandler = (
 };
 
 // Async error wrapper
-export const asyncHandler = (fn: Function) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<any> | any) => {
     return (req: Request, res: Response, next: NextFunction) => {
         Promise.resolve(fn(req, res, next)).catch(next);
     };

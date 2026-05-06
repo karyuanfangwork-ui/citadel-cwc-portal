@@ -24,7 +24,7 @@ async function logActivity(requestId: string, message: string, authorId?: string
 }
 
 /** POST /finance-workflow/requests/:id/acknowledge */
-export const acknowledge = async (req: Request, res: Response): Promise<void> => {
+export const acknowledge = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { notes } = req.body;
@@ -56,7 +56,7 @@ export const acknowledge = async (req: Request, res: Response): Promise<void> =>
 };
 
 /** POST /finance-workflow/requests/:id/set-finalized-amount */
-export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response): Promise<void> => {
+export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { finalizedAmount, notes } = req.body;
@@ -100,7 +100,7 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
 };
 
 /** POST /finance-workflow/requests/:id/cfo-decision */
-export const cfoDecision = async (req: Request, res: Response): Promise<void> => {
+export const cfoDecision = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { decision, comments } = req.body;
@@ -158,7 +158,7 @@ export const cfoDecision = async (req: Request, res: Response): Promise<void> =>
 };
 
 /** POST /finance-workflow/requests/:id/group-ceo-decision */
-export const groupCeoDecision = async (req: Request, res: Response): Promise<void> => {
+export const groupCeoDecision = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { decision, comments } = req.body;
@@ -204,7 +204,7 @@ export const groupCeoDecision = async (req: Request, res: Response): Promise<voi
 };
 
 /** POST /finance-workflow/requests/:id/mark-payment-complete */
-export const markPaymentComplete = async (req: Request, res: Response): Promise<void> => {
+export const markPaymentComplete = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { paymentReference, notes } = req.body;
@@ -240,7 +240,7 @@ export const markPaymentComplete = async (req: Request, res: Response): Promise<
 };
 
 /** POST /finance-workflow/requests/:id/close */
-export const closeTicket = async (req: Request, res: Response): Promise<void> => {
+export const closeTicket = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
 
@@ -273,7 +273,7 @@ export const closeTicket = async (req: Request, res: Response): Promise<void> =>
 // ─── Expense Reimbursement Workflow Endpoints ───
 
 /** POST /finance-workflow/requests/:id/manager-approve-expense */
-export const managerApproveExpense = async (req: Request, res: Response): Promise<void> => {
+export const managerApproveExpense = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { comments } = req.body;
@@ -317,7 +317,7 @@ export const managerApproveExpense = async (req: Request, res: Response): Promis
 };
 
 /** POST /finance-workflow/requests/:id/manager-reject-expense */
-export const managerRejectExpense = async (req: Request, res: Response): Promise<void> => {
+export const managerRejectExpense = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { comments } = req.body;
@@ -361,7 +361,7 @@ export const managerRejectExpense = async (req: Request, res: Response): Promise
 };
 
 /** POST /finance-workflow/requests/:id/finance-head-approve-expense */
-export const financeHeadApproveExpense = async (req: Request, res: Response): Promise<void> => {
+export const financeHeadApproveExpense = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { comments } = req.body;
@@ -405,7 +405,7 @@ export const financeHeadApproveExpense = async (req: Request, res: Response): Pr
 };
 
 /** POST /finance-workflow/requests/:id/finance-head-reject-expense */
-export const financeHeadRejectExpense = async (req: Request, res: Response): Promise<void> => {
+export const financeHeadRejectExpense = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { comments } = req.body;
@@ -449,7 +449,7 @@ export const financeHeadRejectExpense = async (req: Request, res: Response): Pro
 };
 
 /** POST /finance-workflow/requests/:id/mark-expense-payment-complete */
-export const markExpensePaymentComplete = async (req: Request, res: Response): Promise<void> => {
+export const markExpensePaymentComplete = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { paymentReference, notes } = req.body;

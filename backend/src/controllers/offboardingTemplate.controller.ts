@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export const listTemplates = async (req: Request, res: Response) => {
+export const listTemplates = async (_req: Request, res: Response) => {
     try {
         const templates = await prisma.offboardingTaskTemplate.findMany({
             orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],

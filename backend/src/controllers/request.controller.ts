@@ -18,7 +18,7 @@ class RequestController {
     /**
      * Get all requests with filters and pagination
      */
-    getAllRequests = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getAllRequests = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const {
             page = '1',
             limit = '10',
@@ -30,7 +30,7 @@ class RequestController {
             search,
             requestTypeId,
             requesterId,
-        } = req.query;
+        }  = req.query as Record<string, string>;
 
         const pageNum = parseInt(page as string, 10);
         const limitNum = parseInt(limit as string, 10);
@@ -261,12 +261,12 @@ class RequestController {
      * Get all requests pending current user's approval
      * GET /api/v1/requests/pending-approvals
      */
-    getPendingApprovals = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getPendingApprovals = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const userId = req.user!.id;
         const userRoles = (req.user as any)?.roles?.map((r: any) => r.role?.name ?? r) ?? [];
         const page = parseInt(req.query.page as string) || 1;
         const limit = parseInt(req.query.limit as string) || 10;
-        const { priority, serviceDeskCode } = req.query;
+        const { priority, serviceDeskCode }  = req.query as Record<string, string>;
 
         // Find pending approvals assigned to this user
         const pendingApprovals = await prisma.requestApproval.findMany({
@@ -363,7 +363,7 @@ class RequestController {
      * Workflow-aware: determines the correct status transition based on
      * the request's current status and the approval's approverType.
      */
-    bulkAction = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    bulkAction = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const userId = req.user!.id;
         const { action, requestIds, comment } = req.body;
 
@@ -595,7 +595,7 @@ class RequestController {
     /**
      * Create a new request
      */
-    createRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    createRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const {
             requestTypeId,
             serviceDeskId,
@@ -1097,7 +1097,7 @@ class RequestController {
     /**
      * Get request by ID
      */
-    getRequestById = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getRequestById = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
 
         const request = await prisma.request.findFirst({
@@ -1282,7 +1282,7 @@ class RequestController {
     /**
      * Update request
      */
-    updateRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    updateRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
         const { summary: rawSummary, description: rawDescription, priority, isConfidential } = req.body;
 
@@ -1336,7 +1336,7 @@ class RequestController {
     /**
      * Delete request (soft delete)
      */
-    deleteRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    deleteRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
 
         const request = await prisma.request.findFirst({
@@ -1366,7 +1366,7 @@ class RequestController {
     /**
      * Get request activities
      */
-    getRequestActivities = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getRequestActivities = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
 
         const request = await prisma.request.findFirst({
@@ -1398,7 +1398,7 @@ class RequestController {
     /**
      * Add activity/comment to request
      */
-    addActivity = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    addActivity = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
         const { message: rawMessage, isInternal } = req.body;
 
@@ -1459,7 +1459,7 @@ class RequestController {
      * Accepts: images (JPG/PNG/GIF/WebP), PDFs, Word docs, Excel, CSV, plain text, ZIP
      * Max size: 10MB | isScanned: false flag set for future virus scanning
      */
-    uploadAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+    uploadAttachment = asyncHandler(async (req: AuthRequest, res: Response, __next: NextFunction) => {
         const id = String(req.params.id);
         const file = req.file;
 
@@ -1513,8 +1513,8 @@ class RequestController {
      * Serves the file from S3 via presigned URL redirect.
      * Sets Content-Disposition header for browser download.
      */
-    downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const { id, attachmentId } = req.params;
+    downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, __next: NextFunction) => {
+        const { id, attachmentId }  = req.params as Record<string, string>;
 
         // Verify the attachment belongs to the request and is not deleted
         const attachment = await prisma.requestAttachment.findFirst({
@@ -1585,8 +1585,8 @@ class RequestController {
     /**
      * Delete attachment
      */
-    deleteAttachment = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id, attachmentId } = req.params;
+    deleteAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { id: _id, attachmentId }  = req.params as Record<string, string>;
 
         await prisma.requestAttachment.update({
             where: { id: attachmentId },
@@ -1602,7 +1602,7 @@ class RequestController {
     /**
      * Assign request to agent
      */
-    assignRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    assignRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
         const { assignedToId } = req.body;
 
@@ -1674,7 +1674,7 @@ class RequestController {
     /**
      * Update request status
      */
-    updateStatus = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    updateStatus = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
         const { status } = req.body;
 

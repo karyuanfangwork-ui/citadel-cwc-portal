@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { notificationController } from '../controllers/notification.controller';
 import { authenticate } from '../middleware/auth.middleware';
-import { sseAuth } from '../middleware/auth.middleware';
 
 const router = Router();
 

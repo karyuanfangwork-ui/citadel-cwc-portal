@@ -1,4 +1,4 @@
-import { Response, NextFunction } from 'express';
+import { Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
@@ -72,7 +72,7 @@ class KBController {
 
         const article = await prisma.knowledgeBaseArticle.findFirst({
             where: {
-                slug,
+                slug: slug as string,
                 isPublished: true,
                 deletedAt: null,
             },

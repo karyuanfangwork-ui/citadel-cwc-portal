@@ -89,8 +89,8 @@ export function getRequiredExecutiveRole(requestType: string, amount?: number): 
  * Admins can assign any executive role without restrictions
  */
 export function validateExecutiveRoleAssignment(
-    user: Pick<User, 'department' | 'jobTitle'>,
-    role: ExecutiveRole
+    _user: Pick<User, 'department' | 'jobTitle'>,
+    _role: ExecutiveRole
 ): { valid: boolean; reason?: string } {
     // No validation - admins can assign executive roles freely
     return { valid: true };
