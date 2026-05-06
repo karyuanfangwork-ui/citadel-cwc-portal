@@ -4,6 +4,12 @@ import api from '../src/services/api';
 import { useAuth } from '../src/context/AuthContext';
 import { useToast } from '../src/context/ToastContext';
 
+/** Check if current user has a specific permission */
+function hasPermission(permissions: string[] | undefined, perm: string): boolean {
+  if (!permissions) return false;
+  return permissions.includes(perm) || permissions.includes('*');
+}
+
 const STATUS_COLORS: Record<AssetStatus, string> = {
   IN_STOCK: 'bg-green-100 text-green-800',
   ASSIGNED: 'bg-blue-100 text-blue-800',
@@ -56,6 +62,7 @@ export default function AssetManagement() {
 
 function AssetRegistryTab() {
   const toast = useToast();
+  const { user } = useAuth();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -66,6 +73,12 @@ function AssetRegistryTab() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Selection & bulk delete
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
+  const canBulkDelete = hasPermission(user?.permissions, 'asset:delete');
 
   const handleExportCsv = async () => {
     setExporting(true);
@@ -105,6 +118,42 @@ function AssetRegistryTab() {
 
   const currentAssignee = (asset: Asset) => asset.assignments?.find(a => !a.returnedAt)?.user;
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === assets.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(assets.map(a => a.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    let failed = 0;
+    for (const id of selectedIds) {
+      try {
+        await assetService.deleteAsset(id);
+      } catch {
+        failed++;
+      }
+    }
+    if (failed === 0) {
+      toast.success('Deleted', `${selectedIds.size} asset${selectedIds.size !== 1 ? 's' : ''} deleted`);
+    } else {
+      toast.error('Partial Failure', `${selectedIds.size - failed} deleted, ${failed} failed`);
+    }
+    setSelectedIds(new Set());
+    setShowBulkDeleteConfirm(false);
+    setBulkDeleting(false);
+    fetchAssets();
+  };
+
   return (
     <div>
       <div className="flex flex-wrap gap-3 mb-4 items-center">
@@ -140,6 +189,40 @@ function AssetRegistryTab() {
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {canBulkDelete && selectedIds.size > 0 && (
+        <div className="mb-3 flex items-center gap-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg">
+          <span className="text-sm text-red-800 font-medium">{selectedIds.size} selected</span>
+          <button
+            onClick={() => setShowBulkDeleteConfirm(true)}
+            disabled={bulkDeleting}
+            className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+          >
+            {bulkDeleting ? 'Deleting...' : 'Delete Selected'}
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Clear Selection
+          </button>
+        </div>
+      )}
+
+      {/* Bulk delete confirmation */}
+      {showBulkDeleteConfirm && (
+        <div className="mb-3 px-4 py-3 bg-red-100 border border-red-300 rounded-lg">
+          <p className="text-sm text-red-800 font-medium">Delete {selectedIds.size} asset{selectedIds.size !== 1 ? 's' : ''}?</p>
+          <p className="text-xs text-red-600 mt-1">This will mark all selected assets as DISPOSED. This action cannot be undone.</p>
+          <div className="flex gap-2 mt-3">
+            <button onClick={() => setShowBulkDeleteConfirm(false)} className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+            <button onClick={handleBulkDelete} disabled={bulkDeleting} className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+              {bulkDeleting ? 'Deleting...' : 'Yes, Delete All'}
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="text-sm text-gray-500 mb-3">{total} asset{total !== 1 ? 's' : ''}</div>
 
       {loading ? (
@@ -151,6 +234,16 @@ function AssetRegistryTab() {
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
               <tr>
+                {canBulkDelete && (
+                  <th className="px-4 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={assets.length > 0 && selectedIds.size === assets.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300"
+                    />
+                  </th>
+                )}
                 {['Asset Tag','Name','Category','Status','Assigned To','Updated',''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                 ))}
@@ -168,7 +261,17 @@ function AssetRegistryTab() {
                   ? asset.assignments.find(a => a.returnedAt)?.user
                   : null;
                 return (
-                  <tr key={asset.id} className="hover:bg-gray-50">
+                  <tr key={asset.id} className={`hover:bg-gray-50 ${selectedIds.has(asset.id) ? 'bg-blue-50' : ''}`}>
+                    {canBulkDelete && (
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(asset.id)}
+                          onChange={() => toggleSelect(asset.id)}
+                          className="rounded border-gray-300"
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-mono font-medium text-gray-900">{asset.assetTag}</td>
                     <td className="px-4 py-3 text-gray-900">{asset.name}</td>
                     <td className="px-4 py-3 text-gray-500">{asset.category}</td>
@@ -492,6 +595,7 @@ function EmployeeAssetsTab() {
 
 function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () => void }) {
   const toast = useToast();
+  const { user } = useAuth();
   const [asset, setAsset] = useState<Asset | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -508,6 +612,10 @@ function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () 
   const [showReturnMenu, setShowReturnMenu] = useState(false);
   const [returning, setReturning] = useState(false);
   const [reassignMode, setReassignMode] = useState(false); // true = reassign (return+assign)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const canDelete = hasPermission(user?.permissions, 'asset:delete');
 
   useEffect(() => {
     assetService.getAsset(assetId).then(a => {
@@ -589,6 +697,20 @@ function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () 
     }
   };
 
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await assetService.deleteAsset(assetId);
+      toast.success('Deleted', `Asset ${asset?.assetTag} has been disposed/deleted`);
+      onClose();
+    } catch (err: any) {
+      toast.error('Error', err?.response?.data?.message || 'Failed to delete asset');
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   const openAssignModal = (reassign = false) => {
     setReassignMode(reassign);
     setAssignQuery('');
@@ -665,9 +787,33 @@ function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () 
             ) : (
               <button onClick={() => setEditing(true)} className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Edit</button>
             )}
+            {canDelete && !editing && (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
+              >
+                Delete
+              </button>
+            )}
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 ml-2 text-xl leading-none">×</button>
           </div>
         </div>
+
+        {/* Delete confirmation */}
+        {showDeleteConfirm && (
+          <div className="px-6 py-3 bg-red-50 border-b border-red-100">
+            <p className="text-sm text-red-800 font-medium">Delete this asset?</p>
+            <p className="text-xs text-red-600 mt-1">
+              This will mark <strong>{asset.assetTag} — {asset.name}</strong> as DISPOSED. This action cannot be undone.
+            </p>
+            <div className="flex gap-2 mt-3">
+              <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
+              <button onClick={handleDelete} disabled={deleting} className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
+                {deleting ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="px-6 py-5 space-y-4">
           <div className="grid grid-cols-2 gap-4 text-sm">

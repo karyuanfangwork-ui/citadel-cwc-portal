@@ -646,9 +646,13 @@ export const ctoDecision = async (req: Request, res: Response) => {
         },
       });
 
-      const agentUsers = await prisma.user.findMany({ where: { roles: { some: { role: { name: { in: ['ADMIN', 'AGENT'] } } } } }, take: 5 });
-      for (const agent of agentUsers) {
-        await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_invoice' }, relatedRequestId: id });
+      // Notify the currently assigned agent (reassignToTeam below will reassign & send REQUEST_ASSIGNED)
+      if (request.assignedToId) {
+        await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_invoice' }, relatedRequestId: id });
+      }
+      // Notify requester that CTO approved
+      if (request.requesterId) {
+        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: 'PENDING_INVOICE_IT', changedBy: 'CTO' }, relatedRequestId: id });
       }
     } else {
       await prisma.request.update({ where: { id }, data: { status: 'CTO_REJECTED_IT' } });
@@ -815,9 +819,13 @@ export const cfoDecision = async (req: Request, res: Response) => {
         },
       });
 
-      const agentUsers = await prisma.user.findMany({ where: { roles: { some: { role: { name: { in: ['ADMIN', 'AGENT'] } } } } }, take: 5 });
-      for (const agent of agentUsers) {
-        await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'payment_processing' }, relatedRequestId: id });
+      // Notify the currently assigned agent (reassignToTeam below will reassign to FINANCE & send REQUEST_ASSIGNED)
+      if (request.assignedToId) {
+        await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'payment_processing' }, relatedRequestId: id });
+      }
+      // Notify requester that CFO approved
+      if (request.requesterId) {
+        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: 'PAYMENT_PROCESSING_IT', changedBy: 'CFO' }, relatedRequestId: id });
       }
 
       // Reassign to Finance agent for payment processing
@@ -920,9 +928,13 @@ export const markPaymentDone = async (req: Request, res: Response) => {
       },
     });
 
-    const agentUsers = await prisma.user.findMany({ where: { roles: { some: { role: { name: { in: ['ADMIN', 'AGENT'] } } } } }, take: 5 });
-    for (const agent of agentUsers) {
-      await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: `pending_${nextAction}` }, relatedRequestId: id });
+    // Notify the currently assigned agent (reassignToTeam below will reassign to IT & send REQUEST_ASSIGNED)
+    if (request.assignedToId) {
+      await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: `pending_${nextAction}` }, relatedRequestId: id });
+    }
+    // Notify requester payment is done
+    if (request.requesterId) {
+      await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: nextStatus, changedBy: 'Finance' }, relatedRequestId: id });
     }
 
     // Reassign back to IT agent for procurement/delivery phase

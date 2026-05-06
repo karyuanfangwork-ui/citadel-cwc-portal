@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest, hasRole } from '../middleware/auth.middleware';
-import { notify, notifyMultiple } from '../services/notification.service';
+import { notify } from '../services/notification.service';
 import { s3Service } from '../services/s3.service';
 import { createDefaultOnboardingTasks } from '../services/onboarding.service';
 import { sanitizeString, sanitizeComment } from '../utils/sanitize';
@@ -1053,20 +1053,20 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
-        // Notify all admins (exclude the requester to avoid duplicate emails)
-        const admins = await prisma.user.findMany({
-            where: {
-                roles: { some: { role: { name: 'ADMIN' } } },
-                id: { not: request.requesterId },
-            },
-            select: { id: true },
-        });
-        await notifyMultiple(
-            admins.map((a) => a.id),
-            'REQUEST_CREATED',
-            { referenceNumber: request.referenceNumber, summary: request.summary },
-            request.id
-        );
+        // Notify the assigned agent (if auto-assigned, they already got REQUEST_ASSIGNED above;
+        // this covers the case where no auto-assignment happened —admins with dashboard access
+        // see new requests anyway, no need to email all of them)
+        if (!assignResult.success && request.assignedToId) {
+            await notify({
+                userId: request.assignedToId,
+                eventType: 'REQUEST_CREATED',
+                variables: {
+                    referenceNumber: request.referenceNumber,
+                    summary: request.summary,
+                },
+                relatedRequestId: request.id,
+            });
+        }
 
         await auditLog(req, 'REQUEST_CREATED', 'request', request.id, {
             referenceNumber: request.referenceNumber,

@@ -20,7 +20,7 @@ const EVENT_TYPE_REGISTRY: {
     availableVariables: string[];
 }[] = [
     // ── General ─────────────────────────────────────────────────────
-    { eventType: 'REQUEST_CREATED',  label: 'Request Created',  category: 'General', recipientDescription: 'Assigned agent(s)', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'requesterName', 'categoryName', 'priority', 'userName', 'appUrl'] },
+    { eventType: 'REQUEST_CREATED',  label: 'Request Created',  category: 'General', recipientDescription: 'Requester + Assigned agent', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'requesterName', 'categoryName', 'priority', 'userName', 'appUrl'] },
     { eventType: 'REQUEST_ASSIGNED', label: 'Request Assigned',  category: 'General', recipientDescription: 'Assignee',          availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'assigneeName', 'userName', 'appUrl'] },
     { eventType: 'STATUS_CHANGED',   label: 'Status Changed',   category: 'General', recipientDescription: 'Requester',          availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'oldStatus', 'newStatus', 'changedBy', 'userName', 'appUrl'] },
     { eventType: 'COMMENT_ADDED',    label: 'Comment Added',    category: 'General', recipientDescription: 'Requester / Assignee', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'commenterName', 'commentText', 'userName', 'appUrl'] },
@@ -41,7 +41,7 @@ const EVENT_TYPE_REGISTRY: {
     { eventType: 'HARDWARE_DELIVERED',        label: 'Hardware Delivered',          category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
     { eventType: 'APPROVAL_REQUIRED',         label: 'Executive Approval Required', category: 'IT Workflow', recipientDescription: 'CEO / CTO', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'approverRole', 'role', 'approvalLevel', 'userName', 'appUrl'] },
     { eventType: 'REQUEST_REJECTED',          label: 'Request Rejected (Executive)', category: 'IT Workflow', recipientDescription: 'Requester', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'rejectedBy', 'rejectionReason', 'comments', 'userName', 'appUrl'] },
-    { eventType: 'ACTION_REQUIRED',           label: 'Action Required',            category: 'IT Workflow', recipientDescription: 'Agent',       availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'action', 'userName', 'appUrl'] },
+    { eventType: 'ACTION_REQUIRED',           label: 'Action Required',            category: 'IT Workflow', recipientDescription: 'Assigned agent', availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'action', 'userName', 'appUrl'] },
     { eventType: 'REQUEST_RESOLVED',          label: 'Request Resolved',           category: 'IT Workflow', recipientDescription: 'Requester',   availableVariables: ['requestId', 'requestUuid', 'requestTitle', 'userName', 'appUrl'] },
 
     // ── Finance Purchase Requisition ────────────────────────────────
