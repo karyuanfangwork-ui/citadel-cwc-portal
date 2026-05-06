@@ -7,6 +7,7 @@ interface Toast {
   id: string;
   subject: string;
   body: string;
+  relatedRequestId: string | null;
 }
 
 interface NotificationContextType {
@@ -41,9 +42,9 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       .catch(() => {});
   }, [userId]);
 
-  const showToast = useCallback((subject: string, body: string) => {
+  const showToast = useCallback((subject: string, body: string, relatedRequestId?: string | null) => {
     const id = Math.random().toString(36).slice(2);
-    setToast({ id, subject, body });
+    setToast({ id, subject, body, relatedRequestId: relatedRequestId ?? null });
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(null), 5000);
   }, []);
@@ -64,7 +65,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       const data = JSON.parse(e.data) as Notification;
       setUnreadCount((prev) => prev + 1);
       setRecentNotification(data);
-      showToast(data.subject ?? 'New notification', data.body);
+      showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId);
     });
 
     es.onerror = () => {

@@ -470,11 +470,12 @@ async function main() {
     console.log('Seeding entities...');
 
     const entitySeeds = [
-        { code: 'CG',   name: 'Citadel Group',             description: 'Citadel Group Technologies Sdn Bhd — Group Holding',        approverEmail: 'groupceo@test.local', displayOrder: 1 },
-        { code: 'CGT',  name: 'Citadel Group Technologies', description: 'Citadel Group Technologies Sdn Bhd — Technology Division',  approverEmail: 'admin@test.local',      displayOrder: 2 },
-        { code: 'CT360', name: 'Citadel 360',               description: 'Citadel 360 Sdn Bhd — Consulting & Advisory',            approverEmail: 'ceo@test.local',        displayOrder: 3 },
-        { code: 'CWP',  name: 'Citadel Workforce Partners', description: 'Citadel Workforce Partners Sdn Bhd — HR Solutions',        approverEmail: 'hr@test.local',         displayOrder: 4 },
-        { code: 'NIU',  name: 'NIU Digital',                description: 'NIU Digital Sdn Bhd — Digital Innovation',                approverEmail: 'cto@test.local',        displayOrder: 5 },
+        { code: 'CG',   name: 'Citadel Group Sdn. Bhd.',             description: 'Citadel Group Technologies Sdn Bhd — Group Holding',        approverEmail: 'admin@test.local',      displayOrder: 10 },
+        { code: 'CGT',  name: 'Citadel Group Technologies Sdn. Bhd.', description: 'Citadel Group Technologies Sdn Bhd — Technology Division',  approverEmail: 'ceo@test.local',        displayOrder: 20 },
+        { code: 'CWP',  name: 'Citadel Wealth Partner Sdn. Bhd.',    description: 'Citadel Workforce Partners Sdn Bhd — HR Solutions',        approverEmail: 'karyuanfang.work@gmail.com', displayOrder: 30 },
+        { code: 'CT360', name: 'Citadel Tayyib 360 Sdn. Bhd.',       description: 'Citadel 360 Sdn Bhd — Consulting & Advisory',            approverEmail: 'admin@test.local',      displayOrder: 40 },
+        { code: 'NIU',  name: 'NIU Trading Sdn. Bhd.',               description: 'NIU Digital Sdn Bhd — Digital Innovation',                approverEmail: 'groupceo@test.local',   displayOrder: 50 },
+        { code: 'COS',  name: 'Cosmospan Sdn. Bhd.',                  description: 'Cosmospan Sdn Bhd — Shared Services',                    approverEmail: 'admin@test.local',      displayOrder: 60 },
     ];
 
     for (const es of entitySeeds) {
@@ -501,15 +502,15 @@ async function main() {
 
     // Create Service Categories for IT
     const itCategories = [
-        { name: 'Get IT help', icon: 'help', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1,
+        { name: 'Get IT help', description: 'Get general IT assistance and support', icon: 'help', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1,
           requestTypeName: 'Get IT Help Request', requestTypeCode: 'GET_IT_HELP', workflowType: 'IT_SIMPLE', slaHours: 24 },
-        { name: 'Email Management', icon: 'mail', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
+        { name: 'Email Management', description: 'Email account setup, configuration, and troubleshooting', icon: 'mail', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
           requestTypeName: 'Email Management Request', requestTypeCode: 'EMAIL_MANAGEMENT', workflowType: 'IT_SIMPLE', slaHours: 24 },
-        { name: 'Report System problem', icon: 'report', colorClass: 'bg-purple-50 text-purple-600', displayOrder: 3,
+        { name: 'Report System problem', description: 'Report a system outage, bug, or performance issue', icon: 'report', colorClass: 'bg-purple-50 text-purple-600', displayOrder: 3,
           requestTypeName: 'Report System Problem Request', requestTypeCode: 'REPORT_SYSTEM_PROBLEM', workflowType: 'IT_SIMPLE', slaHours: 24 },
-        { name: 'Request Software Installation', icon: 'apps', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4,
+        { name: 'Request Software Installation', description: 'Request installation of software or applications', icon: 'apps', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4,
           requestTypeName: 'Software Installation Request', requestTypeCode: 'SOFTWARE_INSTALLATION', workflowType: 'IT_PROCUREMENT', slaHours: 48 },
-        { name: 'Request new hardware', icon: 'laptop', colorClass: 'bg-cyan-50 text-cyan-600', displayOrder: 5,
+        { name: 'Request new hardware', description: 'Request new hardware such as laptops, monitors, or peripherals', icon: 'laptop', colorClass: 'bg-cyan-50 text-cyan-600', displayOrder: 5,
           requestTypeName: 'Request New Hardware Request', requestTypeCode: 'NEW_HARDWARE', workflowType: 'IT_HARDWARE_PROCUREMENT', slaHours: 72 },
     ];
 
@@ -524,6 +525,7 @@ async function main() {
             update: {},
             create: {
                 name: category.name,
+                description: category.description,
                 icon: category.icon,
                 colorClass: category.colorClass,
                 displayOrder: category.displayOrder,
@@ -751,6 +753,7 @@ async function main() {
             description: 'Submit a business expense claim for reimbursement',
             icon: 'receipt_long', colorClass: 'bg-rose-50 text-rose-600', displayOrder: 4,
             requestTypeName: 'Expense Claim', requestTypeCode: 'EXPENSE_CLAIM', workflowType: 'EXPENSE_REIMBURSEMENT',
+            isActive: false,  // Disabled by admin — enable when ready to launch
             formConfig: [
                 { id: 'expenseCategory', label: 'Expense Category', type: 'text', required: true },
                 { id: 'expenseDate', label: 'Date of Expense', type: 'text', required: true },
@@ -777,7 +780,7 @@ async function main() {
                 colorClass: cat.colorClass,
                 displayOrder: cat.displayOrder,
                 serviceDeskId: financeDesk.id,
-                isActive: true,
+                isActive: cat.isActive ?? true,
             },
         });
 

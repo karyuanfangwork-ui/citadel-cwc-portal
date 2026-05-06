@@ -315,7 +315,6 @@ const AdminSettings = () => {
                 <CreateUserModal
                     onSuccess={() => admin.fetchUsers(1, admin.userSearch, admin.userRoleFilter)}
                     onClose={() => admin.setShowCreateUserModal(false)}
-                    departments={admin.departments}
                 />
             )}
 
@@ -326,7 +325,6 @@ const AdminSettings = () => {
                 onClose={() => { admin.setShowEditUserModal(false); admin.setEditingUser(null); }}
                 onSave={admin.handleEditUser}
                 entities={entities}
-                departments={admin.departments}
             />
 
             {/* Reset Password Modal */}

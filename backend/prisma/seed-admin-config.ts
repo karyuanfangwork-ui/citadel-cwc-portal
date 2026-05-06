@@ -1909,6 +1909,15 @@ export const SEED_BANNER_CONFIGS = [
     "isActive": true
   },
   {
+    "role": "ceo",
+    "status": "PENDING_MANAGER_APPROVAL_IT",
+    "icon": "approval",
+    "title": "Your Approval Required",
+    "description": "This IT request has been routed to you for sign-off. Review the details and approve or reject.",
+    "colorScheme": "blue",
+    "isActive": true
+  },
+  {
     "role": "hiring_manager",
     "status": "HR_SCREENING",
     "icon": "fact_check",
@@ -2057,21 +2066,12 @@ export const SEED_ONBOARDING_TEMPLATES = [
     "isActive": true
   },
   {
-    "taskName": "Complete I-9 Form",
-    "taskDescription": "Employment eligibility verification",
+    "taskName": "Complete EPF/KWSP Registration",
+    "taskDescription": "Employee Provident Fund registration and statutory declarations",
     "taskCategory": "HR",
     "priority": "CRITICAL",
     "dueDayOffset": 0,
     "displayOrder": 6,
-    "isActive": true
-  },
-  {
-    "taskName": "Complete W-4 Tax Form",
-    "taskDescription": "Federal tax withholding form",
-    "taskCategory": "HR",
-    "priority": "CRITICAL",
-    "dueDayOffset": 0,
-    "displayOrder": 7,
     "isActive": true
   },
   {
@@ -2112,7 +2112,7 @@ export const SEED_ONBOARDING_TEMPLATES = [
   },
   {
     "taskName": "Enroll in Benefits",
-    "taskDescription": "Health insurance, 401k, and other benefits enrollment",
+    "taskDescription": "Health insurance, EPF, and other benefits enrollment",
     "taskCategory": "HR",
     "priority": "HIGH",
     "dueDayOffset": 30,

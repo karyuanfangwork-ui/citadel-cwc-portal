@@ -6,15 +6,14 @@ import { useEscapeKey } from '../../hooks/useEscapeKey';
 interface CreateUserModalProps {
     onSuccess: () => void;
     onClose: () => void;
-    departments: string[];
 }
 
-const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose, departments }) => {
+const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose }) => {
     const focusTrapRef = useFocusTrap(true);
     const stableOnClose = useCallback(() => onClose(), [onClose]);
     useEscapeKey(stableOnClose);
     const [phase, setPhase] = useState<'form' | 'success'>('form');
-    const [form, setForm] = useState({ firstName: '', lastName: '', email: '', department: '' });
+    const [form, setForm] = useState({ firstName: '', lastName: '', email: '' });
     const [tempPassword, setTempPassword] = useState('');
     const [createdUser, setCreatedUser] = useState<{ firstName: string; lastName: string; email: string } | null>(null);
     const [submitting, setSubmitting] = useState(false);
@@ -38,7 +37,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose, d
                 firstName: form.firstName.trim(),
                 lastName: form.lastName.trim(),
                 email: form.email.trim(),
-                ...(form.department.trim() ? { department: form.department.trim() } : {}),
             });
             setCreatedUser(res.user);
             setTempPassword(res.tempPassword);
@@ -122,24 +120,6 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose, d
                                         placeholder="john.doe@test.local"
                                         className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
                                     />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                                        Department <span className="font-normal normal-case text-gray-400">(optional)</span>
-                                    </label>
-                                    <input
-                                        name="department"
-                                        value={form.department}
-                                        onChange={handleChange}
-                                        placeholder="e.g. IT, HR, Finance"
-                                        list="department-suggestions-create"
-                                        className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
-                                    />
-                                    <datalist id="department-suggestions-create">
-                                        {departments.map(d => (
-                                            <option key={d} value={d} />
-                                        ))}
-                                    </datalist>
                                 </div>
                                 {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
                             </div>

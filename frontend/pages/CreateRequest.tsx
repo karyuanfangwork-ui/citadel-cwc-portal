@@ -4,7 +4,7 @@ import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
 import { useToast } from '../src/context/ToastContext';
 import { friendlyMessage } from '../src/utils/errorMessages';
-import { useCreateRequestWizard, WizardStep, KB_ARTICLES } from '../src/components/create-request/useCreateRequestWizard';
+import { useCreateRequestWizard, WizardStep } from '../src/components/create-request/useCreateRequestWizard';
 import WizardStepper from '../src/components/create-request/WizardStepper';
 import StepRequestType from '../src/components/create-request/StepRequestType';
 import StepDetails from '../src/components/create-request/StepDetails';
@@ -82,9 +82,9 @@ const CreateRequest = () => {
                 </p>
             </div>
 
-            <div className="flex flex-col lg:flex-row gap-10">
+            <div>
                 {/* Main Form Area */}
-                <div className="flex-grow lg:max-w-[800px]">
+                <div className="w-full max-w-[800px]">
                     <div className="bg-white rounded-cwc-xl border border-cwc-border shadow-cwc-sm overflow-hidden border-t-4 border-t-brand-700/10">
                         {/* Wizard Stepper */}
                         <div className="px-8 pt-8">
@@ -174,51 +174,6 @@ const CreateRequest = () => {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
-
-                {/* Sidebar */}
-                <div className="lg:w-[360px] space-y-8">
-                    {/* Knowledge Base */}
-                    <div className="bg-white rounded-cwc-xl border border-cwc-border shadow-cwc-sm p-6">
-                        <div className="flex items-center gap-2 text-brand-700 mb-6">
-                            <span className="material-symbols-outlined">menu_book</span>
-                            <h3 className="font-bold text-lg text-text-primary">Knowledge Base</h3>
-                        </div>
-
-                        <div className="bg-brand-50/50 border border-brand-100 rounded-cwc-md p-4 mb-6">
-                            <p className="text-sm text-brand-700 leading-relaxed">
-                                Start typing your summary to see related help articles in real-time.
-                            </p>
-                        </div>
-
-                        <div className="space-y-6">
-                            {KB_ARTICLES.map((article, i) => (
-                                <div key={i} className="group cursor-pointer">
-                                    <h4 className="font-bold text-text-primary group-hover:text-brand-700 transition-colors mb-1">{article.title}</h4>
-                                    <p className="text-xs text-text-secondary line-clamp-2 leading-normal">{article.excerpt}</p>
-                                </div>
-                            ))}
-                        </div>
-
-                        <button className="w-full mt-8 py-3 border border-cwc-border rounded-cwc-md text-sm font-bold text-text-primary hover:bg-surface-muted transition-colors">
-                            Search full knowledge base
-                        </button>
-                    </div>
-
-                    {/* Immediate Help */}
-                    <div className="bg-brand-900 rounded-cwc-xl p-6 text-white relative overflow-hidden">
-                        <div className="relative z-10">
-                            <h3 className="font-bold text-lg mb-2">Need immediate help?</h3>
-                            <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-                                Our IT support chat is available 24/7 for urgent technical issues.
-                            </p>
-                            <button className="w-full py-3 bg-white text-brand-900 font-bold rounded-cwc-md hover:bg-gray-100 transition-colors">
-                                Start Live Chat
-                            </button>
-                        </div>
-                        {/* Decorative element */}
-                        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full"></div>
                     </div>
                 </div>
             </div>

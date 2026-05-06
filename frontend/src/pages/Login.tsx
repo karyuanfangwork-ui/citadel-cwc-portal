@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import citadelLogo from '../assets/citadel-logo-mark.svg';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 /* ─── Shared brand panel ────────────────────────────────────────── */
@@ -246,10 +246,7 @@ const Login = () => {
             fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)',
             marginBottom: 'var(--space-6)',
           }}>
-            Sign in to CWC ·{' '}
-            <Link to="/register" style={{ color: 'var(--color-brand-500)', fontWeight: 700, textDecoration: 'none' }}>
-              Create an account
-            </Link>
+            Sign in to CWC
           </p>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -304,38 +301,7 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Demo credentials box */}
-          <div style={{
-            marginTop: 'var(--space-6)',
-            background: 'var(--color-surface-subtle)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            padding: 'var(--space-3) var(--space-4)',
-          }}>
-            <div style={{
-              fontSize: 'var(--text-xs)', fontWeight: 600,
-              color: 'var(--color-text-tertiary)', textTransform: 'uppercase',
-              letterSpacing: '0.5px', marginBottom: 'var(--space-2)',
-            }}>Test Accounts</div>
-            {[
-              { role: 'Admin', email: 'admin@test.local', pass: 'abc@123' },
-              { role: 'CEO', email: 'ceo@test.local', pass: 'abc@123' },
-              { role: 'IT Agent', email: 'it@test.local', pass: 'abc@123' },
-              { role: 'Staff', email: 'john.doe@test.local', pass: 'abc@123' },
-            ].map(({ role, email: demoEmail, pass }) => (
-              <div key={role} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: 'var(--space-1)',
-              }}>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>{role}</span>
-                <span style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
-                  color: 'var(--color-brand-700)', background: 'var(--color-brand-50)',
-                  borderRadius: '4px', padding: '2px 7px',
-                }}>{demoEmail} / {pass}</span>
-              </div>
-            ))}
-          </div>
+
 
           {/* Spinner keyframe — injected once */}
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

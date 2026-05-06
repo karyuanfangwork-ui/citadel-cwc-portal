@@ -135,7 +135,6 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                     <thead className="bg-gray-50/50 border-b border-gray-100">
                         <tr className="text-[11px] font-black text-[#44546f] uppercase tracking-[0.2em]">
                             <th className="px-8 py-5">User</th>
-                            <th className="px-8 py-5">Department</th>
                             <th className="px-8 py-5">Entity</th>
                             <th className="px-8 py-5">Roles</th>
                             <th className="px-8 py-5">Agent Team</th>
@@ -148,7 +147,6 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                             {Array.from({ length: 5 }).map((_, i) => (
                                 <tr key={i} className="animate-pulse">
                                     <td className="px-8 py-5"><div className="h-4 bg-gray-200 rounded-lg w-32" /></td>
-                                    <td className="px-8 py-5"><div className="h-4 bg-gray-200 rounded-lg w-24" /></td>
                                     <td className="px-8 py-5"><div className="h-4 bg-gray-200 rounded-lg w-20" /></td>
                                     <td className="px-8 py-5"><div className="flex gap-1"><div className="h-5 bg-gray-200 rounded-full w-14" /><div className="h-5 bg-gray-200 rounded-full w-10" /></div></td>
                                     <td className="px-8 py-5"><div className="h-5 bg-gray-200 rounded-full w-16" /></td>
@@ -165,7 +163,6 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                         <div className="font-bold text-[#101418]">{user.firstName} {user.lastName}</div>
                                         <div className="text-sm text-[#44546f]">{user.email}</div>
                                     </td>
-                                    <td className="px-8 py-5 text-sm text-[#44546f]">{user.department || '—'}</td>
                                     <td className="px-8 py-5 text-sm text-[#44546f]">
                                         {(() => {
                                             const entityName = entities?.find(e => e.id === user.entityId)?.name;
@@ -255,7 +252,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                             ))}
                             {users.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="px-8 py-16 text-center" role="status">
+                                    <td colSpan={6} className="px-8 py-16 text-center" role="status">
                                         <div className="flex flex-col items-center gap-3">
                                             <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center">
                                                 <span className="material-symbols-outlined text-3xl text-gray-400">person_off</span>

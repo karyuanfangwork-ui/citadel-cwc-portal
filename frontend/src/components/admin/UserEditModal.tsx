@@ -9,7 +9,6 @@ interface UserEditModalProps {
     lastName: string;
     email: string;
     phone?: string | null;
-    department?: string | null;
     jobTitle?: string | null;
     isActive: boolean;
     managerId?: string | null;
@@ -21,10 +20,9 @@ interface UserEditModalProps {
   onClose: () => void;
   onSave: (data: any) => Promise<void>;
   entities?: { id: string; name: string; code: string }[];
-  departments: string[];
 }
 
-const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, onSave, entities, departments }) => {
+const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, onSave, entities }) => {
   const focusTrapRef = useFocusTrap(true);
   const stableOnClose = useCallback(() => onClose(), [onClose]);
   useEscapeKey(stableOnClose);
@@ -33,7 +31,6 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
     lastName: '',
     email: '',
     phone: '',
-    department: '',
     jobTitle: '',
     isActive: true,
     agentTeam: '',
@@ -54,7 +51,6 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
         lastName: user.lastName || '',
         email: user.email || '',
         phone: user.phone || '',
-        department: user.department || '',
         jobTitle: user.jobTitle || '',
         isActive: user.isActive,
         agentTeam: user.agentTeam || '',
@@ -168,35 +164,16 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                Department
-              </label>
-              <input
-                type="text"
-                value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                list="department-suggestions-edit"
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
-              />
-              <datalist id="department-suggestions-edit">
-                {departments.map(d => (
-                  <option key={d} value={d} />
-                ))}
-              </datalist>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
-                Job Title
-              </label>
-              <input
-                type="text"
-                value={formData.jobTitle}
-                onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase mb-1">
+              Job Title
+            </label>
+            <input
+              type="text"
+              value={formData.jobTitle}
+              onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+              className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
+            />
           </div>
 
           <div>

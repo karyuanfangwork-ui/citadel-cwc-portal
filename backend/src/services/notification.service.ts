@@ -108,20 +108,30 @@ export async function notify(options: NotifyOptions): Promise<void> {
       appUrl: variables.appUrl || config.app.url,
     };
 
-    const subject = template
+    // ── Render channel-specific content ──────────────────────────────
+    // IN_APP notifications use pushTitle/pushBody (plain text, no HTML).
+    // EMAIL notifications use emailSubject/emailBody (HTML for email layout).
+    const pushSubject = template
+      ? renderTemplate(template.pushTitle ?? template.emailSubject ?? '', enrichedVars)
+      : `Notification: ${eventType}`;
+    const pushBodyText = template
+      ? renderTemplate(template.pushBody ?? '', enrichedVars)
+      : `Event: ${eventType}`;
+
+    const emailSubject = template
       ? renderTemplate(template.emailSubject ?? '', enrichedVars)
       : `Notification: ${eventType}`;
-    const body = template
+    const emailBodyHtml = template
       ? renderTemplate(template.emailBody ?? '', enrichedVars)
       : `Event: ${eventType}`;
 
-    // Create in-app notification
+    // Create in-app notification (uses plain-text push content)
     const inAppNotification = await prisma.notification.create({
       data: {
         userId,
         channel: 'IN_APP',
-        subject,
-        body,
+        subject: pushSubject,
+        body: pushBodyText,
         relatedRequestId,
         status: 'SENT',
       },
@@ -130,8 +140,8 @@ export async function notify(options: NotifyOptions): Promise<void> {
     // Push real-time event to any connected SSE client for this user
     pushToUser(userId, 'notification', {
       id: inAppNotification.id,
-      subject,
-      body,
+      subject: pushSubject,
+      body: pushBodyText,
       relatedRequestId: relatedRequestId ?? null,
       createdAt: inAppNotification.createdAt,
     });
@@ -142,13 +152,13 @@ export async function notify(options: NotifyOptions): Promise<void> {
       if (!globallyEnabled) {
         logger.info(`[EmailToggle] Email globally disabled — skipping email for ${eventType} to ${recipientUser.email}`);
       } else {
-        const emailSent = await sendEmail(recipientUser.email, subject, body, { wrapInLayout });
+        const emailSent = await sendEmail(recipientUser.email, emailSubject, emailBodyHtml, { wrapInLayout });
         await prisma.notification.create({
           data: {
             userId,
             channel: 'EMAIL',
-            subject,
-            body,
+            subject: emailSubject,
+            body: emailBodyHtml,
             relatedRequestId: relatedRequestId ?? null,
             status: emailSent ? 'SENT' : 'FAILED',
             sentAt: emailSent ? new Date() : undefined,

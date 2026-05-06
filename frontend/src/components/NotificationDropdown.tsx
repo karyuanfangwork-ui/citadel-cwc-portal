@@ -13,6 +13,23 @@ function formatTime(dateStr: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+/** Strip HTML tags so raw HTML bodies display as readable plain text */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 export default function NotificationDropdown() {
   const navigate = useNavigate();
   const { unreadCount, setUnreadCount, recentNotification } = useNotifications();
@@ -177,7 +194,7 @@ export default function NotificationDropdown() {
                   <p className={`text-sm line-clamp-1 ${!n.readAt ? 'font-semibold text-[#101418]' : 'font-medium text-[#44546f]'}`}>
                     {n.subject ?? 'Notification'}
                   </p>
-                  <p className="text-xs text-[#44546f] line-clamp-2 mt-0.5">{n.body}</p>
+                  <p className="text-xs text-[#44546f] line-clamp-2 mt-0.5">{stripHtml(n.body)}</p>
                   <p className="text-[11px] text-[#8993a4] mt-1">{formatTime(n.createdAt)}</p>
                 </div>
 

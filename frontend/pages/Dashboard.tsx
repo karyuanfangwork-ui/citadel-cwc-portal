@@ -90,6 +90,14 @@ const Dashboard = () => {
   const [allRequests, setAllRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearch = () => {
+    const q = searchQuery.trim();
+    if (q) {
+      navigate(`/search?q=${encodeURIComponent(q)}`);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -148,6 +156,9 @@ const Dashboard = () => {
             <span className="material-symbols-outlined text-white/50 text-xl">search</span>
             <input
               type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
               placeholder={t('dashboard.searchPlaceholder')}
               style={{
                 flex: 1, background: 'none', border: 'none', outline: 'none',
@@ -156,7 +167,7 @@ const Dashboard = () => {
               onFocus={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.5)'; }}
               onBlur={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.2)'; }}
             />
-            <button className="bg-white text-brand-700 border-none rounded-cwc-md py-2 px-5 text-sm font-extrabold cursor-pointer font-sans whitespace-nowrap">
+            <button onClick={handleSearch} className="bg-white text-brand-700 border-none rounded-cwc-md py-2 px-5 text-sm font-extrabold cursor-pointer font-sans whitespace-nowrap">
               Search
             </button>
           </div>
@@ -165,7 +176,7 @@ const Dashboard = () => {
           <div className="flex items-center gap-4 mt-4 flex-wrap">
             <span className="text-xs text-white/45">Common:</span>
             {['VPN Setup', 'Reset Password', 'Payroll Calendar', 'Annual Leave'].map(tag => (
-              <span key={tag} className="text-xs font-bold text-white/75 bg-white/10 rounded-full py-[3px] px-2.5 cursor-pointer">{tag}</span>
+              <span key={tag} onClick={() => navigate(`/search?q=${encodeURIComponent(tag)}`)} className="text-xs font-bold text-white/75 bg-white/10 rounded-full py-[3px] px-2.5 cursor-pointer hover:bg-white/20 transition-colors">{tag}</span>
             ))}
           </div>
         </div>
@@ -369,11 +380,11 @@ const Dashboard = () => {
       </div>
 
       {/* ── FOOTER CTAs ── */}
+      {import.meta.env.DEV && (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Can't find what you're looking for?</span>
         {[
           { icon: 'menu_book', label: 'Browse Knowledge Base', to: '/kb' },
-          { icon: 'forum',     label: 'Chat with Support', to: null },
         ].map(btn => (
           <button key={btn.label} onClick={btn.to ? () => navigate(btn.to) : undefined} style={{
             display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
@@ -394,6 +405,7 @@ const Dashboard = () => {
           </button>
         ))}
       </div>
+      )}
 
     </div>
   );

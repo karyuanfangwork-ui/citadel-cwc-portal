@@ -3,15 +3,32 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NotificationProvider, useNotifications } from './src/context/NotificationContext';
+
+/** Strip HTML tags so raw HTML bodies display as readable plain text */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 import { ToastProvider } from './src/context/ToastContext';
-import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { ThemeProvider } from './src/context/ThemeContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { hasPermission, hasAnyPermission, hasAnyRole } from './src/utils/permissions';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
 import Login from './src/pages/Login';
-import Register from './src/pages/Register';
+
 import Dashboard from './pages/Dashboard';
 import HRServices from './pages/HRServices';
 import ITSupport from './pages/ITSupport';
@@ -33,7 +50,6 @@ const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, isAuthenticated } = useAuth();
-  const { theme, setTheme, resolvedTheme } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const isActive = (path: string) => location.pathname === path;
 
@@ -47,8 +63,8 @@ const Header = () => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
-  // Don't show header on login/register pages
-  if (location.pathname === '/login' || location.pathname === '/register') {
+  // Don't show header on login page
+  if (location.pathname === '/login') {
     return null;
   }
 
@@ -58,7 +74,7 @@ const Header = () => {
     { to: '/agent', label: 'Agent Dashboard', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
     { to: '/approvals', label: 'Approvals', show: hasPermission(user, 'request:approve') },
     { to: '/assets', label: 'IT Assets', show: hasAnyPermission(user, ['asset:read']) },
-    { to: '/kb', label: 'Knowledge Base', show: true },
+    { to: '/kb', label: 'Knowledge Base', show: import.meta.env.DEV },
     { to: '/reports', label: 'Reports', show: hasPermission(user, 'report:read') },
     { to: '/admin/settings', label: 'Admin Settings', show: hasPermission(user, 'admin:access') },
   ].filter(l => l.show);
@@ -109,15 +125,6 @@ const Header = () => {
               />
             </form>
             <div className="flex gap-2">
-              <button
-                onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : resolvedTheme === 'light' ? 'dark' : 'dark')}
-                aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
-                className="p-2 rounded-lg hover:bg-surface-muted transition-colors text-text-secondary"
-              >
-                <span className="material-symbols-outlined text-xl">
-                  {resolvedTheme === 'dark' ? 'light_mode' : 'dark_mode'}
-                </span>
-              </button>
               <NotificationDropdown />
               <button aria-label="Help" className="hidden sm:flex items-center justify-center rounded-lg h-10 w-10 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors">
                 <span className="material-symbols-outlined">help</span>
@@ -252,16 +259,31 @@ const Footer = () => (
 );
 
 const NotificationToast = () => {
+  const navigate = useNavigate();
   const { toast, dismissToast } = useNotifications();
   if (!toast) return null;
+
+  const handleClick = () => {
+    if (toast.relatedRequestId) {
+      navigate(`/request/${toast.relatedRequestId}`);
+    }
+    dismissToast();
+  };
+
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] w-80 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 flex items-start gap-3 animate-fade-in">
+    <div
+      onClick={toast.relatedRequestId ? handleClick : undefined}
+      className={`fixed bottom-6 right-6 z-[9999] w-80 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 flex items-start gap-3 animate-fade-in ${toast.relatedRequestId ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+    >
       <span className="material-symbols-outlined text-[#0052cc] text-xl flex-shrink-0 mt-0.5">notifications</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-[#101418] line-clamp-1">{toast.subject}</p>
-        <p className="text-xs text-[#44546f] line-clamp-2 mt-0.5">{toast.body}</p>
+        <p className="text-xs text-[#44546f] line-clamp-2 mt-0.5">{stripHtml(toast.body)}</p>
+        {toast.relatedRequestId && (
+          <p className="text-[11px] text-[#0052cc] mt-1 font-medium">Click to view request →</p>
+        )}
       </div>
-      <button onClick={dismissToast} aria-label="Close notification" className="text-[#44546f] hover:text-[#101418] flex-shrink-0">
+      <button onClick={(e) => { e.stopPropagation(); dismissToast(); }} aria-label="Close notification" className="text-[#44546f] hover:text-[#101418] flex-shrink-0">
         <span className="material-symbols-outlined text-base">close</span>
       </button>
     </div>
@@ -271,7 +293,7 @@ const NotificationToast = () => {
 const AppShell = () => {
   const { user } = useAuth();
   const location = useLocation();
-  const showFooter = location.pathname !== '/login' && location.pathname !== '/register';
+  const showFooter = location.pathname !== '/login';
   
   return (
     <NotificationProvider userId={user?.id ?? null}>
@@ -287,7 +309,7 @@ const AppShell = () => {
           <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+
 
               {/* Protected routes */}
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -306,8 +328,8 @@ const AppShell = () => {
               <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requirePermission="report:read"><Reports /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
-              <Route path="/kb" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
-              <Route path="/kb/:slug" element={<ProtectedRoute><ArticleDetail /></ProtectedRoute>} />
+              <Route path="/kb" element={import.meta.env.DEV ? <ProtectedRoute><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
+              <Route path="/kb/:slug" element={import.meta.env.DEV ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
               <Route path="/approvals" element={<ProtectedRoute requirePermission="request:approve"><ApprovalQueue /></ProtectedRoute>} />
               <Route path="/assets" element={<ProtectedRoute requirePermission="asset:read"><AssetManagement /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
