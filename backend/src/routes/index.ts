@@ -30,6 +30,7 @@ import escalationRuleRouter from './escalationRule.routes';
 import { apiLimiter } from '../middleware/rateLimit.middleware';
 import auditLogRoutes from './auditLog.routes';
 import assetRoutes from './asset.routes';
+import systemSettingRoutes from './systemSetting.routes';
 
 const router = Router();
 
@@ -62,6 +63,7 @@ router.use('/admin/banner-configs', bannerConfigRoutes);
 router.use('/admin/status-definitions', requestStatusDefinitionRoutes);
 router.use('/admin/workflow-transitions', workflowTransitionRoutes);
 router.use('/admin/notification-templates', notificationTemplateRoutes);
+router.use('/admin/system-settings', systemSettingRoutes);
 router.use('/files', fileRoutes);
 router.use('/admin/entities', entityRoutes);
 router.use('/admin/audit-logs', auditLogRoutes);
