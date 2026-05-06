@@ -338,7 +338,7 @@ class UserController {
 
     /**
      * Replace a user's roles atomically (Admin only)
-     * Body: { roles: string[] } — array of role names e.g. ["USER", "CEO"]
+     * Body: { roles: string[] } — array of role names e.g. ["NORMAL_STAFF", "CEO"]
      */
     assignRoles = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = req.params['id'] as string;

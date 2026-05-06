@@ -39,7 +39,7 @@ describe('ProtectedRoute', () => {
   it('renders children when authenticated (no permission required)', () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
-      user: { roles: ['USER'], permissions: [] },
+      user: { roles: ['NORMAL_STAFF'], permissions: [] },
       loading: false,
     });
     renderWithRouter(
@@ -54,7 +54,7 @@ describe('ProtectedRoute', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
-      user: { roles: ['USER'], permissions: ['some:other'] },
+      user: { roles: ['NORMAL_STAFF'], permissions: ['some:other'] },
       loading: false,
     });
     const { container } = renderWithRouter(
@@ -85,7 +85,7 @@ describe('ProtectedRoute', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
-      user: { roles: ['USER'], permissions: [] },
+      user: { roles: ['NORMAL_STAFF'], permissions: [] },
       loading: false,
     });
     const { container } = renderWithRouter(
@@ -100,7 +100,7 @@ describe('ProtectedRoute', () => {
   it('renders children when requirePermission (string) is met', () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
-      user: { roles: ['USER'], permissions: ['report:read'] },
+      user: { roles: ['NORMAL_STAFF'], permissions: ['report:read'] },
       loading: false,
     });
     renderWithRouter(
@@ -114,7 +114,7 @@ describe('ProtectedRoute', () => {
   it('renders children when any requirePermission (array) is met', () => {
     mockUseAuth.mockReturnValue({
       isAuthenticated: true,
-      user: { roles: ['USER'], permissions: ['request:assign'] },
+      user: { roles: ['NORMAL_STAFF'], permissions: ['request:assign'] },
       loading: false,
     });
     renderWithRouter(

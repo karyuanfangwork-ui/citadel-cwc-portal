@@ -79,6 +79,7 @@ function AssetRegistryTab() {
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   const canBulkDelete = hasPermission(user?.permissions, 'asset:delete');
+  const canImport = hasPermission(user?.permissions, 'asset:import');
 
   const handleExportCsv = async () => {
     setExporting(true);
@@ -180,12 +181,16 @@ function AssetRegistryTab() {
               <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Export CSV</>
             )}
           </button>
-          <button onClick={() => setShowImportModal(true)} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
-            ↑ Import CSV
-          </button>
-          <button onClick={() => setShowCreateModal(true)} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            + Register Asset
-          </button>
+          {canImport && (
+            <button onClick={() => setShowImportModal(true)} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+              ↑ Import CSV
+            </button>
+          )}
+          {hasPermission(user?.permissions, 'asset:write') && (
+            <button onClick={() => setShowCreateModal(true)} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              + Register Asset
+            </button>
+          )}
         </div>
       </div>
 

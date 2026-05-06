@@ -99,9 +99,9 @@ class AuthController {
             data: { email, passwordHash, firstName, lastName, department, jobTitle },
         });
 
-        const userRole = await prisma.role.findUnique({ where: { name: 'USER' } });
-        if (userRole) {
-            await prisma.userRole.create({ data: { userId: user.id, roleId: userRole.id } });
+        const normalStaffRole = await prisma.role.findUnique({ where: { name: 'NORMAL_STAFF' } });
+        if (normalStaffRole) {
+            await prisma.userRole.create({ data: { userId: user.id, roleId: normalStaffRole.id } });
         }
 
         const { token: accessToken } = generateAccessToken(user.id, user.email);

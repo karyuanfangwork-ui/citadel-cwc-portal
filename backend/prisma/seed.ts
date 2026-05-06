@@ -84,12 +84,12 @@ async function main() {
         },
     });
 
-    const userRole = await prisma.role.upsert({
-        where: { name: 'USER' },
+    const itAgentRole = await prisma.role.upsert({
+        where: { name: 'IT_AGENT' },
         update: {},
         create: {
-            name: 'USER',
-            description: 'Regular user who can create requests',
+            name: 'IT_AGENT',
+            description: 'IT Support Agent — includes IT Asset management',
         },
     });
 
@@ -220,10 +220,15 @@ async function main() {
     ];
 
     // AGENT gets full request CRUD + assign, no admin/user/report/banner/workflow
+    // Note: asset permissions are NOT on AGENT — they are on IT_AGENT only
     const agentPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
         'request:approve', 'request:assign',
-        'asset:read', 'asset:write',
+    ];
+
+    // IT_AGENT gets asset management permissions (in addition to AGENT's request perms)
+    const itAgentPerms = [
+        'asset:read', 'asset:write', 'asset:import',
     ];
 
     // NORMAL_STAFF and USER can create and read their own requests
@@ -244,7 +249,7 @@ async function main() {
     const rolePermissionMap: Record<string, string[]> = {
         ADMIN: adminPerms,
         AGENT: agentPerms,
-        USER: staffPerms,
+        IT_AGENT: itAgentPerms,
         NORMAL_STAFF: staffPerms,
         CEO: executivePerms,
         CTO: executivePerms,
@@ -284,6 +289,27 @@ async function main() {
     }
 
     console.log('✅ Role permissions assigned');
+
+    // Cleanup: Remove stale asset permissions from AGENT role
+    // (Previously AGENT had asset:read/asset:write; now these belong to IT_AGENT only)
+    const staleAgentAssetPerms = ['asset:read', 'asset:write'];
+    let cleanedUp = 0;
+    for (const permName of staleAgentAssetPerms) {
+        const permId = permMap.get(permName);
+        const agentRoleId = roleMap.get('AGENT');
+        if (permId && agentRoleId) {
+            const deleted = await prisma.rolePermission.deleteMany({
+                where: { roleId: agentRoleId, permissionId: permId },
+            });
+            if (deleted.count > 0) {
+                console.log(`  🧹 Removed stale ${permName} from AGENT role`);
+                cleanedUp += deleted.count;
+            }
+        }
+    }
+    if (cleanedUp > 0) {
+        console.log(`✅ Cleaned up ${cleanedUp} stale permission(s) from AGENT role`);
+    }
 
     const hiringManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'HIRING_MANAGER' } });
 
@@ -382,8 +408,8 @@ async function main() {
 
     const agentAccounts = [
         { email: 'finance@test.local',     firstName: 'Zahidah', lastName: 'Zahidah',     department: 'Finance', jobTitle: 'Finance Agent',             roles: [agentRole.id], agentTeam: 'FINANCE' },
-        { email: 'it@test.local',          firstName: 'Tham',    lastName: 'Ming Kai',    department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id], agentTeam: 'IT' },
-        { email: 'it2@test.local',         firstName: 'Naila',   lastName: 'Naila',       department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id], agentTeam: 'IT' },
+        { email: 'it@test.local',          firstName: 'Tham',    lastName: 'Ming Kai',    department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id, itAgentRole.id], agentTeam: 'IT' },
+        { email: 'it2@test.local',         firstName: 'Naila',   lastName: 'Naila',       department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id, itAgentRole.id], agentTeam: 'IT' },
         { email: 'hr@test.local',          firstName: 'Sasha',   lastName: 'Nair',        department: 'HR',      jobTitle: 'HR Agent',                  roles: [agentRole.id], agentTeam: 'HR' },
     ];
 
@@ -423,7 +449,7 @@ async function main() {
     }
     console.log('✅ Test users created with NORMAL_STAFF role (password: abc@123)');
 
-    // --- Legacy USER role test account (for backward compatibility testing) ---
+    // --- Legacy USER role test account (now uses NORMAL_STAFF) ---
     const legacyUser = await prisma.user.upsert({
         where: { email: 'user@helpdesk.com' },
         update: {},
@@ -437,8 +463,8 @@ async function main() {
             isActive: true,
         },
     });
-    await assignRoles(legacyUser.id, [userRole.id]);
-    console.log('✅ Legacy USER account created (email: user@helpdesk.com, password: abc@123)');
+    await assignRoles(legacyUser.id, [normalStaffRole.id]);
+    console.log('✅ Legacy user account created (email: user@helpdesk.com, password: abc@123)');
 
     // ── Entities ─────────────────────────────────────────────────────────────
     console.log('Seeding entities...');

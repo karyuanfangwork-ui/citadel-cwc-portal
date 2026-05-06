@@ -6,7 +6,7 @@ import { NotificationProvider, useNotifications } from './src/context/Notificati
 import { ToastProvider } from './src/context/ToastContext';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
-import { hasPermission, hasAnyRole } from './src/utils/permissions';
+import { hasPermission, hasAnyPermission, hasAnyRole } from './src/utils/permissions';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
@@ -57,7 +57,7 @@ const Header = () => {
     { to: '/my-requests', label: 'My Requests', show: true },
     { to: '/agent', label: 'Agent Dashboard', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
     { to: '/approvals', label: 'Approvals', show: hasPermission(user, 'request:approve') },
-    { to: '/assets', label: 'IT Assets', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
+    { to: '/assets', label: 'IT Assets', show: hasAnyPermission(user, ['asset:read']) },
     { to: '/kb', label: 'Knowledge Base', show: true },
     { to: '/reports', label: 'Reports', show: hasPermission(user, 'report:read') },
     { to: '/admin/settings', label: 'Admin Settings', show: hasPermission(user, 'admin:access') },

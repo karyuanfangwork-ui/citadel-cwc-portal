@@ -111,10 +111,10 @@ async function main() {
   const emailToUserId: Record<string, string> = {};
   const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
-  // Get existing default role (USER)
-  const endUserRole = await prisma.role.findFirst({ where: { name: 'USER' } });
+  // Get existing default role (NORMAL_STAFF)
+  const endUserRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
   if (!endUserRole) {
-    console.error('ERROR: END_USER role not found. Run seed first.');
+    console.error('ERROR: NORMAL_STAFF role not found. Run seed first.');
     process.exit(1);
   }
 
@@ -143,7 +143,7 @@ async function main() {
       },
     });
 
-    // Assign END_USER role
+    // Assign NORMAL_STAFF role
     await prisma.userRole.create({
       data: {
         userId: user.id,
