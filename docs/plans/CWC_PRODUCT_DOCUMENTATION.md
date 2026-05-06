@@ -94,10 +94,10 @@ Enterprise organizations face fragmented internal service management:
 | # | Category                          | Request Types |
 |---|-----------------------------------|---------------|
 | 1 | **Get IT Help**                   | General IT support requests (direct to IN_REVIEW, no approval) |
-| 2 | **Email Management**              | 4 request types for email-related issues (direct to IN_REVIEW) |
+| 2 | **Email Management**              | Email-related issue requests (direct to IN_REVIEW, no approval) |
 | 3 | **Report System Problem**         | System/infrastructure issue reporting (direct to IN_REVIEW) |
-| 4 | **Request Software Installation** | Software provisioning requests with CEO → CTO → CFO approval chain (procurement flow) |
-| 5 | **Request New Hardware**          | Hardware procurement with multi-level approval (CEO → CTO → CFO → payment → PROCUREMENT → ORDERED → RECEIVED → PROVISIONED → RESOLVED) |
+| 4 | **Request Software Installation** | Software provisioning with CEO → CTO → Invoice → CFO approval chain, then delivery → resolved (no asset registration) |
+| 5 | **Request New Hardware**          | Hardware procurement with executive approval chain (Acknowledge → CEO → CTO → Invoice → CFO → Payment → Procurement → Ordered → Received → Provisioned → Resolved) |
 
 #### HR Services (4 Categories)
 
@@ -174,15 +174,44 @@ Enterprise organizations face fragmented internal service management:
 
 ### 3.3 IT Hardware Procurement Flow
 
+**Request type:** Request New Hardware (code: `NEW_HARDWARE`)
+**Workflow:** IT_HARDWARE_PROCUREMENT (12-step stepper)
+**Initial status:** SUBMITTED
+
 ```
-SUBMITTED → [if requiresApproval] IN_REVIEW → PENDING_CEO_APPROVAL_IT → CEO_APPROVED_IT
-  → PENDING_CTO_APPROVAL_IT → CTO_APPROVED_IT
-  → PENDING_CFO_APPROVAL_IT → CFO_APPROVED_IT
-  → PROCUREMENT_IN_PROGRESS → HARDWARE_ORDERED → HARDWARE_RECEIVED
-  → [agent provisions] SOFTWARE_PROVISIONED → RESOLVED
-[If rejection at any step]: *_REJECTED_IT → RESOLVED
-[Simple IT types (GET_IT_HELP etc.)]: SUBMITTED → IN_REVIEW → RESOLVED (no approval chain)
+SUBMITTED
+  → [IT agent acknowledges & routes to CEO] ACKNOWLEDGED_IT → PENDING_CEO_APPROVAL_IT
+  → [CEO approves] PENDING_CTO_APPROVAL_IT
+  → [CTO approves] PENDING_INVOICE_IT
+  → [IT agent uploads invoice & routes to CFO] PENDING_CFO_APPROVAL_IT
+  → [CFO approves] PAYMENT_PROCESSING_IT  ← reassigns to FINANCE team
+  → [Finance agent marks payment done] PROCUREMENT_IN_PROGRESS  ← reassigns back to IT team
+  → [IT agent marks procurement started] HARDWARE_ORDERED
+  → [IT agent marks hardware delivered] HARDWARE_RECEIVED  ← auto-creates Asset if registerAsAsset=true
+  → [IT agent marks provisioned] SOFTWARE_PROVISIONED
+  → RESOLVED
+
+[Rejection at any approval step]:
+  CEO rejects  → CEO_REJECTED_IT → RESOLVED
+  CTO rejects  → CTO_REJECTED_IT → RESOLVED
+  CFO rejects  → CFO_REJECTED_IT → RESOLVED
+
+[Simple IT types (GET_IT_HELP, EMAIL_MANAGEMENT, REPORT_SYSTEM_PROBLEM)]:
+  SUBMITTED → IN_REVIEW → IN_PROGRESS → RESOLVED (no approval chain)
+
+[Software Installation (IT_PROCUREMENT workflow, 9-step stepper)]:
+  Same executive chain (CEO → CTO → Invoice → CFO → Payment)
+  but after payment → PENDING_DELIVERY_IT → RESOLVED (no procurement/asset steps)
 ```
+
+**Key behaviors:**
+- Agent's ONLY action from SUBMITTED is "Acknowledge & Route to CEO" (no "Start Review" shortcut)
+- Procurement lifecycle actions gated by assignment: `canActOnProcurement = canAct && (isAdmin || isAssignedToMe)`
+- `markPaymentDone` branches on `workflow.code`: IT_HARDWARE_PROCUREMENT → PROCUREMENT_IN_PROGRESS; IT_PROCUREMENT → PENDING_DELIVERY_IT
+- `markHardwareReceived` auto-creates Asset record if `registerAsAsset=true` and `assetTag` provided
+- Transient intermediate statuses (CEO_APPROVED_IT, CTO_APPROVED_IT, CFO_APPROVED_IT) exist in enum but are NOT in the WorkflowStep stepper — they are skipped in favor of the next real step
+- SLA pauses during PENDING_*_APPROVAL steps (CEO, CTO, CFO)
+- Team handoffs: CFO approval → FINANCE team; payment done → IT team
 
 ### 3.4 HR Hiring Workflow
 

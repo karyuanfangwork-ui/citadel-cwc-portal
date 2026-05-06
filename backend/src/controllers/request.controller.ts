@@ -1202,6 +1202,14 @@ class RequestController {
             }));
         }
 
+        // Transform BigInt to string in attachments for JSON serialization
+        if ((request as any).attachments) {
+            (request as any).attachments = (request as any).attachments.map((att: any) => ({
+                ...att,
+                fileSize: att.fileSize?.toString() ?? '0',
+            }));
+        }
+
         // Check permissions
         // Allow access if:
         // 1. User is the requester
@@ -1551,13 +1559,22 @@ class RequestController {
             throw new AppError('File key is missing', 400);
         }
 
+        // ?inline=true renders the file inline (for iframe/img), otherwise forces download
+        const isInline = req.query.inline === 'true';
+
         try {
-            // Generate a presigned URL (valid for 15 minutes) with response-content-disposition
-            // so the browser downloads with the original filename
-            const presignedUrl = await s3Service.getPresignedUrl(s3Key, 0.25, {
-                'response-content-disposition': `attachment; filename="${encodeURIComponent(attachment.fileName)}"`,
+            const overrideParams: Record<string, string> = {
                 'response-content-type': attachment.mimeType || 'application/octet-stream',
-            });
+            };
+
+            if (isInline) {
+                overrideParams['response-content-disposition'] = `inline; filename="${encodeURIComponent(attachment.fileName)}"`;
+            } else {
+                overrideParams['response-content-disposition'] = `attachment; filename="${encodeURIComponent(attachment.fileName)}"`;
+            }
+
+            // Generate a presigned URL (valid for 15 minutes)
+            const presignedUrl = await s3Service.getPresignedUrl(s3Key, 0.25, overrideParams);
             return res.redirect(presignedUrl);
         } catch (error: any) {
             logger.error(`[DOWNLOAD] Failed to generate presigned URL for key ${s3Key}: ${error?.message || error}`);

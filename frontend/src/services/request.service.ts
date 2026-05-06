@@ -79,7 +79,7 @@ export const requestService = {
                 'Content-Type': 'multipart/form-data',
             },
         });
-        return response.data.data.attachment;
+        return response.data.data;
     },
 
     async downloadAttachment(requestId: string, attachmentId: string) {

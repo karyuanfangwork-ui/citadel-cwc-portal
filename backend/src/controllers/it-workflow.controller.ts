@@ -879,6 +879,13 @@ export const markPaymentDone = async (req: Request, res: Response) => {
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PAYMENT_PROCESSING_IT') return res.status(400).json({ error: 'Request must be in PAYMENT_PROCESSING_IT status' });
 
+    // Only admin or the assigned finance agent can mark payment done
+    const isAdmin = hasRole(req, 'ADMIN');
+    const isAssignedToMe = request.assignedToId === currentUser.id;
+    if (!isAdmin && !isAssignedToMe) {
+      return res.status(403).json({ error: 'Only the assigned finance agent or admin can mark payment as done' });
+    }
+
     const workflowCode = request.requestType?.workflow?.code || '';
     const isHardwareProcurement = workflowCode === 'IT_HARDWARE_PROCUREMENT';
 

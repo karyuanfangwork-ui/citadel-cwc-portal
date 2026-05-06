@@ -19,7 +19,7 @@ interface CfoDecisionModalProps {
   onClose: () => void;
 }
 
-const API_ORIGIN = ((import.meta as any).env.VITE_API_BASE_URL as string || 'http://localhost:3000/api/v1').replace(/\/api\/v1\/?$/, '');
+const API_BASE = (import.meta as any).env.VITE_API_BASE_URL as string || 'http://localhost:3000/api/v1';
 
 const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
   requestId,
@@ -28,7 +28,7 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
   onClose,
 }) => {
   const invoiceAttachment = attachments.find(a =>
-    a.storageUrl.includes('/uploads/invoices/') ||
+    a.storageUrl.includes('invoice') ||
     a.fileName.toLowerCase().includes('invoice')
   );
   const [comments, setComments] = useState('');
@@ -77,26 +77,26 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
         </div>
         <form className="flex flex-col min-h-0 flex-1">
           <div className="p-5 space-y-4 overflow-y-auto flex-1">
-            {invoiceAttachment && (
+              {invoiceAttachment && (
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
                   Invoice
                 </label>
                 {invoiceAttachment.mimeType === 'application/pdf' ? (
                   <iframe
-                    src={`${API_ORIGIN}${invoiceAttachment.storageUrl}`}
+                    src={`${API_BASE}/requests/${requestId}/attachments/${invoiceAttachment.id}?inline=true`}
                     className="w-full h-48 rounded-lg border border-gray-200"
                     title="Invoice"
                   />
                 ) : (
                   <img
-                    src={`${API_ORIGIN}${invoiceAttachment.storageUrl}`}
+                    src={`${API_BASE}/requests/${requestId}/attachments/${invoiceAttachment.id}?inline=true`}
                     alt="Invoice"
                     className="w-full max-h-48 object-contain rounded-lg border border-gray-200 bg-gray-50"
                   />
                 )}
                 <a
-                  href={`${API_ORIGIN}${invoiceAttachment.storageUrl}`}
+                  href={`${API_BASE}/requests/${requestId}/attachments/${invoiceAttachment.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 mt-1.5 text-xs text-blue-600 hover:underline"

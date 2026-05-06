@@ -558,7 +558,9 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && status === 'PAYMENT_PROCESSING_IT') {
+  // Only the assigned finance agent (or admin) can mark payment done —
+  // CFO approval reassigns the ticket to FINANCE team via reassignToTeam('FINANCE')
+  if ((isAdmin || isAssignedToMe) && status === 'PAYMENT_PROCESSING_IT') {
     actions.push({
       type: 'PAYMENT_DONE',
       label: 'Mark Payment Done',
