@@ -3,6 +3,23 @@ import { sendEmail, renderTemplate } from './email.service';
 import { logger } from '../utils/logger';
 import { pushToUser } from '../utils/sseClients';
 import { config } from '../config';
+import { registerEmailEnabledCacheInvalidator } from '../controllers/systemSetting.controller';
+
+// Global email toggle — 30-second TTL cache to avoid a DB hit on every notification
+let _emailEnabledCache: { value: boolean; expiresAt: number } | null = null;
+
+registerEmailEnabledCacheInvalidator(() => { _emailEnabledCache = null; });
+
+async function isEmailGloballyEnabled(): Promise<boolean> {
+  const now = Date.now();
+  if (_emailEnabledCache && now < _emailEnabledCache.expiresAt) {
+    return _emailEnabledCache.value;
+  }
+  const setting = await prisma.systemSetting.findUnique({ where: { key: 'email_notifications_enabled' } });
+  const value = setting ? setting.value === 'true' : true;
+  _emailEnabledCache = { value, expiresAt: now + 30_000 };
+  return value;
+}
 
 interface NotifyOptions {
   userId: string;
@@ -116,23 +133,26 @@ export async function notify(options: NotifyOptions): Promise<void> {
       createdAt: inAppNotification.createdAt,
     });
 
-    // Send email notification (reuse the already-fetched user record)
+    // Send email notification
     if (recipientUser?.email) {
-      const emailSent = await sendEmail(recipientUser.email, subject, body, { wrapInLayout });
-
-      // Also create an EMAIL notification record for tracking
-      await prisma.notification.create({
-        data: {
-          userId,
-          channel: 'EMAIL',
-          subject,
-          body,
-          relatedRequestId,
-          status: emailSent ? 'SENT' : 'FAILED',
-          sentAt: emailSent ? new Date() : undefined,
-          errorMessage: emailSent ? undefined : 'SMTP delivery failed',
-        },
-      });
+      const globallyEnabled = await isEmailGloballyEnabled();
+      if (!globallyEnabled) {
+        logger.info(`[EmailToggle] Email globally disabled — skipping email for ${eventType} to ${recipientUser.email}`);
+      } else {
+        const emailSent = await sendEmail(recipientUser.email, subject, body, { wrapInLayout });
+        await prisma.notification.create({
+          data: {
+            userId,
+            channel: 'EMAIL',
+            subject,
+            body,
+            relatedRequestId: relatedRequestId ?? null,
+            status: emailSent ? 'SENT' : 'FAILED',
+            sentAt: emailSent ? new Date() : undefined,
+            errorMessage: emailSent ? undefined : 'SMTP delivery failed',
+          },
+        });
+      }
     }
   } catch (error) {
     logger.error(`Failed to create notification for user ${userId}`, { error, eventType });
