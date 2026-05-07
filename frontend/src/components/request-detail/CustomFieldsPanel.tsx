@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { entityService } from '../../services/entity.service';
 
-const API_BASE = (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
 interface CustomFieldsPanelProps {
   customFields: Record<string, any> | undefined;

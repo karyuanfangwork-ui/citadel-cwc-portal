@@ -19,7 +19,7 @@ interface CfoDecisionModalProps {
   onClose: () => void;
 }
 
-const API_BASE = (import.meta as any).env.VITE_API_BASE_URL as string || 'http://localhost:3000/api/v1';
+const API_BASE = ((import.meta as any).env.VITE_API_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1') as string;
 
 const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
   requestId,

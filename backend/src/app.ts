@@ -17,6 +17,9 @@ dotenv.config();
 // Create Express app
 const app: Application = express();
 
+// Trust proxy — required behind nginx (Docker Compose production setup)
+app.set('trust proxy', 1);
+
 // ============================================================================
 // MIDDLEWARE
 // ============================================================================

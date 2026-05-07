@@ -987,7 +987,7 @@ async function main() {
     const confidentialRequestType = await prisma.requestType.findFirst({ where: { code: 'HR_QUESTION' } });
     if (confidentialRequestType) {
         const hrDesk = await prisma.serviceDesk.findFirst({ where: { code: 'HR' } });
-        const hrCategory = await prisma.serviceCategory.findFirst({ where: { serviceDeskId: hrDesk?.id, slug: 'hr-question' } });
+        const hrCategory = await prisma.serviceCategory.findFirst({ where: { serviceDeskId: hrDesk?.id, name: 'HR Question' } });
         const endUserRole = await prisma.role.findFirst({ where: { name: 'END_USER' } });
         const endUsers = endUserRole ? await prisma.user.findMany({
             where: { roles: { some: { roleId: endUserRole.id } } },
@@ -1003,7 +1003,6 @@ async function main() {
                     summary: 'Confidential HR inquiry about workplace harassment report',
                     description: 'This is a confidential HR request regarding a sensitive workplace matter. Access should be restricted to the requester, designated approvers, and authorized personnel only.',
                     serviceDeskId: hrDesk.id,
-                    serviceCategoryId: hrCategory?.id ?? null,
                     requestTypeId: confidentialRequestType.id,
                     requesterId: endUsers[0].id,
                     priority: 'MEDIUM',
@@ -1019,7 +1018,6 @@ async function main() {
                     summary: 'Confidential disciplinary action review',
                     description: 'This is a confidential request related to a disciplinary proceeding. Only the requester and authorized HR personnel should have access.',
                     serviceDeskId: hrDesk.id,
-                    serviceCategoryId: hrCategory?.id ?? null,
                     requestTypeId: confidentialRequestType.id,
                     requesterId: endUsers[0].id,
                     priority: 'HIGH',
