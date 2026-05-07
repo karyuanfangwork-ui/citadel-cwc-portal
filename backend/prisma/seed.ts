@@ -554,35 +554,10 @@ async function main() {
     }
     console.log('✅ Seed user entity assignments updated');
 
-    // ── Apply production entity configuration (approvers, display order) ─────────
-    // This overrides the default seed values with admin-configured production values.
-    // Only runs when SEED_ENTITY_CONFIG has data (i.e., seed-admin-config.ts is populated).
-    if (SEED_ENTITY_CONFIG.length > 0) {
-        console.log('🏢 Applying production entity configuration...');
-        for (const ec of SEED_ENTITY_CONFIG) {
-            const approver = await prisma.user.findUnique({ where: { email: ec.approverEmail } });
-            if (!approver) {
-                console.log(`  ⚠️  Skipping entity config for ${ec.code}: approver ${ec.approverEmail} not found`);
-                continue;
-            }
-            await prisma.entity.update({
-                where: { code: ec.code },
-                data: {
-                    name: ec.name,
-                    description: ec.description || null,
-                    approverId: approver.id,
-                    displayOrder: ec.displayOrder,
-                    isActive: ec.isActive,
-                },
-            });
-            console.log(`  ✅ ${ec.code} → approver: ${ec.approverEmail}, order: ${ec.displayOrder}`);
-        }
-        console.log('✅ Production entity configuration applied');
-    }
-
     // ── Create production users (@citadelgroup.com.my) ────────────────────────
     // Real staff accounts from SEED_PRODUCTION_USERS. Password default: Welcome@2026.
     // Safe to re-run: upserts existing users, preserves admin role assignments.
+    // IMPORTANT: This runs BEFORE entity config so approver users exist for assignment.
     if (SEED_PRODUCTION_USERS.length > 0) {
         console.log('👥 Creating production staff accounts...');
         const PROD_PASSWORD = await bcrypt.hash('Welcome@2026', 10);
@@ -649,6 +624,33 @@ async function main() {
             }
         }
         console.log(`  ✅ Production users: ${prodCreated} created, ${prodUpdated} updated`);
+    }
+
+    // ── Apply production entity configuration (approvers, display order) ─────────
+    // This overrides the default seed values with admin-configured production values.
+    // Only runs when SEED_ENTITY_CONFIG has data (i.e., seed-admin-config.ts is populated).
+    // IMPORTANT: This runs AFTER production users so approver user records exist.
+    if (SEED_ENTITY_CONFIG.length > 0) {
+        console.log('🏢 Applying production entity configuration...');
+        for (const ec of SEED_ENTITY_CONFIG) {
+            const approver = await prisma.user.findUnique({ where: { email: ec.approverEmail } });
+            if (!approver) {
+                console.log(`  ⚠️  Skipping entity config for ${ec.code}: approver ${ec.approverEmail} not found`);
+                continue;
+            }
+            await prisma.entity.update({
+                where: { code: ec.code },
+                data: {
+                    name: ec.name,
+                    description: ec.description || null,
+                    approverId: approver.id,
+                    displayOrder: ec.displayOrder,
+                    isActive: ec.isActive,
+                },
+            });
+            console.log(`  ✅ ${ec.code} → approver: ${ec.approverEmail}, order: ${ec.displayOrder}`);
+        }
+        console.log('✅ Production entity configuration applied');
     }
 
     // Create Service Categories for IT
