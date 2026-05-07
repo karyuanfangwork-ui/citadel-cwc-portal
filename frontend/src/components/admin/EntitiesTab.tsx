@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Entity, entityService } from '../../services/entity.service';
+import apiClient from '../../services/api';
 
 interface EntitiesTabProps {
     entities: Entity[];
@@ -7,13 +8,25 @@ interface EntitiesTabProps {
     onRefresh: () => void;
 }
 
-export const EntitiesTab: React.FC<EntitiesTabProps> = ({ entities, users, onRefresh }) => {
+export const EntitiesTab: React.FC<EntitiesTabProps> = ({ entities, users: _users, onRefresh }) => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
     const [form, setForm] = useState({ name: '', code: '', description: '', approverId: '' });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [reordering, setReordering] = useState<string | null>(null);
+
+    // Fetch ALL users for the approver dropdown (unpaginated)
+    const [allUsers, setAllUsers] = useState<{ id: string; firstName: string; lastName: string; email: string }[]>([]);
+
+    const fetchAllUsers = async () => {
+        try {
+            const res = await apiClient.get('/users?limit=9999&isActive=true');
+            setAllUsers(res.data.data.users);
+        } catch {}
+    };
+
+    useEffect(() => { fetchAllUsers(); }, []);
 
     const openCreate = () => {
         setForm({ name: '', code: '', description: '', approverId: '' });
@@ -226,7 +239,7 @@ export const EntitiesTab: React.FC<EntitiesTabProps> = ({ entities, users, onRef
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                                 >
                                     <option value="">Select approver...</option>
-                                    {users.map((u) => (
+                                    {allUsers.map((u) => (
                                         <option key={u.id} value={u.id}>{u.firstName} {u.lastName} ({u.email})</option>
                                     ))}
                                 </select>
