@@ -11,7 +11,7 @@ import { ExecutiveRole } from '@prisma/client';
 export const ENTITY_MAP: Record<string, string> = {
   'Citadel Group Sdn. Bhd.': 'CG',
   'Citadel Group Technologies Sdn. Bhd.': 'CGT',
-  'Citadel Wealth Partner Sdn. Bhd.': 'CWP',
+  'Citadel Wealth Partners Sdn. Bhd.': 'CWP',
   'Citadel Tayyib 360 Sdn. Bhd.': 'CT360',
   'NIU Trading Sdn. Bhd.': 'NIU',
   'Cosmospan Sdn. Bhd.': 'COS',
@@ -25,8 +25,9 @@ export function inferExecutiveRole(jobTitle: string): ExecutiveRole | null {
   if (lower.includes('chief executive officer') && lower.includes('head of sales')) return 'CEO' as ExecutiveRole;
   if (lower.includes('chief technology officer') || lower === 'cto') return 'CTO' as ExecutiveRole;
   if (lower.includes('chief finance officer') || lower.includes('chief financial') || lower === 'cfo') return 'CFO' as ExecutiveRole;
-  if (lower.includes('chief human resources') || lower === 'chro') return 'CHRO' as ExecutiveRole;
   if (lower.includes('chief operating officer') || lower === 'coo') return 'COO' as ExecutiveRole;
+  if (lower.includes('chief human resources') || lower === 'chro') return 'CHRO' as ExecutiveRole;
+  if (lower.includes('chief marketing') || lower === 'cmo') return 'CMO' as ExecutiveRole;
   return null;
 }
 

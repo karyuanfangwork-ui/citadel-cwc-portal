@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { adminService, WorkflowTransition, WorkflowTransitionInput } from '../../services/admin.service';
 import apiClient from '../../services/api';
 
-const ROLES = ['ADMIN', 'AGENT', 'NORMAL_STAFF', 'IT_AGENT', 'MANAGER', 'IT_SUPPORT', 'HR_AGENT', 'FINANCE_AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_CEO'];
+const ROLES = ['ADMIN', 'AGENT', 'NORMAL_STAFF', 'IT_AGENT', 'MANAGER', 'IT_SUPPORT', 'HR_AGENT', 'FINANCE_AGENT', 'CEO', 'CTO', 'CFO', 'CMO', 'GROUP_CEO'];
 const LABEL_OPTIONS = ['APPROVE', 'REJECT', 'SUBMIT', 'ADVANCE', 'RETURN', 'ESCALATE', 'CLOSE'];
 
 const emptyForm = (): WorkflowTransitionInput => ({

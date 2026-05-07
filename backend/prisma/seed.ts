@@ -130,6 +130,15 @@ async function main() {
     });
 
     await prisma.role.upsert({
+        where: { name: 'CMO' },
+        update: {},
+        create: {
+            name: 'CMO',
+            description: 'Chief Marketing Officer with marketing approval authority',
+        },
+    });
+
+    await prisma.role.upsert({
         where: { name: 'GROUP_CEO' },
         update: {},
         create: {
@@ -254,6 +263,7 @@ async function main() {
         CEO: executivePerms,
         CTO: executivePerms,
         CFO: executivePerms,
+        CMO: executivePerms,
         GROUP_CEO: executivePerms,
         HIRING_MANAGER: hiringManagerPerms,
         FINANCE_HEAD: executivePerms,
@@ -324,11 +334,14 @@ async function main() {
         }
     };
 
+    // ── Entity assignments for seed users ──────────────────────────────────
+    // Will be populated after entity seeding (entities need approver users to exist first)
+
     // --- System accounts ---
     const hashedPassword = await bcrypt.hash('abc@123', 10);
     const adminUser = await prisma.user.upsert({
         where: { email: 'admin@test.local' },
-        update: {},
+        update: { jobTitle: 'Administrator', department: 'IT' },
         create: {
             email: 'admin@test.local',
             passwordHash: hashedPassword,
@@ -344,7 +357,7 @@ async function main() {
 
     const ceoUser = await prisma.user.upsert({
         where: { email: 'ceo@test.local' },
-        update: {},
+        update: { jobTitle: 'Chief Executive Officer', department: 'Executive', executiveRole: 'CEO' },
         create: {
             email: 'ceo@test.local',
             passwordHash: hashedPassword,
@@ -352,6 +365,7 @@ async function main() {
             lastName: 'Chow',
             department: 'Executive',
             jobTitle: 'Chief Executive Officer',
+            executiveRole: 'CEO',
             isActive: true,
         },
     });
@@ -360,12 +374,15 @@ async function main() {
 
     const ctoUser = await prisma.user.upsert({
         where: { email: 'cto@test.local' },
-        update: {},
+        update: { jobTitle: 'Chief Technology Officer', department: 'IT', executiveRole: 'CTO' },
         create: {
             email: 'cto@test.local',
             passwordHash: hashedPassword,
             firstName: 'Raymond',
             lastName: 'Kueh',
+            department: 'IT',
+            jobTitle: 'Chief Technology Officer',
+            executiveRole: 'CTO',
             isActive: true,
         },
     });
@@ -374,12 +391,15 @@ async function main() {
 
     const cfoUser = await prisma.user.upsert({
         where: { email: 'cfo@test.local' },
-        update: {},
+        update: { jobTitle: 'Chief Finance Officer', department: 'Finance', executiveRole: 'CFO' },
         create: {
             email: 'cfo@test.local',
             passwordHash: hashedPassword,
             firstName: 'Saravanan',
             lastName: 'Ramaiah',
+            department: 'Finance',
+            jobTitle: 'Chief Finance Officer',
+            executiveRole: 'CFO',
             isActive: true,
         },
     });
@@ -389,14 +409,15 @@ async function main() {
     const groupCeoRole = await prisma.role.findUniqueOrThrow({ where: { name: 'GROUP_CEO' } });
     const groupCeoUser = await prisma.user.upsert({
         where: { email: 'groupceo@test.local' },
-        update: {},
+        update: { jobTitle: 'Chairman & Group Chief Executive Officer', department: 'Executive', executiveRole: 'GROUP_CEO' },
         create: {
             email: 'groupceo@test.local',
             passwordHash: hashedPassword,
             firstName: 'Alain',
             lastName: 'Boey',
             department: 'Executive',
-            jobTitle: 'Group Chief Executive Officer',
+            jobTitle: 'Chairman & Group Chief Executive Officer',
+            executiveRole: 'GROUP_CEO',
             isActive: true,
         },
     });
@@ -407,16 +428,16 @@ async function main() {
     const agentPassword = await bcrypt.hash('abc@123', 10);
 
     const agentAccounts = [
-        { email: 'finance@test.local',     firstName: 'Zahidah', lastName: 'Zahidah',     department: 'Finance', jobTitle: 'Finance Agent',             roles: [agentRole.id], agentTeam: 'FINANCE' },
-        { email: 'it@test.local',          firstName: 'Tham',    lastName: 'Ming Kai',    department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id, itAgentRole.id], agentTeam: 'IT' },
-        { email: 'it2@test.local',         firstName: 'Naila',   lastName: 'Naila',       department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id, itAgentRole.id], agentTeam: 'IT' },
-        { email: 'hr@test.local',          firstName: 'Sasha',   lastName: 'Nair',        department: 'HR',      jobTitle: 'HR Agent',                  roles: [agentRole.id], agentTeam: 'HR' },
+        { email: 'finance@test.local',     firstName: 'Zahidah', lastName: 'Zahidah',     department: 'Finance', jobTitle: 'Finance Agent',             roles: [agentRole.id], agentTeam: 'FINANCE', entityCode: 'CG' },
+        { email: 'it@test.local',          firstName: 'Tham',    lastName: 'Ming Kai',    department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id, itAgentRole.id], agentTeam: 'IT', entityCode: 'CGT' },
+        { email: 'it2@test.local',         firstName: 'Naila',   lastName: 'Naila',       department: 'IT',      jobTitle: 'IT Agent',                  roles: [agentRole.id, itAgentRole.id], agentTeam: 'IT', entityCode: 'CGT' },
+        { email: 'hr@test.local',          firstName: 'Sasha',   lastName: 'Nair',        department: 'HR',      jobTitle: 'HR Agent',                  roles: [agentRole.id], agentTeam: 'HR', entityCode: 'CG' },
     ];
 
     for (const acc of agentAccounts) {
         const u = await prisma.user.upsert({
             where: { email: acc.email },
-            update: RETAIN_ADMIN_CONFIG ? {} : { agentTeam: acc.agentTeam },
+            update: RETAIN_ADMIN_CONFIG ? {} : { agentTeam: acc.agentTeam, jobTitle: acc.jobTitle, department: acc.department },
             create: {
                 email: acc.email,
                 passwordHash: agentPassword,
@@ -472,7 +493,7 @@ async function main() {
     const entitySeeds = [
         { code: 'CG',   name: 'Citadel Group Sdn. Bhd.',             description: 'Citadel Group Technologies Sdn Bhd — Group Holding',        approverEmail: 'admin@test.local',      displayOrder: 10 },
         { code: 'CGT',  name: 'Citadel Group Technologies Sdn. Bhd.', description: 'Citadel Group Technologies Sdn Bhd — Technology Division',  approverEmail: 'ceo@test.local',        displayOrder: 20 },
-        { code: 'CWP',  name: 'Citadel Wealth Partner Sdn. Bhd.',    description: 'Citadel Workforce Partners Sdn Bhd — HR Solutions',        approverEmail: 'karyuanfang.work@gmail.com', displayOrder: 30 },
+        { code: 'CWP',  name: 'Citadel Wealth Partners Sdn. Bhd.',   description: 'Citadel Wealth Partners Sdn Bhd — HR Solutions',           approverEmail: 'karyuanfang.work@gmail.com', displayOrder: 30 },
         { code: 'CT360', name: 'Citadel Tayyib 360 Sdn. Bhd.',       description: 'Citadel 360 Sdn Bhd — Consulting & Advisory',            approverEmail: 'admin@test.local',      displayOrder: 40 },
         { code: 'NIU',  name: 'NIU Trading Sdn. Bhd.',               description: 'NIU Digital Sdn Bhd — Digital Innovation',                approverEmail: 'groupceo@test.local',   displayOrder: 50 },
         { code: 'COS',  name: 'Cosmospan Sdn. Bhd.',                  description: 'Cosmospan Sdn Bhd — Shared Services',                    approverEmail: 'admin@test.local',      displayOrder: 60 },
@@ -486,7 +507,12 @@ async function main() {
         }
         await prisma.entity.upsert({
             where: { code: es.code },
-            update: {},
+            update: {
+                name: es.name,
+                description: es.description,
+                approverId: approver.id,
+                displayOrder: es.displayOrder,
+            },
             create: {
                 name: es.name,
                 code: es.code,
@@ -499,6 +525,33 @@ async function main() {
     }
 
     console.log('✅ Entities created');
+
+    // ── Update seed users with entity assignments ────────────────────────────
+    // Entities must be created first (they reference approver users), so we
+    // assign entityIds in a second pass rather than in the user upserts above.
+    const entityCodeToId = new Map<string, string>((await prisma.entity.findMany({ select: { code: true, id: true } })).map(e => [e.code, e.id]));
+
+    const userEntityMap: Record<string, string> = {
+        'admin@test.local':   'CGT',
+        'ceo@test.local':    'CGT',
+        'cto@test.local':    'CGT',
+        'cfo@test.local':    'CG',
+        'groupceo@test.local': 'CG',
+        'finance@test.local': 'CG',
+        'it@test.local':     'CGT',
+        'it2@test.local':    'CGT',
+        'hr@test.local':     'CG',
+    };
+
+    for (const [email, code] of Object.entries(userEntityMap)) {
+        const entityId = entityCodeToId.get(code);
+        if (entityId) {
+            await prisma.user.update({ where: { email }, data: { entityId } });
+        } else {
+            console.log(`⚠️  Could not assign entity ${code} to ${email}: entity not found`);
+        }
+    }
+    console.log('✅ Seed user entity assignments updated');
 
     // Create Service Categories for IT
     const itCategories = [

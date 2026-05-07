@@ -21,6 +21,7 @@ const EXECUTIVE_ROLES = [
     { value: 'CEO', label: 'CEO' },
     { value: 'CTO', label: 'CTO' },
     { value: 'CFO', label: 'CFO' },
+    { value: 'CMO', label: 'CMO' },
     { value: 'COO', label: 'COO' },
     { value: 'CHRO', label: 'CHRO' },
 ];

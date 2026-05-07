@@ -493,7 +493,7 @@ class UserController {
 
         // Validate executive role if provided
         if (executiveRole) {
-            const validRoles = ['CEO', 'CTO', 'CFO', 'COO', 'CHRO', 'GROUP_CEO'];
+            const validRoles = ['CEO', 'CTO', 'CFO', 'CMO', 'COO', 'CHRO', 'GROUP_CEO'];
             if (!validRoles.includes(executiveRole)) {
                 throw new AppError(`Invalid executive role. Must be one of: ${validRoles.join(', ')}`, 400);
             }

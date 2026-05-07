@@ -221,6 +221,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               <option value="CEO">CEO</option>
               <option value="CTO">CTO</option>
               <option value="CFO">CFO</option>
+              <option value="CMO">CMO</option>
               <option value="COO">COO</option>
               <option value="CHRO">CHRO</option>
             </select>
@@ -261,24 +262,23 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               </label>
             </div>
           )}
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || (emailChanged && !emailChangeConfirmed)}
+              className="px-4 py-2.5 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-[#0047b3] disabled:opacity-50"
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
         </form>
-
-        <div className="flex justify-end gap-2 p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2.5 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading || (emailChanged && !emailChangeConfirmed)}
-            className="px-4 py-2.5 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-[#0047b3] disabled:opacity-50"
-          >
-            {loading ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
       </div>
     </div>
   );

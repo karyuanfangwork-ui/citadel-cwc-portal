@@ -12,7 +12,7 @@ const DEFAULT_EXCEL_PATH = path.resolve(__dirname, '../../docs/JobTitles.xlsx');
 const ENTITY_MAP: Record<string, string> = {
   'Citadel Group Sdn. Bhd.': 'CG',
   'Citadel Group Technologies Sdn. Bhd.': 'CGT',
-  'Citadel Wealth Partner Sdn. Bhd.': 'CWP',
+  'Citadel Wealth Partners Sdn. Bhd.': 'CWP',
   'Citadel Tayyib 360 Sdn. Bhd.': 'CT360',
   'NIU Trading Sdn. Bhd.': 'NIU',
   'Cosmospan Sdn. Bhd.': 'COS',
