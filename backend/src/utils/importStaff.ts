@@ -7,7 +7,7 @@
  */
 import { ExecutiveRole } from '@prisma/client';
 
-// ── Entity name → code mapping ──────────────────────────────────────────────
+// ── Entity name → code mapping (kept for reference / script usage) ──────────
 export const ENTITY_MAP: Record<string, string> = {
   'Citadel Group Sdn. Bhd.': 'CG',
   'Citadel Group Technologies Sdn. Bhd.': 'CGT',
@@ -16,6 +16,82 @@ export const ENTITY_MAP: Record<string, string> = {
   'NIU Trading Sdn. Bhd.': 'NIU',
   'Cosmospan Sdn. Bhd.': 'COS',
 };
+
+/**
+ * Normalise a string for fuzzy comparison:
+ *  - lowercase
+ *  - collapse whitespace
+ *  - remove trailing periods
+ *  - normalise "sdn bhd" / "sdn. bhd." / "sdnbhd" variants
+ *  - strip periods altogether for comparison
+ */
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/\./g, '')       // strip all periods
+    .replace(/\s+/g, ' ')     // collapse whitespace
+    .replace(/sdn\s*bhd/g, 'sdnbhd')  // normalise "Sdn. Bhd." / "Sdn Bhd" / "SdnBhd"
+    .trim();
+}
+
+/**
+ * Resolve a raw Excel cell value to an entity code.
+ *
+ * Tries in order:
+ * 1. Exact match against ENTITY_MAP keys (original names with periods)
+ * 2. Normalised match against ENTITY_MAP keys
+ * 3. Direct entity code match (CG, CGT, CWP, CT360, NIU, COS) — case-insensitive
+ * 4. Normalised match against provided DB entity names & codes
+ * 5. Partial / substring match (e.g. "citadel group" → CG)
+ */
+export function resolveEntityCode(
+  raw: string,
+  dbEntities?: { code: string; name: string }[],
+): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  // 1. Exact match on ENTITY_MAP
+  if (ENTITY_MAP[trimmed]) return ENTITY_MAP[trimmed];
+
+  // 2. Normalised match on ENTITY_MAP keys
+  const normInput = normalize(trimmed);
+  for (const [name, code] of Object.entries(ENTITY_MAP)) {
+    if (normalize(name) === normInput) return code;
+  }
+
+  // 3. Direct entity-code match (case-insensitive)
+  const upper = trimmed.toUpperCase();
+  const knownCodes = Object.values(ENTITY_MAP);
+  if (knownCodes.includes(upper)) return upper;
+  // Also check dbEntities codes if provided
+  if (dbEntities) {
+    for (const e of dbEntities) {
+      if (e.code.toUpperCase() === upper) return e.code;
+    }
+  }
+
+  // 4. Normalised match against DB entities (covers names that differ from ENTITY_MAP)
+  if (dbEntities) {
+    for (const e of dbEntities) {
+      if (normalize(e.name) === normInput) return e.code;
+    }
+  }
+
+  // 5. Partial / substring match — input contains or is contained in known name
+  for (const [name, code] of Object.entries(ENTITY_MAP)) {
+    if (normInput.includes(normalize(name)) || normalize(name).includes(normInput)) return code;
+  }
+  if (dbEntities) {
+    for (const e of dbEntities) {
+      const normName = normalize(e.name);
+      if (normInput.includes(normName) || normName.includes(normInput)) return e.code;
+    }
+  }
+
+  return null;
+}
 
 // ── Map job titles to executive roles ────────────────────────────────────────
 export function inferExecutiveRole(jobTitle: string): ExecutiveRole | null {
@@ -94,9 +170,9 @@ export function parseStaffRows(data: Record<string, any>[]): StaffRow[] {
   for (const row of data) {
     const keys = Object.keys(row);
     const emailCol = keys.find(k => k.toLowerCase().includes('email'));
-    const nameCol = keys.find(k => k.toLowerCase().includes('name') && !k.toLowerCase().includes('entity') && !k.toLowerCase().includes('company'));
+    const nameCol = keys.find(k => k.toLowerCase().includes('name') && !k.toLowerCase().includes('entit') && !k.toLowerCase().includes('company'));
     const jobCol = keys.find(k => k.toLowerCase().includes('job') || k.toLowerCase().includes('title') || k.toLowerCase().includes('position'));
-    const companyCol = keys.find(k => k.toLowerCase().includes('entity') || k.toLowerCase().includes('company') || k.toLowerCase().includes('organisation'));
+    const companyCol = keys.find(k => k.toLowerCase().includes('entit') || k.toLowerCase().includes('company') || k.toLowerCase().includes('organisation'));
     const deptCol = keys.find(k => k.toLowerCase().includes('department') || k.toLowerCase().includes('dept'));
     const activeCol = keys.find(k => k.toLowerCase().includes('active') || k.toLowerCase().includes('status'));
 

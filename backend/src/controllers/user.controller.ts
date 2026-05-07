@@ -11,13 +11,13 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { tokenService } from '../services/token.service';
 import { validateExecutiveRoleAssignment } from '../utils/executive-role';
 import {
-  ENTITY_MAP,
   splitName,
   inferExecutiveRole,
   inferDepartment,
   inferAgentTeam,
   parseStaffRows,
   StaffRow,
+  resolveEntityCode,
 } from '../utils/importStaff';
 
 const prisma = new PrismaClient();
@@ -631,6 +631,8 @@ class UserController {
         for (const e of entities) {
             entityCodeToId[e.code] = e.id;
         }
+        // Build lightweight array for fuzzy entity resolution
+        const dbEntityLookup = entities.map(e => ({ code: e.code, name: e.name }));
 
         const existingUsers = await prisma.user.findMany({
             select: {
@@ -669,7 +671,7 @@ class UserController {
             const email = staff.email.toLowerCase();
             const { firstName, lastName } = splitName(staff.displayName);
             const executiveRole = inferExecutiveRole(staff.jobTitle);
-            const entityCode = ENTITY_MAP[staff.company];
+            const entityCode = resolveEntityCode(staff.company, dbEntityLookup);
             const entityId = entityCode ? entityCodeToId[entityCode] : null;
             const department = staff.department || inferDepartment(staff.jobTitle);
             const agentTeam = inferAgentTeam(staff.jobTitle);

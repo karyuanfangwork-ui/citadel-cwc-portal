@@ -1,141 +1,20 @@
-import { PrismaClient, ExecutiveRole } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import xlsx from 'xlsx';
 import path from 'path';
+import {
+  resolveEntityCode,
+  splitName,
+  inferExecutiveRole,
+  inferDepartment,
+  inferAgentTeam,
+  parseStaffRows,
+} from '../src/utils/importStaff';
 
 const prisma = new PrismaClient();
 
 // Default Excel path (relative to backend dir)
 const DEFAULT_EXCEL_PATH = path.resolve(__dirname, '../../docs/JobTitles.xlsx');
-
-// Entity name -> code mapping
-const ENTITY_MAP: Record<string, string> = {
-  'Citadel Group Sdn. Bhd.': 'CG',
-  'Citadel Group Technologies Sdn. Bhd.': 'CGT',
-  'Citadel Wealth Partners Sdn. Bhd.': 'CWP',
-  'Citadel Tayyib 360 Sdn. Bhd.': 'CT360',
-  'NIU Trading Sdn. Bhd.': 'NIU',
-  'Cosmospan Sdn. Bhd.': 'COS',
-};
-
-// Map job titles to executive roles
-function inferExecutiveRole(jobTitle: string): ExecutiveRole | null {
-  const lower = jobTitle.toLowerCase();
-  if (lower.includes('group chief executive') || lower.includes('chairman')) return 'GROUP_CEO' as ExecutiveRole;
-  if (lower === 'chief executive officer' || lower === 'ceo') return 'CEO' as ExecutiveRole;
-  if (lower.includes('chief executive officer') && lower.includes('head of sales')) return 'CEO' as ExecutiveRole;
-  if (lower.includes('chief technology officer') || lower === 'cto') return 'CTO' as ExecutiveRole;
-  if (lower.includes('chief finance officer') || lower.includes('chief financial') || lower === 'cfo') return 'CFO' as ExecutiveRole;
-  if (lower.includes('chief human resources') || lower === 'chro') return 'CHRO' as ExecutiveRole;
-  if (lower.includes('chief operating officer') || lower === 'coo') return 'COO' as ExecutiveRole;
-  return null;
-}
-
-// Infer department from job title
-function inferDepartment(jobTitle: string): string | null {
-  const lower = jobTitle.toLowerCase();
-  if (lower.includes('developer') || lower.includes('system admin') || lower.includes('application support') || lower.includes('lead application') || lower.includes('product head')) return 'IT';
-  if (lower.includes('finance') || lower.includes('financial') || lower.includes('accounting')) return 'Finance';
-  if (lower.includes('hr') || lower.includes('human resource')) return 'HR';
-  if (lower.includes('marketing') || lower.includes('investor relation')) return 'Marketing';
-  if (lower.includes('legal') || lower.includes('compliance')) return 'Legal';
-  if (lower.includes('admin') || lower.includes('receptionist') || lower.includes('executive assistant')) return 'Admin';
-  if (lower.includes('director') || lower.includes('chief') || lower.includes('chairman') || lower.includes('ceo') || lower.includes('cto') || lower.includes('cfo')) return 'Executive';
-  if (lower.includes('sales')) return 'Sales';
-  return null;
-}
-
-// Infer agent team from job title
-function inferAgentTeam(jobTitle: string): string | null {
-  const lower = jobTitle.toLowerCase();
-  if (lower.includes('developer') || lower.includes('system admin') || lower.includes('application support') || lower.includes('lead application')) return 'IT';
-  if (lower.includes('finance') || lower.includes('financial')) return 'FINANCE';
-  if (lower.includes('hr') || lower.includes('human resource')) return 'HR';
-  return null;
-}
-
-// Split display name into first/last name
-function splitName(displayName: string): { firstName: string; lastName: string } {
-  // Handle special prefixes
-  const prefixes = ["Dato'", 'Dr.', 'Ir.', 'Hj.', 'Hjh.'];
-  let prefix = '';
-  let remaining = displayName;
-  for (const p of prefixes) {
-    if (displayName.startsWith(p + ' ')) {
-      prefix = p;
-      remaining = displayName.slice(p.length).trim();
-      break;
-    }
-  }
-  
-  const parts = remaining.split(/\s+/);
-  if (parts.length === 1) {
-    return { firstName: (prefix ? prefix + ' ' : '') + parts[0], lastName: parts[0] };
-  }
-  return {
-    firstName: (prefix ? prefix + ' ' : '') + parts[0],
-    lastName: parts.slice(1).join(' '),
-  };
-}
-
-interface StaffRow {
-  displayName: string;
-  email: string;
-  jobTitle: string;
-  company: string;
-  department?: string; // override if provided in Excel
-  isActive?: boolean;  // override if provided in Excel
-}
-
-function readExcel(filePath: string): StaffRow[] {
-  const wb = xlsx.readFile(filePath);
-  
-  // Read "staff listing" sheet
-  const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('staff listing') || n.toLowerCase().includes('staff'));
-  if (!sheetName) {
-    // Fallback to first sheet
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const data = xlsx.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
-    console.log(`⚠️  No "staff listing" sheet found, using first sheet: "${wb.SheetNames[0]}"`);
-    return parseRows(data);
-  }
-  
-  const ws = wb.Sheets[sheetName];
-  const data = xlsx.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
-  console.log(`📋 Reading from sheet: "${sheetName}" (${data.length} rows)`);
-  return parseRows(data);
-}
-
-function parseRows(data: Record<string, any>[]): StaffRow[] {
-  const staff: StaffRow[] = [];
-  
-  for (const row of data) {
-    // Auto-detect column names (case-insensitive, flexible matching)
-    const keys = Object.keys(row);
-    const emailCol = keys.find(k => k.toLowerCase().includes('email'));
-    const nameCol = keys.find(k => k.toLowerCase().includes('name') && !k.toLowerCase().includes('entity') && !k.toLowerCase().includes('company'));
-    const jobCol = keys.find(k => k.toLowerCase().includes('job') || k.toLowerCase().includes('title') || k.toLowerCase().includes('position'));
-    const companyCol = keys.find(k => k.toLowerCase().includes('entity') || k.toLowerCase().includes('company') || k.toLowerCase().includes('organisation'));
-    const deptCol = keys.find(k => k.toLowerCase().includes('department') || k.toLowerCase().includes('dept'));
-    const activeCol = keys.find(k => k.toLowerCase().includes('active') || k.toLowerCase().includes('status'));
-    
-    const email = emailCol ? String(row[emailCol] || '').trim().toLowerCase() : '';
-    const displayName = nameCol ? String(row[nameCol] || '').trim() : '';
-    const jobTitle = jobCol ? String(row[jobCol] || '').trim() : '';
-    const company = companyCol ? String(row[companyCol] || '').trim() : '';
-    const department = deptCol ? String(row[deptCol] || '').trim() || undefined : undefined;
-    const isActive = activeCol ? String(row[activeCol] || '').toLowerCase() !== 'inactive' : undefined;
-    
-    // Skip rows without email or name
-    if (!email || !displayName) continue;
-    // Skip header-like rows
-    if (email === 'email' || displayName.toLowerCase() === 'name') continue;
-    
-    staff.push({ displayName, email, jobTitle, company, department, isActive });
-  }
-  
-  return staff;
-}
 
 async function main() {
   const filePath = process.argv[2] || DEFAULT_EXCEL_PATH;
@@ -146,7 +25,19 @@ async function main() {
   // Read staff data from Excel
   let staffData: StaffRow[];
   try {
-    staffData = readExcel(filePath);
+    const wb = xlsx.readFile(filePath);
+    const sheetName = wb.SheetNames.find(n =>
+      n.toLowerCase().includes('staff listing') || n.toLowerCase().includes('staff'),
+    );
+    const targetSheet = sheetName || wb.SheetNames[0];
+    if (!targetSheet) {
+      console.error('❌ Excel file contains no sheets');
+      process.exit(1);
+    }
+    console.log(`📋 Reading from sheet: "${targetSheet}"`);
+    const ws = wb.Sheets[targetSheet];
+    const rawData = xlsx.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
+    staffData = parseStaffRows(rawData);
   } catch (err: any) {
     console.error(`❌ Failed to read Excel file: ${err.message}`);
     process.exit(1);
@@ -165,6 +56,7 @@ async function main() {
   for (const e of entities) {
     entityCodeToId[e.code] = e.id;
   }
+  const dbEntityLookup = entities.map(e => ({ code: e.code, name: e.name }));
   
   // Get existing user emails
   const existingUsers = await prisma.user.findMany({ select: { email: true, id: true, firstName: true, lastName: true, jobTitle: true, entityId: true, executiveRole: true, department: true, isActive: true } });
@@ -190,7 +82,7 @@ async function main() {
     const email = staff.email.toLowerCase();
     const { firstName, lastName } = splitName(staff.displayName);
     const executiveRole = inferExecutiveRole(staff.jobTitle);
-    const entityCode = ENTITY_MAP[staff.company];
+    const entityCode = resolveEntityCode(staff.company, dbEntityLookup);
     const entityId = entityCode ? entityCodeToId[entityCode] : null;
     const department = staff.department || inferDepartment(staff.jobTitle);
     const agentTeam = inferAgentTeam(staff.jobTitle);
