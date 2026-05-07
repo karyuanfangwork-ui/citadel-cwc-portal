@@ -1,26 +1,51 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { adminService } from '../../services/admin.service';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
 
+interface Entity {
+    id: string;
+    name: string;
+    code: string;
+}
+
 interface CreateUserModalProps {
     onSuccess: () => void;
     onClose: () => void;
+    entities?: Entity[];
 }
 
-const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose }) => {
+const EXECUTIVE_ROLES = [
+    { value: '', label: 'None' },
+    { value: 'GROUP_CEO', label: 'Group CEO' },
+    { value: 'CEO', label: 'CEO' },
+    { value: 'CTO', label: 'CTO' },
+    { value: 'CFO', label: 'CFO' },
+    { value: 'COO', label: 'COO' },
+    { value: 'CHRO', label: 'CHRO' },
+];
+
+const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose, entities = [] }) => {
     const focusTrapRef = useFocusTrap(true);
     const stableOnClose = useCallback(() => onClose(), [onClose]);
     useEscapeKey(stableOnClose);
     const [phase, setPhase] = useState<'form' | 'success'>('form');
-    const [form, setForm] = useState({ firstName: '', lastName: '', email: '' });
+    const [form, setForm] = useState({
+        firstName: '',
+        lastName: '',
+        email: '',
+        department: '',
+        jobTitle: '',
+        entityId: '',
+        executiveRole: '',
+    });
     const [tempPassword, setTempPassword] = useState('');
     const [createdUser, setCreatedUser] = useState<{ firstName: string; lastName: string; email: string } | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
@@ -33,11 +58,17 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose })
         }
         try {
             setSubmitting(true);
-            const res = await adminService.createUser({
+            const payload: Record<string, string> = {
                 firstName: form.firstName.trim(),
                 lastName: form.lastName.trim(),
                 email: form.email.trim(),
-            });
+            };
+            if (form.department.trim()) payload.department = form.department.trim();
+            if (form.jobTitle.trim()) payload.jobTitle = form.jobTitle.trim();
+            if (form.entityId) payload.entityId = form.entityId;
+            if (form.executiveRole) payload.executiveRole = form.executiveRole;
+
+            const res = await adminService.createUser(payload);
             setCreatedUser(res.user);
             setTempPassword(res.tempPassword);
             setPhase('success');
@@ -120,6 +151,68 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose })
                                         placeholder="john.doe@test.local"
                                         className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
                                     />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                                        Job Title
+                                    </label>
+                                    <input
+                                        name="jobTitle"
+                                        value={form.jobTitle}
+                                        onChange={handleChange}
+                                        placeholder="e.g., Full Stack Developer"
+                                        className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                                        Department
+                                    </label>
+                                    <input
+                                        name="department"
+                                        value={form.department}
+                                        onChange={handleChange}
+                                        placeholder="e.g., IT, HR, Finance"
+                                        className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
+                                    />
+                                </div>
+                                {entities.length > 0 && (
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                                            Entity (Subsidiary)
+                                        </label>
+                                        <select
+                                            name="entityId"
+                                            value={form.entityId}
+                                            onChange={handleChange}
+                                            className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] bg-white"
+                                        >
+                                            <option value="">None</option>
+                                            {entities.map(entity => (
+                                                <option key={entity.id} value={entity.id}>
+                                                    {entity.name} ({entity.code})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                                        Executive Role
+                                    </label>
+                                    <select
+                                        name="executiveRole"
+                                        value={form.executiveRole}
+                                        onChange={handleChange}
+                                        className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] bg-white"
+                                    >
+                                        {EXECUTIVE_ROLES.map(r => (
+                                            <option key={r.value} value={r.value}>{r.label}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Assign C-level executive role for high-value approval workflows
+                                    </p>
                                 </div>
                                 {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
                             </div>

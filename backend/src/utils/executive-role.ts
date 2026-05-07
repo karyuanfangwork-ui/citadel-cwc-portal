@@ -5,6 +5,7 @@ import { ExecutiveRole, User } from '@prisma/client';
  * Order matters: CEO > CTO > CFO > COO > CHRO
  */
 export const EXECUTIVE_HIERARCHY: ExecutiveRole[] = [
+    'GROUP_CEO',
     'CEO',
     'CTO',
     'CFO',

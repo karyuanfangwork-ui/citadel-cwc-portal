@@ -19,7 +19,9 @@
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "prisma:seed:clear-tickets": "tsx prisma/seed-clear-tickets.ts"
+    "prisma:seed:clear-tickets": "tsx prisma/seed-clear-tickets.ts",
+    "import:staff": "tsx scripts/bulk_import_staff.ts",
+    "import:staff:deactivate": "tsx scripts/bulk_import_staff.ts --deactivate-missing"
   },
   "keywords": [
     "help-desk",

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { userController } from '../controllers/user.controller';
 import { authenticate, authorize, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -6,8 +7,34 @@ import { updateProfileSchema } from '../validators/user.validator';
 
 const router = Router();
 
+// Multer config for staff import (in-memory, .xlsx only, 5MB max)
+const importUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+        const ext = file.originalname.toLowerCase();
+        if (ext.endsWith('.xlsx') || ext.endsWith('.xls')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only .xlsx or .xls files are allowed'));
+        }
+    },
+});
+
 // All routes require authentication
 router.use(authenticate);
+
+/**
+ * @route   POST /api/v1/users/import
+ * @desc    Bulk import staff from Excel file
+ * @access  Private (user:manage permission required)
+ */
+router.post(
+    '/import',
+    requirePermission('user:manage'),
+    importUpload.single('file'),
+    userController.importUsers,
+);
 
 /**
  * @route   GET /api/v1/users/agents

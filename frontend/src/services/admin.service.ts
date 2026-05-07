@@ -51,13 +51,28 @@ export const adminService = {
         return response.data.data;
     },
 
-    async createUser(data: { firstName: string; lastName: string; email: string; department?: string }): Promise<{ user: { id: string; firstName: string; lastName: string; email: string; department: string | null; roles: string[] }; tempPassword: string }> {
+    async createUser(data: { firstName: string; lastName: string; email: string; department?: string; jobTitle?: string; entityId?: string; executiveRole?: string; agentTeam?: string }): Promise<{ user: { id: string; firstName: string; lastName: string; email: string; department: string | null; jobTitle: string | null; entityId: string | null; executiveRole: string | null; agentTeam: string | null; roles: string[] }; tempPassword: string }> {
         const response = await apiClient.post('/users', data);
         return response.data.data;
     },
 
     async resetUserPassword(userId: string): Promise<{ tempPassword: string }> {
         const response = await apiClient.post(`/users/${userId}/reset-password`);
+        return response.data.data;
+    },
+
+    // ── Bulk Import ──────────────────────────────────────────────────
+
+    async importStaff(file: File): Promise<{
+        summary: { total: number; created: number; updated: number; skipped: number; errors: number };
+        details: { email: string; displayName: string; action: 'created' | 'updated' | 'skipped' | 'error'; message: string }[];
+    }> {
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await apiClient.post('/users/import', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            timeout: 120000, // 2 minutes for large imports
+        });
         return response.data.data;
     },
 

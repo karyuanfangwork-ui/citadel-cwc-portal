@@ -217,6 +217,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, isOpen, onClose, on
               className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] bg-white"
             >
               <option value="">None</option>
+              <option value="GROUP_CEO">Group CEO</option>
               <option value="CEO">CEO</option>
               <option value="CTO">CTO</option>
               <option value="CFO">CFO</option>

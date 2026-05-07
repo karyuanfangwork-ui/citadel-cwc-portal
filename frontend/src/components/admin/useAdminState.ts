@@ -123,6 +123,7 @@ export interface UseAdminStateReturn {
     showAgentTeamModal: boolean;
     selectedAgentTeam: string;
     showCreateUserModal: boolean;
+    showImportStaffModal: boolean;
     showEditUserModal: boolean;
     editingUser: any;
     departments: string[];
@@ -219,6 +220,7 @@ export interface UseAdminStateReturn {
     setShowAgentTeamModal: (show: boolean) => void;
     setSelectedAgentTeam: (team: string) => void;
     setShowCreateUserModal: (show: boolean) => void;
+    setShowImportStaffModal: (show: boolean) => void;
     setShowEditUserModal: (show: boolean) => void;
     setEditingUser: (user: any) => void;
     setResetPasswordUser: (user: any | null) => void;
@@ -318,6 +320,7 @@ export function useAdminState(): UseAdminStateReturn {
     const [showAgentTeamModal, setShowAgentTeamModal] = useState(false);
     const [selectedAgentTeam, setSelectedAgentTeam] = useState<string>('');
     const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+    const [showImportStaffModal, setShowImportStaffModal] = useState(false);
     const [showEditUserModal, setShowEditUserModal] = useState(false);
     const [editingUser, setEditingUser] = useState<any | null>(null);
     const [resetPasswordUser, setResetPasswordUser] = useState<any | null>(null);
@@ -1079,6 +1082,7 @@ export function useAdminState(): UseAdminStateReturn {
         showAgentTeamModal,
         selectedAgentTeam,
         showCreateUserModal,
+        showImportStaffModal,
         showEditUserModal,
         editingUser,
         departments,
@@ -1166,6 +1170,7 @@ export function useAdminState(): UseAdminStateReturn {
         setShowAgentTeamModal,
         setSelectedAgentTeam,
         setShowCreateUserModal,
+        setShowImportStaffModal,
         setShowEditUserModal,
         setEditingUser,
         setResetPasswordUser,

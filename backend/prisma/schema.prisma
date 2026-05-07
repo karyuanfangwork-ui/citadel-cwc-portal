@@ -18,6 +18,7 @@ enum ExecutiveRole {
   CFO
   COO
   CHRO
+  GROUP_CEO
 }
 
 enum AssetStatus {

@@ -3,7 +3,14 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 import { emailLayout, htmlToPlainText } from '../templates/email-layout';
 
-const resend = new Resend(config.email.resendApiKey);
+// Lazy-initialize Resend client to avoid constructor crash when API key is missing (local dev)
+let _resend: Resend | null = null;
+function getResendClient(): Resend {
+    if (!_resend) {
+        _resend = new Resend(config.email.resendApiKey);
+    }
+    return _resend;
+}
 
 export interface SendEmailOptions {
   /** If true, wrap body HTML in the branded email layout (default: true) */
@@ -43,7 +50,7 @@ export async function sendEmail(
     : undefined;
 
   try {
-    const { error } = await resend.emails.send({
+    const { error } = await getResendClient().emails.send({
       from: config.email.from,
       to: actualTo,
       subject,

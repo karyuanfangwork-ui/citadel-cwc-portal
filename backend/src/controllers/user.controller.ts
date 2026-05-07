@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { PrismaClient, ExecutiveRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import xlsx from 'xlsx';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { sanitizeString } from '../utils/sanitize';
 import { permissionService } from '../services/permission.service';
@@ -9,6 +10,15 @@ import { auditLog } from '../utils/audit';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { tokenService } from '../services/token.service';
 import { validateExecutiveRoleAssignment } from '../utils/executive-role';
+import {
+  ENTITY_MAP,
+  splitName,
+  inferExecutiveRole,
+  inferDepartment,
+  inferAgentTeam,
+  parseStaffRows,
+  StaffRow,
+} from '../utils/importStaff';
 
 const prisma = new PrismaClient();
 
@@ -456,7 +466,7 @@ class UserController {
     });
 
     createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { firstName, lastName, email, department } = req.body;
+        const { firstName, lastName, email, department, jobTitle, entityId, executiveRole, agentTeam } = req.body;
 
         if (!firstName || !lastName || !email) {
             throw new AppError('firstName, lastName, and email are required', 400);
@@ -473,7 +483,23 @@ class UserController {
             throw new AppError('Email already in use', 409);
         }
 
-        const TEMP_PASSWORD = 'abc@123';
+        // Validate entityId if provided
+        if (entityId) {
+            const entity = await prisma.entity.findUnique({ where: { id: entityId } });
+            if (!entity) {
+                throw new AppError('Entity not found', 400);
+            }
+        }
+
+        // Validate executive role if provided
+        if (executiveRole) {
+            const validRoles = ['CEO', 'CTO', 'CFO', 'COO', 'CHRO', 'GROUP_CEO'];
+            if (!validRoles.includes(executiveRole)) {
+                throw new AppError(`Invalid executive role. Must be one of: ${validRoles.join(', ')}`, 400);
+            }
+        }
+
+        const TEMP_PASSWORD='***';
         const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
 
         const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
@@ -486,6 +512,10 @@ class UserController {
                 email: normalizedEmail,
                 passwordHash: hashedPassword,
                 department: department || null,
+                jobTitle: jobTitle || null,
+                entityId: entityId || null,
+                executiveRole: executiveRole || null,
+                agentTeam: agentTeam || null,
                 isActive: true,
                 roles: {
                     create: { roleId: normalStaffRole.id },
@@ -505,6 +535,10 @@ class UserController {
                     lastName: newUser.lastName,
                     email: newUser.email,
                     department: newUser.department,
+                    jobTitle: newUser.jobTitle,
+                    entityId: newUser.entityId,
+                    executiveRole: newUser.executiveRole,
+                    agentTeam: newUser.agentTeam,
                     roles: (newUser as any).roles.map((ur: any) => ur.role.name),
                 },
                 tempPassword: TEMP_PASSWORD,
@@ -551,6 +585,184 @@ class UserController {
         res.json({
             status: 'success',
             data: { tempPassword },
+        });
+    });
+
+    /**
+     * Bulk import staff from Excel file upload
+     * POST /api/v1/users/import
+     * Expects multipart/form-data with field "file" containing .xlsx
+     */
+    importUsers = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const file = req.file as Express.Multer.File | undefined;
+        if (!file) {
+            throw new AppError('No file uploaded. Please attach an .xlsx file.', 400);
+        }
+
+        // Parse the Excel buffer
+        let staffData: StaffRow[];
+        try {
+            const wb = xlsx.read(file.buffer, { type: 'buffer' });
+
+            // Prefer "staff listing" sheet, fallback to first sheet
+            const sheetName = wb.SheetNames.find(n =>
+                n.toLowerCase().includes('staff listing') || n.toLowerCase().includes('staff'),
+            );
+            const targetSheet = sheetName || wb.SheetNames[0];
+            if (!targetSheet) {
+                throw new AppError('Excel file contains no sheets', 400);
+            }
+
+            const ws = wb.Sheets[targetSheet];
+            const rawData = xlsx.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
+            staffData = parseStaffRows(rawData);
+        } catch (err: any) {
+            if (err instanceof AppError) throw err;
+            throw new AppError(`Failed to parse Excel file: ${err.message}`, 400);
+        }
+
+        if (staffData.length === 0) {
+            throw new AppError('No valid staff data found in Excel file. Ensure columns include: Display Name, Email, Job Title, Company/Entity.', 400);
+        }
+
+        // Pre-load required data
+        const entities = await prisma.entity.findMany();
+        const entityCodeToId: Record<string, string> = {};
+        for (const e of entities) {
+            entityCodeToId[e.code] = e.id;
+        }
+
+        const existingUsers = await prisma.user.findMany({
+            select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                jobTitle: true,
+                entityId: true,
+                executiveRole: true,
+                department: true,
+                isActive: true,
+            },
+        });
+        const existingByEmail = new Map(existingUsers.map(u => [u.email.toLowerCase(), u]));
+
+        const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
+        if (!normalStaffRole) throw new AppError('NORMAL_STAFF role not found in database', 500);
+
+        const TEMP_PASSWORD = 'abc@123';
+        const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        let errorCount = 0;
+
+        const details: {
+            email: string;
+            displayName: string;
+            action: 'created' | 'updated' | 'skipped' | 'error';
+            message: string;
+        }[] = [];
+
+        for (const staff of staffData) {
+            const email = staff.email.toLowerCase();
+            const { firstName, lastName } = splitName(staff.displayName);
+            const executiveRole = inferExecutiveRole(staff.jobTitle);
+            const entityCode = ENTITY_MAP[staff.company];
+            const entityId = entityCode ? entityCodeToId[entityCode] : null;
+            const department = staff.department || inferDepartment(staff.jobTitle);
+            const agentTeam = inferAgentTeam(staff.jobTitle);
+
+            const existing = existingByEmail.get(email);
+
+            if (existing) {
+                // UPDATE existing user
+                const updateData: any = {};
+
+                if (existing.jobTitle !== staff.jobTitle) updateData.jobTitle = staff.jobTitle;
+                if (existing.entityId !== entityId && entityId) updateData.entityId = entityId;
+                if (existing.executiveRole !== executiveRole && executiveRole) updateData.executiveRole = executiveRole;
+                if (existing.department !== department && department) updateData.department = department;
+
+                if (existing.firstName !== firstName || existing.lastName !== lastName) {
+                    updateData.firstName = firstName;
+                    updateData.lastName = lastName;
+                }
+
+                if (staff.isActive !== undefined && existing.isActive !== staff.isActive) {
+                    updateData.isActive = staff.isActive;
+                }
+
+                if (Object.keys(updateData).length > 0) {
+                    try {
+                        await prisma.user.update({ where: { id: existing.id }, data: updateData });
+                        const changes = Object.keys(updateData).join(', ');
+                        details.push({ email, displayName: staff.displayName, action: 'updated', message: `Updated: ${changes}` });
+                        updated++;
+                    } catch (err: any) {
+                        details.push({ email, displayName: staff.displayName, action: 'error', message: err.message });
+                        errorCount++;
+                    }
+                } else {
+                    details.push({ email, displayName: staff.displayName, action: 'skipped', message: 'Up-to-date' });
+                    skipped++;
+                }
+                continue;
+            }
+
+            // CREATE new user
+            try {
+                await prisma.user.create({
+                    data: {
+                        firstName,
+                        lastName,
+                        email,
+                        passwordHash: hashedPassword,
+                        jobTitle: staff.jobTitle,
+                        department,
+                        entityId,
+                        executiveRole,
+                        agentTeam,
+                        isActive: staff.isActive !== undefined ? staff.isActive : true,
+                        roles: {
+                            create: { roleId: normalStaffRole.id },
+                        },
+                    },
+                });
+                details.push({
+                    email,
+                    displayName: staff.displayName,
+                    action: 'created',
+                    message: `entity=${entityCode || '?'}, execRole=${executiveRole || 'none'}`,
+                });
+                created++;
+            } catch (err: any) {
+                details.push({ email, displayName: staff.displayName, action: 'error', message: err.message });
+                errorCount++;
+            }
+        }
+
+        await auditLog(req, 'BULK_USER_IMPORT', 'user', 'bulk', {
+            total: staffData.length,
+            created,
+            updated,
+            skipped,
+            errors: errorCount,
+        });
+
+        res.json({
+            status: 'success',
+            data: {
+                summary: {
+                    total: staffData.length,
+                    created,
+                    updated,
+                    skipped,
+                    errors: errorCount,
+                },
+                details,
+            },
         });
     });
 }

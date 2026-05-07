@@ -4,6 +4,7 @@ import { useAuth } from '../src/context/AuthContext';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 
 import CreateUserModal from '../src/components/admin/CreateUserModal';
+import ImportStaffModal from '../src/components/admin/ImportStaffModal';
 import UserEditModal from '../src/components/admin/UserEditModal';
 import { StatusDefinitionsTab } from '../src/components/admin/StatusDefinitionsTab';
 import { WorkflowTransitionTab } from '../src/components/admin/WorkflowTransitionTab';
@@ -185,6 +186,7 @@ const AdminSettings = () => {
                             onRoleFilter={(value) => { admin.userRoleFilter = value; admin.fetchUsers(1, admin.userSearch, value); }}
                             onFetchUsers={admin.fetchUsers}
                             onCreateUser={() => admin.setShowCreateUserModal(true)}
+                            onImportStaff={() => admin.setShowImportStaffModal(true)}
                             onEditUser={(user) => { admin.setEditingUser(user); admin.setShowEditUserModal(true); }}
                             onManageRoles={(user) => { admin.setRoleModalUser(user); admin.setRoleModalSelected(user.roles?.map((ur: any) => ur.role?.name || ur) || []); }}
                             onResetPassword={(user) => admin.setResetPasswordUser(user)}
@@ -315,6 +317,15 @@ const AdminSettings = () => {
                 <CreateUserModal
                     onSuccess={() => admin.fetchUsers(1, admin.userSearch, admin.userRoleFilter)}
                     onClose={() => admin.setShowCreateUserModal(false)}
+                    entities={entities}
+                />
+            )}
+
+            {/* Import Staff Modal */}
+            {admin.showImportStaffModal && (
+                <ImportStaffModal
+                    onSuccess={() => admin.fetchUsers(1, admin.userSearch, admin.userRoleFilter)}
+                    onClose={() => admin.setShowImportStaffModal(false)}
                 />
             )}
 

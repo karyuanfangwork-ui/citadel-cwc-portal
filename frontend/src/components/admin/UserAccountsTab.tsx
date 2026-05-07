@@ -29,6 +29,7 @@ interface UserAccountsTabProps {
     onRoleFilter: (value: string) => void;
     onFetchUsers: (page: number) => void;
     onCreateUser: () => void;
+    onImportStaff: () => void;
     onEditUser: (user: any) => void;
     onManageRoles: (user: any) => void;
     onResetPassword: (user: any) => void;
@@ -49,6 +50,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
     onRoleFilter,
     onFetchUsers,
     onCreateUser,
+    onImportStaff,
     onEditUser,
     onManageRoles,
     onResetPassword,
@@ -106,6 +108,13 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                 >
                     <span className="material-symbols-outlined text-sm">person_add</span>
                     Create User
+                </button>
+                <button
+                    onClick={onImportStaff}
+                    className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 text-[#0052cc] text-sm font-bold rounded-2xl hover:bg-blue-50 transition-colors whitespace-nowrap"
+                >
+                    <span className="material-symbols-outlined text-sm">upload_file</span>
+                    Import Staff
                 </button>
             </div>
 
