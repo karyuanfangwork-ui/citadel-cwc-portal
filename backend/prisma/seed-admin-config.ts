@@ -2227,3 +2227,54 @@ export const SEED_ESCALATION_RULES = [
     "isActive": true
   }
 ];
+
+// ── Entity Configuration (production approver assignments) ─────────────────
+// These override the default seed entity values with admin-configured approvers,
+// descriptions, and display ordering from the production system.
+export const SEED_ENTITY_CONFIG = [
+  { code: "CG", name: "Citadel Group Sdn. Bhd.", description: '', approverEmail: "alain.boey@citadelgroup.com.my", displayOrder: 10, isActive: true },
+  { code: "CGT", name: "Citadel Group Technologies Sdn. Bhd.", description: '', approverEmail: "emily.chow@citadelgroup.com.my", displayOrder: 30, isActive: true },
+  { code: "CWP", name: "Citadel Wealth Partners Sdn. Bhd.", description: '', approverEmail: "zac.ashari@citadelgroup.com.my", displayOrder: 20, isActive: true },
+  { code: "CT360", name: "Citadel Tayyib 360 Sdn. Bhd.", description: '', approverEmail: "adly.mohamed@citadelgroup.com.my", displayOrder: 40, isActive: true },
+  { code: "NIU", name: "NIU Trading Sdn. Bhd.", description: '', approverEmail: "alain.boey@citadelgroup.com.my", displayOrder: 50, isActive: true },
+  { code: "COS", name: "Cosmospan Sdn. Bhd.", description: '', approverEmail: "rajna.anthony@citadelgroup.com.my", displayOrder: 60, isActive: true },
+];
+
+// ── Production Users (@citadelgroup.com.my) ────────────────────
+// Real staff accounts with entity assignments, roles, and departments.
+// Password default: Welcome@2026 (user should change on first login).
+export const SEED_PRODUCTION_USERS = [
+  { email: "adly.mohamed@citadelgroup.com.my", firstName: "Adly", lastName: "Mohamed", department: "Executive", jobTitle: 'Chief Executive Officer', executiveRole: "CEO", agentTeam: null, entityCode: "CT360", roles: ["NORMAL_STAFF", "CEO"], isActive: true },
+  { email: "ahmad.zuhayri@citadelgroup.com.my", firstName: "Ahmad", lastName: "Zuhayri Mohamed", department: null, jobTitle: 'Business Development & Corporate Communication Executive', executiveRole: null, agentTeam: null, entityCode: "CT360", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "alain.boey@citadelgroup.com.my", firstName: "Alain", lastName: "Boey", department: "Executive", jobTitle: 'Deputy Chief Executive Officer', executiveRole: null, agentTeam: null, entityCode: "CG", roles: ["NORMAL_STAFF", "GROUP_CEO"], isActive: true },
+  { email: "alan.ling@citadelgroup.com.my", firstName: "Alan", lastName: "Ling", department: "Executive", jobTitle: 'Managing Director- Kuching Office', executiveRole: null, agentTeam: null, entityCode: "CWP", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "cheehao.wong@citadelgroup.com.my", firstName: "Brandon", lastName: "Wong Chee Hao", department: "IT", jobTitle: 'Full Stack Developer', executiveRole: null, agentTeam: "IT", entityCode: "CGT", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "emily.chow@citadelgroup.com.my", firstName: "Emily", lastName: "Chow", department: "Executive", jobTitle: 'Chief Executive Officer', executiveRole: "CEO", agentTeam: null, entityCode: "CGT", roles: ["NORMAL_STAFF", "CEO"], isActive: true },
+  { email: "fadhli.amran@citadelgroup.com.my", firstName: "Muhammad", lastName: "Fadhli Bin Amran", department: "Marketing", jobTitle: 'Marketing Coordinator Executive', executiveRole: null, agentTeam: null, entityCode: "CG", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "fangkhai.foo@citadelgroup.com.my", firstName: "Fang", lastName: "Khai Foo", department: "IT", jobTitle: 'Full Stack Developer (AI)', executiveRole: null, agentTeam: "IT", entityCode: "CGT", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "girling.liong@citadelgroup.com.my", firstName: "Girling", lastName: "Liong Mee Yee", department: "Admin", jobTitle: 'Receptionist & Admin Executive - Sibu Office', executiveRole: null, agentTeam: null, entityCode: "CWP", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "irina.kamarzan@citadelgroup.com.my", firstName: "Nor", lastName: "Irina Safiyyah Md Kamarzan", department: "Finance", jobTitle: 'Financial Analyst', executiveRole: null, agentTeam: "FINANCE", entityCode: "CG", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "j.medina@citadelgroup.com.my", firstName: "Dato' Jeff", lastName: "Medina", department: "Executive", jobTitle: 'Chairman & Group Chief Executive Officer', executiveRole: "GROUP_CEO", agentTeam: null, entityCode: "CG", roles: ["NORMAL_STAFF", "GROUP_CEO"], isActive: true },
+  { email: "joyce.loh@citadelgroup.com.my", firstName: "Joyce", lastName: "Loh", department: "Admin", jobTitle: 'Head of Admin Operations', executiveRole: null, agentTeam: null, entityCode: "CWP", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "juliana.jalil@citadelgroup.com.my", firstName: "Juliana", lastName: "Abd Jalil", department: "Admin", jobTitle: 'Senior Admin Executive', executiveRole: null, agentTeam: null, entityCode: "CWP", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "kamilah.hanif@citadelgroup.com.my", firstName: "Nurul", lastName: "Kamilah Hanif Kondon", department: "Legal", jobTitle: 'Group Legal & Compliance Head', executiveRole: null, agentTeam: null, entityCode: "CG", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "karyuan.fang@citadelgroup.com.my", firstName: "Kar", lastName: "Yuan Fang", department: "IT", jobTitle: 'Lead Application Support', executiveRole: null, agentTeam: "IT", entityCode: "CGT", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "khaliesah.badruddin@citadelgroup.com.my", firstName: "Kha'liesah", lastName: "Badruddin", department: "Marketing", jobTitle: 'Marketing Executive cum Graphic Designer', executiveRole: null, agentTeam: null, entityCode: "CG", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "michelle.weng@citadelgroup.com.my", firstName: "Lee", lastName: "Foong Weng", department: "Admin", jobTitle: 'Receptionist', executiveRole: null, agentTeam: null, entityCode: "CG", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "mingkai.tham@citadelgroup.com.my", firstName: "Ming", lastName: "Kai Tham", department: "IT", jobTitle: 'Junior System Administrator', executiveRole: null, agentTeam: "IT", entityCode: "CGT", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "natalya.erika@citadelgroup.com.my", firstName: "Natalya", lastName: "Erika Martison", department: "Marketing", jobTitle: 'Investor Relations Officer', executiveRole: null, agentTeam: null, entityCode: "CG", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "natasha.dealwis@citadelgroup.com.my", firstName: "Natasha", lastName: "Kimberly De Alwis", department: "Marketing", jobTitle: 'Chief Marketing Officer', executiveRole: "CMO", agentTeam: null, entityCode: "CG", roles: ["NORMAL_STAFF", "CMO"], isActive: true },
+  { email: "naveen.ahmad@citadelgroup.com.my", firstName: "Naveen", lastName: "Ahmad", department: "IT", jobTitle: 'Product Head', executiveRole: null, agentTeam: null, entityCode: "CGT", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "nick.tan@citadelgroup.com.my", firstName: "Nichollas", lastName: "Pi Huat Tan", department: "HR", jobTitle: 'Chief Human Resources Officer', executiveRole: "CHRO", agentTeam: "HR", entityCode: "CG", roles: ["AGENT", "NORMAL_STAFF", "HIRING_MANAGER"], isActive: true },
+  { email: "nurnafisah.sharudin@citadelgroup.com.my", firstName: "Nurnafisah", lastName: "Najla Sharudin", department: "IT", jobTitle: 'Application Support Executive', executiveRole: null, agentTeam: "IT", entityCode: "CGT", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "rajna.anthony@citadelgroup.com.my", firstName: "Dr. Rajna", lastName: "Anthony", department: "Executive", jobTitle: 'Director', executiveRole: null, agentTeam: null, entityCode: "COS", roles: ["NORMAL_STAFF", "CEO"], isActive: true },
+  { email: "raymond.kueh@citadelgroup.com.my", firstName: "Raymond", lastName: "Kueh Kian Peng", department: "Executive", jobTitle: 'Chief Technology Officer', executiveRole: "CTO", agentTeam: null, entityCode: "CGT", roles: ["NORMAL_STAFF", "CTO"], isActive: true },
+  { email: "rohani.munir@citadelgroup.com.my", firstName: "Rohani", lastName: "Abdul Munir", department: "Admin", jobTitle: 'Executive Assistant', executiveRole: null, agentTeam: null, entityCode: "CWP", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "saravanan.ramaiah@citadelgroup.com.my", firstName: "Saravanan", lastName: "Ramaiah", department: "Finance", jobTitle: 'Chief Finance Officer', executiveRole: null, agentTeam: "Finance", entityCode: "CG", roles: ["AGENT", "NORMAL_STAFF", "CFO"], isActive: true },
+  { email: "sasha.nair@citadelgroup.com.my", firstName: "Sasha", lastName: "Nair", department: "HR", jobTitle: 'Senior HR Executive', executiveRole: null, agentTeam: "HR", entityCode: "CG", roles: ["AGENT", "NORMAL_STAFF", "HIRING_MANAGER"], isActive: true },
+  { email: "shah.musa@citadelgroup.com.my", firstName: "Shah", lastName: "Rezza Musa", department: "Finance", jobTitle: 'Group Senior Finance Executive', executiveRole: null, agentTeam: "FINANCE", entityCode: "CG", roles: ["AGENT", "NORMAL_STAFF"], isActive: true },
+  { email: "shamsuria.shamsuri@citadelgroup.com.my", firstName: "Shamsuria", lastName: "Shamsuri", department: "Admin", jobTitle: 'Admin Executive', executiveRole: null, agentTeam: null, entityCode: "NIU", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "soraya.rozali@citadelgroup.com.my", firstName: "Soraya", lastName: "Rose Rozali", department: "Admin", jobTitle: 'Admin Executive', executiveRole: null, agentTeam: null, entityCode: "CWP", roles: ["NORMAL_STAFF"], isActive: true },
+  { email: "zac.ashari@citadelgroup.com.my", firstName: "Zac", lastName: "Mohd Ashari", department: "Executive", jobTitle: 'Chief Executive Officer & Head of Sales', executiveRole: "CEO", agentTeam: null, entityCode: "CWP", roles: ["NORMAL_STAFF", "CEO"], isActive: true },
+  { email: "zahidah.rashid@citadelgroup.com.my", firstName: "Zahidah", lastName: "Zainal Rashid", department: "Finance", jobTitle: 'Finance Manager', executiveRole: null, agentTeam: "FINANCE", entityCode: "CG", roles: ["AGENT", "NORMAL_STAFF"], isActive: true },
+];

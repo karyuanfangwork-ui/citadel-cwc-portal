@@ -8,6 +8,8 @@ import {
     SEED_ONBOARDING_TEMPLATES,
     SEED_OFFBOARDING_TEMPLATES,
     SEED_ESCALATION_RULES,
+    SEED_ENTITY_CONFIG,
+    SEED_PRODUCTION_USERS,
 } from './seed-admin-config';
 import { seedWorkflows } from './seed-workflows';
 
@@ -490,13 +492,17 @@ async function main() {
     // ── Entities ─────────────────────────────────────────────────────────────
     console.log('Seeding entities...');
 
+    // ── Entity seeds (create-only: do NOT overwrite admin-configured approver, description, or displayOrder) ──
+    // When re-seeding on an existing DB, we only create entities that don't yet exist.
+    // This preserves admin changes made via the UI (approver assignments, descriptions, ordering).
+    // For fresh DB restores, the `seed-admin-config.ts` script applies the production configuration.
     const entitySeeds = [
-        { code: 'CG',   name: 'Citadel Group Sdn. Bhd.',             description: 'Citadel Group Technologies Sdn Bhd — Group Holding',        approverEmail: 'admin@test.local',      displayOrder: 10 },
-        { code: 'CGT',  name: 'Citadel Group Technologies Sdn. Bhd.', description: 'Citadel Group Technologies Sdn Bhd — Technology Division',  approverEmail: 'ceo@test.local',        displayOrder: 20 },
-        { code: 'CWP',  name: 'Citadel Wealth Partners Sdn. Bhd.',   description: 'Citadel Wealth Partners Sdn Bhd — HR Solutions',           approverEmail: 'karyuanfang.work@gmail.com', displayOrder: 30 },
-        { code: 'CT360', name: 'Citadel Tayyib 360 Sdn. Bhd.',       description: 'Citadel 360 Sdn Bhd — Consulting & Advisory',            approverEmail: 'admin@test.local',      displayOrder: 40 },
-        { code: 'NIU',  name: 'NIU Trading Sdn. Bhd.',               description: 'NIU Digital Sdn Bhd — Digital Innovation',                approverEmail: 'groupceo@test.local',   displayOrder: 50 },
-        { code: 'COS',  name: 'Cosmospan Sdn. Bhd.',                  description: 'Cosmospan Sdn Bhd — Shared Services',                    approverEmail: 'admin@test.local',      displayOrder: 60 },
+        { code: 'CG',   name: 'Citadel Group Sdn. Bhd.',             description: '',  approverEmail: 'admin@test.local',      displayOrder: 10 },
+        { code: 'CGT',  name: 'Citadel Group Technologies Sdn. Bhd.', description: '',  approverEmail: 'ceo@test.local',        displayOrder: 20 },
+        { code: 'CWP',  name: 'Citadel Wealth Partners Sdn. Bhd.',   description: '',  approverEmail: 'admin@test.local',      displayOrder: 30 },
+        { code: 'CT360', name: 'Citadel Tayyib 360 Sdn. Bhd.',       description: '',  approverEmail: 'admin@test.local',      displayOrder: 40 },
+        { code: 'NIU',  name: 'NIU Trading Sdn. Bhd.',               description: '',  approverEmail: 'groupceo@test.local',   displayOrder: 50 },
+        { code: 'COS',  name: 'Cosmospan Sdn. Bhd.',                  description: '',  approverEmail: 'admin@test.local',      displayOrder: 60 },
     ];
 
     for (const es of entitySeeds) {
@@ -507,12 +513,7 @@ async function main() {
         }
         await prisma.entity.upsert({
             where: { code: es.code },
-            update: {
-                name: es.name,
-                description: es.description,
-                approverId: approver.id,
-                displayOrder: es.displayOrder,
-            },
+            update: {}, // Do NOT overwrite admin-configured fields on re-seed
             create: {
                 name: es.name,
                 code: es.code,
@@ -524,7 +525,7 @@ async function main() {
         });
     }
 
-    console.log('✅ Entities created');
+    console.log('✅ Entities created (or already exist — admin config preserved)');
 
     // ── Update seed users with entity assignments ────────────────────────────
     // Entities must be created first (they reference approver users), so we
@@ -552,6 +553,103 @@ async function main() {
         }
     }
     console.log('✅ Seed user entity assignments updated');
+
+    // ── Apply production entity configuration (approvers, display order) ─────────
+    // This overrides the default seed values with admin-configured production values.
+    // Only runs when SEED_ENTITY_CONFIG has data (i.e., seed-admin-config.ts is populated).
+    if (SEED_ENTITY_CONFIG.length > 0) {
+        console.log('🏢 Applying production entity configuration...');
+        for (const ec of SEED_ENTITY_CONFIG) {
+            const approver = await prisma.user.findUnique({ where: { email: ec.approverEmail } });
+            if (!approver) {
+                console.log(`  ⚠️  Skipping entity config for ${ec.code}: approver ${ec.approverEmail} not found`);
+                continue;
+            }
+            await prisma.entity.update({
+                where: { code: ec.code },
+                data: {
+                    name: ec.name,
+                    description: ec.description || null,
+                    approverId: approver.id,
+                    displayOrder: ec.displayOrder,
+                    isActive: ec.isActive,
+                },
+            });
+            console.log(`  ✅ ${ec.code} → approver: ${ec.approverEmail}, order: ${ec.displayOrder}`);
+        }
+        console.log('✅ Production entity configuration applied');
+    }
+
+    // ── Create production users (@citadelgroup.com.my) ────────────────────────
+    // Real staff accounts from SEED_PRODUCTION_USERS. Password default: Welcome@2026.
+    // Safe to re-run: upserts existing users, preserves admin role assignments.
+    if (SEED_PRODUCTION_USERS.length > 0) {
+        console.log('👥 Creating production staff accounts...');
+        const PROD_PASSWORD = await bcrypt.hash('Welcome@2026', 10);
+        let prodCreated = 0;
+        let prodUpdated = 0;
+
+        for (const pu of SEED_PRODUCTION_USERS) {
+            const entity = pu.entityCode
+                ? await prisma.entity.findUnique({ where: { code: pu.entityCode } })
+                : null;
+
+            const existingUser = await prisma.user.findUnique({ where: { email: pu.email } });
+
+            if (existingUser) {
+                // Update existing user (preserve password, only update metadata)
+                await prisma.user.update({
+                    where: { email: pu.email },
+                    data: {
+                        firstName: pu.firstName,
+                        lastName: pu.lastName,
+                        department: pu.department || null,
+                        jobTitle: pu.jobTitle || null,
+                        executiveRole: (pu.executiveRole as any) || null,
+                        agentTeam: pu.agentTeam || null,
+                        entityId: entity?.id || null,
+                        isActive: pu.isActive,
+                    },
+                });
+                prodUpdated++;
+            } else {
+                // Create new user
+                await prisma.user.create({
+                    data: {
+                        email: pu.email,
+                        firstName: pu.firstName,
+                        lastName: pu.lastName,
+                        passwordHash: PROD_PASSWORD,
+                        department: pu.department || null,
+                        jobTitle: pu.jobTitle || null,
+                        executiveRole: (pu.executiveRole as any) || null,
+                        agentTeam: pu.agentTeam || null,
+                        entityId: entity?.id || null,
+                        isActive: pu.isActive,
+                    },
+                });
+                prodCreated++;
+            }
+
+            // Assign roles
+            if (pu.roles && pu.roles.length > 0) {
+                const user = await prisma.user.findUniqueOrThrow({ where: { email: pu.email } });
+                for (const roleName of pu.roles) {
+                    const role = await prisma.role.findUnique({ where: { name: roleName } });
+                    if (!role) {
+                        console.log(`  ⚠️  Role "${roleName}" not found for ${pu.email}`);
+                        continue;
+                    }
+                    await prisma.userRole.upsert({
+                        where: { userId_roleId: { userId: user.id, roleId: role.id } },
+                        update: {},
+                        create: { userId: user.id, roleId: role.id },
+                    });
+                }
+            }
+        }
+        console.log(`  ✅ Production users: ${prodCreated} created, ${prodUpdated} updated`);
+    }
 
     // Create Service Categories for IT
     const itCategories = [
