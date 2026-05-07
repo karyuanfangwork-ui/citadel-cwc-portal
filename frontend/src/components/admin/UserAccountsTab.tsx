@@ -86,7 +86,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">search</span>
                     <input
                         type="text"
-                        placeholder="Search by name or email..."
+                        placeholder="Search by name, email, entity..."
                         className="w-full pl-12 pr-6 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none"
                         value={searchInput}
                         onChange={e => setSearchInput(e.target.value)}

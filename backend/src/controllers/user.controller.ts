@@ -172,6 +172,10 @@ class UserController {
                 { email: { contains: search as string, mode: 'insensitive' } },
                 { firstName: { contains: search as string, mode: 'insensitive' } },
                 { lastName: { contains: search as string, mode: 'insensitive' } },
+                { department: { contains: search as string, mode: 'insensitive' } },
+                { jobTitle: { contains: search as string, mode: 'insensitive' } },
+                { entity: { code: { contains: search as string, mode: 'insensitive' } } },
+                { entity: { name: { contains: search as string, mode: 'insensitive' } } },
             ];
         }
 
@@ -202,6 +206,9 @@ class UserController {
                         include: {
                             role: true,
                         },
+                    },
+                    entity: {
+                        select: { id: true, code: true, name: true },
                     },
                 },
                 orderBy: {
