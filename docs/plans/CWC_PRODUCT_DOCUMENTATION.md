@@ -121,7 +121,7 @@ Enterprise organizations face fragmented internal service management:
 | #  | Tab                      | Purpose                   | Key Capabilities |
 |----|--------------------------|---------------------------|------------------|
 | 1  | **User Accounts**        | User management           | List users; edit name/email/department/job title; activate/deactivate; assign manager |
-| 2  | **Role Assignment**      | Role management           | Assign roles (ADMIN, AGENT, USER) to users; create agent teams |
+| 2  | **Role Assignment**      | Role management           | Assign roles (ADMIN, AGENT, USER) to users; create agent teams — accessed via modal within User Accounts tab (no separate tab) |
 | 3  | **Permissions**          | Permission management     | View role-permission matrix; manage granular permissions (resource:action format) |
 | 4  | **Service Desks**        | Service desk CRUD         | Create/edit service desks, categories, and request types with form configuration |
 | 5  | **Entities**             | Entity management         | Create/edit organizational entities with designated approvers for entity-based routing |
@@ -132,7 +132,9 @@ Enterprise organizations face fragmented internal service management:
 | 10 | **Status Definitions**   | Status management         | CRUD for request status definitions (code, label, category, display order) |
 | 11 | **Workflow Transitions** | Workflow rules            | Manage valid status transitions (from → to, label, requires comment, auto-assign) |
 | 12 | **SLA & Escalation**     | SLA rules                 | Configure escalation rules per request type (trigger hours, notify roles); toggle SLA pause per status |
-| 13 | **Audit Log**            | Audit trail               | View immutable audit log (user, action, resource, old/new values, IP, timestamp) |
+| 12 | **Audit Log**            | Audit trail               | View immutable audit log (user, action, resource, old/new values, IP, timestamp) |
+
+> **Note:** There are 12 tabs total. Role Assignment (#2) is a modal launched within the User Accounts tab, not a standalone tab. The actual tab IDs are: `users`, `permissions`, `service-desks`, `entities`, `email-notifications`, `onboarding-tasks`, `offboarding-tasks`, `workflow-config`, `status-definitions`, `sla-escalation`, `audit-logs`, `banner-config`.
 
 ---
 
@@ -257,6 +259,9 @@ SUBMITTED → PENDING_FROM_ENTITY_APPROVAL → FROM_ENTITY_APPROVED
 AppShell (BrowserRouter)
 ├── /login              → Login
 ├── /register           → Register
+├── /forgot-password    → ForgotPassword (public)
+├── /reset-password/:token → ResetPassword (public)
+├── /change-password    → ChangePassword (protected)
 ├── / (Dashboard)       → Dashboard (protected)
 │   ├── Stats cards (open/in-progress/resolved/total, SLA-breach indicator)
 │   ├── Recent requests table
@@ -448,6 +453,12 @@ frontend/
 │   ├── ITSupport.tsx               # IT service desk
 │   └── GroupFinance.tsx            # Finance service desk
 ├── src/
+│   ├── pages/
+│   │   ├── Login.tsx               # Login page
+│   │   ├── Register.tsx            # Registration page
+│   │   ├── ForgotPassword.tsx      # Forgot password — request reset email
+│   │   ├── ResetPassword.tsx       # Reset password — consume token from email link
+│   │   └── ChangePassword.tsx      # Change password — authenticated users
 │   ├── context/
 │   │   ├── AuthContext.tsx          # Auth state, login/logout, token refresh
 │   │   ├── NotificationContext.tsx  # SSE notifications, toast state
@@ -529,30 +540,31 @@ frontend/
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                    Routes (30 files + index)                │ │
+│  │                    Routes (31 files + index)                │ │
 │  │  /auth /users /requests /service-desks /notifications    │ │
 │  │  /kb /search /approvals /interviews /screening /loa       │ │
 │  │  /onboarding /offboarding /it-workflow /finance-workflow  │ │
 │  │  /chargeback-workflow /reports /files /sla /assets        │ │
+│  │  /system-settings                                         │ │
 │  │  /admin/* (entities, workflows, templates, configs)       │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                    Controllers (30 files)                   │ │
+│  │                    Controllers (31 files)                   │ │
 │  │  Auth, User, Request, Resume, ServiceDesk, Notification, │ │
 │  │  KB, Search, Approval, Interview, Screening, LOA,         │ │
 │  │  Onboarding, Offboarding, ITWorkflow, FinanceWorkflow,    │ │
 │  │  ChargebackWorkflow, Reports, Entity, BannerConfig,       │ │
 │  │  EscalationRule, WorkflowTransition, NotificationTemplate,│ │
-│  │  Asset, File, Workflow, RequestStatusDef,                 │ │
+│  │  Asset, File, Workflow, RequestStatusDef, SystemSetting,  │ │
 │  │  OnboardingTemplate, OffboardingTemplate, AuditLog        │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                   Services (11 files)                    │ │
+│  │                   Services (12 files)                    │ │
 │  │  email, entityRouting, notification, onboarding,          │ │
 │  │  password-reset, permission, s3, sla, sla-pause, token,  │ │
-│  │  serviceDesk                                              │ │
+│  │  serviceDesk, autoAssignment                              │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
@@ -573,9 +585,9 @@ backend/
 │   ├── index.ts                    # Server startup
 │   ├── config/
 │   │   └── index.ts                # Centralized config (env vars, thresholds)
-│   ├── controllers/                # 30 controller files
-│   ├── routes/                     # 30 route files + index.ts + notificationSse
-│   ├── services/                   # 11 business logic services
+│   ├── controllers/                # 31 controller files
+│   ├── routes/                     # 31 route files + index.ts
+│   ├── services/                   # 12 business logic services
 │   ├── middleware/
 │   │   ├── auth.middleware.ts       # JWT auth, role/permission authorization, SSE auth
 │   │   ├── error.middleware.ts      # Centralized error handler
@@ -728,6 +740,7 @@ backend/
 | `/admin/onboarding-templates`     | onboardingTemplate.controller   | Admin     | Onboarding task templates |
 | `/admin/offboarding-templates`    | offboardingTemplate.controller  | Admin     | Offboarding task templates |
 | `/admin/audit-logs`               | auditLog.controller             | Admin     | Audit log viewer |
+| `/system-settings`                | systemSetting.controller        | Admin     | Global system settings — enable/disable email notifications globally with cache invalidation |
 
 ### 7.3 Health Check
 
@@ -1202,6 +1215,8 @@ See section 10.3 for required variables. Additional configuration:
 
 ---
 
-*This document reflects Citadel Workplace Connect v2.0.0 as of 2026-05-05. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (94 values), i18next foundation, notificationSse route, serviceDesk service, request-detail workflow modals (26+), accessibility hooks (useFocusTrap, useEscapeKey).*
+*This document reflects Citadel Workplace Connect v2.0.0 as of 2026-05-05. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (94 values), i18next foundation, notificationSse route, serviceDesk service, request-detail workflow modals (26+), accessibility hooks (useFocusTrap, useEscapeKey), password management pages (ForgotPassword, ResetPassword, ChangePassword), systemSetting controller + routes (global email toggle), autoAssignment service.*
 
 **Doc sync (2026-05-05):** Updated RequestStatus count (76→94), controller count (31→30), route files (+notificationSse), service count (10→11, +serviceDesk), validator count (+serviceDesk), schema lines (1363→1364), Prisma data layer (76→94 statuses), backend test counts (112→121), frontend test counts (97→91), admin modals (6→11), request-detail components documented, STATUS_CONFIG count (76+→94), workflow modals (15→26+), FSD modal description (9→26+ with directory split), added hooks (useFocusTrap, useEscapeKey), added notificationSSE route, corrected individual test per-suite counts.
+
+**Doc sync (2026-05-08):** Corrected controller count (30→31, +systemSetting), service count (11→12, +autoAssignment), route count (30→31, +systemSetting), admin tab count (13→12, Role Assignment is modal not a tab); added /forgot-password, /reset-password/:token, /change-password to navigation structure; added ForgotPassword/ResetPassword/ChangePassword to frontend module structure; added /system-settings to API route table and backend architecture diagrams.

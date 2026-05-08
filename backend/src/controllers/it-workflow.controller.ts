@@ -530,7 +530,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
 export const ceoDecision = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { decision, comments } = req.body;
+    const { decision, comments, ctoId } = req.body;
     const currentUser = (req as any).user;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
@@ -542,6 +542,19 @@ export const ceoDecision = async (req: Request, res: Response) => {
     if (!hasRole(req, 'CEO')) return res.status(403).json({ error: 'Only the CEO can make this decision' });
 
     if (decision === 'APPROVED') {
+      // Validate ctoId — must be a UUID belonging to a CTO-role user
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!ctoId || !uuidRegex.test(ctoId)) {
+        return res.status(400).json({ error: 'Invalid ctoId: must be a valid UUID' });
+      }
+      const ctoUser = await prisma.user.findUnique({
+        where: { id: ctoId },
+        include: { roles: { include: { role: true } } },
+      });
+      if (!ctoUser || !ctoUser.roles.some((r: any) => r.role?.name === 'CTO')) {
+        return res.status(400).json({ error: 'Specified ctoId does not belong to a CTO user' });
+      }
+
       await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT' } });
       await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_CTO_APPROVAL_IT' } });
@@ -553,7 +566,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
       });
 
       await prisma.requestApproval.create({
-        data: { requestId: id, approverType: 'CTO', status: 'PENDING', comments: null },
+        data: { requestId: id, approverType: 'CTO', approverId: ctoId, status: 'PENDING', comments: null },
       });
 
       await prisma.requestActivity.create({
@@ -567,10 +580,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
         },
       });
 
-      const ctoUsers = await prisma.user.findMany({ where: { roles: { some: { role: { name: 'CTO' } } } } });
-      for (const cto of ctoUsers) {
-        await notify({ userId: cto.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
-      }
+      await notify({ userId: ctoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
     } else {
       await prisma.request.update({ where: { id }, data: { status: 'CEO_REJECTED_IT' } });
       await resumeSla(id);

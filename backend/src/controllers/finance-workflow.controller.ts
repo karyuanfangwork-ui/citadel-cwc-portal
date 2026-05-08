@@ -90,6 +90,19 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
 
+        // Notify the CFO who was assigned this approval
+        const cfoPendingApproval = await prisma.requestApproval.findFirst({
+            where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
+            select: { approverId: true },
+        });
+        const cfoUserId = cfoPendingApproval?.approverId ?? (await prisma.user.findFirst({
+            where: { executiveRole: 'CFO', isActive: true },
+            select: { id: true },
+        }))?.id;
+        if (cfoUserId) {
+            await notify({ userId: cfoUserId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CFO' }, relatedRequestId: id });
+        }
+
         await pauseSla(id);
 
         res.json({ status: 'success', data: { request: updated } });
@@ -142,6 +155,21 @@ export const cfoDecision = async (req: Request, res: Response) => {
             comments: comments || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
+
+        // If routed to Group CEO for approval, notify them
+        if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
+            const groupCeoApproval = await prisma.requestApproval.findFirst({
+                where: { requestId: id, approverType: 'GROUP_CEO', status: 'PENDING' },
+                select: { approverId: true },
+            });
+            const groupCeoId = groupCeoApproval?.approverId ?? (await prisma.user.findFirst({
+                where: { isActive: true, roles: { some: { role: { name: 'GROUP_CEO' } } } },
+                select: { id: true },
+            }))?.id;
+            if (groupCeoId) {
+                await notify({ userId: groupCeoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group CEO' }, relatedRequestId: id });
+            }
+        }
 
         await resumeSla(id);
 
@@ -306,6 +334,19 @@ export const managerApproveExpense = async (req: Request, res: Response) => {
             comments: comments || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'EXPENSE_MANAGER_APPROVED', variables: { requestId: id }, relatedRequestId: id });
+
+        // Notify Finance Head that expense is now pending their approval
+        const financeHeadApproval = await prisma.requestApproval.findFirst({
+            where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
+            select: { approverId: true },
+        });
+        const financeHeadId = financeHeadApproval?.approverId ?? (await prisma.user.findFirst({
+            where: { isActive: true, roles: { some: { role: { name: 'CFO' } } } },
+            select: { id: true },
+        }))?.id;
+        if (financeHeadId) {
+            await notify({ userId: financeHeadId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Finance Head' }, relatedRequestId: id });
+        }
 
         await resumeSla(id);
 

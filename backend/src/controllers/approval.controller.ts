@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient, ApprovalStatus } from '@prisma/client';
 import { auditLog } from '../utils/audit';
+import { notify } from '../services/notification.service';
 import { allEntityApprovalsResolved } from '../services/entityRouting.service';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
@@ -77,6 +78,10 @@ export const routeToCEO = async (req: Request, res: Response) => {
     }, { status: request.status });
 
     await pauseSla(id);
+
+    if (ceoId) {
+        await notify({ userId: ceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CEO' }, relatedRequestId: id });
+    }
 
     res.json({
         status: 'success',
@@ -188,6 +193,23 @@ export const ceoDecision = async (req: Request, res: Response) => {
     }, { status: 'PENDING_CEO_APPROVAL' });
 
     await resumeSla(id);
+
+    // Notify requester of CEO decision
+    if (decision === 'APPROVED') {
+        await notify({
+            userId: request.requesterId,
+            eventType: 'STATUS_CHANGED',
+            variables: { requestId: id, status: 'CEO_APPROVED', message: 'Your hiring request has been approved by the CEO.' },
+            relatedRequestId: id,
+        });
+    } else {
+        await notify({
+            userId: request.requesterId,
+            eventType: 'REQUEST_REJECTED',
+            variables: { requestId: id, rejectedBy: 'CEO', comments: comments || '' },
+            relatedRequestId: id,
+        });
+    }
 
     res.json({
         status: 'success',
@@ -361,7 +383,15 @@ export const routeToManager = async (req: Request, res: Response) => {
 
     await pauseSla(id);
 
-        // Transform BigInt to string in candidateResumes for JSON serialization
+    // Notify the hiring manager (requester) that the request is now assigned to them for review
+    await notify({
+        userId: request.requesterId,
+        eventType: 'REQUEST_ASSIGNED',
+        variables: { referenceNumber: request.referenceNumber, assignedToName: `${request.requester.firstName} ${request.requester.lastName}` },
+        relatedRequestId: id,
+    });
+
+    // Transform BigInt to string in candidateResumes for JSON serialization
         const serializedResumes = (request as any).candidateResumes.map((resume: any) => ({
             ...resume,
             fileSize: resume.fileSize.toString()

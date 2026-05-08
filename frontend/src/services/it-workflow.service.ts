@@ -25,8 +25,11 @@ const itWorkflowService = {
     const response = await api.post(`/it-workflow/requests/${requestId}/acknowledge`, { ceoId, notes });
     return response.data;
   },
-  async ceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
-    const response = await api.post(`/it-workflow/requests/${requestId}/ceo-decision`, { decision, comments });
+  async ceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string, ctoId?: string) {
+    const payload: Record<string, string> = { decision };
+    if (comments) payload.comments = comments;
+    if (ctoId) payload.ctoId = ctoId;
+    const response = await api.post(`/it-workflow/requests/${requestId}/ceo-decision`, payload);
     return response.data;
   },
   async ctoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {

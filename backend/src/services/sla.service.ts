@@ -24,6 +24,15 @@ export async function checkSlaBreaches(): Promise<number> {
 
     const unnotified = breachedRequests.filter((r) => r.activities.length === 0);
 
+    if (unnotified.length === 0) return 0;
+
+    // Load admins once for the whole batch — avoids N×DB queries
+    const admins = await prisma.user.findMany({
+      where: { roles: { some: { role: { name: 'ADMIN' } } } },
+      select: { id: true },
+    });
+    const adminIds = admins.map((a) => a.id);
+
     for (const req of unnotified) {
       await prisma.requestActivity.create({
         data: {
@@ -39,16 +48,14 @@ export async function checkSlaBreaches(): Promise<number> {
 
       const notifyIds: string[] = [];
       if (req.assignedToId) notifyIds.push(req.assignedToId);
-
-      const admins = await prisma.user.findMany({
-        where: { roles: { some: { role: { name: 'ADMIN' } } } },
-        select: { id: true },
-      });
-      admins.forEach((a) => {
-        if (!notifyIds.includes(a.id)) notifyIds.push(a.id);
+      adminIds.forEach((id) => {
+        if (!notifyIds.includes(id)) notifyIds.push(id);
       });
 
-      await notifyMultiple(notifyIds, 'SLA_BREACHED', { referenceNumber: req.referenceNumber, slaDeadline: req.slaDueAt?.toISOString() ?? '' }, req.id);
+      await notifyMultiple(notifyIds, 'SLA_BREACHED', {
+        referenceNumber: req.referenceNumber,
+        slaDeadline: req.slaDueAt?.toISOString() ?? '',
+      }, req.id);
       logger.warn(`SLA breach detected for request ${req.referenceNumber}`);
     }
 
