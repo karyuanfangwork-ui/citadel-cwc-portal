@@ -26,7 +26,7 @@ export const apiLimiter = rateLimit({
 // Strict rate limiter for auth endpoints
 export const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'development' ? 1000 : 10,
+    max: process.env.NODE_ENV === 'development' ? 1000 : 30,
     message: {
         status: 'error',
         statusCode: 429,
@@ -60,7 +60,7 @@ export const uploadLimiter = rateLimit({
 // Strict rate limiter for password reset (prevents token brute-force)
 export const passwordResetLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: process.env.NODE_ENV === 'development' ? 100 : 5,
+    max: process.env.NODE_ENV === 'development' ? 100 : 10,
     message: {
         status: 'error',
         statusCode: 429,
