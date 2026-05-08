@@ -4,11 +4,11 @@ import { authenticate, requirePermission } from '../middleware/auth.middleware';
 
 const router = Router();
 
-router.use(authenticate, requirePermission('admin:settings'));
+router.use(authenticate, requirePermission('admin:access', 'admin:settings'));
 
 router.get('/request-types/:requestTypeId/escalation-rules', escalationRuleController.listByRequestType);
-router.post('/escalation-rules', escalationRuleController.create);
-router.put('/escalation-rules/:id', escalationRuleController.update);
-router.delete('/escalation-rules/:id', escalationRuleController.delete);
+router.post('/escalation-rules', requirePermission('admin:settings'), escalationRuleController.create);
+router.put('/escalation-rules/:id', requirePermission('admin:settings'), escalationRuleController.update);
+router.delete('/escalation-rules/:id', requirePermission('admin:settings'), escalationRuleController.delete);
 
 export default router;

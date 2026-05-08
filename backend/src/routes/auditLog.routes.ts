@@ -4,8 +4,8 @@ import { authenticate, requirePermission } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// All audit log routes require admin:settings permission
-router.use(authenticate, requirePermission('admin:settings'));
+// Audit log routes require admin:access (read) or admin:settings (full)
+router.use(authenticate, requirePermission('admin:access', 'admin:settings'));
 
 router.get('/', auditLogController.getConfidentialAccessLogs);
 

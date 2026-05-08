@@ -18,8 +18,8 @@ const router = Router();
 // Get workflow type by code (authenticated only, no special permission needed)
 router.get('/code/:code', authenticate, getWorkflowTypeByCode);
 
-// All other routes require authentication + workflow:manage permission
-router.use(authenticate, requirePermission('workflow:manage'));
+// Read routes — admin:access (view) or workflow:manage (edit)
+router.use(authenticate, requirePermission('admin:access', 'workflow:manage'));
 
 // Get all workflow types
 router.get('/', getWorkflowTypes);
@@ -27,25 +27,13 @@ router.get('/', getWorkflowTypes);
 // Get workflow type by ID
 router.get('/:id', getWorkflowType);
 
-// Create workflow type
-router.post('/', createWorkflowType);
-
-// Update workflow type
-router.put('/:id', updateWorkflowType);
-
-// Delete workflow type
-router.delete('/:id', deleteWorkflowType);
-
-// Add step to workflow
-router.post('/:id/steps', addWorkflowStep);
-
-// Update workflow step
-router.put('/:id/steps/:stepId', updateWorkflowStep);
-
-// Delete workflow step
-router.delete('/:id/steps/:stepId', deleteWorkflowStep);
-
-// Reorder workflow steps
-router.put('/:id/steps/reorder', reorderWorkflowSteps);
+// Mutation routes — require workflow:manage
+router.post('/', requirePermission('workflow:manage'), createWorkflowType);
+router.put('/:id', requirePermission('workflow:manage'), updateWorkflowType);
+router.delete('/:id', requirePermission('workflow:manage'), deleteWorkflowType);
+router.post('/:id/steps', requirePermission('workflow:manage'), addWorkflowStep);
+router.put('/:id/steps/:stepId', requirePermission('workflow:manage'), updateWorkflowStep);
+router.delete('/:id/steps/:stepId', requirePermission('workflow:manage'), deleteWorkflowStep);
+router.put('/:id/steps/reorder', requirePermission('workflow:manage'), reorderWorkflowSteps);
 
 export default router;

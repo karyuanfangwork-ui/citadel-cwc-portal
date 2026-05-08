@@ -41,8 +41,8 @@ router.get('/:id/categories', optionalAuth, serviceDeskController.getCategories)
  */
 router.get('/:id/request-types', optionalAuth, serviceDeskController.getRequestTypes);
 
-// Admin routes — require authentication + admin:settings permission
-router.use(authenticate, requirePermission('admin:settings'));
+// Admin routes — require authentication + admin:access (read) or admin:settings (write)
+router.use(authenticate, requirePermission('admin:access', 'admin:settings'));
 
 /**
  * @route   GET /api/v1/service-desks/:id/categories/all
@@ -63,14 +63,14 @@ router.get('/:id/request-types/all', serviceDeskController.getAllRequestTypesAdm
  * @desc    Create service desk
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.post('/', validate(createServiceDeskSchema), serviceDeskController.createServiceDesk);
+router.post('/', requirePermission('admin:settings'), validate(createServiceDeskSchema), serviceDeskController.createServiceDesk);
 
 /**
  * @route   PUT /api/v1/service-desks/:id
  * @desc    Update service desk
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.put('/:id', validate(updateServiceDeskSchema), serviceDeskController.updateServiceDesk);
+router.put('/:id', requirePermission('admin:settings'), validate(updateServiceDeskSchema), serviceDeskController.updateServiceDesk);
 
 /**
  * @route   GET /api/v1/service-desks/:id/agents
@@ -84,7 +84,7 @@ router.get('/:id/agents', serviceDeskController.getTeamAgents);
  * @desc    Delete service desk
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.delete('/:id', serviceDeskController.deleteServiceDesk);
+router.delete('/:id', requirePermission('admin:settings'), serviceDeskController.deleteServiceDesk);
 
 // --- Category Management Routes (Admin only) ---
 
@@ -93,21 +93,21 @@ router.delete('/:id', serviceDeskController.deleteServiceDesk);
  * @desc    Create category
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.post('/:id/categories', validate(createCategorySchema), serviceDeskController.createCategory);
+router.post('/:id/categories', requirePermission('admin:settings'), validate(createCategorySchema), serviceDeskController.createCategory);
 
 /**
  * @route   PUT /api/v1/service-desks/:id/categories/:categoryId
  * @desc    Update category
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.put('/:id/categories/:categoryId', validate(updateCategorySchema), serviceDeskController.updateCategory);
+router.put('/:id/categories/:categoryId', requirePermission('admin:settings'), validate(updateCategorySchema), serviceDeskController.updateCategory);
 
 /**
  * @route   DELETE /api/v1/service-desks/:id/categories/:categoryId
  * @desc    Delete category
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.delete('/:id/categories/:categoryId', serviceDeskController.deleteCategory);
+router.delete('/:id/categories/:categoryId', requirePermission('admin:settings'), serviceDeskController.deleteCategory);
 
 // --- Request Type Management Routes (Admin only) ---
 
@@ -116,20 +116,20 @@ router.delete('/:id/categories/:categoryId', serviceDeskController.deleteCategor
  * @desc    Create request type
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.post('/request-types', validate(createRequestTypeSchema), serviceDeskController.createRequestType);
+router.post('/request-types', requirePermission('admin:settings'), validate(createRequestTypeSchema), serviceDeskController.createRequestType);
 
 /**
  * @route   PUT /api/v1/service-desks/request-types/:typeId
  * @desc    Update request type (including form configuration)
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.put('/request-types/:typeId', validate(updateRequestTypeSchema), serviceDeskController.updateRequestType);
+router.put('/request-types/:typeId', requirePermission('admin:settings'), validate(updateRequestTypeSchema), serviceDeskController.updateRequestType);
 
 /**
  * @route   DELETE /api/v1/service-desks/request-types/:typeId
  * @desc    Delete request type
  * @access  Private — requirePermission enforces RBAC at the permission level
  */
-router.delete('/request-types/:typeId', serviceDeskController.deleteRequestType);
+router.delete('/request-types/:typeId', requirePermission('admin:settings'), serviceDeskController.deleteRequestType);
 
 export default router;
