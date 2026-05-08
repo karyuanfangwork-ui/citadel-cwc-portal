@@ -3,7 +3,7 @@ import multer from 'multer';
 import { userController } from '../controllers/user.controller';
 import { authenticate, authorize, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
-import { updateProfileSchema } from '../validators/user.validator';
+import { updateProfileSchema, changePasswordSchema } from '../validators/user.validator';
 
 const router = Router();
 
@@ -56,6 +56,13 @@ router.get('/me', userController.getMe);
  * @access  Private
  */
 router.put('/me', validate(updateProfileSchema), userController.updateMe);
+
+/**
+ * @route   PUT /api/v1/users/me/password
+ * @desc    Change current user's password (verify current, set new, revoke sessions)
+ * @access  Private (any authenticated user)
+ */
+router.put('/me/password', validate(changePasswordSchema), userController.changeMyPassword);
 
 /**
  * @route   POST /api/v1/users/:id/roles

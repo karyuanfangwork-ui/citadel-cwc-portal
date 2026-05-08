@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import citadelLogo from '../assets/citadel-logo-mark.svg';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 /* ─── Shared brand panel ────────────────────────────────────────── */
@@ -269,6 +269,12 @@ const Login = () => {
               icon="lock" autoComplete="current-password" required
               value={password} onChange={(e) => setPassword(e.target.value)}
             />
+
+            <div style={{ textAlign: 'right', marginTop: '-var(--space-1)' }}>
+              <Link to="/forgot-password" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-brand-700)', fontWeight: 700, textDecoration: 'none' }}>
+                Forgot password?
+              </Link>
+            </div>
 
             <button
               type="submit"

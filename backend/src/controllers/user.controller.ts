@@ -10,6 +10,8 @@ import { auditLog } from '../utils/audit';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { tokenService } from '../services/token.service';
 import { validateExecutiveRoleAssignment } from '../utils/executive-role';
+import { validatePassword } from '../utils/password';
+import { logger } from '../utils/logger';
 import {
   splitName,
   inferExecutiveRole,
@@ -592,6 +594,64 @@ class UserController {
         res.json({
             status: 'success',
             data: { tempPassword },
+        });
+    });
+
+    /**
+     * Change current user's own password
+     * PUT /api/v1/users/me/password
+     * Requires current password verification. Invalidates all sessions on success.
+     */
+    changeMyPassword = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user!.id;
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            throw new AppError('User not found', 404);
+        }
+
+        // Verify current password
+        const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isMatch) {
+            throw new AppError('Current password is incorrect', 401);
+        }
+
+        // Validate new password strength (reuses existing policy)
+        const validation = validatePassword(newPassword, user.email, user.firstName, user.lastName);
+        if (!validation.isValid) {
+            throw new AppError(validation.errors.join(', '), 400);
+        }
+
+        // Ensure new password is different from current
+        const isSameAsOld = await bcrypt.compare(newPassword, user.passwordHash);
+        if (isSameAsOld) {
+            throw new AppError('New password must be different from your current password', 400);
+        }
+
+        // Hash and update
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                passwordHash: hashedPassword,
+                passwordChangedAt: new Date(),
+            },
+        });
+
+        // Revoke all sessions and JWT tokens — forces re-login on all devices
+        await prisma.session.deleteMany({ where: { userId } });
+        await tokenService.revokeAllForUser(userId);
+
+        await auditLog(req, 'PASSWORD_CHANGE', 'user', userId, {
+            targetEmail: user.email,
+        });
+
+        logger.info(`User ${user.email} changed their own password`);
+
+        res.json({
+            status: 'success',
+            message: 'Password changed successfully. Please log in again.',
         });
     });
 

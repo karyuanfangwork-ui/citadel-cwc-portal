@@ -45,13 +45,29 @@ import KnowledgeBase from './pages/KnowledgeBase';
 import ArticleDetail from './pages/ArticleDetail';
 import ApprovalQueue from './pages/ApprovalQueue';
 import AssetManagement from './pages/AssetManagement';
+import ChangePassword from './src/pages/ChangePassword';
+import ForgotPassword from './src/pages/ForgotPassword';
+import ResetPassword from './src/pages/ResetPassword';
 
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, isAuthenticated } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [userMenuOpen, setUserMenuOpen] = React.useState(false);
   const isActive = (path: string) => location.pathname === path;
+
+  // Close user menu on click outside
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const container = document.getElementById('user-menu-container');
+      if (container && !container.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -61,6 +77,7 @@ const Header = () => {
   // Close mobile menu on navigation
   React.useEffect(() => {
     setMobileMenuOpen(false);
+    setUserMenuOpen(false);
   }, [location.pathname]);
 
   // Don't show header on login page
@@ -131,18 +148,46 @@ const Header = () => {
               </button>
             </div>
             {isAuthenticated && user && (
-              <div className="hidden sm:flex items-center gap-3">
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
-                </div>
+              <div className="relative hidden sm:block" id="user-menu-container">
                 <button
-                  onClick={handleLogout}
-                  className="flex items-center justify-center rounded-lg h-10 px-4 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); setUserMenuOpen(!userMenuOpen); }}
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-100 transition-colors"
                 >
-                  <span className="material-symbols-outlined mr-1">logout</span>
-                  <span className="text-sm font-semibold">Logout</span>
+                  <div className="h-8 w-8 rounded-full bg-[#0052cc] flex items-center justify-center text-white text-sm font-bold">
+                    {user.firstName?.[0]}{user.lastName?.[0]}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-semibold text-gray-900 leading-tight">{user.firstName} {user.lastName}</p>
+                    <p className="text-xs text-gray-500 leading-tight">{user.email}</p>
+                  </div>
+                  <span className={`material-symbols-outlined text-gray-400 text-lg transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}>expand_more</span>
                 </button>
+                {userMenuOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50"
+                >
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
+                    <p className="text-xs text-gray-500">{user.email}</p>
+                  </div>
+                  <Link
+                    to="/change-password"
+                    onClick={() => setUserMenuOpen(false)}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-lg text-gray-400">lock</span>
+                    Change Password
+                  </Link>
+                  <div className="border-t border-gray-100" />
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
+                  >
+                    <span className="material-symbols-outlined text-lg">logout</span>
+                    Sign Out
+                  </button>
+                </div>
+                )}
               </div>
             )}
             {/* Mobile hamburger */}
@@ -226,6 +271,14 @@ const Header = () => {
               <div className="px-4 py-4 border-t border-gray-100">
                 <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
                 <p className="text-xs text-gray-500 mb-3">{user.email}</p>
+                <Link
+                  to="/change-password"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors text-sm font-semibold justify-center mb-2"
+                >
+                  <span className="material-symbols-outlined text-base">lock</span>
+                  Change Password
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors text-sm font-semibold justify-center"
@@ -309,6 +362,8 @@ const AppShell = () => {
           <Routes>
               {/* Public routes */}
               <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
 
               {/* Protected routes */}
@@ -332,6 +387,7 @@ const AppShell = () => {
               <Route path="/kb/:slug" element={import.meta.env.DEV ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
               <Route path="/approvals" element={<ProtectedRoute requirePermission="request:approve"><ApprovalQueue /></ProtectedRoute>} />
               <Route path="/assets" element={<ProtectedRoute requirePermission="asset:read"><AssetManagement /></ProtectedRoute>} />
+              <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
                 <ProtectedRoute requirePermission="admin:access">
                   <ErrorBoundary>
