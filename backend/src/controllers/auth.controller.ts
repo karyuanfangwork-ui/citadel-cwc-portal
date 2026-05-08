@@ -279,7 +279,7 @@ class AuthController {
             if (!user) return;
 
             const { plainToken } = await passwordResetService.createToken(user.id);
-            const resetUrl = `${config.app.url}/#/reset-password?token=${plainToken}`;
+            const resetUrl = `${config.app.url}/reset-password?token=${plainToken}`;
 
             await notify({
                 userId: user.id,

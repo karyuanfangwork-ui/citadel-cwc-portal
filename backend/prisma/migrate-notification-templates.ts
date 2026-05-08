@@ -1,41 +1,66 @@
 /**
- * One-time migration: Update notification templates to use {{requestUuid}} in URLs
- * and ensure {{requestId}} resolves to the human-readable referenceNumber.
+ * One-time migration: Update notification templates to replace
+ * hash-style routing URLs (#/) with proper BrowserRouter paths.
+ *
+ * Before: {{appUrl}}/#/requests/{{requestUuid}}  or  {{appUrl}}/#/requests/{{requestId}}
+ * After:  {{appUrl}}/request/{{requestUuid}}
+ *
+ * Also fixes the password reset URL pattern if present.
  *
  * Run: npx tsx prisma/migrate-notification-templates.ts
- *
- * After running, re-seed with: npm run prisma:seed
  */
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  const templates = await prisma.notificationTemplate.findMany({
+  // ── Fix request view links: /#/requests/ → /request/ ──
+  const templatesWithHashRoutes = await prisma.notificationTemplate.findMany({
     where: {
-      emailBody: { contains: '{{appUrl}}/#/requests/{{requestId}}' },
+      emailBody: { contains: '/#/requests/' },
     },
   });
 
-  console.log(`Found ${templates.length} templates with old URL pattern`);
+  console.log(`Found ${templatesWithHashRoutes.length} templates with old /#/requests/ URL pattern`);
 
-  for (const tpl of templates) {
-    const newBody = tpl.emailBody!.replace(
-      /{{appUrl}}\/#\/requests\/{{requestId}}/g,
-      '{{appUrl}}/#/requests/{{requestUuid}}'
-    );
+  let updated = 0;
+  for (const tpl of templatesWithHashRoutes) {
+    const newBody = tpl.emailBody!
+      .replace(/\/#\/requests\/{{requestId}}/g, '/request/{{requestUuid}}')
+      .replace(/\/#\/requests\/{{requestUuid}}/g, '/request/{{requestUuid}}');
 
-    await prisma.notificationTemplate.update({
-      where: { id: tpl.id },
-      data: { emailBody: newBody },
-    });
-
-    console.log(`  ✅ Updated: ${tpl.name}`);
+    if (newBody !== tpl.emailBody) {
+      await prisma.notificationTemplate.update({
+        where: { id: tpl.id },
+        data: { emailBody: newBody },
+      });
+      console.log(`  ✅ Updated: ${tpl.name} (${tpl.eventType})`);
+      updated++;
+    }
   }
 
-  console.log('\nDone! All notification template URLs now use {{requestUuid}}.');
-  console.log('Display text (e.g. #{{requestId}}) still uses requestId = referenceNumber.');
+  // ── Fix password reset links: /#/reset-password → /reset-password ──
+  const templatesWithHashReset = await prisma.notificationTemplate.findMany({
+    where: {
+      emailBody: { contains: '/#/reset-password' },
+    },
+  });
 
+  console.log(`\nFound ${templatesWithHashReset.length} templates with old /#/reset-password URL pattern`);
+
+  for (const tpl of templatesWithHashReset) {
+    const newBody = tpl.emailBody!.replace(/\/#\/reset-password/g, '/reset-password');
+    if (newBody !== tpl.emailBody) {
+      await prisma.notificationTemplate.update({
+        where: { id: tpl.id },
+        data: { emailBody: newBody },
+      });
+      console.log(`  ✅ Updated: ${tpl.name} (${tpl.eventType})`);
+      updated++;
+    }
+  }
+
+  console.log(`\nDone! Updated ${updated} notification templates from hash routing to BrowserRouter paths.`);
   await prisma.$disconnect();
 }
 

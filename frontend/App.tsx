@@ -80,8 +80,8 @@ const Header = () => {
     setUserMenuOpen(false);
   }, [location.pathname]);
 
-  // Don't show header on login page
-  if (location.pathname === '/login') {
+  // Don't show header on auth pages (login, forgot-password, reset-password)
+  if (['/login', '/forgot-password', '/reset-password'].includes(location.pathname)) {
     return null;
   }
 
@@ -346,7 +346,8 @@ const NotificationToast = () => {
 const AppShell = () => {
   const { user } = useAuth();
   const location = useLocation();
-  const showFooter = location.pathname !== '/login';
+  const authPages = ['/login', '/forgot-password', '/reset-password'];
+  const showFooter = !authPages.includes(location.pathname);
   
   return (
     <NotificationProvider userId={user?.id ?? null}>

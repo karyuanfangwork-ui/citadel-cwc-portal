@@ -304,7 +304,7 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                     <span className="material-symbols-outlined text-base">info</span>
                     <span>Originated from hiring request</span>
                     <button
-                        onClick={() => navigate(`/#/requests/${request.parentRequest.id}`)}
+                        onClick={() => navigate(`/request/${request.parentRequest.id}`)}
                         className="font-semibold underline hover:text-blue-900 ml-auto"
                     >
                         {request.parentRequest.referenceNumber}

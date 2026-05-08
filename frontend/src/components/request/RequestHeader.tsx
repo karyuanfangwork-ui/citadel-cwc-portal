@@ -492,7 +492,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
             <span key={child.id}>
               {idx > 0 && ', '}
               <Link
-                to={`/#/requests/${child.id}`}
+                to={`/request/${child.id}`}
                 className="font-semibold underline hover:text-green-900"
               >
                 {child.referenceNumber}
