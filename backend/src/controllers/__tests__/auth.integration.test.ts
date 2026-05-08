@@ -77,21 +77,21 @@ describe('Multi-browser session isolation', () => {
     it('browser A sees user A identity', async () => {
         if (!cookieA) return;
         const res = await request(app)
-            .get('/api/v1/auth/me')
+            .get('/api/v1/users/me')
             .set('Cookie', cookieA);
 
         expect(res.status).toBe(200);
-        expect(res.body.data.email).toBe(TEST_USER_A.email);
+        expect(res.body.data.user.email).toBe(TEST_USER_A.email);
     });
 
     it('browser B sees user B identity', async () => {
         if (!cookieB) return;
         const res = await request(app)
-            .get('/api/v1/auth/me')
+            .get('/api/v1/users/me')
             .set('Cookie', cookieB);
 
         expect(res.status).toBe(200);
-        expect(res.body.data.email).toBe(TEST_USER_B.email);
+        expect(res.body.data.user.email).toBe(TEST_USER_B.email);
     });
 
     it('logout in browser A invalidates browser A session', async () => {
@@ -106,10 +106,10 @@ describe('Multi-browser session isolation', () => {
     it('browser B session remains active after browser A logout', async () => {
         if (!cookieB) return;
         const res = await request(app)
-            .get('/api/v1/auth/me')
+            .get('/api/v1/users/me')
             .set('Cookie', cookieB);
 
         expect(res.status).toBe(200);
-        expect(res.body.data.email).toBe(TEST_USER_B.email);
+        expect(res.body.data.user.email).toBe(TEST_USER_B.email);
     });
 });

@@ -9,6 +9,11 @@ import { config } from '../config';
 import prisma from '../utils/prisma';
 
 const app = express();
+// Serialize BigInt as number in JSON responses (Prisma BigInt fields)
+app.set('json replacer', (_key: string, value: unknown) =>
+  typeof value === 'bigint' ? Number(value) : value
+);
+app.set('query parser', 'extended');
 app.use(express.json());
 app.use('/api/v1', routes);
 app.use(errorHandler);
