@@ -94,6 +94,7 @@ describe('pauseSla', () => {
       id: 'req-1',
       slaPausedAt: null,
       referenceNumber: 'IT-001',
+      requesterId: 'req-1',
     });
     mockPrisma.request.update.mockResolvedValue({});
     mockPrisma.requestActivity.create.mockResolvedValue({});
@@ -111,6 +112,7 @@ describe('pauseSla', () => {
       id: 'req-1',
       slaPausedAt: null,
       referenceNumber: 'IT-001',
+      requesterId: 'req-1',
     });
     mockPrisma.request.update.mockResolvedValue({});
     mockPrisma.requestActivity.create.mockResolvedValue({});

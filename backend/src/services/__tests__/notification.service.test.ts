@@ -13,6 +13,9 @@ const mockPrisma = {
   notification: {
     create: jest.fn(),
   },
+  systemSetting: {
+    findUnique: jest.fn(),
+  },
 };
 
 jest.mock('../../utils/prisma', () => ({
@@ -35,6 +38,10 @@ jest.mock('../../config', () => ({
 
 jest.mock('../../utils/logger', () => ({
   logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn() },
+}));
+
+jest.mock('../../controllers/systemSetting.controller', () => ({
+  registerEmailEnabledCacheInvalidator: jest.fn(),
 }));
 
 // ── Import AFTER mocks ──────────────────────────────────────────────────
@@ -62,6 +69,7 @@ describe('notification.service', () => {
       id: 'notif-1',
       createdAt: new Date('2026-01-01T00:00:00Z'),
     });
+    mockPrisma.systemSetting.findUnique.mockResolvedValue({ value: 'true' });
     (sendEmail as jest.Mock).mockResolvedValue(true);
     (renderTemplate as jest.Mock).mockImplementation(
       (_tpl: string, vars: Record<string, string>) => {
@@ -76,6 +84,8 @@ describe('notification.service', () => {
   // ─────────────────────────────────────────────────────────────────────
   it('creates in-app notification with rendered subject/body when template found', async () => {
     const template = {
+      pushTitle: 'Hello {{userName}}',
+      pushBody: 'Body for {{userName}}',
       emailSubject: 'Hello {{userName}}',
       emailBody: 'Body for {{userName}}',
     };
@@ -87,8 +97,8 @@ describe('notification.service', () => {
       variables: {},
     });
 
-    // renderTemplate should have been called for subject and body
-    expect(renderTemplate).toHaveBeenCalledTimes(2);
+    // renderTemplate should have been called for pushSubject, pushBody, emailSubject, emailBody
+    expect(renderTemplate).toHaveBeenCalledTimes(4);
     expect(renderTemplate).toHaveBeenCalledWith('Hello {{userName}}', expect.any(Object));
     expect(renderTemplate).toHaveBeenCalledWith('Body for {{userName}}', expect.any(Object));
 
@@ -399,8 +409,9 @@ describe('notification.service', () => {
       relatedRequestId: 'req-2',
     });
 
-    // Caller's status overrides request-level status
-    expect(capturedVars.status).toBe('IN_PROGRESS');
+    // Auto-resolved request fields override caller's same-named keys
+    // (by design: referenceNumber replaces UUID requestId; same for status, etc.)
+    expect(capturedVars.status).toBe('OPEN');
 
     // Request-level fields still present when not overridden
     expect(capturedVars.requestId).toBe('REF-200');
