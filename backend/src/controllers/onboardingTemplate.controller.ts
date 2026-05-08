@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-export const listTemplates = async (req: Request, res: Response) => {
+export const listTemplates = async (_req: Request, res: Response) => {
     try {
         const templates = await prisma.onboardingTaskTemplate.findMany({
             orderBy: [{ displayOrder: 'asc' }, { createdAt: 'asc' }],
@@ -38,7 +38,7 @@ export const createTemplate = async (req: Request, res: Response) => {
 
 export const updateTemplate = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { taskName, taskDescription, taskCategory, priority, dueDayOffset, displayOrder, isActive } = req.body;
         const template = await prisma.onboardingTaskTemplate.update({
             where: { id },
@@ -52,7 +52,7 @@ export const updateTemplate = async (req: Request, res: Response) => {
 
 export const deleteTemplate = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         await prisma.onboardingTaskTemplate.delete({ where: { id } });
         res.json({ message: 'Template deleted' });
     } catch (error) {

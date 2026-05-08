@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import citadelLogo from '../assets/citadel-logo-mark.svg';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 /* ─── Shared brand panel ────────────────────────────────────────── */
 const brandPanelStyle: React.CSSProperties = {
-  width: '400px',
-  flexShrink: 0,
-  minHeight: '100vh',
-  background: 'linear-gradient(160deg, var(--color-brand-900) 0%, var(--color-brand-700) 100%)',
+  /* Citadel navy gradient matching brand identity */
+  background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
   padding: 'var(--space-10) var(--space-8)',
   display: 'flex',
   flexDirection: 'column',
@@ -23,7 +22,7 @@ const BrandPanel = ({
   headline: React.ReactNode;
   descriptor: string;
 }) => (
-  <div style={brandPanelStyle}>
+  <div style={brandPanelStyle} className="w-full md:w-[420px] flex-shrink-0 min-h-[280px] md:min-h-screen">
     {/* Decorative circles */}
     <div style={{
       position: 'absolute', top: '-60px', right: '-60px',
@@ -36,21 +35,35 @@ const BrandPanel = ({
       background: 'rgba(255,255,255,0.04)', pointerEvents: 'none',
     }} />
 
-    {/* Top section: logo + headline + descriptor + desk cards */}
+    {/* Top section: Citadel logo + headline + descriptor + desk cards */}
     <div style={{ position: 'relative', zIndex: 1 }}>
-      {/* Logo row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-10)' }}>
-        <div style={{
-          width: '36px', height: '36px',
-          background: 'rgba(255,255,255,0.15)',
-          borderRadius: 'var(--radius-sm)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }}>corporate_fare</span>
+
+      {/* ── Citadel logo lockup ── */}
+      <div style={{ marginBottom: 'var(--space-10)' }}>
+        {/* Logo mark + wordmark row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+          <img
+            src={citadelLogo}
+            alt="Citadel logo mark"
+            style={{ width: '44px', height: '44px', flexShrink: 0, display: 'block', overflow: 'hidden' }}
+          />
+          <div>
+            <div style={{
+              fontSize: '22px', fontWeight: 900, color: '#fff',
+              letterSpacing: '1.5px', lineHeight: 1,
+            }}>CITADEL</div>
+            <div style={{
+              fontSize: 'var(--text-xs)', fontWeight: 600, color: 'rgba(255,255,255,0.55)',
+              letterSpacing: '2px', marginTop: '2px',
+            }}>WORKPLACE CONNECT</div>
+          </div>
         </div>
-        <span style={{
-          fontSize: 'var(--text-sm)', fontWeight: 800, color: '#fff', letterSpacing: '0.5px',
-        }}>HELP CENTER</span>
+        {/* Subtle divider */}
+        <div style={{
+          height: '1px',
+          background: 'linear-gradient(90deg, rgba(91,191,232,0.4) 0%, rgba(255,255,255,0.05) 100%)',
+          marginTop: 'var(--space-3)',
+        }} />
       </div>
 
       {/* Headline */}
@@ -68,13 +81,13 @@ const BrandPanel = ({
       {/* Desk cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         {[
-          { icon: 'devices',  bg: 'rgba(0,82,204,0.35)',   name: 'IT Support',     desc: 'Hardware, software & access requests' },
-          { icon: 'groups',   bg: 'rgba(5,150,105,0.35)',  name: 'HR Services',    desc: 'Leave, onboarding & people requests' },
-          { icon: 'payments', bg: 'rgba(217,119,6,0.35)',  name: 'Group Finance',  desc: 'Reimbursements & payment requests' },
+          { icon: 'devices',  bg: 'rgba(74,141,184,0.4)',  name: 'IT Support',    desc: 'Hardware, software & access requests' },
+          { icon: 'groups',   bg: 'rgba(5,150,105,0.35)',  name: 'HR Services',   desc: 'Leave, onboarding & people requests' },
+          { icon: 'payments', bg: 'rgba(217,119,6,0.35)',  name: 'Group Finance', desc: 'Reimbursements & payment requests' },
         ].map(({ icon, bg, name, desc }) => (
           <div key={name} style={{
-            background: 'rgba(255,255,255,0.09)',
-            border: '1px solid rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.07)',
+            border: '1px solid rgba(91,191,232,0.15)',
             borderRadius: 'var(--radius-md)',
             padding: 'var(--space-2) var(--space-3)',
             display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
@@ -89,7 +102,7 @@ const BrandPanel = ({
             </div>
             <div>
               <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: '#fff' }}>{name}</div>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.55)' }}>{desc}</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.5)' }}>{desc}</div>
             </div>
           </div>
         ))}
@@ -98,8 +111,14 @@ const BrandPanel = ({
 
     {/* Footer */}
     <div style={{ position: 'relative', zIndex: 1 }}>
-      <p style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.35)' }}>
-        © 2026 CWC Enterprise Help Center
+      <div style={{
+        height: '1px',
+        background: 'rgba(255,255,255,0.08)',
+        marginBottom: 'var(--space-3)',
+      }} />
+      <p style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.3)', lineHeight: 1.6 }}>
+      © 2026 Citadel Group Technologies Sdn Bhd
+      Citadel Workplace Connect · All rights reserved
       </p>
     </div>
   </div>
@@ -192,23 +211,33 @@ const Login = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex' }}>
+    <div className="flex flex-col md:flex-row min-h-screen">
       <BrandPanel
-        headline={<>Your enterprise<br /><span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 400 }}>support hub.</span></>}
-        descriptor="One place for IT, HR, and Finance requests. Get help fast, track your requests, and stay informed."
+        headline={<>Support that moves<br /><span style={{ color: '#5BBFE8', fontWeight: 700 }}>at your speed.</span></>}
+        descriptor="Submit IT, HR, and Finance requests. Track approvals. Get resolutions faster."
       />
 
       {/* Form panel */}
-      <div style={{
-        flex: 1,
+      <div className="flex-1 flex items-center justify-center p-6 md:p-12" style={{
         background: 'var(--color-surface)',
         overflowY: 'auto',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 'var(--space-12)',
       }}>
         <div style={{ width: '100%', maxWidth: '380px' }}>
+
+          {/* CWC sub-brand badge — visible when the left panel is hidden on small screens */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
+            marginBottom: 'var(--space-6)',
+            paddingBottom: 'var(--space-4)',
+            borderBottom: '1px solid var(--color-border)',
+          }}>
+            <img src={citadelLogo} alt="Citadel" style={{ width: '28px', height: '28px', flexShrink: 0, display: 'block', overflow: 'hidden' }} />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-brand-700)', letterSpacing: '0.8px' }}>CITADEL</div>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-text-tertiary)', letterSpacing: '1.5px', marginTop: '1px' }}>WORKPLACE CONNECT</div>
+            </div>
+          </div>
+
           <h2 style={{
             fontSize: 'var(--text-2xl)', fontWeight: 900,
             color: 'var(--color-text-primary)', marginBottom: 'var(--space-1)',
@@ -217,10 +246,7 @@ const Login = () => {
             fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)',
             marginBottom: 'var(--space-6)',
           }}>
-            Sign in to continue ·{' '}
-            <Link to="/register" style={{ color: 'var(--color-brand-700)', fontWeight: 700, textDecoration: 'none' }}>
-              Create an account
-            </Link>
+            Sign in to CWC
           </p>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -243,6 +269,12 @@ const Login = () => {
               icon="lock" autoComplete="current-password" required
               value={password} onChange={(e) => setPassword(e.target.value)}
             />
+
+            <div style={{ textAlign: 'right', marginTop: '-var(--space-1)' }}>
+              <Link to="/forgot-password" style={{ fontSize: 'var(--text-xs)', color: 'var(--color-brand-700)', fontWeight: 700, textDecoration: 'none' }}>
+                Forgot password?
+              </Link>
+            </div>
 
             <button
               type="submit"
@@ -275,37 +307,7 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Demo credentials box */}
-          <div style={{
-            marginTop: 'var(--space-6)',
-            background: 'var(--color-surface-subtle)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)',
-            padding: 'var(--space-3) var(--space-4)',
-          }}>
-            <div style={{
-              fontSize: 'var(--text-xs)', fontWeight: 600,
-              color: 'var(--color-text-tertiary)', textTransform: 'uppercase',
-              letterSpacing: '0.5px', marginBottom: 'var(--space-2)',
-            }}>Demo Credentials</div>
-            {[
-              { role: 'Admin', email: 'admin@helpdesk.com', pass: 'admin123' },
-              { role: 'Agent', email: 'agent@helpdesk.com', pass: 'agent123' },
-              { role: 'User',  email: 'user@helpdesk.com',  pass: 'user123'  },
-            ].map(({ role, email: demoEmail, pass }) => (
-              <div key={role} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: 'var(--space-1)',
-              }}>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>{role}</span>
-                <span style={{
-                  fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
-                  color: 'var(--color-brand-700)', background: 'var(--color-brand-50)',
-                  borderRadius: '4px', padding: '2px 7px',
-                }}>{demoEmail} / {pass}</span>
-              </div>
-            ))}
-          </div>
+
 
           {/* Spinner keyframe — injected once */}
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

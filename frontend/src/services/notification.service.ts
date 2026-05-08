@@ -17,9 +17,15 @@ interface NotificationsResponse {
 }
 
 const notificationService = {
-  async getNotifications(page = 1): Promise<NotificationsResponse> {
-    const response = await api.get(`/notifications?page=${page}`);
-    return response.data;
+  async getNotifications(page = 1, limit = 10): Promise<NotificationsResponse> {
+    const response = await api.get(`/notifications?page=${page}&limit=${limit}`);
+    // Backend returns { status, data: { notifications, pagination } }
+    // Axios wraps in response.data, so the shape is response.data.data.notifications
+    const wrapper = response.data;
+    return {
+      data: wrapper.data.notifications,
+      pagination: wrapper.data.pagination,
+    };
   },
 
   async getUnreadCount(): Promise<number> {

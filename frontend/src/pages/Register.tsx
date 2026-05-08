@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import citadelLogo from '../assets/citadel-logo-mark.svg';
 
 /* ─── Shared brand panel (copy from Login — identical markup) ───── */
 const brandPanelStyle: React.CSSProperties = {
-  width: '400px',
-  flexShrink: 0,
-  minHeight: '100vh',
-  background: 'linear-gradient(160deg, var(--color-brand-900) 0%, var(--color-brand-700) 100%)',
+  background: 'linear-gradient(160deg, #0d1830 0%, #1D2D5E 55%, #2a4a7f 100%)',
   padding: 'var(--space-10) var(--space-8)',
   display: 'flex',
   flexDirection: 'column',
@@ -16,14 +14,8 @@ const brandPanelStyle: React.CSSProperties = {
   overflow: 'hidden',
 };
 
-const BrandPanel = ({
-  headline,
-  descriptor,
-}: {
-  headline: React.ReactNode;
-  descriptor: string;
-}) => (
-  <div style={brandPanelStyle}>
+const BrandPanel = () => (
+  <div style={brandPanelStyle} className="w-full md:w-[420px] flex-shrink-0 min-h-[280px] md:min-h-screen">
     <div style={{
       position: 'absolute', top: '-60px', right: '-60px',
       width: '200px', height: '200px', borderRadius: '50%',
@@ -36,52 +28,35 @@ const BrandPanel = ({
     }} />
 
     <div style={{ position: 'relative', zIndex: 1 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-10)' }}>
-        <div style={{
-          width: '36px', height: '36px',
-          background: 'rgba(255,255,255,0.15)',
-          borderRadius: 'var(--radius-sm)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '20px' }}>corporate_fare</span>
+
+      {/* ── Citadel logo lockup ── */}
+      <div style={{ marginBottom: 'var(--space-10)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+          <img src={citadelLogo} alt="Citadel logo mark" style={{ width: '44px', height: '44px', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: '22px', fontWeight: 900, color: '#fff', letterSpacing: '1.5px', lineHeight: 1 }}>CITADEL</div>
+            <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: '2px', marginTop: '2px' }}>WORKPLACE CONNECT</div>
+          </div>
         </div>
-        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 800, color: '#fff', letterSpacing: '0.5px' }}>HELP CENTER</span>
+        <div style={{ height: '1px', background: 'linear-gradient(90deg, rgba(91,191,232,0.4) 0%, rgba(255,255,255,0.05) 100%)', marginTop: 'var(--space-3)' }} />
       </div>
 
-      <h1 style={{
-        fontSize: 'var(--text-3xl)', fontWeight: 900, color: '#fff',
-        lineHeight: 1.15, marginBottom: 'var(--space-3)',
-      }}>{headline}</h1>
-
-      <p style={{
-        fontSize: 'var(--text-sm)', color: 'rgba(255,255,255,0.6)',
-        lineHeight: 1.6, marginBottom: 'var(--space-8)',
-      }}>{descriptor}</p>
+      <h1 style={{ fontSize: 'var(--text-3xl)', fontWeight: 900, color: '#fff', lineHeight: 1.15, marginBottom: 'var(--space-3)' }}>Get started with<br /><span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 400 }}>CWC.</span></h1>
+      <p style={{ fontSize: 'var(--text-sm)', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: 'var(--space-8)' }}>Create your account to submit IT, HR, and Finance requests — and track them in real time.</p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
         {[
-          { icon: 'devices',  bg: 'rgba(0,82,204,0.35)',   name: 'IT Support',    desc: 'Hardware, software & access requests' },
+          { icon: 'devices',  bg: 'rgba(74,141,184,0.4)',  name: 'IT Support',    desc: 'Hardware, software & access requests' },
           { icon: 'groups',   bg: 'rgba(5,150,105,0.35)',  name: 'HR Services',   desc: 'Leave, onboarding & people requests' },
           { icon: 'payments', bg: 'rgba(217,119,6,0.35)',  name: 'Group Finance', desc: 'Reimbursements & payment requests' },
         ].map(({ icon, bg, name, desc }) => (
-          <div key={name} style={{
-            background: 'rgba(255,255,255,0.09)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 'var(--radius-md)',
-            padding: 'var(--space-2) var(--space-3)',
-            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-          }}>
-            <div style={{
-              width: '28px', height: '28px', borderRadius: 'var(--radius-sm)',
-              background: bg,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
-            }}>
+          <div key={name} style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(91,191,232,0.15)', borderRadius: 'var(--radius-md)', padding: 'var(--space-2) var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <div style={{ width: '28px', height: '28px', borderRadius: 'var(--radius-sm)', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <span className="material-symbols-outlined" style={{ color: '#fff', fontSize: '16px' }}>{icon}</span>
             </div>
             <div>
               <div style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: '#fff' }}>{name}</div>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.55)' }}>{desc}</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.5)' }}>{desc}</div>
             </div>
           </div>
         ))}
@@ -89,8 +64,10 @@ const BrandPanel = ({
     </div>
 
     <div style={{ position: 'relative', zIndex: 1 }}>
-      <p style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.35)' }}>
-        © 2026 CWC Enterprise Help Center
+      <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', marginBottom: 'var(--space-3)' }} />
+      <p style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.3)', lineHeight: 1.6 }}>
+      © 2026 Citadel Group Technologies Sdn Bhd
+      Citadel Workplace Connect · All rights reserved
       </p>
     </div>
   </div>
@@ -175,6 +152,23 @@ const Register = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Password strength calculation
+  const getPasswordStrength = (password: string): { score: number; label: string; color: string } => {
+    const checks = [
+      password.length >= 8,
+      /[A-Z]/.test(password),
+      /[a-z]/.test(password),
+      /[0-9]/.test(password),
+      /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+    ];
+    const score = checks.filter(Boolean).length;
+    const labels = ['Very Weak', 'Weak', 'Fair', 'Good', 'Strong'];
+    const colors = ['var(--color-danger)', 'var(--color-warning)', '#f59e0b', 'var(--color-brand-500)', 'var(--color-success)'];
+    return { score, label: labels[score], color: colors[score] };
+  };
+
+  const passwordStrength = getPasswordStrength(formData.password);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -209,23 +203,25 @@ const Register = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex' }}>
-      <BrandPanel
-        headline={<>Join your team on<br /><span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 400 }}>Help Center.</span></>}
-        descriptor="Create your account to start raising requests across IT, HR, and Finance — and track them in real time."
-      />
+    <div className="flex flex-col md:flex-row min-h-screen">
+      <BrandPanel />
 
       {/* Form panel — align-items flex-start so long form starts near top */}
-      <div style={{
-        flex: 1,
+      <div className="flex-1 flex md:items-start justify-center p-6 md:p-10 md:px-12" style={{
         background: 'var(--color-surface)',
         overflowY: 'auto',
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-        padding: 'var(--space-10) var(--space-12)',
       }}>
         <div style={{ width: '100%', maxWidth: '380px' }}>
+
+          {/* CWC sub-brand badge */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginBottom: 'var(--space-6)', paddingBottom: 'var(--space-4)', borderBottom: '1px solid var(--color-border)' }}>
+            <img src={citadelLogo} alt="Citadel" style={{ width: '28px', height: '28px' }} />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-brand-700)', letterSpacing: '0.8px' }}>CITADEL</div>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-text-tertiary)', letterSpacing: '1.5px', marginTop: '1px' }}>WORKPLACE CONNECT</div>
+            </div>
+          </div>
+
           <h2 style={{
             fontSize: 'var(--text-2xl)', fontWeight: 900,
             color: 'var(--color-text-primary)', marginBottom: 'var(--space-1)',
@@ -235,7 +231,7 @@ const Register = () => {
             marginBottom: 'var(--space-6)',
           }}>
             Already have an account?{' '}
-            <Link to="/login" style={{ color: 'var(--color-brand-700)', fontWeight: 700, textDecoration: 'none' }}>
+            <Link to="/login" style={{ color: 'var(--color-brand-500)', fontWeight: 700, textDecoration: 'none' }}>
               Sign in
             </Link>
           </p>
@@ -251,7 +247,7 @@ const Register = () => {
             )}
 
             {/* Row 1: First + Last Name */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 'var(--space-3)' }}>
               <FormInput id="firstName" name="firstName" type="text" label="First Name" required value={formData.firstName} onChange={handleChange} />
               <FormInput id="lastName"  name="lastName"  type="text" label="Last Name"  required value={formData.lastName}  onChange={handleChange} />
             </div>
@@ -260,7 +256,17 @@ const Register = () => {
             <FormInput id="email" name="email" type="email" label="Email address" icon="mail" autoComplete="email" required value={formData.email} onChange={handleChange} />
 
             {/* Row 3: Password */}
-            <FormInput id="password" name="password" type="password" label="Password" icon="lock" required value={formData.password} onChange={handleChange} placeholder="At least 8 characters" />
+            <div>
+              <FormInput id="password" name="password" type="password" label="Password" icon="lock" required value={formData.password} onChange={handleChange} placeholder="At least 8 characters" />
+              {formData.password && (
+                <div style={{ marginTop: 'var(--space-1)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                  <div style={{ flex: 1, height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
+                    <div style={{ width: `${(passwordStrength.score / 5) * 100}%`, height: '100%', background: passwordStrength.color, transition: 'width 0.2s, background 0.2s' }} />
+                  </div>
+                  <span style={{ fontSize: 'var(--text-xs)', color: passwordStrength.color, fontWeight: 600, minWidth: '60px' }}>{passwordStrength.label}</span>
+                </div>
+              )}
+            </div>
 
             {/* Row 4: Confirm Password */}
             <FormInput id="confirmPassword" name="confirmPassword" type="password" label="Confirm Password" icon="lock" required value={formData.confirmPassword} onChange={handleChange} />
@@ -269,7 +275,7 @@ const Register = () => {
             <div style={{ borderTop: '1px solid var(--color-border)', margin: 'var(--space-2) 0 var(--space-5)' }} />
 
             {/* Row 5: Department + Job Title (optional) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: 'var(--space-3)' }}>
               <FormInput
                 id="department" name="department" type="text"
                 label="Department"

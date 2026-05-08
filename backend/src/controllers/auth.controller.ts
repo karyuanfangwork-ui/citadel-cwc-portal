@@ -3,13 +3,15 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { permissionService } from '../services/permission.service';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { tokenService } from '../services/token.service';
 import { passwordResetService } from '../services/password-reset.service';
-import { sendEmail } from '../services/email.service';
+import { notify } from '../services/notification.service';
+import { validatePassword, checkPasswordBreach } from '../utils/password';
 
 const prisma = new PrismaClient();
 
@@ -70,6 +72,23 @@ class AuthController {
     register = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { email, password, firstName, lastName, department, jobTitle } = req.body;
 
+        // Password validation
+        const validation = validatePassword(password, email, firstName, lastName);
+        if (!validation.isValid) {
+            throw new AppError(validation.errors.join(', '), 400);
+        }
+
+        // Optional: Breach check (can be disabled in config)
+        if (config.security?.checkPasswordBreach) {
+            const breachCheck = await checkPasswordBreach(password);
+            if (breachCheck.isPwned) {
+                throw new AppError(
+                    `This password has been found in ${breachCheck.count} data breaches. Please choose a different password.`,
+                    400
+                );
+            }
+        }
+
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
             throw new AppError('User with this email already exists', 400);
@@ -80,9 +99,9 @@ class AuthController {
             data: { email, passwordHash, firstName, lastName, department, jobTitle },
         });
 
-        const userRole = await prisma.role.findUnique({ where: { name: 'USER' } });
-        if (userRole) {
-            await prisma.userRole.create({ data: { userId: user.id, roleId: userRole.id } });
+        const normalStaffRole = await prisma.role.findUnique({ where: { name: 'NORMAL_STAFF' } });
+        if (normalStaffRole) {
+            await prisma.userRole.create({ data: { userId: user.id, roleId: normalStaffRole.id } });
         }
 
         const { token: accessToken } = generateAccessToken(user.id, user.email);
@@ -154,7 +173,9 @@ class AuthController {
                     lastName: user.lastName,
                     roles: user.roles.map((ur) => ur.role.name),
                     agentTeam: user.agentTeam,
+                    permissions: await permissionService.getUserPermissions(user.id),
                 },
+                accessToken, // exposed for SSE EventSource auth
             },
         });
     });
@@ -258,16 +279,16 @@ class AuthController {
             if (!user) return;
 
             const { plainToken } = await passwordResetService.createToken(user.id);
-            const resetUrl = `${config.app.url}/#/reset-password?token=${plainToken}`;
+            const resetUrl = `${config.app.url}/reset-password?token=${plainToken}`;
 
-            await sendEmail(
-                user.email,
-                'Password Reset Request',
-                `<p>You requested a password reset for your Help Center account.</p>
-                <p>Click the link below to reset your password. This link expires in 15 minutes.</p>
-                <p><a href="${resetUrl}">${resetUrl}</a></p>
-                <p>If you did not request this, you can safely ignore this email.</p>`
-            );
+            await notify({
+                userId: user.id,
+                eventType: 'PASSWORD_RESET',
+                variables: {
+                    userName: `${user.firstName} ${user.lastName}`.trim() || user.email,
+                    resetUrl,
+                },
+            });
 
             logger.info(`Password reset email sent to: ${email}`);
         }).catch((err) => {
@@ -277,6 +298,12 @@ class AuthController {
 
     resetPassword = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { token, newPassword } = req.body;
+
+        // Password validation
+        const validation = validatePassword(newPassword);
+        if (!validation.isValid) {
+            throw new AppError(validation.errors.join(', '), 400);
+        }
 
         const record = await passwordResetService.validateToken(token);
         if (!record) {

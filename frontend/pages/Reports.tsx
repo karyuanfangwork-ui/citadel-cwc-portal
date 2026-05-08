@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import Breadcrumbs from '../src/components/Breadcrumbs';
 import reportsService, {
   ReportSummary,
   StatusCount,
@@ -57,6 +58,11 @@ export default function Reports() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8 space-y-8">
+      {/* Breadcrumbs */}
+      <Breadcrumbs items={[
+        { label: 'Home', to: '/' },
+        { label: 'Reports' },
+      ]} />
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
@@ -94,7 +100,7 @@ export default function Reports() {
       )}
 
       {/* 2-column grid — 4 panels */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* By Service Desk */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h2 className="text-base font-semibold text-gray-800 mb-4">By Service Desk</h2>

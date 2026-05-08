@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import itWorkflowService from '../../services/it-workflow.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
+import ModalPortal from '../ModalPortal';
 
 interface PaymentDoneModalProps {
   requestId: string;
@@ -16,7 +17,7 @@ const PaymentDoneModal: React.FC<PaymentDoneModalProps> = ({
 }) => {
   const [paymentReference, setPaymentReference] = useState('');
   const [amount, setAmount] = useState('');
-  const [paymentDate, setPaymentDate] = useState('');
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,11 +46,12 @@ const PaymentDoneModal: React.FC<PaymentDoneModalProps> = ({
   };
 
   return (
+    <ModalPortal>
     <div
       className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4"
       onClick={handleBackdropClick}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-blue-50 rounded-t-2xl">
           <div className="size-9 rounded-lg bg-blue-100 flex items-center justify-center">
             <span className="material-symbols-outlined text-[#0052cc]">payments</span>
@@ -95,7 +97,8 @@ const PaymentDoneModal: React.FC<PaymentDoneModalProps> = ({
                 type="date"
                 value={paymentDate}
                 onChange={e => setPaymentDate(e.target.value)}
-                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
+                onClick={e => e.stopPropagation()}
+                className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] cursor-pointer"
               />
             </div>
             <div>
@@ -133,6 +136,7 @@ const PaymentDoneModal: React.FC<PaymentDoneModalProps> = ({
         </form>
       </div>
     </div>
+    </ModalPortal>
   );
 };
 

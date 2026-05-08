@@ -7,6 +7,7 @@ interface User {
     firstName: string;
     lastName: string;
     roles?: string[];
+    permissions?: string[];
     agentTeam?: string | null;
 }
 
@@ -22,6 +23,7 @@ interface RegisterData {
 interface AuthContextType {
     user: User | null;
     loading: boolean;
+    accessToken: string | null;
     login: (email: string, password: string) => Promise<void>;
     register: (data: RegisterData) => Promise<void>;
     logout: () => Promise<void>;
@@ -33,6 +35,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
+    const [accessToken, setAccessToken] = useState<string | null>(null);
 
     useEffect(() => {
         // Ask the server if we have a valid session (cookie sent automatically)
@@ -43,8 +46,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, []);
 
     const login = async (email: string, password: string) => {
-        const loggedInUser = await authService.login({ email, password });
-        setUser(loggedInUser);
+        const response = await authService.login({ email, password });
+        setUser({
+            id: response.id,
+            email: response.email,
+            firstName: response.firstName,
+            lastName: response.lastName,
+            roles: response.roles,
+            permissions: response.permissions,
+            agentTeam: response.agentTeam,
+        });
+        setAccessToken(response.accessToken ?? null);
     };
 
     const register = async (data: RegisterData) => {
@@ -55,10 +67,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const logout = async () => {
         await authService.logout();
         setUser(null);
+        setAccessToken(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, register, logout, isAuthenticated: !!user }}>
+        <AuthContext.Provider value={{ user, loading, accessToken, login, register, logout, isAuthenticated: !!user }}>
             {children}
         </AuthContext.Provider>
     );

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, MouseEvent } from 'react';
 
 /**
  * Adds Escape key and backdrop-click dismiss to a modal.
@@ -18,7 +18,7 @@ export function useModalDismiss(onClose: () => void) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleBackdropClick = (e: MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
       onClose();
     }

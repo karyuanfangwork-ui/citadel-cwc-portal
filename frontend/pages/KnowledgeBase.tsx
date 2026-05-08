@@ -1,10 +1,13 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Breadcrumbs from '../src/components/Breadcrumbs';
 import kbService, { Article } from '../src/services/kb.service';
+import { friendlyMessage } from '../src/utils/errorMessages';
 
 export default function KnowledgeBase() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
 
@@ -12,6 +15,7 @@ export default function KnowledgeBase() {
     kbService
       .getArticles()
       .then(setArticles)
+      .catch((err) => setError(friendlyMessage(err, 'Unable to load articles. Please try again.')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -22,7 +26,7 @@ export default function KnowledgeBase() {
       (a) =>
         a.title.toLowerCase().includes(q) ||
         (a.excerpt ?? '').toLowerCase().includes(q) ||
-        a.tags.some((t) => t.toLowerCase().includes(q))
+        a.tags?.some((t: string) => t.toLowerCase().includes(q))
     );
   }, [articles, search]);
 
@@ -37,25 +41,18 @@ export default function KnowledgeBase() {
   }, [filtered]);
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 16px 48px' }}>
+    <div className="max-w-[1100px] mx-auto px-4 pb-12">
+      {/* Breadcrumbs */}
+      <Breadcrumbs items={[
+        { label: 'Home', to: '/' },
+        { label: 'Knowledge Base' },
+      ]} />
       {/* Hero */}
-      <div
-        style={{
-          textAlign: 'center',
-          padding: '48px 16px 36px',
-        }}
-      >
-        <h1
-          style={{
-            fontSize: 32,
-            fontWeight: 700,
-            color: '#1e293b',
-            marginBottom: 8,
-          }}
-        >
+      <div className="text-center py-12 px-4">
+        <h1 className="text-[32px] font-bold text-brand-900 mb-2">
           Knowledge Base
         </h1>
-        <p style={{ color: '#64748b', marginBottom: 24, fontSize: 16 }}>
+        <p className="text-text-secondary mb-6 text-base">
           Browse articles, guides, and FAQs to find the answers you need.
         </p>
         <input
@@ -63,16 +60,7 @@ export default function KnowledgeBase() {
           placeholder="Search articles..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{
-            width: '100%',
-            maxWidth: 480,
-            padding: '10px 16px',
-            borderRadius: 8,
-            border: '1px solid #cbd5e1',
-            fontSize: 15,
-            outline: 'none',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-          }}
+          className="w-full max-w-[480px] py-2.5 px-4 rounded-lg border border-cwc-border text-[15px] outline-none shadow-cwc-sm focus:border-brand-700 focus:ring-1 focus:ring-brand-700"
         />
       </div>
 
@@ -93,13 +81,21 @@ export default function KnowledgeBase() {
         </div>
       )}
 
+      {/* Error */}
+      {!loading && error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 px-5 rounded-lg mb-6">
+          <p className="font-bold m-0">Error loading articles</p>
+          <p className="text-sm mt-1">{error}</p>
+        </div>
+      )}
+
       {/* Empty state */}
       {!loading && filtered.length === 0 && (
-        <div style={{ textAlign: 'center', padding: 64, color: '#94a3b8' }}>
-          <span className="material-icons" style={{ fontSize: 56, display: 'block', marginBottom: 12 }}>
+        <div className="text-center py-16 text-slate-400">
+          <span className="material-icons text-5xl block mb-3">
             library_books
           </span>
-          <p style={{ fontSize: 16 }}>
+          <p className="text-base">
             {search ? 'No articles match your search.' : 'No articles published yet.'}
           </p>
         </div>
@@ -108,38 +104,16 @@ export default function KnowledgeBase() {
       {/* Categories */}
       {!loading &&
         Array.from(grouped.entries()).map(([category, arts]) => (
-          <div key={category} style={{ marginBottom: 40 }}>
-            <h2
-              style={{
-                fontSize: 18,
-                fontWeight: 600,
-                color: '#334155',
-                marginBottom: 16,
-                paddingBottom: 8,
-                borderBottom: '2px solid #e2e8f0',
-              }}
-            >
+          <div key={category} className="mb-10">
+            <h2 className="text-lg font-semibold text-brand-900 mb-4 pb-2 border-b-2 border-cwc-border">
               {category}
             </h2>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-                gap: 16,
-              }}
-            >
+            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))' }}>
               {arts.map((article) => (
                 <div
                   key={article.id}
                   onClick={() => navigate(`/kb/${article.slug}`)}
-                  style={{
-                    background: '#fff',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: 10,
-                    padding: '20px 20px 16px',
-                    cursor: 'pointer',
-                    transition: 'box-shadow 0.15s, border-color 0.15s',
-                  }}
+                  className="bg-white border border-cwc-border rounded-cwc-md p-5 pb-4 cursor-pointer transition-shadow duration-150"
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLDivElement).style.boxShadow =
                       '0 4px 16px rgba(0,0,0,0.10)';
@@ -147,48 +121,27 @@ export default function KnowledgeBase() {
                   }}
                   onMouseLeave={(e) => {
                     (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
-                    (e.currentTarget as HTMLDivElement).style.borderColor = '#e2e8f0';
+                    (e.currentTarget as HTMLDivElement).style.borderColor = '';
                   }}
                 >
-                  <h3
-                    style={{
-                      fontSize: 15,
-                      fontWeight: 600,
-                      color: '#1e40af',
-                      marginBottom: 6,
-                    }}
-                  >
+                  <h3 className="text-[15px] font-semibold text-brand-700 mb-1.5">
                     {article.title}
                   </h3>
                   {article.excerpt && (
                     <p
-                      style={{
-                        fontSize: 13,
-                        color: '#64748b',
-                        marginBottom: 12,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
+                      className="text-[13px] text-text-secondary mb-3 overflow-hidden"
+                      style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
                     >
                       {article.excerpt}
                     </p>
                   )}
                   {/* Tags */}
-                  {article.tags.length > 0 && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+                  {article.tags && article.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2.5">
                       {article.tags.map((tag) => (
                         <span
                           key={tag}
-                          style={{
-                            fontSize: 11,
-                            background: '#eff6ff',
-                            color: '#3b82f6',
-                            borderRadius: 4,
-                            padding: '2px 7px',
-                            fontWeight: 500,
-                          }}
+                          className="text-[11px] bg-blue-50 text-blue-500 rounded py-0.5 px-1.5 font-medium"
                         >
                           {tag}
                         </span>
@@ -196,7 +149,7 @@ export default function KnowledgeBase() {
                     </div>
                   )}
                   {/* Stats */}
-                  <div style={{ display: 'flex', gap: 14, color: '#94a3b8', fontSize: 12 }}>
+                  <div className="flex gap-3.5 text-slate-400 text-xs">
                     <span>
                       <span className="material-icons" style={{ fontSize: 13, verticalAlign: 'middle', marginRight: 2 }}>
                         visibility

@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { requestService } from '../src/services/request.service';
 import { STATUS_CONFIG } from '../constants';
 import { RequestStatus } from '../types';
+import { friendlyMessage } from '../src/utils/errorMessages';
 
 interface ServiceDesk {
   id: string;
@@ -32,8 +34,13 @@ const RESOLVED_STATUSES = new Set<string>([
   RequestStatus.COMPLETED,
   RequestStatus.REIMBURSEMENT_CLOSED,
   RequestStatus.ONBOARDING_COMPLETED,
+  RequestStatus.OFFBOARDING_COMPLETED,
   RequestStatus.PAYMENT_COMPLETED,
   RequestStatus.LOA_ACCEPTED,
+  'TICKET_CLOSED_FIN',
+  'CFO_REJECTED_FIN',
+  'GROUP_CEO_REJECTED',
+  'PAYMENT_CONFIRMED_FIN',
 ]);
 
 function getGreeting(firstName: string): string {
@@ -76,11 +83,21 @@ const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
 // ── Main component ─────────────────────────────────────────────────────────
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [serviceDesks, setServiceDesks] = useState<ServiceDesk[]>([]);
   const [allRequests, setAllRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearch = () => {
+    const q = searchQuery.trim();
+    if (q) {
+      navigate(`/search?q=${encodeURIComponent(q)}`);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -89,13 +106,13 @@ const Dashboard = () => {
         setError(null);
         const [desksData, requestsData] = await Promise.all([
           serviceDeskService.getAllServiceDesks(),
-          requestService.getAllRequests({ limit: 50 }),
+          requestService.getAllRequests({ limit: 50, requesterId: user?.id }),
         ]);
         setServiceDesks(desksData);
         const requests: Request[] = requestsData.requests || [];
         setAllRequests(requests);
       } catch (err: any) {
-        setError(err.message || 'Failed to load dashboard data');
+        setError(friendlyMessage(err, 'Unable to load your dashboard. Please refresh the page.'));
       } finally {
         setLoading(false);
       }
@@ -112,48 +129,37 @@ const Dashboard = () => {
 
   const recentRequests = useMemo(() => allRequests.slice(0, 5), [allRequests]);
 
-  const greeting = user ? getGreeting(user.firstName) : 'Welcome.';
+  const greeting = user
+    ? t('dashboard.greeting', { period: new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening', name: user.firstName })
+    : 'Welcome.';
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 'var(--space-8)', paddingBottom: 'var(--space-16)' }}>
+    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
 
       {/* ── HERO ── */}
-      <section style={{
-        background: 'linear-gradient(135deg, var(--color-brand-900) 0%, var(--color-brand-700) 60%, var(--color-brand-500) 100%)',
-        borderRadius: 'var(--radius-xl)',
-        padding: 'var(--space-10) var(--space-12)',
-        position: 'relative',
-        overflow: 'hidden',
-        marginBottom: 'var(--space-6)',
-      }}>
+      <section className="bg-gradient-to-br from-brand-900 via-brand-700 to-[#2a4a7f] rounded-xl py-12 px-4 sm:px-8 relative overflow-hidden mb-6">
         {/* decorative circles */}
         <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
 
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: 'var(--space-2)' }}>
+        <div className="relative z-10">
+          <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">
             {formatDate()}
           </div>
-          <h1 style={{ fontSize: 'var(--text-4xl)', fontWeight: 900, color: '#fff', lineHeight: 1.1, marginBottom: 'var(--space-6)' }}>
+          <h1 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-6">
             {greeting}{' '}
-            <span style={{ color: 'rgba(255,255,255,0.65)', fontWeight: 400 }}>How can<br />we help you today?</span>
+            <span className="text-white/65 font-normal">How can<br />we help you today?</span>
           </h1>
 
           {/* Search */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-            background: 'rgba(255,255,255,0.12)',
-            backdropFilter: 'blur(8px)',
-            border: '1.5px solid rgba(255,255,255,0.2)',
-            borderRadius: 'var(--radius-lg)',
-            padding: 'var(--space-3) var(--space-4)',
-            maxWidth: 560,
-            transition: 'border-color 0.2s',
-          }}>
-            <span className="material-symbols-outlined" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 20 }}>search</span>
+          <div className="flex items-center gap-3 bg-white/12 backdrop-blur-sm border border-white/20 rounded-lg py-3 px-4 max-w-[560px] transition-colors duration-200">
+            <span className="material-symbols-outlined text-white/50 text-xl">search</span>
             <input
               type="text"
-              placeholder="Search for hardware, leave requests, expenses..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
+              placeholder={t('dashboard.searchPlaceholder')}
               style={{
                 flex: 1, background: 'none', border: 'none', outline: 'none',
                 color: '#fff', fontSize: 'var(--text-base)', fontFamily: 'var(--font-sans)',
@@ -161,28 +167,16 @@ const Dashboard = () => {
               onFocus={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.5)'; }}
               onBlur={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.2)'; }}
             />
-            <button style={{
-              background: '#fff', color: 'var(--color-brand-700)',
-              border: 'none', borderRadius: 'var(--radius-md)',
-              padding: 'var(--space-2) var(--space-5)',
-              fontSize: 'var(--text-sm)', fontWeight: 800,
-              cursor: 'pointer', fontFamily: 'var(--font-sans)', whiteSpace: 'nowrap',
-            }}>
+            <button onClick={handleSearch} className="bg-white text-brand-700 border-none rounded-cwc-md py-2 px-5 text-sm font-extrabold cursor-pointer font-sans whitespace-nowrap">
               Search
             </button>
           </div>
 
           {/* Quick tags */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-4)', marginTop: 'var(--space-4)', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'rgba(255,255,255,0.45)' }}>Common:</span>
+          <div className="flex items-center gap-4 mt-4 flex-wrap">
+            <span className="text-xs text-white/45">Common:</span>
             {['VPN Setup', 'Reset Password', 'Payroll Calendar', 'Annual Leave'].map(tag => (
-              <span key={tag} style={{
-                fontSize: 'var(--text-xs)', fontWeight: 700,
-                color: 'rgba(255,255,255,0.75)',
-                background: 'rgba(255,255,255,0.1)',
-                borderRadius: 'var(--radius-full)',
-                padding: '3px 10px', cursor: 'pointer',
-              }}>{tag}</span>
+              <span key={tag} onClick={() => navigate(`/search?q=${encodeURIComponent(tag)}`)} className="text-xs font-bold text-white/75 bg-white/10 rounded-full py-[3px] px-2.5 cursor-pointer hover:bg-white/20 transition-colors">{tag}</span>
             ))}
           </div>
         </div>
@@ -190,7 +184,7 @@ const Dashboard = () => {
 
       {/* ── STATS STRIP ── */}
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[0, 1, 2].map(i => (
             <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-5) var(--space-6)', display: 'flex', gap: 'var(--space-4)', alignItems: 'center' }}>
               <SkeletonBox w="44px" h="44px" />
@@ -202,31 +196,22 @@ const Dashboard = () => {
           ))}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[
-            { label: 'Open Requests',    value: stats.open,           iconBg: 'var(--color-it-50)',  numColor: 'var(--color-brand-700)', icon: 'inbox' },
-            { label: 'Action Required',  value: stats.actionRequired, iconBg: 'var(--color-fin-50)', numColor: 'var(--color-warning)',    icon: 'warning' },
-            { label: 'Resolved All Time',value: stats.resolved,       iconBg: 'var(--color-hr-50)',  numColor: 'var(--color-success)',    icon: 'task_alt' },
+            { label: t('dashboard.openRequests'),    value: stats.open,           iconBg: 'var(--color-it-50)',  numColor: 'var(--color-brand-700)', icon: 'inbox' },
+            { label: t('dashboard.actionRequired'),  value: stats.actionRequired, iconBg: 'var(--color-fin-50)', numColor: 'var(--color-warning)',    icon: 'warning' },
+            { label: t('dashboard.resolvedAllTime'),value: stats.resolved,       iconBg: 'var(--color-hr-50)',  numColor: 'var(--color-success)',    icon: 'task_alt' },
           ].map(stat => (
-            <div key={stat.label} style={{
-              background: 'var(--color-surface)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 'var(--space-5) var(--space-6)',
-              display: 'flex', alignItems: 'center', gap: 'var(--space-4)',
-              boxShadow: 'var(--shadow-sm)',
-              transition: 'box-shadow 0.2s, transform 0.2s',
-              cursor: 'default',
-            }}
+            <div key={stat.label} className="bg-surface border border-border rounded-cwc-lg p-5 px-6 flex items-center gap-4 shadow-cwc-sm transition-shadow duration-200 cursor-default"
               onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-md)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-1px)'; }}
               onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-sm)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
             >
-              <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 22, color: stat.numColor }}>{stat.icon}</span>
+              <div className="w-11 h-11 rounded-cwc-md flex items-center justify-center shrink-0" style={{ background: stat.iconBg }}>
+                <span className="material-symbols-outlined text-[22px]" style={{ color: stat.numColor }}>{stat.icon}</span>
               </div>
               <div>
-                <div style={{ fontSize: 'var(--text-3xl)', fontWeight: 900, lineHeight: 1, color: stat.numColor }}>{stat.value}</div>
-                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', fontWeight: 600, marginTop: 2 }}>{stat.label}</div>
+                <div className="text-3xl font-black leading-none" style={{ color: stat.numColor }}>{stat.value}</div>
+                <div className="text-xs font-semibold mt-0.5 text-text-secondary">{stat.label}</div>
               </div>
             </div>
           ))}
@@ -239,7 +224,7 @@ const Dashboard = () => {
       </div>
 
       {loading ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {[0, 1, 2].map(i => (
             <div key={i} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               <SkeletonBox w="48px" h="48px" />
@@ -255,7 +240,7 @@ const Dashboard = () => {
           <p style={{ fontSize: 'var(--text-sm)', marginTop: 4 }}>{error}</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 'var(--space-4)', marginBottom: 'var(--space-6)' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
           {serviceDesks.map(desk => {
             const style = DESK_STYLE[desk.code] || { colorBar: '#6b7280', iconBg: '#f3f4f6', icon: 'help' };
             return (
@@ -302,104 +287,106 @@ const Dashboard = () => {
 
       {/* ── RECENT REQUESTS ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
-        <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>Recent Requests</h2>
+        <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>{t('dashboard.recentActivity')}</h2>
         <Link to="/my-requests" style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-brand-700)', textDecoration: 'none' }}>
-          View all →
+          {t('dashboard.viewAll')}
         </Link>
       </div>
 
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', marginBottom: 'var(--space-8)' }}>
-        {loading ? (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--color-surface-muted)' }}>
-                {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
-                  <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', textAlign: 'left' }}>
-                    <div style={{ height: 10, width: 60, background: 'var(--color-border)', borderRadius: 4 }} />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[0, 1, 2, 3, 4].map(i => (
-                <tr key={i} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                  {['80px', '200px', '100px', '80px', '60px'].map((w, j) => (
-                    <td key={j} style={{ padding: 'var(--space-4) var(--space-6)' }}>
-                      <div style={{ height: 12, width: w, background: 'var(--color-border)', borderRadius: 4 }} />
-                    </td>
+        <div className="overflow-x-auto">
+          {loading ? (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--color-surface-muted)' }}>
+                  {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
+                    <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', textAlign: 'left' }}>
+                      <div style={{ height: 10, width: 60, background: 'var(--color-border)', borderRadius: 4 }} />
+                    </th>
                   ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : recentRequests.length === 0 ? (
-          <div style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 'var(--space-4)', display: 'block', opacity: 0.3 }}>inbox</span>
-            <p style={{ fontWeight: 700, marginBottom: 4 }}>No requests yet</p>
-            <p style={{ fontSize: 'var(--text-sm)' }}>Create your first request to get started</p>
-          </div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: 'var(--color-surface-muted)' }}>
-                {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
-                  <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'left' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {recentRequests.map(req => {
-                const statusCfg = STATUS_CONFIG[req.status as RequestStatus];
-                return (
-                  <tr
-                    key={req.id}
-                    style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                    onClick={() => (window.location.hash = `#/request/${req.id}`)}
-                  >
-                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-brand-700)' }}>
-                      {req.referenceNumber}
-                    </td>
-                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                      {req.summary}
-                    </td>
-                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                      {req.serviceDesk?.name || 'N/A'}
-                    </td>
-                    <td style={{ padding: 'var(--space-4) var(--space-6)' }}>
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4,
-                        padding: '3px 10px',
-                        borderRadius: 'var(--radius-full)',
-                        fontSize: 'var(--text-xs)', fontWeight: 700,
-                      }}
-                        className={`${statusCfg?.bg || 'bg-gray-100'} ${statusCfg?.color || 'text-gray-600'}`}
-                      >
-                        {statusCfg?.label || req.status}
-                      </span>
-                    </td>
-                    <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
-                      {formatRelativeTime(req.updatedAt)}
-                    </td>
+              </thead>
+              <tbody>
+                {[0, 1, 2, 3, 4].map(i => (
+                  <tr key={i} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                    {['80px', '200px', '100px', '80px', '60px'].map((w, j) => (
+                      <td key={j} style={{ padding: 'var(--space-4) var(--space-6)' }}>
+                        <div style={{ height: 12, width: w, background: 'var(--color-border)', borderRadius: 4 }} />
+                      </td>
+                    ))}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+                ))}
+              </tbody>
+            </table>
+          ) : recentRequests.length === 0 ? (
+            <div style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 48, marginBottom: 'var(--space-4)', display: 'block', opacity: 0.3 }}>inbox</span>
+              <p style={{ fontWeight: 700, marginBottom: 4 }}>No requests yet</p>
+              <p style={{ fontSize: 'var(--text-sm)' }}>Create your first request to get started</p>
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: 'var(--color-surface-muted)' }}>
+                  {['Reference', 'Summary', 'Service', 'Status', 'Updated'].map(h => (
+                    <th key={h} style={{ padding: 'var(--space-3) var(--space-6)', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', textAlign: 'left' }}>
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {recentRequests.map(req => {
+                  const statusCfg = STATUS_CONFIG[req.status as RequestStatus];
+                  return (
+                    <tr
+                      key={req.id}
+                      style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      onClick={() => navigate(`/request/${req.id}`)}
+                    >
+                      <td style={{ padding: 'var(--space-4) var(--space-6)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-brand-700)' }}>
+                        {req.referenceNumber}
+                      </td>
+                      <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                        {req.summary}
+                      </td>
+                      <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+                        {req.serviceDesk?.name || 'N/A'}
+                      </td>
+                      <td style={{ padding: 'var(--space-4) var(--space-6)' }}>
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                          padding: '3px 10px',
+                          borderRadius: 'var(--radius-full)',
+                          fontSize: 'var(--text-xs)', fontWeight: 700,
+                        }}
+                          className={`${statusCfg?.bg || 'bg-gray-100'} ${statusCfg?.color || 'text-gray-600'}`}
+                        >
+                          {statusCfg?.label || req.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: 'var(--space-4) var(--space-6)', fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)' }}>
+                        {formatRelativeTime(req.updatedAt)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
 
       {/* ── FOOTER CTAs ── */}
+      {import.meta.env.DEV && (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>Can't find what you're looking for?</span>
         {[
-          { icon: 'menu_book', label: 'Browse Knowledge Base' },
-          { icon: 'forum',     label: 'Chat with Support' },
+          { icon: 'menu_book', label: 'Browse Knowledge Base', to: '/kb' },
         ].map(btn => (
-          <button key={btn.label} style={{
+          <button key={btn.label} onClick={btn.to ? () => navigate(btn.to) : undefined} style={{
             display: 'flex', alignItems: 'center', gap: 'var(--space-2)',
             padding: 'var(--space-3) var(--space-5)',
             background: 'var(--color-surface)',
@@ -418,6 +405,7 @@ const Dashboard = () => {
           </button>
         ))}
       </div>
+      )}
 
     </div>
   );

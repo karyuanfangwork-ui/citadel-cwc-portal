@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
+import SkeletonCategoryCard from '../src/components/SkeletonCategoryCard';
+import { friendlyMessage } from '../src/utils/errorMessages';
 
 interface ServiceDesk {
   id: string;
@@ -44,7 +46,7 @@ const HRServices = () => {
       }
     } catch (err: any) {
       console.error('Error fetching service desk:', err);
-      setError(err.message || 'Failed to load service desk');
+      setError(friendlyMessage(err, 'Unable to load HR Services. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -65,8 +67,10 @@ const HRServices = () => {
   if (loading) {
     return (
       <div className="max-w-[1440px] mx-auto px-6 py-8">
-        <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCategoryCard key={i} />
+          ))}
         </div>
       </div>
     );
@@ -87,7 +91,7 @@ const HRServices = () => {
     <div className="max-w-[1440px] mx-auto px-6 py-8">
       <nav className="flex items-center gap-2 mb-8 text-sm font-medium text-[#44546f]">
         <Link to="/" className="hover:text-emerald-600">
-          Help Center
+          CWC
         </Link>
         <span className="material-symbols-outlined text-sm">chevron_right</span>
         <span className="text-[#101418] font-bold">{serviceDesk.name}</span>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useToast } from '../../context/ToastContext';
 
 interface Activity {
   id: string;
@@ -17,32 +18,100 @@ interface ActivityFeedProps {
   activities: Activity[];
   onSubmitComment: (text: string, isInternal: boolean) => Promise<void>;
   canPostInternal: boolean;
+  currentUser?: { firstName: string; lastName: string } | null;
 }
 
-const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment, canPostInternal }) => {
+const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment, canPostInternal, currentUser }) => {
+  const toast = useToast();
   const [tab, setTab] = useState<TabType>('all');
   const [comment, setComment] = useState('');
   const [isInternal, setIsInternal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
+
+  // Merge server activities with any optimistic entries that haven't been confirmed yet.
+  // Optimistic entries use ids starting with "temp-". When the server returns the real
+  // activity via the parent's activities prop (after onSubmitComment resolves and the
+  // parent appends it), the optimistic entry with the matching temp-id will naturally
+  // be superseded because we only show optimistic entries whose id is NOT already in
+  // the server-supplied activities list.
+  const serverIds = new Set(activities.map(a => a.id));
+
+  const mergedActivities = (() => {
+    const optimistic: Activity[] = Array.from(optimisticIds)
+      .filter(id => !serverIds.has(id))
+      .map(id => ({
+        id,
+        activityType: 'COMMENT',
+        message: '', // placeholder — we store the real data separately below
+        authorName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'You',
+        authorRole: null,
+        isSystemGenerated: false,
+        isInternal: isInternal,
+        createdAt: new Date().toISOString(),
+      }));
+    // We'll track the message text via a separate map
+    return [...optimistic, ...activities];
+  })();
+
+  // Store optimistic comment text keyed by temp id
+  const [optimisticMessages, setOptimisticMessages] = useState<Record<string, string>>({});
 
   const commentCount  = activities.filter(a => !a.isSystemGenerated && !a.isInternal).length;
   const internalCount = activities.filter(a => a.isInternal).length;
 
-  const filtered = activities.filter(a => {
+  const filtered = mergedActivities.filter(a => {
     if (tab === 'comments') return !a.isSystemGenerated && !a.isInternal;
     if (tab === 'system')   return a.isSystemGenerated;
     if (tab === 'internal') return a.isInternal;
     return true;
   });
 
+  // Sort by createdAt descending so optimistic entries (just created) appear at the top
+  const sortedFiltered = [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!comment.trim()) return;
+
+    const tempId = `temp-${Date.now()}`;
+    const commentText = comment;
+    const isInternalComment = isInternal;
+
+    // Optimistically add the entry
+    setOptimisticIds(prev => new Set(prev).add(tempId));
+    setOptimisticMessages(prev => ({ ...prev, [tempId]: commentText }));
+    setComment('');
+    setIsInternal(false);
+    setSubmitting(true);
+
     try {
-      setSubmitting(true);
-      await onSubmitComment(comment, isInternal);
-      setComment('');
-      setIsInternal(false);
+      await onSubmitComment(commentText, isInternalComment);
+      // On success, the parent will have appended the real activity.
+      // Remove our optimistic entry since the server data is now authoritative.
+      setOptimisticIds(prev => {
+        const next = new Set(prev);
+        next.delete(tempId);
+        return next;
+      });
+      setOptimisticMessages(prev => {
+        const next = { ...prev };
+        delete next[tempId];
+        return next;
+      });
+    } catch {
+      // Remove the optimistic entry on failure
+      setOptimisticIds(prev => {
+        const next = new Set(prev);
+        next.delete(tempId);
+        return next;
+      });
+      setOptimisticMessages(prev => {
+        const next = { ...prev };
+        delete next[tempId];
+        return next;
+      });
+      toast.error('Comment failed', 'Failed to post comment. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -89,11 +158,14 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
 
       {/* Activity list */}
       <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-        {filtered.length === 0 ? (
+        {sortedFiltered.length === 0 ? (
           <p className="text-xs text-gray-400 text-center py-6">No activity yet</p>
         ) : (
-          filtered.map(a => (
-            <div key={a.id} className="flex gap-3">
+          sortedFiltered.map(a => {
+            const isOptimistic = a.id.startsWith('temp-');
+            const displayMessage = isOptimistic ? (optimisticMessages[a.id] || '') : a.message;
+            return (
+            <div key={a.id} className={`flex gap-3 ${isOptimistic ? 'opacity-80 animate-pulse' : ''}`}>
               <div className={`size-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0 mt-0.5 ${
                 a.isSystemGenerated ? 'bg-gray-300 text-gray-600' :
                 a.isInternal ? 'bg-amber-500' : 'bg-indigo-500'
@@ -105,15 +177,17 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
                   <span className="font-bold text-gray-600">{a.authorName}</span>
                   {a.isInternal && <span className="ml-1.5 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">INTERNAL</span>}
                   <span className="ml-1.5">{formatTime(a.createdAt)}</span>
+                  {isOptimistic && <span className="ml-1.5 text-[9px] font-bold text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">Sending...</span>}
                 </div>
                 <p className={`text-sm text-gray-700 leading-relaxed ${
                   a.isInternal ? 'bg-amber-50 border-l-2 border-amber-400 pl-3 py-1 rounded-r italic' : ''
                 }`}>
-                  {a.message}
+                  {displayMessage}
                 </p>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
 

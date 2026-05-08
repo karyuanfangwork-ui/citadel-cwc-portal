@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { entityService } from '../../services/entity.service';
+
+const API_BASE = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
 interface CustomFieldsPanelProps {
   customFields: Record<string, any> | undefined;
@@ -21,15 +24,22 @@ const HR_FIELD_LABELS: Record<string, string> = {
   requirements: 'Requirements',
   budget: 'Budget',
   position_title: 'Position Title',
+  selectedCandidateName: 'Candidate Name',
+  jobPostedAt: 'Job Posted At',
+  jobPostingUrl: 'Job Posting URL',
+  jobPostingNotes: 'Job Posting Notes',
 };
 
 const IT_FIELD_LABELS: Record<string, string> = {
   hardwareName: 'Hardware Name',
-  hardwareModel: 'Preferred Model',
+  hardwareModel: 'Model / Specifications',
   estimatedPrice: 'Estimated Price (USD)',
   preferredVendor: 'Preferred Vendor',
   productUrl: 'Product URL',
   businessJustification: 'Business Justification',
+  businessUnit: 'Business Unit',
+  serialNumber: 'Serial Number',
+  assetTag: 'Asset Tag',
   payment: 'Payment',
   // legacy keys — keep for backward compat until backfill runs
   hardwareType: 'Hardware Type',
@@ -41,6 +51,11 @@ const IT_FIELD_LABELS: Record<string, string> = {
   hw_name: 'Hardware Name',
   hw_model: 'Preferred Model',
   hw_reason: 'Business Justification',
+  // old opaque field IDs (pre-migration) — resolve so legacy tickets aren't confusing
+  field_1777345359663: 'Request for (Name)',
+  field_1777345313368: 'Business Unit',
+  field_1777345397494: 'Device Type',
+  field_1777345423736: 'Attachment',
 };
 
 const FINANCE_FIELD_LABELS: Record<string, string> = {
@@ -51,6 +66,8 @@ const FINANCE_FIELD_LABELS: Record<string, string> = {
   vendor: 'Vendor',
   costCenter: 'Cost Center',
   projectCode: 'Project Code',
+  finalizedAmount: 'Finalized Amount (MYR)',
+  paymentReference: 'Payment Reference',
 };
 
 function getFieldLabels(code: string): Record<string, string> {
@@ -76,13 +93,52 @@ function formatPayment(value: Record<string, any>): React.ReactNode {
   );
 }
 
-function formatValue(key: string, value: any): React.ReactNode {
+// Keys whose values are ISO date strings that should be formatted
+const DATE_KEYS = new Set([
+  'jobPostedAt', 'startedAt', 'completedAt', 'createdAt', 'updatedAt',
+  'receiptDate', 'approvalDate', 'acceptedDate',
+]);
+
+function formatValue(key: string, value: any, fieldType?: string, entityMap?: Record<string, string>): React.ReactNode {
   if (value === null || value === undefined || value === '') return '\u2014';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'object') {
     if (key === 'payment') return formatPayment(value);
+    if (value.s3Key && value.fileName) {
+      const href = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}`;
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-[#0052cc] hover:underline font-medium"
+        >
+          <span className="material-symbols-outlined text-base">download</span>
+          {value.fileName}
+        </a>
+      );
+    }
     return JSON.stringify(value);
+  }
+  // Detect and format ISO date strings
+  if (typeof value === 'string' && DATE_KEYS.has(key) && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+    return new Date(value).toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+  // Format currency fields with MYR prefix
+  if (fieldType === 'currency') {
+    const num = Number(value);
+    if (!isNaN(num)) return `MYR ${num.toLocaleString()}`;
+  }
+  // Entity code display — resolve code to human-readable name
+  if (fieldType === 'entity' && entityMap && entityMap[String(value)]) {
+    return `${entityMap[String(value)]} (${value})`;
   }
   return String(value);
 }
@@ -90,8 +146,21 @@ function formatValue(key: string, value: any): React.ReactNode {
 const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, serviceDeskCode, formConfig }) => {
   if (!customFields || Object.keys(customFields).length === 0) return null;
 
+  const [entityNameMap, setEntityNameMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    entityService.listActiveEntities()
+      .then(entities => {
+        const map: Record<string, string> = {};
+        for (const e of entities) map[e.code] = e.name;
+        setEntityNameMap(map);
+      })
+      .catch(() => {});
+  }, []);
+
   const labels = getFieldLabels(serviceDeskCode);
-  const entries = Object.entries(customFields).filter(([_, v]) => v !== null && v !== undefined && v !== '');
+  const HIDDEN_KEYS = new Set(['selectedCandidateId']);
+  const entries = Object.entries(customFields).filter(([k, v]) => !HIDDEN_KEYS.has(k) && v !== null && v !== undefined && v !== '');
 
   if (entries.length === 0) return null;
 
@@ -109,6 +178,14 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
     return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
   };
 
+  const getFieldType = (key: string): string | undefined => {
+    if (formConfig) {
+      const field = formConfig.find(f => f.id === key);
+      if (field?.type) return field.type;
+    }
+    return undefined;
+  };
+
   return (
     <section>
       <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-6">
@@ -122,7 +199,7 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
               <dt className="w-44 shrink-0 text-sm font-semibold text-[#44546f]">
                 {getLabel(key)}
               </dt>
-              <dd className="text-sm text-[#101418] flex-1">{formatValue(key, value)}</dd>
+              <dd className="text-sm text-[#101418] flex-1">{formatValue(key, value, getFieldType(key), entityNameMap)}</dd>
             </div>
           ))}
         </dl>

@@ -28,7 +28,7 @@ export const config = {
     // Cookies
     cookie: {
         secure: process.env.NODE_ENV === 'production',
-        sameSite: (process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none') || 'strict',
+        sameSite: (process.env.COOKIE_SAME_SITE as 'strict' | 'lax' | 'none') || 'lax',
         domain: process.env.COOKIE_DOMAIN || undefined,
     },
 
@@ -52,16 +52,14 @@ export const config = {
         s3Endpoint: process.env.S3_ENDPOINT || '', // For MinIO
     },
 
-    // Email
+    // Email (Resend)
     email: {
-        smtp: {
-            host: process.env.SMTP_HOST || 'localhost',
-            port: parseInt(process.env.SMTP_PORT || '1025', 10),
-            secure: process.env.SMTP_SECURE === 'true',
-            user: process.env.SMTP_USER || '',
-            password: process.env.SMTP_PASSWORD || '',
-        },
-        from: process.env.EMAIL_FROM || 'Help Center <noreply@helpdesk.com>',
+        resendApiKey: process.env.RESEND_API_KEY || '',
+        from: process.env.EMAIL_FROM || 'Help Center <help@helpdesk.com>',
+        replyTo: process.env.EMAIL_REPLY_TO || 'help@helpdesk.com',
+        // Dev-only: redirect all outgoing emails to this address (bypasses
+        // Resend test-domain restriction that limits recipients to account owner)
+        devRecipient: process.env.EMAIL_DEV_RECIPIENT || '',
     },
 
     // Elasticsearch
@@ -73,8 +71,8 @@ export const config = {
 
     // Rate Limiting
     rateLimit: {
-        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
-        maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
+        windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10), // 1 minute
+        maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '200', 10),
     },
 
     // Logging
@@ -83,20 +81,48 @@ export const config = {
         format: process.env.LOG_FORMAT || 'json',
     },
 
+    // S3/MinIO Storage
+    s3: {
+        endpoint: process.env.S3_ENDPOINT || 'http://localhost:9000',
+        region: process.env.S3_REGION || 'us-east-1',
+        bucket: process.env.S3_BUCKET || 'helpdesk-uploads',
+        accessKey: process.env.S3_ACCESS_KEY || '',
+        secretKey: process.env.S3_SECRET_KEY || '',
+        forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
+    },
+
     // Session
     session: {
         secret: process.env.SESSION_SECRET || '',
         maxAge: parseInt(process.env.SESSION_MAX_AGE || '86400000', 10), // 24 hours
     },
-
     // Hardware VP Approval
     hardwareVpApprovalThreshold: parseInt(process.env.HARDWARE_VP_APPROVAL_THRESHOLD || '2500', 10),
+
+    // Finance Group CEO Approval threshold (amounts above this require Group CEO approval)
+    groupCeoApprovalThreshold: parseInt(process.env.GROUP_CEO_APPROVAL_THRESHOLD || '15000', 10),
+
+    // SLA Checker Schedule
+    // Supports two modes:
+    //   'interval' — runs every SLA_CHECK_INTERVAL_MS milliseconds (default 60000 = 1 minute)
+    //   'cron'     — runs on a cron schedule defined by SLA_CRON_EXPRESSION (default '0 9 * * 1-5' = Mon-Fri 9am)
+    slaSchedule: {
+        mode: (process.env.SLA_SCHEDULE_MODE || 'cron') as 'interval' | 'cron',
+        intervalMs: parseInt(process.env.SLA_CHECK_INTERVAL_MS || '60000', 10),
+        cronExpression: process.env.SLA_CRON_EXPRESSION || '0 9 * * 1-5',
+    },
 
     // Application
     app: {
         name: process.env.APP_NAME || 'Enterprise Help Center',
         url: process.env.APP_URL || 'http://localhost:5173',
         adminEmail: process.env.ADMIN_EMAIL || 'admin@helpdesk.com',
+    },
+
+    // Security
+    security: {
+        checkPasswordBreach: process.env.CHECK_PASSWORD_BREACH === 'true',
+        passwordMinLength: parseInt(process.env.PASSWORD_MIN_LENGTH || '8', 10),
     },
 };
 

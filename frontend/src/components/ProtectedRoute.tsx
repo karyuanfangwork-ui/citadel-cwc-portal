@@ -1,13 +1,20 @@
 import React, { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { hasPermission, hasAnyPermission } from '../utils/permissions';
 
 interface ProtectedRouteProps {
     children: ReactNode;
     requireAdmin?: boolean;
+    /** Require one or more permissions (OR logic — user needs ANY of the listed permissions) */
+    requirePermission?: string | string[];
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin = false }) => {
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+    children,
+    requireAdmin = false,
+    requirePermission,
+}) => {
     const { isAuthenticated, user, loading } = useAuth();
 
     if (loading) {
@@ -25,9 +32,19 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
         return <Navigate to="/login" replace />;
     }
 
-    if (requireAdmin && user?.roles && !user.roles.includes('ADMIN')) {
-        console.warn('Unauthorized access attempt: User is not an admin');
+    // Legacy support: requireAdmin still works as shorthand for requirePermission='admin:access'
+    if (requireAdmin && !hasPermission(user, 'admin:access')) {
+        console.warn('Unauthorized access attempt: User lacks admin:access permission');
         return <Navigate to="/" replace />;
+    }
+
+    // Fine-grained permission check
+    if (requirePermission) {
+        const perms = Array.isArray(requirePermission) ? requirePermission : [requirePermission];
+        if (!hasAnyPermission(user, perms)) {
+            console.warn(`Unauthorized access attempt: User lacks permission(s): ${perms.join(', ')}`);
+            return <Navigate to="/" replace />;
+        }
     }
 
     return <>{children}</>;

@@ -11,10 +11,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d help_center"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - internal
 
   redis:
     image: redis:7-alpine
@@ -23,10 +25,12 @@ services:
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - internal
 
   backend:
     build:
@@ -40,28 +44,106 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
+      PORT: 3000
+      # ── Database ──
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD}@postgres:5432/help_center?schema=public
+      # ── Redis ──
       REDIS_URL: redis://:${REDIS_PASSWORD:-changeme}@redis:6379
+      # ── Auth (required) ──
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
-      PORT: 3000
-    ports:
-      - "3000:3000"
+      # ── CORS ──
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://localhost}
+      # ── Cookies ──
+      COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      # ── Application ──
+      APP_NAME: ${APP_NAME:-Enterprise Help Center}
+      APP_URL: ${APP_URL:-https://localhost}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@helpdesk.com}
+      # ── Email (Resend) ──
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-Citadel Help Center <noreply-cwc@citadelgroup.com.my>}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-help@citadelgroup.com.my}
+      # ── S3 / DigitalOcean Spaces ──
+      S3_ENDPOINT: ${S3_ENDPOINT:-https://sgp1.digitaloceanspaces.com}
+      S3_REGION: ${S3_REGION:-sgp1}
+      S3_BUCKET: ${S3_BUCKET:-citadel-super-app}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      # ── Rate Limiting ──
+      RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+      RATE_LIMIT_MAX_REQUESTS: ${RATE_LIMIT_MAX_REQUESTS:-100}
+      # ── Logging ──
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+      # ── Session ──
+      SESSION_SECRET: ${SESSION_SECRET:-}
+      SESSION_MAX_AGE: ${SESSION_MAX_AGE:-86400000}
+      # ── Security ──
+      PASSWORD_MIN_LENGTH: ${PASSWORD_MIN_LENGTH:-8}
+      CHECK_PASSWORD_BREACH: ${CHECK_PASSWORD_BREACH:-true}
+      # ── Approval Thresholds ──
+      HARDWARE_VP_APPROVAL_THRESHOLD: ${HARDWARE_VP_APPROVAL_THRESHOLD:-2500}
+      GROUP_CEO_APPROVAL_THRESHOLD: ${GROUP_CEO_APPROVAL_THRESHOLD:-15000}
+      # ── SLA Checker ──
+      SLA_SCHEDULE_MODE: ${SLA_SCHEDULE_MODE:-cron}
+      SLA_CRON_EXPRESSION: ${SLA_CRON_EXPRESSION:-0 9 * * 1-5}
+      SLA_CHECK_INTERVAL_MS: ${SLA_CHECK_INTERVAL_MS:-60000}
     volumes:
       - uploads:/app/uploads
+      - backend_logs:/app/logs
+    networks:
+      - internal
+      - proxy
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://localhost/api/v1}
     restart: unless-stopped
     depends_on:
       - backend
+    networks:
+      - proxy
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot_certs:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - proxy
+
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot_certs:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
 
 volumes:
   postgres_data:
   redis_data:
   uploads:
+  backend_logs:
+  certbot_certs:
+  certbot_webroot:
+
+networks:
+  internal:
+    driver: bridge
+  proxy:
+    driver: bridge

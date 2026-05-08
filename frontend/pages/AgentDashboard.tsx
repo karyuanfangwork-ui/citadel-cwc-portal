@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import { STATUS_CONFIG } from '../constants';
+import Breadcrumbs from '../src/components/Breadcrumbs';
 import reportsService, { ReportSummary, SlaStatus } from '../src/services/reports.service';
 import api from '../src/services/api';
 import SkeletonRow from '../src/components/SkeletonRow';
@@ -45,9 +46,12 @@ export default function AgentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState<'mine' | 'unassigned'>('mine');
+  const isAdmin = user?.roles?.includes('ADMIN') ?? false;
+  const [activeTab, setActiveTab] = useState<'mine' | 'unassigned' | 'all' | 'resolved'>('mine');
+  const [refreshKey, setRefreshKey] = useState(0);
   const [myTickets, setMyTickets] = useState<TicketRow[]>([]);
   const [unassignedTickets, setUnassignedTickets] = useState<TicketRow[]>([]);
+  const [allTickets, setAllTickets] = useState<TicketRow[]>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [slaStatus, setSlaStatus] = useState<SlaStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,21 +62,33 @@ export default function AgentDashboard() {
     async function fetchData() {
       setLoading(true);
       try {
-        const myParams: Record<string, any> = { assignedToId: user?.id, limit: 50 };
-        const unParams: Record<string, any> = { assignedToId: 'none', limit: 50 };
+        const myParams: Record<string, any> = { assignedToId: user?.id, limit: 100 };
+        const unParams: Record<string, any> = { assignedToId: 'none', limit: 100 };
+        const allParams: Record<string, any> = { limit: 100 };
         if (selectedRequestTypeId) {
           myParams.requestTypeId = selectedRequestTypeId;
           unParams.requestTypeId = selectedRequestTypeId;
+          allParams.requestTypeId = selectedRequestTypeId;
         }
 
-        const [summaryData, slaData, myRes, unRes] = await Promise.all([
+        // Fetch reports separately — these require report:read permission
+        // which non-admin agents may lack; failures must not block ticket loading
+        const [summaryResult, slaResult] = await Promise.allSettled([
           reportsService.getSummary(),
           reportsService.getSlaStatus(),
+        ]);
+        if (summaryResult.status === 'fulfilled') setSummary(summaryResult.value);
+        if (slaResult.status === 'fulfilled') setSlaStatus(slaResult.value);
+
+        // Fetch tickets — these are critical and must always load
+        const ticketRequests = [
           api.get('/requests', { params: myParams }),
           api.get('/requests', { params: unParams }),
-        ]);
-        setSummary(summaryData);
-        setSlaStatus(slaData);
+          ...(isAdmin ? [api.get('/requests', { params: allParams })] : []),
+        ];
+
+        const ticketResults = await Promise.all(ticketRequests);
+        const [myRes, unRes, allRes] = ticketResults as any[];
 
         const extractTickets = (res: any): TicketRow[] => {
           const raw = res.data?.data;
@@ -83,7 +99,7 @@ export default function AgentDashboard() {
             summary: r.summary,
             priority: r.priority ?? 'MEDIUM',
             status: r.status,
-            slaDeadline: r.slaDeadline ?? r.sla_deadline ?? null,
+            slaDeadline: r.slaDeadline ?? r.sla_deadline ?? r.slaDueAt ?? null,
             requester: r.requester ?? r.requestedBy ?? null,
             requestType: r.requestType ?? null,
           }));
@@ -91,6 +107,7 @@ export default function AgentDashboard() {
 
         setMyTickets(extractTickets(myRes));
         setUnassignedTickets(extractTickets(unRes));
+        if (isAdmin && allRes) setAllTickets(extractTickets(allRes));
       } catch (err) {
         console.error('AgentDashboard fetch error:', err);
       } finally {
@@ -98,13 +115,13 @@ export default function AgentDashboard() {
       }
     }
     fetchData();
-  }, [user?.id, selectedRequestTypeId]);
+  }, [user?.id, selectedRequestTypeId, refreshKey]);
 
   useEffect(() => {
     if (selectedRequestTypeId) return;
     const seen = new Set<string>();
     const options: { id: string; name: string }[] = [];
-    [...myTickets, ...unassignedTickets].forEach((t) => {
+    [...myTickets, ...unassignedTickets, ...allTickets].forEach((t) => {
       if (t.requestType && !seen.has(t.requestType.id)) {
         seen.add(t.requestType.id);
         options.push({ id: t.requestType.id, name: t.requestType.name });
@@ -113,16 +130,32 @@ export default function AgentDashboard() {
     setRequestTypeOptions(options);
   }, [myTickets, unassignedTickets]);
 
-  const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'VP_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED'];
-  const tickets = (activeTab === 'mine' ? myTickets : unassignedTickets).filter(t => !CLOSED_STATUSES.includes(t.status));
+  const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN', 'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED', 'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED'];
+
+  const openTickets = myTickets.filter(t => !CLOSED_STATUSES.includes(t.status));
+  const resolvedTickets = isAdmin
+    ? allTickets.filter(t => CLOSED_STATUSES.includes(t.status))
+    : myTickets.filter(t => CLOSED_STATUSES.includes(t.status));
+
+  const tickets = activeTab === 'mine' ? openTickets
+    : activeTab === 'resolved' ? resolvedTickets
+    : activeTab === 'all' ? allTickets
+    : unassignedTickets;
 
   const cards = [
     {
       label: 'My Open Tickets',
-      value: myTickets.filter(t => !['RESOLVED', 'COMPLETED', 'REJECTED', 'CEO_REJECTED', 'MANAGER_REJECTED_IT', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CANDIDATE_REJECTED_INTERVIEW', 'REIMBURSEMENT_CLOSED'].includes(t.status)).length,
+      value: openTickets.length,
       icon: 'confirmation_number',
       color: 'text-blue-600',
       bg: 'bg-blue-50',
+    },
+    {
+      label: 'Resolved',
+      value: resolvedTickets.length,
+      icon: 'task_alt',
+      color: 'text-green-600',
+      bg: 'bg-green-50',
     },
     {
       label: 'Unassigned',
@@ -149,14 +182,28 @@ export default function AgentDashboard() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
+      <Breadcrumbs items={[
+        { label: 'Home', to: '/' },
+        { label: 'Agent Dashboard' },
+      ]} />
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Agent Dashboard</h1>
-        <p className="text-gray-500 mt-1">Welcome back, {user?.firstName}. Here's your queue overview.</p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Agent Dashboard</h1>
+          <p className="text-gray-500 mt-1">Welcome back, {user?.firstName}. Here's your queue overview.</p>
+        </div>
+        <button
+          onClick={() => setRefreshKey(k => k + 1)}
+          disabled={loading}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+        >
+          <span className={`material-symbols-outlined text-base ${loading ? 'animate-spin' : ''}`}>refresh</span>
+          Refresh
+        </button>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         {cards.map(card => (
           <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-5 flex items-center gap-4">
             <div className={`w-12 h-12 rounded-lg ${card.bg} flex items-center justify-center flex-shrink-0`}>
@@ -216,12 +263,45 @@ export default function AgentDashboard() {
             </span>
           )}
         </button>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('all')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'all'
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            All Tickets
+            {!loading && allTickets.length > 0 && (
+              <span className="ml-2 bg-purple-100 text-purple-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+                {allTickets.length}
+              </span>
+            )}
+          </button>
+        )}
+        <button
+          onClick={() => setActiveTab('resolved')}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            activeTab === 'resolved'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Resolved
+          {!loading && resolvedTickets.length > 0 && (
+            <span className="ml-2 bg-green-100 text-green-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
+              {resolvedTickets.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Ticket Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-6 px-6">
+          <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
@@ -239,6 +319,7 @@ export default function AgentDashboard() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : tickets.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3 text-gray-400">
             <span className="material-symbols-outlined text-5xl opacity-40">
@@ -251,12 +332,15 @@ export default function AgentDashboard() {
               {selectedRequestTypeId
                 ? 'Try clearing the request type filter to see all tickets.'
                 : activeTab === 'mine'
-                ? 'You have no tickets assigned to you.'
+                ? 'You have no active tickets assigned to you.'
+                : activeTab === 'resolved'
+                ? 'You have no resolved tickets yet.'
                 : 'No unassigned tickets at the moment.'}
             </p>
           </div>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto -mx-6 px-6">
+          <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
@@ -316,6 +400,7 @@ export default function AgentDashboard() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

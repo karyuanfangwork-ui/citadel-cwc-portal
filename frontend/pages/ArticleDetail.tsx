@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
 import kbService, { Article } from '../src/services/kb.service';
 
 export default function ArticleDetail() {
@@ -184,15 +185,42 @@ export default function ArticleDetail() {
 
         {/* Content */}
         <div
-          style={{
-            fontSize: 15,
-            lineHeight: 1.75,
-            color: '#334155',
-            whiteSpace: 'pre-wrap',
-            marginBottom: 32,
-          }}
+          className="kb-article-content"
+          style={{ fontSize: 15, lineHeight: 1.75, color: '#334155', marginBottom: 32 }}
         >
-          {article.content}
+          <style>{`
+            .kb-article-content h1,.kb-article-content h2,.kb-article-content h3 {
+              color: #1e293b; font-weight: 700; margin: 1.4em 0 0.5em;
+            }
+            .kb-article-content h1 { font-size: 1.5em; }
+            .kb-article-content h2 { font-size: 1.25em; }
+            .kb-article-content h3 { font-size: 1.1em; }
+            .kb-article-content p { margin: 0.75em 0; }
+            .kb-article-content ul,.kb-article-content ol { padding-left: 1.5em; margin: 0.75em 0; }
+            .kb-article-content li { margin: 0.3em 0; }
+            .kb-article-content strong { font-weight: 600; color: #1e293b; }
+            .kb-article-content code {
+              background: #f1f5f9; border-radius: 4px; padding: 2px 6px;
+              font-size: 0.875em; font-family: monospace; color: #0f172a;
+            }
+            .kb-article-content table {
+              border-collapse: collapse; width: 100%; margin: 1em 0; font-size: 14px;
+            }
+            .kb-article-content th {
+              background: #f8fafc; font-weight: 600; color: #1e293b;
+              border: 1px solid #e2e8f0; padding: 8px 12px; text-align: left;
+            }
+            .kb-article-content td {
+              border: 1px solid #e2e8f0; padding: 8px 12px; color: #334155;
+            }
+            .kb-article-content tr:nth-child(even) td { background: #f8fafc; }
+            .kb-article-content hr { border: none; border-top: 1px solid #e2e8f0; margin: 1.5em 0; }
+            .kb-article-content blockquote {
+              border-left: 4px solid #3b82f6; margin: 1em 0;
+              padding: 8px 16px; background: #eff6ff; color: #1e3a8a; border-radius: 0 6px 6px 0;
+            }
+          `}</style>
+          <ReactMarkdown>{article.content}</ReactMarkdown>
         </div>
 
         {/* Voting */}

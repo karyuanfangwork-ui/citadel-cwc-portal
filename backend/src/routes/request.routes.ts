@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { requestController } from '../controllers/request.controller';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
-import { uploadLimiter } from '../middleware/rateLimit.middleware';
+import { uploadSingleFile } from '../middleware/upload.middleware';
 import {
     createRequestSchema,
     updateRequestSchema,
@@ -29,6 +29,20 @@ router.get('/', requestController.getAllRequests);
 router.post('/', validate(createRequestSchema), requestController.createRequest);
 
 /**
+ * @route   GET /api/v1/requests/pending-approvals
+ * @desc    Get all requests pending current user's approval
+ * @access  Private
+ */
+router.get('/pending-approvals', requirePermission('request:approve'), requestController.getPendingApprovals);
+
+/**
+ * @route   POST /api/v1/requests/bulk-action
+ * @desc    Bulk approve or reject requests
+ * @access  Private
+ */
+router.post('/bulk-action', requirePermission('request:approve'), requestController.bulkAction);
+
+/**
  * @route   GET /api/v1/requests/:id
  * @desc    Get request by ID
  * @access  Private
@@ -47,7 +61,7 @@ router.put('/:id', validate(updateRequestSchema), requestController.updateReques
  * @desc    Delete request (soft delete)
  * @access  Private
  */
-router.delete('/:id', requestController.deleteRequest);
+router.delete('/:id', requirePermission('request:delete'), requestController.deleteRequest);
 
 /**
  * @route   GET /api/v1/requests/:id/activities
@@ -74,7 +88,7 @@ router.post(
  */
 router.post(
     '/:id/attachments',
-    uploadLimiter,
+    uploadSingleFile('file'),
     requestController.uploadAttachment
 );
 
@@ -97,13 +111,13 @@ router.delete('/:id/attachments/:attachmentId', requestController.deleteAttachme
  * @desc    Assign request to agent
  * @access  Private (Agent/Admin only)
  */
-router.put('/:id/assign', authorize('AGENT', 'ADMIN'), requestController.assignRequest);
+router.put('/:id/assign', requirePermission('request:assign'), requestController.assignRequest);
 
 /**
  * @route   PUT /api/v1/requests/:id/status
  * @desc    Update request status
  * @access  Private (Agent/Admin only)
  */
-router.put('/:id/status', authorize('AGENT', 'ADMIN'), requestController.updateStatus);
+router.put('/:id/status', requirePermission('request:update'), requestController.updateStatus);
 
 export default router;

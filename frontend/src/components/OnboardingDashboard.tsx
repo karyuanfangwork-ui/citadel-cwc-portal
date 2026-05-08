@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { OnboardingRequest, OnboardingTask, OnboardingProgress, RequestPriority, RequestItem } from '../../types';
 import apiClient from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 interface OnboardingDashboardProps {
     requestId: string;
@@ -10,6 +11,7 @@ interface OnboardingDashboardProps {
 
 const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) => {
     const { user } = useAuth();
+    const toast = useToast();
     const navigate = useNavigate();
     const [onboarding, setOnboarding] = useState<OnboardingRequest | null>(null);
     const [request, setRequest] = useState<RequestItem | null>(null);
@@ -19,6 +21,13 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
     const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
     const [updatingTaskId, setUpdatingTaskId] = useState<string | null>(null);
     const [completing, setCompleting] = useState(false);
+    const [advancingPhase, setAdvancingPhase] = useState(false);
+    const [editingStartDate, setEditingStartDate] = useState(false);
+    const [startDateInput, setStartDateInput] = useState('');
+    const [savingStartDate, setSavingStartDate] = useState(false);
+
+    const isAdminOrHRAgent = user?.roles?.includes('ADMIN') ||
+        (user?.roles?.includes('AGENT') && (user as any)?.agentTeam?.toUpperCase() === 'HR');
 
     useEffect(() => {
         fetchOnboardingData();
@@ -102,6 +111,16 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
 
     const handleCompleteOnboarding = async () => {
         if (completing) return;
+        // Frontend pre-check
+        const pending = progress?.tasks?.pending ?? 0;
+        const total = progress?.tasks?.total ?? 0;
+        if (total > 0 && pending > 0) {
+            alert(`Cannot complete onboarding: ${pending} task${pending > 1 ? 's are' : ' is'} still incomplete. Please complete all tasks first.`);
+            return;
+        }
+        if (!window.confirm('Are you sure you want to mark this onboarding as COMPLETED and close the ticket? This action cannot be undone.')) {
+            return;
+        }
         setCompleting(true);
         try {
             await apiClient.put(`/onboarding/requests/${requestId}/onboarding/update-status`, {
@@ -110,6 +129,8 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
             });
             setOnboarding(prev => prev ? { ...prev, overallStatus: 'COMPLETED' } : prev);
         } catch (err: any) {
+            const msg = err.response?.data?.message || err.message || 'Failed to complete onboarding';
+            alert(msg);
             console.error('Failed to complete onboarding:', err);
         } finally {
             setCompleting(false);
@@ -118,7 +139,72 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
 
     const allTasksDone = (progress?.tasks?.total ?? 0) > 0 && progress?.tasks?.pending === 0;
     const isCompleted = onboarding?.overallStatus === 'COMPLETED';
-    const canComplete = (user?.roles?.some(r => r === 'ADMIN') ?? false) && allTasksDone && !isCompleted;
+    const canComplete = (isAdminOrHRAgent ?? false) && allTasksDone && !isCompleted;
+
+    // Phase advancement config
+    const PHASE_SEQUENCE = [
+        { phase: 'PRE_ARRIVAL',  label: 'Pre-Arrival Setup',  next: 'DAY_1_READY' },
+        { phase: 'DAY_1_READY',  label: 'Day 1 Ready',        next: 'DAY_1' },
+        { phase: 'DAY_1',        label: 'Day 1 Orientation',  next: 'WEEK_1' },
+        { phase: 'WEEK_1',       label: 'Week 1',             next: null },
+    ];
+    const currentPhaseEntry = PHASE_SEQUENCE.find(p => p.phase === onboarding?.currentPhase);
+    const nextPhase = currentPhaseEntry?.next ?? null;
+    const nextPhaseLabel = nextPhase ? PHASE_SEQUENCE.find(p => p.phase === nextPhase)?.label : null;
+    const canAdvancePhase = isAdminOrHRAgent && !isCompleted && !!nextPhase;
+
+    const handleAdvancePhase = async () => {
+        if (!nextPhase || advancingPhase) return;
+        setAdvancingPhase(true);
+        try {
+            await apiClient.put(`/onboarding/requests/${requestId}/onboarding/update-status`, {
+                currentPhase: nextPhase,
+            });
+            await fetchOnboardingData();
+        } catch (err: any) {
+            console.error('Failed to advance phase:', err);
+            alert(`Error: ${err.response?.data?.message || err.message || 'Failed to advance phase'}`);
+        } finally {
+            setAdvancingPhase(false);
+        }
+    };
+
+    const handleSaveStartDate = async () => {
+        if (!startDateInput || savingStartDate) return;
+        setSavingStartDate(true);
+        try {
+            const res = await apiClient.patch(`/onboarding/requests/${requestId}/onboarding/start-date`, {
+                startDate: startDateInput,
+            });
+            setOnboarding(prev => prev ? { ...prev, startDate: res.data.startDate } : prev);
+            setEditingStartDate(false);
+            toast.success('Start Date Updated', `Start date has been updated to ${new Date(startDateInput).toLocaleDateString('en-GB')}`);
+            // Refresh activities to show audit log
+            await fetchOnboardingData();
+        } catch (err: any) {
+            toast.error('Update Failed', err.response?.data?.error || err.message || 'Failed to update start date');
+        } finally {
+            setSavingStartDate(false);
+        }
+    };
+
+    const handleEditStartDate = () => {
+        if (onboarding?.startDate) {
+            const d = new Date(onboarding.startDate);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            setStartDateInput(`${yyyy}-${mm}-${dd}`);
+        } else {
+            const d = new Date();
+            d.setDate(d.getDate() + 7);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            setStartDateInput(`${yyyy}-${mm}-${dd}`);
+        }
+        setEditingStartDate(true);
+    };
 
     const getTaskIcon = (status: string, taskId?: string) => {
         if (updatingTaskId === taskId) {
@@ -175,7 +261,7 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
         try {
             const date = new Date(dateString);
             if (isNaN(date.getTime())) return 'Invalid Date';
-            return date.toLocaleDateString();
+            return date.toLocaleDateString('en-GB');
         } catch (e) {
             return 'Invalid Date';
         }
@@ -218,7 +304,7 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                     <span className="material-symbols-outlined text-base">info</span>
                     <span>Originated from hiring request</span>
                     <button
-                        onClick={() => navigate(`/#/requests/${request.parentRequest.id}`)}
+                        onClick={() => navigate(`/request/${request.parentRequest.id}`)}
                         className="font-semibold underline hover:text-blue-900 ml-auto"
                     >
                         {request.parentRequest.referenceNumber}
@@ -257,9 +343,51 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                         <span className="material-symbols-outlined text-gray-400 text-xl">calendar_today</span>
                         <div>
                             <p className="text-sm text-gray-500">Start Date</p>
-                            <p className="font-medium text-gray-900">
-                                {formatDate(onboarding.startDate)}
-                            </p>
+                            {editingStartDate ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="date"
+                                        value={startDateInput}
+                                        onChange={e => setStartDateInput(e.target.value)}
+                                        className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        disabled={savingStartDate}
+                                    />
+                                    <button
+                                        onClick={handleSaveStartDate}
+                                        disabled={savingStartDate || !startDateInput}
+                                        className="px-3 py-1 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                        {savingStartDate ? (
+                                            <span className="material-symbols-outlined text-sm animate-spin">autorenew</span>
+                                        ) : (
+                                            <span className="material-symbols-outlined text-sm">check</span>
+                                        )}
+                                        {savingStartDate ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button
+                                        onClick={() => setEditingStartDate(false)}
+                                        disabled={savingStartDate}
+                                        className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium hover:bg-gray-300 disabled:opacity-50"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">
+                                        {formatDate(onboarding.startDate)}
+                                    </p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button
+                                            onClick={handleEditStartDate}
+                                            className="text-blue-600 hover:text-blue-800 transition-colors"
+                                            title="Edit start date"
+                                        >
+                                            <span className="material-symbols-outlined text-base">edit</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     {onboarding.newHirePhone && (
@@ -312,6 +440,33 @@ const OnboardingDashboard: React.FC<OnboardingDashboardProps> = ({ requestId }) 
                             <p className="text-sm text-gray-600">Pending</p>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Phase Advancement Banner */}
+            {!isCompleted && canAdvancePhase && (
+                <div className="bg-indigo-50 border border-indigo-300 rounded-lg p-5 flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                        <span className="material-symbols-outlined text-indigo-600 text-3xl">arrow_forward</span>
+                        <div>
+                            <p className="font-semibold text-indigo-900">
+                                Current phase: <span className="font-bold">{currentPhaseEntry?.label ?? onboarding?.currentPhase}</span>
+                            </p>
+                            <p className="text-sm text-indigo-700">Advance to next phase: <span className="font-semibold">{nextPhaseLabel}</span></p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleAdvancePhase}
+                        disabled={advancingPhase}
+                        className="ml-4 px-5 py-2 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
+                    >
+                        {advancingPhase ? (
+                            <span className="material-symbols-outlined animate-spin text-sm">autorenew</span>
+                        ) : (
+                            <span className="material-symbols-outlined text-sm">skip_next</span>
+                        )}
+                        <span>{advancingPhase ? 'Advancing...' : `Move to ${nextPhaseLabel}`}</span>
+                    </button>
                 </div>
             )}
 

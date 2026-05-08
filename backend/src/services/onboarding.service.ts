@@ -82,7 +82,7 @@ export const createOnboardingFromHiring = async (request: any) => {
                 requesterId: request.requesterId,
                 requesterEmail: request.requesterEmail,
                 summary: `Onboard New Hire: ${firstName} ${lastName} — ${jobTitle}`,
-                description: `Auto-created onboarding ticket from hiring request ${request.referenceNumber}. Start date: ${startDate.toDateString()}.`,
+                description: `Auto-created onboarding ticket from hiring request ${request.referenceNumber}.`,
                 priority: 'HIGH',
                 status: 'ONBOARDING_SUBMITTED',
                 assignedTeam: 'HR',
@@ -122,7 +122,7 @@ export const createOnboardingFromHiring = async (request: any) => {
                 authorName: 'System',
                 authorRole: 'SYSTEM',
                 activityType: 'SYSTEM',
-                message: `Onboarding ticket ${onboardingTicket.referenceNumber} auto-created for ${firstName} ${lastName}. Start date: ${startDate.toDateString()}.`,
+                message: `Onboarding ticket ${onboardingTicket.referenceNumber} auto-created for ${firstName} ${lastName}.`,
                 isSystemGenerated: true,
             },
         });

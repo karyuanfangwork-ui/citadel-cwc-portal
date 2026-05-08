@@ -11,6 +11,41 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Executive approval tiers for high-value requests
+enum ExecutiveRole {
+  CEO
+  CTO
+  CFO
+  COO
+  CHRO
+  CMO
+  GROUP_CEO
+}
+
+enum AssetStatus {
+  IN_STOCK
+  ASSIGNED
+  RESERVED
+  PENDING_RETURN
+  IN_REPAIR
+  RETIRED
+  LOST
+  STOLEN
+  DISPOSED
+}
+
+enum AssetCategory {
+  LAPTOP
+  DESKTOP
+  MONITOR
+  PERIPHERAL
+  PHONE
+  NETWORK
+  PRINTER
+  SOFTWARE_LICENSE
+  OTHER
+}
+
 // ============================================================================
 // USERS & AUTHENTICATION
 // ============================================================================
@@ -28,9 +63,12 @@ model User {
   managerId     String?   @map("manager_id") @db.Uuid
   isActive      Boolean   @default(true) @map("is_active")
   agentTeam     String?   @map("agent_team") @db.VarChar(50)
+  executiveRole ExecutiveRole? @map("executive_role")
+  entityId      String?   @map("entity_id") @db.Uuid
   createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
   lastLoginAt   DateTime? @map("last_login_at") @db.Timestamp(6)
+  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamp(6)
 
   // Relations
   manager               User?                        @relation("UserManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -53,6 +91,12 @@ model User {
   completedScreenings   HRScreening[]
   uploadedLOAs          LetterOfAcceptance[]         @relation("LOAUploadedBy")
   approvedLOAs          LetterOfAcceptance[]         @relation("LOAApprovedBy")
+  // Offboarding Relations
+  offboardingAsEmployee     OffboardingRequest[]     @relation("OffboardingEmployee")
+  offboardingAsManager      OffboardingRequest[]     @relation("OffboardingManager")
+  offboardingCompletedBy    OffboardingRequest[]     @relation("OffboardingCompletedBy")
+  offboardingTasksAssigned  OffboardingTask[]        @relation("OffboardingTaskAssignedTo")
+  offboardingTasksCompleted OffboardingTask[]        @relation("OffboardingTaskCompletedBy")
   // Onboarding Relations
   onboardingAsHiringManager OnboardingRequest[]      @relation("OnboardingHiringManager")
   onboardingAsNewHire       OnboardingRequest[]      @relation("OnboardingNewHire")
@@ -60,10 +104,18 @@ model User {
   onboardingCompletedBy     OnboardingRequest[]      @relation("OnboardingCompletedBy")
   onboardingTasksAssigned   OnboardingTask[]         @relation("OnboardingTaskAssignedTo")
   onboardingTasksCompleted  OnboardingTask[]         @relation("OnboardingTaskCompletedBy")
+  // Entity Relations
+  entity                Entity?                     @relation("UserEntity", fields: [entityId], references: [id])
+  approverForEntities   Entity[]                    @relation("EntityApprover")
+  // Asset Relations
+  createdAssets         Asset[]                     @relation("AssetCreatedBy")
+  assetAssignments      AssetAssignment[]           @relation("AssetAssignmentUser")
+  assetAssignedBy       AssetAssignment[]           @relation("AssetAssignmentAssignedBy")
 
   @@map("users")
   @@index([email])
   @@index([managerId])
+  @@index([entityId])
 }
 
 model Role {
@@ -161,6 +213,11 @@ model ServiceDesk {
   isActive    Boolean   @default(true) @map("is_active")
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
 
+  // Auto-assignment config
+  autoAssignTeam    String  @default("NONE") @map("auto_assign_team") @db.VarChar(50)
+  assignmentStrategy String @default("ROUND_ROBIN") @map("assignment_strategy") @db.VarChar(20)
+  lastAssignedIndex Int     @default(0) @map("last_assigned_index")
+
   // Relations
   categories ServiceCategory[]
   requests   Request[]
@@ -192,6 +249,7 @@ model ServiceCategory {
 model RequestType {
   id                String   @id @default(uuid()) @db.Uuid
   serviceCategoryId String   @map("service_category_id") @db.Uuid
+  code              String?  @unique @db.VarChar(100)
   name              String   @db.VarChar(150)
   description       String?  @db.Text
   icon              String?  @db.VarChar(50)
@@ -200,14 +258,73 @@ model RequestType {
   isActive          Boolean  @default(true) @map("is_active")
   formConfig        Json?    @map("form_config") @db.JsonB
   requiredRole      String?  @map("required_role") @db.VarChar(50)
+  workflowTypeId    String?  @map("workflow_type_id") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
   serviceCategory ServiceCategory @relation(fields: [serviceCategoryId], references: [id], onDelete: Cascade)
+  workflow        WorkflowType?   @relation(fields: [workflowTypeId], references: [id], onDelete: SetNull)
   requests        Request[]
+  entityRoutings  RequestTypeEntityRouting[]
+  escalationRules EscalationRule[]
 
   @@map("request_types")
   @@index([serviceCategoryId])
+  @@index([workflowTypeId])
+}
+
+model EscalationRule {
+  id                      String      @id @default(uuid()) @db.Uuid
+  requestTypeId           String      @map("request_type_id") @db.Uuid
+  triggerHoursAfterBreach Int         @map("trigger_hours_after_breach")
+  notifyRoles             String[]    @map("notify_roles")
+  label                   String?
+  isActive                Boolean     @default(true) @map("is_active")
+  createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  requestType RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
+
+  @@index([requestTypeId])
+  @@map("escalation_rules")
+}
+
+model WorkflowType {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @db.VarChar(100)
+  code            String   @unique @db.VarChar(50)
+  description     String?  @db.Text
+  isActive        Boolean  @default(true) @map("is_active")
+  displayOrder    Int      @default(0) @map("display_order")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  steps           WorkflowStep[]
+  requestTypes    RequestType[]
+
+  @@map("workflow_types")
+}
+
+model WorkflowStep {
+  id              String   @id @default(uuid()) @db.Uuid
+  workflowTypeId  String   @map("workflow_type_id") @db.Uuid
+  label           String   @db.VarChar(100)
+  status          String   @db.VarChar(100)
+  icon            String   @db.VarChar(50) @default("radio_button_checked")
+  displayOrder    Int      @map("display_order")
+  isInitial       Boolean  @default(false) @map("is_initial")
+  isFinal         Boolean  @default(false) @map("is_final")
+  slaPause        Boolean  @default(false) @map("sla_pause")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  workflow        WorkflowType @relation(fields: [workflowTypeId], references: [id], onDelete: Cascade)
+
+  @@map("workflow_steps")
+  @@index([workflowTypeId])
+  @@unique([workflowTypeId, status])
 }
 
 enum RequestStatus {
@@ -234,6 +351,13 @@ enum RequestStatus {
   LOA_ISSUED
   LOA_ACCEPTED
   COMPLETED
+  // Offboarding Statuses
+  OFFBOARDING_SUBMITTED
+  OFFBOARDING_NOTICE_PERIOD
+  OFFBOARDING_KNOWLEDGE_TRANSFER
+  OFFBOARDING_FINAL_WEEK
+  OFFBOARDING_EXIT_PROCEDURES
+  OFFBOARDING_COMPLETED
   // Onboarding Statuses
   ONBOARDING_SUBMITTED
   ONBOARDING_PENDING_HR_APPROVAL
@@ -280,6 +404,30 @@ enum RequestStatus {
   PAYMENT_PROCESSING
   PAYMENT_COMPLETED
   REIMBURSEMENT_CLOSED
+  // Finance Purchase Requisition
+  FINANCE_PENDING_ACK
+  FINANCE_ACKNOWLEDGED
+  FINANCE_IN_PROGRESS
+  PENDING_CFO_APPROVAL_FIN
+  CFO_APPROVED_FIN
+  CFO_REJECTED_FIN
+  PENDING_GROUP_CEO_APPROVAL
+  GROUP_CEO_APPROVED
+  GROUP_CEO_REJECTED
+  PAYMENT_PROCESSING_FIN
+  AWAITING_PAYMENT_CONFIRMATION
+  PAYMENT_CONFIRMED_FIN
+  TICKET_CLOSED_FIN
+  // Inter-Company Chargeback Workflow
+  PENDING_FROM_ENTITY_APPROVAL
+  FROM_ENTITY_APPROVED
+  FROM_ENTITY_REJECTED
+  PENDING_TO_ENTITY_APPROVAL
+  TO_ENTITY_APPROVED
+  TO_ENTITY_REJECTED
+  CHARGEBACK_FINANCE_REVIEW
+  AWAITING_CHARGEBACK_CONFIRMATION
+  CHARGEBACK_COMPLETED
 }
 
 enum RequestPriority {
@@ -317,10 +465,12 @@ model Request {
   customFields     Json?           @map("custom_fields") @db.JsonB
   
   // SLA Tracking
-  slaDueAt         DateTime?       @map("sla_due_at") @db.Timestamp(6)
-  firstResponseAt  DateTime?       @map("first_response_at") @db.Timestamp(6)
-  resolvedAt       DateTime?       @map("resolved_at") @db.Timestamp(6)
-  closedAt         DateTime?       @map("closed_at") @db.Timestamp(6)
+  slaDueAt             DateTime?       @map("sla_due_at") @db.Timestamp(6)
+  slaPausedAt          DateTime?       @map("sla_paused_at") @db.Timestamp(6)
+  slaPauseDurationMs   BigInt          @default(0) @map("sla_pause_duration_ms")
+  firstResponseAt      DateTime?       @map("first_response_at") @db.Timestamp(6)
+  resolvedAt           DateTime?       @map("resolved_at") @db.Timestamp(6)
+  closedAt             DateTime?       @map("closed_at") @db.Timestamp(6)
   
   // Timestamps
   createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
@@ -345,8 +495,12 @@ model Request {
   hrScreening         HRScreening?
   letterOfAcceptance  LetterOfAcceptance?
   onboardingRequest   OnboardingRequest?
+  offboardingRequest  OffboardingRequest?
   parentRequest       Request?          @relation("RequestChildren", fields: [parentRequestId], references: [id])
   childRequests       Request[]         @relation("RequestChildren")
+  // Asset Relations
+  sourceAssets        Asset[]           @relation("AssetSourceRequest")
+  assetAssignments    AssetAssignment[] @relation("AssetAssignmentRequest")
 
   @@map("requests")
   @@index([referenceNumber])
@@ -454,6 +608,9 @@ model ITHardwareRequest {
   procurementStatus       String?   @map("procurement_status") @db.VarChar(50)
   orderNumber             String?   @map("order_number") @db.VarChar(100)
   trackingNumber          String?   @map("tracking_number") @db.VarChar(100)
+  serialNumber            String?   @map("serial_number") @db.VarChar(100)
+  assetTag                String?   @map("asset_tag") @db.VarChar(100)
+  assetId                 String?   @map("asset_id") @db.Uuid
   
   createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -461,6 +618,7 @@ model ITHardwareRequest {
   // Relations
   request           Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
   managerApprovedBy User?   @relation("HardwareManagerApproval", fields: [managerApprovedById], references: [id])
+  asset             Asset?  @relation(fields: [assetId], references: [id])
 
   @@map("it_hardware_requests")
 }
@@ -557,8 +715,9 @@ model RequestApproval {
   id            String         @id @default(uuid()) @db.Uuid
   requestId     String         @map("request_id") @db.Uuid
   
-  approverType  String         @map("approver_type") @db.VarChar(50) // 'CEO', 'HIRING_MANAGER'
+  approverType  String         @map("approver_type") @db.VarChar(50) // 'CEO', 'HIRING_MANAGER', 'ENTITY'
   approverId    String?        @map("approver_id") @db.Uuid
+  entityId      String?        @map("entity_id") @db.Uuid
   
   status        ApprovalStatus @default(PENDING)
   comments      String?        @db.Text
@@ -569,10 +728,12 @@ model RequestApproval {
   // Relations
   request  Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
   approver User?   @relation(fields: [approverId], references: [id])
+  entity   Entity? @relation("ApprovalEntity", fields: [entityId], references: [id])
   
   @@map("request_approvals")
   @@index([requestId])
   @@index([approverId])
+  @@index([entityId])
 }
 
 model CandidateResume {
@@ -946,6 +1107,111 @@ model OnboardingTaskTemplate {
   @@index([isActive])
 }
 
+// Offboarding Requests
+model OffboardingRequest {
+  id                  String    @id @default(uuid()) @db.Uuid
+  requestId           String    @unique @map("request_id") @db.Uuid
+
+  // Departing Employee
+  employeeFirstName   String    @map("employee_first_name") @db.VarChar(100)
+  employeeLastName    String    @map("employee_last_name") @db.VarChar(100)
+  employeeEmail       String    @map("employee_email") @db.VarChar(255)
+  employeeId          String?   @map("employee_id") @db.Uuid
+
+  // Position Details
+  department          String?   @db.VarChar(100)
+  managerId           String    @map("manager_id") @db.Uuid
+  lastWorkingDay      DateTime  @map("last_working_day") @db.Date
+  reasonForDeparture  String?   @map("reason_for_departure") @db.Text
+
+  // Offboarding Status
+  overallStatus       String    @map("overall_status") @db.VarChar(50)
+  currentPhase        String    @map("current_phase") @db.VarChar(50)
+
+  // IT Revocation Flags
+  accountsDisabled    Boolean   @default(false) @map("accounts_disabled")
+  emailRevoked        Boolean   @default(false) @map("email_revoked")
+  hardwareReturned    Boolean   @default(false) @map("hardware_returned")
+  accessBadgeRevoked  Boolean   @default(false) @map("access_badge_revoked")
+
+  // HR Documentation Flags
+  resignationLetterAttached  Boolean   @default(false) @map("resignation_letter_attached")
+  resignationLetterUrl       String?   @map("resignation_letter_url") @db.VarChar(500)
+  resignationLetterFileName  String?   @map("resignation_letter_file_name") @db.VarChar(255)
+  exitInterviewScheduledDate DateTime? @map("exit_interview_scheduled_date") @db.Date
+  exitInterviewDone   Boolean   @default(false) @map("exit_interview_done")
+  finalPayrollDone    Boolean   @default(false) @map("final_payroll_done")
+  benefitsTerminated  Boolean   @default(false) @map("benefits_terminated")
+  knowledgeTransferDone Boolean @default(false) @map("knowledge_transfer_done")
+
+  completedBy         String?   @map("completed_by") @db.Uuid
+  completedAt         DateTime? @map("completed_at") @db.Timestamp(6)
+
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  request             Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  manager             User      @relation("OffboardingManager", fields: [managerId], references: [id])
+  employee            User?     @relation("OffboardingEmployee", fields: [employeeId], references: [id])
+  completedByUser     User?     @relation("OffboardingCompletedBy", fields: [completedBy], references: [id])
+  tasks               OffboardingTask[]
+
+  @@map("offboarding_requests")
+  @@index([requestId])
+  @@index([employeeId])
+  @@index([lastWorkingDay])
+}
+
+// Offboarding Tasks
+model OffboardingTask {
+  id                String    @id @default(uuid()) @db.Uuid
+  offboardingId     String    @map("offboarding_id") @db.Uuid
+
+  taskName          String    @map("task_name") @db.VarChar(200)
+  taskDescription   String?   @map("task_description") @db.Text
+  taskCategory      String    @map("task_category") @db.VarChar(50)
+  assignedTo        String?   @map("assigned_to") @db.Uuid
+  dueDate           DateTime? @map("due_date") @db.Date
+  priority          String    @default("MEDIUM") @db.VarChar(20)
+
+  status            String    @default("PENDING") @db.VarChar(50)
+  completedBy       String?   @map("completed_by") @db.Uuid
+  completedAt       DateTime? @map("completed_at") @db.Timestamp(6)
+  notes             String?   @db.Text
+
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  offboarding       OffboardingRequest @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
+  assignedToUser    User?              @relation("OffboardingTaskAssignedTo", fields: [assignedTo], references: [id])
+  completedByUser   User?              @relation("OffboardingTaskCompletedBy", fields: [completedBy], references: [id])
+
+  @@map("offboarding_tasks")
+  @@index([offboardingId])
+  @@index([assignedTo])
+  @@index([status])
+}
+
+// Offboarding Task Templates (admin-managed)
+model OffboardingTaskTemplate {
+  id              String   @id @default(uuid()) @db.Uuid
+  taskName        String   @map("task_name") @db.VarChar(200)
+  taskDescription String?  @map("task_description") @db.Text
+  taskCategory    String   @map("task_category") @db.VarChar(50)
+  priority        String   @default("MEDIUM") @db.VarChar(20)
+  dueDayOffset    Int      @default(0) @map("due_day_offset")
+  displayOrder    Int      @default(0) @map("display_order")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("offboarding_task_templates")
+  @@index([taskCategory])
+  @@index([isActive])
+}
+
 model BannerConfig {
   id          String   @id @default(uuid())
   role        String
@@ -976,4 +1242,138 @@ model RequestStatusDefinition {
   @@map("request_status_definitions")
   @@index([isActive])
   @@index([category])
+}
+
+// Workflow transition rules — source of truth for valid status changes.
+// The VALID_TRANSITIONS map in workflowTransitions.ts is the SEED reference;
+// this table is the runtime source of truth.
+model WorkflowTransition {
+  id              String   @id @default(uuid()) @db.Uuid
+  fromStatus      String   @map("from_status") @db.VarChar(100)
+  toStatus        String   @map("to_status") @db.VarChar(100)
+  transitionLabel String?  @map("transition_label") @db.VarChar(50)
+  // Label values: APPROVE | REJECT | SUBMIT | ADVANCE | RETURN | ESCALATE | CLOSE
+  requiresComment Boolean  @default(false) @map("requires_comment")
+  // Hint: optional role or userId to auto-assign after this transition
+  autoAssignRole  String?  @map("auto_assign_role") @db.VarChar(50)
+  autoAssignUserId String? @map("auto_assign_user_id") @db.Uuid
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Each (fromStatus, toStatus) pair is unique
+  @@unique([fromStatus, toStatus])
+  @@map("workflow_transitions")
+  @@index([fromStatus])
+  @@index([toStatus])
+  @@index([isActive])
+}
+
+// ============================================================================
+// ENTITY-BASED APPROVAL ROUTING
+// ============================================================================
+
+enum EntityRoutingMode {
+  REQUESTER_ENTITY
+  CUSTOM_FIELD
+}
+
+model Entity {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(200)
+  code        String   @unique @db.VarChar(50)
+  description String?  @db.Text
+  approverId  String   @map("approver_id") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  displayOrder Int     @default(0) @map("display_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  approver          User                       @relation("EntityApprover", fields: [approverId], references: [id])
+  users             User[]                     @relation("UserEntity")
+  requestApprovals  RequestApproval[]          @relation("ApprovalEntity")
+
+  @@map("entities")
+  @@index([approverId])
+}
+
+model RequestTypeEntityRouting {
+  id             String            @id @default(uuid()) @db.Uuid
+  requestTypeId  String            @map("request_type_id") @db.Uuid
+  routingMode    EntityRoutingMode @map("routing_mode")
+  customFieldKey String?           @map("custom_field_key") @db.VarChar(100)
+  label          String?           @db.VarChar(200)
+  isActive       Boolean           @default(true) @map("is_active")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
+
+  // Relations
+  requestType RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
+
+  @@map("request_type_entity_routings")
+  @@index([requestTypeId])
+}
+
+// ============================================================================
+// IT ASSET MANAGEMENT
+// ============================================================================
+
+model Asset {
+  id             String        @id @default(uuid()) @db.Uuid
+  assetTag       String        @unique @map("asset_tag") @db.VarChar(100)
+  serialNumber   String?       @unique @map("serial_number") @db.VarChar(100)
+  name           String        @db.VarChar(255)
+  category       AssetCategory
+  brand          String?       @db.VarChar(100)
+  model          String?       @db.VarChar(100)
+  purchaseDate   DateTime?     @map("purchase_date") @db.Date
+  purchasePrice  Decimal?      @map("purchase_price") @db.Decimal(10, 2)
+  vendor         String?       @db.VarChar(200)
+  warrantyExpiry DateTime?     @map("warranty_expiry") @db.Date
+  status         AssetStatus   @default(IN_STOCK)
+  notes          String?       @db.Text
+
+  sourceRequestId String? @map("source_request_id") @db.Uuid
+  createdById     String  @map("created_by_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  sourceRequest      Request?          @relation("AssetSourceRequest", fields: [sourceRequestId], references: [id])
+  createdBy          User              @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  assignments        AssetAssignment[]
+  itHardwareRequests ITHardwareRequest[]
+
+  @@map("assets")
+  @@index([status])
+  @@index([category])
+  @@index([createdById])
+}
+
+model AssetAssignment {
+  id              String    @id @default(uuid()) @db.Uuid
+  assetId         String    @map("asset_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  assignedById    String    @map("assigned_by_id") @db.Uuid
+  assignedAt      DateTime  @default(now()) @map("assigned_at") @db.Timestamp(6)
+  returnedAt      DateTime? @map("returned_at") @db.Timestamp(6)
+  reason          String?   @db.VarChar(200)
+  linkedRequestId String?   @map("linked_request_id") @db.Uuid
+  notes           String?   @db.Text
+
+  asset          Asset    @relation(fields: [assetId], references: [id])
+  user           User     @relation("AssetAssignmentUser", fields: [userId], references: [id])
+  assignedBy     User     @relation("AssetAssignmentAssignedBy", fields: [assignedById], references: [id])
+  linkedRequest  Request? @relation("AssetAssignmentRequest", fields: [linkedRequestId], references: [id])
+
+  @@map("asset_assignments")
+  @@index([assetId])
+  @@index([userId])
+}
+
+model SystemSetting {
+  key       String   @id @db.VarChar(100)
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("system_settings")
 }

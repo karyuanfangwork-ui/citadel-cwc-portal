@@ -1,6 +1,8 @@
 # Stage 1: Build
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
+# Install OpenSSL for Prisma
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 COPY prisma ./prisma/
 RUN npm ci
@@ -9,9 +11,10 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Production
-FROM node:20-alpine
+FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./

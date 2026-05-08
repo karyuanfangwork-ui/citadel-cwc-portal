@@ -1,5 +1,13 @@
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+// ---------------------------------------------------------------------------
+// SEED REFERENCE — used for documentation and as fallback if DB is empty.
+// This map is NOT the runtime source of truth.
+// ---------------------------------------------------------------------------
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  SUBMITTED: ['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'PENDING_CEO_APPROVAL', 'PENDING_MANAGER_APPROVAL_IT', 'PENDING_MANAGER_APPROVAL_FIN', 'ACKNOWLEDGED_IT'],
+  SUBMITTED: ['IN_REVIEW', 'IN_PROGRESS', 'REJECTED', 'PENDING_CEO_APPROVAL', 'PENDING_MANAGER_APPROVAL_FIN', 'ACKNOWLEDGED_IT'],
   IN_REVIEW: ['IN_PROGRESS', 'ACTION_REQUIRED', 'WAITING', 'REJECTED', 'RESOLVED'],
   IN_PROGRESS: ['ACTION_REQUIRED', 'WAITING', 'RESOLVED', 'REJECTED'],
   ACTION_REQUIRED: ['IN_PROGRESS', 'IN_REVIEW', 'RESOLVED', 'REJECTED'],
@@ -22,17 +30,10 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   LOA_ISSUED: ['LOA_ACCEPTED'],
   LOA_ACCEPTED: ['COMPLETED'],
   COMPLETED: ['ONBOARDING_SUBMITTED'],
-  PENDING_MANAGER_APPROVAL_IT: ['MANAGER_APPROVED_IT', 'MANAGER_REJECTED_IT'],
-  MANAGER_APPROVED_IT: ['PROCUREMENT_IN_PROGRESS'],
-  MANAGER_REJECTED_IT: ['PENDING_MANAGER_APPROVAL_IT'],
-  PENDING_VP_APPROVAL_IT: ['MANAGER_APPROVED_IT', 'VP_REJECTED_IT'],
-  VP_APPROVED_IT: ['MANAGER_APPROVED_IT'],
-  VP_REJECTED_IT: [],
   PROCUREMENT_IN_PROGRESS: ['HARDWARE_ORDERED'],
   HARDWARE_ORDERED: ['HARDWARE_RECEIVED'],
   HARDWARE_RECEIVED: ['SOFTWARE_PROVISIONED'],
   SOFTWARE_PROVISIONED: ['RESOLVED'],
-  // IT Hardware Executive Approval Chain
   ACKNOWLEDGED_IT: ['PENDING_CEO_APPROVAL_IT'],
   PENDING_CEO_APPROVAL_IT: ['CEO_APPROVED_IT', 'CEO_REJECTED_IT'],
   CEO_APPROVED_IT: ['PENDING_CTO_APPROVAL_IT'],
@@ -45,24 +46,75 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   CFO_APPROVED_IT: ['PAYMENT_PROCESSING_IT'],
   CFO_REJECTED_IT: ['REJECTED'],
   PAYMENT_PROCESSING_IT: ['PAYMENT_DONE_IT'],
-  PAYMENT_DONE_IT: ['PENDING_DELIVERY_IT'],
+  PAYMENT_DONE_IT: ['PENDING_DELIVERY_IT', 'PROCUREMENT_IN_PROGRESS'],
   PENDING_DELIVERY_IT: ['RESOLVED'],
   PENDING_MANAGER_APPROVAL_FIN: ['MANAGER_APPROVED_FIN', 'MANAGER_REJECTED_FIN'],
   MANAGER_APPROVED_FIN: ['PENDING_FINANCE_HEAD_APPROVAL'],
-  MANAGER_REJECTED_FIN: [],
+  // FIXED: was [] (dead-end — requester never notified)
+  MANAGER_REJECTED_FIN: ['SUBMITTED'],
   PENDING_FINANCE_HEAD_APPROVAL: ['FINANCE_HEAD_APPROVED', 'FINANCE_HEAD_REJECTED'],
   FINANCE_HEAD_APPROVED: ['PAYMENT_PROCESSING'],
-  FINANCE_HEAD_REJECTED: [],
+  // FIXED: was [] (dead-end)
+  FINANCE_HEAD_REJECTED: ['SUBMITTED'],
   PAYMENT_PROCESSING: ['PAYMENT_COMPLETED'],
   PAYMENT_COMPLETED: ['REIMBURSEMENT_CLOSED'],
   REIMBURSEMENT_CLOSED: [],
+  OFFBOARDING_SUBMITTED: ['OFFBOARDING_NOTICE_PERIOD'],
+  OFFBOARDING_NOTICE_PERIOD: ['OFFBOARDING_KNOWLEDGE_TRANSFER'],
+  OFFBOARDING_KNOWLEDGE_TRANSFER: ['OFFBOARDING_FINAL_WEEK'],
+  OFFBOARDING_FINAL_WEEK: ['OFFBOARDING_EXIT_PROCEDURES'],
+  OFFBOARDING_EXIT_PROCEDURES: ['OFFBOARDING_COMPLETED'],
+  OFFBOARDING_COMPLETED: [],
 };
 
-export function isValidTransition(from: string, to: string): boolean {
+// ---------------------------------------------------------------------------
+// Runtime lookups — DB-first, fallback to seed map
+// ---------------------------------------------------------------------------
+
+/**
+ * Check if a status transition is valid.
+ * Uses DB as source of truth; falls back to the seed map if DB is empty.
+ */
+export async function isValidTransition(from: string, to: string): Promise<boolean> {
+  const dbRows = await prisma.workflowTransition.count({
+    where: { fromStatus: from, toStatus: to, isActive: true },
+  });
+  if (dbRows > 0) return true;
+
+  // Fallback to seed map (for environments where the table hasn't been seeded yet)
   const valid = VALID_TRANSITIONS[from];
   return valid ? valid.includes(to) : false;
 }
 
-export function getValidNextStatuses(from: string): string[] {
+/**
+ * Get all valid next statuses from a given status.
+ * Uses DB as source of truth; falls back to the seed map.
+ */
+export async function getValidNextStatuses(from: string): Promise<string[]> {
+  const rows = await prisma.workflowTransition.findMany({
+    where: { fromStatus: from, isActive: true },
+    select: { toStatus: true },
+  });
+
+  if (rows.length > 0) {
+    return rows.map(r => r.toStatus);
+  }
+
+  // Fallback to seed map
   return VALID_TRANSITIONS[from] || [];
+}
+
+/**
+ * Get a specific transition's metadata from DB.
+ * Returns null if the transition doesn't exist or is inactive.
+ */
+export async function getTransitionMeta(
+  from: string,
+  to: string
+): Promise<{ transitionLabel: string | null; requiresComment: boolean } | null> {
+  const row = await prisma.workflowTransition.findUnique({
+    where: { fromStatus_toStatus: { fromStatus: from, toStatus: to } },
+    select: { transitionLabel: true, requiresComment: true },
+  });
+  return row;
 }

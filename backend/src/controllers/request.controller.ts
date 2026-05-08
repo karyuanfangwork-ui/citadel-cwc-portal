@@ -1,8 +1,16 @@
 import { Response, NextFunction } from 'express';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
-import { AuthRequest } from '../middleware/auth.middleware';
-import { notify, notifyMultiple } from '../services/notification.service';
+import { AuthRequest, hasRole } from '../middleware/auth.middleware';
+import { notify } from '../services/notification.service';
+import { s3Service } from '../services/s3.service';
+import { createDefaultOnboardingTasks } from '../services/onboarding.service';
+import { sanitizeString, sanitizeComment } from '../utils/sanitize';
+import { auditLog } from '../utils/audit';
+import { logger } from '../utils/logger';
+import { applyEntityRouting } from '../services/entityRouting.service';
+import { autoAssignRequest } from '../services/autoAssignment.service';
+import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
@@ -10,17 +18,19 @@ class RequestController {
     /**
      * Get all requests with filters and pagination
      */
-    getAllRequests = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getAllRequests = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const {
             page = '1',
             limit = '10',
             status,
+            excludedStatuses,
             serviceDeskId,
             assignedToId,
             priority,
             search,
             requestTypeId,
-        } = req.query;
+            requesterId,
+        }  = req.query as Record<string, string>;
 
         const pageNum = parseInt(page as string, 10);
         const limitNum = parseInt(limit as string, 10);
@@ -31,40 +41,130 @@ class RequestController {
             deletedAt: null,
         };
 
+        // Confidentiality gate: users without request:confidential permission
+        // cannot see confidential requests (unless they are the requester or a designated approver).
+        // ADMIN bypasses this gate entirely.
+        const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
+
         // Users can only see their own requests unless they're agents/admins
         // Exception: CEO can see requests in hiring workflow
-        if (!req.user!.roles.includes('ADMIN') && !req.user!.roles.includes('AGENT')) {
-            if (req.user!.roles.includes('CEO')) {
-                // CEO can see their own requests, hiring workflow requests, IT approval requests, and any request where they are a designated approver
+        if (!hasRole(req, 'ADMIN', 'AGENT')) {
+            if (hasRole(req, 'CEO')) {
+                // CEO can see their own requests, hiring workflow requests, IT approval requests, chargeback from-entity requests, and any request where they are a designated approver
                 const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
                 where.OR = [
                     { requesterId: req.user!.id },
                     { status: { in: ceoHiringStatuses } },
                     { status: 'PENDING_CEO_APPROVAL_IT' },
+                    { status: 'PENDING_FROM_ENTITY_APPROVAL' },
+                    { status: 'PENDING_TO_ENTITY_APPROVAL' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
-            } else if (req.user!.roles.includes('CTO')) {
+            } else if (hasRole(req, 'CTO')) {
                 // CTO can see their own requests and any IT request pending CTO approval
                 where.OR = [
                     { requesterId: req.user!.id },
                     { status: 'PENDING_CTO_APPROVAL_IT' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
-            } else if (req.user!.roles.includes('CFO')) {
-                // CFO can see their own requests and any IT request pending CFO approval
+            } else if (hasRole(req, 'CFO')) {
+                // CFO can see their own requests, IT requests pending CFO approval, Finance Purchase Requisitions pending CFO approval, and Expense Reimbursement requests pending Finance Head approval
                 where.OR = [
                     { requesterId: req.user!.id },
                     { status: 'PENDING_CFO_APPROVAL_IT' },
+                    { status: 'PENDING_CFO_APPROVAL_FIN' },
+                    { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            } else if (hasRole(req, 'FINANCE_HEAD')) {
+                // FINANCE_HEAD can see their own requests and Expense Reimbursement requests pending Finance Head approval
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            } else if (hasRole(req, 'GROUP_CEO')) {
+                // GROUP_CEO can see their own requests and Finance Purchase Requisitions pending Group CEO approval
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { status: 'PENDING_GROUP_CEO_APPROVAL' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else {
-                // Regular users only see their own requests
-                where.requesterId = req.user!.id;
+                // Regular users see their own requests + any requests where they are a designated approver (e.g. entity approver for chargeback)
+                where.OR = [
+                    { requesterId: req.user!.id },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
             }
         }
 
+        // Apply confidentiality filter for non-ADMIN users without request:confidential permission.
+        // They can only see confidential requests where they are the requester or a designated approver.
+        if (!canSeeConfidential) {
+            if (where.OR) {
+                // Non-ADMIN/AGENT users already have visibility OR conditions (their own requests, etc.).
+                // We MUST preserve those visibility restrictions AND add confidentiality filtering.
+                // The confidentiality condition: show non-confidential OR (confidential + own/approver).
+                // We wrap the original OR with confidentiality by converting to AND:
+                //   AND[ original_visibility_OR, confidentiality_OR ]
+                // This ensures users only see requests within their visibility scope
+                // AND excludes confidential requests unless they own them or are an approver.
+                const visibilityOR = where.OR;
+                delete where.OR;
+                where.AND = [
+                    ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                    { OR: visibilityOR },
+                    {
+                        OR: [
+                            { isConfidential: false },
+                            { requesterId: req.user!.id },
+                            { approvals: { some: { approverId: req.user!.id } } },
+                        ],
+                    },
+                ];
+            } else {
+                // ADMIN/AGENT without request:confidential — they see all non-confidential,
+                // plus confidential requests where they are requester or approver.
+                where.OR = [
+                    { isConfidential: false },
+                    { requesterId: req.user!.id },
+                    { approvals: { some: { approverId: req.user!.id } } },
+                ];
+            }
+        }
+
+        // Valid RequestStatus enum members for runtime validation
+        const validStatuses = Object.values(RequestStatus) as string[];
+
         if (status) {
-            where.status = status;
+            // Support comma-separated status values for multi-status filters
+            const statusValues = (status as string).split(',').filter(v => validStatuses.includes(v)) as RequestStatus[];
+            where.status = statusValues.length === 1
+                ? statusValues[0]
+                : statusValues.length > 1
+                    ? { in: statusValues }
+                    : undefined;
+        }
+
+        if (excludedStatuses) {
+            // Support comma-separated excluded status values to filter out specific statuses
+            // Filter out any values that aren't valid RequestStatus members (e.g. stale frontend strings like "CLOSED")
+            const excludedValues = (excludedStatuses as string).split(',').filter(v => validStatuses.includes(v)) as RequestStatus[];
+            if (excludedValues.length === 0) {
+                // All values were invalid — skip filter entirely
+            } else if (where.status) {
+                // If both status and excludedStatuses are provided, combine with AND
+                const existingStatus = where.status;
+                delete where.status;
+                where.AND = [
+                    ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                    { status: existingStatus },
+                    { status: { notIn: excludedValues } },
+                ];
+            } else {
+                where.status = { notIn: excludedValues };
+            }
         }
 
         if (serviceDeskId) {
@@ -72,7 +172,8 @@ class RequestController {
         }
 
         if (assignedToId) {
-            where.assignedToId = assignedToId;
+            // Handle special 'none' value meaning unassigned
+            where.assignedToId = assignedToId === 'none' ? null : assignedToId;
         }
 
         if (priority) {
@@ -81,6 +182,11 @@ class RequestController {
 
         if (requestTypeId) {
             where.requestTypeId = requestTypeId as string;
+        }
+
+        // Filter by requester (for "My Requests" page)
+        if (requesterId) {
+            where.requesterId = requesterId as string;
         }
 
         if (search) {
@@ -131,6 +237,12 @@ class RequestController {
             prisma.request.count({ where }),
         ]);
 
+        // Add computed SLA pause info to each request in the list
+        for (const request of requests) {
+            (request as any).effectiveSlaDueAt = getEffectiveSlaDueAt(request);
+            (request as any).slaPaused = request.slaPausedAt !== null;
+        }
+
         res.json({
             status: 'success',
             data: {
@@ -146,17 +258,357 @@ class RequestController {
     });
 
     /**
+     * Get all requests pending current user's approval
+     * GET /api/v1/requests/pending-approvals
+     */
+    getPendingApprovals = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const userRoles = (req.user as any)?.roles?.map((r: any) => r.role?.name ?? r) ?? [];
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const { priority, serviceDeskCode }  = req.query as Record<string, string>;
+
+        // Find pending approvals assigned to this user
+        const pendingApprovals = await prisma.requestApproval.findMany({
+            where: {
+                approverId: userId,
+                status: 'PENDING',
+            },
+            select: { requestId: true },
+        });
+        const requestIds = pendingApprovals.map(a => a.requestId);
+
+        // Also include requests in PENDING_* statuses if user has matching roles
+        const PENDING_APPROVAL_STATUSES: Record<string, string[]> = {
+            CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT', 'PENDING_CEO_APPROVAL_FIN'],
+            CTO: ['PENDING_CTO_APPROVAL_IT'],
+            CFO: ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN', 'PENDING_FINANCE_HEAD_APPROVAL'],
+            GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
+            VP: [],
+            MANAGER: ['PENDING_MANAGER_APPROVAL_FIN', 'PENDING_MANAGER_REVIEW'],
+            HR: ['LOA_PENDING_APPROVAL', 'ONBOARDING_PENDING_HR_APPROVAL'],
+        };
+
+        const validStatuses = Object.values(RequestStatus) as string[];
+        const statusFilter: string[] = [];
+        for (const [role, statuses] of Object.entries(PENDING_APPROVAL_STATUSES)) {
+            if (userRoles.includes(role)) {
+                statusFilter.push(...statuses);
+            }
+        }
+        // Always include entity approval statuses for entity approvers
+        statusFilter.push('PENDING_FROM_ENTITY_APPROVAL', 'PENDING_TO_ENTITY_APPROVAL');
+        // Filter out invalid enum values to prevent Prisma validation errors
+        const filteredStatusFilter = statusFilter.filter(s => validStatuses.includes(s));
+
+        // Build where clause
+        const where: any = {
+            deletedAt: null,
+            OR: [
+                ...(requestIds.length > 0 ? [{ id: { in: requestIds } }] : []),
+                ...(statusFilter.length > 0 ? [{ status: { in: Array.from(new Set(filteredStatusFilter)) } }] : []),
+            ],
+        };
+
+        if (priority) {
+            where.priority = priority as string;
+        }
+        if (serviceDeskCode) {
+            where.serviceDesk = { code: serviceDeskCode as string };
+        }
+
+        const [requests, total] = await Promise.all([
+            prisma.request.findMany({
+                where,
+                include: {
+                    requester: {
+                        select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+                    },
+                    assignedTo: {
+                        select: { id: true, firstName: true, lastName: true, email: true },
+                    },
+                    serviceDesk: { select: { id: true, name: true, code: true } },
+                    requestType: { select: { id: true, name: true } },
+                    approvals: {
+                        where: { status: 'PENDING' },
+                        include: {
+                            approver: { select: { id: true, firstName: true, lastName: true, email: true } },
+                            entity: { select: { id: true, name: true, code: true } },
+                        },
+                    },
+                },
+                orderBy: { createdAt: 'desc' },
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            prisma.request.count({ where }),
+        ]);
+
+        res.json({
+            status: 'success',
+            data: { requests },
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+            },
+        });
+    });
+
+    /**
+     * Bulk approve or reject requests
+     * POST /api/v1/requests/bulk-action
+     *
+     * Workflow-aware: determines the correct status transition based on
+     * the request's current status and the approval's approverType.
+     */
+    bulkAction = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const { action, requestIds, comment } = req.body;
+
+        if (!['approve', 'reject'].includes(action)) {
+            throw new AppError('Action must be "approve" or "reject"', 400);
+        }
+        if (!Array.isArray(requestIds) || requestIds.length === 0) {
+            throw new AppError('requestIds must be a non-empty array', 400);
+        }
+
+        const approvalStatus = action === 'approve' ? 'APPROVED' : 'REJECTED';
+        const userRoles = (req.user as any)?.roles?.map((r: any) => r.role?.name ?? r) ?? [];
+
+        // Find PENDING approvals where the user is either:
+        // 1. Directly assigned (approverId = userId), OR
+        // 2. Role-based (approverId is null AND approverType matches one of the user's roles)
+        const approvals = await prisma.requestApproval.findMany({
+            where: {
+                requestId: { in: requestIds },
+                status: 'PENDING',
+                OR: [
+                    { approverId: userId },
+                    { approverId: null, approverType: { in: userRoles } },
+                ],
+            },
+        });
+
+        // Stamp approverId on role-based approvals that were matched by type
+        for (const approval of approvals) {
+            if (!approval.approverId) {
+                await prisma.requestApproval.update({
+                    where: { id: approval.id },
+                    data: { approverId: userId },
+                });
+                approval.approverId = userId;
+            }
+        }
+
+        const approvedRequestIds = approvals.map(a => a.requestId);
+
+        if (approvedRequestIds.length === 0) {
+            res.json({
+                status: 'success',
+                data: {
+                    action,
+                    processedCount: 0,
+                    processedIds: [],
+                },
+            });
+            return;
+        }
+
+        // Fetch the requests that have matching approvals to determine workflow transitions
+        const requests = await prisma.request.findMany({
+            where: { id: { in: approvedRequestIds } },
+            select: { id: true, status: true, referenceNumber: true },
+        });
+
+        // Map: status → (approverType, decision) → next status
+        // This mirrors the workflow-specific controllers (it-workflow, approval, etc.)
+        const STATUS_TRANSITIONS: Record<string, Record<string, { approve: string; reject: string }>> = {
+            // CEO approvals — skip transient "APPROVED" states, go directly to next pending step
+            PENDING_CEO_APPROVAL: { CEO: { approve: 'CEO_APPROVED', reject: 'CEO_REJECTED' } },
+            PENDING_CEO_APPROVAL_IT: { CEO: { approve: 'PENDING_CTO_APPROVAL_IT', reject: 'CEO_REJECTED_IT' } },
+            PENDING_CEO_APPROVAL_FIN: { CEO: { approve: 'PENDING_CFO_APPROVAL_FIN', reject: 'CEO_REJECTED_IT' } },
+            // CTO approvals (IT workflow) — skip CTO_APPROVED_IT, go to PENDING_INVOICE_IT
+            PENDING_CTO_APPROVAL_IT: { CTO: { approve: 'PENDING_INVOICE_IT', reject: 'CTO_REJECTED_IT' } },
+            // CFO approvals — skip transient APPROVED states, go to next workflow step
+            PENDING_CFO_APPROVAL_IT: { CFO: { approve: 'PAYMENT_PROCESSING_IT', reject: 'CFO_REJECTED_IT' } },
+            PENDING_CFO_APPROVAL_FIN: { CFO: { approve: 'CFO_APPROVED_FIN', reject: 'CFO_REJECTED_FIN' } },
+            PENDING_CFO_APPROVAL: { CFO: { approve: 'CFO_APPROVED', reject: 'CFO_REJECTED' } },
+            PENDING_FINANCE_HEAD_APPROVAL: { CFO: { approve: 'FINANCE_HEAD_APPROVED', reject: 'FINANCE_HEAD_REJECTED' } },
+            // Manager approvals
+            PENDING_MANAGER_APPROVAL_FIN: { MANAGER: { approve: 'MANAGER_APPROVED_FIN', reject: 'MANAGER_REJECTED_FIN' } },
+            PENDING_MANAGER_REVIEW: { MANAGER: { approve: 'MANAGER_APPROVED', reject: 'IN_REVIEW' } },
+            // Group CEO approvals
+            PENDING_GROUP_CEO_APPROVAL: { GROUP_CEO: { approve: 'GROUP_CEO_APPROVED', reject: 'GROUP_CEO_REJECTED' } },
+            // HR approvals
+            LOA_PENDING_APPROVAL: { HR: { approve: 'LOA_APPROVED', reject: 'REJECTED' } },
+            ONBOARDING_PENDING_HR_APPROVAL: { HR: { approve: 'ONBOARDING_PRE_ARRIVAL_SETUP', reject: 'REJECTED' } },
+        };
+
+        // Approval types that should create a follow-up approval after approval
+        // When a cascading approval exists, the approval creates the next PENDING approval record
+        // and SLA is paused again for the next approver.
+        // When NO cascade exists (e.g. CTO approve → PENDING_INVOICE_IT), SLA stays resumed.
+        const CASCADING_APPROVALS: Record<string, { approverType: string; nextStatus: string }> = {
+            PENDING_CEO_APPROVAL_IT: { approverType: 'CTO', nextStatus: 'PENDING_CTO_APPROVAL_IT' },
+        };
+
+        // Role display names for activity log
+        const ROLE_DISPLAY: Record<string, string> = {
+            CEO: 'CEO', CTO: 'CTO', CFO: 'CFO', VP: 'VP',
+            MANAGER: 'Manager', GROUP_CEO: 'Group CEO', HR: 'HR',
+            HIRING_MANAGER: 'Hiring Manager',
+        };
+
+        const processedIds: string[] = [];
+        const errors: { requestId: string; error: string }[] = [];
+
+        for (const approval of approvals) {
+            const request = requests.find(r => r.id === approval.requestId);
+            if (!request) continue;
+
+            const currentStatus = request.status;
+            const approverType = approval.approverType;
+
+            // Determine the new status
+            const transition = STATUS_TRANSITIONS[currentStatus]?.[approverType];
+            if (!transition) {
+                errors.push({ requestId: request.id, error: `No transition defined for status ${currentStatus} with approver type ${approverType}` });
+                continue;
+            }
+
+            const newStatus = action === 'approve' ? transition.approve : transition.reject;
+
+            try {
+                // Update approval record
+                await prisma.requestApproval.update({
+                    where: { id: approval.id },
+                    data: {
+                        status: approvalStatus,
+                        comments: comment || null,
+                    },
+                });
+
+                // Update request status
+                await prisma.request.update({
+                    where: { id: request.id },
+                    data: { status: newStatus as any },
+                });
+
+                // Create follow-up approval if this is a cascading approval
+                if (action === 'approve' && CASCADING_APPROVALS[currentStatus]) {
+                    const cascade = CASCADING_APPROVALS[currentStatus];
+                    await prisma.requestApproval.create({
+                        data: {
+                            requestId: request.id,
+                            approverType: cascade.approverType,
+                            status: 'PENDING',
+                        },
+                    });
+                }
+
+                // Resume SLA on approval, pause on next cascading step
+                if (action === 'approve') {
+                    await resumeSla(request.id);
+                    // If there's a cascading next step, pause SLA for next approver
+                    if (CASCADING_APPROVALS[currentStatus]) {
+                        await pauseSla(request.id);
+                    }
+                } else {
+                    // On rejection, resume SLA (was paused for approval) and set resolved
+                    await resumeSla(request.id);
+                    // For rejected statuses that end the workflow, mark resolved
+                    const rejectStatus = transition.reject;
+                    if (rejectStatus.includes('REJECTED')) {
+                        await prisma.request.update({
+                            where: { id: request.id },
+                            data: { resolvedAt: new Date() },
+                        });
+                    }
+                }
+
+                // Create activity log
+                const roleDisplay = ROLE_DISPLAY[approverType] || approverType;
+                await prisma.requestActivity.create({
+                    data: {
+                        requestId: request.id,
+                        authorId: userId,
+                        authorName: `${req.user!.firstName || ''} ${req.user!.lastName || ''}`.trim() || roleDisplay,
+                        activityType: action === 'approve' ? 'APPROVAL' : 'REJECTION',
+                        message: `${roleDisplay} ${action === 'approve' ? 'approved' : 'rejected'} this request${comment ? ': ' + comment : ''}`,
+                        isSystemGenerated: false,
+                    },
+                });
+
+                await auditLog(req as any, 'APPROVAL_DECISION', 'request', request.id, {
+                    decision: approvalStatus,
+                    approverType,
+                    newStatus,
+                    previousStatus: currentStatus,
+                }, { status: currentStatus });
+
+                // Reassign to Finance team when CFO approves an IT purchase (payment processing)
+                if (action === 'approve' && currentStatus === 'PENDING_CFO_APPROVAL_IT') {
+                    const financeAgent = await prisma.user.findFirst({
+                        where: { agentTeam: 'FINANCE', isActive: true, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
+                        select: { id: true, firstName: true, lastName: true },
+                        orderBy: { createdAt: 'asc' },
+                    });
+                    if (financeAgent) {
+                        const agentName = `${financeAgent.firstName} ${financeAgent.lastName}`;
+                        await prisma.request.update({
+                            where: { id: request.id },
+                            data: { assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
+                        });
+                        await prisma.requestActivity.create({
+                            data: {
+                                requestId: request.id,
+                                authorName: 'System',
+                                activityType: 'ASSIGNMENT',
+                                message: `Auto-reassigned to ${agentName} (FINANCE team) — CFO approved, payment processing`,
+                                isSystemGenerated: true,
+                                metadata: { autoAssigned: true, assignedToId: financeAgent.id, assignedTeam: 'FINANCE' },
+                            },
+                        });
+                    }
+                }
+
+                processedIds.push(request.id);
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                errors.push({ requestId: request.id, error: msg });
+            }
+        }
+
+        res.json({
+            status: 'success',
+            data: {
+                action,
+                processedCount: processedIds.length,
+                processedIds,
+                ...(errors.length > 0 ? { errors } : {}),
+            },
+        });
+    });
+
+    /**
      * Create a new request
      */
-    createRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    createRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const {
             requestTypeId,
             serviceDeskId,
-            summary,
-            description,
+            summary: rawSummary,
+            description: rawDescription,
             priority,
             customFields,
+            isConfidential,
         } = req.body;
+
+        // Sanitize highest-risk text fields before storing
+        const summary = sanitizeString(rawSummary);
+        const description = rawDescription ? sanitizeComment(rawDescription) : undefined;
 
         // Generate reference number
         const serviceDesk = await prisma.serviceDesk.findUnique({
@@ -184,6 +636,166 @@ class RequestController {
           }
         }
 
+        // Detect manual onboarding/offboarding/finance submission
+        const requestType = requestTypeId
+            ? await prisma.requestType.findUnique({ where: { id: requestTypeId } })
+            : null;
+        const isManualOnboarding = requestType?.code === 'EMPLOYEE_ONBOARDING';
+        const isManualOffboarding = requestType?.code === 'EMPLOYEE_OFFBOARDING';
+        const isPurchaseRequisition = requestType?.code === 'PURCHASE_REQUISITION';
+        const isIntercompanyChargeback = requestType?.code === 'INTERCOMPANY_CHARGEBACK';
+        const isExpenseClaim = requestType?.code === 'EXPENSE_CLAIM';
+        const initialStatus = isManualOnboarding
+            ? 'ONBOARDING_SUBMITTED'
+            : isManualOffboarding
+            ? 'OFFBOARDING_SUBMITTED'
+            : isPurchaseRequisition
+            ? 'FINANCE_PENDING_ACK'
+            : isIntercompanyChargeback
+            ? 'SUBMITTED'
+            : isExpenseClaim
+            ? 'PENDING_MANAGER_APPROVAL_FIN'
+            : 'SUBMITTED';
+
+        // Auto-generate description from form fields
+        let finalDescription = description;
+        if (isManualOnboarding && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const name = cf.employeeName || 'Unknown';
+            const jobTitle = cf.jobTitle || 'Not specified';
+            const dept = cf.department || 'Not specified';
+            const email = cf.employeeEmail || 'Not provided';
+            finalDescription = `New employee onboarding request for ${name} (${jobTitle}) in ${dept}. Contact: ${email}.`;
+        }
+        if (isManualOffboarding && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const name = cf.employeeName || 'Unknown';
+            const lastDay = cf.lastDay || 'TBD';
+            const email = cf.employeeEmail || 'Not provided';
+            const reason = cf.reason || 'Not specified';
+            finalDescription = `Employee offboarding request for ${name}. Last working day: ${lastDay}. Contact: ${email}. Reason: ${reason}.`;
+        }
+
+        // Auto-generate description for New Hiring Request (HR recruitment)
+        if (requestType?.code === 'NEW_HIRING' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = requestType?.formConfig as any[] | null;
+
+            const parts: string[] = [];
+            for (const [key, value] of Object.entries(cf)) {
+                if (value === null || value === undefined || value === '') continue;
+                if (typeof value === 'object' && value.s3Key) continue;
+
+                let label = key;
+                if (formConfig && Array.isArray(formConfig)) {
+                    const field = formConfig.find((f: any) => f.id === key);
+                    if (field?.label) label = field.label;
+                }
+
+                parts.push(`${label}: ${value}`);
+            }
+
+            if (parts.length > 0) {
+                finalDescription = `New hiring request - ${parts.join('. ')}.`;
+            } else {
+                finalDescription = 'New hiring request submitted.';
+            }
+        }
+
+        // Auto-generate description for HR General questions
+        if (requestType?.code === 'HR_QUESTION' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = requestType?.formConfig as any[] | null;
+
+            const parts: string[] = [];
+            for (const [key, value] of Object.entries(cf)) {
+                if (value === null || value === undefined || value === '') continue;
+                if (typeof value === 'object' && value.s3Key) continue;
+
+                let label = key;
+                if (formConfig && Array.isArray(formConfig)) {
+                    const field = formConfig.find((f: any) => f.id === key);
+                    if (field?.label) label = field.label;
+                }
+
+                parts.push(`${label}: ${value}`);
+            }
+
+            if (parts.length > 0) {
+                finalDescription = `HR inquiry - ${parts.join('. ')}.`;
+            } else {
+                finalDescription = 'HR inquiry submitted.';
+            }
+        }
+
+        // Auto-generate description for Purchase Requisition (finance)
+        if (isPurchaseRequisition && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const requestTypeData = requestType?.formConfig as any[] | null;
+            
+            // Build description from customFields, using formConfig labels for unknown field IDs
+            const parts: string[] = [];
+            
+            // Map customFields to readable descriptions
+            for (const [key, value] of Object.entries(cf)) {
+                if (value === null || value === undefined || value === '') continue;
+                
+                // Skip file uploads in description
+                if (typeof value === 'object' && value.s3Key) continue;
+                
+                // Find label from formConfig for dynamic field IDs
+                let label = key;
+                if (requestTypeData && Array.isArray(requestTypeData)) {
+                    const field = requestTypeData.find((f: any) => f.id === key);
+                    if (field?.label) {
+                        const labelLower = field.label.toLowerCase();
+                        // Order matters: check more specific matches first
+                        if (labelLower.includes('justification')) {
+                            label = 'Justification';
+                        } else if (labelLower.includes('type of purchase') || labelLower.includes('purchase type')) {
+                            label = 'Purchase Type';
+                        } else if (labelLower.includes('vendor')) {
+                            label = 'Vendor';
+                        } else if (labelLower.includes('bu') || labelLower.includes('business unit')) {
+                            label = 'Business Unit';
+                        } else {
+                            label = field.label;
+                        }
+                    }
+                }
+                
+                parts.push(`${label}: ${value}`);
+            }
+            
+            if (parts.length > 0) {
+                finalDescription = `Purchase requisition - ${parts.join('. ')}.`;
+            } else {
+                finalDescription = 'Purchase requisition submitted.';
+            }
+        }
+
+        // Auto-generate description for Inter-Company Chargeback (finance)
+        if (requestType?.code === 'INTERCOMPANY_CHARGEBACK' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const fromEntity = cf.chargeFromEntity || cf.chargeFromEntity || 'Unknown entity';
+            const toEntity = cf.chargeToEntity || 'Unknown entity';
+            const amount = cf.amount ? `RM ${cf.amount}` : 'Amount TBD';
+            const costCenter = cf.costCenter || 'Not specified';
+            const desc = cf.description || 'No description provided';
+            finalDescription = `Inter-company chargeback from ${fromEntity} to ${toEntity}. Amount: ${amount}. Cost center: ${costCenter}. Details: ${desc}.`;
+        }
+
+        // Auto-generate description for Budget Proposal (finance)
+        if (requestType?.code === 'BUDGET_PROPOSAL' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const department = cf.department || 'Unknown department';
+            const period = cf.budgetPeriod || 'Unspecified period';
+            const totalAmount = cf.totalAmount ? `RM ${cf.totalAmount}` : 'Amount TBD';
+            const breakdown = cf.breakdown || 'No breakdown provided';
+            const justification = cf.justification || 'No justification provided';
+            finalDescription = `Budget proposal for ${department} - ${period}. Total requested: ${totalAmount}. Breakdown: ${breakdown}. Justification: ${justification}.`;
+        }
+
         // Create request, hardware details, and initial activity in a single transaction
         const request = await prisma.$transaction(async (tx) => {
             const createdRequest = await tx.request.create({
@@ -194,10 +806,11 @@ class RequestController {
                     requesterId: req.user!.id,
                     requesterEmail: req.user!.email,
                     summary,
-                    description,
+                    description: finalDescription,
                     priority,
                     customFields,
-                    status: 'SUBMITTED',
+                    isConfidential: isConfidential === true,
+                    status: initialStatus as any,
                     slaDueAt,
                 },
                 include: {
@@ -219,22 +832,135 @@ class RequestController {
                 const reqType = createdRequest.requestType;
                 if (reqType && reqType.name.toLowerCase().includes('hardware')) {
                     const cf = (customFields || {}) as Record<string, any>;
-                    const rawPrice = cf.estimatedPrice;
+                    // Resolve form values by field ID or by matching formConfig labels
+                    // (handles both named keys like 'hardwareName' and dynamic IDs like 'field_1234')
+                    const formConfig: any[] = (reqType as any).formConfig || [];
+                    const resolveField = (...keys: string[]): any => {
+                        for (const k of keys) { if (cf[k]) return cf[k]; }
+                        return undefined;
+                    };
+                    const resolveByLabel = (labelMatch: string): any => {
+                        for (const f of formConfig) {
+                            if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                                if (cf[f.id]) return cf[f.id];
+                            }
+                        }
+                        return undefined;
+                    };
+                    const rawPrice = resolveField('estimatedPrice') || resolveByLabel('price') || resolveByLabel('estimated');
                     const estimatedPrice = rawPrice != null && rawPrice !== '' && !isNaN(Number(rawPrice))
                         ? parseFloat(String(rawPrice))
                         : null;
                     await tx.iTHardwareRequest.create({
                         data: {
                             requestId: createdRequest.id,
-                            hardwareName: cf.hardwareName || cf.hw_name || cf.hardwareType || 'Unknown',
-                            hardwareModel: cf.hardwareModel || cf.hw_model || cf.model || null,
+                            hardwareName: resolveField('hardwareName', 'hw_name', 'hardwareType') || resolveByLabel('hardware name') || resolveByLabel('device type') || 'Unknown',
+                            hardwareModel: resolveField('hardwareModel', 'hw_model', 'model') || resolveByLabel('model') || null,
                             estimatedPrice,
-                            preferredVendor: cf.preferredVendor || null,
-                            productUrl: cf.productUrl || null,
-                            businessJustification: cf.businessJustification || cf.hw_reason || cf.reason || '',
+                            preferredVendor: resolveField('preferredVendor', 'vendor') || resolveByLabel('vendor') || null,
+                            productUrl: resolveField('productUrl') || resolveByLabel('product url') || null,
+                            businessJustification: resolveField('businessJustification', 'hw_reason', 'reason') || resolveByLabel('justification') || '',
                         },
                     });
                 }
+            }
+
+            // Auto-create OnboardingRequest for manually submitted onboarding tickets
+            if (isManualOnboarding) {
+                const cf = (customFields || {}) as Record<string, any>;
+
+                // Parse employee name — support "employeeName" (full) or split first/last
+                const rawName = (cf.employeeName || '').trim();
+                const nameParts = rawName.split(/\s+/);
+                const firstName = nameParts[0] || 'Unknown';
+                const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Unknown';
+
+                // Parse start date — fallback to 7 days from now
+                let startDate: Date;
+                if (cf.startDate) {
+                    const parsed = new Date(cf.startDate);
+                    startDate = isNaN(parsed.getTime()) ? new Date(Date.now() + 7 * 86400000) : parsed;
+                } else {
+                    startDate = new Date(Date.now() + 7 * 86400000);
+                }
+
+                const onboarding = await tx.onboardingRequest.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        newHireFirstName: firstName,
+                        newHireLastName: lastName,
+                        newHireEmail: cf.employeeEmail || req.user!.email,
+                        newHirePhone: null,
+                        jobTitle: cf.jobTitle || 'Not specified',
+                        department: cf.department || 'Not specified',
+                        hiringManagerId: req.user!.id,
+                        startDate,
+                        employmentType: 'FULL_TIME',
+                        overallStatus: 'PENDING',
+                        currentPhase: 'PRE_ARRIVAL',
+                    },
+                });
+
+                await tx.requestActivity.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        authorName: 'System',
+                        authorRole: 'SYSTEM',
+                        activityType: 'SYSTEM',
+                        message: `Onboarding workflow initialised for ${firstName} ${lastName}.`,
+                        isSystemGenerated: true,
+                    },
+                });
+
+                // Seed default tasks outside the transaction
+                (createdRequest as any)._onboardingId = onboarding.id;
+                (createdRequest as any)._startDate = startDate;
+            }
+
+            // Auto-create OffboardingRequest for manually submitted offboarding tickets
+            if (isManualOffboarding) {
+                const cf = (customFields || {}) as Record<string, any>;
+
+                const rawName = (cf.employeeName || '').trim();
+                const nameParts = rawName.split(/\s+/);
+                const firstName = nameParts[0] || 'Unknown';
+                const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : 'Unknown';
+
+                let lastWorkingDay: Date;
+                if (cf.lastDay) {
+                    const parsed = new Date(cf.lastDay);
+                    lastWorkingDay = isNaN(parsed.getTime()) ? new Date(Date.now() + 14 * 86400000) : parsed;
+                } else {
+                    lastWorkingDay = new Date(Date.now() + 14 * 86400000);
+                }
+
+                const offboarding = await tx.offboardingRequest.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        employeeFirstName: firstName,
+                        employeeLastName: lastName,
+                        employeeEmail: cf.employeeEmail || req.user!.email,
+                        managerId: req.user!.id,
+                        lastWorkingDay,
+                        reasonForDeparture: cf.reason || null,
+                        overallStatus: 'PENDING',
+                        currentPhase: 'NOTICE_PERIOD',
+                    },
+                });
+
+                await tx.requestActivity.create({
+                    data: {
+                        requestId: createdRequest.id,
+                        authorName: 'System',
+                        authorRole: 'SYSTEM',
+                        activityType: 'SYSTEM',
+                        message: `Offboarding workflow initialised for ${firstName} ${lastName}. Last working day: ${lastWorkingDay.toDateString()}.`,
+                        isSystemGenerated: true,
+                    },
+                });
+
+                (createdRequest as any)._offboardingId = offboarding.id;
+                (createdRequest as any)._lastWorkingDay = lastWorkingDay;
             }
 
             // Create initial activity
@@ -252,6 +978,70 @@ class RequestController {
             return createdRequest;
         });
 
+        // Seed default onboarding tasks after transaction
+        if (isManualOnboarding && (request as any)._onboardingId) {
+            await createDefaultOnboardingTasks(
+                (request as any)._onboardingId,
+                (request as any)._startDate,
+            );
+        }
+
+        // Seed default offboarding tasks after transaction
+        if (isManualOffboarding && (request as any)._offboardingId) {
+            const { createDefaultOffboardingTasks } = await import('./offboarding.controller');
+            await createDefaultOffboardingTasks(
+                (request as any)._offboardingId,
+                (request as any)._lastWorkingDay,
+            );
+        }
+
+        // SLA: pause immediately if request is created in an approval status (e.g. EXPENSE_CLAIM → PENDING_MANAGER_APPROVAL_FIN)
+        if (isExpenseClaim) {
+            await pauseSla(request.id);
+        }
+
+        // Apply entity-based approval routing if configured for this request type
+        if (requestTypeId) {
+            await applyEntityRouting({
+                requestId: request.id,
+                requestTypeId,
+                requesterId: request.requesterId,
+                customFields: (customFields || {}) as Record<string, any>,
+            });
+        }
+
+        // Auto-assign the request based on ServiceDesk configuration
+        const assignResult = await autoAssignRequest(request.id);
+        if (assignResult.success && assignResult.assignedToId) {
+            // Create activity record for auto-assignment
+            await prisma.requestActivity.create({
+                data: {
+                    requestId: request.id,
+                    authorName: 'System',
+                    isSystemGenerated: true,
+                    activityType: 'ASSIGNMENT',
+                    message: `Auto-assigned to ${assignResult.agentName} (${assignResult.assignedTeam} team) via ${assignResult.strategy} strategy`,
+                    metadata: {
+                        autoAssigned: true,
+                        assignedToId: assignResult.assignedToId,
+                        assignedTeam: assignResult.assignedTeam,
+                        strategy: assignResult.strategy,
+                    },
+                },
+            });
+
+            // Notify the assigned agent
+            await notify({
+                userId: assignResult.assignedToId,
+                eventType: 'REQUEST_ASSIGNED',
+                variables: {
+                    referenceNumber: request.referenceNumber,
+                    summary: request.summary,
+                },
+                relatedRequestId: request.id,
+            });
+        }
+
         // Notify requester
         await notify({
             userId: request.requesterId,
@@ -263,29 +1053,52 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
-        // Notify all admins
-        const admins = await prisma.user.findMany({
-            where: { roles: { some: { role: { name: 'ADMIN' } } } },
-            select: { id: true },
+        // Notify the assigned agent (if auto-assigned, they already got REQUEST_ASSIGNED above;
+        // this covers the case where no auto-assignment happened —admins with dashboard access
+        // see new requests anyway, no need to email all of them)
+        if (!assignResult.success && request.assignedToId) {
+            await notify({
+                userId: request.assignedToId,
+                eventType: 'REQUEST_CREATED',
+                variables: {
+                    referenceNumber: request.referenceNumber,
+                    summary: request.summary,
+                },
+                relatedRequestId: request.id,
+            });
+        }
+
+        await auditLog(req, 'REQUEST_CREATED', 'request', request.id, {
+            referenceNumber: request.referenceNumber,
+            summary: request.summary,
+            status: request.status,
+            requesterId: request.requesterId,
         });
-        await notifyMultiple(
-            admins.map((a) => a.id),
-            'REQUEST_CREATED',
-            { referenceNumber: request.referenceNumber, summary: request.summary },
-            request.id
-        );
+
+        // Re-fetch request to include auto-assigned agent info in response
+        const finalRequest = assignResult.success
+            ? await prisma.request.findUnique({
+                  where: { id: request.id },
+                  include: {
+                      requester: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+                      assignedTo: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+                      serviceDesk: true,
+                      requestType: true,
+                  },
+              })
+            : request;
 
         res.status(201).json({
             status: 'success',
-            data: { request },
+            data: { request: finalRequest },
         });
     });
 
     /**
      * Get request by ID
      */
-    getRequestById = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+    getRequestById = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
 
         const request = await prisma.request.findFirst({
             where: {
@@ -311,7 +1124,17 @@ class RequestController {
                     },
                 },
                 serviceDesk: true,
-                requestType: true,
+                requestType: {
+                    include: {
+                        workflow: {
+                            include: {
+                                steps: {
+                                    orderBy: { displayOrder: 'asc' as const }
+                                }
+                            }
+                        }
+                    }
+                },
                 itHardwareRequest: true,
                 parentRequest: {
                     select: {
@@ -355,11 +1178,13 @@ class RequestController {
                     },
                 },
                 approvals: {
-                    select: {
-                        id: true,
-                        approverId: true,
-                        approverType: true,
-                        status: true,
+                    include: {
+                        approver: {
+                            select: { id: true, firstName: true, lastName: true, email: true },
+                        },
+                        entity: {
+                            select: { id: true, name: true, code: true },
+                        },
                     },
                 },
             },
@@ -377,6 +1202,14 @@ class RequestController {
             }));
         }
 
+        // Transform BigInt to string in attachments for JSON serialization
+        if ((request as any).attachments) {
+            (request as any).attachments = (request as any).attachments.map((att: any) => ({
+                ...att,
+                fileSize: att.fileSize?.toString() ?? '0',
+            }));
+        }
+
         // Check permissions
         // Allow access if:
         // 1. User is the requester
@@ -386,30 +1219,59 @@ class RequestController {
         // 5. User is a designated approver on this request
         const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
         const isDesignatedApprover = (request as any).approvals?.some((a: any) => a.approverId === req.user!.id);
-        const isCEOApprover = req.user!.roles.includes('CEO') && (
+        const isCEOApprover = hasRole(req, 'CEO') && (
             ceoHiringStatuses.includes(request.status) ||
             request.status === 'PENDING_CEO_APPROVAL_IT' ||
             isDesignatedApprover
         );
-        const isCTOApprover = req.user!.roles.includes('CTO') && (
+        const isCTOApprover = hasRole(req, 'CTO') && (
             request.status === 'PENDING_CTO_APPROVAL_IT' ||
             isDesignatedApprover
         );
-        const isCFOApprover = req.user!.roles.includes('CFO') && (
+        const isCFOApprover = hasRole(req, 'CFO') && (
             request.status === 'PENDING_CFO_APPROVAL_IT' ||
+            request.status === 'PENDING_CFO_APPROVAL_FIN' ||
+            isDesignatedApprover
+        );
+        const isGroupCeoApprover = hasRole(req, 'GROUP_CEO') && (
+            request.status === 'PENDING_GROUP_CEO_APPROVAL' ||
             isDesignatedApprover
         );
 
         if (
             request.requesterId !== req.user!.id &&
-            !req.user!.roles.includes('ADMIN') &&
-            !req.user!.roles.includes('AGENT') &&
+            !hasRole(req, 'ADMIN', 'AGENT') &&
             !isCEOApprover &&
             !isCTOApprover &&
-            !isCFOApprover
+            !isCFOApprover &&
+            !isGroupCeoApprover
         ) {
             throw new AppError('You do not have permission to view this request', 403);
         }
+
+        // Confidentiality gate: non-ADMIN users without request:confidential
+        // cannot view confidential requests unless they are the requester or a designated approver.
+        if (
+            request.isConfidential &&
+            request.requesterId !== req.user!.id &&
+            !hasRole(req, 'ADMIN') &&
+            !(req.user?.permissions?.includes('request:confidential')) &&
+            !isDesignatedApprover
+        ) {
+            throw new AppError('This request is confidential and cannot be viewed', 403);
+        }
+
+        // Audit: log access to confidential requests (only for non-requesters)
+        if (request.isConfidential && request.requesterId !== req.user!.id) {
+            auditLog(req, 'CONFIDENTIAL_VIEW', 'request', request.id, {
+                referenceNumber: request.referenceNumber,
+                summary: request.summary,
+            }).catch(() => {}); // fire-and-forget
+        }
+
+        // Add computed effective SLA due date (accounts for pause time)
+        (request as any).effectiveSlaDueAt = getEffectiveSlaDueAt(request);
+        (request as any).slaPaused = request.slaPausedAt !== null;
 
         res.json({
             status: 'success',
@@ -420,9 +1282,13 @@ class RequestController {
     /**
      * Update request
      */
-    updateRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
-        const { summary, description, priority } = req.body;
+    updateRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
+        const { summary: rawSummary, description: rawDescription, priority, isConfidential } = req.body;
+
+        // Sanitize highest-risk text fields
+        const summary = rawSummary !== undefined ? sanitizeString(rawSummary) : undefined;
+        const description = rawDescription !== undefined ? sanitizeComment(rawDescription) : undefined;
 
         const existingRequest = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -441,12 +1307,23 @@ class RequestController {
             throw new AppError('You do not have permission to update this request', 403);
         }
 
+        // Restrict isConfidential toggle:
+        // - Requester can mark their own request confidential (toggle on)
+        // - ADMIN can toggle on/off on any request
+        // - AGENT can toggle on/off on any request
+        // - No one else can change isConfidential
+        let isConfidentialUpdate = isConfidential !== undefined ? { isConfidential: isConfidential === true } : {};
+        if (isConfidential !== undefined && existingRequest.requesterId !== req.user!.id && !hasRole(req, 'ADMIN', 'AGENT')) {
+            isConfidentialUpdate = {};
+        }
+
         const request = await prisma.request.update({
             where: { id },
             data: {
                 summary,
                 description,
                 priority,
+                ...isConfidentialUpdate,
             },
         });
 
@@ -459,8 +1336,8 @@ class RequestController {
     /**
      * Delete request (soft delete)
      */
-    deleteRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+    deleteRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -489,8 +1366,8 @@ class RequestController {
     /**
      * Get request activities
      */
-    getRequestActivities = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+    getRequestActivities = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -521,9 +1398,12 @@ class RequestController {
     /**
      * Add activity/comment to request
      */
-    addActivity = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
-        const { message, isInternal } = req.body;
+    addActivity = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
+        const { message: rawMessage, isInternal } = req.body;
+
+        // Sanitize comment message before storing
+        const message = sanitizeComment(rawMessage);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -575,36 +1455,138 @@ class RequestController {
     });
 
     /**
-     * Upload attachment (placeholder)
+     * Upload attachment to request
+     * Accepts: images (JPG/PNG/GIF/WebP), PDFs, Word docs, Excel, CSV, plain text, ZIP
+     * Max size: 10MB | isScanned: false flag set for future virus scanning
      */
-    uploadAttachment = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+    uploadAttachment = asyncHandler(async (req: AuthRequest, res: Response, __next: NextFunction) => {
+        const id = String(req.params.id);
+        const file = req.file;
 
-        // TODO: Implement file upload with multer and S3
-        res.json({
+        if (!file) {
+            throw new AppError('No file uploaded', 400);
+        }
+
+        // Verify request exists
+        const request = await prisma.request.findFirst({
+            where: { id, deletedAt: null },
+        });
+        if (!request) {
+            throw new AppError('Request not found', 404);
+        }
+
+        const s3Key = (file as any).key;
+
+        const attachment = await prisma.requestAttachment.create({
+            data: {
+                requestId: id,
+                uploadedById: req.user!.id,
+                fileName: file.originalname,
+                fileSize: BigInt(file.size),
+                mimeType: file.mimetype,
+                storagePath: s3Key,
+                storageUrl: s3Key,
+                isScanned: false,       // stub for future ClamAV integration
+                scanResult: null,
+            },
+        });
+
+        // Log un-scanned file for manual review (future virus scan)
+        logger.info(`[UPLOAD] Unscanned file uploaded: ${attachment.id} | ${file.originalname} | ${file.mimetype} | ${(file.size / 1024).toFixed(1)}KB | by ${req.user!.email}`);
+
+        res.status(201).json({
             status: 'success',
-            message: 'File upload endpoint - to be implemented',
+            data: {
+                id: attachment.id,
+                fileName: attachment.fileName,
+                fileSize: Number(attachment.fileSize),
+                mimeType: attachment.mimeType,
+                storageUrl: attachment.storageUrl,
+                isScanned: attachment.isScanned,
+                createdAt: attachment.createdAt,
+            },
         });
     });
 
     /**
-     * Download attachment (placeholder)
+    /**
+     * Serves the file from S3 via presigned URL redirect.
+     * Sets Content-Disposition header for browser download.
      */
-    downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id, attachmentId } = req.params;
+    downloadAttachment = asyncHandler(async (req: AuthRequest, res: Response, __next: NextFunction) => {
+        const { id, attachmentId }  = req.params as Record<string, string>;
 
-        // TODO: Implement file download from S3
-        res.json({
-            status: 'success',
-            message: 'File download endpoint - to be implemented',
+        // Verify the attachment belongs to the request and is not deleted
+        const attachment = await prisma.requestAttachment.findFirst({
+            where: {
+                id: attachmentId,
+                requestId: id,
+                deletedAt: null,
+            },
         });
+
+        if (!attachment) {
+            throw new AppError('Attachment not found', 404);
+        }
+
+        // Confidentiality gate: block unauthorized downloads on confidential requests
+        const attachmentRequest = await prisma.request.findUnique({
+            where: { id },
+            select: {
+                isConfidential: true,
+                requesterId: true,
+                referenceNumber: true,
+                approvals: { select: { approverId: true } },
+            },
+        }) as any;
+        if (attachmentRequest?.isConfidential && attachmentRequest.requesterId !== req.user?.id) {
+            const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
+            const isDesignatedApprover = attachmentRequest.approvals?.some((a: any) => a.approverId === req.user?.id);
+            if (!canSeeConfidential && !isDesignatedApprover) {
+                throw new AppError('Attachments for this confidential request are restricted', 403);
+            }
+            // Audit: log download by authorized non-requesters
+            auditLog(req, 'CONFIDENTIAL_ATTACHMENT_DOWNLOAD', 'request', id, {
+                referenceNumber: attachmentRequest.referenceNumber,
+                attachmentId,
+                fileName: attachment.fileName,
+            }).catch(() => {});
+        }
+
+        // storagePath now stores the S3 object key (e.g. "cwc/uuid-ext")
+        const s3Key = attachment.storagePath;
+        if (!s3Key) {
+            throw new AppError('File key is missing', 400);
+        }
+
+        // ?inline=true renders the file inline (for iframe/img), otherwise forces download
+        const isInline = req.query.inline === 'true';
+
+        try {
+            const overrideParams: Record<string, string> = {
+                'response-content-type': attachment.mimeType || 'application/octet-stream',
+            };
+
+            if (isInline) {
+                overrideParams['response-content-disposition'] = `inline; filename="${encodeURIComponent(attachment.fileName)}"`;
+            } else {
+                overrideParams['response-content-disposition'] = `attachment; filename="${encodeURIComponent(attachment.fileName)}"`;
+            }
+
+            // Generate a presigned URL (valid for 15 minutes)
+            const presignedUrl = await s3Service.getPresignedUrl(s3Key, 0.25, overrideParams);
+            return res.redirect(presignedUrl);
+        } catch (error: any) {
+            logger.error(`[DOWNLOAD] Failed to generate presigned URL for key ${s3Key}: ${error?.message || error}`);
+            throw new AppError('Could not generate download link', 500);
+        }
     });
 
     /**
      * Delete attachment
      */
-    deleteAttachment = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id, attachmentId } = req.params;
+    deleteAttachment = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { id: _id, attachmentId }  = req.params as Record<string, string>;
 
         await prisma.requestAttachment.update({
             where: { id: attachmentId },
@@ -620,8 +1602,8 @@ class RequestController {
     /**
      * Assign request to agent
      */
-    assignRequest = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+    assignRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
         const { assignedToId } = req.body;
 
         const request = await prisma.request.update({
@@ -651,14 +1633,19 @@ class RequestController {
         });
 
         // Create activity
+        const assigneeName = request.assignedTo ? `${request.assignedTo.firstName} ${request.assignedTo.lastName}`.trim() : 'agent';
         await prisma.requestActivity.create({
             data: {
                 requestId: id,
                 authorId: req.user!.id,
                 authorName: 'System',
                 activityType: 'ASSIGNMENT',
-                message: `Request assigned to agent`,
+                message: `Request assigned to ${assigneeName}`,
                 isSystemGenerated: true,
+                metadata: {
+                    autoAssigned: false,
+                    assignedToId,
+                },
             },
         });
 
@@ -673,6 +1660,11 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
+        await auditLog(req, 'REQUEST_ASSIGNED', 'request', request.id, {
+            assignedToId,
+            referenceNumber: request.referenceNumber,
+        });
+
         res.json({
             status: 'success',
             data: { request },
@@ -682,8 +1674,8 @@ class RequestController {
     /**
      * Update request status
      */
-    updateStatus = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+    updateStatus = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
         const { status } = req.body;
 
         // Fetch current request to validate transition
@@ -693,14 +1685,22 @@ class RequestController {
         }
 
         // Validate transition
-        const { isValidTransition } = require('../utils/workflowTransitions');
-        if (!isValidTransition(currentRequest.status, status)) {
+        const { isValidTransition } = await import('../utils/workflowTransitions');
+        if (!(await isValidTransition(currentRequest.status, status))) {
             throw new AppError(`Invalid status transition from ${currentRequest.status} to ${status}`, 400);
         }
 
+        const TERMINAL_STATUSES = [
+            'RESOLVED', 'REJECTED', 'COMPLETED',
+            'OFFBOARDING_COMPLETED', 'ONBOARDING_COMPLETED',
+            'REIMBURSEMENT_CLOSED', 'CEO_REJECTED',
+        ];
         const request = await prisma.request.update({
             where: { id },
-            data: { status: status as RequestStatus },
+            data: {
+                status: status as RequestStatus,
+                ...(TERMINAL_STATUSES.includes(status) && { closedAt: new Date() }),
+            },
             include: {
                 requester: {
                     select: {
@@ -748,9 +1748,191 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
+        await auditLog(req, 'STATUS_CHANGED', 'request', request.id, {
+            newStatus: status,
+            referenceNumber: request.referenceNumber,
+        }, {
+            oldStatus: currentRequest.status,
+        });
+
+        // SLA pause/resume for generic status transitions
+        const { shouldPause, shouldResume } = await shouldResumeOnTransition(currentRequest.status, status);
+        if (shouldPause) {
+            await pauseSla(id);
+        } else if (shouldResume) {
+            await resumeSla(id);
+        }
+
+        // Auto-create RequestApproval records for PENDING_APPROVAL statuses
+        // This ensures the bulkAction (Approve/Reject) endpoint can find these records
+        const PENDING_APPROVAL_TYPE_MAP: Record<string, string> = {
+            PENDING_CEO_APPROVAL: 'CEO',
+            PENDING_CEO_APPROVAL_IT: 'CEO',
+            PENDING_CEO_APPROVAL_FIN: 'CEO',
+            PENDING_CTO_APPROVAL_IT: 'CTO',
+            PENDING_CFO_APPROVAL_IT: 'CFO',
+            PENDING_CFO_APPROVAL_FIN: 'CFO',
+            PENDING_FINANCE_HEAD_APPROVAL: 'CFO',
+            PENDING_GROUP_CEO_APPROVAL: 'GROUP_CEO',
+            PENDING_MANAGER_APPROVAL_FIN: 'MANAGER',
+            PENDING_MANAGER_REVIEW: 'MANAGER',
+            LOA_PENDING_APPROVAL: 'HR',
+            ONBOARDING_PENDING_HR_APPROVAL: 'HR',
+        };
+
+        const approvalType = PENDING_APPROVAL_TYPE_MAP[status];
+        if (approvalType) {
+            // Find the user with the matching role to set as approverId
+            // Try executiveRole field first (for CEO, CTO, CFO, CHRO, COO), then fall back to UserRole
+            const EXECUTIVE_ROLES = ['CEO', 'CTO', 'CFO', 'CHRO', 'COO'] as const;
+            let approverId: string | null = null;
+
+            if (EXECUTIVE_ROLES.includes(approvalType as any)) {
+                // Try executiveRole field first, then fall back to UserRole
+                const byExecRole = await prisma.user.findFirst({
+                    where: { executiveRole: approvalType as any, isActive: true },
+                    select: { id: true },
+                });
+                if (byExecRole) {
+                    approverId = byExecRole.id;
+                } else {
+                    const byUserRole = await prisma.user.findFirst({
+                        where: { isActive: true, roles: { some: { role: { name: approvalType } } } },
+                        select: { id: true },
+                    });
+                    approverId = byUserRole?.id ?? null;
+                }
+            } else {
+                // For non-executive roles (GROUP_CEO, VP, MANAGER, HR), find by UserRole
+                const approverUser = await prisma.user.findFirst({
+                    where: {
+                        isActive: true,
+                        roles: { some: { role: { name: approvalType } } },
+                    },
+                    select: { id: true },
+                });
+                approverId = approverUser?.id ?? null;
+            }
+
+            // Check if an approval record already exists for this request+type+PENDING
+            const existingApproval = await prisma.requestApproval.findFirst({
+                where: {
+                    requestId: id,
+                    approverType: approvalType,
+                    status: 'PENDING',
+                },
+            });
+
+            if (!existingApproval) {
+                await prisma.requestApproval.create({
+                    data: {
+                        requestId: id,
+                        approverType: approvalType,
+                        approverId,
+                        status: 'PENDING',
+                    },
+                });
+            }
+        }
+
+        // ── WorkflowTransition auto-assign: reassign based on transition config ──
+        try {
+            const transition = await prisma.workflowTransition.findFirst({
+                where: {
+                    fromStatus: currentRequest.status,
+                    toStatus: status,
+                    isActive: true,
+                },
+            });
+
+            if (transition && (transition.autoAssignRole || transition.autoAssignUserId)) {
+                let assignToId: string | null = null;
+                let assignToName: string = '';
+
+                if (transition.autoAssignUserId) {
+                    // Specific user takes priority
+                    const targetUser = await prisma.user.findUnique({
+                        where: { id: transition.autoAssignUserId },
+                        select: { id: true, firstName: true, lastName: true, isActive: true },
+                    });
+                    if (targetUser?.isActive) {
+                        assignToId = targetUser.id;
+                        assignToName = `${targetUser.firstName} ${targetUser.lastName}`;
+                    }
+                } else if (transition.autoAssignRole) {
+                    // Find first active user with the matching role
+                    const targetUser = await prisma.user.findFirst({
+                        where: {
+                            isActive: true,
+                            roles: { some: { role: { name: transition.autoAssignRole } } },
+                        },
+                        select: { id: true, firstName: true, lastName: true },
+                        orderBy: { createdAt: 'asc' },
+                    });
+                    if (targetUser) {
+                        assignToId = targetUser.id;
+                        assignToName = `${targetUser.firstName} ${targetUser.lastName}`;
+                    }
+                }
+
+                if (assignToId) {
+                    await prisma.request.update({
+                        where: { id },
+                        data: { assignedToId: assignToId },
+                    });
+
+                    await prisma.requestActivity.create({
+                        data: {
+                            requestId: id,
+                            authorId: req.user!.id,
+                            authorName: 'System',
+                            activityType: 'ASSIGNMENT',
+                            message: `Auto-reassigned to ${assignToName} via workflow transition (${currentRequest.status} → ${status})`,
+                            isSystemGenerated: true,
+                            metadata: {
+                                autoAssigned: true,
+                                assignedToId: assignToId,
+                                transitionId: transition.id,
+                                fromStatus: currentRequest.status,
+                                toStatus: status,
+                                trigger: transition.autoAssignUserId ? 'autoAssignUserId' : 'autoAssignRole',
+                                triggerValue: transition.autoAssignUserId || transition.autoAssignRole,
+                            },
+                        },
+                    });
+
+                    await notify({
+                        userId: assignToId,
+                        eventType: 'REQUEST_ASSIGNED',
+                        variables: {
+                            referenceNumber: request.referenceNumber,
+                            assignedToName: assignToName,
+                        },
+                        relatedRequestId: request.id,
+                    });
+
+                    logger.info(`[WorkflowTransition] Request ${request.referenceNumber} auto-reassigned to ${assignToName} on ${currentRequest.status}→${status}`);
+                }
+            }
+        } catch (err) {
+            // Non-blocking: if transition auto-assign fails, status change still succeeds
+            logger.error(`[WorkflowTransition] Auto-assign failed for request ${id}:`, err);
+        }
+
+        // Re-fetch request after workflow transition auto-assign to include updated assignedToId
+        const finalRequest = await prisma.request.findUnique({
+            where: { id },
+            include: {
+                requester: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+                assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
+                serviceDesk: true,
+                requestType: true,
+            },
+        });
+
         res.json({
             status: 'success',
-            data: { request },
+            data: { request: finalRequest || request },
         });
     });
 }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { kbController } from '../controllers/kb.controller';
-import { authenticate, authorize, optionalAuth } from '../middleware/auth.middleware';
+import { authenticate, requirePermission, optionalAuth } from '../middleware/auth.middleware';
 
 const router = Router();
 
@@ -26,7 +26,7 @@ router.get('/articles/:slug', optionalAuth, kbController.getArticleBySlug);
 router.post('/articles/:id/helpful', kbController.markHelpful);
 
 // Admin/Agent routes
-router.use(authenticate, authorize('ADMIN', 'AGENT'));
+router.use(authenticate, requirePermission('kb:manage'));
 
 /**
  * @route   POST /api/v1/kb/articles

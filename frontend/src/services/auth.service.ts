@@ -20,12 +20,18 @@ interface AuthUser {
     firstName: string;
     lastName: string;
     roles?: string[];
+    permissions?: string[];
+    agentTeam?: string | null;
 }
 
 export const authService = {
-    async login(credentials: LoginCredentials): Promise<AuthUser> {
+    async login(credentials: LoginCredentials): Promise<AuthUser & { accessToken?: string }> {
         const response = await apiClient.post('/auth/login', credentials);
-        return response.data.data.user;
+        // Backend returns { user, accessToken } - return both
+        return {
+            ...response.data.data.user,
+            accessToken: response.data.data.accessToken,
+        };
     },
 
     async register(data: RegisterData): Promise<AuthUser> {
@@ -45,5 +51,20 @@ export const authService = {
     async getCurrentUser(): Promise<AuthUser> {
         const response = await apiClient.get('/users/me');
         return response.data.data.user;
+    },
+
+    async changePassword(data: { currentPassword: string; newPassword: string; confirmPassword: string }): Promise<{ message: string }> {
+        const response = await apiClient.put('/users/me/password', data);
+        return response.data;
+    },
+
+    async forgotPassword(email: string): Promise<{ message: string }> {
+        const response = await apiClient.post('/auth/forgot-password', { email });
+        return response.data;
+    },
+
+    async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+        const response = await apiClient.post('/auth/reset-password', { token, newPassword });
+        return response.data;
     },
 };

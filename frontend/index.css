@@ -1,2 +1,83 @@
 @import "tailwindcss";
 @import "./src/styles/tokens.css";
+
+@theme {
+  /* ── BRAND ── */
+  --color-brand-50:  var(--color-brand-50);
+  --color-brand-100: var(--color-brand-100);
+  --color-brand-300: var(--color-brand-300);
+  --color-brand-500: var(--color-brand-500);
+  --color-brand-700: var(--color-brand-700);
+  --color-brand-900: var(--color-brand-900);
+
+  /* ── SERVICE DESK ACCENTS ── */
+  --color-it-50:  var(--color-it-50);
+  --color-it-100: var(--color-it-100);
+  --color-it-500: var(--color-it-500);
+
+  --color-hr-50:  var(--color-hr-50);
+  --color-hr-100: var(--color-hr-100);
+  --color-hr-500: var(--color-hr-500);
+
+  --color-fin-50:  var(--color-fin-50);
+  --color-fin-100: var(--color-fin-100);
+  --color-fin-500: var(--color-fin-500);
+
+  /* ── SEMANTIC STATUS ── */
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-danger:  var(--color-danger);
+  --color-info:    var(--color-info);
+
+  /* ── TEXT ── */
+  --color-text-primary:   var(--color-text-primary);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-tertiary:  var(--color-text-tertiary);
+
+  /* ── SURFACE ── */
+  --color-surface:        var(--color-surface);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-surface-muted:  var(--color-surface-muted);
+
+  /* ── BORDER (prefixed cwc- to avoid Tailwind default conflict) ── */
+  --color-cwc-border:        var(--color-border);
+  --color-cwc-border-subtle: var(--color-border-subtle);
+
+  /* ── SPACING ── */
+  --spacing-1:  var(--space-1);
+  --spacing-2:  var(--space-2);
+  --spacing-3:  var(--space-3);
+  --spacing-4:  var(--space-4);
+  --spacing-5:  var(--space-5);
+  --spacing-6:  var(--space-6);
+  --spacing-8:  var(--space-8);
+  --spacing-10: var(--space-10);
+  --spacing-12: var(--space-12);
+  --spacing-16: var(--space-16);
+
+  /* ── BORDER RADIUS (prefixed cwc- to create rounded-cwc-* utilities) ── */
+  --radius-cwc-sm:   var(--radius-sm);
+  --radius-cwc-md:   var(--radius-md);
+  --radius-cwc-lg:   var(--radius-lg);
+  --radius-cwc-xl:   var(--radius-xl);
+  --radius-cwc-full: var(--radius-full);
+
+  /* ── SHADOW (prefixed cwc- to create shadow-cwc-* utilities) ── */
+  --shadow-cwc-sm: var(--shadow-sm);
+  --shadow-cwc-md: var(--shadow-md);
+  --shadow-cwc-lg: var(--shadow-lg);
+
+  /* ── FONT FAMILY ── */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* ── FONT SIZE ── */
+  --text-xs:   var(--text-xs);
+  --text-sm:   var(--text-sm);
+  --text-base: var(--text-base);
+  --text-lg:   var(--text-lg);
+  --text-xl:   var(--text-xl);
+  --text-2xl:  var(--text-2xl);
+  --text-3xl:  var(--text-3xl);
+  --text-4xl:  var(--text-4xl);
+}

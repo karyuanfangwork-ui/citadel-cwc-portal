@@ -4,8 +4,10 @@ import { RequestStatus, RequestPriority } from '../../types';
 interface RequestFilters {
     page?: number;
     limit?: number;
-    status?: RequestStatus;
+    status?: string;  // Single status or comma-separated for multiple
+    excludedStatuses?: string;  // Comma-separated statuses to exclude
     serviceDeskId?: string;
+    requesterId?: string;
     search?: string;
     requestTypeId?: string;
 }
@@ -17,6 +19,7 @@ interface CreateRequestData {
     description?: string;
     priority?: RequestPriority;
     customFields?: Record<string, any>;
+    isConfidential?: boolean;
 }
 
 export const requestService = {
@@ -25,7 +28,9 @@ export const requestService = {
         if (filters.page) params.append('page', filters.page.toString());
         if (filters.limit) params.append('limit', filters.limit.toString());
         if (filters.status) params.append('status', filters.status);
+        if (filters.excludedStatuses) params.append('excludedStatuses', filters.excludedStatuses);
         if (filters.serviceDeskId) params.append('serviceDeskId', filters.serviceDeskId);
+        if (filters.requesterId) params.append('requesterId', filters.requesterId);
         if (filters.search) params.append('search', filters.search);
         if (filters.requestTypeId) params.append('requestTypeId', filters.requestTypeId);
 
@@ -74,7 +79,7 @@ export const requestService = {
                 'Content-Type': 'multipart/form-data',
             },
         });
-        return response.data.data.attachment;
+        return response.data.data;
     },
 
     async downloadAttachment(requestId: string, attachmentId: string) {

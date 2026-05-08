@@ -42,7 +42,7 @@ export class RequestStatusDefinitionController {
   });
 
   update = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { code, label, description, category, displayOrder, isActive } = req.body;
     if (code !== undefined) {
       const conflict = await prisma.requestStatusDefinition.findFirst({ where: { code, NOT: { id: String(id) } } });
@@ -58,7 +58,7 @@ export class RequestStatusDefinitionController {
   });
 
   delete = asyncHandler(async (req: Request, res: Response) => {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const definition = await prisma.requestStatusDefinition.findUnique({ where: { id: String(id) } });
     if (!definition) {
       return res.status(404).json({ status: 'error', message: 'Status definition not found' });

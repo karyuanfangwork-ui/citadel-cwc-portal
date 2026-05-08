@@ -4,7 +4,7 @@ import { authenticate } from '../middleware/auth.middleware';
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication (except /stream which uses sseAuth)
 router.use(authenticate);
 
 /**
@@ -42,4 +42,7 @@ router.put('/read-all', notificationController.markAllAsRead);
  */
 router.delete('/:id', notificationController.deleteNotification);
 
+// SSE route is NOT under router.use(authenticate) — it uses sseAuth instead
+// to accept token from query param for EventSource compatibility
 export default router;
+export { router as notificationRouter };

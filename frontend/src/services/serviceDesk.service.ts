@@ -25,11 +25,43 @@ export const serviceDeskService = {
         return response.data.data.requestTypes;
     },
 
-    async getRequestTypeById(typeName: string) { // Wait, I added getRequestTypeById in controller by ID
-        // Simplified for now, will use ID
+    async getAllRequestTypesAdmin(deskId: string, categoryId?: string) {
+        let url = `/service-desks/${deskId}/request-types/all`;
+        if (categoryId) {
+            url += `?categoryId=${categoryId}`;
+        }
+        const response = await apiClient.get(url);
+        return response.data.data.requestTypes;
+    },
+
+    // --- Admin Service Desk Management ---
+
+    async createServiceDesk(data: { name: string; code: string; description?: string; autoAssignTeam?: string; assignmentStrategy?: string }) {
+        const response = await apiClient.post('/service-desks', data);
+        return response.data.data.serviceDesk;
+    },
+
+    async updateServiceDesk(id: string, data: { name?: string; code?: string; description?: string; isActive?: boolean; autoAssignTeam?: string; assignmentStrategy?: string }) {
+        const response = await apiClient.put(`/service-desks/${id}`, data);
+        return response.data.data.serviceDesk;
+    },
+
+    async deleteServiceDesk(id: string) {
+        const response = await apiClient.delete(`/service-desks/${id}`);
+        return response.data;
+    },
+
+    async getServiceDeskAgents(id: string) {
+        const response = await apiClient.get(`/service-desks/${id}/agents`);
+        return response.data.data;
     },
 
     // --- Admin Category Management ---
+
+    async getAllCategoriesAdmin(serviceDeskId: string) {
+        const response = await apiClient.get(`/service-desks/${serviceDeskId}/categories/all`);
+        return response.data.data.categories;
+    },
 
     async createCategory(serviceDeskId: string, data: any) {
         const response = await apiClient.post(`/service-desks/${serviceDeskId}/categories`, data);
@@ -61,5 +93,26 @@ export const serviceDeskService = {
     async deleteRequestType(typeId: string) {
         const response = await apiClient.delete(`/service-desks/request-types/${typeId}`);
         return response.data;
+    },
+
+    // --- Escalation Rules ---
+
+    async getEscalationRules(requestTypeId: string) {
+        const response = await apiClient.get(`/sla/request-types/${requestTypeId}/escalation-rules`);
+        return response.data.data.rules;
+    },
+
+    async createEscalationRule(data: { requestTypeId: string; triggerHoursAfterBreach: number; notifyRoles: string[]; label?: string }) {
+        const response = await apiClient.post('/sla/escalation-rules', data);
+        return response.data.data.rule;
+    },
+
+    async updateEscalationRule(id: string, data: { triggerHoursAfterBreach?: number; notifyRoles?: string[]; label?: string; isActive?: boolean }) {
+        const response = await apiClient.put(`/sla/escalation-rules/${id}`, data);
+        return response.data.data.rule;
+    },
+
+    async deleteEscalationRule(id: string) {
+        await apiClient.delete(`/sla/escalation-rules/${id}`);
     },
 };

@@ -11,12 +11,16 @@
     ],
     "skipLibCheck": true,
     "types": [
-      "node"
+      "node",
+      "vite/client",
+      "vitest/globals"
     ],
     "moduleResolution": "bundler",
     "isolatedModules": true,
     "moduleDetection": "force",
     "allowJs": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
     "jsx": "react-jsx",
     "paths": {
       "@/*": [

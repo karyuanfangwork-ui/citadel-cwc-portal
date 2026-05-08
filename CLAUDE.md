@@ -36,20 +36,32 @@ CWC 2.0 is an Enterprise Help Center / Service Desk system supporting IT Support
 
 ### Frontend
 - **Framework:** React 19 + TypeScript + Vite
-- **Routing:** React Router v7 with `HashRouter` (defined in `frontend/App.tsx`)
+- **Routing:** React Router v7 (defined in `frontend/App.tsx`)
 - **Path alias:** `@` maps to `frontend/` root
 - **API client:** Axios, base URL from `VITE_API_URL` env var
 - **Auth context:** `frontend/src/context/AuthContext`
 - **Page components split across two dirs:** `frontend/pages/` (main pages) and `frontend/src/pages/` (auth pages like Login/Register)
 - **Shared components:** `frontend/src/components/`
-- **AI integration:** Gemini API key exposed via `process.env.GEMINI_API_KEY` in Vite config
+- **Frontend services:** `frontend/src/services/` — one file per domain (e.g. `asset.service.ts`, `approval.service.ts`, `it-workflow.service.ts`, etc.)
+- **RBAC:** `requirePermission()` middleware enforces fine-grained permissions (loaded in auth middleware, cached in Redis 5min TTL)
 
 ### Key Domain Areas
 - **Service Desks:** IT Support (5 categories), HR Services (4 categories), Group Finance (3 categories)
-- **Workflows:** Request creation, approvals, interviews, screening, LOA, onboarding
+- **Workflows:** Request creation, approvals, interviews, screening, LOA, onboarding, offboarding, chargeback
 - **Roles:** Admin, Agent, End User
+- **IT Asset Management (ITAM):** Asset registry, assignment tracking, lifecycle management (`frontend/pages/AssetManagement.tsx`, `backend/src/routes/asset.routes.ts`, `frontend/src/services/asset.service.ts`)
+  - Asset categories: LAPTOP, DESKTOP, MONITOR, PERIPHERAL, PHONE, NETWORK, PRINTER, SOFTWARE_LICENSE, OTHER
+  - Models: `Asset`, `AssetAssignment` in Prisma schema
+- **SLA & Escalation:** SLA hours configurable per request type; `EscalationRule` model with CRUD at `/api/v1/sla`; `checkEscalations()` in `sla.service.ts`; pause/resume via `sla-pause.service.ts`
+- **Notifications:** SSE (`/api/v1/notifications/sse`), templates (`notificationTemplate.routes.ts`), email via `email.service.ts`
+- **Reports:** `reports.routes.ts` + `reports.service.ts`
+- **Knowledge Base:** `kb.routes.ts` + `kb.service.ts`
+- **Entity routing:** `entityRouting.service.ts` — determines which agent/team handles a request
 
-### Default Seed Credentials
-- Admin: `admin@helpdesk.com` / `admin123`
-- Agent: `agent@helpdesk.com` / `agent123`
-- User: `user@helpdesk.com` / `user123`
+### Seed Accounts (use @test.local domain, password: abc@123)
+- Admin: `admin@test.local` / `abc@123`
+- HR: `hr@test.local` / `abc@123`
+- IT: `it@test.local` / `abc@123`
+- CEO: `ceo@test.local` / `abc@123`
+- Group CEO: `groupceo@company.com` / `groupceo123`
+- Legacy: `user@helpdesk.com` / `abc@123`

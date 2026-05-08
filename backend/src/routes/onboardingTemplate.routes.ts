@@ -1,15 +1,15 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../middleware/auth.middleware';
+import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { listTemplates, createTemplate, updateTemplate, deleteTemplate } from '../controllers/onboardingTemplate.controller';
 
 const router = Router();
 
 router.use(authenticate);
-router.use(authorize('ADMIN'));
+router.use(requirePermission('admin:access', 'admin:settings'));
 
 router.get('/', listTemplates);
-router.post('/', createTemplate);
-router.put('/:id', updateTemplate);
-router.delete('/:id', deleteTemplate);
+router.post('/', requirePermission('admin:settings'), createTemplate);
+router.put('/:id', requirePermission('admin:settings'), updateTemplate);
+router.delete('/:id', requirePermission('admin:settings'), deleteTemplate);
 
 export default router;

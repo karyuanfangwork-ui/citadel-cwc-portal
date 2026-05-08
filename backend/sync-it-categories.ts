@@ -28,30 +28,38 @@ async function main() {
 
     // 3. User's Desired IT Categories (Matching the Image)
     const itCategories = [
-        { name: 'Get IT help', icon: 'help', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1 },
-        { name: 'Email Management', icon: 'mail', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2 },
-        { name: 'Report System problem', icon: 'key', colorClass: 'bg-purple-50 text-purple-600', displayOrder: 3 },
-        { name: 'Request Software Installation', icon: 'apps', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4 },
-        { name: 'Request new hardware', icon: 'laptop', colorClass: 'bg-cyan-50 text-cyan-600', displayOrder: 5 },
+        { name: 'Get IT help', icon: 'help', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 1,
+          requestTypeName: 'Get IT Help Request', requestTypeCode: 'GET_IT_HELP' },
+        { name: 'Email Management', icon: 'mail', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
+          requestTypeName: 'General Email Management Request', requestTypeCode: 'EMAIL_MANAGEMENT' },
+        { name: 'Report System problem', icon: 'key', colorClass: 'bg-purple-50 text-purple-600', displayOrder: 3,
+          requestTypeName: 'General Report System Problem Request', requestTypeCode: 'REPORT_SYSTEM_PROBLEM' },
+        { name: 'Request Software Installation', icon: 'apps', colorClass: 'bg-blue-50 text-blue-600', displayOrder: 4,
+          requestTypeName: 'General Request Software Installation Request', requestTypeCode: 'SOFTWARE_INSTALLATION' },
+        { name: 'Request new hardware', icon: 'laptop', colorClass: 'bg-cyan-50 text-cyan-600', displayOrder: 5,
+          requestTypeName: 'General Request New Hardware Request', requestTypeCode: 'NEW_HARDWARE' },
     ];
 
     for (const category of itCategories) {
         const cat = await prisma.serviceCategory.create({
             data: {
-                ...category,
+                name: category.name,
+                icon: category.icon,
+                colorClass: category.colorClass,
+                displayOrder: category.displayOrder,
                 serviceDeskId: itDesk.id,
             },
         });
 
         // Add a primary request type for each category
         let formConfig: any[] = [];
-        if (category.name === 'Request new hardware') {
+        if (category.requestTypeCode === 'NEW_HARDWARE') {
             formConfig = [
                 { id: 'hw_name', label: 'Hardware Name', type: 'text', required: true },
                 { id: 'hw_model', label: 'Preferred Model', type: 'text', required: false },
                 { id: 'hw_reason', label: 'Business Justification', type: 'textarea', required: true }
             ];
-        } else if (category.name === 'Request Software Installation') {
+        } else if (category.requestTypeCode === 'SOFTWARE_INSTALLATION') {
             formConfig = [
                 { id: 'sw_name', label: 'Software Name', type: 'text', required: true },
                 { id: 'sw_version', label: 'Version Number', type: 'text', required: false }
@@ -61,7 +69,8 @@ async function main() {
         await prisma.requestType.create({
             data: {
                 serviceCategoryId: cat.id,
-                name: `General ${category.name} Request`,
+                code: category.requestTypeCode,
+                name: category.requestTypeName,
                 description: `Submit a request related to ${category.name}`,
                 icon: category.icon,
                 formConfig,

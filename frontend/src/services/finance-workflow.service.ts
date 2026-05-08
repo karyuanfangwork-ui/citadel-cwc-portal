@@ -1,26 +1,77 @@
 import api from './api';
 
 const financeWorkflowService = {
-  async submitForManager(requestId: string, managerId: string, notes?: string) {
-    const response = await api.post(`/finance-workflow/requests/${requestId}/submit-for-manager`, { managerId, notes });
-    return response.data;
-  },
-  async managerDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
-    const response = await api.post(`/finance-workflow/requests/${requestId}/manager-decision`, { decision, comments });
-    return response.data;
-  },
-  async submitForFinanceHead(requestId: string, financeHeadId: string, notes?: string) {
-    const response = await api.post(`/finance-workflow/requests/${requestId}/submit-for-finance-head`, { financeHeadId, notes });
-    return response.data;
-  },
-  async financeHeadDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
-    const response = await api.post(`/finance-workflow/requests/${requestId}/finance-head-decision`, { decision, comments });
-    return response.data;
-  },
-  async markPayment(requestId: string, data: { paymentStatus: 'PROCESSING' | 'COMPLETED'; paymentReference?: string; notes?: string }) {
-    const response = await api.post(`/finance-workflow/requests/${requestId}/mark-payment`, data);
-    return response.data;
-  },
+    async acknowledge(requestId: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/acknowledge`, { notes });
+        return response.data;
+    },
+
+    async setFinalizedAmountAndRouteCeo(requestId: string, finalizedAmount: number, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/set-finalized-amount-and-route-ceo`, { finalizedAmount, notes });
+        return response.data;
+    },
+
+    async ceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/ceo-decision`, { decision, comments });
+        return response.data;
+    },
+
+    async cfoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/cfo-decision`, { decision, comments });
+        return response.data;
+    },
+
+    async groupCeoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/group-ceo-decision`, { decision, comments });
+        return response.data;
+    },
+
+    async markPaymentComplete(requestId: string, paymentReference?: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/mark-payment-complete`, { paymentReference, notes });
+        return response.data;
+    },
+
+    async closeTicket(requestId: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/close`, {});
+        return response.data;
+    },
+
+    // ─── Expense Reimbursement Workflow ───
+
+    async managerApproveExpense(requestId: string, comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/manager-approve-expense`, { comments });
+        return response.data;
+    },
+
+    async managerRejectExpense(requestId: string, comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/manager-reject-expense`, { comments });
+        return response.data;
+    },
+
+    async financeHeadApproveExpense(requestId: string, comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/finance-head-approve-expense`, { comments });
+        return response.data;
+    },
+
+    async financeHeadRejectExpense(requestId: string, comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/finance-head-reject-expense`, { comments });
+        return response.data;
+    },
+
+    async markExpensePaymentComplete(requestId: string, paymentReference?: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/mark-expense-payment-complete`, { paymentReference, notes });
+        return response.data;
+    },
+
+    async getUsersByRole(role: string): Promise<{ id: string; firstName: string; lastName: string; email: string }[]> {
+        const response = await api.get('/users', { params: { role, limit: 100 } });
+        return response.data.data.users.map((u: any) => ({
+            id: u.id,
+            firstName: u.firstName,
+            lastName: u.lastName,
+            email: u.email,
+        }));
+    },
 };
 
 export default financeWorkflowService;

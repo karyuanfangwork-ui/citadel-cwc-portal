@@ -1,9 +1,26 @@
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
+import { PrismaClient, ExecutiveRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import xlsx from 'xlsx';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
+import { sanitizeString } from '../utils/sanitize';
+import { permissionService } from '../services/permission.service';
+import { auditLog } from '../utils/audit';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { tokenService } from '../services/token.service';
+import { validateExecutiveRoleAssignment } from '../utils/executive-role';
+import { validatePassword } from '../utils/password';
+import { logger } from '../utils/logger';
+import {
+  splitName,
+  inferExecutiveRole,
+  inferDepartment,
+  inferAgentTeam,
+  parseStaffRows,
+  StaffRow,
+  resolveEntityCode,
+} from '../utils/importStaff';
 
 const prisma = new PrismaClient();
 
@@ -11,7 +28,7 @@ class UserController {
     /**
      * Get current user profile
      */
-    getMe = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getMe = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const user = await prisma.user.findUnique({
             where: { id: req.user!.id },
             include: {
@@ -41,6 +58,7 @@ class UserController {
                 user: {
                     id: user.id,
                     email: user.email,
+                    entityId: user.entityId,
                     firstName: user.firstName,
                     lastName: user.lastName,
                     phone: user.phone,
@@ -49,6 +67,8 @@ class UserController {
                     jobTitle: user.jobTitle,
                     manager: user.manager,
                     roles: user.roles.map((ur) => ur.role.name),
+                    permissions: req.user?.permissions || [],
+                    agentTeam: user.agentTeam,
                     createdAt: user.createdAt,
                 },
             },
@@ -58,8 +78,12 @@ class UserController {
     /**
      * Update current user profile
      */
-    updateMe = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { firstName, lastName, phone, avatarUrl, department, jobTitle } = req.body;
+    updateMe = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { firstName: rawFirstName, lastName: rawLastName, phone, avatarUrl, department, jobTitle } = req.body;
+
+        // Sanitize name fields
+        const firstName = sanitizeString(rawFirstName);
+        const lastName = sanitizeString(rawLastName);
 
         const user = await prisma.user.update({
             where: { id: req.user!.id },
@@ -93,8 +117,8 @@ class UserController {
     /**
      * Get user by ID (Admin only)
      */
-    getUserById = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+    getUserById = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
 
         const user = await prisma.user.findUnique({
             where: { id },
@@ -128,7 +152,7 @@ class UserController {
     /**
      * Get all users with pagination and filters (Admin only)
      */
-    getAllUsers = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
+    getAllUsers = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const {
             page = '1',
             limit = '10',
@@ -150,6 +174,10 @@ class UserController {
                 { email: { contains: search as string, mode: 'insensitive' } },
                 { firstName: { contains: search as string, mode: 'insensitive' } },
                 { lastName: { contains: search as string, mode: 'insensitive' } },
+                { department: { contains: search as string, mode: 'insensitive' } },
+                { jobTitle: { contains: search as string, mode: 'insensitive' } },
+                { entity: { code: { contains: search as string, mode: 'insensitive' } } },
+                { entity: { name: { contains: search as string, mode: 'insensitive' } } },
             ];
         }
 
@@ -181,6 +209,9 @@ class UserController {
                             role: true,
                         },
                     },
+                    entity: {
+                        select: { id: true, code: true, name: true },
+                    },
                 },
                 orderBy: {
                     createdAt: 'desc',
@@ -206,22 +237,74 @@ class UserController {
     /**
      * Update user by ID (Admin only)
      */
-    updateUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
-        const { firstName, lastName, phone, department, jobTitle, isActive, managerId, agentTeam } = req.body;
+    updateUser = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
+        const { firstName, lastName, email, phone, department, jobTitle, isActive, managerId, agentTeam, executiveRole, entityId } = req.body;
+
+        // Email update logic
+        if (email) {
+            const normalizedEmail = email.trim().toLowerCase();
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(normalizedEmail)) {
+                throw new AppError('Invalid email format', 400);
+            }
+
+            const existing = await prisma.user.findFirst({
+                where: { 
+                    email: normalizedEmail,
+                    NOT: { id } 
+                }
+            });
+            if (existing) {
+                throw new AppError('Email already in use by another user', 409);
+            }
+
+            // Update the email in the data object for the final update call
+            req.body.email = normalizedEmail;
+        }
+
+        // Validate executive role assignment if being set/changed
+        if (executiveRole !== undefined) {
+            const user = await prisma.user.findUnique({
+                where: { id },
+                select: { department: true, jobTitle: true, email: true },
+            });
+            if (user && executiveRole) {
+                const validation = validateExecutiveRoleAssignment(
+                    { department: user.department, jobTitle: user.jobTitle } as any,
+                    executiveRole as ExecutiveRole
+                );
+                if (!validation.valid) {
+                    throw new AppError(validation.reason || 'Invalid executive role assignment', 400);
+                }
+            }
+        }
 
         const user = await prisma.user.update({
             where: { id },
             data: {
-                firstName,
-                lastName,
+                firstName: firstName ? sanitizeString(firstName) : undefined,
+                lastName: lastName ? sanitizeString(lastName) : undefined,
+                email: req.body.email,
                 phone,
                 department,
                 jobTitle,
                 isActive,
                 managerId,
                 agentTeam,
+                executiveRole: executiveRole || null,
+                ...(entityId !== undefined && { entityId: entityId || null }),
             },
+        });
+
+        await auditLog(req, 'USER_UPDATED', 'user', id, {
+            firstName,
+            lastName,
+            email: req.body.email,
+            department,
+            jobTitle,
+            isActive,
+            executiveRole,
         });
 
         res.json({
@@ -233,7 +316,7 @@ class UserController {
     /**
      * Get all agents (AGENT or ADMIN roles)
      */
-    getAgents = asyncHandler(async (req: AuthRequest, res: Response) => {
+    getAgents = asyncHandler(async (_req: AuthRequest, res: Response) => {
         const agents = await prisma.user.findMany({
             where: {
                 roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
@@ -244,6 +327,7 @@ class UserController {
                 firstName: true,
                 lastName: true,
                 email: true,
+                entityId: true,
             },
             orderBy: { firstName: 'asc' },
         });
@@ -254,14 +338,16 @@ class UserController {
     /**
      * Delete user by ID (Admin only)
      */
-    deleteUser = asyncHandler(async (req: AuthRequest, res: Response, next: NextFunction) => {
-        const { id } = req.params;
+    deleteUser = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
 
         // Soft delete by deactivating
         await prisma.user.update({
             where: { id },
             data: { isActive: false },
         });
+
+        await auditLog(req, 'USER_DEACTIVATED', 'user', id, { isActive: false });
 
         res.json({
             status: 'success',
@@ -271,7 +357,7 @@ class UserController {
 
     /**
      * Replace a user's roles atomically (Admin only)
-     * Body: { roles: string[] } — array of role names e.g. ["USER", "CEO"]
+     * Body: { roles: string[] } — array of role names e.g. ["NORMAL_STAFF", "CEO"]
      */
     assignRoles = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = req.params['id'] as string;
@@ -305,6 +391,9 @@ class UserController {
         // Force-revoke active tokens so new roles take effect immediately
         await tokenService.revokeAllForUser(id);
 
+        // Invalidate RBAC cache for this user since their roles changed
+        await permissionService.invalidateUserPermissionsCache(id);
+
         const updated = await prisma.user.findUnique({
             where: { id },
             include: { roles: { include: { role: true } } },
@@ -312,13 +401,19 @@ class UserController {
 
         if (!updated) throw new AppError('User not found after role update', 500);
 
+        const newRoleNames = updated.roles.map((ur: { role: { name: string } }) => ur.role.name);
+        await auditLog(req, 'ROLES_ASSIGNED', 'user', id, {
+            roles: newRoleNames,
+            targetEmail: updated.email,
+        });
+
         res.json({
             status: 'success',
             data: {
                 user: {
                     id: updated.id,
                     email: updated.email,
-                    roles: updated.roles.map((ur: { role: { name: string } }) => ur.role.name),
+                    roles: newRoleNames,
                 },
             },
         });
@@ -334,8 +429,53 @@ class UserController {
         res.json({ status: 'success', data: { roles } });
     });
 
+    /**
+     * List all permissions with which roles currently hold each (Admin only)
+     */
+    listPermissions = asyncHandler(async (_req: AuthRequest, res: Response) => {
+        const [permissions, roles] = await Promise.all([
+            prisma.permission.findMany({
+                include: { roles: { select: { roleId: true } } },
+                orderBy: [{ resource: 'asc' }, { action: 'asc' }],
+            }),
+            prisma.role.findMany({ orderBy: { name: 'asc' } }),
+        ]);
+        res.json({ status: 'success', data: { permissions, roles } });
+    });
+
+    /**
+     * Replace a role's permissions atomically (Admin only)
+     * Body: { permissionIds: string[] }
+     */
+    updateRolePermissions = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const roleId = req.params.roleId as string;
+        const { permissionIds } = req.body as { permissionIds: string[] };
+
+        if (!Array.isArray(permissionIds)) {
+            throw new AppError('permissionIds must be an array', 400);
+        }
+
+        const role = await prisma.role.findUnique({ where: { id: roleId } });
+        if (!role) throw new AppError('Role not found', 404);
+
+        await prisma.$transaction([
+            prisma.rolePermission.deleteMany({ where: { roleId } }),
+            ...(permissionIds.length > 0
+                ? [prisma.rolePermission.createMany({
+                    data: permissionIds.map(pid => ({ roleId, permissionId: pid })),
+                    skipDuplicates: true,
+                })]
+                : []),
+        ]);
+
+        // Invalidate all RBAC cache — role permission changes affect every user with this role
+        await permissionService.invalidateAllPermissionsCache();
+
+        res.json({ status: 'success', data: { roleId, permissionIds } });
+    });
+
     createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { firstName, lastName, email, department } = req.body;
+        const { firstName, lastName, email, department, jobTitle, entityId, executiveRole, agentTeam } = req.body;
 
         if (!firstName || !lastName || !email) {
             throw new AppError('firstName, lastName, and email are required', 400);
@@ -352,11 +492,27 @@ class UserController {
             throw new AppError('Email already in use', 409);
         }
 
-        const TEMP_PASSWORD = 'abc@123';
+        // Validate entityId if provided
+        if (entityId) {
+            const entity = await prisma.entity.findUnique({ where: { id: entityId } });
+            if (!entity) {
+                throw new AppError('Entity not found', 400);
+            }
+        }
+
+        // Validate executive role if provided
+        if (executiveRole) {
+            const validRoles = ['CEO', 'CTO', 'CFO', 'CMO', 'COO', 'CHRO', 'GROUP_CEO'];
+            if (!validRoles.includes(executiveRole)) {
+                throw new AppError(`Invalid executive role. Must be one of: ${validRoles.join(', ')}`, 400);
+            }
+        }
+
+        const TEMP_PASSWORD='***';
         const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
 
-        const userRole = await prisma.role.findFirst({ where: { name: 'USER' } });
-        if (!userRole) throw new AppError('USER role not found in database', 500);
+        const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
+        if (!normalStaffRole) throw new AppError('NORMAL_STAFF role not found in database', 500);
 
         const newUser = await prisma.user.create({
             data: {
@@ -365,9 +521,13 @@ class UserController {
                 email: normalizedEmail,
                 passwordHash: hashedPassword,
                 department: department || null,
+                jobTitle: jobTitle || null,
+                entityId: entityId || null,
+                executiveRole: executiveRole || null,
+                agentTeam: agentTeam || null,
                 isActive: true,
                 roles: {
-                    create: { roleId: userRole.id },
+                    create: { roleId: normalStaffRole.id },
                 },
             },
             include: {
@@ -384,9 +544,293 @@ class UserController {
                     lastName: newUser.lastName,
                     email: newUser.email,
                     department: newUser.department,
+                    jobTitle: newUser.jobTitle,
+                    entityId: newUser.entityId,
+                    executiveRole: newUser.executiveRole,
+                    agentTeam: newUser.agentTeam,
                     roles: (newUser as any).roles.map((ur: any) => ur.role.name),
                 },
                 tempPassword: TEMP_PASSWORD,
+            },
+        });
+    });
+
+    /**
+     * Reset a user's password (Admin only)
+     * Generates a temporary password, hashes it, updates the user,
+     * and revokes all active sessions.
+     */
+    resetUserPassword = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const id = String(req.params.id);
+
+        // Verify user exists
+        const user = await prisma.user.findUnique({ where: { id } });
+        if (!user) {
+            throw new AppError('User not found', 404);
+        }
+
+        // Generate a random 16-char temporary password
+        const tempPassword = crypto.randomBytes(12).toString('base64url').slice(0, 16);
+
+        // Hash the temporary password
+        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+        // Update the user's password and set passwordChangedAt
+        await prisma.user.update({
+            where: { id },
+            data: {
+                passwordHash: hashedPassword,
+                passwordChangedAt: new Date(),
+            },
+        });
+
+        // Revoke all active sessions so the user must log in with the new password
+        await tokenService.revokeAllForUser(id);
+
+        await auditLog(req, 'PASSWORD_RESET', 'user', id, {
+            targetEmail: user.email,
+        });
+
+        res.json({
+            status: 'success',
+            data: { tempPassword },
+        });
+    });
+
+    /**
+     * Change current user's own password
+     * PUT /api/v1/users/me/password
+     * Requires current password verification. Invalidates all sessions on success.
+     */
+    changeMyPassword = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.user!.id;
+
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            throw new AppError('User not found', 404);
+        }
+
+        // Verify current password
+        const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isMatch) {
+            throw new AppError('Current password is incorrect', 401);
+        }
+
+        // Validate new password strength (reuses existing policy)
+        const validation = validatePassword(newPassword, user.email, user.firstName, user.lastName);
+        if (!validation.isValid) {
+            throw new AppError(validation.errors.join(', '), 400);
+        }
+
+        // Ensure new password is different from current
+        const isSameAsOld = await bcrypt.compare(newPassword, user.passwordHash);
+        if (isSameAsOld) {
+            throw new AppError('New password must be different from your current password', 400);
+        }
+
+        // Hash and update
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        await prisma.user.update({
+            where: { id: userId },
+            data: {
+                passwordHash: hashedPassword,
+                passwordChangedAt: new Date(),
+            },
+        });
+
+        // Revoke all sessions and JWT tokens — forces re-login on all devices
+        await prisma.session.deleteMany({ where: { userId } });
+        await tokenService.revokeAllForUser(userId);
+
+        await auditLog(req, 'PASSWORD_CHANGE', 'user', userId, {
+            targetEmail: user.email,
+        });
+
+        logger.info(`User ${user.email} changed their own password`);
+
+        res.json({
+            status: 'success',
+            message: 'Password changed successfully. Please log in again.',
+        });
+    });
+
+    /**
+     * Bulk import staff from Excel file upload
+     * POST /api/v1/users/import
+     * Expects multipart/form-data with field "file" containing .xlsx
+     */
+    importUsers = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const file = req.file as Express.Multer.File | undefined;
+        if (!file) {
+            throw new AppError('No file uploaded. Please attach an .xlsx file.', 400);
+        }
+
+        // Parse the Excel buffer
+        let staffData: StaffRow[];
+        try {
+            const wb = xlsx.read(file.buffer, { type: 'buffer' });
+
+            // Prefer "staff listing" sheet, fallback to first sheet
+            const sheetName = wb.SheetNames.find(n =>
+                n.toLowerCase().includes('staff listing') || n.toLowerCase().includes('staff'),
+            );
+            const targetSheet = sheetName || wb.SheetNames[0];
+            if (!targetSheet) {
+                throw new AppError('Excel file contains no sheets', 400);
+            }
+
+            const ws = wb.Sheets[targetSheet];
+            const rawData = xlsx.utils.sheet_to_json<Record<string, any>>(ws, { defval: '' });
+            staffData = parseStaffRows(rawData);
+        } catch (err: any) {
+            if (err instanceof AppError) throw err;
+            throw new AppError(`Failed to parse Excel file: ${err.message}`, 400);
+        }
+
+        if (staffData.length === 0) {
+            throw new AppError('No valid staff data found in Excel file. Ensure columns include: Display Name, Email, Job Title, Company/Entity.', 400);
+        }
+
+        // Pre-load required data
+        const entities = await prisma.entity.findMany();
+        const entityCodeToId: Record<string, string> = {};
+        for (const e of entities) {
+            entityCodeToId[e.code] = e.id;
+        }
+        // Build lightweight array for fuzzy entity resolution
+        const dbEntityLookup = entities.map(e => ({ code: e.code, name: e.name }));
+
+        const existingUsers = await prisma.user.findMany({
+            select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                jobTitle: true,
+                entityId: true,
+                executiveRole: true,
+                department: true,
+                isActive: true,
+            },
+        });
+        const existingByEmail = new Map(existingUsers.map(u => [u.email.toLowerCase(), u]));
+
+        const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
+        if (!normalStaffRole) throw new AppError('NORMAL_STAFF role not found in database', 500);
+
+        const TEMP_PASSWORD = 'abc@123';
+        const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
+
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+        let errorCount = 0;
+
+        const details: {
+            email: string;
+            displayName: string;
+            action: 'created' | 'updated' | 'skipped' | 'error';
+            message: string;
+        }[] = [];
+
+        for (const staff of staffData) {
+            const email = staff.email.toLowerCase();
+            const { firstName, lastName } = splitName(staff.displayName);
+            const executiveRole = inferExecutiveRole(staff.jobTitle);
+            const entityCode = resolveEntityCode(staff.company, dbEntityLookup);
+            const entityId = entityCode ? entityCodeToId[entityCode] : null;
+            const department = staff.department || inferDepartment(staff.jobTitle);
+            const agentTeam = inferAgentTeam(staff.jobTitle);
+
+            const existing = existingByEmail.get(email);
+
+            if (existing) {
+                // UPDATE existing user
+                const updateData: any = {};
+
+                if (existing.jobTitle !== staff.jobTitle) updateData.jobTitle = staff.jobTitle;
+                if (existing.entityId !== entityId && entityId) updateData.entityId = entityId;
+                if (existing.executiveRole !== executiveRole && executiveRole) updateData.executiveRole = executiveRole;
+                if (existing.department !== department && department) updateData.department = department;
+
+                if (existing.firstName !== firstName || existing.lastName !== lastName) {
+                    updateData.firstName = firstName;
+                    updateData.lastName = lastName;
+                }
+
+                if (staff.isActive !== undefined && existing.isActive !== staff.isActive) {
+                    updateData.isActive = staff.isActive;
+                }
+
+                if (Object.keys(updateData).length > 0) {
+                    try {
+                        await prisma.user.update({ where: { id: existing.id }, data: updateData });
+                        const changes = Object.keys(updateData).join(', ');
+                        details.push({ email, displayName: staff.displayName, action: 'updated', message: `Updated: ${changes}` });
+                        updated++;
+                    } catch (err: any) {
+                        details.push({ email, displayName: staff.displayName, action: 'error', message: err.message });
+                        errorCount++;
+                    }
+                } else {
+                    details.push({ email, displayName: staff.displayName, action: 'skipped', message: 'Up-to-date' });
+                    skipped++;
+                }
+                continue;
+            }
+
+            // CREATE new user
+            try {
+                await prisma.user.create({
+                    data: {
+                        firstName,
+                        lastName,
+                        email,
+                        passwordHash: hashedPassword,
+                        jobTitle: staff.jobTitle,
+                        department,
+                        entityId,
+                        executiveRole,
+                        agentTeam,
+                        isActive: staff.isActive !== undefined ? staff.isActive : true,
+                        roles: {
+                            create: { roleId: normalStaffRole.id },
+                        },
+                    },
+                });
+                details.push({
+                    email,
+                    displayName: staff.displayName,
+                    action: 'created',
+                    message: `entity=${entityCode || '?'}, execRole=${executiveRole || 'none'}`,
+                });
+                created++;
+            } catch (err: any) {
+                details.push({ email, displayName: staff.displayName, action: 'error', message: err.message });
+                errorCount++;
+            }
+        }
+
+        await auditLog(req, 'BULK_USER_IMPORT', 'user', 'bulk', {
+            total: staffData.length,
+            created,
+            updated,
+            skipped,
+            errors: errorCount,
+        });
+
+        res.json({
+            status: 'success',
+            data: {
+                summary: {
+                    total: staffData.length,
+                    created,
+                    updated,
+                    skipped,
+                    errors: errorCount,
+                },
+                details,
             },
         });
     });

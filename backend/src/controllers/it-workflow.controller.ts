@@ -1,271 +1,96 @@
 import { Request, Response } from 'express';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { notify } from '../services/notification.service';
-import { config } from '../config';
-import multer from 'multer';
+import { hasRole } from '../middleware/auth.middleware';
+import { auditLog } from '../utils/audit';
+import { pauseSla, resumeSla } from '../services/sla-pause.service';
 import path from 'path';
-import fs from 'fs';
+import { uploadSingleFile } from '../middleware/upload.middleware';
+import { logger } from '../utils/logger';
+
+/** Infer an IT asset category from the hardware name/description. */
+function inferCategoryFromName(name: string): string {
+  const lower = name.toLowerCase();
+  if (/\b(laptop|macbook|notebook|thinkpad)\b/i.test(lower)) return 'LAPTOP';
+  if (/\b(desktop|pc|workstation|imac)\b/i.test(lower)) return 'DESKTOP';
+  if (/\b(monitor|display|screen)\b/i.test(lower)) return 'MONITOR';
+  if (/\b(phone|iphone|mobile)\b/i.test(lower)) return 'PHONE';
+  if (/\b(printer|scanner)\b/i.test(lower)) return 'PRINTER';
+  if (/\b(router|switch|firewall|access.point|network)\b/i.test(lower)) return 'NETWORK';
+  if (/\b(peripheral|keyboard|mouse|headset|webcam|dock)\b/i.test(lower)) return 'PERIPHERAL';
+  if (/\b(software|license|subscription|office|adobe)\b/i.test(lower)) return 'SOFTWARE_LICENSE';
+  return 'LAPTOP';
+}
 
 const prisma = new PrismaClient();
 
-const invoiceStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/invoices');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, `invoice-${uniqueSuffix}${ext}`);
-  },
-});
+/**
+ * Reassign a request to the first active agent on the specified team.
+ * Creates an activity record and notifies the new assignee.
+ */
+async function reassignToTeam(requestId: string, referenceNumber: string, team: string): Promise<void> {
+  const agent = await prisma.user.findFirst({
+    where: {
+      agentTeam: team,
+      isActive: true,
+      roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
+    },
+    select: { id: true, firstName: true, lastName: true },
+    orderBy: { createdAt: 'asc' },
+  });
 
-const invoiceFileFilter = (
-  _req: any,
-  file: Express.Multer.File,
-  cb: multer.FileFilterCallback
-) => {
-  const allowedMimes = [
-    'application/pdf',
-    'application/msword',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'image/png',
-    'image/jpeg',
-  ];
-  if (allowedMimes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error('Only PDF, DOC, DOCX, PNG, and JPG files are allowed'));
+  if (!agent) {
+    logger.warn(`[IT-Workflow] No active ${team} agent found for reassignment of ${referenceNumber}`);
+    return;
   }
-};
 
-export const uploadInvoice = multer({
-  storage: invoiceStorage,
-  fileFilter: invoiceFileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 },
-});
+  const agentName = `${agent.firstName} ${agent.lastName}`;
 
-export async function submitForApproval(req: Request, res: Response) {
-  try {
-    const { id } = req.params;
-    const { managerId, notes } = req.body;
+  await prisma.request.update({
+    where: { id: requestId },
+    data: { assignedToId: agent.id, assignedTeam: team },
+  });
 
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (managerId && !uuidRegex.test(managerId)) {
-      return res.status(400).json({ error: 'Invalid managerId: must be a valid UUID' });
-    }
+  await prisma.requestActivity.create({
+    data: {
+      requestId,
+      authorName: 'System',
+      activityType: 'ASSIGNMENT',
+      message: `Auto-reassigned to ${agentName} (${team} team) — workflow transition`,
+      isSystemGenerated: true,
+      metadata: { autoAssigned: true, assignedToId: agent.id, assignedTeam: team },
+    },
+  });
 
-    const request = await prisma.request.findUnique({
-      where: { id },
-      include: { serviceDesk: true, requestType: true },
-    });
+  await notify({
+    userId: agent.id,
+    eventType: 'REQUEST_ASSIGNED',
+    variables: { referenceNumber, assignedToName: agentName },
+    relatedRequestId: requestId,
+  });
 
-    if (!request) {
-      return res.status(404).json({ error: 'Request not found' });
-    }
-
-    if (request.serviceDesk.code !== 'IT') {
-      return res.status(400).json({ error: 'Request does not belong to IT service desk' });
-    }
-
-    // If request type does not require approval, update status to IN_REVIEW directly
-    if (!request.requestType?.requiresApproval) {
-      await prisma.request.update({
-        where: { id },
-        data: { status: 'IN_REVIEW' },
-      });
-
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'SYSTEM',
-          message: 'Request is now in review and will be handled directly by agents',
-          authorName: 'System',
-          isSystemGenerated: true,
-        },
-      });
-
-      return res.json({ success: true, message: 'Request submitted for review' });
-    }
-
-    // Otherwise, proceed with approval chain
-    await prisma.request.update({
-      where: { id },
-      data: { status: 'PENDING_MANAGER_APPROVAL_IT' },
-    });
-
-    await prisma.requestApproval.create({
-      data: {
-        requestId: id,
-        approverType: 'MANAGER',
-        approverId: managerId,
-        status: 'PENDING',
-        comments: notes || null,
-      },
-    });
-
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: 'Request submitted for manager approval',
-        authorName: 'System',
-        isSystemGenerated: true,
-      },
-    });
-
-    if (managerId) {
-      await notify(managerId, `Request ${id} has been submitted for your approval.`);
-    }
-
-    return res.json({ success: true, message: 'Request submitted for manager approval' });
-  } catch (error) {
-    console.error('submitForApproval error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
+  logger.info(`[IT-Workflow] Request ${referenceNumber} reassigned to ${agentName} (${team})`);
 }
 
-export async function managerDecision(req: Request, res: Response) {
-  try {
-    const { id } = req.params;
-    const { decision, comments } = req.body;
-    const currentUser = (req as any).user;
-
-    if (!currentUser) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    if (!['APPROVED', 'REJECTED'].includes(decision)) {
-      return res.status(400).json({ error: 'Decision must be APPROVED or REJECTED' });
-    }
-
-    const request = await (prisma.request.findUnique({
-      where: { id },
-      include: { itHardwareRequest: true },
-    }) as any);
-    if (!request) {
-      return res.status(404).json({ error: 'Request not found' });
-    }
-
-    if (request.status !== 'PENDING_MANAGER_APPROVAL_IT') {
-      return res.status(400).json({ error: 'Request is not pending manager approval' });
-    }
-
-    // Authorization: must be the designated approver OR an ADMIN
-    const isAdmin = currentUser?.roles?.some((r: any) => r.role?.name === 'ADMIN') ?? false;
-    if (!isAdmin) {
-      const approval = await prisma.requestApproval.findFirst({
-        where: {
-          requestId: id,
-          approverId: currentUser?.id,
-          status: 'PENDING',
-        },
-      });
-      if (!approval) {
-        return res.status(403).json({ error: 'Forbidden: you are not the designated approver for this request' });
-      }
-    }
-
-    if (decision === 'APPROVED') {
-      const price = request.itHardwareRequest?.estimatedPrice
-        ? Number(request.itHardwareRequest.estimatedPrice)
-        : 0;
-      const threshold = config.hardwareVpApprovalThreshold;
-
-      if (price >= threshold) {
-        // Route to VP approval
-        await prisma.request.update({ where: { id }, data: { status: 'PENDING_VP_APPROVAL_IT' } });
-
-        await prisma.requestApproval.updateMany({
-          where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
-          data: { status: 'APPROVED', comments: comments || null },
-        });
-
-        await prisma.requestActivity.create({
-          data: {
-            requestId: id,
-            activityType: 'APPROVAL',
-            message: `Manager approved the request. Escalated to VP for high-value hardware (Estimated: $${price})`,
-            authorName: currentUser?.firstName || 'Manager',
-            authorRole: 'MANAGER',
-            isSystemGenerated: false,
-          },
-        });
-
-        // Notify VP users
-        const vpUsers = await prisma.user.findMany({
-          where: { roles: { some: { role: { name: 'ADMIN' } } } },
-        });
-        for (const vp of vpUsers) {
-          await notify({ userId: vp.id, eventType: 'VP_APPROVAL_REQUIRED', variables: { requestId: String(id), price: String(price) }, relatedRequestId: String(id) });
-        }
-      } else {
-        // Standard manager approval path
-        await prisma.request.update({ where: { id }, data: { status: 'MANAGER_APPROVED_IT' } });
-
-        await prisma.requestApproval.updateMany({
-          where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
-          data: { status: 'APPROVED', comments: comments || null },
-        });
-
-        await prisma.requestActivity.create({
-          data: {
-            requestId: id,
-            activityType: 'APPROVAL',
-            message: `Manager approved the request${comments ? ': ' + comments : ''}`,
-            authorName: currentUser?.firstName || 'Manager',
-            authorRole: 'MANAGER',
-            isSystemGenerated: false,
-          },
-        });
-
-        if (request.requesterId) {
-          await notify({ userId: request.requesterId, eventType: 'MANAGER_APPROVED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
-        }
-      }
-    } else {
-      // REJECTED
-      await prisma.request.update({ where: { id }, data: { status: 'MANAGER_REJECTED_IT' } });
-
-      await prisma.requestApproval.updateMany({
-        where: { requestId: id, approverType: 'MANAGER', status: 'PENDING' },
-        data: { status: 'REJECTED', comments: comments || null },
-      });
-
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'REJECTION',
-          message: `Manager rejected the request${comments ? ': ' + comments : ''}`,
-          authorName: currentUser?.firstName || 'Manager',
-          authorRole: 'MANAGER',
-          isSystemGenerated: false,
-        },
-      });
-
-      if (request.requesterId) {
-        await notify({ userId: request.requesterId, eventType: 'MANAGER_REJECTED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
-      }
-    }
-
-    return res.json({ success: true, message: `Request ${decision.toLowerCase()} by manager` });
-  } catch (error) {
-    console.error('managerDecision error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-}
+// Shared S3-backed multer — invoice upload
+export const uploadInvoice = { single: (field: string) => uploadSingleFile(field) };
 
 export async function markProcurement(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { orderNumber, vendor, estimatedDelivery } = req.body;
 
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
     }
 
     const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
@@ -298,9 +123,15 @@ export async function markProcurement(req: Request, res: Response) {
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Procurement has been initiated for your IT request ${id}.`);
+      await notify({ userId: request.requesterId, eventType: 'PROCUREMENT_INITIATED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_PROCUREMENT', 'request', String(id), {
+      status: 'PROCUREMENT_IN_PROGRESS',
+      previousStatus: request.status,
+      orderNumber: orderNumber || null,
+      vendor: vendor || null,
+    }, { status: request.status });
     return res.json({ success: true, message: 'Request marked as procurement in progress' });
   } catch (error) {
     console.error('markProcurement error:', error);
@@ -310,12 +141,20 @@ export async function markProcurement(req: Request, res: Response) {
 
 export async function markFulfilled(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { notes } = req.body;
 
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) {
       return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
     }
 
     if (request.status !== 'SOFTWARE_PROVISIONED') {
@@ -341,9 +180,13 @@ export async function markFulfilled(req: Request, res: Response) {
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Your IT request ${id} has been fulfilled and resolved.`);
+      await notify({ userId: request.requesterId, eventType: 'REQUEST_RESOLVED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_FULFILLED', 'request', String(id), {
+      status: 'RESOLVED',
+      previousStatus: 'SOFTWARE_PROVISIONED',
+    }, { status: 'SOFTWARE_PROVISIONED' });
     return res.json({ success: true, message: 'Request closed and resolved' });
   } catch (error) {
     console.error('markFulfilled error:', error);
@@ -353,7 +196,7 @@ export async function markFulfilled(req: Request, res: Response) {
 
 export async function markHardwareOrdered(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { orderNumber, vendor, trackingNumber } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -364,7 +207,15 @@ export async function markHardwareOrdered(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    if (request.serviceDesk.code !== 'IT') {
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
+    }
+
+    if (request.serviceDesk!.code !== 'IT') {
       return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     }
 
@@ -404,9 +255,15 @@ export async function markHardwareOrdered(req: Request, res: Response) {
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Your hardware for IT request ${id} has been ordered${orderNumber ? `. Order number: ${orderNumber}` : ''}.`);
+      await notify({ userId: request.requesterId, eventType: 'HARDWARE_ORDERED', variables: { requestId: String(id), orderNumber: orderNumber || '' }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_HARDWARE_ORDERED', 'request', String(id), {
+      status: 'HARDWARE_ORDERED',
+      previousStatus: 'PROCUREMENT_IN_PROGRESS',
+      orderNumber: orderNumber || null,
+      vendor: vendor || null,
+    }, { status: 'PROCUREMENT_IN_PROGRESS' });
     return res.json({ success: true, message: 'Hardware marked as ordered' });
   } catch (error) {
     console.error('markHardwareOrdered error:', error);
@@ -416,8 +273,8 @@ export async function markHardwareOrdered(req: Request, res: Response) {
 
 export async function markHardwareReceived(req: Request, res: Response) {
   try {
-    const { id } = req.params;
-    const { receivedDate, notes, assetTag } = req.body;
+    const id = String(req.params.id);
+    const { receivedDate, notes, assetTag, serialNumber, registerAsAsset = false } = req.body;
 
     const request = await prisma.request.findUnique({
       where: { id },
@@ -427,7 +284,15 @@ export async function markHardwareReceived(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    if (request.serviceDesk.code !== 'IT') {
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
+    }
+
+    if (request.serviceDesk!.code !== 'IT') {
       return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     }
 
@@ -440,6 +305,38 @@ export async function markHardwareReceived(req: Request, res: Response) {
       return res.status(400).json({ error: 'No hardware request record found for this request' });
     }
 
+    // Auto-create Asset if requested and no duplicate assetTag
+    let assetId: string | null = null;
+    if (registerAsAsset && assetTag) {
+      const existingAsset = await prisma.asset.findFirst({
+        where: { OR: [{ assetTag }, ...(serialNumber ? [{ serialNumber }] : [])] },
+      });
+      if (!existingAsset) {
+        const authReq = req as any;
+        const createdById = authReq.user?.id;
+        if (createdById) {
+          const asset = await prisma.asset.create({
+            data: {
+              assetTag: assetTag.trim(),
+              serialNumber: serialNumber?.trim() || null,
+              name: hardwareReq.hardwareName && hardwareReq.hardwareName !== 'Unknown'
+                ? hardwareReq.hardwareName
+                : request.summary || 'Unspecified Hardware',
+              category: (hardwareReq.hardwareName && hardwareReq.hardwareName !== 'Unknown'
+                ? inferCategoryFromName(hardwareReq.hardwareName)
+                : 'LAPTOP') as any,
+              vendor: hardwareReq.preferredVendor || null,
+              purchasePrice: hardwareReq.estimatedPrice ? Number(hardwareReq.estimatedPrice) : null,
+              status: 'IN_STOCK',
+              sourceRequestId: id,
+              createdById,
+            },
+          });
+          assetId = asset.id;
+        }
+      }
+    }
+
     await prisma.request.update({
       where: { id },
       data: { status: 'HARDWARE_RECEIVED' },
@@ -447,10 +344,15 @@ export async function markHardwareReceived(req: Request, res: Response) {
 
     await prisma.iTHardwareRequest.update({
       where: { id: hardwareReq.id },
-      data: { procurementStatus: 'RECEIVED' },
+      data: {
+        procurementStatus: 'RECEIVED',
+        assetTag: assetTag || null,
+        serialNumber: serialNumber || null,
+        ...(assetId ? { assetId } : {}),
+      },
     });
 
-    const noteMsg = [notes, assetTag ? `Asset tag: ${assetTag}` : null].filter(Boolean).join('. ');
+    const noteMsg = [notes, assetTag ? `Asset tag: ${assetTag}` : null, serialNumber ? `Serial: ${serialNumber}` : null, assetId ? 'Registered in asset registry' : null].filter(Boolean).join('. ');
 
     await prisma.requestActivity.create({
       data: {
@@ -459,18 +361,24 @@ export async function markHardwareReceived(req: Request, res: Response) {
         message: `Hardware received${noteMsg ? ': ' + noteMsg : ''}`,
         authorName: 'System',
         isSystemGenerated: true,
-        metadata: { receivedDate, notes, assetTag },
+        metadata: { receivedDate, notes, assetTag, serialNumber, assetId },
       },
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Your hardware for IT request ${id} has arrived and is being set up.`);
+      await notify({ userId: request.requesterId, eventType: 'HARDWARE_RECEIVED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
     if (request.assignedToId && request.assignedToId !== request.requesterId) {
-      await notify(request.assignedToId, `Hardware received for IT request ${id}. Please provision and close.`);
+      await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: String(id), action: 'hardware_provision' }, relatedRequestId: String(id) });
     }
 
-    return res.json({ success: true, message: 'Hardware marked as received' });
+    await auditLog(req as any, 'IT_HARDWARE_RECEIVED', 'request', String(id), {
+      status: 'HARDWARE_RECEIVED',
+      previousStatus: 'HARDWARE_ORDERED',
+      assetTag: assetTag || null, serialNumber: serialNumber || null, assetId,
+    }, { status: 'HARDWARE_ORDERED' });
+
+    return res.json({ success: true, message: 'Hardware marked as received', assetId });
   } catch (error) {
     console.error('markHardwareReceived error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -479,7 +387,7 @@ export async function markHardwareReceived(req: Request, res: Response) {
 
 export async function markSoftwareProvisioned(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const { provisioningNotes, softwareInstalled } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -490,7 +398,15 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
       return res.status(404).json({ error: 'Request not found' });
     }
 
-    if (request.serviceDesk.code !== 'IT') {
+    // Only assigned person or admin can perform procurement actions
+    const userId = (req as any).user?.id;
+    const userRoles: string[] = (req as any).user?.roles || [];
+    const isAdmin = userRoles.includes('ADMIN');
+    if (!isAdmin && request.assignedToId && request.assignedToId !== userId) {
+      return res.status(403).json({ error: 'Only the assigned agent or admin can perform this action' });
+    }
+
+    if (request.serviceDesk!.code !== 'IT') {
       return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     }
 
@@ -531,225 +447,20 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
     });
 
     if (request.requesterId) {
-      await notify(request.requesterId, `Your hardware for IT request ${id} is ready for pickup/delivery.`);
+      await notify({ userId: request.requesterId, eventType: 'HARDWARE_DELIVERED', variables: { requestId: String(id) }, relatedRequestId: String(id) });
     }
 
+    await auditLog(req as any, 'IT_SOFTWARE_PROVISIONED', 'request', String(id), {
+      status: 'SOFTWARE_PROVISIONED',
+      previousStatus: 'HARDWARE_RECEIVED',
+      softwareInstalled: softwareInstalled || null,
+    }, { status: 'HARDWARE_RECEIVED' });
     return res.json({ success: true, message: 'Software provisioned' });
   } catch (error) {
     console.error('markSoftwareProvisioned error:', error);
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
-
-export const vpDecision = async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
-    const { decision, comments } = req.body; // 'APPROVED' | 'REJECTED'
-    const currentUser = (req as any).user;
-
-    if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
-
-    const request = await prisma.request.findUnique({
-      where: { id },
-      include: { requester: true, serviceDesk: true },
-    });
-
-    if (!request) return res.status(404).json({ error: 'Request not found' });
-    if (request.status !== 'PENDING_VP_APPROVAL_IT') {
-      return res.status(400).json({ error: 'Request is not pending VP approval' });
-    }
-
-    // Auth check: must be ADMIN
-    const isAdmin = currentUser?.roles?.some((r: any) => r.role?.name === 'ADMIN');
-    if (!isAdmin) return res.status(403).json({ error: 'Forbidden: VP approval requires admin role' });
-
-    if (decision === 'APPROVED') {
-      await prisma.request.update({ where: { id }, data: { status: 'MANAGER_APPROVED_IT' } });
-
-      await prisma.requestApproval.updateMany({
-        where: { requestId: id, status: 'PENDING' },
-        data: { status: 'APPROVED', approverId: currentUser.id, comments: comments || null },
-      });
-
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'APPROVAL',
-          message: `VP approved the request${comments ? ': ' + comments : ''}`,
-          authorName: currentUser.firstName || 'VP',
-          authorRole: 'VP',
-          isSystemGenerated: false,
-          metadata: { comments },
-        },
-      });
-
-      if (request.requesterId) {
-        await notify({ userId: request.requesterId, eventType: 'VP_APPROVED', variables: { requestId: id }, relatedRequestId: id });
-      }
-    } else if (decision === 'REJECTED') {
-      await prisma.request.update({ where: { id }, data: { status: 'VP_REJECTED_IT' } });
-
-      await prisma.requestApproval.updateMany({
-        where: { requestId: id, status: 'PENDING' },
-        data: { status: 'REJECTED', approverId: currentUser.id, comments: comments || null },
-      });
-
-      await prisma.requestActivity.create({
-        data: {
-          requestId: id,
-          activityType: 'REJECTION',
-          message: `VP rejected the request${comments ? ': ' + comments : ''}`,
-          authorName: currentUser.firstName || 'VP',
-          authorRole: 'VP',
-          isSystemGenerated: false,
-          metadata: { comments },
-        },
-      });
-
-      if (request.requesterId) {
-        await notify({ userId: request.requesterId, eventType: 'VP_REJECTED', variables: { requestId: id, comments: comments || '' }, relatedRequestId: id });
-      }
-    } else {
-      return res.status(400).json({ error: 'Invalid decision. Must be APPROVED or REJECTED' });
-    }
-
-    const updated = await prisma.request.findUnique({ where: { id } });
-    return res.json(updated);
-  } catch (error) {
-    console.error('vpDecision error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const resubmitRequest = async (req: Request, res: Response) => {
-  try {
-    const id = req.params.id as string;
-    const {
-      hardwareName,
-      hardwareModel,
-      estimatedPrice,
-      preferredVendor,
-      productUrl,
-      businessJustification,
-      resubmitNotes,
-    } = req.body;
-    const currentUser = (req as any).user;
-
-    if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
-
-    const request = await (prisma.request.findUnique({
-      where: { id },
-      include: {
-        itHardwareRequest: true,
-        approvals: {
-          where: { status: 'REJECTED' },
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
-      },
-    }) as any);
-
-    if (!request) return res.status(404).json({ error: 'Request not found' });
-    if (request.status !== 'MANAGER_REJECTED_IT') {
-      return res.status(400).json({ error: 'Request is not in rejected state' });
-    }
-
-    // Only the original requester can resubmit
-    if (request.requesterId !== currentUser.id) {
-      return res.status(403).json({ error: 'Only the original requester can resubmit' });
-    }
-
-    const hardwareReq = await prisma.iTHardwareRequest.findFirst({ where: { requestId: id } });
-    if (!hardwareReq) return res.status(400).json({ error: 'No hardware request record found' });
-
-    // Update ITHardwareRequest with new values
-    const updateData: any = {};
-    if (hardwareName !== undefined) updateData.hardwareName = hardwareName;
-    if (hardwareModel !== undefined) updateData.hardwareModel = hardwareModel;
-    if (estimatedPrice !== undefined) {
-      updateData.estimatedPrice = estimatedPrice
-        ? new Prisma.Decimal(String(estimatedPrice))
-        : null;
-    }
-    if (preferredVendor !== undefined) updateData.preferredVendor = preferredVendor || null;
-    if (productUrl !== undefined) updateData.productUrl = productUrl || null;
-    if (businessJustification !== undefined) updateData.businessJustification = businessJustification;
-
-    await prisma.iTHardwareRequest.update({ where: { id: hardwareReq.id }, data: updateData });
-
-    // Update customFields to stay in sync and reset status
-    const currentFields = (request.customFields as any) || {};
-    const updatedFields = {
-      ...currentFields,
-      ...updateData,
-      estimatedPrice: estimatedPrice || currentFields.estimatedPrice,
-    };
-    await prisma.request.update({
-      where: { id },
-      data: { status: 'PENDING_MANAGER_APPROVAL_IT', customFields: updatedFields },
-    });
-
-    // Reset the approval or create a new pending one
-    if (request.approvals.length > 0) {
-      await prisma.requestApproval.update({
-        where: { id: request.approvals[0].id },
-        data: { status: 'PENDING', comments: null },
-      });
-    } else {
-      // No existing approval record — create a fresh PENDING one
-      await prisma.requestApproval.create({
-        data: {
-          requestId: id,
-          approverId: null,
-          approverType: 'MANAGER',
-          status: 'PENDING',
-        },
-      });
-    }
-
-    await prisma.requestActivity.create({
-      data: {
-        requestId: id,
-        activityType: 'SYSTEM',
-        message: `Request resubmitted for manager approval${resubmitNotes ? ': ' + resubmitNotes : ''}`,
-        authorName: currentUser.firstName || 'User',
-        isSystemGenerated: false,
-        metadata: { resubmitNotes },
-      },
-    });
-
-    const updated = await prisma.request.findUnique({ where: { id } });
-    return res.json(updated);
-  } catch (error) {
-    console.error('resubmitRequest error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export const getSuggestedManager = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const request = await prisma.request.findUnique({
-      where: { id: id as string },
-      include: { requester: true }
-    });
-    if (!request) return res.status(404).json({ error: 'Request not found' });
-
-    if (!request.requester?.managerId) {
-      return res.json({ suggestedManager: null });
-    }
-
-    const manager = await prisma.user.findUnique({
-      where: { id: request.requester.managerId },
-      select: { id: true, firstName: true, lastName: true, email: true }
-    });
-
-    return res.json({ suggestedManager: manager });
-  } catch (error) {
-    console.error('getSuggestedManager error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
-  }
-};
 
 export const acknowledgeRequest = async (req: Request, res: Response) => {
   try {
@@ -778,6 +489,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
     if (!hasCeoRole) return res.status(400).json({ error: 'Selected user does not have CEO role' });
 
     await prisma.request.update({ where: { id }, data: { status: 'PENDING_CEO_APPROVAL_IT' } });
+    await pauseSla(id);
 
     await prisma.requestApproval.create({
       data: {
@@ -802,6 +514,12 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
 
     await notify({ userId: ceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CEO' }, relatedRequestId: id });
 
+    await auditLog(req as any, 'IT_ACKNOWLEDGE_ROUTE_CEO', 'request', String(id), {
+      status: 'PENDING_CEO_APPROVAL_IT',
+      previousStatus: request.status,
+      ceoId,
+      notes: notes || null,
+    }, { status: request.status });
     return res.json({ success: true, message: 'Request acknowledged and routed to CEO' });
   } catch (error) {
     console.error('acknowledgeRequest error:', error);
@@ -812,7 +530,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
 export const ceoDecision = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { decision, comments } = req.body;
+    const { decision, comments, ctoId } = req.body;
     const currentUser = (req as any).user;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
@@ -821,12 +539,26 @@ export const ceoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CEO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CEO approval' });
-    const hasCeoRole = (currentUser as any)?.roles?.includes('CEO');
-    if (!hasCeoRole) return res.status(403).json({ error: 'Only the CEO can make this decision' });
+    if (!hasRole(req, 'CEO')) return res.status(403).json({ error: 'Only the CEO can make this decision' });
 
     if (decision === 'APPROVED') {
+      // Validate ctoId — must be a UUID belonging to a CTO-role user
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!ctoId || !uuidRegex.test(ctoId)) {
+        return res.status(400).json({ error: 'Invalid ctoId: must be a valid UUID' });
+      }
+      const ctoUser = await prisma.user.findUnique({
+        where: { id: ctoId },
+        include: { roles: { include: { role: true } } },
+      });
+      if (!ctoUser || !ctoUser.roles.some((r: any) => r.role?.name === 'CTO')) {
+        return res.status(400).json({ error: 'Specified ctoId does not belong to a CTO user' });
+      }
+
       await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_CTO_APPROVAL_IT' } });
+      await pauseSla(id);
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CEO', status: 'PENDING' },
@@ -834,7 +566,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
       });
 
       await prisma.requestApproval.create({
-        data: { requestId: id, approverType: 'CTO', status: 'PENDING', comments: null },
+        data: { requestId: id, approverType: 'CTO', approverId: ctoId, status: 'PENDING', comments: null },
       });
 
       await prisma.requestActivity.create({
@@ -848,12 +580,10 @@ export const ceoDecision = async (req: Request, res: Response) => {
         },
       });
 
-      const ctoUsers = await prisma.user.findMany({ where: { roles: { some: { role: { name: 'CTO' } } } } });
-      for (const cto of ctoUsers) {
-        await notify({ userId: cto.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
-      }
+      await notify({ userId: ctoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
     } else {
       await prisma.request.update({ where: { id }, data: { status: 'CEO_REJECTED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
@@ -877,6 +607,12 @@ export const ceoDecision = async (req: Request, res: Response) => {
       }
     }
 
+    await auditLog(req as any, 'IT_CEO_DECISION', 'request', String(id), {
+      decision,
+      approverType: 'CEO',
+      previousStatus: 'PENDING_CEO_APPROVAL_IT',
+      comments: comments || null,
+    }, { status: 'PENDING_CEO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CEO` });
   } catch (error) {
     console.error('ceoDecision error:', error);
@@ -896,12 +632,13 @@ export const ctoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CTO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CTO approval' });
-    const hasCtoRole = (currentUser as any)?.roles?.includes('CTO');
-    if (!hasCtoRole) return res.status(403).json({ error: 'Only the CTO can make this decision' });
+    if (!hasRole(req, 'CTO')) return res.status(403).json({ error: 'Only the CTO can make this decision' });
 
     if (decision === 'APPROVED') {
       await prisma.request.update({ where: { id }, data: { status: 'CTO_APPROVED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_INVOICE_IT' } });
+      await pauseSla(id);
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CTO', status: 'PENDING' },
@@ -919,12 +656,17 @@ export const ctoDecision = async (req: Request, res: Response) => {
         },
       });
 
-      const agentUsers = await prisma.user.findMany({ where: { roles: { some: { role: { name: { in: ['ADMIN', 'AGENT'] } } } } }, take: 5 });
-      for (const agent of agentUsers) {
-        await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_invoice' }, relatedRequestId: id });
+      // Notify the currently assigned agent (reassignToTeam below will reassign & send REQUEST_ASSIGNED)
+      if (request.assignedToId) {
+        await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_invoice' }, relatedRequestId: id });
+      }
+      // Notify requester that CTO approved
+      if (request.requesterId) {
+        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: 'PENDING_INVOICE_IT', changedBy: 'CTO' }, relatedRequestId: id });
       }
     } else {
       await prisma.request.update({ where: { id }, data: { status: 'CTO_REJECTED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
@@ -948,6 +690,12 @@ export const ctoDecision = async (req: Request, res: Response) => {
       }
     }
 
+    await auditLog(req as any, 'IT_CTO_DECISION', 'request', String(id), {
+      decision,
+      approverType: 'CTO',
+      previousStatus: 'PENDING_CTO_APPROVAL_IT',
+      comments: comments || null,
+    }, { status: 'PENDING_CTO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CTO` });
   } catch (error) {
     console.error('ctoDecision error:', error);
@@ -990,6 +738,8 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
     }
 
     await prisma.request.update({ where: { id }, data: { status: 'PENDING_CFO_APPROVAL_IT' } });
+    await resumeSla(id);
+    await pauseSla(id);
 
     await prisma.requestApproval.create({
       data: {
@@ -1009,8 +759,8 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
         fileSize: BigInt(file.size),
         mimeType: file.mimetype,
         fileType: path.extname(file.originalname).replace('.', ''),
-        storagePath: file.path,
-        storageUrl: `/uploads/invoices/${file.filename}`,
+        storagePath: (file as any).key,
+        storageUrl: (file as any).key,
       },
     });
 
@@ -1032,6 +782,11 @@ export const routeToCfoApproval = async (req: Request, res: Response) => {
       relatedRequestId: id,
     });
 
+    await auditLog(req as any, 'IT_ROUTE_CFO', 'request', String(id), {
+      status: 'PENDING_CFO_APPROVAL_IT',
+      previousStatus: request.status,
+      cfoId,
+    }, { status: request.status });
     return res.json({ success: true, message: 'Invoice uploaded and request routed to CFO for approval' });
   } catch (error) {
     console.error('routeToCfoApproval error:', error);
@@ -1051,11 +806,11 @@ export const cfoDecision = async (req: Request, res: Response) => {
     const request = await prisma.request.findUnique({ where: { id } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CFO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CFO approval' });
-    const hasCfoRole = (currentUser as any)?.roles?.includes('CFO');
-    if (!hasCfoRole) return res.status(403).json({ error: 'Only the CFO can make this decision' });
+    if (!hasRole(req, 'CFO')) return res.status(403).json({ error: 'Only the CFO can make this decision' });
 
     if (decision === 'APPROVED') {
       await prisma.request.update({ where: { id }, data: { status: 'CFO_APPROVED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PAYMENT_PROCESSING_IT' } });
 
       await prisma.requestApproval.updateMany({
@@ -1074,12 +829,20 @@ export const cfoDecision = async (req: Request, res: Response) => {
         },
       });
 
-      const agentUsers = await prisma.user.findMany({ where: { roles: { some: { role: { name: { in: ['ADMIN', 'AGENT'] } } } } }, take: 5 });
-      for (const agent of agentUsers) {
-        await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'payment_processing' }, relatedRequestId: id });
+      // Notify the currently assigned agent (reassignToTeam below will reassign to FINANCE & send REQUEST_ASSIGNED)
+      if (request.assignedToId) {
+        await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'payment_processing' }, relatedRequestId: id });
       }
+      // Notify requester that CFO approved
+      if (request.requesterId) {
+        await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: 'PAYMENT_PROCESSING_IT', changedBy: 'CFO' }, relatedRequestId: id });
+      }
+
+      // Reassign to Finance agent for payment processing
+      await reassignToTeam(id, request.referenceNumber, 'FINANCE');
     } else {
       await prisma.request.update({ where: { id }, data: { status: 'CFO_REJECTED_IT' } });
+      await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
       await prisma.requestApproval.updateMany({
@@ -1103,6 +866,12 @@ export const cfoDecision = async (req: Request, res: Response) => {
       }
     }
 
+    await auditLog(req as any, 'IT_CFO_DECISION', 'request', String(id), {
+      decision,
+      approverType: 'CFO',
+      previousStatus: 'PENDING_CFO_APPROVAL_IT',
+      comments: comments || null,
+    }, { status: 'PENDING_CFO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CFO` });
   } catch (error) {
     console.error('cfoDecision error:', error);
@@ -1121,17 +890,35 @@ export const markPaymentDone = async (req: Request, res: Response) => {
     if (amount === undefined || amount === null) return res.status(400).json({ error: 'amount is required' });
     if (!paymentDate) return res.status(400).json({ error: 'paymentDate is required' });
 
-    const request = await prisma.request.findUnique({ where: { id } });
+    const request = await prisma.request.findUnique({
+      where: { id },
+      include: { requestType: { include: { workflow: true } } },
+    });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PAYMENT_PROCESSING_IT') return res.status(400).json({ error: 'Request must be in PAYMENT_PROCESSING_IT status' });
 
+    // Only admin or the assigned finance agent can mark payment done
+    const isAdmin = hasRole(req, 'ADMIN');
+    const isAssignedToMe = request.assignedToId === currentUser.id;
+    if (!isAdmin && !isAssignedToMe) {
+      return res.status(403).json({ error: 'Only the assigned finance agent or admin can mark payment as done' });
+    }
+
+    const workflowCode = request.requestType?.workflow?.code || '';
+    const isHardwareProcurement = workflowCode === 'IT_HARDWARE_PROCUREMENT';
+
     const existingCustomFields = (request.customFields as Record<string, unknown>) || {};
+
+    // Hardware procurement: after payment, go to procurement phase (order → receive → provision → resolve)
+    // Software procurement: after payment, go straight to delivery → resolve
+    const nextStatus = isHardwareProcurement ? 'PROCUREMENT_IN_PROGRESS' : 'PENDING_DELIVERY_IT';
+    const nextAction = isHardwareProcurement ? 'procurement' : 'delivery';
 
     await prisma.request.update({ where: { id }, data: { status: 'PAYMENT_DONE_IT' } });
     await prisma.request.update({
       where: { id },
       data: {
-        status: 'PENDING_DELIVERY_IT',
+        status: nextStatus,
         customFields: {
           ...existingCustomFields,
           payment: { paymentReference, amount, paymentDate, completedAt: new Date().toISOString() },
@@ -1143,7 +930,7 @@ export const markPaymentDone = async (req: Request, res: Response) => {
       data: {
         requestId: id,
         activityType: 'SYSTEM',
-        message: `Payment completed. Reference: ${paymentReference}, Amount: ${amount}${notes ? '. ' + notes : ''}`,
+        message: `Payment completed. Reference: ${paymentReference}, Amount: ${amount}${notes ? '. ' + notes : ''}${isHardwareProcurement ? '. Proceeding to procurement phase.' : ''}`,
         authorName: currentUser.firstName || 'Finance Agent',
         authorRole: 'AGENT',
         isSystemGenerated: true,
@@ -1151,12 +938,26 @@ export const markPaymentDone = async (req: Request, res: Response) => {
       },
     });
 
-    const agentUsers = await prisma.user.findMany({ where: { roles: { some: { role: { name: { in: ['ADMIN', 'AGENT'] } } } } }, take: 5 });
-    for (const agent of agentUsers) {
-      await notify({ userId: agent.id, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_delivery' }, relatedRequestId: id });
+    // Notify the currently assigned agent (reassignToTeam below will reassign to IT & send REQUEST_ASSIGNED)
+    if (request.assignedToId) {
+      await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: `pending_${nextAction}` }, relatedRequestId: id });
+    }
+    // Notify requester payment is done
+    if (request.requesterId) {
+      await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: nextStatus, changedBy: 'Finance' }, relatedRequestId: id });
     }
 
-    return res.json({ success: true, message: 'Payment marked as done, request routed to pending delivery' });
+    // Reassign back to IT agent for procurement/delivery phase
+    await reassignToTeam(id, request.referenceNumber, 'IT');
+
+    await auditLog(req as any, 'IT_PAYMENT_DONE', 'request', String(id), {
+      status: nextStatus,
+      previousStatus: 'PAYMENT_PROCESSING_IT',
+      paymentReference: paymentReference || null,
+      amount: Number(amount),
+      paymentDate,
+    }, { status: 'PAYMENT_PROCESSING_IT' });
+    return res.json({ success: true, message: `Payment marked as done, request routed to ${isHardwareProcurement ? 'procurement phase' : 'pending delivery'}` });
   } catch (error) {
     console.error('markPaymentDone error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -1195,6 +996,10 @@ export const completeDelivery = async (req: Request, res: Response) => {
       await notify({ userId: request.requesterId, eventType: 'REQUEST_RESOLVED', variables: { requestId: id }, relatedRequestId: id });
     }
 
+    await auditLog(req as any, 'IT_DELIVERY_COMPLETE', 'request', String(id), {
+      status: 'RESOLVED',
+      previousStatus: 'PENDING_DELIVERY_IT',
+    }, { status: 'PENDING_DELIVERY_IT' });
     return res.json({ success: true, message: 'Delivery completed and request resolved' });
   } catch (error) {
     console.error('completeDelivery error:', error);

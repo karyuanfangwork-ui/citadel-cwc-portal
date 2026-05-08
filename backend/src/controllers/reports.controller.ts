@@ -1,25 +1,25 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../utils/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { RequestStatus } from '@prisma/client';
 
-const RESOLVED_STATUSES = [
-    'RESOLVED',
-    'CLOSED',
-    'COMPLETED',
-    'PAYMENT_COMPLETED',
-] as const;
+const RESOLVED_STATUSES: RequestStatus[] = [
+    RequestStatus.RESOLVED,
+    RequestStatus.COMPLETED,
+    RequestStatus.PAYMENT_COMPLETED,
+];
 
-const CLOSED_STATUSES = [
-    'RESOLVED',
-    'CLOSED',
-    'REJECTED',
-    'COMPLETED',
-    'PAYMENT_COMPLETED',
-    'REIMBURSEMENT_CLOSED',
-] as const;
+const CLOSED_STATUSES: RequestStatus[] = [
+    RequestStatus.RESOLVED,
+    RequestStatus.REJECTED,
+    RequestStatus.COMPLETED,
+    RequestStatus.PAYMENT_COMPLETED,
+    RequestStatus.REIMBURSEMENT_CLOSED,
+    RequestStatus.TICKET_CLOSED_FIN,
+];
 
 class ReportsController {
-    getSummary = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    getSummary = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const [total, openRequests, resolvedRequests, unassignedRequests, avgResolution] = await Promise.all([
                 // Total tickets
@@ -29,7 +29,7 @@ class ReportsController {
                 prisma.request.count({
                     where: {
                         deletedAt: null,
-                        status: { notIn: CLOSED_STATUSES as unknown as any[] },
+                        status: { notIn: CLOSED_STATUSES },
                     },
                 }),
 
@@ -37,7 +37,7 @@ class ReportsController {
                 prisma.request.count({
                     where: {
                         deletedAt: null,
-                        status: { in: RESOLVED_STATUSES as unknown as any[] },
+                        status: { in: RESOLVED_STATUSES },
                     },
                 }),
 
@@ -46,7 +46,7 @@ class ReportsController {
                     where: {
                         deletedAt: null,
                         assignedToId: null,
-                        status: { notIn: CLOSED_STATUSES as unknown as any[] },
+                        status: { notIn: CLOSED_STATUSES },
                     },
                 }),
 
@@ -87,7 +87,7 @@ class ReportsController {
         }
     };
 
-    byStatus = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    byStatus = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const grouped = await prisma.request.groupBy({
                 by: ['status'],
@@ -107,7 +107,7 @@ class ReportsController {
         }
     };
 
-    byServiceDesk = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    byServiceDesk = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const grouped = await prisma.request.groupBy({
                 by: ['serviceDeskId'],
@@ -144,7 +144,7 @@ class ReportsController {
         }
     };
 
-    byPriority = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    byPriority = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const grouped = await prisma.request.groupBy({
                 by: ['priority'],
@@ -164,14 +164,14 @@ class ReportsController {
         }
     };
 
-    agentWorkload = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    agentWorkload = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const grouped = await prisma.request.groupBy({
                 by: ['assignedToId'],
                 where: {
                     deletedAt: null,
                     assignedToId: { not: null },
-                    status: { notIn: CLOSED_STATUSES as unknown as any[] },
+                    status: { notIn: CLOSED_STATUSES },
                 },
                 _count: { id: true },
                 orderBy: { _count: { id: 'desc' } },
@@ -205,12 +205,12 @@ class ReportsController {
         }
     };
 
-    slaStatus = async (_req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
+    slaStatus = async (_req: AuthRequest, res: Response, next: NextFunction) => {
         try {
             const now = new Date();
             const openFilter = {
                 deletedAt: null,
-                status: { notIn: CLOSED_STATUSES as unknown as any[] },
+                status: { notIn: CLOSED_STATUSES },
             };
 
             const [withinSla, breached, noSla] = await Promise.all([

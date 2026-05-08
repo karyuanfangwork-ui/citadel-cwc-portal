@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { createOnboardingFromHiring } from '../services/onboarding.service';
+import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
@@ -10,7 +11,7 @@ const prisma = new PrismaClient();
  */
 export const uploadLOA = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const userId = (req as any).user?.id;
         const file = (req as any).file;
 
@@ -53,7 +54,7 @@ export const uploadLOA = async (req: Request, res: Response) => {
         const loa = await prisma.letterOfAcceptance.create({
             data: {
                 requestId: id,
-                loaFileUrl: file.path,
+                loaFileUrl: (file as any).key,
                 loaFileName: file.originalname,
                 loaFileSize: file.size,
                 uploadedBy: userId
@@ -102,7 +103,7 @@ export const uploadLOA = async (req: Request, res: Response) => {
  */
 export const routeLOAForApproval = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { comments } = req.body;
         const userId = (req as any).user?.id;
 
@@ -142,6 +143,9 @@ export const routeLOAForApproval = async (req: Request, res: Response) => {
             data: { status: 'LOA_PENDING_APPROVAL' }
         });
 
+        // Pause SLA — request entered LOA_PENDING_APPROVAL
+        await pauseSla(id);
+
         // Create activity log
         await prisma.requestActivity.create({
             data: {
@@ -174,7 +178,7 @@ export const routeLOAForApproval = async (req: Request, res: Response) => {
  */
 export const managerApproveLOA = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
 
@@ -238,6 +242,9 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
             data: { status: newStatus }
         });
 
+        // Resume SLA — leaving LOA_PENDING_APPROVAL
+        await resumeSla(id);
+
         // Create activity log
         const activityMessage = decision === 'APPROVE'
             ? `Hiring Manager approved LOA${comments ? ': ' + comments : ''}`
@@ -277,7 +284,7 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
  */
 export const markLOAIssued = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -357,7 +364,7 @@ export const markLOAIssued = async (req: Request, res: Response) => {
  */
 export const uploadSignedLOA = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const userId = (req as any).user?.id;
         const file = (req as any).file;
 
@@ -399,13 +406,20 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
         const updatedLOA = await prisma.letterOfAcceptance.update({
             where: { id: request.letterOfAcceptance.id },
             data: {
-                signedLoaFileUrl: file.path,
+                signedLoaFileUrl: (file as any).key,
                 signedLoaFileName: file.originalname,
                 signedLoaFileSize: file.size
             }
         });
 
-        // Create activity log
+        // Advance request status to LOA_ACCEPTED (candidate has signed)
+        // FIX G-001 Part A: the LOA_ACCEPTED state was being skipped entirely
+        await prisma.request.update({
+            where: { id },
+            data: { status: 'LOA_ACCEPTED' }
+        });
+
+        // Create activity log for the signed LOA upload
         await prisma.requestActivity.create({
             data: {
                 requestId: id,
@@ -414,6 +428,19 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
                 authorRole: 'HR Agent',
                 activityType: 'ATTACHMENT',
                 message: `Signed LOA uploaded: ${file.originalname}`,
+                isSystemGenerated: false
+            }
+        });
+
+        // Create activity log for the status change to LOA_ACCEPTED
+        await prisma.requestActivity.create({
+            data: {
+                requestId: id,
+                authorId: userId,
+                authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                authorRole: 'HR Agent',
+                activityType: 'STATUS_CHANGE',
+                message: `Status changed to LOA_ACCEPTED — candidate has signed the Letter of Appointment`,
                 isSystemGenerated: false
             }
         });
@@ -437,7 +464,7 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
  */
 export const markLOAAccepted = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -454,10 +481,10 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
             });
         }
 
-        if (request.status !== 'LOA_ISSUED') {
+        if (request.status !== 'LOA_ACCEPTED') {
             return res.status(400).json({
                 status: 'error',
-                message: 'Request must be in LOA_ISSUED status to mark as accepted'
+                message: 'Request must be in LOA_ACCEPTED status to mark as accepted'
             });
         }
 
@@ -556,7 +583,7 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
  */
 export const getLOADetails = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const id = String(req.params.id);
 
         const loa = await prisma.letterOfAcceptance.findUnique({
             where: { requestId: id },

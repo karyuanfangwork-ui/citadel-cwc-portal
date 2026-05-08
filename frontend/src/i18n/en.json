@@ -1,0 +1,44 @@
+{
+  "common": {
+    "appName": "Citadel Workplace Connect",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "submit": "Submit",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "noResults": "No results found",
+    "back": "Back",
+    "next": "Next"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "myRequests": "My Requests",
+    "agentDashboard": "Agent Dashboard",
+    "reports": "Reports",
+    "knowledgeBase": "Knowledge Base",
+    "adminSettings": "Admin Settings",
+    "approvals": "Approvals",
+    "signOut": "Sign out"
+  },
+  "dashboard": {
+    "greeting": "Good {{period}}, {{name}}.",
+    "searchPlaceholder": "Search for hardware, leave requests, expenses...",
+    "openRequests": "Open Requests",
+    "actionRequired": "Action Required",
+    "resolvedAllTime": "Resolved All Time",
+    "quickActions": "Quick Actions",
+    "recentActivity": "Recent Requests",
+    "viewAll": "View all →",
+    "itSupport": "IT Support",
+    "hrServices": "HR Services",
+    "groupFinance": "Group Finance",
+    "createRequest": "Create Request",
+    "trackRequests": "Track Requests",
+    "knowledgeBase": "Knowledge Base",
+    "contactSupport": "Contact Support"
+  }
+}
