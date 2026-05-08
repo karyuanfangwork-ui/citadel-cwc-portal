@@ -1,3 +1,6 @@
+-- CreateEnum
+CREATE TYPE "EntityRoutingMode" AS ENUM ('REQUESTER_ENTITY', 'CUSTOM_FIELD');
+
 -- AlterTable: Add entityId to users
 ALTER TABLE "users" ADD COLUMN "entity_id" UUID;
 
@@ -57,5 +60,3 @@ ALTER TABLE "request_approvals" ADD CONSTRAINT "request_approvals_entity_id_fkey
 
 -- AddForeignKey: request_type_entity_routings.request_type_id -> request_types.id
 ALTER TABLE "request_type_entity_routings" ADD CONSTRAINT "request_type_entity_routings_request_type_id_fkey" FOREIGN KEY ("request_type_id") REFERENCES "request_types"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- Create enum type (idempotent — Prisma already handled via db push)

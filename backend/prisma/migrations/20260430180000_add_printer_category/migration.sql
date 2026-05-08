@@ -1,5 +1,6 @@
 -- AddPrinterCategory
--- This migration was applied via `prisma db push` and is being baselined here.
--- The PRINTER value already exists in the AssetCategory enum in the database.
--- This file is a baseline marker to maintain migrate/db push compatibility.
+-- PRINTER value is included in the AssetCategory enum created in the
+-- preceding add_asset_management migration. This file is a baseline marker
+-- to maintain migrate compatibility.
+-- No-op: enum value already exists from the CREATE TYPE statement.
 SELECT 1;
