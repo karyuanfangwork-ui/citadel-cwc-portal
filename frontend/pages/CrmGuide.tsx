@@ -67,7 +67,56 @@ const CrmGuide = () => {
         </div>
       </nav>
 
-      {/* Sections — filled in subsequent tasks */}
+      <Section id="what-is-crm" title="What Is the CRM?">
+        <p className="text-text-secondary text-sm leading-relaxed mb-3">
+          The CRM (Customer Relationship Management) module is where your sales team tracks every potential client — from the moment you first hear about them, through to a signed deal. Everything is logged here: your calls, meetings, emails, and notes. Nothing falls through the cracks.
+        </p>
+        <p className="text-text-secondary text-sm leading-relaxed mb-3">
+          There are two main roles in the CRM. <strong className="text-text-primary">Sales reps</strong> manage their own leads and deals day-to-day. <strong className="text-text-primary">Managers</strong> get an additional Team Dashboard and access to reports across the whole team.
+        </p>
+        <InfoBox icon="lightbulb" color="#eff6ff">
+          <strong>New to CRMs?</strong> Think of the CRM as a shared notebook for your sales team. Instead of tracking clients in WhatsApp or a spreadsheet, every interaction is recorded here — so anyone on the team can pick up where another left off.
+        </InfoBox>
+      </Section>
+
+      <Section id="navigation" title="Navigation Overview">
+        <p className="text-text-secondary text-sm leading-relaxed mb-4">
+          The CRM has several sections. Here is what each one does:
+        </p>
+        <div className="overflow-x-auto rounded-xl border border-border mb-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-border">
+                <th className="text-left px-4 py-3 font-bold text-text-primary">Section</th>
+                <th className="text-left px-4 py-3 font-bold text-text-primary">Path</th>
+                <th className="text-left px-4 py-3 font-bold text-text-primary">Purpose</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {[
+                { section: 'Dashboard', path: '/crm', purpose: 'Your daily snapshot — active leads, overdue follow-ups, pipeline summary' },
+                { section: 'Leads', path: '/crm/leads', purpose: 'All prospects before they become deals' },
+                { section: 'Pipeline', path: '/crm/pipeline', purpose: 'Kanban board of active deals by stage' },
+                { section: 'Opportunities', path: '/crm/opportunities', purpose: 'List view of all deals' },
+                { section: 'Contacts', path: '/crm/contacts', purpose: 'Individual people you are in contact with' },
+                { section: 'Accounts', path: '/crm/accounts', purpose: 'Companies and organisations' },
+                { section: 'Reports', path: '/crm/reports', purpose: 'Performance analytics and team metrics' },
+              ].map(row => (
+                <tr key={row.path} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 font-semibold text-text-primary whitespace-nowrap">{row.section}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-brand-700 whitespace-nowrap">{row.path}</td>
+                  <td className="px-4 py-3 text-text-secondary">{row.purpose}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <InfoBox icon="info" color="#f0fdf4">
+          <strong>Start here every morning:</strong> Open the Dashboard first. It shows what needs your attention today — overdue follow-ups, stale leads, and recent team activity.
+        </InfoBox>
+      </Section>
+
+      {/* Sections 3–12 — filled in subsequent tasks */}
     </div>
   );
 };
