@@ -9,6 +9,7 @@ const formatDate = (d: string | null) =>
 
 const ACTIVITY_ICONS: Record<CrmActivityType, string> = {
   CALL: 'call', EMAIL: 'mail', MEETING: 'groups', NOTE: 'sticky_note_2', TASK: 'task_alt', FOLLOW_UP: 'notifications',
+  WHATSAPP: 'chat', SITE_VISIT: 'location_on',
 };
 
 const CrmAccountDetail = () => {

@@ -112,6 +112,16 @@ export const config = {
         cronExpression: process.env.SLA_CRON_EXPRESSION || '0 9 * * 1-5',
     },
 
+    // CRM Automation Schedule
+    // Supports three modes:
+    //   'cron'     — uses individual cron expressions per check type
+    //   'interval' — runs all CRM checks every CRM_CHECK_INTERVAL_MS milliseconds
+    //   'disabled' — no CRM automation checks run
+    crmSchedule: {
+        mode: (process.env.CRM_SCHEDULE_MODE || 'cron') as 'interval' | 'cron' | 'disabled',
+        intervalMs: parseInt(process.env.CRM_CHECK_INTERVAL_MS || '3600000', 10), // default 1 hour
+    },
+
     // Application
     app: {
         name: process.env.APP_NAME || 'Enterprise Help Center',

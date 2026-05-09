@@ -199,7 +199,7 @@ const RequestDetailContainer: React.FC = () => {
                 onClose={() => { rq.setShowRejectionConfirm(false); rq.setRejectionPendingStatus(null); }}
                 onConfirmReject={async () => {
                     if (rq.rejectionPendingStatus) {
-                        await (rq as any).updateStatusDirectly(rq.rejectionPendingStatus);
+                        await rq.updateStatusDirectly(rq.rejectionPendingStatus);
                         rq.setShowRejectionConfirm(false);
                         rq.setRejectionPendingStatus(null);
                     }

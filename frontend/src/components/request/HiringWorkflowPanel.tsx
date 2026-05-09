@@ -31,10 +31,14 @@ interface InterviewSchedule {
 interface InterviewFeedback {
   decision: string;
   feedback: string;
-  overallRating: number;
-  technicalSkills: number;
-  culturalFit: number;
-  communication: number;
+  overallRating?: number;
+  technicalSkills?: number;
+  culturalFit?: number;
+  communication?: number;
+  strengths?: string;
+  weaknesses?: string;
+  recommendation?: 'HIRE' | 'NO_HIRE' | 'MAYBE';
+  feedbackNotes?: string;
 }
 
 interface HRScreening {

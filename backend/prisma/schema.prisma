@@ -111,6 +111,14 @@ model User {
   createdAssets         Asset[]                     @relation("AssetCreatedBy")
   assetAssignments      AssetAssignment[]           @relation("AssetAssignmentUser")
   assetAssignedBy       AssetAssignment[]           @relation("AssetAssignmentAssignedBy")
+  // CRM Relations
+  crmOwnedAccounts      CrmAccount[]                @relation("CrmAccountOwner")
+  crmOwnedLeads         CrmLead[]                   @relation("CrmLeadOwner")
+  crmOwnedOpportunities CrmOpportunity[]            @relation("CrmOpportunityOwner")
+  crmActivities         CrmActivity[]               @relation("CrmActivityUser")
+  crmNotes              CrmNote[]                   @relation("CrmNoteAuthor")
+  crmTrustProducts      CrmTrustProduct[]            @relation("CrmTrustProductOwner")
+  crmKycApprovals       CrmKycRecord[]               @relation("CrmKycApprovedBy")
 
   @@map("users")
   @@index([email])
@@ -501,6 +509,8 @@ model Request {
   // Asset Relations
   sourceAssets        Asset[]           @relation("AssetSourceRequest")
   assetAssignments    AssetAssignment[] @relation("AssetAssignmentRequest")
+  // CRM Relations
+  crmAccountLinks     CrmAccountRequest[]
 
   @@map("requests")
   @@index([referenceNumber])
@@ -1376,4 +1386,432 @@ model SystemSetting {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   @@map("system_settings")
+}
+
+// ============================================================================
+// CRM MODULE
+// ============================================================================
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  UNQUALIFIED
+  CONVERTED
+  LOST
+}
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  COLD_CALL
+  TRADE_SHOW
+  LINKEDIN
+  ADVERTISEMENT
+  PARTNER
+  OTHER
+}
+
+enum OpportunityStage {
+  PROSPECTING
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum CrmActivityType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  TASK
+  FOLLOW_UP
+  WHATSAPP
+  SITE_VISIT
+}
+
+// CRM Accounts — external companies/organizations
+model CrmAccount {
+  id                String    @id @default(uuid()) @db.Uuid
+  name              String    @db.VarChar(255)
+  industry          String?   @db.VarChar(100)
+  companySize       String?   @map("company_size") @db.VarChar(50)
+  website           String?   @db.VarChar(500)
+  phone             String?   @db.VarChar(50)
+  email             String?   @db.VarChar(255)
+  address           String?   @db.Text
+  city              String?   @db.VarChar(100)
+  state             String?   @db.VarChar(100)
+  country           String?   @db.VarChar(100)
+  postalCode        String?   @map("postal_code") @db.VarChar(20)
+  description       String?   @db.Text
+  annualRevenue     Decimal?  @map("annual_revenue") @db.Decimal(15, 2)
+  // Malaysian-specific fields
+  registrationNumber String?  @map("registration_number") @db.VarChar(50)
+  taxNumber          String?  @map("tax_number") @db.VarChar(50)
+  bankAccount        String?  @map("bank_account") @db.VarChar(100)
+  purchaseCashTrust  Boolean  @default(false) @map("purchase_cash_trust")
+  accountType        String   @default("CORPORATE") @map("account_type") @db.VarChar(20)
+  ownerId           String    @map("owner_id") @db.Uuid
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamp(6)
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  owner          User               @relation("CrmAccountOwner", fields: [ownerId], references: [id])
+  contacts       CrmContact[]
+  leads          CrmLead[]
+  opportunities  CrmOpportunity[]
+  activities     CrmActivity[]      @relation("ActivityAccount")
+  notes          CrmNote[]          @relation("NoteAccount")
+  linkedRequests CrmAccountRequest[]
+  trustProducts  CrmTrustProduct[]
+
+  @@map("crm_accounts")
+  @@index([ownerId])
+  @@index([name])
+  @@index([industry])
+}
+
+// CRM Contacts — people at external accounts
+model CrmContact {
+  id          String    @id @default(uuid()) @db.Uuid
+  accountId   String    @map("account_id") @db.Uuid
+  firstName   String    @map("first_name") @db.VarChar(100)
+  lastName    String    @map("last_name") @db.VarChar(100)
+  email       String?   @db.VarChar(255)
+  phone       String?   @db.VarChar(50)
+  mobile      String?   @db.VarChar(50)
+  jobTitle    String?   @map("job_title") @db.VarChar(150)
+  department  String?   @db.VarChar(100)
+  isPrimary   Boolean   @default(false) @map("is_primary")
+  description String?   @db.Text
+  // Phase 2 additions
+  nricPassport      String?   @map("nric_passport") @db.VarChar(50)
+  dateOfBirth       DateTime? @map("date_of_birth") @db.Date
+  preferredLanguage String?   @map("preferred_language") @db.VarChar(5)
+  pdpaConsent       Boolean   @default(false) @map("pdpa_consent")
+  pdpaConsentDate   DateTime? @map("pdpa_consent_date") @db.Timestamp(6)
+  marketingOptIn    Boolean   @default(false) @map("marketing_opt_in")
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamp(6)
+  // Phase 3: Risk profile for trust industry
+  riskProfile       String?   @map("risk_profile") @db.VarChar(20)
+
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  account       CrmAccount       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  leads         CrmLead[]
+  opportunities CrmOpportunity[]
+  activities    CrmActivity[]    @relation("ActivityContact")
+  notes         CrmNote[]        @relation("NoteContact")
+  kycRecord     CrmKycRecord?
+  beneficiaries CrmBeneficiary[]
+  trustProducts CrmTrustProduct[]
+
+  @@map("crm_contacts")
+  @@index([accountId])
+  @@index([email])
+}
+
+// CRM Leads — pre-qualified prospects
+model CrmLead {
+  id          String      @id @default(uuid()) @db.Uuid
+  title       String      @db.VarChar(255)
+  status      LeadStatus  @default(NEW)
+  source      LeadSource  @default(OTHER)
+  accountId   String?     @map("account_id") @db.Uuid
+  contactId   String?     @map("contact_id") @db.Uuid
+  ownerId     String      @map("owner_id") @db.Uuid
+
+  // Lead-specific contact info (for leads without an existing contact)
+  contactName  String?    @map("contact_name") @db.VarChar(200)
+  contactEmail String?    @map("contact_email") @db.VarChar(255)
+  contactPhone String?    @map("contact_phone") @db.VarChar(50)
+  companyName  String?    @map("company_name") @db.VarChar(255)
+
+  estimatedValue Decimal? @map("estimated_value") @db.Decimal(15, 2)
+  description    String?  @db.Text
+  lostReason     String?  @map("lost_reason") @db.Text
+
+  // Conversion tracking
+  convertedAt        DateTime?  @map("converted_at") @db.Timestamp(6)
+  convertedToOppId   String?    @map("converted_to_opp_id") @db.Uuid
+
+  // Phase 2 additions — follow-up tracking
+  followUpDate       DateTime?  @map("follow_up_date") @db.Timestamp(6)
+  followUpNote       String?    @map("follow_up_note") @db.Text
+  deletedAt          DateTime?  @map("deleted_at") @db.Timestamp(6)
+
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  owner      User           @relation("CrmLeadOwner", fields: [ownerId], references: [id])
+  account    CrmAccount?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contact    CrmContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  activities CrmActivity[]  @relation("ActivityLead")
+  notes      CrmNote[]      @relation("NoteLead")
+
+  @@map("crm_leads")
+  @@index([ownerId])
+  @@index([status])
+  @@index([accountId])
+  @@index([contactId])
+}
+
+// CRM Pipelines — configurable deal pipelines
+model CrmPipeline {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String    @db.VarChar(100)
+  description  String?   @db.Text
+  isDefault    Boolean   @default(false) @map("is_default")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  stages        CrmPipelineStage[]
+  opportunities CrmOpportunity[]
+
+  @@map("crm_pipelines")
+}
+
+// CRM Pipeline Stages — ordered stages within a pipeline
+model CrmPipelineStage {
+  id           String    @id @default(uuid()) @db.Uuid
+  pipelineId   String    @map("pipeline_id") @db.Uuid
+  name         String    @db.VarChar(100)
+  displayOrder Int       @map("display_order")
+  probability  Int       @default(0) // Win probability percentage (0-100)
+  color        String    @default("#0052cc") @db.VarChar(20)
+  isWonStage   Boolean   @default(false) @map("is_won_stage")
+  isLostStage  Boolean   @default(false) @map("is_lost_stage")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  pipeline      CrmPipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  opportunities CrmOpportunity[]
+
+  @@map("crm_pipeline_stages")
+  @@index([pipelineId])
+  @@unique([pipelineId, displayOrder])
+}
+
+// CRM Opportunities — revenue-tracked deals
+model CrmOpportunity {
+  id             String           @id @default(uuid()) @db.Uuid
+  name           String           @db.VarChar(255)
+  accountId      String           @map("account_id") @db.Uuid
+  contactId      String?          @map("contact_id") @db.Uuid
+  pipelineId     String           @map("pipeline_id") @db.Uuid
+  stageId        String           @map("stage_id") @db.Uuid
+  ownerId        String           @map("owner_id") @db.Uuid
+
+  value          Decimal          @default(0) @db.Decimal(15, 2)
+  currency       String           @default("MYR") @db.VarChar(3)
+  probability    Int              @default(0) // 0-100
+  expectedCloseDate DateTime?     @map("expected_close_date") @db.Date
+
+  description    String?          @db.Text
+  lostReason     String?          @map("lost_reason") @db.Text
+  wonAt          DateTime?        @map("won_at") @db.Timestamp(6)
+  lostAt         DateTime?        @map("lost_at") @db.Timestamp(6)
+  deletedAt      DateTime?        @map("deleted_at") @db.Timestamp(6)
+
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  account    CrmAccount        @relation(fields: [accountId], references: [id])
+  contact    CrmContact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  pipeline   CrmPipeline       @relation(fields: [pipelineId], references: [id])
+  stage      CrmPipelineStage  @relation(fields: [stageId], references: [id])
+  owner      User              @relation("CrmOpportunityOwner", fields: [ownerId], references: [id])
+  activities CrmActivity[]     @relation("ActivityOpportunity")
+  notes      CrmNote[]         @relation("NoteOpportunity")
+  trustProduct CrmTrustProduct?
+
+  @@map("crm_opportunities")
+  @@index([accountId])
+  @@index([pipelineId])
+  @@index([stageId])
+  @@index([ownerId])
+  @@index([expectedCloseDate])
+}
+
+// CRM Activities — polymorphic activity log
+model CrmActivity {
+  id             String          @id @default(uuid()) @db.Uuid
+  activityType   CrmActivityType @map("activity_type")
+  subject        String          @db.VarChar(255)
+  description    String?         @db.Text
+  userId         String          @map("user_id") @db.Uuid
+
+  // Polymorphic relations — only one should be set
+  accountId      String?         @map("account_id") @db.Uuid
+  contactId      String?         @map("contact_id") @db.Uuid
+  leadId         String?         @map("lead_id") @db.Uuid
+  opportunityId  String?         @map("opportunity_id") @db.Uuid
+
+  // Scheduling
+  scheduledAt    DateTime?       @map("scheduled_at") @db.Timestamp(6)
+  completedAt    DateTime?       @map("completed_at") @db.Timestamp(6)
+  durationMinutes Int?           @map("duration_minutes")
+
+  metadata       Json?           @db.JsonB
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  user        User             @relation("CrmActivityUser", fields: [userId], references: [id])
+  account     CrmAccount?      @relation("ActivityAccount", fields: [accountId], references: [id], onDelete: Cascade)
+  contact     CrmContact?      @relation("ActivityContact", fields: [contactId], references: [id], onDelete: Cascade)
+  lead        CrmLead?         @relation("ActivityLead", fields: [leadId], references: [id], onDelete: Cascade)
+  opportunity CrmOpportunity?  @relation("ActivityOpportunity", fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@map("crm_activities")
+  @@index([userId])
+  @@index([accountId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([opportunityId])
+  @@index([activityType])
+  @@index([createdAt(sort: Desc)])
+}
+
+// CRM Notes — rich-text notes on any CRM entity
+model CrmNote {
+  id             String    @id @default(uuid()) @db.Uuid
+  content        String    @db.Text
+  authorId       String    @map("author_id") @db.Uuid
+
+  // Polymorphic — only one should be set
+  accountId      String?   @map("account_id") @db.Uuid
+  contactId      String?   @map("contact_id") @db.Uuid
+  leadId         String?   @map("lead_id") @db.Uuid
+  opportunityId  String?   @map("opportunity_id") @db.Uuid
+
+  isPinned       Boolean   @default(false) @map("is_pinned")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  author      User             @relation("CrmNoteAuthor", fields: [authorId], references: [id])
+  account     CrmAccount?      @relation("NoteAccount", fields: [accountId], references: [id], onDelete: Cascade)
+  contact     CrmContact?      @relation("NoteContact", fields: [contactId], references: [id], onDelete: Cascade)
+  lead        CrmLead?         @relation("NoteLead", fields: [leadId], references: [id], onDelete: Cascade)
+  opportunity CrmOpportunity?  @relation("NoteOpportunity", fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@map("crm_notes")
+  @@index([authorId])
+  @@index([accountId])
+  @@index([contactId])
+  @@index([leadId])
+  @@index([opportunityId])
+  @@index([createdAt(sort: Desc)])
+}
+
+// CRM Account ↔ Request junction — links service desk tickets to CRM accounts
+model CrmAccountRequest {
+  id         String   @id @default(uuid()) @db.Uuid
+  accountId  String   @map("account_id") @db.Uuid
+  requestId  String   @map("request_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  account CrmAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  request Request    @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, requestId])
+  @@map("crm_account_requests")
+  @@index([accountId])
+  @@index([requestId])
+}
+
+// CRM Beneficiary — linked to a contact for trust/estate planning
+model CrmBeneficiary {
+  id              String   @id @default(uuid()) @db.Uuid
+  contactId       String   @map("contact_id") @db.Uuid
+  contact         CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  firstName       String   @map("first_name") @db.VarChar(100)
+  lastName        String   @map("last_name") @db.VarChar(100)
+  relationship    String   @db.VarChar(20)
+  allocationPct   Decimal  @map("allocation_pct") @db.Decimal(5, 2)
+  email           String?  @db.VarChar(255)
+  phone           String?  @db.VarChar(50)
+  nricPassport    String?  @map("nric_passport") @db.VarChar(50)
+  dateOfBirth     DateTime? @map("date_of_birth") @db.Date
+  isMinor         Boolean  @default(false) @map("is_minor")
+  guardianName    String?  @map("guardian_name") @db.VarChar(200)
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("crm_beneficiaries")
+  @@index([contactId])
+}
+
+// CRM Trust Product — trust/estate products linked to accounts/contacts
+model CrmTrustProduct {
+  id              String   @id @default(uuid()) @db.Uuid
+  accountId       String   @map("account_id") @db.Uuid
+  account         CrmAccount @relation(fields: [accountId], references: [id])
+  contactId       String?  @map("contact_id") @db.Uuid
+  contact         CrmContact? @relation(fields: [contactId], references: [id])
+  opportunityId   String?  @unique @map("opportunity_id") @db.Uuid
+  opportunity     CrmOpportunity? @relation(fields: [opportunityId], references: [id])
+
+  trustType       String   @map("trust_type") @db.VarChar(30)
+  deedRefNumber   String?  @unique @map("deed_ref_number") @db.VarChar(50)
+  status          String   @default("ACTIVE") @db.VarChar(20)
+
+  assetValue      Decimal? @map("asset_value") @db.Decimal(15, 2)
+  currency        String   @default("MYR") @db.VarChar(3)
+  assetDescription String? @map("asset_description") @db.Text
+
+  trusteeName     String?  @map("trustee_name") @db.VarChar(200)
+  trusteeContact   String?  @map("trustee_contact") @db.VarChar(100)
+  settlementDate  DateTime? @map("settlement_date") @db.Date
+  maturityDate    DateTime? @map("maturity_date") @db.Date
+  nextReviewDate  DateTime? @map("next_review_date") @db.Date
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  ownerId         String   @map("owner_id") @db.Uuid
+  owner           User     @relation("CrmTrustProductOwner", fields: [ownerId], references: [id])
+
+  @@map("crm_trust_products")
+  @@index([accountId])
+  @@index([contactId])
+  @@index([nextReviewDate])
+  @@index([status])
+}
+
+// CRM KYC Record — Know Your Customer verification for a contact
+model CrmKycRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  contactId       String   @unique @map("contact_id") @db.Uuid
+  contact         CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  status          String   @default("PENDING") @db.VarChar(20)
+  riskLevel       String?  @db.VarChar(10)
+  isPep           Boolean  @default(false) @map("is_pep")
+
+  nricVerified    Boolean  @default(false) @map("nric_verified")
+  addressVerified Boolean  @default(false) @map("address_verified")
+  incomeVerified  Boolean  @default(false) @map("income_verified")
+  sourceOfFundsVerified Boolean @default(false) @map("source_of_funds_verified")
+  riskProfileDone Boolean  @default(false) @map("risk_profile_done")
+
+  approvedAt      DateTime? @map("approved_at") @db.Timestamp(6)
+  approvedBy      String?   @map("approved_by") @db.Uuid
+  approvedByUser  User?     @relation("CrmKycApprovedBy", fields: [approvedBy], references: [id])
+  expiresAt       DateTime? @map("expires_at") @db.Timestamp(6)
+  rejectionReason String?   @map("rejection_reason") @db.Text
+
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("crm_kyc_records")
+  @@index([status])
+  @@index([expiresAt])
 }

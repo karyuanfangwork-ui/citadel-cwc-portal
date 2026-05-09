@@ -234,7 +234,9 @@ export interface UseAdminStateReturn {
     setCategoriesLoading: (loading: boolean) => void;
     setRequestTypesLoading: (loading: boolean) => void;
     setTemplateForm: (form: TemplateForm) => void;
+    setShowTemplateForm: (show: boolean) => void;
     setOffboardingTemplateForm: (form: OffboardingTemplateForm) => void;
+    setShowOffboardingTemplateForm: (show: boolean) => void;
     setPendingAction: (action: PendingAction | null) => void;
     setEditTypeForm: (form: { name: string; description: string; workflowTypeId: string; slaHours: string }) => void;
     setEditingTypeName: (type: { id: string; name: string; description: string } | null) => void;
@@ -1184,7 +1186,9 @@ export function useAdminState(): UseAdminStateReturn {
         setCategoriesLoading,
         setRequestTypesLoading,
         setTemplateForm,
+        setShowTemplateForm,
         setOffboardingTemplateForm,
+        setShowOffboardingTemplateForm,
         setPendingAction,
         setEditTypeForm,
         setEditingTypeName,

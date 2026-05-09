@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
 import { config } from './config';
 import { logger } from './utils/logger';
-import { startSlaChecker } from './jobs/sla-checker';
+import { startSlaChecker, stopSlaChecker } from './jobs/sla-checker';
+import { startCrmChecker, stopCrmChecker } from './jobs/crm-checker';
 import { initSseRedis, disconnectSseRedis } from './utils/sseClients';
 import app from './app';
 
@@ -19,6 +20,7 @@ const server = app.listen(PORT, () => {
     logger.info(`📡 API available at http://localhost:${PORT}${config.apiPrefix}`);
     logger.info(`🏥 Health check at http://localhost:${PORT}/health`);
     startSlaChecker();
+    startCrmChecker();
 
     // Initialize Redis pub/sub for SSE fan-out (multi-instance support)
     // Falls back to single-instance mode if Redis is unavailable
@@ -31,6 +33,10 @@ const gracefulShutdown = (signal: string) => {
 
     // Disconnect Redis pub/sub connections
     disconnectSseRedis();
+
+    // Stop scheduled jobs
+    stopSlaChecker();
+    stopCrmChecker();
 
     server.close(() => {
         logger.info('Server closed');

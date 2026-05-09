@@ -15,7 +15,7 @@ interface Activity {
 interface RequestFormFieldsProps {
   request: {
     summary: string;
-    description: string | null;
+    description?: string | null;
     status: string;
     updatedAt: string;
     customFields?: Record<string, any>;
