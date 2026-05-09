@@ -359,7 +359,74 @@ const CrmGuide = () => {
         </InfoBox>
       </Section>
 
-      {/* Sections 10–12 — filled in subsequent tasks */}
+      <Section id="pipeline" title="Step 8: Manage the Pipeline">
+        <p className="text-text-secondary text-sm leading-relaxed mb-4">
+          Go to <Link to="/crm/pipeline" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Pipeline</Link> to see all your active deals as a Kanban board, grouped by stage. Each card shows the deal name, value, account, and how long it has been in the current stage.
+        </p>
+        <p className="text-text-secondary text-sm leading-relaxed mb-4">
+          Click on a deal card to open it. From there you can:
+        </p>
+        <ul className="space-y-2 mb-4">
+          {[
+            { icon: 'swap_horiz', text: 'Change the deal stage (move it forward or backward)' },
+            { icon: 'task_alt', text: 'Log activities and notes against the deal' },
+            { icon: 'edit', text: 'Update the deal value' },
+            { icon: 'person', text: 'Link contacts to the deal' },
+          ].map(item => (
+            <li key={item.text} className="flex items-center gap-2 text-sm text-text-secondary">
+              <span className="material-symbols-outlined text-base text-brand-700">{item.icon}</span>
+              {item.text}
+            </li>
+          ))}
+        </ul>
+        <InfoBox icon="warning" color="#fffbeb">
+          <strong>Move deals forward promptly.</strong> Do not leave a deal sitting in a stage once it has progressed. Your manager's pipeline view reflects exactly where each deal is in real time.
+        </InfoBox>
+      </Section>
+
+      <Section id="close" title="Step 9: Close a Deal">
+        <p className="text-text-secondary text-sm leading-relaxed mb-4">
+          On the Opportunity Detail page, when the deal reaches its outcome, mark it as closed:
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div className="p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50">
+            <div className="font-black text-emerald-700 text-sm mb-2 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-base">emoji_events</span>
+              Won
+            </div>
+            <p className="text-xs text-emerald-800">Mark Won and record the final deal value. The deal is archived as a success and counted in your performance metrics.</p>
+          </div>
+          <div className="p-4 rounded-xl border-2 border-red-200 bg-red-50">
+            <div className="font-black text-red-700 text-sm mb-2 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-base">cancel</span>
+              Lost
+            </div>
+            <p className="text-xs text-red-800">Mark Lost and record a reason. This feeds the Reports page so the team can learn from losses and improve over time.</p>
+          </div>
+        </div>
+        <p className="text-text-secondary text-sm">Closed deals leave the active Pipeline view but remain searchable in <Link to="/crm/opportunities" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Opportunities</Link>.</p>
+      </Section>
+
+      <Section id="tips" title="Tips & Best Practices">
+        <div className="space-y-3">
+          {[
+            { icon: 'today', color: '#2563eb', title: 'Same-day rule', desc: 'Update the lead status and log an activity on the same day you make contact. Memory fades — log it immediately.' },
+            { icon: 'hourglass_empty', color: '#d97706', title: 'No stale leads', desc: 'Check the Leads list daily. If a lead has the Stale badge (no activity in 7+ days), either log an activity or close it.' },
+            { icon: 'event', color: '#059669', title: 'Every lead needs a follow-up date', desc: 'Unless the lead is Converted, Lost, or Unqualified, always set a follow-up date. This is how the system surfaces what needs attention today.' },
+            { icon: 'task_alt', color: '#7c3aed', title: 'Notes are not a substitute for activities', desc: 'Notes are invisible to automated reports. Use activities for trackable touchpoints (calls, emails, meetings) — they feed your performance metrics.' },
+            { icon: 'link', color: '#dc2626', title: 'Use Accounts and Contacts', desc: 'Link your leads and opportunities to Contact and Account records. This gives a full relationship history with a company across multiple deals over time.' },
+            { icon: 'dashboard', color: '#0891b2', title: 'Check the Dashboard first', desc: 'Start every workday at the CRM Dashboard. It surfaces overdue follow-ups, stale leads, and your pipeline summary — everything that needs attention today.' },
+          ].map(tip => (
+            <div key={tip.title} className="flex items-start gap-3 p-4 rounded-xl border border-border bg-surface">
+              <span className="material-symbols-outlined text-xl shrink-0 mt-0.5" style={{ color: tip.color }}>{tip.icon}</span>
+              <div>
+                <div className="font-bold text-text-primary text-sm mb-0.5">{tip.title}</div>
+                <p className="text-xs text-text-secondary leading-relaxed">{tip.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
     </div>
   );
 };
