@@ -187,6 +187,7 @@ const CrmDashboard = () => {
               { icon: 'lightbulb', label: 'Leads', to: '/crm/leads' },
               { icon: 'view_kanban', label: 'Pipeline', to: '/crm/pipeline' },
               { icon: 'groups', label: 'Team', to: '/crm/team' },
+              { icon: 'menu_book', label: 'User Guide', to: '/crm/guide' },
             ].map(btn => (
               <Link key={btn.to} to={btn.to} className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white/90 text-xs font-bold rounded-full py-1.5 px-3 transition-colors" style={{ textDecoration: 'none' }}>
                 <span className="material-symbols-outlined text-sm">{btn.icon}</span>

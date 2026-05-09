@@ -57,6 +57,7 @@ import CrmOpportunities from './pages/CrmOpportunities';
 import CrmPipelineView from './pages/CrmPipeline';
 import CrmTeamDashboard from './pages/CrmTeamDashboard';
 import CrmReports from './pages/CrmReports';
+import CrmGuide from './pages/CrmGuide';
 import ChangePassword from './src/pages/ChangePassword';
 import ForgotPassword from './src/pages/ForgotPassword';
 import ResetPassword from './src/pages/ResetPassword';
@@ -413,6 +414,7 @@ const AppShell = () => {
               <Route path="/crm/pipeline" element={<ProtectedRoute requirePermission="crm:read"><CrmPipelineView /></ProtectedRoute>} />
               <Route path="/crm/team" element={<ProtectedRoute requirePermission="crm:admin"><CrmTeamDashboard /></ProtectedRoute>} />
               <Route path="/crm/reports" element={<ProtectedRoute requirePermission="crm:read"><CrmReports /></ProtectedRoute>} />
+              <Route path="/crm/guide" element={<ProtectedRoute requirePermission="crm:read"><CrmGuide /></ProtectedRoute>} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
                 <ProtectedRoute requirePermission="admin:access">
