@@ -230,7 +230,136 @@ const CrmGuide = () => {
         </InfoBox>
       </Section>
 
-      {/* Sections 6–12 — filled in subsequent tasks */}
+      <Section id="notes" title="Step 4: Add Notes">
+        <p className="text-text-secondary text-sm leading-relaxed mb-4">
+          Notes are for context that doesn't fit an activity type — for example: <em>"Client mentioned they are currently using a competitor"</em> or <em>"The decision maker is the CFO, not the person I spoke to."</em>
+        </p>
+        <p className="text-text-secondary text-sm leading-relaxed mb-4">
+          Notes live in the <strong className="text-text-primary">Notes</strong> tab on the Lead Detail page. Add them any time.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div className="p-4 rounded-xl border border-border bg-surface">
+            <div className="font-bold text-text-primary text-sm mb-1 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-base text-brand-700">task_alt</span>
+              Activities
+            </div>
+            <p className="text-xs text-text-secondary">Log an activity when you <em>did</em> something — a call, a meeting, a site visit. Activities are tracked in reports.</p>
+          </div>
+          <div className="p-4 rounded-xl border border-border bg-surface">
+            <div className="font-bold text-text-primary text-sm mb-1 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-base text-amber-600">sticky_note_2</span>
+              Notes
+            </div>
+            <p className="text-xs text-text-secondary">Write a note when you <em>learned</em> something — context, observations, key details. Notes are not tracked in reports.</p>
+          </div>
+        </div>
+      </Section>
+
+      <Section id="follow-up" title="Step 5: Set Follow-Up Dates">
+        <p className="text-text-secondary text-sm leading-relaxed mb-4">
+          Every open lead should have a follow-up date. Set it in the <strong className="text-text-primary">Overview</strong> tab of the Lead Detail page. The Leads list shows urgency badges next to any lead that needs attention:
+        </p>
+        <div className="space-y-3 mb-4">
+          {[
+            { label: 'Overdue', bg: '#fef2f2', text: '#dc2626', icon: 'error', desc: 'Follow-up date has passed. Contact them today or reschedule.' },
+            { label: 'Due Today', bg: '#fffbeb', text: '#b45309', icon: 'schedule', desc: "Follow-up is today. Reach out before the day ends." },
+            { label: 'Stale', bg: '#f3f4f6', text: '#6b7280', icon: 'hourglass_empty', desc: 'No activity logged in 7+ days. Log an activity or close the lead.' },
+          ].map(badge => (
+            <div key={badge.label} className="flex items-start gap-3 p-4 rounded-xl border border-border">
+              <span className="material-symbols-outlined text-xl shrink-0 mt-0.5" style={{ color: badge.text }}>{badge.icon}</span>
+              <div>
+                <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold mb-1" style={{ background: badge.bg, color: badge.text }}>{badge.label}</span>
+                <p className="text-sm text-text-secondary">{badge.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+        <InfoBox icon="tips_and_updates" color="#eff6ff">
+          <strong>Daily habit:</strong> Check the Leads list first thing every morning. Clear all Overdue and Due Today badges before starting new outreach.
+        </InfoBox>
+      </Section>
+
+      <Section id="qualify" title="Step 6: Qualify or Disqualify">
+        <p className="text-text-secondary text-sm leading-relaxed mb-4">
+          When you have enough information to judge whether this lead is worth pursuing, update the status on the Lead Detail page.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+          <div className="p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50">
+            <div className="font-black text-emerald-700 text-sm mb-2 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-base">verified</span>
+              Mark QUALIFIED when:
+            </div>
+            <ul className="text-xs text-emerald-800 space-y-1 list-disc list-inside">
+              <li>You have spoken to the decision maker</li>
+              <li>They have confirmed interest</li>
+              <li>Budget is confirmed or likely</li>
+              <li>You are ready to present a proposal</li>
+            </ul>
+          </div>
+          <div className="p-4 rounded-xl border-2 border-red-200 bg-red-50">
+            <div className="font-black text-red-700 text-sm mb-2 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-base">block</span>
+              Mark UNQUALIFIED when:
+            </div>
+            <ul className="text-xs text-red-800 space-y-1 list-disc list-inside">
+              <li>They are not the right profile</li>
+              <li>No budget available</li>
+              <li>No interest in the product</li>
+              <li>Not eligible (e.g. regulatory reasons)</li>
+            </ul>
+          </div>
+          <div className="p-4 rounded-xl border-2 border-gray-200 bg-gray-50">
+            <div className="font-black text-gray-600 text-sm mb-2 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-base">cancel</span>
+              Mark LOST when:
+            </div>
+            <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+              <li>Was progressing but fell through</li>
+              <li>Client chose a competitor</li>
+              <li>Deal cancelled after qualification</li>
+              <li>Always record a reason in Notes</li>
+            </ul>
+          </div>
+        </div>
+        <p className="text-text-secondary text-sm">Only <StatusBadge label="QUALIFIED" bg="#ecfdf5" text="#065f46" /> leads can be converted to a Deal.</p>
+      </Section>
+
+      <Section id="convert" title="Step 7: Convert a Lead to a Deal">
+        <p className="text-text-secondary text-sm leading-relaxed mb-4">
+          When a lead is QUALIFIED, the <strong className="text-text-primary">Convert to Deal</strong> button appears at the top of the Lead Detail page. Click it and fill in the form:
+        </p>
+        <div className="overflow-x-auto rounded-xl border border-border mb-4">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-border">
+                <th className="text-left px-4 py-3 font-bold text-text-primary">Field</th>
+                <th className="text-left px-4 py-3 font-bold text-text-primary">What to enter</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {[
+                { field: 'Pipeline', desc: 'Which sales pipeline this deal belongs to (e.g. Cash Trust Pipeline)' },
+                { field: 'Stage', desc: 'Which stage the deal starts at (usually the first stage in the pipeline)' },
+                { field: 'Deal Name', desc: 'Auto-filled from the lead title — edit if needed' },
+                { field: 'Deal Value (MYR)', desc: 'The confirmed or estimated deal value' },
+              ].map(row => (
+                <tr key={row.field} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 font-semibold text-text-primary whitespace-nowrap">{row.field}</td>
+                  <td className="px-4 py-3 text-text-secondary">{row.desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-text-secondary text-sm leading-relaxed mb-3">
+          Click <strong className="text-text-primary">Convert</strong>. The lead status becomes <StatusBadge label="CONVERTED" bg="#f0fdf4" text="#166534" /> and is locked. A new <strong className="text-text-primary">Opportunity</strong> (Deal) is created and linked from the Lead Detail page.
+        </p>
+        <InfoBox icon="swap_horiz" color="#f0fdf4">
+          After conversion, manage the deal in <Link to="/crm/pipeline" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Pipeline</Link> or <Link to="/crm/opportunities" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Opportunities</Link>. The original lead is kept for reference.
+        </InfoBox>
+      </Section>
+
+      {/* Sections 10–12 — filled in subsequent tasks */}
     </div>
   );
 };
