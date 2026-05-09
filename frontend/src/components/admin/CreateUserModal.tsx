@@ -59,7 +59,7 @@ const CreateUserModal: React.FC<CreateUserModalProps> = ({ onSuccess, onClose, e
         }
         try {
             setSubmitting(true);
-            const payload: Record<string, string> = {
+            const payload: { firstName: string; lastName: string; email: string; department?: string; jobTitle?: string; entityId?: string; executiveRole?: string } = {
                 firstName: form.firstName.trim(),
                 lastName: form.lastName.trim(),
                 email: form.email.trim(),

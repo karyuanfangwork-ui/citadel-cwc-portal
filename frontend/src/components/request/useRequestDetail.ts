@@ -25,15 +25,17 @@ export interface InterviewSchedule {
     interviewTime: string;
     meetingLink?: string;
     location?: string;
-    interviewers: string[] | string;
+    interviewers: string[];
     notes?: string;
 }
 
 export interface InterviewFeedback {
-    overallRating: number;
+    decision: string;
+    feedback: string;
+    overallRating?: number;
     technicalSkills?: number;
-    communicationSkills?: number;
     culturalFit?: number;
+    communication?: number;
     strengths?: string;
     weaknesses?: string;
     recommendation?: 'HIRE' | 'NO_HIRE' | 'MAYBE';
@@ -41,20 +43,25 @@ export interface InterviewFeedback {
 }
 
 export interface HRScreening {
-    overallStatus: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
-    referencesContacted?: string[] | string;
-    backgroundCheckStatus?: string;
-    notes?: string;
+    backgroundCheckStatus: string;
+    backgroundCheckNotes?: string;
+    referencesCheckStatus: string;
+    referencesCheckNotes?: string;
+    referencesContacted?: string[];
+    overallStatus?: string;
 }
 
 export interface LetterOfAcceptance {
     loaFileUrl?: string;
+    loaFileName?: string;
+    loaFileSize?: number;
     signedLoaFileUrl?: string;
-    startDate: string;
-    endDate: string;
-    position: string;
-    department: string;
-    status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ISSUED' | 'ACCEPTED';
+    signedLoaFileName?: string;
+    signedLoaFileSize?: number;
+    approvalDate?: string;
+    acceptedDate?: string;
+    approvedBy?: string;
+    approvalComments?: string;
 }
 
 export interface CandidateResume {
@@ -76,7 +83,12 @@ export interface InterviewDetails {
 export interface Activity {
     id: string;
     activityType: string;
-    description: string;
+    description?: string;
+    message: string;
+    authorName: string;
+    authorRole: string | null;
+    isSystemGenerated: boolean;
+    isInternal: boolean;
     createdAt: string;
     user?: { firstName: string; lastName: string; email: string };
 }
@@ -84,13 +96,49 @@ export interface Activity {
 export interface Request {
     id: string;
     title: string;
+    summary: string;
+    description?: string | null;
     status: string;
+    referenceNumber: string;
     isConfidential?: boolean;
     category: { name: string; icon: string };
     service: { name: string };
+    serviceDesk?: { code: string; name: string };
     assignedTo?: { id: string; firstName: string; lastName: string };
     assignedTeam?: string | null;
+    requesterId: string;
+    requester?: { id: string; firstName: string; lastName: string; email: string };
+    createdAt: string;
+    updatedAt: string;
+    slaDueAt?: string | null;
+    priority: string;
+    requestType?: {
+        code: string;
+        name: string;
+        requiresApproval?: boolean;
+        workflowTypeId?: string;
+        workflow?: {
+            id: string;
+            code: string;
+            name: string;
+            steps: {
+                id: string;
+                label: string;
+                status: string;
+                icon: string;
+                displayOrder: number;
+                isInitial: boolean;
+                isFinal: boolean;
+            }[];
+        };
+        formConfig?: any[];
+    };
+    approvals?: { id: string; approverId: string; approverType: string; status: string }[];
+    attachments?: { id: string; fileName: string; storageUrl: string; mimeType: string; createdAt: string }[];
+    customFields?: Record<string, any>;
     candidateResumes?: CandidateResume[];
+    childRequests?: { id: string; referenceNumber: string; summary: string; status: string }[];
+    itHardwareRequest?: { serialNumber?: string | null; assetTag?: string | null } | null;
 }
 
 interface UseRequestDetailReturn {
@@ -123,6 +171,7 @@ interface UseRequestDetailReturn {
     resolutionComment: string;
     pendingStatus: string | null;
     rejectionPendingStatus: string | null;
+    setRejectionPendingStatus: React.Dispatch<React.SetStateAction<string | null>>;
     setResolutionComment: (value: string) => void;
     setShowResolutionModal: (value: boolean) => void;
     setShowRejectionConfirm: (value: boolean) => void;
@@ -163,6 +212,7 @@ interface UseRequestDetailReturn {
     handleReopenForNewCandidates: () => Promise<void>;
     handleUploadResume: (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string) => Promise<void>;
     handleMarkJobPosted: () => Promise<void>;
+    updateStatusDirectly: (newStatus: string) => Promise<void>;
 }
 
 export const useRequestDetail = (): UseRequestDetailReturn => {
@@ -649,7 +699,9 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         id, request, activities, setActivities, resumes, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
         showResolutionModal, showRejectionConfirm, showCompleteOnboardingConfirm, showUploadModal, showJobPostModal, showCEODecisionModal, showManagerDecisionModal, showScheduleInterviewModal, showEditInterviewModal, showInterviewFeedbackModal, showHRScreeningModal, showUploadLOAModal, showLOAApprovalModal, showUploadSignedLOAModal,
         resolutionComment, pendingStatus, rejectionPendingStatus,
+        setRejectionPendingStatus,
         setResolutionComment, setShowResolutionModal, setShowRejectionConfirm, setShowCompleteOnboardingConfirm, setShowUploadModal, setShowJobPostModal, setShowCEODecisionModal, setShowManagerDecisionModal, setShowScheduleInterviewModal, setShowEditInterviewModal, setShowInterviewFeedbackModal, setShowHRScreeningModal, setShowUploadLOAModal, setShowLOAApprovalModal, setShowUploadSignedLOAModal,
         fetchRequestData, handleStatusChange, handleResolutionSubmit, handleSkipResolution, handleDeleteResume, handleScheduleInterview, handleUpdateInterview, handleSubmitInterviewFeedback, handleStartHRScreening, handleRouteLOAForApproval, handleLOAApprovalDecision, handleMarkLOAIssued, handleMarkLOAAccepted, handleCEODecision, handleManagerDecision, handleRouteToManager, handleAdvanceOnboardingPhase, handleCompleteOnboarding, confirmCompleteOnboarding, handleAdvanceOffboardingPhase, handleCompleteOffboarding, handleReviseAndResubmit, handleReopenForNewCandidates, handleUploadResume, handleMarkJobPosted,
+        updateStatusDirectly,
     };
 };

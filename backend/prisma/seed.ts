@@ -1,4 +1,4 @@
-﻿import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import {
     SEED_NOTIFICATION_TEMPLATES,
@@ -161,6 +161,18 @@ async function main() {
         create: { name: 'FINANCE_HEAD', description: 'Can approve expense reimbursement requests as Finance Head' }
     });
 
+    await prisma.role.upsert({
+        where: { name: 'SALES_MANAGER' },
+        update: {},
+        create: { name: 'SALES_MANAGER', description: 'CRM Sales Manager — full CRM access including pipeline management' }
+    });
+
+    await prisma.role.upsert({
+        where: { name: 'SALES_REP' },
+        update: {},
+        create: { name: 'SALES_REP', description: 'CRM Sales Representative — can manage own accounts, leads, and deals' }
+    });
+
     console.log('✅ Roles created');
 
     console.log('📋 Creating permission list...');
@@ -184,6 +196,11 @@ async function main() {
         { name: 'asset:write', resource: 'asset', action: 'write', description: 'Register, edit, assign, and return IT assets' },
         { name: 'asset:import', resource: 'asset', action: 'import', description: 'Bulk CSV import of IT assets' },
         { name: 'asset:delete', resource: 'asset', action: 'delete', description: 'Dispose or soft-delete IT assets' },
+        // CRM permissions
+        { name: 'crm:read', resource: 'crm', action: 'read', description: 'View CRM accounts, contacts, leads, opportunities, and pipeline' },
+        { name: 'crm:write', resource: 'crm', action: 'write', description: 'Create and edit CRM records' },
+        { name: 'crm:delete', resource: 'crm', action: 'delete', description: 'Delete CRM records' },
+        { name: 'crm:admin', resource: 'crm', action: 'admin', description: 'Manage CRM pipelines and system settings' },
     ];
 
     for (const perm of permissions) {
@@ -228,6 +245,7 @@ async function main() {
         'workflow:manage',
         'banner:manage',
         'asset:read', 'asset:write', 'asset:import', 'asset:delete',
+        'crm:read', 'crm:write', 'crm:delete', 'crm:admin',
     ];
 
     // AGENT gets full request CRUD + assign, no admin/user/report/banner/workflow
@@ -269,6 +287,8 @@ async function main() {
         GROUP_CEO: executivePerms,
         HIRING_MANAGER: hiringManagerPerms,
         FINANCE_HEAD: executivePerms,
+        SALES_MANAGER: ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'],
+        SALES_REP: ['crm:read', 'crm:write'],
     };
 
     // Upsert RolePermission records: only add seed-default assignments,
@@ -471,6 +491,42 @@ async function main() {
         await assignRoles(u.id, [normalStaffRole.id]);
     }
     console.log('✅ Test users created with NORMAL_STAFF role (password: abc@123)');
+
+    // --- Sales team test accounts ---
+    const salesManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'SALES_MANAGER' } });
+    const salesRepRole = await prisma.role.findUniqueOrThrow({ where: { name: 'SALES_REP' } });
+
+    const salesManagerUser = await prisma.user.upsert({
+        where: { email: 'salesmanager@test.local' },
+        update: {},
+        create: {
+            email: 'salesmanager@test.local',
+            passwordHash: testPassword,
+            firstName: 'Ahmad',
+            lastName: 'Razali',
+            department: 'Sales',
+            jobTitle: 'Sales Manager',
+            isActive: true,
+        },
+    });
+    await assignRoles(salesManagerUser.id, [salesManagerRole.id]);
+    console.log('✅ Sales Manager user created (email: salesmanager@test.local, password: abc@123)');
+
+    const salesRepUser = await prisma.user.upsert({
+        where: { email: 'salesrep@test.local' },
+        update: {},
+        create: {
+            email: 'salesrep@test.local',
+            passwordHash: testPassword,
+            firstName: 'Nurul',
+            lastName: 'Ain',
+            department: 'Sales',
+            jobTitle: 'Relationship Manager',
+            isActive: true,
+        },
+    });
+    await assignRoles(salesRepUser.id, [salesRepRole.id]);
+    console.log('✅ Sales Rep user created (email: salesrep@test.local, password: abc@123)');
 
     // --- Legacy USER role test account (now uses NORMAL_STAFF) ---
     const legacyUser = await prisma.user.upsert({
@@ -1396,6 +1452,78 @@ async function main() {
         });
     }
     console.log(`✅ Seeded ${kbArticles.length} knowledge base articles`);
+
+    // ── CRM: Default Sales Pipeline ────────────────────────────────────────
+    console.log('📊 Seeding CRM default pipeline...');
+    const defaultPipeline = await prisma.crmPipeline.upsert({
+        where: { id: '00000000-0000-0000-0000-000000000001' },
+        update: {},
+        create: {
+            id: '00000000-0000-0000-0000-000000000001',
+            name: 'Default Sales Pipeline',
+            description: 'Standard sales pipeline for tracking deals from prospecting to close',
+            isDefault: true,
+            isActive: true,
+        },
+    });
+
+    const defaultStages = [
+        { name: 'Prospecting',   displayOrder: 0, probability: 10, color: '#6366f1', isWonStage: false, isLostStage: false },
+        { name: 'Qualification', displayOrder: 1, probability: 25, color: '#3b82f6', isWonStage: false, isLostStage: false },
+        { name: 'Proposal',      displayOrder: 2, probability: 50, color: '#0ea5e9', isWonStage: false, isLostStage: false },
+        { name: 'Negotiation',   displayOrder: 3, probability: 75, color: '#f59e0b', isWonStage: false, isLostStage: false },
+        { name: 'Closed Won',    displayOrder: 4, probability: 100, color: '#10b981', isWonStage: true,  isLostStage: false },
+        { name: 'Closed Lost',   displayOrder: 5, probability: 0,  color: '#ef4444', isWonStage: false, isLostStage: true },
+    ];
+
+    for (const stage of defaultStages) {
+        const existing = await prisma.crmPipelineStage.findFirst({
+            where: { pipelineId: defaultPipeline.id, displayOrder: stage.displayOrder },
+        });
+        if (!existing) {
+            await prisma.crmPipelineStage.create({
+                data: { ...stage, pipelineId: defaultPipeline.id },
+            });
+        }
+    }
+    console.log('✅ CRM default pipeline seeded');
+
+    // ── CRM: Cash Trust Pipeline ─────────────────────────────────────────────
+    console.log('📊 Seeding CRM Cash Trust pipeline...');
+    const cashTrustPipeline = await prisma.crmPipeline.upsert({
+        where: { id: '00000000-0000-0000-0000-000000000002' },
+        update: {},
+        create: {
+            id: '00000000-0000-0000-0000-000000000002',
+            name: 'Cash Trust Pipeline',
+            description: 'Pipeline for Malaysian unit trust / amanah saham sales — tracks client from initial contact through KYC, subscription, and allotment',
+            isDefault: false,
+            isActive: true,
+        },
+    });
+
+    const cashTrustStages = [
+        { name: 'Prospect',       displayOrder: 0, probability: 10,  color: '#6366f1', isWonStage: false, isLostStage: false },
+        { name: 'KYC / eKYC',    displayOrder: 1, probability: 25,  color: '#3b82f6', isWonStage: false, isLostStage: false },
+        { name: 'AML Check',      displayOrder: 2, probability: 40,  color: '#0ea5e9', isWonStage: false, isLostStage: false },
+        { name: 'Subscription',   displayOrder: 3, probability: 60,  color: '#f59e0b', isWonStage: false, isLostStage: false },
+        { name: 'Allotment',      displayOrder: 4, probability: 80,  color: '#8b5cf6', isWonStage: false, isLostStage: false },
+        { name: 'Settlement',     displayOrder: 5, probability: 95,  color: '#10b981', isWonStage: false, isLostStage: false },
+        { name: 'Closed Won',     displayOrder: 6, probability: 100, color: '#22c55e', isWonStage: true,  isLostStage: false },
+        { name: 'Closed Lost',    displayOrder: 7, probability: 0,   color: '#ef4444', isWonStage: false, isLostStage: true  },
+    ];
+
+    for (const stage of cashTrustStages) {
+        const existing = await prisma.crmPipelineStage.findFirst({
+            where: { pipelineId: cashTrustPipeline.id, displayOrder: stage.displayOrder },
+        });
+        if (!existing) {
+            await prisma.crmPipelineStage.create({
+                data: { ...stage, pipelineId: cashTrustPipeline.id },
+            });
+        }
+    }
+    console.log('✅ CRM Cash Trust pipeline seeded');
 
     console.log('🎉 Database seeding completed!');
 }

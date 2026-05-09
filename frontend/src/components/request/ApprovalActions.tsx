@@ -23,6 +23,8 @@ interface ApprovalActionsProps {
   onReopenForNewCandidates: () => void;
 }
 
+type ApprovalRequestStatus = 'INTERVIEW_FEEDBACK_PENDING' | 'HR_SCREENING' | 'LOA_PENDING_APPROVAL' | 'LOA_APPROVED' | 'CEO_REJECTED' | 'CANDIDATE_REJECTED_INTERVIEW' | 'CLOSED' | 'RESOLVED';
+
 const ApprovalActions: React.FC<ApprovalActionsProps> = ({
   request,
   interviewDetails,
@@ -36,6 +38,7 @@ const ApprovalActions: React.FC<ApprovalActionsProps> = ({
 }) => {
   const isHRAgent = user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN');
   const { status } = request;
+  const statusString: string = status;
   const isHR = request.serviceDesk?.code === 'HR';
 
   const showStartScreening = isHR && isHRAgent && status === 'INTERVIEW_FEEDBACK_PENDING' && interviewDetails?.feedback?.decision === 'PROCEED';
@@ -86,7 +89,7 @@ const ApprovalActions: React.FC<ApprovalActionsProps> = ({
         </div>
       )}
 
-      {(status === 'CANDIDATE_REJECTED_INTERVIEW' && isHR && isHRAgent) && (
+      {(statusString === 'CANDIDATE_REJECTED_INTERVIEW' && isHR && isHRAgent) && (
         <button
           onClick={onReopenForNewCandidates}
           disabled={processingAction}

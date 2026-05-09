@@ -25,7 +25,8 @@
         "emitDecoratorMetadata": true,
         "types": [
             "node",
-            "jest"
+            "jest",
+            "validator"
         ]
     },
     "include": [

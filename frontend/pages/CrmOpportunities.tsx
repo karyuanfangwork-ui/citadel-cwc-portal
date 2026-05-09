@@ -1,0 +1,264 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import crmService, { CrmOpportunity, Pagination } from '../src/services/crm.service';
+
+const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
+const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+const STAGE_COLORS: Record<string, string> = {
+  PROSPECTING: '#6366f1',
+  QUALIFICATION: '#f59e0b',
+  PROPOSAL: '#3b82f6',
+  NEGOTIATION: '#8b5cf6',
+  CLOSED_WON: '#22c55e',
+  CLOSED_LOST: '#ef4444',
+};
+
+const CrmOpportunities = () => {
+  const navigate = useNavigate();
+  const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [pipelineFilter, setPipelineFilter] = useState('');
+  const [stageFilter, setStageFilter] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [form, setForm] = useState<Partial<CrmOpportunity>>({});
+  const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+  const [pipelines, setPipelines] = useState<{ id: string; name: string; stages?: { id: string; name: string }[] }[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  const fetchOpportunities = useCallback(async (page = 1) => {
+    try { setLoading(true);
+      const data = await crmService.listOpportunities({ page, limit: 20, search: search || undefined, pipelineId: pipelineFilter || undefined, stageId: stageFilter || undefined });
+      setOpportunities(data.opportunities); setPagination(data.pagination);
+    } catch (e) { console.error(e); } finally { setLoading(false); }
+  }, [search, pipelineFilter, stageFilter]);
+
+  const fetchAccounts = useCallback(async () => {
+    try {
+      const data = await crmService.listAccounts({ limit: 100 });
+      setAccounts(data.accounts);
+    } catch (e) { console.error(e); }
+  }, []);
+
+  const fetchPipelines = useCallback(async () => {
+    try {
+      const data = await crmService.listPipelines();
+      setPipelines(data);
+      if (data.length > 0 && !form.pipelineId) {
+        setForm(prev => ({ ...prev, pipelineId: data[0].id, stageId: data[0].stages[0]?.id }));
+      }
+    } catch (e) { console.error(e); }
+  }, []);
+
+  useEffect(() => { fetchOpportunities(); fetchAccounts(); fetchPipelines(); }, [fetchOpportunities, fetchAccounts, fetchPipelines]);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload: Record<string, any> = {};
+    for (const [k, v] of Object.entries(form)) {
+      if (v === '' || v === undefined || v === null) continue;
+      if (k === 'value' || k === 'probability') { payload[k] = Number(v); if (isNaN(payload[k])) delete payload[k]; }
+      else payload[k] = v;
+    }
+    try { setSaving(true); await crmService.createOpportunity(payload); setShowCreate(false); setForm({}); fetchOpportunities(); }
+    catch (e) { console.error(e); } finally { setSaving(false); }
+  };
+
+  const getStageColor = (stageName?: string) => {
+    if (!stageName) return '#6b7280';
+    const key = stageName.toUpperCase().replace(/ /g, '_');
+    return STAGE_COLORS[key] || '#6b7280';
+  };
+
+  return (
+    <div style={{ maxWidth: 1400, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+      <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+        <div>
+          <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
+            <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700 transition-colors">CRM</Link>
+            <span>/</span><span className="font-semibold text-text-primary">Opportunities</span>
+          </div>
+          <h1 className="text-2xl font-black text-text-primary">Opportunities</h1>
+        </div>
+        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+          <span className="material-symbols-outlined text-lg">add</span> New Opportunity
+        </button>
+      </div>
+
+      {/* Filters */}
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-lg">search</span>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search opportunities..."
+            className="w-full pl-10 pr-4 py-2 bg-surface-muted border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+        </div>
+        <select value={pipelineFilter} onChange={e => setPipelineFilter(e.target.value)}
+          className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
+          <option value="">All Pipelines</option>
+          {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
+          className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
+          <option value="">All Stages</option>
+          {pipelines.flatMap(p => p.stages).map((s, i) => <option key={s.id || i} value={s.id}>{s.name}</option>)}
+        </select>
+      </div>
+
+      {/* Opportunities Table */}
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
+        <table className="w-full">
+          <thead className="bg-surface-muted border-b border-border">
+            <tr>
+              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Opportunity</th>
+              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Account</th>
+              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Stage</th>
+              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Value</th>
+              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Probability</th>
+              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Close Date</th>
+              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Owner</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {loading ? [0,1,2,3,4].map(i => (
+              <tr key={i}><td colSpan={7} className="px-5 py-8"><div style={{ height: 14, width: '80%', background: 'var(--color-border)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} /></td></tr>
+            )) : opportunities.length === 0 ? (
+              <tr><td colSpan={7} className="px-5 py-16 text-center text-text-secondary">
+                <span className="material-symbols-outlined text-5xl mb-3 block opacity-30">folder_open</span>
+                <p className="font-bold">No opportunities found</p>
+                <p className="text-sm mt-1">Create your first opportunity to start tracking deals</p>
+              </td></tr>
+            ) : opportunities.map(opp => (
+              <tr key={opp.id} onClick={() => navigate(`/crm/opportunities/${opp.id}`)} className="hover:bg-surface-hover cursor-pointer transition-colors">
+                <td className="px-5 py-4">
+                  <div className="text-sm font-bold text-text-primary">{opp.name}</div>
+                  <div className="text-xs text-text-tertiary mt-0.5">{opp.contact?.firstName ? `${opp.contact.firstName} ${opp.contact.lastName}` : '—'}</div>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="text-sm text-text-secondary">{opp.account?.name || '—'}</div>
+                </td>
+                <td className="px-5 py-4">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: `${getStageColor(opp.stage?.name)}20`, color: getStageColor(opp.stage?.name) }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: getStageColor(opp.stage?.name) }} />
+                    {opp.stage?.name || '—'}
+                  </span>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="text-sm font-bold text-indigo-600">{formatCurrency(opp.value)}</div>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden" style={{ minWidth: 60 }}>
+                      <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: getStageColor(opp.stage?.name) }} />
+                    </div>
+                    <span className="text-xs font-bold text-text-secondary">{opp.probability}%</span>
+                  </div>
+                </td>
+                <td className="px-5 py-4">
+                  <div className="text-sm text-text-secondary">{formatDate(opp.expectedCloseDate)}</div>
+                </td>
+                <td className="px-5 py-4">
+                  {opp.owner ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-indigo-600">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
+                      </div>
+                      <span className="text-sm text-text-secondary">{opp.owner.firstName}</span>
+                    </div>
+                  ) : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {pagination.totalPages > 1 && (
+        <div className="flex justify-center mt-6 gap-1">
+          {Array.from({ length: Math.min(pagination.totalPages, 5) }, (_, i) => i + 1).map(p => (
+            <button key={p} onClick={() => fetchOpportunities(p)} style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              className={`w-8 h-8 rounded-lg text-sm font-bold transition-colors ${p === pagination.page ? 'bg-brand-700 text-white' : 'bg-transparent text-text-secondary hover:bg-gray-100'}`}>{p}</button>
+          ))}
+        </div>
+      )}
+
+      {/* Create Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCreate(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-lg font-extrabold text-text-primary">New Opportunity</h2>
+              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+            </div>
+            <form onSubmit={handleCreate} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Opportunity Name *</label>
+                <input value={(form as any).name || ''} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} required
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Account *</label>
+                <select value={(form as any).accountId || ''} onChange={e => setForm(prev => ({ ...prev, accountId: e.target.value }))} required
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                  <option value="">Select Account</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Pipeline *</label>
+                  <select value={(form as any).pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: p?.stages[0]?.id })); }} required
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    <option value="">Select Pipeline</option>
+                    {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Stage *</label>
+                  <select value={(form as any).stageId || ''} onChange={e => setForm(prev => ({ ...prev, stageId: e.target.value }))} required
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    <option value="">Select Stage</option>
+                    {pipelines.find(p => p.id === form.pipelineId)?.stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Value (MYR)</label>
+                  <input type="number" value={(form as any).value || ''} onChange={e => setForm(prev => ({ ...prev, value: Number(e.target.value) }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Probability (%)</label>
+                  <input type="number" min={0} max={100} value={(form as any).probability || 0} onChange={e => setForm(prev => ({ ...prev, probability: Number(e.target.value) }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Expected Close Date</label>
+                <input type="date" value={(form as any).expectedCloseDate || ''} onChange={e => setForm(prev => ({ ...prev, expectedCloseDate: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
+                <textarea value={(form as any).description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={3}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowCreate(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Creating...' : 'Create Opportunity'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default CrmOpportunities;

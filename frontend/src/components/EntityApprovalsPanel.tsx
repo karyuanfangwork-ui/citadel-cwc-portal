@@ -2,11 +2,12 @@ import React from 'react';
 
 interface EntityApproval {
     id: string;
-    entityId: string | null;
-    approverId: string | null;
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
-    comments: string | null;
-    updatedAt: string;
+    entityId?: string | null;
+    approverId?: string | null;
+    approverType?: string;
+    status: string;
+    comments?: string | null;
+    updatedAt?: string;
     entity?: { id: string; name: string; code: string } | null;
     approver?: { id: string; firstName: string; lastName: string } | null;
 }

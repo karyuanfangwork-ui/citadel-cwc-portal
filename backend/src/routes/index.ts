@@ -31,6 +31,7 @@ import { apiLimiter } from '../middleware/rateLimit.middleware';
 import auditLogRoutes from './auditLog.routes';
 import assetRoutes from './asset.routes';
 import systemSettingRoutes from './systemSetting.routes';
+import crmRoutes from './crm.routes';
 
 const router = Router();
 
@@ -69,6 +70,7 @@ router.use('/admin/entities', entityRoutes);
 router.use('/admin/audit-logs', auditLogRoutes);
 router.use('/sla', escalationRuleRouter);
 router.use('/assets', assetRoutes);
+router.use('/crm', crmRoutes);
 
 export default router;
 

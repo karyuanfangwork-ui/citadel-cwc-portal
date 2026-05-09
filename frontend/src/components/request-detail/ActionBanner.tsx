@@ -1,7 +1,7 @@
 import React from 'react';
 import { useBannerConfigs } from '../../hooks/useBannerConfigs';
 
-type RequestRole = 'agent' | 'hiring_manager' | 'ceo' | 'staff';
+type RequestRole = 'agent' | 'hiring_manager' | 'ceo' | 'cto' | 'cfo' | 'staff';
 
 interface ActionBannerProps {
   role: RequestRole;

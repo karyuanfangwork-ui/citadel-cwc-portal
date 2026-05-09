@@ -45,7 +45,7 @@ export const OffboardingTasksTab: React.FC<OffboardingTasksTabProps> = ({
                     <p className="text-sm text-[#44546f] mt-1">These tasks are automatically added to every departing employee&apos;s offboarding checklist.</p>
                 </div>
                 <button
-                    onClick={() => { onShowTemplateForm(true); onTemplateForm({ taskName: '', taskDescription: '', taskCategory: 'HR', priority: 'MEDIUM', dueDayOffset: 0, displayOrder: 0 }); }}
+                    onClick={() => { onShowTemplateForm(true); onTemplateFormChange({ taskName: '', taskDescription: '', taskCategory: 'HR', priority: 'MEDIUM', dueDayOffset: 0, displayOrder: 0 }); }}
                     className="flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white rounded-lg text-sm font-semibold hover:bg-[#0747a6] transition-colors"
                 >
                     <span className="material-symbols-outlined text-base">add</span>
@@ -64,7 +64,7 @@ export const OffboardingTasksTab: React.FC<OffboardingTasksTabProps> = ({
                             <input
                                 type="text"
                                 value={templateForm.taskName}
-                                onChange={e => onTemplateForm({ ...templateForm, taskName: e.target.value })}
+                                onChange={e => onTemplateFormChange({ ...templateForm, taskName: e.target.value })}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 placeholder="e.g. Revoke System Access"
                             />
@@ -74,7 +74,7 @@ export const OffboardingTasksTab: React.FC<OffboardingTasksTabProps> = ({
                             <input
                                 type="text"
                                 value={templateForm.taskDescription}
-                                onChange={e => onTemplateForm({ ...templateForm, taskDescription: e.target.value })}
+                                onChange={e => onTemplateFormChange({ ...templateForm, taskDescription: e.target.value })}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                                 placeholder="Brief description of what needs to be done"
                             />
@@ -83,7 +83,7 @@ export const OffboardingTasksTab: React.FC<OffboardingTasksTabProps> = ({
                             <label className="block text-xs font-semibold text-[#44546f] uppercase mb-1">Category *</label>
                             <select
                                 value={templateForm.taskCategory}
-                                onChange={e => onTemplateForm({ ...templateForm, taskCategory: e.target.value as any })}
+                                onChange={e => onTemplateFormChange({ ...templateForm, taskCategory: e.target.value as any })}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                             >
                                 <option value="IT">IT</option>
@@ -95,7 +95,7 @@ export const OffboardingTasksTab: React.FC<OffboardingTasksTabProps> = ({
                             <label className="block text-xs font-semibold text-[#44546f] uppercase mb-1">Priority *</label>
                             <select
                                 value={templateForm.priority}
-                                onChange={e => onTemplateForm({ ...templateForm, priority: e.target.value as any })}
+                                onChange={e => onTemplateFormChange({ ...templateForm, priority: e.target.value as any })}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                             >
                                 <option value="CRITICAL">Critical</option>
@@ -109,7 +109,7 @@ export const OffboardingTasksTab: React.FC<OffboardingTasksTabProps> = ({
                             <input
                                 type="number"
                                 value={templateForm.dueDayOffset}
-                                onChange={e => onTemplateForm({ ...templateForm, dueDayOffset: parseInt(e.target.value) || 0 })}
+                                onChange={e => onTemplateFormChange({ ...templateForm, dueDayOffset: parseInt(e.target.value) || 0 })}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                             />
                             <p className="text-xs text-[#44546f] mt-1">Negative = before last day, 0 = on last day, positive = after</p>
@@ -119,7 +119,7 @@ export const OffboardingTasksTab: React.FC<OffboardingTasksTabProps> = ({
                             <input
                                 type="number"
                                 value={templateForm.displayOrder}
-                                onChange={e => onTemplateForm({ ...templateForm, displayOrder: parseInt(e.target.value) || 0 })}
+                                onChange={e => onTemplateFormChange({ ...templateForm, displayOrder: parseInt(e.target.value) || 0 })}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
                             />
                         </div>
