@@ -145,6 +145,8 @@ export async function checkLeadAging(): Promise<void> {
         },
       });
 
+      notifiedSet.add(lead.ownerId);
+
       if (lead.owner.managerId) {
         await notify({
           userId: lead.owner.managerId,
@@ -231,6 +233,7 @@ export async function checkOverdueFollowUps(): Promise<void> {
           ownerName,
         },
       });
+      notifiedSet.add(lead.ownerId);
     } catch (err) {
       logger.error(`[CRM][OverdueFollowUps] Failed to notify owner for lead ${lead.id}`, { error: err });
     }
