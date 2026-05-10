@@ -324,6 +324,54 @@ export const SEED_NOTIFICATION_TEMPLATES = [
     "pushTitle": "VP Declined",
     "pushBody": "Request {{requestId}} was declined by VP.",
     "isActive": true
+  },
+
+  // ── CRM: Lead Aging (owner) ──────────────────────────────────────────────
+  {
+    "name": "CRM Lead Aging — Owner",
+    "eventType": "crm_lead_aging",
+    "emailSubject": "Action Required: Lead \"{{leadTitle}}\" has been inactive for {{daysStale}} days",
+    "emailBody": "<p>Hi {{userName}},</p>\n<p>Your lead <strong>{{leadTitle}}</strong> has had no activity for <strong>{{daysStale}} days</strong>.</p>\n<p>Please log an activity or update the status to keep your pipeline healthy.</p>\n<p><a href=\"{{appUrl}}/crm/leads\">View Leads</a></p>",
+    "smsBody": null,
+    "pushTitle": "Lead inactive: {{leadTitle}}",
+    "pushBody": "No activity for {{daysStale}} days. Tap to review.",
+    "isActive": true
+  },
+
+  // ── CRM: Lead Aging (manager) ────────────────────────────────────────────
+  {
+    "name": "CRM Lead Aging — Manager",
+    "eventType": "crm_lead_aging_manager",
+    "emailSubject": "Pipeline Alert: {{ownerName}}'s lead \"{{leadTitle}}\" is stale ({{daysStale}} days)",
+    "emailBody": "<p>Hi {{userName}},</p>\n<p><strong>{{ownerName}}</strong>'s lead <strong>{{leadTitle}}</strong> has had no activity for <strong>{{daysStale}} days</strong>.</p>\n<p>You may want to follow up with your team member.</p>\n<p><a href=\"{{appUrl}}/crm/leads\">View Leads</a></p>",
+    "smsBody": null,
+    "pushTitle": "Stale lead: {{leadTitle}}",
+    "pushBody": "{{ownerName}} has not updated this lead in {{daysStale}} days.",
+    "isActive": true
+  },
+
+  // ── CRM: Overdue Follow-Up ───────────────────────────────────────────────
+  {
+    "name": "CRM Overdue Follow-Up",
+    "eventType": "crm_overdue_followup",
+    "emailSubject": "Overdue Follow-Up: \"{{leadTitle}}\" was due on {{followUpDate}}",
+    "emailBody": "<p>Hi {{userName}},</p>\n<p>Your follow-up for lead <strong>{{leadTitle}}</strong> was scheduled for <strong>{{followUpDate}}</strong> and is now overdue.</p>\n<p>Please contact the lead or reschedule the follow-up date.</p>\n<p><a href=\"{{appUrl}}/crm/leads\">View Leads</a></p>",
+    "smsBody": null,
+    "pushTitle": "Overdue follow-up: {{leadTitle}}",
+    "pushBody": "Follow-up was due {{followUpDate}}. Take action now.",
+    "isActive": true
+  },
+
+  // ── CRM: Activity Reminder ───────────────────────────────────────────────
+  {
+    "name": "CRM Activity Reminder",
+    "eventType": "crm_activity_reminder",
+    "emailSubject": "Reminder: \"{{activitySubject}}\" is scheduled for {{scheduledTime}}",
+    "emailBody": "<p>Hi {{userName}},</p>\n<p>This is a reminder that your CRM activity <strong>{{activitySubject}}</strong> is coming up on <strong>{{scheduledTime}}</strong>.</p>\n<p><a href=\"{{appUrl}}/crm\">Open CRM</a></p>",
+    "smsBody": null,
+    "pushTitle": "Activity reminder: {{activitySubject}}",
+    "pushBody": "Scheduled for {{scheduledTime}}.",
+    "isActive": true
   }
 ];
 
