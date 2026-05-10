@@ -71,9 +71,6 @@ function scheduleTask(
     return null;
   }
 
-  // Run once immediately on startup
-  task();
-
   const scheduled = cron.schedule(cronExpr, () => {
     logger.info(`[CRM] Running ${label} (cron: ${cronExpr})`);
     task();
@@ -102,16 +99,6 @@ export function startCrmChecker(): void {
     // Legacy interval mode — run all checks on a shared interval
     const { intervalMs } = config.crmSchedule;
     logger.info(`[CRM] CRM checker started (interval: ${intervalMs / 1000}s)`);
-
-    // Run once on startup
-    Promise.allSettled([
-      runActivityReminders(),
-      runLeadAging(),
-      runOverdueFollowUps(),
-      runStaleDeals(),
-      runTrustReviewDates(),
-      runKycExpiration(),
-    ]);
 
     setInterval(() => {
       logger.info(`[CRM] Running all checks (interval: ${intervalMs / 1000}s)`);
