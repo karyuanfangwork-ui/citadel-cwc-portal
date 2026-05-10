@@ -66,6 +66,15 @@ const EVENT_TYPE_REGISTRY: {
     { eventType: 'CHARGEBACK_TO_ENTITY_DECISION',   label: 'To-Entity Decision',            category: 'Chargeback', recipientDescription: 'Requester',       availableVariables: ['requestId', 'requestUuid', 'decision', 'userName', 'appUrl'] },
     { eventType: 'CHARGEBACK_MARK_CONFIRMED',       label: 'Chargeback Confirmed',          category: 'Chargeback', recipientDescription: 'Requester',       availableVariables: ['requestId', 'requestUuid', 'userName', 'appUrl'] },
     { eventType: 'CHARGEBACK_COMPLETED',            label: 'Chargeback Completed',          category: 'Chargeback', recipientDescription: 'Requester',       availableVariables: ['requestId', 'requestUuid', 'userName', 'appUrl'] },
+
+    // ── CRM ─────────────────────────────────────────────────────────────────
+    { eventType: 'crm_lead_aging',         label: 'CRM Lead Aging (Owner)',       category: 'CRM', recipientDescription: 'Lead owner',           availableVariables: ['leadTitle', 'ownerName', 'daysStale', 'userName', 'appUrl'] },
+    { eventType: 'crm_lead_aging_manager', label: 'CRM Lead Aging (Manager)',     category: 'CRM', recipientDescription: 'Owner\'s manager',      availableVariables: ['leadTitle', 'ownerName', 'daysStale', 'userName', 'appUrl'] },
+    { eventType: 'crm_overdue_followup',   label: 'CRM Overdue Follow-Up',        category: 'CRM', recipientDescription: 'Lead owner',            availableVariables: ['leadTitle', 'followUpDate', 'ownerName', 'userName', 'appUrl'] },
+    { eventType: 'crm_activity_reminder',  label: 'CRM Activity Reminder',        category: 'CRM', recipientDescription: 'Activity assignee',    availableVariables: ['activitySubject', 'scheduledTime', 'userName', 'appUrl'] },
+    { eventType: 'crm_stale_deal',         label: 'CRM Stale Deal',               category: 'CRM', recipientDescription: 'Opportunity owner',    availableVariables: ['dealName', 'expectedCloseDate', 'ownerName', 'userName', 'appUrl'] },
+    { eventType: 'crm_trust_review_due',   label: 'CRM Trust Review Due',         category: 'CRM', recipientDescription: 'Trust product owner',  availableVariables: ['trustType', 'accountName', 'daysUntilReview', 'nextReviewDate', 'userName', 'appUrl'] },
+    { eventType: 'crm_lead_auto_assigned', label: 'CRM Lead Auto-Assigned',       category: 'CRM', recipientDescription: 'Newly assigned user',  availableVariables: ['leadId', 'userName', 'appUrl'] },
 ];
 
 class NotificationTemplateController {
