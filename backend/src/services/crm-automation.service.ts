@@ -66,6 +66,7 @@ export async function checkActivityReminders(): Promise<void> {
 export async function checkLeadAging(): Promise<void> {
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   // Find active leads that are not converted or lost
   const activeLeads = await prisma.crmLead.findMany({
@@ -112,10 +113,28 @@ export async function checkLeadAging(): Promise<void> {
 
   logger.info(`[CRM][LeadAging] Found ${staleLeads.length} stale leads`);
 
+  const ownerIds = [...new Set(staleLeads.map((l) => l.ownerId))];
+  const alreadyNotifiedToday = await prisma.notification.findMany({
+    where: {
+      userId: { in: ownerIds },
+      subject: { contains: 'inactive' },
+      createdAt: { gte: todayStart },
+      channel: 'IN_APP',
+    },
+    select: { userId: true },
+  });
+  const notifiedSet = new Set(alreadyNotifiedToday.map((n) => n.userId));
+
+  let skipped = 0;
   for (const lead of staleLeads) {
     const ownerName = `${lead.owner.firstName} ${lead.owner.lastName}`;
+
+    if (notifiedSet.has(lead.ownerId)) {
+      skipped++;
+      continue;
+    }
+
     try {
-      // Notify the lead owner
       await notify({
         userId: lead.ownerId,
         eventType: 'crm_lead_aging',
@@ -126,7 +145,6 @@ export async function checkLeadAging(): Promise<void> {
         },
       });
 
-      // Notify the owner's manager if one exists
       if (lead.owner.managerId) {
         await notify({
           userId: lead.owner.managerId,
@@ -142,6 +160,10 @@ export async function checkLeadAging(): Promise<void> {
       logger.error(`[CRM][LeadAging] Failed to notify for lead ${lead.id}`, { error: err });
     }
   }
+
+  if (skipped > 0) {
+    logger.info(`[CRM][LeadAging] Skipped ${skipped} leads — owners already notified today`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +174,7 @@ export async function checkLeadAging(): Promise<void> {
 
 export async function checkOverdueFollowUps(): Promise<void> {
   const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   const overdueLeads = await prisma.crmLead.findMany({
     where: {
@@ -177,7 +200,25 @@ export async function checkOverdueFollowUps(): Promise<void> {
 
   logger.info(`[CRM][OverdueFollowUps] Found ${overdueLeads.length} overdue follow-ups`);
 
+  const ownerIds = [...new Set(overdueLeads.map((l) => l.ownerId))];
+  const alreadyNotifiedToday = await prisma.notification.findMany({
+    where: {
+      userId: { in: ownerIds },
+      subject: { contains: 'Overdue Follow-Up' },
+      createdAt: { gte: todayStart },
+      channel: 'IN_APP',
+    },
+    select: { userId: true },
+  });
+  const notifiedSet = new Set(alreadyNotifiedToday.map((n) => n.userId));
+
+  let skipped = 0;
   for (const lead of overdueLeads) {
+    if (notifiedSet.has(lead.ownerId)) {
+      skipped++;
+      continue;
+    }
+
     const ownerName = `${lead.owner.firstName} ${lead.owner.lastName}`;
     const followUpDate = lead.followUpDate!.toLocaleString();
     try {
@@ -193,6 +234,10 @@ export async function checkOverdueFollowUps(): Promise<void> {
     } catch (err) {
       logger.error(`[CRM][OverdueFollowUps] Failed to notify owner for lead ${lead.id}`, { error: err });
     }
+  }
+
+  if (skipped > 0) {
+    logger.info(`[CRM][OverdueFollowUps] Skipped ${skipped} leads — owners already notified today`);
   }
 }
 
