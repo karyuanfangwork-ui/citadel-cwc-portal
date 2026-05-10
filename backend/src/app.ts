@@ -43,9 +43,9 @@ app.set('json replacer', (_key: string, value: unknown) =>
   typeof value === 'bigint' ? Number(value) : value
 );
 
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// Body parsing (increased limit for bulk import payloads)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Compression
 app.use(compression());

@@ -327,7 +327,7 @@ function AssetRegistryTab() {
         <AssetFormModal onClose={() => { setShowCreateModal(false); fetchAssets(); }} />
       )}
       {showImportModal && (
-        <CsvImportModal onClose={() => { setShowImportModal(false); fetchAssets(); }} />
+        <ImportAssetsModal onClose={() => { setShowImportModal(false); fetchAssets(); }} />
       )}
     </div>
   );
@@ -1073,84 +1073,320 @@ function AssetFormModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// ── CSV Import Modal ────────────────────────────────────────────
+// ── Asset Import Modal (CSV/XLSX Upload + Preview + Validate + Commit) ──
 
-function CsvImportModal({ onClose }: { onClose: () => void }) {
+type ImportPhase = 'upload' | 'preview' | 'result';
+
+interface ParseResult {
+  columnMapping: Array<{ header: string; dbField: string; matched: boolean }>;
+  rows: Record<string, string>[];
+  stats: {
+    totalRows: number;
+    validRows: number;
+    errorRows: number;
+    errors: Array<{ row: string; field: string; message: string; severity: 'error' }>;
+    warnings: Array<{ row: string; field: string; message: string; severity: 'warning' }>;
+  };
+}
+
+function ImportAssetsModal({ onClose }: { onClose: () => void }) {
   const toast = useToast();
-  const [csvText, setCsvText] = useState('');
-  const [result, setResult] = useState<{ imported: number; warnings: string[]; errors: string[] } | null>(null);
-  const [importing, setImporting] = useState(false);
+  const [phase, setPhase] = useState<ImportPhase>('upload');
+  const [file, setFile] = useState<File | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
+  const [commitResult, setCommitResult] = useState<{ imported: number; skipped: number; warnings: string[]; errors: string[] } | null>(null);
+  const [committing, setCommitting] = useState(false);
 
-  const parseCsv = (text: string): Record<string, string>[] => {
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(',').map(h => h.trim());
-    return lines.slice(1).map(line => {
-      const values = line.split(',').map(v => v.trim());
-      return Object.fromEntries(headers.map((h, i) => [h, values[i] ?? '']));
-    });
+  // ── Phase 1: Upload & Parse ──
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) setFile(f);
   };
 
-  const handleImport = async () => {
-    const rows = parseCsv(csvText);
-    if (rows.length === 0) { toast.error('Error', 'No valid rows found in CSV'); return; }
-    setImporting(true);
-    try {
-      const res = await assetService.importAssets(rows);
-      setResult(res);
-      if (res.imported > 0) toast.success('Success', `Imported ${res.imported} asset${res.imported !== 1 ? 's' : ''}`);
-    } catch {
-      toast.error('Error', 'Import failed');
-    } finally {
-      setImporting(false);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f && (f.name.endsWith('.csv') || f.name.endsWith('.xlsx') || f.name.endsWith('.xls'))) {
+      setFile(f);
+    } else {
+      toast.error('Invalid file', 'Please upload .csv or .xlsx files only');
     }
   };
 
-  const CSV_TEMPLATE = `assetTag,serialNumber,name,category,brand,model,purchaseDate,purchasePrice,vendor,warrantyExpiry,status,assignedToEmail,notes
-CIT-LT-0001,SN123456,Dell XPS 15,LAPTOP,Dell,XPS 15 9530,2024-01-15,5500.00,Dell Malaysia,2027-01-15,ASSIGNED,john.tan@citadel.com,
-CIT-MN-0001,,LG 27" Monitor,MONITOR,LG,27UK850,2024-01-15,800.00,LG Malaysia,,IN_STOCK,,`;
+  const handleParse = async () => {
+    if (!file) return;
+    setParsing(true);
+    try {
+      const result = await assetService.importAssetsParse(file);
+      setParseResult(result);
+      setPhase('preview');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to parse file';
+      toast.error('Parse Error', msg);
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  // ── Phase 2: Preview & Validate ──
+  const handleCommit = async () => {
+    if (!parseResult) return;
+    const validRows = parseResult.rows.filter(r => r._valid !== 'false');
+    if (validRows.length === 0) {
+      toast.error('No valid rows', 'All rows have validation errors');
+      return;
+    }
+    setCommitting(true);
+    try {
+      const result = await assetService.importAssetsCommit(validRows, true);
+      setCommitResult(result);
+      setPhase('result');
+      if (result.imported > 0) {
+        toast.success('Import Complete', `Successfully imported ${result.imported} asset${result.imported !== 1 ? 's' : ''}`);
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Import failed';
+      toast.error('Import Error', msg);
+    } finally {
+      setCommitting(false);
+    }
+  };
+
+  const PREVIEW_FIELDS = [
+    { key: '_rowIndex', label: '#' },
+    { key: '_valid', label: '✓' },
+    { key: 'assetTag', label: 'Asset Tag' },
+    { key: 'name', label: 'Device Name' },
+    { key: 'category', label: 'Category' },
+    { key: 'brand', label: 'Brand' },
+    { key: 'model', label: 'Model' },
+    { key: 'serialNumber', label: 'Serial #' },
+    { key: 'assignedToEmail', label: 'Assigned Email' },
+    { key: 'notes', label: 'Notes' },
+  ];
 
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
         <div className="px-6 py-4 border-b flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Bulk Import Assets (CSV)</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-semibold text-gray-900">
+              {phase === 'upload' && 'Import Assets'}
+              {phase === 'preview' && 'Preview & Validate'}
+              {phase === 'result' && 'Import Results'}
+            </h2>
+            {/* Step indicators */}
+            <div className="flex items-center gap-1 text-xs">
+              {['Upload', 'Preview', 'Done'].map((step, i) => (
+                <React.Fragment key={step}>
+                  {i > 0 && <span className="text-gray-300">→</span>}
+                  <span className={`px-2 py-0.5 rounded ${
+                    phase === 'upload' && i === 0 ? 'bg-blue-600 text-white' :
+                    phase === 'preview' && i === 1 ? 'bg-blue-600 text-white' :
+                    phase === 'result' && i === 2 ? 'bg-green-600 text-white' :
+                    'bg-gray-100 text-gray-400'
+                  }`}>{step}</span>
+                </React.Fragment>
+              ))}
+            </div>
+          </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
-        <div className="px-6 py-5 space-y-4">
-          <div className="bg-gray-50 rounded-lg p-3 text-xs font-mono text-gray-600 overflow-x-auto">
-            <p className="text-xs font-medium text-gray-400 mb-1 font-sans">CSV format (header row required):</p>
-            {CSV_TEMPLATE}
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Paste CSV content</label>
-            <textarea
-              value={csvText}
-              onChange={e => setCsvText(e.target.value)}
-              rows={8}
-              placeholder={CSV_TEMPLATE}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
 
-          {result && (
-            <div className="space-y-2 text-sm">
-              <p className="text-green-700 font-medium">✓ {result.imported} imported</p>
-              {result.warnings.map((w, i) => <p key={i} className="text-yellow-700">⚠ {w}</p>)}
-              {result.errors.map((e, i) => <p key={i} className="text-red-600">✕ {e}</p>)}
+        <div className="px-6 py-5">
+          {/* ── Phase 1: Upload ── */}
+          {phase === 'upload' && (
+            <div className="space-y-4">
+              {/* Drop zone */}
+              <div
+                onDragOver={e => e.preventDefault()}
+                onDrop={handleDrop}
+                className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                  file ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                }`}
+                onClick={() => document.getElementById('import-file-input')?.click()}
+              >
+                {file ? (
+                  <div>
+                    <svg className="w-10 h-10 text-green-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <p className="text-sm font-medium text-gray-900">{file.name}</p>
+                    <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+                  </div>
+                ) : (
+                  <div>
+                    <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                    <p className="text-sm text-gray-600">Drag & drop a <strong>.csv</strong> or <strong>.xlsx</strong> file here</p>
+                    <p className="text-xs text-gray-400 mt-1">or click to browse</p>
+                  </div>
+                )}
+                <input
+                  id="import-file-input"
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
+
+              {/* Supported formats info */}
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                <p className="text-xs font-medium text-blue-800 mb-1">Supported column headers</p>
+                <p className="text-xs text-blue-600">
+                  The importer auto-maps common headers: <em>Device name, Serial number, Manufacturer/Brand, Model, Category, Asset tag, Primary user email address, Wi-Fi MAC, Ethernet MAC, OS, Encrypted, Entities, Remarks/Notes</em>
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Categories are auto-normalized: <em>Laptop→LAPTOP, Desktop→DESKTOP, Monitor→MONITOR, etc.</em>
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                <button
+                  onClick={handleParse}
+                  disabled={!file || parsing}
+                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {parsing ? 'Parsing...' : 'Parse & Preview'}
+                </button>
+              </div>
             </div>
           )}
 
-          <div className="flex justify-end gap-3">
-            <button onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">
-              {result ? 'Close' : 'Cancel'}
-            </button>
-            {!result && (
-              <button onClick={handleImport} disabled={importing || !csvText.trim()} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
-                {importing ? 'Importing...' : 'Import'}
-              </button>
-            )}
-          </div>
+          {/* ── Phase 2: Preview ── */}
+          {phase === 'preview' && parseResult && (
+            <div className="space-y-4">
+              {/* Stats bar */}
+              <div className="flex gap-4 text-sm">
+                <span className="px-3 py-1 bg-gray-100 rounded text-gray-700">Total: {parseResult.stats.totalRows}</span>
+                <span className="px-3 py-1 bg-green-100 rounded text-green-800">Valid: {parseResult.stats.validRows}</span>
+                {parseResult.stats.errorRows > 0 && (
+                  <span className="px-3 py-1 bg-red-100 rounded text-red-800">{parseResult.stats.errorRows} with errors</span>
+                )}
+              </div>
+
+              {/* Errors & Warnings */}
+              {parseResult.stats.errors.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                  <p className="text-xs font-medium text-red-800 mb-1">Errors ({parseResult.stats.errors.length})</p>
+                  {parseResult.stats.errors.slice(0, 20).map((e, i) => (
+                    <p key={i} className="text-xs text-red-600">{e.row}: {e.message}</p>
+                  ))}
+                  {parseResult.stats.errors.length > 20 && (
+                    <p className="text-xs text-red-400 mt-1">...and {parseResult.stats.errors.length - 20} more</p>
+                  )}
+                </div>
+              )}
+              {parseResult.stats.warnings.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                  <p className="text-xs font-medium text-yellow-800 mb-1">Warnings ({parseResult.stats.warnings.length})</p>
+                  {parseResult.stats.warnings.slice(0, 10).map((w, i) => (
+                    <p key={i} className="text-xs text-yellow-700">{w.row}: {w.message}</p>
+                  ))}
+                  {parseResult.stats.warnings.length > 10 && (
+                    <p className="text-xs text-yellow-500 mt-1">...and {parseResult.stats.warnings.length - 10} more</p>
+                  )}
+                </div>
+              )}
+
+              {/* Column mapping */}
+              {parseResult.columnMapping.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer font-medium text-gray-600 mb-1">Column Mapping ({parseResult.columnMapping.filter(c => c.matched).length}/{parseResult.columnMapping.length} matched)</summary>
+                  <div className="grid grid-cols-3 gap-1 bg-gray-50 p-2 rounded">
+                    {parseResult.columnMapping.map((c, i) => (
+                      <div key={i} className={`px-2 py-1 rounded ${c.matched ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-500'}`}>
+                        {c.header} → {c.dbField}
+                        {!c.matched && ' (unmapped)'}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
+              {/* Preview table */}
+              <div className="overflow-x-auto border rounded-lg max-h-80">
+                <table className="text-xs w-full">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      {PREVIEW_FIELDS.map(f => (
+                        <th key={f.key} className="px-2 py-1.5 text-left font-medium text-gray-600 whitespace-nowrap">{f.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parseResult.rows.slice(0, 50).map((row, i) => (
+                      <tr key={i} className={`border-t ${row._valid === 'false' ? 'bg-red-50' : i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
+                        {PREVIEW_FIELDS.map(f => {
+                          const val = row[f.key] || '';
+                          const maxLen = 30;
+                          return (
+                            <td key={f.key} className={`px-2 py-1 whitespace-nowrap max-w-[150px] truncate ${f.key === '_valid' ? (val === 'true' ? 'text-green-600' : 'text-red-600') : ''}`}>
+                              {f.key === '_valid' ? (val === 'true' ? '✓' : '✕') : val.length > maxLen ? val.slice(0, maxLen) + '...' : val}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {parseResult.rows.length > 50 && (
+                  <p className="text-xs text-gray-400 text-center py-2">Showing first 50 of {parseResult.rows.length} rows</p>
+                )}
+              </div>
+
+              <div className="flex justify-between items-center">
+                <button onClick={() => { setPhase('upload'); setParseResult(null); setFile(null); }} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">← Back</button>
+                <div className="flex gap-3">
+                  <button onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>
+                  <button
+                    onClick={handleCommit}
+                    disabled={committing || parseResult.stats.validRows === 0}
+                    className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                  >
+                    {committing ? 'Importing...' : `Import ${parseResult.stats.validRows} valid row${parseResult.stats.validRows !== 1 ? 's' : ''}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Phase 3: Result ── */}
+          {phase === 'result' && commitResult && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-lg font-semibold text-green-700">{commitResult.imported} Imported</span>
+                </div>
+                {commitResult.skipped > 0 && (
+                  <span className="text-sm text-orange-600">{commitResult.skipped} skipped</span>
+                )}
+              </div>
+
+              {commitResult.warnings.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                  <p className="text-xs font-medium text-yellow-800 mb-1">Warnings ({commitResult.warnings.length})</p>
+                  {commitResult.warnings.map((w, i) => (
+                    <p key={i} className="text-xs text-yellow-700">{w}</p>
+                  ))}
+                </div>
+              )}
+              {commitResult.errors.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                  <p className="text-xs font-medium text-red-800 mb-1">Errors ({commitResult.errors.length})</p>
+                  {commitResult.errors.map((e, i) => (
+                    <p key={i} className="text-xs text-red-600">{e}</p>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end">
+                <button onClick={onClose} className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700">Done</button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

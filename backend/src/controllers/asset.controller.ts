@@ -666,11 +666,404 @@ class AssetController {
     });
 
     /**
-     * POST /assets/import
+     * POST /assets/import/parse
+     * Upload a CSV/XLSX file and get a column-mapped preview with validation.
+     * Returns parsed rows (with auto-mapped DB field names), validation errors, and column suggestions.
+     */
+    importAssetsParse = asyncHandler(async (req: AuthRequest, res: Response) => {
+        console.log('[importAssetsParse] Request received, file:', !!(req as any).file, 'body keys:', Object.keys(req.body));
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const file = (req as any).file as { buffer: Buffer; originalname: string; mimetype: string } | undefined;
+        const rowsInput = req.body.rows as Record<string, string>[] | undefined;
+
+        let rawRows: Record<string, string>[];
+
+        if (file) {
+            // File uploaded via multipart
+            const XLSX = await import('xlsx');
+            const isXlsx = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
+
+            if (isXlsx) {
+                const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+                console.log('[importAssetsParse] XLSX sheets:', workbook.SheetNames);
+                const sheetName = workbook.SheetNames[0]; // Use first sheet
+                const sheet = workbook.Sheets[sheetName];
+                rawRows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' });
+            } else {
+                // CSV — parse using XLSX for robustness
+                const text = file.buffer.toString('utf-8');
+                const workbook = XLSX.read(text, { type: 'string' });
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                rawRows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' });
+            }
+
+            // Strip empty keys from each row — XLSX files with wide formatting (e.g. 16000+ columns)
+            // produce massive payloads with thousands of empty string fields. Only keep non-empty values.
+            rawRows = rawRows.map(row => {
+                const filtered: Record<string, string> = {};
+                for (const [key, value] of Object.entries(row)) {
+                    if (value !== '') {
+                        filtered[key] = value;
+                    }
+                }
+                return filtered;
+            });
+        } else if (rowsInput && Array.isArray(rowsInput) && rowsInput.length > 0) {
+            // JSON body fallback (backward compatibility)
+            rawRows = rowsInput;
+        } else {
+            throw new AppError('Upload a CSV/XLSX file or provide rows array', 400);
+        }
+
+        if (rawRows.length === 0) {
+            throw new AppError('No data rows found in the file', 400);
+        }
+
+        console.log('[importAssetsParse] Parsed %d rows, %d columns', rawRows.length, Object.keys(rawRows[0]).length);
+
+        // ── Column mapping: Excel/header names → DB field names ──────
+        const COLUMN_ALIASES: Record<string, string> = {
+            'device name': 'name',
+            'serial number': 'serialNumber',
+            'serialnumber': 'serialNumber',
+            'serial_number': 'serialNumber',
+            'serial no': 'serialNumber',
+            'manufacturer': 'brand',
+            'brand': 'brand',
+            'model': 'model',
+            'category': 'category',
+            'asset tag': 'assetTag',
+            'assettag': 'assetTag',
+            'asset_tag': 'assetTag',
+            'primary user email address': 'assignedToEmail',
+            'primary user email': 'assignedToEmail',
+            'assignedtoemail': 'assignedToEmail',
+            'email': 'assignedToEmail',
+            'primary user display name': 'assignedToName',
+            'purchase date': 'purchaseDate',
+            'purchasedate': 'purchaseDate',
+            'purchase_date': 'purchaseDate',
+            'purchase price': 'purchasePrice',
+            'purchaseprice': 'purchasePrice',
+            'purchase_price': 'purchasePrice',
+            'vendor': 'vendor',
+            'warranty expiry': 'warrantyExpiry',
+            'warrantyexpiry': 'warrantyExpiry',
+            'warranty_expiry': 'warrantyExpiry',
+            'notes': 'notes',
+            'remarks': 'notes',
+            'remarks2': 'notes',
+            'status': 'status',
+            'previous used by': 'previousUser',
+            'previoususedby': 'previousUser',
+            'encrypted': 'encrypted',
+            'os': 'os',
+            'skufamily': 'skuFamily',
+            'join type': 'joinType',
+            'jointype': 'joinType',
+            'entities': 'entities',
+            'ethernet mac': 'ethernetMac',
+            'ethernetmac': 'ethernetMac',
+            'ethernet_mac': 'ethernetMac',
+            'wi-fi mac': 'wifiMac',
+            'wifimac': 'wifiMac',
+            'wi-fi_mac': 'wifiMac',
+            'arch': 'arch',
+            'sku family': 'skuFamily',
+        };
+
+        // Category normalization: human-readable → enum value
+        const CATEGORY_MAP: Record<string, string> = {
+            'laptop': 'LAPTOP',
+            'desktop': 'DESKTOP',
+            'monitor': 'MONITOR',
+            'peripheral': 'PERIPHERAL',
+            'phone': 'PHONE',
+            'network': 'NETWORK',
+            'printer': 'PRINTER',
+            'software license': 'SOFTWARE_LICENSE',
+            'software_license': 'SOFTWARE_LICENSE',
+            'other': 'OTHER',
+        };
+
+        // Map header names
+        const originalHeaders = Object.keys(rawRows[0]);
+        const headerMapping: Record<string, string> = {};
+        for (const header of originalHeaders) {
+            const key = header.trim().toLowerCase();
+            headerMapping[header] = COLUMN_ALIASES[key] || header;
+        }
+
+        // Transform rows: map headers and normalize values
+        const mappedRows = rawRows.map((row, i) => {
+            const mapped: Record<string, string> = { _rowIndex: String(i + 2) }; // +2 for 1-based + header
+            for (const [origKey, value] of Object.entries(row)) {
+                const dbField = headerMapping[origKey] || origKey;
+                mapped[dbField] = String(value ?? '').trim();
+            }
+
+            // Normalize category
+            if (mapped.category) {
+                const normalized = CATEGORY_MAP[mapped.category.toLowerCase()];
+                if (normalized) {
+                    mapped.category = normalized;
+                }
+            }
+
+            // Handle "Available" / "Server Admin" / empty emails — don't assign
+            if (mapped.assignedToEmail) {
+                const lower = mapped.assignedToEmail.toLowerCase();
+                if (lower === 'available' || lower === 'server admin' || lower === '' || lower === 'n/a') {
+                    mapped.assignedToEmail = '';
+                }
+            }
+
+            return mapped;
+        });
+
+        // ── Validation ────────────────────────────────────────────────
+        const VALID_CATEGORIES = ['LAPTOP', 'DESKTOP', 'MONITOR', 'PERIPHERAL', 'PHONE', 'NETWORK', 'PRINTER', 'SOFTWARE_LICENSE', 'OTHER'];
+
+        interface ValidationIssue {
+            row: string;
+            field: string;
+            message: string;
+            severity: 'error' | 'warning';
+        }
+
+        const issues: ValidationIssue[] = [];
+        const validatedRows: Record<string, string>[] = [];
+
+        // Collect existing assetTags and serialNumbers for duplicate detection
+        const allAssetTags = mappedRows.map(r => r.assetTag).filter(Boolean);
+        const allSerialNumbers = mappedRows.map(r => r.serialNumber).filter(Boolean);
+
+        const existingTags = await prisma.asset.findMany({
+            where: { assetTag: { in: allAssetTags } },
+            select: { assetTag: true },
+        });
+        const existingSerials = await prisma.asset.findMany({
+            where: { serialNumber: { in: allSerialNumbers } },
+            select: { serialNumber: true },
+        });
+        const existingTagSet = new Set(existingTags.map(a => a.assetTag));
+        const existingSerialSet = new Set(new Set(existingSerials.map(a => a.serialNumber)));
+
+        // Count in-file duplicates
+        const tagCountInFile: Record<string, number> = {};
+        for (const tag of allAssetTags) {
+            tagCountInFile[tag] = (tagCountInFile[tag] || 0) + 1;
+        }
+        const serialCountInFile: Record<string, number> = {};
+        for (const sn of allSerialNumbers) {
+            serialCountInFile[sn] = (serialCountInFile[sn] || 0) + 1;
+        }
+
+        const tagSeenInFile: Set<string> = new Set();
+        const serialSeenInFile: Set<string> = new Set();
+
+        for (const row of mappedRows) {
+            const rowLabel = row._rowIndex;
+            let hasError = false;
+
+            // Required fields
+            if (!row.assetTag) {
+                issues.push({ row: rowLabel, field: 'assetTag', message: 'assetTag is required', severity: 'error' });
+                hasError = true;
+            }
+            if (!row.name) {
+                issues.push({ row: rowLabel, field: 'name', message: 'name is required', severity: 'error' });
+                hasError = true;
+            }
+            if (!row.category) {
+                issues.push({ row: rowLabel, field: 'category', message: 'category is required', severity: 'error' });
+                hasError = true;
+            } else if (!VALID_CATEGORIES.includes(row.category)) {
+                issues.push({ row: rowLabel, field: 'category', message: `Invalid category "${row.category}". Valid: ${VALID_CATEGORIES.join(', ')}`, severity: 'error' });
+                hasError = true;
+            }
+
+            // DB duplicate check
+            if (row.assetTag && existingTagSet.has(row.assetTag)) {
+                issues.push({ row: rowLabel, field: 'assetTag', message: `assetTag "${row.assetTag}" already exists in DB`, severity: 'error' });
+                hasError = true;
+            }
+            if (row.serialNumber && existingSerialSet.has(row.serialNumber)) {
+                issues.push({ row: rowLabel, field: 'serialNumber', message: `serialNumber "${row.serialNumber}" already exists in DB`, severity: 'warning' });
+            }
+
+            // In-file duplicate check
+            if (row.assetTag && tagCountInFile[row.assetTag] > 1) {
+                if (!tagSeenInFile.has(row.assetTag)) {
+                    tagSeenInFile.add(row.assetTag);
+                } else {
+                    issues.push({ row: rowLabel, field: 'assetTag', message: `Duplicate assetTag "${row.assetTag}" in file`, severity: 'error' });
+                    hasError = true;
+                }
+            }
+            if (row.serialNumber && serialCountInFile[row.serialNumber] > 1) {
+                if (!serialSeenInFile.has(row.serialNumber)) {
+                    serialSeenInFile.add(row.serialNumber);
+                } else {
+                    issues.push({ row: rowLabel, field: 'serialNumber', message: `Duplicate serialNumber "${row.serialNumber}" in file`, severity: 'warning' });
+                }
+            }
+
+            // Email check (warning only)
+            if (row.assignedToEmail && row.assignedToEmail.includes('@') && !row.assignedToEmail.endsWith('@citadelgroup.com.my') && !row.assignedToEmail.endsWith('@company.com')) {
+                issues.push({ row: rowLabel, field: 'assignedToEmail', message: `Email "${row.assignedToEmail}" may not match a known domain`, severity: 'warning' });
+            }
+
+            // Combine extra fields into notes if notes is empty
+            const extraParts: string[] = [];
+            if (row.ethernetMac && row.ethernetMac !== 'N/A' && row.ethernetMac !== 'n/a') extraParts.push(`Ethernet MAC: ${row.ethernetMac}`);
+            if (row.wifiMac && row.wifiMac !== 'N/A' && row.wifiMac !== 'n/a') extraParts.push(`Wi-Fi MAC: ${row.wifiMac}`);
+            if (row.previousUser) extraParts.push(`Previous User: ${row.previousUser}`);
+            if (row.os) extraParts.push(`OS: ${row.os}`);
+            if (row.encrypted) extraParts.push(`Encrypted: ${row.encrypted}`);
+            if (row.skuFamily) extraParts.push(`SKU Family: ${row.skuFamily}`);
+            if (row.joinType) extraParts.push(`Join Type: ${row.joinType}`);
+            if (row.entities) extraParts.push(`Entity: ${row.entities}`);
+            if (row.arch) extraParts.push(`Arch: ${row.arch}`);
+            if (row.assignedToName && row.assignedToEmail) extraParts.push(`User: ${row.assignedToName}`);
+
+            const combinedNotes = [row.notes, ...extraParts].filter(Boolean).join(' | ');
+
+            validatedRows.push({
+                ...row,
+                notes: combinedNotes || row.notes || '',
+                _valid: hasError ? 'false' : 'true',
+            } as any);
+        }
+
+        // Build column suggestions for the UI
+        const knownDbFields = ['assetTag', 'serialNumber', 'name', 'category', 'brand', 'model', 'purchaseDate', 'purchasePrice', 'vendor', 'warrantyExpiry', 'status', 'assignedToEmail', 'assignedToName', 'notes'];
+        const columnMapping = Object.entries(headerMapping)
+            .filter(([, dbField]) => knownDbFields.includes(dbField) || !COLUMN_ALIASES[Object.keys(headerMapping).find(k => headerMapping[k] === dbField) || ''])
+            .map(([header, dbField]) => ({ header, dbField, matched: knownDbFields.includes(dbField) }));
+
+        const stats = {
+            totalRows: mappedRows.length,
+            validRows: validatedRows.filter(r => r._valid === 'true').length,
+            errorRows: validatedRows.filter(r => r._valid === 'false').length,
+            errors: issues.filter(i => i.severity === 'error'),
+            warnings: issues.filter(i => i.severity === 'warning'),
+        };
+
+        res.json({
+            status: 'success',
+            data: {
+                columnMapping,
+                rows: validatedRows,
+                stats,
+            },
+        });
+    });
+
+    /**
+     * POST /assets/import/commit
+     * Takes validated rows from preview and writes to DB.
+     * Body: { rows: Array<mapped row objects>, assignUsers: boolean }
+     */
+    importAssetsCommit = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { rows, assignUsers = true } = req.body;
+
+        if (!Array.isArray(rows) || rows.length === 0) {
+            throw new AppError('rows array is required', 400);
+        }
+
+        const results: { imported: number; skipped: number; warnings: string[]; errors: string[] } = {
+            imported: 0, skipped: 0, warnings: [], errors: [],
+        };
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const rowLabel = row._rowIndex || `Row ${i + 2}`;
+
+            // Skip rows marked invalid from the parse step
+            if (row._valid === 'false') {
+                results.skipped++;
+                continue;
+            }
+
+            if (!row.assetTag || !row.name || !row.category) {
+                results.errors.push(`${rowLabel}: assetTag, name, and category are required — skipped`);
+                results.skipped++;
+                continue;
+            }
+
+            // Check for DB duplicates (race condition safe — unique constraint will also catch)
+            const duplicate = await prisma.asset.findFirst({
+                where: {
+                    OR: [
+                        { assetTag: row.assetTag },
+                        ...(row.serialNumber ? [{ serialNumber: row.serialNumber }] : []),
+                    ],
+                },
+            });
+            if (duplicate) {
+                results.errors.push(`${rowLabel}: assetTag "${row.assetTag}" or serialNumber already exists — skipped`);
+                results.skipped++;
+                continue;
+            }
+
+            let resolvedUserId: string | null = null;
+            if (assignUsers && row.assignedToEmail) {
+                const user = await prisma.user.findFirst({ where: { email: row.assignedToEmail, isActive: true } });
+                if (user) {
+                    resolvedUserId = user.id;
+                } else {
+                    results.warnings.push(`${rowLabel}: email "${row.assignedToEmail}" not found — imported as IN_STOCK`);
+                }
+            }
+
+            try {
+                const asset = await prisma.asset.create({
+                    data: {
+                        assetTag: row.assetTag.trim(),
+                        serialNumber: row.serialNumber?.trim() || null,
+                        name: row.name.trim(),
+                        category: row.category as any,
+                        brand: row.brand?.trim() || null,
+                        model: row.model?.trim() || null,
+                        purchaseDate: row.purchaseDate ? new Date(row.purchaseDate) : null,
+                        purchasePrice: row.purchasePrice ? parseFloat(row.purchasePrice) : null,
+                        vendor: row.vendor?.trim() || null,
+                        warrantyExpiry: row.warrantyExpiry ? new Date(row.warrantyExpiry) : null,
+                        status: resolvedUserId ? 'ASSIGNED' : (row.status || 'IN_STOCK'),
+                        notes: row.notes?.trim() || null,
+                        createdById: req.user!.id,
+                    },
+                });
+
+                if (resolvedUserId) {
+                    await prisma.assetAssignment.create({
+                        data: {
+                            assetId: asset.id,
+                            userId: resolvedUserId,
+                            assignedById: req.user!.id,
+                            assignedAt: row.purchaseDate ? new Date(row.purchaseDate) : new Date(),
+                            reason: 'imported',
+                        },
+                    });
+                }
+
+                results.imported++;
+            } catch (err: any) {
+                results.errors.push(`${rowLabel}: ${err.message || 'Unknown error'}`);
+                results.skipped++;
+            }
+        }
+
+        res.json({ status: 'success', data: results });
+    });
+
+    /**
+     * POST /assets/import (backward-compatible)
      * Bulk CSV import with row validation, duplicate check, and optional assignedToEmail user lookup.
-     * Expects body.csv as an array of objects (parsed CSV rows).
-     * Each row: assetTag, name, category, serialNumber?, brand?, model?,
-     *          purchaseDate?, purchasePrice?, vendor?, warrantyExpiry?, notes?, assignedToEmail?
+     * Expects body.rows as an array of objects (parsed CSV rows).
+     * Delegates to importAssetsParse for validation, then importAssetsCommit for insertion.
      */
     importAssets = asyncHandler(async (req: AuthRequest, res: Response) => {
         const rows: Record<string, string>[] = req.body.rows;
@@ -685,7 +1078,7 @@ class AssetController {
 
         for (let i = 0; i < rows.length; i++) {
             const row = rows[i];
-            const rowLabel = `Row ${i + 2}`; // +2 because row 1 is header
+            const rowLabel = `Row ${i + 2}`;
 
             if (!row.assetTag || !row.name || !row.category) {
                 results.errors.push(`${rowLabel}: assetTag, name, and category are required`);
