@@ -372,6 +372,42 @@ export const SEED_NOTIFICATION_TEMPLATES = [
     "pushTitle": "Activity reminder: {{activitySubject}}",
     "pushBody": "Scheduled for {{scheduledTime}}.",
     "isActive": true
+  },
+
+  // ── CRM: Stale Deal ──────────────────────────────────────────────────────
+  {
+    "name": "CRM Stale Deal",
+    "eventType": "crm_stale_deal",
+    "emailSubject": "Deal Alert: \"{{dealName}}\" expected close date {{expectedCloseDate}} has passed",
+    "emailBody": "<p>Hi {{userName}},</p><p>Your deal <strong>{{dealName}}</strong> had an expected close date of <strong>{{expectedCloseDate}}</strong> which has now passed.</p><p>Please update the deal status or revise the expected close date.</p><p><a href=\"{{appUrl}}/crm/opportunities\">View Deals</a></p>",
+    "smsBody": null,
+    "pushTitle": "Stale deal: {{dealName}}",
+    "pushBody": "Expected close {{expectedCloseDate}} has passed. Update required.",
+    "isActive": true
+  },
+
+  // ── CRM: Trust Review Due ────────────────────────────────────────────────
+  {
+    "name": "CRM Trust Product Review Due",
+    "eventType": "crm_trust_review_due",
+    "emailSubject": "Trust Review Due in {{daysUntilReview}} Days: {{trustType}} — {{accountName}}",
+    "emailBody": "<p>Hi {{userName}},</p><p>The trust product <strong>{{trustType}}</strong> for account <strong>{{accountName}}</strong> is due for review in <strong>{{daysUntilReview}} days</strong> ({{nextReviewDate}}).</p><p>Please schedule a client review meeting and prepare the necessary documentation.</p><p><a href=\"{{appUrl}}/crm/accounts\">View Accounts</a></p>",
+    "smsBody": null,
+    "pushTitle": "Trust review in {{daysUntilReview}} days",
+    "pushBody": "{{trustType}} for {{accountName}} — review due {{nextReviewDate}}.",
+    "isActive": true
+  },
+
+  // ── CRM: Lead Auto-Assigned ──────────────────────────────────────────────
+  {
+    "name": "CRM Lead Auto-Assigned",
+    "eventType": "crm_lead_auto_assigned",
+    "emailSubject": "New Lead Assigned to You",
+    "emailBody": "<p>Hi {{userName}},</p><p>A new lead has been automatically assigned to you via round-robin assignment.</p><p>Please review and begin outreach as soon as possible.</p><p><a href=\"{{appUrl}}/crm/leads\">View Your Leads</a></p>",
+    "smsBody": null,
+    "pushTitle": "New lead assigned to you",
+    "pushBody": "A new lead has been auto-assigned. Tap to view.",
+    "isActive": true
   }
 ];
 
