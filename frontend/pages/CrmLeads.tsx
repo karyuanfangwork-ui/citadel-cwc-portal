@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import crmService, { CrmLead, Pagination, LeadStatus, LeadSource } from '../src/services/crm.service';
+import CrmNav from '../src/components/CrmNav';
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: string }> = {
   NEW: { bg: '#eff6ff', text: '#1d4ed8', icon: 'fiber_new' },
@@ -105,7 +106,9 @@ const CrmLeads = () => {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+    <>
+      <CrmNav />
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
@@ -302,6 +305,7 @@ const CrmLeads = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

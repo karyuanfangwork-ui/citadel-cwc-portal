@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType } from '../src/services/crm.service';
+import CrmNav from '../src/components/CrmNav';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -74,7 +75,9 @@ const CrmAccountDetail = () => {
   const stageColors: Record<string, string> = { PROSPECTING: '#6366f1', QUALIFICATION: '#f59e0b', PROPOSAL: '#3b82f6', NEGOTIATION: '#8b5cf6', CLOSED_WON: '#22c55e', CLOSED_LOST: '#ef4444' };
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+    <>
+      <CrmNav />
+      <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
         <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">CRM</Link>
@@ -151,7 +154,6 @@ const CrmAccountDetail = () => {
               { label: 'Registration No.', value: account.registrationNumber, icon: 'badge' },
               { label: 'Tax No.', value: account.taxNumber, icon: 'receipt_long' },
               { label: 'Bank Account', value: account.bankAccount, icon: 'account_balance' },
-              { label: 'Cash Trust', value: account.purchaseCashTrust ? 'Yes' : null, icon: 'verified' },
               { label: 'Owner', value: account.owner ? `${account.owner.firstName} ${account.owner.lastName}` : '—', icon: 'manage_accounts' },
               { label: 'Created', value: formatDate(account.createdAt), icon: 'calendar_today' },
             ].map(f => f.value && (
@@ -309,6 +311,7 @@ const CrmAccountDetail = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

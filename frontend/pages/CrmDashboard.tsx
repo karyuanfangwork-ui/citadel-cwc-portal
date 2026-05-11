@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import crmService, { DashboardStats, CrmActivity } from '../src/services/crm.service';
+import CrmNav from '../src/components/CrmNav';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
 const formatRelative = (d: string) => { const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m/60)}h ago` : `${Math.floor(m/1440)}d ago`; };
@@ -66,7 +67,9 @@ const CrmDashboard = () => {
   }, [myDeals]);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+    <>
+      <CrmNav />
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Hero */}
       <section className="bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4338ca] rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">
         <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
@@ -179,22 +182,6 @@ const CrmDashboard = () => {
             )}
           </div>
 
-          {/* Quick nav */}
-          <div className="flex items-center gap-3 mt-5 flex-wrap">
-            {[
-              { icon: 'business', label: 'Accounts', to: '/crm/accounts' },
-              { icon: 'person', label: 'Contacts', to: '/crm/contacts' },
-              { icon: 'lightbulb', label: 'Leads', to: '/crm/leads' },
-              { icon: 'view_kanban', label: 'Pipeline', to: '/crm/pipeline' },
-              { icon: 'groups', label: 'Team', to: '/crm/team' },
-              { icon: 'menu_book', label: 'User Guide', to: '/crm/guide' },
-            ].map(btn => (
-              <Link key={btn.to} to={btn.to} className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white/90 text-xs font-bold rounded-full py-1.5 px-3 transition-colors" style={{ textDecoration: 'none' }}>
-                <span className="material-symbols-outlined text-sm">{btn.icon}</span>
-                {btn.label}
-              </Link>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -336,6 +323,7 @@ const CrmDashboard = () => {
         )}
       </div>
     </div>
+    </>
   );
 };
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmPipeline, CrmPipelineStage, CrmOpportunity } from '../src/services/crm.service';
+import CrmNav from '../src/components/CrmNav';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
 const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
@@ -129,6 +130,7 @@ const CrmPipelineView = () => {
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
+      <CrmNav />
       {/* Header */}
       <div className="px-4 sm:px-8 py-4 border-b border-border bg-surface shrink-0">
         <div className="max-w-[1440px] mx-auto flex items-center justify-between flex-wrap gap-4">

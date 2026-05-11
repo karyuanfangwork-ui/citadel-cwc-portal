@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmOpportunity, CrmActivity, CrmActivityType } from '../src/services/crm.service';
+import CrmNav from '../src/components/CrmNav';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -95,7 +96,9 @@ const CrmOpportunityDetail = () => {
   const isWon = opp.stage?.isWonStage;
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+    <>
+      <CrmNav />
+      <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
         <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">CRM</Link>
@@ -361,6 +364,7 @@ const CrmOpportunityDetail = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmContact, Pagination } from '../src/services/crm.service';
+import CrmNav from '../src/components/CrmNav';
 
 const CrmContacts = () => {
   const navigate = useNavigate();
@@ -48,7 +49,9 @@ const CrmContacts = () => {
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+    <>
+      <CrmNav />
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
@@ -226,6 +229,7 @@ const CrmContacts = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

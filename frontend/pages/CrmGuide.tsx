@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import CrmNav from '../src/components/CrmNav';
 
 const SECTIONS = [
   { id: 'what-is-crm', label: 'What Is the CRM?' },
@@ -40,7 +41,9 @@ const StatusBadge = ({ label, bg, text }: { label: string; bg: string; text: str
 
 const CrmGuide = () => {
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-6">
+    <>
+      <CrmNav />
+      <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-6">
       {/* Page header */}
       <div className="mb-8">
         <Link to="/crm" className="inline-flex items-center gap-1 text-sm text-text-secondary hover:text-brand-700 mb-4" style={{ textDecoration: 'none' }}>
@@ -131,7 +134,7 @@ const CrmGuide = () => {
             </thead>
             <tbody className="divide-y divide-border">
               {[
-                { field: 'Title', required: 'Yes', desc: "The prospect's name or a short description (e.g. \"Ahmad bin Razak — Cash Trust\")" },
+                { field: 'Title', required: 'Yes', desc: "The prospect's name or a short description (e.g. \"Ahmad bin Razak — Trust Service\")" },
                 { field: 'Source', required: 'No', desc: 'How you found them: Website, Referral, Cold Call, Trade Show, LinkedIn, Advertisement, Partner, or Other' },
                 { field: 'Company Name', required: 'No', desc: 'Their organisation or employer' },
                 { field: 'Contact', required: 'No', desc: 'Link to an existing Contact record if one exists' },
@@ -338,7 +341,7 @@ const CrmGuide = () => {
             </thead>
             <tbody className="divide-y divide-border">
               {[
-                { field: 'Pipeline', desc: 'Which sales pipeline this deal belongs to (e.g. Cash Trust Pipeline)' },
+                { field: 'Pipeline', desc: 'Which sales pipeline this deal belongs to (e.g. Trust Services Pipeline)' },
                 { field: 'Stage', desc: 'Which stage the deal starts at (usually the first stage in the pipeline)' },
                 { field: 'Deal Name', desc: 'Auto-filled from the lead title — edit if needed' },
                 { field: 'Deal Value (MYR)', desc: 'The confirmed or estimated deal value' },
@@ -428,6 +431,7 @@ const CrmGuide = () => {
         </div>
       </Section>
     </div>
+    </>
   );
 };
 

@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import crmService, { CrmPipeline } from '../src/services/crm.service';
+import CrmNav from '../src/components/CrmNav';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -614,7 +615,9 @@ export default function CrmReports() {
   const showDateRange = DATE_TABS.includes(activeTab);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
+    <>
+      <CrmNav />
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8 space-y-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-text-secondary">
         <Link to="/crm" className="hover:text-text-primary transition-colors">CRM</Link>
@@ -662,5 +665,6 @@ export default function CrmReports() {
         ))}
       </div>
     </div>
+    </>
   );
 }

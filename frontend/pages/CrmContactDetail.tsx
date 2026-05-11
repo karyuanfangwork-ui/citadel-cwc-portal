@@ -4,6 +4,7 @@ import crmService, {
   CrmContact, CrmOpportunity, CrmKycRecord,
   CrmBeneficiary, CrmTrustProduct, CrmNote,
 } from '../src/services/crm.service';
+import CrmNav from '../src/components/CrmNav';
 
 // ── Formatters ────────────────────────────────────────────────────
 const fmt = new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 });
@@ -679,7 +680,9 @@ const CrmContactDetail = () => {
   ];
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+    <>
+      <CrmNav />
+      <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
         <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">CRM</Link>
@@ -803,6 +806,7 @@ const CrmContactDetail = () => {
         <NotesTab contactId={id} />
       )}
     </div>
+    </>
   );
 };
 

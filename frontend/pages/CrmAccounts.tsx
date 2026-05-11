@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmAccount, Pagination } from '../src/services/crm.service';
+import CrmNav from '../src/components/CrmNav';
 
 const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -12,7 +13,6 @@ const CrmAccounts = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [industry, setIndustry] = useState('');
-  const [filterCashTrust, setFilterCashTrust] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<Partial<CrmAccount>>({});
   const [saving, setSaving] = useState(false);
@@ -20,11 +20,11 @@ const CrmAccounts = () => {
   const fetchAccounts = useCallback(async (page = 1) => {
     try {
       setLoading(true);
-      const data = await crmService.listAccounts({ page, limit: 20, search: search || undefined, industry: industry || undefined, ...(filterCashTrust ? { purchaseCashTrust: true } : {}) });
+      const data = await crmService.listAccounts({ page, limit: 20, search: search || undefined, industry: industry || undefined });
       setAccounts(data.accounts); setPagination(data.pagination);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [search, industry, filterCashTrust]);
+  }, [search, industry]);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
@@ -43,7 +43,9 @@ const CrmAccounts = () => {
   };
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+    <>
+      <CrmNav />
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
@@ -72,17 +74,6 @@ const CrmAccounts = () => {
             <option key={i} value={i}>{i}</option>
           ))}
         </select>
-        <button
-          onClick={() => setFilterCashTrust(f => !f)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-            filterCashTrust
-              ? 'bg-emerald-600 text-white border-emerald-600'
-              : 'bg-bg-surface text-text-secondary border-border hover:border-brand-300'
-          }`}
-          style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-          <span className="material-symbols-outlined text-xs">verified</span>
-          Cash Trust
-        </button>
       </div>
 
       {/* Table */}
@@ -122,14 +113,8 @@ const CrmAccounts = () => {
                         <span className="material-symbols-outlined text-indigo-600 text-lg">business</span>
                       </div>
                       <div>
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div>
                           <span className="text-sm font-bold text-text-primary">{acc.name}</span>
-                          {acc.purchaseCashTrust && (
-                            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span className="material-symbols-outlined text-xs">verified</span>
-                              Cash Trust
-                            </span>
-                          )}
                         </div>
                         {acc.website && <div className="text-xs text-text-tertiary truncate max-w-[200px]">{acc.website}</div>}
                       </div>
@@ -196,11 +181,6 @@ const CrmAccounts = () => {
                     className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
                 </div>
               ))}
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="purchaseCashTrust" checked={!!form.purchaseCashTrust} onChange={e => setForm(prev => ({ ...prev, purchaseCashTrust: e.target.checked }))}
-                  className="w-4 h-4 rounded border-border accent-brand-700" />
-                <label htmlFor="purchaseCashTrust" className="text-sm font-semibold text-text-primary">Purchase Cash Trust (e-commerce trust mark)</label>
-              </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
                 <textarea value={form.description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={3}
@@ -217,6 +197,7 @@ const CrmAccounts = () => {
         </div>
       )}
     </div>
+    </>
   );
 };
 
