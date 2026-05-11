@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmLead, CrmPipeline, CrmActivity, CrmNote, CrmActivityType } from '../src/services/crm.service';
+import crmService, { CrmLead, CrmUser, CrmPipeline, CrmActivity, CrmNote, CrmActivityType } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 
 const formatCurrency = (val: number | null) =>
@@ -36,6 +36,14 @@ const CrmLeadDetail = () => {
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
   const [noteContent, setNoteContent] = useState('');
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  const [editingOwner, setEditingOwner] = useState(false);
+  const [savingOwner, setSavingOwner] = useState(false);
+
+  // Fetch CRM team users for owner reassignment
+  useEffect(() => {
+    crmService.listCrmUsers().then(setCrmUsers).catch(() => {});
+  }, []);
 
   const reload = () => {
     if (!id) return;
@@ -112,6 +120,17 @@ const CrmLeadDetail = () => {
       await crmService.updateLead(id, { status: 'LOST' as any, lostReason: reason || undefined });
       reload();
     } catch (e) { console.error(e); }
+  };
+
+  const handleChangeOwner = async (newOwnerId: string) => {
+    if (!id || !newOwnerId) return;
+    try {
+      setSavingOwner(true);
+      await crmService.updateLead(id, { ownerId: newOwnerId });
+      setEditingOwner(false);
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSavingOwner(false); }
   };
 
   // Type guard for activities/notes - backend returns them when included
@@ -200,14 +219,36 @@ const CrmLeadDetail = () => {
             { label: 'Contact Email', value: lead.contactEmail, icon: 'mail' },
             { label: 'Contact Phone', value: lead.contactPhone, icon: 'call' },
             { label: 'Company', value: lead.companyName, icon: 'business' },
-            { label: 'Owner', value: lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}` : null, icon: 'manage_accounts' },
+            { label: 'Owner', value: lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}` : null, icon: 'manage_accounts', editable: true },
             { label: 'Created', value: formatDate(lead.createdAt), icon: 'calendar_today' },
             { label: 'Converted At', value: lead.convertedAt ? formatDate(lead.convertedAt) : null, icon: 'check_circle' },
           ].map(f => f.value && (
             <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">{f.label}</span>
-              <span className="text-sm text-text-primary">{f.value}</span>
+              {(f as any).editable && editingOwner ? (
+                <select
+                  value={lead.owner?.id || ''}
+                  onChange={e => handleChangeOwner(e.target.value)}
+                  disabled={savingOwner}
+                  className="flex-1 px-3 py-1 border border-brand-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-200 outline-none"
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
+                  {crmUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                  ))}
+                </select>
+              ) : (
+                <span
+                  className={`text-sm text-text-primary${(f as any).editable ? ' cursor-pointer hover:text-brand-700 transition-colors' : ''}`}
+                  {...((f as any).editable ? { onClick: () => setEditingOwner(true) } : {})}
+                >
+                  {f.value}
+                  {(f as any).editable && (
+                    <span className="material-symbols-outlined text-sm ml-1 align-text-bottom text-text-secondary">edit</span>
+                  )}
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -273,34 +314,35 @@ const CrmLeadDetail = () => {
 
       {/* Convert modal */}
       {showConvert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-bg-surface rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowConvert(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-1">Convert Lead to Deal</h2>
             <p className="text-sm text-text-secondary mb-4">This will create a new opportunity from this lead.</p>
             <form onSubmit={handleConvert} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Opportunity Name *</label>
                 <input required value={convertForm.oppName} onChange={e => setConvertForm(f => ({ ...f, oppName: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--bg-surface)' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Deal Value (MYR)</label>
                 <input type="number" min="0" value={convertForm.oppValue} onChange={e => setConvertForm(f => ({ ...f, oppValue: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--bg-surface)' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Pipeline *</label>
                 <select value={convertForm.pipelineId} onChange={e => {
                   const pl = pipelines.find(p => p.id === e.target.value);
                   setConvertForm(f => ({ ...f, pipelineId: e.target.value, stageId: pl?.stages?.[0]?.id ?? '' }));
-                }} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--bg-surface)' }}>
+                }} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
                   {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Initial Stage *</label>
                 <select value={convertForm.stageId} onChange={e => setConvertForm(f => ({ ...f, stageId: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--bg-surface)' }}>
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
                   {(selectedPipeline?.stages ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -321,26 +363,27 @@ const CrmLeadDetail = () => {
 
       {/* Add Activity modal */}
       {showAddActivity && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-bg-surface rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Log Activity</h2>
             <form onSubmit={handleAddActivity} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
                 <select value={activityForm.activityType} onChange={e => setActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--bg-surface)' }}>
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
                   {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label>
                 <input required value={activityForm.subject ?? ''} onChange={e => setActivityForm(f => ({ ...f, subject: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--bg-surface)' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
                 <textarea rows={3} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--bg-surface)' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}
@@ -359,14 +402,15 @@ const CrmLeadDetail = () => {
 
       {/* Add Note modal */}
       {showAddNote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
-          <div className="bg-bg-surface rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddNote(false); setNoteContent(''); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Add Note</h2>
             <form onSubmit={handleAddNote} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Note *</label>
                 <textarea required rows={5} value={noteContent} onChange={e => setNoteContent(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--bg-surface)' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddNote(false); setNoteContent(''); }}

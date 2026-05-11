@@ -260,14 +260,17 @@ class CrmController {
   });
 
   createLead = asyncHandler(async (req: AuthRequest, res: Response) => {
+    // Use ownerId from body if provided, otherwise default to logged-in user
+    const ownerId = req.body.ownerId || req.user!.id;
+    const { ownerId: _ownerId, autoAssign, ...restBody } = req.body;
     const lead = await prisma.crmLead.create({
-      data: { ...req.body, ownerId: req.user!.id },
+      data: { ...restBody, ownerId },
       include: { owner: { select: userSelect }, account: { select: { id: true, name: true } } },
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmLead', resourceId: lead.id, newValues: req.body } });
 
     // Auto-assign via round-robin if requested (e.g. no explicit owner preference)
-    if (req.body.autoAssign === true) {
+    if (autoAssign === true) {
       const assigned = await autoAssignLead(lead.id);
       if (assigned) {
         // Re-fetch lead with updated owner for response
@@ -889,6 +892,25 @@ class CrmController {
     ]);
 
     res.json({ success: true, data: { accounts, contacts, leads, opportunities } });
+  });
+
+  // ======== CRM USERS (for owner dropdown) ========
+  listCrmUsers = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const users = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        roles: {
+          some: {
+            role: {
+              name: { in: ['CRM_USER', 'CRM_ADMIN', 'SALES_MANAGER', 'SALES_REP', 'ADMIN'] },
+            },
+          },
+        },
+      },
+      select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
+      orderBy: { firstName: 'asc' },
+    });
+    res.json({ status: 'success', data: { users } });
   });
 }
 

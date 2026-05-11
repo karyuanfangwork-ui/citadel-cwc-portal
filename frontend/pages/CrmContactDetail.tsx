@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, {
-  CrmContact, CrmOpportunity, CrmKycRecord,
-  CrmBeneficiary, CrmTrustProduct, CrmNote,
+  CrmContact, CrmOpportunity, CrmKycRecord, CrmNote,
 } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 
@@ -25,19 +24,14 @@ const KYC_STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   REJECTED:    { bg: '#fef2f2', color: '#ef4444' },
 };
 
-const TRUST_STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  ACTIVE:    { bg: '#f0fdf4', color: '#22c55e' },
-  PENDING:   { bg: '#fffbeb', color: '#f59e0b' },
-  MATURED:   { bg: '#f1f5f9', color: '#64748b' },
-  CANCELLED: { bg: '#fef2f2', color: '#ef4444' },
-};
+
 
 const SkeletonLine = ({ mb = 12 }: { mb?: number }) => (
   <div style={{ height: 18, marginBottom: mb, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
 );
 
 // ── Tab types ─────────────────────────────────────────────────────
-type Tab = 'overview' | 'kyc' | 'trust' | 'beneficiaries' | 'deals' | 'notes';
+type Tab = 'overview' | 'kyc' | 'deals' | 'notes';
 
 // ── KYC Tab ───────────────────────────────────────────────────────
 const KycTab = ({ contactId }: { contactId: string }) => {
@@ -215,359 +209,6 @@ const KycTab = ({ contactId }: { contactId: string }) => {
   );
 };
 
-// ── Trust Products Tab ────────────────────────────────────────────
-const TRUST_TYPES = ['CASH_TRUST', 'LIVING_TRUST', 'TESTAMENTARY_TRUST', 'CHARITABLE_TRUST'];
-
-interface TrustForm {
-  trustType: string; accountId: string; assetValue: string; assetDescription: string;
-  trusteeName: string; trusteeContact: string; settlementDate: string;
-  maturityDate: string; nextReviewDate: string; deedRefNumber: string;
-}
-
-const TrustTab = ({ contactId, accountId }: { contactId: string; accountId: string }) => {
-  const [products, setProducts] = useState<CrmTrustProduct[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState<TrustForm>({
-    trustType: 'CASH_TRUST', accountId, assetValue: '', assetDescription: '',
-    trusteeName: '', trusteeContact: '', settlementDate: '',
-    maturityDate: '', nextReviewDate: '', deedRefNumber: '',
-  });
-
-  const load = useCallback(() => {
-    setLoading(true);
-    crmService.listTrustProducts({ contactId })
-      .then(res => setProducts(res.trustProducts))
-      .catch(() => setProducts([]))
-      .finally(() => setLoading(false));
-  }, [contactId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await crmService.createTrustProduct({
-        ...form,
-        contactId,
-        assetValue: form.assetValue ? parseFloat(form.assetValue) : undefined,
-      });
-      setShowModal(false);
-      setForm(f => ({ ...f, trustType: 'CASH_TRUST', assetValue: '', assetDescription: '', trusteeName: '', trusteeContact: '', settlementDate: '', maturityDate: '', nextReviewDate: '', deedRefNumber: '' }));
-      load();
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const set = (key: keyof TrustForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm(f => ({ ...f, [key]: e.target.value }));
-
-  if (loading) return <div className="space-y-3 py-4">{[...Array(3)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>;
-
-  return (
-    <div>
-      <div className="flex justify-end mb-4">
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700">
-          <span className="material-symbols-outlined text-base">add</span>
-          New Trust Product
-        </button>
-      </div>
-
-      {products.length === 0 ? (
-        <div className="text-center py-12 text-text-secondary text-sm">No trust products found for this contact.</div>
-      ) : (
-        <div className="space-y-4">
-          {products.map(tp => {
-            const s = TRUST_STATUS_STYLE[tp.status] ?? { bg: '#f1f5f9', color: '#64748b' };
-            return (
-              <div key={tp.id} className="bg-bg-surface border border-border rounded-xl p-5">
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div>
-                    <p className="font-semibold text-text-primary">{tp.trustType.replace(/_/g, ' ')}</p>
-                    {tp.deedRefNumber && <p className="text-xs text-text-secondary mt-0.5">Deed Ref: {tp.deedRefNumber}</p>}
-                  </div>
-                  <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: s.bg, color: s.color }}>{tp.status}</span>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4 text-sm">
-                  <div><span className="text-text-secondary text-xs">Asset Value</span><p className="font-medium text-text-primary">{formatCurrency(tp.assetValue ?? null)}</p></div>
-                  <div><span className="text-text-secondary text-xs">Next Review</span><p className="font-medium text-text-primary">{formatDate(tp.nextReviewDate)}</p></div>
-                  {tp.trusteeName && <div><span className="text-text-secondary text-xs">Trustee</span><p className="font-medium text-text-primary">{tp.trusteeName}</p></div>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Modal */}
-      {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="bg-bg-surface rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h2 className="text-base font-bold text-text-primary">New Trust Product</h2>
-              <button onClick={() => setShowModal(false)} className="text-text-secondary hover:text-text-primary">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Trust Type *</label>
-                <select value={form.trustType} onChange={set('trustType')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" required>
-                  {TRUST_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Account ID</label>
-                <input value={form.accountId} readOnly className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-secondary opacity-60" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Asset Value (MYR)</label>
-                  <input type="number" value={form.assetValue} onChange={set('assetValue')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" placeholder="0" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Deed Ref Number</label>
-                  <input value={form.deedRefNumber} onChange={set('deedRefNumber')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Asset Description</label>
-                <input value={form.assetDescription} onChange={set('assetDescription')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Trustee Name</label>
-                  <input value={form.trusteeName} onChange={set('trusteeName')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Trustee Contact</label>
-                  <input value={form.trusteeContact} onChange={set('trusteeContact')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { key: 'settlementDate' as keyof TrustForm, label: 'Settlement Date' },
-                  { key: 'maturityDate' as keyof TrustForm, label: 'Maturity Date' },
-                  { key: 'nextReviewDate' as keyof TrustForm, label: 'Next Review' },
-                ].map(({ key, label }) => (
-                  <div key={key}>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">{label}</label>
-                    <input type="date" value={form[key]} onChange={set(key)} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                  </div>
-                ))}
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg text-sm font-semibold border border-border text-text-secondary hover:text-text-primary">Cancel</button>
-                <button type="submit" disabled={submitting} className="px-4 py-2 rounded-lg text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
-                  {submitting ? 'Creating…' : 'Create'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ── Beneficiaries Tab ─────────────────────────────────────────────
-const RELATIONSHIPS = ['SPOUSE', 'CHILD', 'PARENT', 'SIBLING', 'OTHER'];
-
-interface BeneficiaryForm {
-  firstName: string; lastName: string; relationship: string; allocationPct: string;
-  email: string; phone: string; nricPassport: string; dateOfBirth: string;
-  isMinor: boolean; guardianName: string; notes: string;
-}
-
-const emptyBenForm = (): BeneficiaryForm => ({
-  firstName: '', lastName: '', relationship: 'SPOUSE', allocationPct: '',
-  email: '', phone: '', nricPassport: '', dateOfBirth: '',
-  isMinor: false, guardianName: '', notes: '',
-});
-
-const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
-  const [bens, setBens] = useState<CrmBeneficiary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState<BeneficiaryForm>(emptyBenForm());
-
-  const load = useCallback(() => {
-    setLoading(true);
-    crmService.listBeneficiaries(contactId)
-      .then(setBens).catch(() => setBens([]))
-      .finally(() => setLoading(false));
-  }, [contactId]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await crmService.createBeneficiary(contactId, {
-        ...form,
-        allocationPct: parseFloat(form.allocationPct) || 0,
-      });
-      setShowModal(false);
-      setForm(emptyBenForm());
-      load();
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this beneficiary?')) return;
-    await crmService.deleteBeneficiary(id);
-    load();
-  };
-
-  const set = (key: keyof BeneficiaryForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
-    setForm(f => ({ ...f, [key]: e.target.value }));
-
-  const totalPct = bens.reduce((sum, b) => sum + b.allocationPct, 0);
-
-  if (loading) return <div className="space-y-3 py-4">{[...Array(3)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>;
-
-  return (
-    <div>
-      <div className="flex justify-end mb-4">
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700">
-          <span className="material-symbols-outlined text-base">add</span>
-          Add Beneficiary
-        </button>
-      </div>
-
-      {bens.length === 0 ? (
-        <div className="text-center py-12 text-text-secondary text-sm">No beneficiaries added yet.</div>
-      ) : (
-        <>
-          <div className="bg-bg-surface border border-border rounded-xl overflow-hidden mb-4">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-bg-subtle">
-                  <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase">Relationship</th>
-                  <th className="text-right px-4 py-3 text-xs font-bold text-text-secondary uppercase">Alloc %</th>
-                  <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase">NRIC</th>
-                  <th className="text-center px-4 py-3 text-xs font-bold text-text-secondary uppercase">Minor</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {bens.map(b => (
-                  <tr key={b.id} className="border-b border-border last:border-0 hover:bg-bg-subtle transition-colors">
-                    <td className="px-4 py-3 font-medium text-text-primary">{b.firstName} {b.lastName}</td>
-                    <td className="px-4 py-3 text-text-secondary">{b.relationship}</td>
-                    <td className="px-4 py-3 text-right font-medium text-text-primary">{b.allocationPct}%</td>
-                    <td className="px-4 py-3 text-text-secondary">{b.nricPassport ?? '—'}</td>
-                    <td className="px-4 py-3 text-center">
-                      {b.isMinor ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Minor</span> : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button onClick={() => handleDelete(b.id)} className="text-text-secondary hover:text-red-500 transition-colors">
-                        <span className="material-symbols-outlined text-base">delete</span>
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className={`text-sm font-semibold ${totalPct === 100 ? 'text-green-600' : 'text-red-500'}`}>
-            Total Allocation: {totalPct}%
-            {totalPct !== 100 && ' — Must equal 100%'}
-          </div>
-        </>
-      )}
-
-      {/* Modal */}
-      {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="bg-bg-surface rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-5 border-b border-border">
-              <h2 className="text-base font-bold text-text-primary">Add Beneficiary</h2>
-              <button onClick={() => setShowModal(false)} className="text-text-secondary hover:text-text-primary">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
-                  <input value={form.firstName} onChange={set('firstName')} required className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
-                  <input value={form.lastName} onChange={set('lastName')} required className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Relationship</label>
-                  <select value={form.relationship} onChange={set('relationship')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary">
-                    {RELATIONSHIPS.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Allocation %</label>
-                  <input type="number" min="0" max="100" value={form.allocationPct} onChange={set('allocationPct')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" placeholder="0" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Email</label>
-                  <input type="email" value={form.email} onChange={set('email')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Phone</label>
-                  <input value={form.phone} onChange={set('phone')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">NRIC / Passport</label>
-                  <input value={form.nricPassport} onChange={set('nricPassport')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Date of Birth</label>
-                  <input type="date" value={form.dateOfBirth} onChange={set('dateOfBirth')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-              </div>
-              <div>
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <input type="checkbox" checked={form.isMinor} onChange={e => setForm(f => ({ ...f, isMinor: e.target.checked }))} className="w-4 h-4 accent-brand-600" />
-                  <span className="text-sm text-text-primary font-medium">Is Minor</span>
-                </label>
-              </div>
-              {form.isMinor && (
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Guardian Name</label>
-                  <input value={form.guardianName} onChange={set('guardianName')} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
-                </div>
-              )}
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Notes</label>
-                <textarea value={form.notes} onChange={set('notes')} rows={2} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary resize-none" />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg text-sm font-semibold border border-border text-text-secondary hover:text-text-primary">Cancel</button>
-                <button type="submit" disabled={submitting} className="px-4 py-2 rounded-lg text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50">
-                  {submitting ? 'Adding…' : 'Add Beneficiary'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 // ── Notes Tab ─────────────────────────────────────────────────────
 const NotesTab = ({ contactId }: { contactId: string }) => {
   const [notes, setNotes] = useState<CrmNote[]>([]);
@@ -673,8 +314,6 @@ const CrmContactDetail = () => {
   const tabs: { key: Tab; label: string; icon: string }[] = [
     { key: 'overview',      label: 'Overview',       icon: 'person' },
     { key: 'kyc',           label: 'KYC',            icon: 'verified_user' },
-    { key: 'trust',         label: 'Trust Products', icon: 'account_balance' },
-    { key: 'beneficiaries', label: 'Beneficiaries',  icon: 'group' },
     { key: 'deals',         label: 'Linked Deals',   icon: 'handshake' },
     { key: 'notes',         label: 'Notes',          icon: 'notes' },
   ];
@@ -765,14 +404,6 @@ const CrmContactDetail = () => {
 
       {activeTab === 'kyc' && loadedTabs.has('kyc') && id && (
         <KycTab contactId={id} />
-      )}
-
-      {activeTab === 'trust' && loadedTabs.has('trust') && id && (
-        <TrustTab contactId={id} accountId={contact.accountId} />
-      )}
-
-      {activeTab === 'beneficiaries' && loadedTabs.has('beneficiaries') && id && (
-        <BeneficiariesTab contactId={id} />
       )}
 
       {activeTab === 'deals' && (

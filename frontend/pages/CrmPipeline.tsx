@@ -252,9 +252,9 @@ const CrmPipelineView = () => {
       </div>
 
       {showCreate && selectedPipeline && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }} onClick={() => { setShowCreate(false); setOppForm({}); }}>
-          <div className="absolute inset-0" />
-          <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowCreate(false); setOppForm({}); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200 shrink-0">
               <h2 className="text-lg font-black text-text-primary">New Deal</h2>
               <button onClick={() => { setShowCreate(false); setOppForm({}); }}

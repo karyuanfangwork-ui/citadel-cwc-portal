@@ -2,6 +2,7 @@
   /* ── BRAND (Citadel Workplace Connect) ── */
   --color-brand-900: #13214a;  /* Deep navy - darkest */
   --color-brand-700: #1D2D5E;  /* Citadel navy - primary */
+  --color-brand-600: #2E4A7A;  /* Mid navy - active/tab accent */
   --color-brand-500: #4A8DB8;  /* Citadel steel blue */
   --color-brand-300: #5BBFE8;  /* Citadel sky blue */
   --color-brand-100: #d0e8f5;
@@ -79,6 +80,7 @@
   /* ── BRAND (dark variants) ── */
   --color-brand-900: #eaf5fc;
   --color-brand-700: #5BBFE8;
+  --color-brand-600: #2563EB;  /* Blue-600 - good contrast with white text in dark mode */
   --color-brand-500: #7DD3F0;
   --color-brand-300: #a3dfee;
   --color-brand-100: #1a3a5c;

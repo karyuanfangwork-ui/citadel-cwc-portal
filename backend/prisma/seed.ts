@@ -1453,15 +1453,15 @@ async function main() {
     }
     console.log(`✅ Seeded ${kbArticles.length} knowledge base articles`);
 
-    // ── CRM: Default Sales Pipeline ────────────────────────────────────────
+    // ── CRM: Unified Sales Pipeline ────────────────────────────────────────
     console.log('📊 Seeding CRM default pipeline...');
     const defaultPipeline = await prisma.crmPipeline.upsert({
         where: { id: '00000000-0000-0000-0000-000000000001' },
         update: {},
         create: {
             id: '00000000-0000-0000-0000-000000000001',
-            name: 'Default Sales Pipeline',
-            description: 'Standard sales pipeline for tracking deals from prospecting to close',
+            name: 'Sales Pipeline',
+            description: 'Unified sales pipeline for tracking deals from prospecting to close',
             isDefault: true,
             isActive: true,
         },
@@ -1487,43 +1487,6 @@ async function main() {
         }
     }
     console.log('✅ CRM default pipeline seeded');
-
-    // ── CRM: Cash Trust Pipeline ─────────────────────────────────────────────
-    console.log('📊 Seeding CRM Cash Trust pipeline...');
-    const cashTrustPipeline = await prisma.crmPipeline.upsert({
-        where: { id: '00000000-0000-0000-0000-000000000002' },
-        update: {},
-        create: {
-            id: '00000000-0000-0000-0000-000000000002',
-            name: 'Cash Trust Pipeline',
-            description: 'Pipeline for Malaysian unit trust / amanah saham sales — tracks client from initial contact through KYC, subscription, and allotment',
-            isDefault: false,
-            isActive: true,
-        },
-    });
-
-    const cashTrustStages = [
-        { name: 'Prospect',       displayOrder: 0, probability: 10,  color: '#6366f1', isWonStage: false, isLostStage: false },
-        { name: 'KYC / eKYC',    displayOrder: 1, probability: 25,  color: '#3b82f6', isWonStage: false, isLostStage: false },
-        { name: 'AML Check',      displayOrder: 2, probability: 40,  color: '#0ea5e9', isWonStage: false, isLostStage: false },
-        { name: 'Subscription',   displayOrder: 3, probability: 60,  color: '#f59e0b', isWonStage: false, isLostStage: false },
-        { name: 'Allotment',      displayOrder: 4, probability: 80,  color: '#8b5cf6', isWonStage: false, isLostStage: false },
-        { name: 'Settlement',     displayOrder: 5, probability: 95,  color: '#10b981', isWonStage: false, isLostStage: false },
-        { name: 'Closed Won',     displayOrder: 6, probability: 100, color: '#22c55e', isWonStage: true,  isLostStage: false },
-        { name: 'Closed Lost',    displayOrder: 7, probability: 0,   color: '#ef4444', isWonStage: false, isLostStage: true  },
-    ];
-
-    for (const stage of cashTrustStages) {
-        const existing = await prisma.crmPipelineStage.findFirst({
-            where: { pipelineId: cashTrustPipeline.id, displayOrder: stage.displayOrder },
-        });
-        if (!existing) {
-            await prisma.crmPipelineStage.create({
-                data: { ...stage, pipelineId: cashTrustPipeline.id },
-            });
-        }
-    }
-    console.log('✅ CRM Cash Trust pipeline seeded');
 
     console.log('🎉 Database seeding completed!');
 }

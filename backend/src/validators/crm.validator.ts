@@ -94,6 +94,7 @@ const leadBodySchema = z.object({
   source: z.enum(['WEBSITE', 'REFERRAL', 'COLD_CALL', 'TRADE_SHOW', 'LINKEDIN', 'ADVERTISEMENT', 'PARTNER', 'OTHER']).default('OTHER'),
   accountId: z.string().uuid().optional(),
   contactId: z.string().uuid().optional(),
+  ownerId: z.string().uuid().optional(),
   contactName: z.string().max(200).optional(),
   contactEmail: z.string().email().max(255).optional().or(z.literal('')),
   contactPhone: z.string().max(50).optional(),

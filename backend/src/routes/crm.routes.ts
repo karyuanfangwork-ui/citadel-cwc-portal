@@ -23,6 +23,7 @@ router.use(authenticate);
 // ======== DASHBOARD ========
 router.get('/dashboard', requirePermission('crm:read'), crmController.getDashboard);
 router.get('/search', requirePermission('crm:read'), crmController.globalSearch);
+router.get('/users', requirePermission('crm:read'), crmController.listCrmUsers);
 
 // ======== TEAM PERFORMANCE ========
 router.get('/team-performance', requirePermission('crm:admin'), crmController.getTeamPerformance);

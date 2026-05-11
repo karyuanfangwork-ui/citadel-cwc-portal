@@ -97,15 +97,21 @@ const CrmOpportunities = () => {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search opportunities..."
             className="w-full pl-10 pr-4 py-2 bg-surface-muted border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
         </div>
-        <select value={pipelineFilter} onChange={e => setPipelineFilter(e.target.value)}
-          className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
-          <option value="">All Pipelines</option>
-          {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        {pipelines.length > 1 && (
+          <select value={pipelineFilter} onChange={e => { setPipelineFilter(e.target.value); setStageFilter(''); }}
+            className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
+            <option value="">All Pipelines</option>
+            {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        )}
         <select value={stageFilter} onChange={e => setStageFilter(e.target.value)}
           className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
           <option value="">All Stages</option>
-          {pipelines.flatMap(p => p.stages).map((s, i) => <option key={s.id || i} value={s.id}>{s.name}</option>)}
+          {(pipelineFilter ? pipelines.filter(p => p.id === pipelineFilter) : pipelines).flatMap(p =>
+            (p.stages || []).map(s => ({ id: s.id, name: s.name, pipelineName: p.name }))
+          ).map(s => (
+            <option key={s.id} value={s.id}>{pipelines.length > 1 && !pipelineFilter ? s.pipelineName + ' \u2013 ' + s.name : s.name}</option>
+          ))}
         </select>
       </div>
 

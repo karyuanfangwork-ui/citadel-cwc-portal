@@ -192,17 +192,17 @@ async function main() {
   console.log('\n🔀 Creating CRM Pipeline...');
   const pipeline = await prisma.crmPipeline.create({
     data: {
-      name: 'B2B Sales Pipeline',
-      description: 'Standard sales process for enterprise deals',
+      name: 'Sales Pipeline',
+      description: 'Unified sales pipeline for tracking deals from prospecting to close',
       isDefault: true,
       stages: {
         create: [
-          { name: 'Prospecting', displayOrder: 0, probability: 10, color: '#6B7280', isWonStage: false, isLostStage: false },
-          { name: 'Qualification', displayOrder: 1, probability: 30, color: '#3B82F6', isWonStage: false, isLostStage: false },
-          { name: 'Proposal', displayOrder: 2, probability: 50, color: '#8B5CF6', isWonStage: false, isLostStage: false },
-          { name: 'Negotiation', displayOrder: 3, probability: 75, color: '#F59E0B', isWonStage: false, isLostStage: false },
-          { name: 'Closed Won', displayOrder: 4, probability: 100, color: '#10B981', isWonStage: true, isLostStage: false },
-          { name: 'Closed Lost', displayOrder: 5, probability: 0, color: '#EF4444', isWonStage: false, isLostStage: true },
+          { name: 'Prospecting', displayOrder: 0, probability: 10, color: '#6366f1', isWonStage: false, isLostStage: false },
+          { name: 'Qualification', displayOrder: 1, probability: 25, color: '#3b82f6', isWonStage: false, isLostStage: false },
+          { name: 'Proposal', displayOrder: 2, probability: 50, color: '#0ea5e9', isWonStage: false, isLostStage: false },
+          { name: 'Negotiation', displayOrder: 3, probability: 75, color: '#f59e0b', isWonStage: false, isLostStage: false },
+          { name: 'Closed Won', displayOrder: 4, probability: 100, color: '#10b981', isWonStage: true, isLostStage: false },
+          { name: 'Closed Lost', displayOrder: 5, probability: 0, color: '#ef4444', isWonStage: false, isLostStage: true },
         ],
       },
     },
@@ -211,75 +211,6 @@ async function main() {
   console.log(`   ✓ Pipeline: ${pipeline.name} with ${pipeline.stages.length} stages`);
 
   const stageMap: Record<string, string> = {};
-  pipeline.stages.forEach(s => { stageMap[s.name] = s.id; });
-
-  // Will Writing Pipeline
-  const willWritingPipeline = await prisma.crmPipeline.create({
-    data: {
-      name: 'Will Writing',
-      description: 'Will writing and estate planning sales process',
-      isDefault: false,
-      stages: {
-        create: [
-          { name: 'Initial Inquiry',  displayOrder: 0, probability: 10,  color: '#94a3b8', isWonStage: false, isLostStage: false },
-          { name: 'Needs Assessment', displayOrder: 1, probability: 30,  color: '#3b82f6', isWonStage: false, isLostStage: false },
-          { name: 'Draft Prepared',   displayOrder: 2, probability: 60,  color: '#8b5cf6', isWonStage: false, isLostStage: false },
-          { name: 'Review & Signing', displayOrder: 3, probability: 80,  color: '#f59e0b', isWonStage: false, isLostStage: false },
-          { name: 'Completed',        displayOrder: 4, probability: 100, color: '#22c55e', isWonStage: true,  isLostStage: false },
-          { name: 'Cancelled',        displayOrder: 5, probability: 0,   color: '#ef4444', isWonStage: false, isLostStage: true  },
-        ],
-      },
-    },
-    include: { stages: true },
-  });
-  console.log(`   ✓ Pipeline: ${willWritingPipeline.name} with ${willWritingPipeline.stages.length} stages`);
-
-  // Estate Planning Pipeline
-  const estatePlanningPipeline = await prisma.crmPipeline.create({
-    data: {
-      name: 'Estate Planning',
-      description: 'Comprehensive estate planning and wealth distribution',
-      isDefault: false,
-      stages: {
-        create: [
-          { name: 'Discovery',       displayOrder: 0, probability: 10,  color: '#94a3b8', isWonStage: false, isLostStage: false },
-          { name: 'Asset Mapping',   displayOrder: 1, probability: 25,  color: '#3b82f6', isWonStage: false, isLostStage: false },
-          { name: 'Risk Profiling',  displayOrder: 2, probability: 40,  color: '#8b5cf6', isWonStage: false, isLostStage: false },
-          { name: 'Plan Presented',  displayOrder: 3, probability: 55,  color: '#6366f1', isWonStage: false, isLostStage: false },
-          { name: 'KYC & Documents', displayOrder: 4, probability: 70,  color: '#f59e0b', isWonStage: false, isLostStage: false },
-          { name: 'Engaged',         displayOrder: 5, probability: 100, color: '#22c55e', isWonStage: true,  isLostStage: false },
-          { name: 'Not Interested',  displayOrder: 6, probability: 0,   color: '#ef4444', isWonStage: false, isLostStage: true  },
-        ],
-      },
-    },
-    include: { stages: true },
-  });
-  console.log(`   ✓ Pipeline: ${estatePlanningPipeline.name} with ${estatePlanningPipeline.stages.length} stages`);
-
-  // Trustee Services Pipeline
-  const trusteeServicesPipeline = await prisma.crmPipeline.create({
-    data: {
-      name: 'Trustee Services',
-      description: 'Cash trust and trustee product onboarding',
-      isDefault: false,
-      stages: {
-        create: [
-          { name: 'Prospect',          displayOrder: 0, probability: 10,  color: '#94a3b8', isWonStage: false, isLostStage: false },
-          { name: 'Contacted',         displayOrder: 1, probability: 20,  color: '#3b82f6', isWonStage: false, isLostStage: false },
-          { name: 'Presentation Done', displayOrder: 2, probability: 35,  color: '#8b5cf6', isWonStage: false, isLostStage: false },
-          { name: 'Risk Profile Done', displayOrder: 3, probability: 50,  color: '#6366f1', isWonStage: false, isLostStage: false },
-          { name: 'KYC Submitted',     displayOrder: 4, probability: 65,  color: '#0ea5e9', isWonStage: false, isLostStage: false },
-          { name: 'Trust Deed Signed', displayOrder: 5, probability: 85,  color: '#f59e0b', isWonStage: false, isLostStage: false },
-          { name: 'Active Trust',      displayOrder: 6, probability: 100, color: '#22c55e', isWonStage: true,  isLostStage: false },
-          { name: 'Lost',              displayOrder: 7, probability: 0,   color: '#ef4444', isWonStage: false, isLostStage: true  },
-        ],
-      },
-    },
-    include: { stages: true },
-  });
-  console.log(`   ✓ Pipeline: ${trusteeServicesPipeline.name} with ${trusteeServicesPipeline.stages.length} stages`);
-
-  // 4. Create Leads
   console.log('\n🎯 Creating CRM Leads...');
   let leadsCreated = 0;
   const accountNames = Object.keys(accounts);
@@ -386,7 +317,7 @@ async function main() {
   console.log('\n📊 Summary:');
   console.log(`   • Accounts: ${ACCOUNTS.length}`);
   console.log(`   • Contacts: ${Object.values(CONTACTS).flat().length}`);
-  console.log(`   • Pipelines: 4 (B2B: ${pipeline.stages.length}, Will Writing: ${willWritingPipeline.stages.length}, Estate Planning: ${estatePlanningPipeline.stages.length}, Trustee: ${trusteeServicesPipeline.stages.length} stages)`);
+  console.log(`   • Pipelines: 1 (Sales: ${pipeline.stages.length} stages)`);
   console.log(`   • Leads: ${leadsCreated}`);
   console.log(`   • Opportunities: ${oppsCreated}`);
   console.log(`   • Activities: ${activitiesCreated}`);

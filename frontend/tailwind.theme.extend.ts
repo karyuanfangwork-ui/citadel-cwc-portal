@@ -15,6 +15,7 @@ export const brand = {
   100: "var(--color-brand-100)",
   300: "var(--color-brand-300)",
   500: "var(--color-brand-500)",
+  600: "var(--color-brand-600)",
   700: "var(--color-brand-700)",
   900: "var(--color-brand-900)",
 } as const;

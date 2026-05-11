@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import crmService, { CrmLead, Pagination, LeadStatus, LeadSource } from '../src/services/crm.service';
+import crmService, { CrmLead, CrmUser, Pagination, LeadStatus, LeadSource } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: string }> = {
@@ -68,6 +68,12 @@ const CrmLeads = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<Partial<CrmLead>>({});
   const [saving, setSaving] = useState(false);
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+
+  // Fetch CRM team users for owner dropdown
+  useEffect(() => {
+    crmService.listCrmUsers().then(setCrmUsers).catch(() => {});
+  }, []);
 
   const fetchLeads = useCallback(async (page = 1) => {
     try { setLoading(true);
@@ -280,6 +286,16 @@ const CrmLeads = () => {
                     className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
                 </div>
               ))}
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Owner</label>
+                <select value={(form as any).ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                  <option value="">Myself (default)</option>
+                  {crmUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Source</label>
                 <select value={(form as any).source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))}

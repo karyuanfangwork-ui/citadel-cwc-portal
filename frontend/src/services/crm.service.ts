@@ -9,6 +9,8 @@ export type CrmActivityType = 'CALL' | 'EMAIL' | 'MEETING' | 'NOTE' | 'TASK' | '
 
 export interface UserRef { id: string; firstName: string; lastName: string; email: string; avatarUrl?: string | null; }
 
+export interface CrmUser { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null; }
+
 export interface CrmAccount {
   id: string; name: string; industry: string | null; companySize: string | null;
   website: string | null; phone: string | null; email: string | null;
@@ -203,6 +205,12 @@ const crmService = {
   async getTeamPerformance() {
     const res = await api.get('/crm/team-performance');
     return res.data.data as { agents: TeamPerformance[] };
+  },
+
+  // CRM Users (for owner dropdown)
+  async listCrmUsers() {
+    const res = await api.get('/crm/users');
+    return res.data.data.users as CrmUser[];
   },
 
   // Accounts
