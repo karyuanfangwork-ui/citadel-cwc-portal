@@ -530,9 +530,9 @@ class CrmController {
 
   // ======== TEAM PERFORMANCE ========
   getTeamPerformance = asyncHandler(async (_req: AuthRequest, res: Response) => {
-    // Get all users who have CRM-related roles (AGENT or ADMIN)
+    // Get only users with CRM-specific roles (SALES_MANAGER or SALES_REP), excluding IT/HR/Finance agents
     const usersWithRoles = await prisma.user.findMany({
-      where: { isActive: true, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
+      where: { isActive: true, roles: { some: { role: { name: { in: ['SALES_MANAGER', 'SALES_REP'] } } } } },
       select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true },
     });
 
