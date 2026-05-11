@@ -32,6 +32,9 @@ class AssetController {
                     { email: { contains: term, mode: 'insensitive' } },
                 ] } } } },
                 { notes: { contains: term, mode: 'insensitive' } },
+                { os: { contains: term, mode: 'insensitive' } },
+                { entity: { contains: term, mode: 'insensitive' } },
+                { previousUser: { contains: term, mode: 'insensitive' } },
             ];
         }
 
@@ -55,7 +58,8 @@ class AssetController {
             'Asset Tag', 'Name', 'Category', 'Status', 'Serial Number',
             'Brand', 'Model', 'Vendor', 'Purchase Date', 'Purchase Price',
             'Warranty Expiry', 'Assigned To', 'Assigned Email', 'Assigned Date',
-            'Notes', 'Created At',
+            'Notes', 'OS', 'Encrypted', 'SKU Family', 'Join Type',
+            'Ethernet MAC', 'Wi-Fi MAC', 'Arch', 'Previous User', 'Entity', 'Created At',
         ];
 
         const escapeCsv = (val: string | null | undefined) => {
@@ -86,6 +90,15 @@ class AssetController {
                 escapeCsv(assignee?.email ?? ''),
                 escapeCsv(currentAssignment?.assignedAt ? new Date(currentAssignment.assignedAt).toISOString().split('T')[0] : ''),
                 escapeCsv(asset.notes),
+                escapeCsv(asset.os),
+                escapeCsv(asset.encrypted),
+                escapeCsv(asset.skuFamily),
+                escapeCsv(asset.joinType),
+                escapeCsv(asset.ethernetMac),
+                escapeCsv(asset.wifiMac),
+                escapeCsv(asset.arch),
+                escapeCsv(asset.previousUser),
+                escapeCsv(asset.entity),
                 escapeCsv(new Date(asset.createdAt).toISOString().split('T')[0]),
             ].join(',');
         });
@@ -158,6 +171,9 @@ class AssetController {
                 ] } } } },
                 // Search notes for original user info (imported data)
                 { notes: { contains: term, mode: 'insensitive' } },
+                { os: { contains: term, mode: 'insensitive' } },
+                { entity: { contains: term, mode: 'insensitive' } },
+                { previousUser: { contains: term, mode: 'insensitive' } },
             ];
         }
 
@@ -262,6 +278,15 @@ class AssetController {
             warrantyExpiry,
             status,
             notes,
+            os,
+            encrypted,
+            skuFamily,
+            joinType,
+            ethernetMac,
+            wifiMac,
+            arch,
+            previousUser,
+            entity,
             sourceRequestId,
         } = req.body;
 
@@ -298,6 +323,15 @@ class AssetController {
                 warrantyExpiry: warrantyExpiry ? new Date(warrantyExpiry) : null,
                 status: status || AssetStatus.IN_STOCK,
                 notes: notes || null,
+                os: os || null,
+                encrypted: encrypted || null,
+                skuFamily: skuFamily || null,
+                joinType: joinType || null,
+                ethernetMac: ethernetMac || null,
+                wifiMac: wifiMac || null,
+                arch: arch || null,
+                previousUser: previousUser || null,
+                entity: entity || null,
                 sourceRequestId: sourceRequestId || null,
                 createdById: req.user!.id,
             },
@@ -355,6 +389,15 @@ class AssetController {
             warrantyExpiry,
             status,
             notes,
+            os,
+            encrypted,
+            skuFamily,
+            joinType,
+            ethernetMac,
+            wifiMac,
+            arch,
+            previousUser,
+            entity,
             sourceRequestId,
         } = req.body;
 
@@ -372,6 +415,15 @@ class AssetController {
         if (warrantyExpiry !== undefined) data.warrantyExpiry = warrantyExpiry ? new Date(warrantyExpiry) : null;
         if (status !== undefined) data.status = status;
         if (notes !== undefined) data.notes = notes;
+        if (os !== undefined) data.os = os;
+        if (encrypted !== undefined) data.encrypted = encrypted;
+        if (skuFamily !== undefined) data.skuFamily = skuFamily;
+        if (joinType !== undefined) data.joinType = joinType;
+        if (ethernetMac !== undefined) data.ethernetMac = ethernetMac;
+        if (wifiMac !== undefined) data.wifiMac = wifiMac;
+        if (arch !== undefined) data.arch = arch;
+        if (previousUser !== undefined) data.previousUser = previousUser;
+        if (entity !== undefined) data.entity = entity;
         if (sourceRequestId !== undefined) data.sourceRequestId = sourceRequestId;
 
         const asset = await prisma.asset.update({
@@ -841,14 +893,14 @@ class AssetController {
 
         const existingTags = await prisma.asset.findMany({
             where: { assetTag: { in: allAssetTags } },
-            select: { assetTag: true },
+            select: { id: true, assetTag: true },
         });
         const existingSerials = await prisma.asset.findMany({
             where: { serialNumber: { in: allSerialNumbers } },
-            select: { serialNumber: true },
+            select: { id: true, serialNumber: true },
         });
-        const existingTagSet = new Set(existingTags.map(a => a.assetTag));
-        const existingSerialSet = new Set(new Set(existingSerials.map(a => a.serialNumber)));
+        const existingTagMap = new Map(existingTags.map(a => [a.assetTag, a.id]));
+        const existingSerialMap = new Map(existingSerials.map(a => [a.serialNumber!, a.id]));
 
         // Count in-file duplicates
         const tagCountInFile: Record<string, number> = {};
@@ -860,85 +912,93 @@ class AssetController {
             serialCountInFile[sn] = (serialCountInFile[sn] || 0) + 1;
         }
 
-        const tagSeenInFile: Set<string> = new Set();
-        const serialSeenInFile: Set<string> = new Set();
-
         for (const row of mappedRows) {
             const rowLabel = row._rowIndex;
-            let hasError = false;
+            const rowErrors: string[] = [];
+            const rowWarnings: string[] = [];
 
             // Required fields
             if (!row.assetTag) {
+                rowErrors.push('assetTag is required');
                 issues.push({ row: rowLabel, field: 'assetTag', message: 'assetTag is required', severity: 'error' });
-                hasError = true;
             }
             if (!row.name) {
+                rowErrors.push('name is required');
                 issues.push({ row: rowLabel, field: 'name', message: 'name is required', severity: 'error' });
-                hasError = true;
             }
             if (!row.category) {
+                rowErrors.push('category is required');
                 issues.push({ row: rowLabel, field: 'category', message: 'category is required', severity: 'error' });
-                hasError = true;
             } else if (!VALID_CATEGORIES.includes(row.category)) {
-                issues.push({ row: rowLabel, field: 'category', message: `Invalid category "${row.category}". Valid: ${VALID_CATEGORIES.join(', ')}`, severity: 'error' });
-                hasError = true;
+                const msg = `Invalid category "${row.category}". Valid: ${VALID_CATEGORIES.join(', ')}`;
+                rowErrors.push(msg);
+                issues.push({ row: rowLabel, field: 'category', message: msg, severity: 'error' });
             }
 
-            // DB duplicate check
-            if (row.assetTag && existingTagSet.has(row.assetTag)) {
-                issues.push({ row: rowLabel, field: 'assetTag', message: `assetTag "${row.assetTag}" already exists in DB`, severity: 'error' });
-                hasError = true;
+            // DB duplicate check — mark rows that match existing assets.
+            // DB duplicates are NOT marked as _valid:false because they can be updated (updateExisting mode).
+            // In-file duplicates remain hard errors (can't determine which row wins).
+            let existingAssetId: string | null = null;
+            if (row.assetTag && existingTagMap.has(row.assetTag)) {
+                existingAssetId = existingTagMap.get(row.assetTag)!;
+                rowWarnings.push(`assetTag "${row.assetTag}" already exists in DB`);
+                issues.push({ row: rowLabel, field: 'assetTag', message: `assetTag "${row.assetTag}" already exists in DB`, severity: 'warning' });
             }
-            if (row.serialNumber && existingSerialSet.has(row.serialNumber)) {
+            if (row.serialNumber && existingSerialMap.has(row.serialNumber)) {
+                if (!existingAssetId) {
+                    existingAssetId = existingSerialMap.get(row.serialNumber)!;
+                }
+                rowWarnings.push(`serialNumber "${row.serialNumber}" already exists in DB`);
                 issues.push({ row: rowLabel, field: 'serialNumber', message: `serialNumber "${row.serialNumber}" already exists in DB`, severity: 'warning' });
             }
 
-            // In-file duplicate check
+            // In-file duplicate check — mark ALL duplicates (not just 2nd+)
             if (row.assetTag && tagCountInFile[row.assetTag] > 1) {
-                if (!tagSeenInFile.has(row.assetTag)) {
-                    tagSeenInFile.add(row.assetTag);
-                } else {
-                    issues.push({ row: rowLabel, field: 'assetTag', message: `Duplicate assetTag "${row.assetTag}" in file`, severity: 'error' });
-                    hasError = true;
-                }
+                const msg = `Duplicate assetTag "${row.assetTag}" appears ${tagCountInFile[row.assetTag]}× in file`;
+                rowErrors.push(msg);
+                issues.push({ row: rowLabel, field: 'assetTag', message: msg, severity: 'error' });
             }
             if (row.serialNumber && serialCountInFile[row.serialNumber] > 1) {
-                if (!serialSeenInFile.has(row.serialNumber)) {
-                    serialSeenInFile.add(row.serialNumber);
-                } else {
-                    issues.push({ row: rowLabel, field: 'serialNumber', message: `Duplicate serialNumber "${row.serialNumber}" in file`, severity: 'warning' });
-                }
+                const msg = `Duplicate serialNumber "${row.serialNumber}" appears ${serialCountInFile[row.serialNumber]}× in file`;
+                rowWarnings.push(msg);
+                issues.push({ row: rowLabel, field: 'serialNumber', message: msg, severity: 'warning' });
             }
 
             // Email check (warning only)
             if (row.assignedToEmail && row.assignedToEmail.includes('@') && !row.assignedToEmail.endsWith('@citadelgroup.com.my') && !row.assignedToEmail.endsWith('@company.com')) {
-                issues.push({ row: rowLabel, field: 'assignedToEmail', message: `Email "${row.assignedToEmail}" may not match a known domain`, severity: 'warning' });
+                const msg = `Email "${row.assignedToEmail}" may not match a known domain`;
+                rowWarnings.push(msg);
+                issues.push({ row: rowLabel, field: 'assignedToEmail', message: msg, severity: 'warning' });
             }
 
-            // Combine extra fields into notes if notes is empty
-            const extraParts: string[] = [];
-            if (row.ethernetMac && row.ethernetMac !== 'N/A' && row.ethernetMac !== 'n/a') extraParts.push(`Ethernet MAC: ${row.ethernetMac}`);
-            if (row.wifiMac && row.wifiMac !== 'N/A' && row.wifiMac !== 'n/a') extraParts.push(`Wi-Fi MAC: ${row.wifiMac}`);
-            if (row.previousUser) extraParts.push(`Previous User: ${row.previousUser}`);
-            if (row.os) extraParts.push(`OS: ${row.os}`);
-            if (row.encrypted) extraParts.push(`Encrypted: ${row.encrypted}`);
-            if (row.skuFamily) extraParts.push(`SKU Family: ${row.skuFamily}`);
-            if (row.joinType) extraParts.push(`Join Type: ${row.joinType}`);
-            if (row.entities) extraParts.push(`Entity: ${row.entities}`);
-            if (row.arch) extraParts.push(`Arch: ${row.arch}`);
-            if (row.assignedToName && row.assignedToEmail) extraParts.push(`User: ${row.assignedToName}`);
+            // Write extra CSV fields to dedicated DB columns instead of combining into notes
+            const extraFields: Record<string, string> = {};
+            if (row.ethernetMac && row.ethernetMac !== 'N/A' && row.ethernetMac !== 'n/a') extraFields.ethernetMac = row.ethernetMac;
+            if (row.wifiMac && row.wifiMac !== 'N/A' && row.wifiMac !== 'n/a') extraFields.wifiMac = row.wifiMac;
+            if (row.previousUser) extraFields.previousUser = row.previousUser;
+            if (row.os) extraFields.os = row.os;
+            if (row.encrypted) extraFields.encrypted = row.encrypted;
+            if (row.skuFamily) extraFields.skuFamily = row.skuFamily;
+            if (row.joinType) extraFields.joinType = row.joinType;
+            if (row.entities) extraFields.entity = row.entities;
+            if (row.arch) extraFields.arch = row.arch;
 
-            const combinedNotes = [row.notes, ...extraParts].filter(Boolean).join(' | ');
-
+            const hasError = rowErrors.length > 0;
+            const isDuplicate = !!existingAssetId;
             validatedRows.push({
                 ...row,
-                notes: combinedNotes || row.notes || '',
+                notes: row.notes || '',
+                ...extraFields,
                 _valid: hasError ? 'false' : 'true',
+                _isDuplicate: isDuplicate ? 'true' : 'false',
+                _errors: rowErrors,
+                _warnings: rowWarnings,
+                ...(existingAssetId ? { _existingId: existingAssetId } : {}),
             } as any);
         }
 
         // Build column suggestions for the UI
-        const knownDbFields = ['assetTag', 'serialNumber', 'name', 'category', 'brand', 'model', 'purchaseDate', 'purchasePrice', 'vendor', 'warrantyExpiry', 'status', 'assignedToEmail', 'assignedToName', 'notes'];
+        const knownDbFields = ['assetTag', 'serialNumber', 'name', 'category', 'brand', 'model', 'purchaseDate', 'purchasePrice', 'vendor', 'warrantyExpiry', 'status', 'assignedToEmail', 'assignedToName', 'notes', 'os', 'encrypted', 'skuFamily', 'joinType', 'ethernetMac', 'wifiMac', 'arch', 'previousUser', 'entity'];
         const columnMapping = Object.entries(headerMapping)
             .filter(([, dbField]) => knownDbFields.includes(dbField) || !COLUMN_ALIASES[Object.keys(headerMapping).find(k => headerMapping[k] === dbField) || ''])
             .map(([header, dbField]) => ({ header, dbField, matched: knownDbFields.includes(dbField) }));
@@ -947,6 +1007,8 @@ class AssetController {
             totalRows: mappedRows.length,
             validRows: validatedRows.filter(r => r._valid === 'true').length,
             errorRows: validatedRows.filter(r => r._valid === 'false').length,
+            duplicateRows: validatedRows.filter(r => r._isDuplicate === 'true' && r._valid === 'true').length,
+            newRows: validatedRows.filter(r => r._isDuplicate !== 'true' && r._valid === 'true').length,
             errors: issues.filter(i => i.severity === 'error'),
             warnings: issues.filter(i => i.severity === 'warning'),
         };
@@ -964,17 +1026,19 @@ class AssetController {
     /**
      * POST /assets/import/commit
      * Takes validated rows from preview and writes to DB.
-     * Body: { rows: Array<mapped row objects>, assignUsers: boolean }
+     * Body: { rows: Array<mapped row objects>, assignUsers: boolean, updateExisting: boolean }
+     * If updateExisting is true, rows that match existing assets by assetTag (or serialNumber)
+     * will be updated instead of skipped.
      */
     importAssetsCommit = asyncHandler(async (req: AuthRequest, res: Response) => {
-        const { rows, assignUsers = true } = req.body;
+        const { rows, assignUsers = true, updateExisting = false } = req.body;
 
         if (!Array.isArray(rows) || rows.length === 0) {
             throw new AppError('rows array is required', 400);
         }
 
-        const results: { imported: number; skipped: number; warnings: string[]; errors: string[] } = {
-            imported: 0, skipped: 0, warnings: [], errors: [],
+        const results: { imported: number; updated: number; skipped: number; warnings: string[]; errors: string[] } = {
+            imported: 0, updated: 0, skipped: 0, warnings: [], errors: [],
         };
 
         for (let i = 0; i < rows.length; i++) {
@@ -993,7 +1057,7 @@ class AssetController {
                 continue;
             }
 
-            // Check for DB duplicates (race condition safe — unique constraint will also catch)
+            // Check for DB duplicates
             const duplicate = await prisma.asset.findFirst({
                 where: {
                     OR: [
@@ -1002,12 +1066,101 @@ class AssetController {
                     ],
                 },
             });
+
             if (duplicate) {
-                results.errors.push(`${rowLabel}: assetTag "${row.assetTag}" or serialNumber already exists — skipped`);
-                results.skipped++;
+                if (updateExisting) {
+                    // Update existing asset
+                    const conflictFields: string[] = [];
+                    if (duplicate.assetTag === row.assetTag) conflictFields.push('assetTag');
+                    if (row.serialNumber && duplicate.serialNumber === row.serialNumber) conflictFields.push('serialNumber');
+
+                    try {
+                        let resolvedUserId: string | null = null;
+                        if (assignUsers && row.assignedToEmail) {
+                            const user = await prisma.user.findFirst({ where: { email: row.assignedToEmail, isActive: true } });
+                            if (user) {
+                                resolvedUserId = user.id;
+                            } else {
+                                results.warnings.push(`${rowLabel}: email "${row.assignedToEmail}" not found — kept as ${duplicate.status}`);
+                            }
+                        }
+
+                        const updateData: any = {
+                            name: row.name.trim(),
+                            category: row.category,
+                            brand: row.brand?.trim() || null,
+                            model: row.model?.trim() || null,
+                            serialNumber: row.serialNumber?.trim() || null,
+                            purchaseDate: row.purchaseDate ? new Date(row.purchaseDate) : null,
+                            purchasePrice: row.purchasePrice ? parseFloat(row.purchasePrice) : null,
+                            vendor: row.vendor?.trim() || null,
+                            warrantyExpiry: row.warrantyExpiry ? new Date(row.warrantyExpiry) : null,
+                            notes: row.notes?.trim() || null,
+                            os: row.os?.trim() || null,
+                            encrypted: row.encrypted?.trim() || null,
+                            skuFamily: row.skuFamily?.trim() || null,
+                            joinType: row.joinType?.trim() || null,
+                            ethernetMac: row.ethernetMac?.trim() || null,
+                            wifiMac: row.wifiMac?.trim() || null,
+                            arch: row.arch?.trim() || null,
+                            previousUser: row.previousUser?.trim() || null,
+                            entity: row.entity?.trim() || null,
+                        };
+
+                        // Only update status if assigning a user or explicit status provided
+                        if (resolvedUserId) {
+                            updateData.status = 'ASSIGNED';
+                        } else if (row.status) {
+                            updateData.status = row.status;
+                        }
+
+                        await prisma.asset.update({
+                            where: { id: duplicate.id },
+                            data: updateData,
+                        });
+
+                        // Handle assignment update
+                        if (resolvedUserId) {
+                            // Check if already assigned to this user
+                            const existingAssignment = await prisma.assetAssignment.findFirst({
+                                where: { assetId: duplicate.id, userId: resolvedUserId, returnedAt: null },
+                            });
+                            if (!existingAssignment) {
+                                // Return any current assignment first
+                                await prisma.assetAssignment.updateMany({
+                                    where: { assetId: duplicate.id, returnedAt: null },
+                                    data: { returnedAt: new Date() },
+                                });
+                                await prisma.assetAssignment.create({
+                                    data: {
+                                        assetId: duplicate.id,
+                                        userId: resolvedUserId,
+                                        assignedById: req.user!.id,
+                                        assignedAt: row.purchaseDate ? new Date(row.purchaseDate) : new Date(),
+                                        reason: 'imported (updated)',
+                                    },
+                                });
+                            }
+                        }
+
+                        results.updated++;
+                        results.warnings.push(`${rowLabel}: Updated existing asset (${conflictFields.join(', ')} matched)`);
+                    } catch (err: any) {
+                        results.errors.push(`${rowLabel}: Failed to update — ${err.message || 'Unknown error'}`);
+                        results.skipped++;
+                    }
+                } else {
+                    // Skip duplicates (original behavior) — but provide specific field name
+                    const conflictFields: string[] = [];
+                    if (duplicate.assetTag === row.assetTag) conflictFields.push('assetTag');
+                    if (row.serialNumber && duplicate.serialNumber === row.serialNumber) conflictFields.push('serialNumber');
+                    results.errors.push(`${rowLabel}: ${conflictFields.join(' & ')} "${conflictFields.length === 1 ? (conflictFields[0] === 'assetTag' ? row.assetTag : row.serialNumber) : row.assetTag + '" / "' + row.serialNumber}" already exists in DB — skipped`);
+                    results.skipped++;
+                }
                 continue;
             }
 
+            // Create new asset
             let resolvedUserId: string | null = null;
             if (assignUsers && row.assignedToEmail) {
                 const user = await prisma.user.findFirst({ where: { email: row.assignedToEmail, isActive: true } });
@@ -1033,6 +1186,15 @@ class AssetController {
                         warrantyExpiry: row.warrantyExpiry ? new Date(row.warrantyExpiry) : null,
                         status: resolvedUserId ? 'ASSIGNED' : (row.status || 'IN_STOCK'),
                         notes: row.notes?.trim() || null,
+                        os: row.os?.trim() || null,
+                        encrypted: row.encrypted?.trim() || null,
+                        skuFamily: row.skuFamily?.trim() || null,
+                        joinType: row.joinType?.trim() || null,
+                        ethernetMac: row.ethernetMac?.trim() || null,
+                        wifiMac: row.wifiMac?.trim() || null,
+                        arch: row.arch?.trim() || null,
+                        previousUser: row.previousUser?.trim() || null,
+                        entity: row.entity?.trim() || null,
                         createdById: req.user!.id,
                     },
                 });
@@ -1122,6 +1284,15 @@ class AssetController {
                     warrantyExpiry: row.warrantyExpiry ? new Date(row.warrantyExpiry) : null,
                     status: resolvedUserId ? 'ASSIGNED' : 'IN_STOCK',
                     notes: row.notes?.trim() || null,
+                    os: row.os?.trim() || null,
+                    encrypted: row.encrypted?.trim() || null,
+                    skuFamily: row.skuFamily?.trim() || null,
+                    joinType: row.joinType?.trim() || null,
+                    ethernetMac: row.ethernetMac?.trim() || null,
+                    wifiMac: row.wifiMac?.trim() || null,
+                    arch: row.arch?.trim() || null,
+                    previousUser: row.previousUser?.trim() || null,
+                    entity: row.entity?.trim() || null,
                     createdById: req.user!.id,
                 },
             });

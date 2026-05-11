@@ -862,6 +862,61 @@ function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () 
             )}
           </div>
 
+          {/* Remarks / Notes */}
+          <div>
+            <p className="text-xs text-gray-400 uppercase font-medium mb-1">Remarks</p>
+            {editing ? (
+              <textarea
+                value={form.notes ?? ''}
+                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                rows={3}
+                className="w-full border rounded px-2 py-1 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Add any remarks or notes about this asset..."
+              />
+            ) : (
+              <p className="text-gray-900 text-sm whitespace-pre-wrap">{asset.notes || '—'}</p>
+            )}
+          </div>
+
+          {/* Device Metadata (from import / editable) */}
+          {(() => {
+            const metaFields = [
+              { label: 'OS', key: 'os' as const },
+              { label: 'Encrypted', key: 'encrypted' as const },
+              { label: 'SKU Family', key: 'skuFamily' as const },
+              { label: 'Join Type', key: 'joinType' as const },
+              { label: 'Ethernet MAC', key: 'ethernetMac' as const },
+              { label: 'Wi-Fi MAC', key: 'wifiMac' as const },
+              { label: 'Arch', key: 'arch' as const },
+              { label: 'Previous User', key: 'previousUser' as const },
+              { label: 'Entity', key: 'entity' as const },
+            ];
+            const hasMeta = metaFields.some(f => asset[f.key]);
+            if (!editing && !hasMeta) return null;
+            return (
+              <div>
+                <p className="text-xs text-gray-400 uppercase font-medium mb-2">Device Metadata</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm bg-gray-50 rounded-lg p-3">
+                  {metaFields.map(f => (
+                    <div key={f.key}>
+                      <span className="text-xs text-gray-400">{f.label}</span>
+                      {editing ? (
+                        <input
+                          value={String(form[f.key] ?? '')}
+                          onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          className="w-full border rounded px-2 py-1 text-sm"
+                          placeholder={f.label}
+                        />
+                      ) : (
+                        <p className="text-gray-900">{asset[f.key] || '—'}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
           <div>
             <p className="text-xs text-gray-400 uppercase font-medium mb-2">Assignment History</p>
             {!asset.assignments || asset.assignments.length === 0 ? (
@@ -1061,6 +1116,20 @@ function AssetFormModal({ onClose }: { onClose: () => void }) {
             <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
             <textarea {...f('notes')} rows={2} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none" />
           </div>
+          <details className="group">
+            <summary className="text-xs font-medium text-gray-500 cursor-pointer hover:text-gray-700">Device Metadata (optional)</summary>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">OS</label><input {...f('os')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Encrypted</label><input {...f('encrypted')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">SKU Family</label><input {...f('skuFamily')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Join Type</label><input {...f('joinType')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Ethernet MAC</label><input {...f('ethernetMac')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Wi-Fi MAC</label><input {...f('wifiMac')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Arch</label><input {...f('arch')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Previous User</label><input {...f('previousUser')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Entity</label><input {...f('entity')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
+            </div>
+          </details>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>
             <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
@@ -1084,6 +1153,8 @@ interface ParseResult {
     totalRows: number;
     validRows: number;
     errorRows: number;
+    duplicateRows: number;
+    newRows: number;
     errors: Array<{ row: string; field: string; message: string; severity: 'error' }>;
     warnings: Array<{ row: string; field: string; message: string; severity: 'warning' }>;
   };
@@ -1095,8 +1166,9 @@ function ImportAssetsModal({ onClose }: { onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
-  const [commitResult, setCommitResult] = useState<{ imported: number; skipped: number; warnings: string[]; errors: string[] } | null>(null);
+  const [commitResult, setCommitResult] = useState<{ imported: number; updated: number; skipped: number; warnings: string[]; errors: string[] } | null>(null);
   const [committing, setCommitting] = useState(false);
+  const [updateExisting, setUpdateExisting] = useState(false);
 
   // ── Phase 1: Upload & Parse ──
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1132,18 +1204,27 @@ function ImportAssetsModal({ onClose }: { onClose: () => void }) {
   // ── Phase 2: Preview & Validate ──
   const handleCommit = async () => {
     if (!parseResult) return;
-    const validRows = parseResult.rows.filter(r => r._valid !== 'false');
+    // In "skip duplicates" mode, only send non-duplicate valid rows.
+    // In "update existing" mode, send all valid rows (including duplicates).
+    const validRows = parseResult.rows.filter(r => {
+      if (r._valid === 'false') return false;
+      if (!updateExisting && r._isDuplicate === 'true') return false;
+      return true;
+    });
     if (validRows.length === 0) {
-      toast.error('No valid rows', 'All rows have validation errors');
+      toast.error('No valid rows', 'All rows have validation errors or are duplicates');
       return;
     }
     setCommitting(true);
     try {
-      const result = await assetService.importAssetsCommit(validRows, true);
+      const result = await assetService.importAssetsCommit(validRows, true, updateExisting);
       setCommitResult(result);
       setPhase('result');
-      if (result.imported > 0) {
-        toast.success('Import Complete', `Successfully imported ${result.imported} asset${result.imported !== 1 ? 's' : ''}`);
+      if (result.imported > 0 || result.updated > 0) {
+        const parts: string[] = [];
+        if (result.imported > 0) parts.push(`${result.imported} new asset${result.imported !== 1 ? 's' : ''}`);
+        if (result.updated > 0) parts.push(`${result.updated} updated`);
+        toast.success('Import Complete', parts.join(' + '));
       }
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Import failed';
@@ -1156,6 +1237,7 @@ function ImportAssetsModal({ onClose }: { onClose: () => void }) {
   const PREVIEW_FIELDS = [
     { key: '_rowIndex', label: '#' },
     { key: '_valid', label: '✓' },
+    { key: '_isDuplicate', label: 'Dup' },
     { key: 'assetTag', label: 'Asset Tag' },
     { key: 'name', label: 'Device Name' },
     { key: 'category', label: 'Category' },
@@ -1258,34 +1340,72 @@ function ImportAssetsModal({ onClose }: { onClose: () => void }) {
           {phase === 'preview' && parseResult && (
             <div className="space-y-4">
               {/* Stats bar */}
-              <div className="flex gap-4 text-sm">
+              <div className="flex flex-wrap gap-3 text-sm">
                 <span className="px-3 py-1 bg-gray-100 rounded text-gray-700">Total: {parseResult.stats.totalRows}</span>
-                <span className="px-3 py-1 bg-green-100 rounded text-green-800">Valid: {parseResult.stats.validRows}</span>
+                <span className="px-3 py-1 bg-green-100 rounded text-green-800">{parseResult.stats.newRows} new</span>
+                {parseResult.stats.duplicateRows > 0 && (
+                  <span className="px-3 py-1 bg-blue-100 rounded text-blue-800">{parseResult.stats.duplicateRows} existing (duplicates)</span>
+                )}
                 {parseResult.stats.errorRows > 0 && (
                   <span className="px-3 py-1 bg-red-100 rounded text-red-800">{parseResult.stats.errorRows} with errors</span>
                 )}
               </div>
 
+              {/* Import mode selector */}
+              {parseResult.stats.duplicateRows > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-blue-800 mb-2">Duplicate rows detected — choose how to handle them:</p>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="importMode"
+                        checked={!updateExisting}
+                        onChange={() => setUpdateExisting(false)}
+                        className="accent-blue-600"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">Skip duplicates</span>
+                        <span className="text-xs text-gray-500 ml-1">({parseResult.stats.newRows} rows will be imported)</span>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="importMode"
+                        checked={updateExisting}
+                        onChange={() => setUpdateExisting(true)}
+                        className="accent-blue-600"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-900">Update existing</span>
+                        <span className="text-xs text-gray-500 ml-1">({parseResult.stats.newRows + parseResult.stats.duplicateRows} rows will be imported/updated)</span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {/* Errors & Warnings */}
               {parseResult.stats.errors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-48 overflow-y-auto">
                   <p className="text-xs font-medium text-red-800 mb-1">Errors ({parseResult.stats.errors.length})</p>
-                  {parseResult.stats.errors.slice(0, 20).map((e, i) => (
+                  {parseResult.stats.errors.slice(0, 100).map((e, i) => (
                     <p key={i} className="text-xs text-red-600">{e.row}: {e.message}</p>
                   ))}
-                  {parseResult.stats.errors.length > 20 && (
-                    <p className="text-xs text-red-400 mt-1">...and {parseResult.stats.errors.length - 20} more</p>
+                  {parseResult.stats.errors.length > 100 && (
+                    <p className="text-xs text-red-400 mt-1">...and {parseResult.stats.errors.length - 100} more</p>
                   )}
                 </div>
               )}
               {parseResult.stats.warnings.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-h-32 overflow-y-auto">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-h-48 overflow-y-auto">
                   <p className="text-xs font-medium text-yellow-800 mb-1">Warnings ({parseResult.stats.warnings.length})</p>
-                  {parseResult.stats.warnings.slice(0, 10).map((w, i) => (
+                  {parseResult.stats.warnings.slice(0, 50).map((w, i) => (
                     <p key={i} className="text-xs text-yellow-700">{w.row}: {w.message}</p>
                   ))}
-                  {parseResult.stats.warnings.length > 10 && (
-                    <p className="text-xs text-yellow-500 mt-1">...and {parseResult.stats.warnings.length - 10} more</p>
+                  {parseResult.stats.warnings.length > 50 && (
+                    <p className="text-xs text-yellow-500 mt-1">...and {parseResult.stats.warnings.length - 50} more</p>
                   )}
                 </div>
               )}
@@ -1316,19 +1436,46 @@ function ImportAssetsModal({ onClose }: { onClose: () => void }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {parseResult.rows.slice(0, 50).map((row, i) => (
-                      <tr key={i} className={`border-t ${row._valid === 'false' ? 'bg-red-50' : i % 2 === 0 ? '' : 'bg-gray-50/50'}`}>
-                        {PREVIEW_FIELDS.map(f => {
-                          const val = row[f.key] || '';
-                          const maxLen = 30;
-                          return (
-                            <td key={f.key} className={`px-2 py-1 whitespace-nowrap max-w-[150px] truncate ${f.key === '_valid' ? (val === 'true' ? 'text-green-600' : 'text-red-600') : ''}`}>
-                              {f.key === '_valid' ? (val === 'true' ? '✓' : '✕') : val.length > maxLen ? val.slice(0, maxLen) + '...' : val}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
+                    {parseResult.rows.slice(0, 50).map((row, i) => {
+                      const rowErrors: string[] = (row as any)._errors || [];
+                      const rowWarnings: string[] = (row as any)._warnings || [];
+                      const isDuplicate = (row as any)._isDuplicate === 'true';
+                      const isInvalid = row._valid === 'false';
+                      const tooltipParts: string[] = [];
+                      if (rowErrors.length) tooltipParts.push(...rowErrors.map(e => `✕ ${e}`));
+                      if (rowWarnings.length) tooltipParts.push(...rowWarnings.map(w => `⚠ ${w}`));
+                      if (isDuplicate) tooltipParts.push('⟳ Existing asset — will be updated');
+                      const tooltip = tooltipParts.join('\n');
+                      const rowBg = isInvalid ? 'bg-red-50' : isDuplicate ? 'bg-blue-50/50' : i % 2 === 0 ? '' : 'bg-gray-50/50';
+
+                      return (
+                        <tr key={i} className={`border-t ${rowBg}`} title={tooltip || undefined}>
+                          {PREVIEW_FIELDS.map(f => {
+                            const val = row[f.key] || '';
+                            const maxLen = 30;
+                            if (f.key === '_valid') {
+                              return (
+                                <td key={f.key} className={`px-2 py-1 whitespace-nowrap ${val === 'true' ? 'text-green-600' : 'text-red-600'}`}>
+                                  {val === 'true' ? '✓' : '✕'}
+                                </td>
+                              );
+                            }
+                            if (f.key === '_isDuplicate') {
+                              return (
+                                <td key={f.key} className="px-2 py-1 whitespace-nowrap text-blue-600">
+                                  {val === 'true' ? '⟳' : '—'}
+                                </td>
+                              );
+                            }
+                            return (
+                              <td key={f.key} className="px-2 py-1 whitespace-nowrap max-w-[150px] truncate">
+                                {val.length > maxLen ? val.slice(0, maxLen) + '...' : val}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 {parseResult.rows.length > 50 && (
@@ -1342,10 +1489,13 @@ function ImportAssetsModal({ onClose }: { onClose: () => void }) {
                   <button onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>
                   <button
                     onClick={handleCommit}
-                    disabled={committing || parseResult.stats.validRows === 0}
-                    className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                    disabled={committing || (parseResult.stats.newRows === 0 && parseResult.stats.duplicateRows === 0) || (!updateExisting && parseResult.stats.newRows === 0)}
+                    className={`px-4 py-2 text-sm text-white rounded disabled:opacity-50 ${updateExisting ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`}
                   >
-                    {committing ? 'Importing...' : `Import ${parseResult.stats.validRows} valid row${parseResult.stats.validRows !== 1 ? 's' : ''}`}
+                    {committing ? 'Importing...' : updateExisting
+                      ? `Import ${parseResult.stats.newRows + parseResult.stats.duplicateRows} rows (update existing)`
+                      : `Import ${parseResult.stats.newRows} new row${parseResult.stats.newRows !== 1 ? 's' : ''}`
+                    }
                   </button>
                 </div>
               </div>
@@ -1355,30 +1505,44 @@ function ImportAssetsModal({ onClose }: { onClose: () => void }) {
           {/* ── Phase 3: Result ── */}
           {phase === 'result' && commitResult && (
             <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <span className="text-lg font-semibold text-green-700">{commitResult.imported} Imported</span>
-                </div>
+              <div className="flex items-center gap-4 flex-wrap">
+                {commitResult.imported > 0 && (
+                  <div className="flex items-center gap-2">
+                    <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <span className="text-lg font-semibold text-green-700">{commitResult.imported} Imported</span>
+                  </div>
+                )}
+                {(commitResult as any).updated > 0 && (
+                  <div className="flex items-center gap-2">
+                    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    <span className="text-lg font-semibold text-blue-700">{(commitResult as any).updated} Updated</span>
+                  </div>
+                )}
                 {commitResult.skipped > 0 && (
                   <span className="text-sm text-orange-600">{commitResult.skipped} skipped</span>
                 )}
               </div>
 
               {commitResult.warnings.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-h-48 overflow-y-auto">
                   <p className="text-xs font-medium text-yellow-800 mb-1">Warnings ({commitResult.warnings.length})</p>
-                  {commitResult.warnings.map((w, i) => (
+                  {commitResult.warnings.slice(0, 100).map((w, i) => (
                     <p key={i} className="text-xs text-yellow-700">{w}</p>
                   ))}
+                  {commitResult.warnings.length > 100 && (
+                    <p className="text-xs text-yellow-500 mt-1">...and {commitResult.warnings.length - 100} more</p>
+                  )}
                 </div>
               )}
               {commitResult.errors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-48 overflow-y-auto">
                   <p className="text-xs font-medium text-red-800 mb-1">Errors ({commitResult.errors.length})</p>
-                  {commitResult.errors.map((e, i) => (
+                  {commitResult.errors.slice(0, 100).map((e, i) => (
                     <p key={i} className="text-xs text-red-600">{e}</p>
                   ))}
+                  {commitResult.errors.length > 100 && (
+                    <p className="text-xs text-red-400 mt-1">...and {commitResult.errors.length - 100} more</p>
+                  )}
                 </div>
               )}
 

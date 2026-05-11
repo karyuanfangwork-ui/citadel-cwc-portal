@@ -24,6 +24,15 @@ export interface Asset {
   warrantyExpiry: string | null;
   status: AssetStatus;
   notes: string | null;
+  os: string | null;
+  encrypted: string | null;
+  skuFamily: string | null;
+  joinType: string | null;
+  ethernetMac: string | null;
+  wifiMac: string | null;
+  arch: string | null;
+  previousUser: string | null;
+  entity: string | null;
   sourceRequestId: string | null;
   createdById: string;
   createdAt: string;
@@ -140,6 +149,8 @@ const assetService = {
         totalRows: number;
         validRows: number;
         errorRows: number;
+        duplicateRows: number;
+        newRows: number;
         errors: Array<{ row: string; field: string; message: string; severity: 'error' }>;
         warnings: Array<{ row: string; field: string; message: string; severity: 'warning' }>;
       };
@@ -161,11 +172,11 @@ const assetService = {
   /**
    * Commit validated rows from the preview step to the database.
    */
-  async importAssetsCommit(rows: Record<string, string>[], assignUsers = true) {
-    const response = await api.post('/assets/import/commit', { rows, assignUsers }, {
+  async importAssetsCommit(rows: Record<string, string>[], assignUsers = true, updateExisting = false) {
+    const response = await api.post('/assets/import/commit', { rows, assignUsers, updateExisting }, {
       timeout: 120000, // 120s for bulk DB inserts
     });
-    return response.data.data as { imported: number; skipped: number; warnings: string[]; errors: string[] };
+    return response.data.data as { imported: number; updated: number; skipped: number; warnings: string[]; errors: string[] };
   },
 
   async exportAssetsCsv(params: ListAssetsParams = {}) {

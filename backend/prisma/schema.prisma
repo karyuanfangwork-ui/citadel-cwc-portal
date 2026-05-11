@@ -1342,6 +1342,15 @@ model Asset {
   warrantyExpiry DateTime?     @map("warranty_expiry") @db.Date
   status         AssetStatus   @default(IN_STOCK)
   notes          String?       @db.Text
+  os             String?       @db.VarChar(100)
+  encrypted      String?       @db.VarChar(50)
+  skuFamily      String?       @map("sku_family") @db.VarChar(100)
+  joinType       String?       @map("join_type") @db.VarChar(100)
+  ethernetMac    String?       @map("ethernet_mac") @db.VarChar(50)
+  wifiMac        String?       @map("wifi_mac") @db.VarChar(50)
+  arch           String?       @db.VarChar(50)
+  previousUser   String?       @map("previous_user") @db.VarChar(200)
+  entity         String?       @db.VarChar(200)
 
   sourceRequestId String? @map("source_request_id") @db.Uuid
   createdById     String  @map("created_by_id") @db.Uuid
