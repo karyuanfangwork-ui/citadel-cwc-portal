@@ -42,7 +42,7 @@ const ApprovalActions: React.FC<ApprovalActionsProps> = ({
   const isHR = request.serviceDesk?.code === 'HR';
 
   const showStartScreening = isHR && isHRAgent && status === 'INTERVIEW_FEEDBACK_PENDING' && interviewDetails?.feedback?.decision === 'PROCEED';
-  const showRouteLOA = isHR && isHRAgent && (status === 'HR_SCREENING' || status === 'LOA_PENDING_APPROVAL') && hasLOA;
+  const showRouteLOA = isHR && isHRAgent && status === 'HR_SCREENING' && hasLOA;
   const showRevise = isHR && isHRAgent && status === 'CEO_REJECTED';
   const showReopen = isHR && isHRAgent && (status === 'CLOSED' || status === 'RESOLVED');
 
