@@ -106,8 +106,6 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const {
-            backgroundCheckStatus,
-            backgroundCheckNotes,
             referencesCheckStatus,
             referencesCheckNotes,
             referencesContacted,
