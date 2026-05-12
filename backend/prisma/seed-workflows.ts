@@ -77,7 +77,7 @@ const defaultWorkflows = [
       { label: 'Manager Approved', status: 'MANAGER_APPROVED', icon: 'check_circle' },
       { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
       { label: 'Feedback', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'radio_button_checked' },
-      { label: 'Screening', status: 'HR_SCREENING', icon: 'radio_button_checked' },
+      { label: 'Reference Check', status: 'HR_SCREENING', icon: 'radio_button_checked' },
       { label: 'LOA Pending', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'LOA Approved', status: 'LOA_APPROVED', icon: 'radio_button_checked' },
       { label: 'LOA Issued', status: 'LOA_ISSUED', icon: 'radio_button_checked' },

@@ -559,7 +559,7 @@ export const SEED_STATUS_DEFINITIONS = [
   },
   {
     "code": "HR_SCREENING",
-    "label": "HR Screening",
+    "label": "Reference Check",
     "description": null,
     "category": "HR",
     "displayOrder": 19,
@@ -1726,8 +1726,8 @@ export const SEED_BANNER_CONFIGS = [
     "role": "agent",
     "status": "INTERVIEW_FEEDBACK_PENDING",
     "icon": "play_arrow",
-    "title": "Next Step: Start HR Screening",
-    "description": "Interview feedback received. Begin background and reference checks.",
+    "title": "Next Step: Start Reference Check",
+    "description": "Interview feedback received. Begin reference check.",
     "colorScheme": "blue",
     "isActive": true
   },
@@ -1816,8 +1816,8 @@ export const SEED_BANNER_CONFIGS = [
     "role": "all",
     "status": "HR_SCREENING",
     "icon": "hourglass_top",
-    "title": "HR Screening in progress",
-    "description": "HR Screening in progress",
+    "title": "Reference Check in progress",
+    "description": "Reference check in progress",
     "colorScheme": "blue",
     "isActive": true
   },
@@ -2005,8 +2005,8 @@ export const SEED_BANNER_CONFIGS = [
     "role": "hiring_manager",
     "status": "HR_SCREENING",
     "icon": "fact_check",
-    "title": "In Progress: HR Screening",
-    "description": "Background and reference checks are being conducted by HR.",
+    "title": "In Progress: Reference Check",
+    "description": "Reference checks are being conducted by HR.",
     "colorScheme": "blue",
     "isActive": true
   },
