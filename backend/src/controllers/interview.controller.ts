@@ -237,17 +237,51 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
             }
         });
 
-        // Update request status based on decision
-        const newStatus = decision === 'PROCEED' ? 'INTERVIEW_FEEDBACK_PENDING' : 'CANDIDATE_REJECTED_INTERVIEW';
-        const updatedRequest = await prisma.request.update({
-            where: { id },
-            data: { status: newStatus }
+        // Check if all selected candidates have submitted feedback
+        // Determine the selected candidates from customFields
+        const selectedCandidateIds: string[] = (request.customFields as any)?.selectedCandidateIds || [];
+        const totalSelected = selectedCandidateIds.length || 1; // fallback to 1 for legacy single-candidate
+
+        const allFeedbacks = await prisma.interviewFeedback.findMany({
+            where: { requestId: id }
         });
+
+        // Filter feedback for the selected candidates specifically (or all feedback if no selection)
+        const relevantFeedbacks = selectedCandidateIds.length > 0
+            ? allFeedbacks.filter(f => f.candidateId && selectedCandidateIds.includes(f.candidateId))
+            : allFeedbacks;
+
+        // Get candidate info for activity log
+        let candidateLabel = 'candidate';
+        if (candidateId) {
+            const candidateResume = await prisma.candidateResume.findUnique({ where: { id: candidateId } });
+            if (candidateResume?.candidateName) {
+                candidateLabel = candidateResume.candidateName;
+            }
+        }
+
+        // Determine status transition
+        let newStatus: string | null = null;
+        const allFeedbackReceived = relevantFeedbacks.length >= totalSelected;
+
+        if (allFeedbackReceived) {
+            // All candidates have feedback — decide the overall status
+            const anyProceed = relevantFeedbacks.some(f => f.decision === 'PROCEED');
+            newStatus = anyProceed ? 'INTERVIEW_FEEDBACK_PENDING' : 'CANDIDATE_REJECTED_INTERVIEW';
+        }
+        // If not all feedback received yet, stay in INTERVIEW_SCHEDULED
+
+        const updatedRequest = newStatus
+            ? await prisma.request.update({
+                where: { id },
+                data: { status: newStatus as any }
+            })
+            : request;
 
         // Create activity log
         const activityMessage = decision === 'PROCEED'
-            ? `Hiring Manager approved candidate to proceed after interview`
-            : `Hiring Manager rejected candidate after interview`;
+            ? `Hiring Manager approved ${candidateLabel} to proceed after interview`
+            : `Hiring Manager rejected ${candidateLabel} after interview`;
 
         await prisma.requestActivity.create({
             data: {
@@ -265,7 +299,8 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
             status: 'success',
             data: {
                 request: updatedRequest,
-                interviewFeedback
+                interviewFeedback,
+                allFeedbackReceived
             }
         });
     } catch (error) {

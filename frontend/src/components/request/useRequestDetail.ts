@@ -21,6 +21,9 @@ import apiClient from '../../services/api';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface InterviewSchedule {
+    id?: string;
+    candidateId?: string;
+    candidateResume?: { id: string; candidateName?: string; fileName?: string };
     interviewDate: string;
     interviewTime: string;
     meetingLink?: string;
@@ -30,6 +33,7 @@ export interface InterviewSchedule {
 }
 
 export interface InterviewFeedback {
+    candidateId?: string | null;
     decision: string;
     feedback: string;
     overallRating?: number;
@@ -78,7 +82,9 @@ export interface CandidateResume {
 
 export interface InterviewDetails {
     schedule: InterviewSchedule;
+    schedules: InterviewSchedule[];
     feedback: InterviewFeedback | null;
+    feedbacks: InterviewFeedback[];
 }
 
 export interface Activity {

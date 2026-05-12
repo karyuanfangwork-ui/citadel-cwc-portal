@@ -23,6 +23,9 @@ interface CandidateResume {
 }
 
 interface InterviewSchedule {
+  id?: string;
+  candidateId?: string;
+  candidateResume?: { id: string; candidateName?: string; fileName?: string };
   interviewDate: string;
   interviewTime: string;
   meetingLink?: string;
@@ -32,6 +35,7 @@ interface InterviewSchedule {
 }
 
 interface InterviewFeedback {
+  candidateId?: string | null;
   decision: string;
   feedback: string;
   overallRating?: number;
@@ -83,6 +87,8 @@ interface HiringWorkflowPanelProps {
   interviewDetails: {
     schedule: InterviewSchedule | null;
     feedback: InterviewFeedback | null;
+    schedules?: InterviewSchedule[];
+    feedbacks?: InterviewFeedback[];
   } | null;
   screeningDetails: HRScreening | null;
   loaDetails: LetterOfAcceptance | null;
@@ -414,8 +420,43 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
             </div>
           </div>
 
-          {/* Interview Feedback Display */}
-          {interviewDetails.feedback && (
+          {/* Interview Feedback Display — per candidate for multi-candidate */}
+          {interviewDetails.feedbacks && interviewDetails.feedbacks.length > 0 && interviewDetails.schedules && interviewDetails.schedules.length > 1 ? (
+            <div className="mt-8 pt-8 border-t border-gray-100">
+              <h4 className="font-bold text-[#101418] mb-4">Interview Outcomes ({interviewDetails.feedbacks.length} of {interviewDetails.schedules.length} evaluated)</h4>
+              <div className="space-y-4">
+                {interviewDetails.schedules.map((sched, idx) => {
+                  const fb = interviewDetails.feedbacks!.find(f => f.candidateId === sched.candidateResume?.id);
+                  const candidateName = (sched as any).candidateResume?.candidateName || `Candidate ${idx + 1}`;
+                  return (
+                    <div key={sched.candidateId || idx} className={`rounded-xl p-5 ${fb ? (fb.decision === 'PROCEED' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200') : 'bg-gray-50 border border-gray-200'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold text-[#101418]">{candidateName}</span>
+                        {fb ? (
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${fb.decision === 'PROCEED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {fb.decision}
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">Pending</span>
+                        )}
+                      </div>
+                      {fb && (
+                        <>
+                          <p className="text-sm text-[#44546f] italic mb-3">"{fb.feedback}"</p>
+                          <div className="flex gap-4">
+                            {fb.overallRating && <div><p className="text-[10px] font-bold text-[#44546f] uppercase">Overall</p><div className="flex text-amber-500">{[...Array(5)].map((_, i) => (<span key={i} className="material-symbols-outlined text-xs">{i < fb.overallRating! ? 'star' : 'star_outline'}</span>))}</div></div>}
+                            {fb.technicalSkills && <div><p className="text-[10px] font-bold text-[#44546f] uppercase">Tech</p><p className="font-bold text-sm">{fb.technicalSkills}/5</p></div>}
+                            {fb.culturalFit && <div><p className="text-[10px] font-bold text-[#44546f] uppercase">Culture</p><p className="font-bold text-sm">{fb.culturalFit}/5</p></div>}
+                            {fb.communication && <div><p className="text-[10px] font-bold text-[#44546f] uppercase">Comm.</p><p className="font-bold text-sm">{fb.communication}/5</p></div>}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : interviewDetails.feedback && (
             <div className="mt-8 pt-8 border-t border-gray-100">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="font-bold text-[#101418]">Interview Outcome</h4>
@@ -425,7 +466,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
                 </span>
               </div>
               <div className="bg-gray-50 rounded-xl p-6">
-                <p className="text-[#44546f] italic mb-4">"{interviewDetails.feedback.feedback}"</p>
+                <p className="text-[#44546f] italic mb-4">&ldquo;{interviewDetails.feedback.feedback}&rdquo;</p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div>
                     <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Overall</p>

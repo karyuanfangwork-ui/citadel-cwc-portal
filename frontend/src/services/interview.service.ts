@@ -22,6 +22,7 @@ export const interviewService = {
      * Submit interview feedback
      */
     async submitFeedback(requestId: string, feedbackData: {
+        candidateId?: string;
         decision: 'PROCEED' | 'REJECT';
         overallRating: number;
         technicalSkills: number;
@@ -54,7 +55,9 @@ export const interviewService = {
      */
     async getInterviewDetails(requestId: string): Promise<{
         schedule: InterviewSchedule | null;
+        schedules: InterviewSchedule[];
         feedback: InterviewFeedback | null;
+        feedbacks: InterviewFeedback[];
     }> {
         const response = await apiClient.get(`/interviews/requests/${requestId}`);
         return response.data.data;

@@ -237,6 +237,19 @@ const RequestDetailContainer: React.FC = () => {
                 processingAction={rq.processingAction}
                 onClose={() => rq.setShowInterviewFeedbackModal(false)}
                 onSubmit={rq.handleSubmitInterviewFeedback}
+                candidates={((rq.request?.customFields as any)?.selectedCandidateIds || []).map((id: string, idx: number) => ({
+                    id,
+                    name: ((rq.request?.customFields as any)?.selectedCandidateNames || [])[idx] || `Candidate ${idx + 1}`
+                }))}
+                existingFeedbacks={(rq.interviewDetails?.feedbacks || []).map(f => ({
+                    candidateId: f.candidateId,
+                    decision: f.decision,
+                    feedback: f.feedback,
+                    overallRating: f.overallRating,
+                    technicalSkills: f.technicalSkills,
+                    culturalFit: f.culturalFit,
+                    communication: f.communication
+                }))}
             />
 
             <LOAApprovalModal
