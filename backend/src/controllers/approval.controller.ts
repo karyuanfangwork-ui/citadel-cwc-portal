@@ -420,7 +420,7 @@ export const routeToManager = async (req: Request, res: Response) => {
 export const managerDecision = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
-        const { decision, selectedCandidateId, comments } = req.body;
+        const { decision, selectedCandidateIds, selectedCandidateId, comments } = req.body;
         const userId = (req as any).user?.id;
 
         if (!decision || !['APPROVED', 'REJECTED'].includes(decision)) {
@@ -429,6 +429,32 @@ export const managerDecision = async (req: Request, res: Response) => {
                 message: 'Decision must be either APPROVED or REJECTED'
             });
             return;
+        }
+
+        // Normalize: accept both new array format and legacy single-ID format
+        let candidateIds: string[] = [];
+        if (Array.isArray(selectedCandidateIds) && selectedCandidateIds.length > 0) {
+            candidateIds = selectedCandidateIds;
+        } else if (selectedCandidateId) {
+            candidateIds = [selectedCandidateId];
+        }
+
+        // Validate: if approved, must select 1-3 candidates
+        if (decision === 'APPROVED') {
+            if (candidateIds.length === 0) {
+                res.status(400).json({
+                    status: 'error',
+                    message: 'At least 1 candidate must be selected when approving'
+                });
+                return;
+            }
+            if (candidateIds.length > 3) {
+                res.status(400).json({
+                    status: 'error',
+                    message: 'Maximum 3 candidates can be selected for interview'
+                });
+                return;
+            }
         }
 
         // Get the request
@@ -470,6 +496,19 @@ export const managerDecision = async (req: Request, res: Response) => {
             return;
         }
 
+        // Validate that all selected candidates exist in the request's resumes
+        if (candidateIds.length > 0) {
+            const validIds = request.candidateResumes.map((r: any) => r.id);
+            const invalidIds = candidateIds.filter(cid => !validIds.includes(cid));
+            if (invalidIds.length > 0) {
+                res.status(400).json({
+                    status: 'error',
+                    message: `Invalid candidate IDs: ${invalidIds.join(', ')}`
+                });
+                return;
+            }
+        }
+
         const pendingApproval = request.approvals[0];
         if (!pendingApproval) {
             res.status(404).json({
@@ -491,14 +530,20 @@ export const managerDecision = async (req: Request, res: Response) => {
         // Update request status
         const newStatus = decision === 'APPROVED' ? 'MANAGER_APPROVED' : 'IN_REVIEW';
 
-        // If approved and candidate selected, store in customFields
+        // Store selected candidates in customFields
         const customFields = request.customFields as any || {};
-        if (decision === 'APPROVED' && selectedCandidateId) {
-            const selectedCandidate = (request as any).candidateResumes.find((r: any) => r.id === selectedCandidateId);
-            if (selectedCandidate) {
-                customFields.selectedCandidateId = selectedCandidateId;
-                customFields.selectedCandidateName = selectedCandidate.candidateName || 'Unknown Candidate';
-            }
+        if (decision === 'APPROVED' && candidateIds.length > 0) {
+            // New array format
+            customFields.selectedCandidateIds = candidateIds;
+            const selectedNames = candidateIds
+                .map(cid => {
+                    const candidate = request.candidateResumes.find((r: any) => r.id === cid);
+                    return candidate?.candidateName || candidate?.fileName || 'Unknown Candidate';
+                });
+            customFields.selectedCandidateNames = selectedNames;
+            // Legacy single-value compat (first selected candidate)
+            customFields.selectedCandidateId = candidateIds[0];
+            customFields.selectedCandidateName = selectedNames[0] || 'Unknown Candidate';
         }
 
         const updatedRequest = await prisma.request.update({
@@ -510,8 +555,11 @@ export const managerDecision = async (req: Request, res: Response) => {
         });
 
         // Create activity log
+        const candidateSummary = candidateIds.length > 0
+            ? ` (${candidateIds.length} candidate${candidateIds.length > 1 ? 's' : ''} selected)`
+            : '';
         const activityMessage = decision === 'APPROVED'
-            ? `Hiring Manager approved candidate selection${comments ? ': ' + comments : ''}`
+            ? `Hiring Manager approved candidate selection${candidateSummary}${comments ? ': ' + comments : ''}`
             : `Hiring Manager requested changes${comments ? ': ' + comments : ''}`;
 
         await prisma.requestActivity.create({
@@ -530,8 +578,7 @@ export const managerDecision = async (req: Request, res: Response) => {
             decision,
             approverType: 'HIRING_MANAGER',
             newStatus,
-            selectedCandidateId: selectedCandidateId || null,
-        comments: comments || null,
+            selectedCandidateIds: candidateIds,
     }, { status: request.status });
 
     await resumeSla(id);

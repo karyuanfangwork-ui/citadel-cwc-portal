@@ -12,6 +12,7 @@ interface Resume {
 interface ScheduleInterviewModalProps {
   requestId: string;
   selectedCandidateId?: string;
+  selectedCandidateIds?: string[];
   onSuccess: () => void;
   onClose: () => void;
 }
@@ -19,11 +20,19 @@ interface ScheduleInterviewModalProps {
 const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   requestId,
   selectedCandidateId,
+  selectedCandidateIds,
   onSuccess,
   onClose,
 }) => {
+  // Normalize: accept both new array format and legacy single ID
+  const preselectedIds = selectedCandidateIds && selectedCandidateIds.length > 0
+    ? selectedCandidateIds
+    : selectedCandidateId
+      ? [selectedCandidateId]
+      : [];
+
   const [resumes, setResumes] = useState<Resume[]>([]);
-  const [candidateId, setCandidateId] = useState(selectedCandidateId || '');
+  const [candidateId, setCandidateId] = useState(preselectedIds[0] || '');
   const [interviewDate, setInterviewDate] = useState('');
   const [interviewTime, setInterviewTime] = useState('');
   const [interviewers, setInterviewers] = useState('');
@@ -31,11 +40,22 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
   const [location, setLocation] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [scheduledIds, setScheduledIds] = useState<string[]>([]);
   const { handleBackdropClick } = useModalDismiss(onClose);
+
+  const allDone = preselectedIds.length > 0 && scheduledIds.length >= preselectedIds.length;
+  const remainingIds = preselectedIds.filter(id => !scheduledIds.includes(id));
 
   useEffect(() => {
     approvalService.getResumes(requestId).then(setResumes).catch(() => {});
   }, [requestId]);
+
+  // Auto-select first remaining candidate
+  useEffect(() => {
+    if (preselectedIds.length > 0 && remainingIds.length > 0 && !candidateId) {
+      setCandidateId(remainingIds[0]);
+    }
+  }, [preselectedIds, remainingIds, candidateId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,12 +70,37 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
         meetingLink: meetingLink || undefined,
         interviewers: interviewers.split(',').map(i => i.trim()).filter(Boolean),
       });
-      onSuccess();
+
+      if (preselectedIds.length > 1) {
+        // Multi-candidate mode: mark this one as scheduled, continue with next
+        setScheduledIds(prev => [...prev, candidateId]);
+        const nextId = remainingIds.find(id => id !== candidateId);
+        if (nextId) {
+          setCandidateId(nextId);
+          setInterviewDate('');
+          setInterviewTime('');
+        } else {
+          // All done
+          onSuccess();
+        }
+      } else {
+        // Single candidate mode — just close
+        onSuccess();
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to schedule interview');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const candidateLabel = (r: Resume) => {
+    const isPreselected = preselectedIds.includes(r.id);
+    const isScheduled = scheduledIds.includes(r.id);
+    let suffix = '';
+    if (isPreselected && isScheduled) suffix = ' ✅ Scheduled';
+    else if (isPreselected) suffix = ' ★ Selected';
+    return `${r.candidateName}${suffix}`;
   };
 
   return (
@@ -67,12 +112,39 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
               <span className="material-symbols-outlined text-indigo-600">calendar_month</span>
             </div>
             <div>
-              <h2 className="font-bold text-base text-gray-900">Schedule Interview</h2>
+              <h2 className="font-bold text-base text-gray-900">
+                {preselectedIds.length > 1
+                  ? `Schedule Interview (${scheduledIds.length + 1} of ${preselectedIds.length})`
+                  : 'Schedule Interview'}
+              </h2>
               <p className="text-xs text-gray-500">HR Workflow · Candidate selected by hiring manager</p>
             </div>
           </div>
           <form onSubmit={handleSubmit}>
             <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Progress indicator for multi-candidate scheduling */}
+              {preselectedIds.length > 1 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm font-semibold text-blue-800">
+                    Scheduling interviews for {preselectedIds.length} candidates
+                  </p>
+                  <div className="flex gap-1.5 mt-2">
+                    {preselectedIds.map((id, idx) => {
+                      const isScheduled = scheduledIds.includes(id);
+                      const isCurrent = id === candidateId;
+                      return (
+                        <div
+                          key={id}
+                          className={`h-2 flex-1 rounded-full ${
+                            isScheduled ? 'bg-green-500' : isCurrent ? 'bg-blue-500' : 'bg-gray-200'
+                          }`}
+                          title={resumes.find(r => r.id === id)?.candidateName || `Candidate ${idx + 1}`}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
                   Select Candidate <span className="text-red-500">*</span>
@@ -85,8 +157,8 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                 >
                   <option value="">-- Select --</option>
                   {resumes.map(r => (
-                    <option key={r.id} value={r.id}>
-                      {r.candidateName}{r.id === selectedCandidateId ? ' (Selected)' : ''}
+                    <option key={r.id} value={r.id} disabled={scheduledIds.includes(r.id)}>
+                      {candidateLabel(r)}
                     </option>
                   ))}
                 </select>
@@ -160,14 +232,14 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
             </div>
             <div className="flex justify-end gap-2 p-5 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
               <button type="button" onClick={onClose} className="px-4 py-3 text-sm font-bold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50">
-                Cancel
+                {preselectedIds.length > 1 && scheduledIds.length > 0 ? 'Finish' : 'Cancel'}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
                 className="px-4 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
               >
-                {submitting ? 'Scheduling…' : 'Schedule Interview'}
+                {submitting ? 'Scheduling…' : preselectedIds.length > 1 && scheduledIds.length < preselectedIds.length - 1 ? 'Schedule & Next' : 'Schedule Interview'}
               </button>
             </div>
           </form>

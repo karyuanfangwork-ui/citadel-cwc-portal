@@ -343,8 +343,8 @@ export function getWorkflowActions(
   if (isRequester && status === 'PENDING_MANAGER_REVIEW') {
     actions.push({
       type: 'MANAGER_DECISION',
-      label: 'Review & Select Candidate',
-      description: 'Review the submitted candidate resumes and select one to proceed.',
+      label: 'Review & Select Candidates',
+      description: 'Review the submitted candidate resumes and select up to 3 candidates for interview.',
       variant: 'warning',
     });
   }

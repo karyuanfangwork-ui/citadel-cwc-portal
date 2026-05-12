@@ -248,11 +248,11 @@ async function main() {
         'crm:read', 'crm:write', 'crm:delete', 'crm:admin',
     ];
 
-    // AGENT gets full request CRUD + assign, no admin/user/report/banner/workflow
+    // AGENT gets full request CRUD + assign + confidential, no admin/user/report/banner/workflow
     // Note: asset permissions are NOT on AGENT — they are on IT_AGENT only
     const agentPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
-        'request:approve', 'request:assign',
+        'request:approve', 'request:assign', 'request:confidential',
     ];
 
     // IT_AGENT gets asset management permissions (in addition to AGENT's request perms)
@@ -826,11 +826,13 @@ async function main() {
             requestTypeName: 'New Hiring Request', requestTypeCode: 'NEW_HIRING', workflowType: 'HR_RECRUITMENT',
             formConfig: [
                 { id: 'position', label: 'Job Title', type: 'text', required: true },
-                { id: 'department', label: 'Department', type: 'text', required: true },
-                { id: 'headcount', label: 'Role Category', type: 'select', required: true, options: ['Junior Executive', 'Senior Executive', 'Head of Department', 'C-Level'] },
+                { id: 'department', label: 'Department', type: 'entity', required: true },
+                { id: 'headcount', label: 'Role Category', type: 'select', required: true, options: ['Junior Executive', 'Senior Executive', 'Head of Department', 'C-Level', 'Manager'] },
+                { id: 'employmentType', label: 'Employment Type', type: 'select', required: true, options: ['Permanent', 'Temporary', 'Contract'] },
                 { id: 'field_1776667989723', label: 'Proposed Salary', type: 'currency', required: false },
                 { id: 'field_1776668042538', label: 'Attach Org Chart', type: 'file', required: false },
                 { id: 'field_1776668064979', label: 'Attach Job Description', type: 'file', required: false },
+                { id: 'candidates', label: 'Candidate Documents', type: 'candidateDocuments', required: false, documentTypes: ['Resume', 'Certificates', 'Transcripts'], maxCandidates: 5 },
             ],
             requiredRole: 'HIRING_MANAGER', slaHours: 48,
         },

@@ -87,7 +87,7 @@ const RequestDetailContainer: React.FC = () => {
                         user={user}
                         onDeleteResume={rq.handleDeleteResume}
                         onEditInterview={() => rq.setShowEditInterviewModal(true)}
-                        onShowUploadModal={() => rq.setShowUploadModal(true)}
+                        onDocsChanged={() => rq.fetchResumes()}
                     />
 
                     {/* Onboarding Workflow */}
@@ -168,6 +168,9 @@ const RequestDetailContainer: React.FC = () => {
                         hasLOA={!!rq.loaDetails}
                         hasSignedLOA={!!rq.loaDetails?.signedLoaFileUrl}
                         selectedCandidateId={request.customFields?.selectedCandidateId}
+                        selectedCandidateIds={request.customFields?.selectedCandidateIds || (request.customFields?.selectedCandidateId ? [request.customFields.selectedCandidateId] : [])}
+                        candidateNames={[...new Set(rq.resumes.map(r => r.candidateName?.trim()).filter(Boolean) as string[])]}
+                        onManagerDecision={() => rq.setShowManagerDecisionModal(true)}
                         onActionSuccess={rq.fetchRequestData}
                         onLOAApproval={() => rq.setShowLOAApprovalModal(true)}
                         onRouteToManager={rq.handleRouteToManager}

@@ -17,13 +17,16 @@ export const upload = { single: (field: string) => uploadSingleFile(field) };
 export const uploadResume = async (req: Request, res: Response): Promise<any> => {
     try {
         const { id } = req.params as { id: string };
-        const { candidateName, notes } = req.body;
+        const { candidateName, notes, documentType } = req.body;
         const userId = (req as any).user?.id;
         const file = req.file as any;
 
         if (!file) {
             return res.status(400).json({ status: 'error', message: 'No file uploaded' });
         }
+
+        const validDocTypes = ['RESUME', 'CERTIFICATE', 'TRANSCRIPT'];
+        const docType = validDocTypes.includes(documentType) ? documentType : 'RESUME';
 
         const request = await prisma.request.findUnique({ where: { id } });
         if (!request) {
@@ -33,7 +36,7 @@ export const uploadResume = async (req: Request, res: Response): Promise<any> =>
         if (request.status !== 'JOB_POSTED') {
             return res.status(400).json({
                 status: 'error',
-                message: 'Can only upload resumes when request status is JOB_POSTED'
+                message: 'Can only upload documents when request status is JOB_POSTED'
             });
         }
 
@@ -46,6 +49,7 @@ export const uploadResume = async (req: Request, res: Response): Promise<any> =>
                 mimeType: file.mimetype,
                 uploadedById: userId,
                 candidateName: candidateName || null,
+                documentType: docType,
                 notes: notes || null
             }
         });

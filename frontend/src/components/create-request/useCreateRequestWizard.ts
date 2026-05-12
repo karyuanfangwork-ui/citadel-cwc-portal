@@ -48,6 +48,35 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
 
   const { user } = useAuth();
 
+  // Auto-generate summary for hiring request types
+  const isAutoSummary = useMemo(() => {
+    if (!selectedRequestType) return false;
+    const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
+    return code === 'NEW_HIRING';
+  }, [selectedRequestType]);
+
+  const autoSummary = useMemo(() => {
+    if (!isAutoSummary) return '';
+
+    const cf = formData.customFields;
+    const position = cf.position || '';
+    const empType = cf.employmentType || '';
+    const dept = cf.department || '';
+
+    let parts: string[] = [];
+    if (empType) parts.push(empType);
+    if (position) parts.push(position);
+    if (dept) {
+      const entityName = entityOptions.find(e => e.code === dept)?.name || dept;
+      parts.push(`(${entityName})`);
+    }
+    const summary = parts.join(' ').trim();
+    return summary ? `New Hire: ${summary}` : '';
+  }, [isAutoSummary, formData.customFields, entityOptions]);
+
+  // Auto-set confidential for HR requests — all HR requests are confidential by default
+  const isAutoConfidential = useMemo(() => deskType === 'hr', [deskType]);
+
   const isRoleBlocked = !!(
     selectedRequestType?.requiredRole &&
     !user?.roles?.includes(selectedRequestType.requiredRole)
@@ -127,10 +156,10 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const canProceed = useMemo(() => {
     switch (step) {
       case 'type': return !!selectedRequestType;
-      case 'details': return !!formData.summary.trim();
+      case 'details': return !!(formData.summary.trim() || isAutoSummary);
       case 'review': return true;
     }
-  }, [step, selectedRequestType, formData]);
+  }, [step, selectedRequestType, formData, isAutoSummary]);
 
   const next = () => {
     if (!canProceed) return;
@@ -179,5 +208,8 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     isRoleBlocked,
     handleCustomFieldChange,
     getDeskName,
+    autoSummary,
+    isAutoSummary,
+    isAutoConfidential,
   };
 }

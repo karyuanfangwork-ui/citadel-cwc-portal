@@ -498,8 +498,8 @@ model Request {
   notifications       Notification[]
   approvals           RequestApproval[]
   candidateResumes    CandidateResume[]
-  interviewSchedule   InterviewSchedule?
-  interviewFeedback   InterviewFeedback?
+  interviewSchedules  InterviewSchedule[]
+  interviewFeedbacks  InterviewFeedback[]
   hrScreening         HRScreening?
   letterOfAcceptance  LetterOfAcceptance?
   onboardingRequest   OnboardingRequest?
@@ -758,6 +758,7 @@ model CandidateResume {
   uploadedById  String   @map("uploaded_by_id") @db.Uuid
   
   candidateName String?  @map("candidate_name") @db.VarChar(200)
+  documentType  String   @default("RESUME") @map("document_type") @db.VarChar(50)
   notes         String?  @db.Text
   
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
@@ -766,6 +767,7 @@ model CandidateResume {
   request            Request              @relation(fields: [requestId], references: [id], onDelete: Cascade)
   uploadedBy         User                 @relation(fields: [uploadedById], references: [id])
   interviewSchedules InterviewSchedule[]
+  interviewFeedbacks InterviewFeedback[]
   
   @@map("candidate_resumes")
   @@index([requestId])
@@ -909,7 +911,7 @@ model AuditLog {
 
 model InterviewSchedule {
   id                String   @id @default(uuid()) @db.Uuid
-  requestId         String   @unique @map("request_id") @db.Uuid
+  requestId         String   @map("request_id") @db.Uuid
   candidateId       String   @map("candidate_id") @db.Uuid
   interviewDate     DateTime @map("interview_date") @db.Date
   interviewTime     String   @map("interview_time") @db.VarChar(50)
@@ -927,13 +929,15 @@ model InterviewSchedule {
   scheduledByUser   User             @relation(fields: [scheduledBy], references: [id])
   
   @@map("interview_schedules")
+  @@unique([requestId, candidateId])
   @@index([requestId])
   @@index([candidateId])
 }
 
 model InterviewFeedback {
   id                String   @id @default(uuid()) @db.Uuid
-  requestId         String   @unique @map("request_id") @db.Uuid
+  requestId         String   @map("request_id") @db.Uuid
+  candidateId       String?  @map("candidate_id") @db.Uuid
   decision          String   @db.VarChar(20) // "PROCEED", "REJECT"
   overallRating     Int?     @map("overall_rating")
   technicalSkills   Int?     @map("technical_skills")
@@ -946,11 +950,13 @@ model InterviewFeedback {
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
   
   // Relations
-  request           Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  submittedByUser   User     @relation(fields: [submittedBy], references: [id])
+  request           Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  candidateResume   CandidateResume? @relation(fields: [candidateId], references: [id])
+  submittedByUser   User             @relation(fields: [submittedBy], references: [id])
   
   @@map("interview_feedbacks")
   @@index([requestId])
+  @@index([candidateId])
 }
 
 model HRScreening {

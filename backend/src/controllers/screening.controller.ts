@@ -18,7 +18,7 @@ export const startHRScreening = async (req: Request, res: Response) => {
         const request = await prisma.request.findUnique({
             where: { id },
             include: {
-                interviewFeedback: true
+                interviewFeedbacks: true
             }
         });
 
@@ -37,7 +37,8 @@ export const startHRScreening = async (req: Request, res: Response) => {
         }
 
         // Verify interview feedback exists and decision is PROCEED
-        if (!request.interviewFeedback || request.interviewFeedback.decision !== 'PROCEED') {
+        // Verify interview feedback exists and at least one has decision PROCEED
+        if (!request.interviewFeedbacks || request.interviewFeedbacks.length === 0 || !request.interviewFeedbacks.some((f: any) => f.decision === 'PROCEED')) {
             return res.status(400).json({
                 status: 'error',
                 message: 'Interview feedback must indicate PROCEED before starting screening'

@@ -61,12 +61,12 @@ export const routeToManager = async (requestId: string, comments?: string) => {
 export const managerDecision = async (
     requestId: string,
     decision: 'APPROVED' | 'REJECTED',
-    selectedCandidateId?: string,
+    selectedCandidateIds: string[],
     comments?: string
 ) => {
     const response = await apiClient.post(`/approvals/requests/${requestId}/manager-decision`, {
         decision,
-        selectedCandidateId,
+        selectedCandidateIds,
         comments
     });
     return response.data.data;
@@ -100,12 +100,14 @@ export const uploadResume = async (
     requestId: string,
     file: File,
     candidateName?: string,
-    notes?: string
+    notes?: string,
+    documentType?: string
 ) => {
     const formData = new FormData();
     formData.append('file', file);
     if (candidateName) formData.append('candidateName', candidateName);
     if (notes) formData.append('notes', notes);
+    if (documentType) formData.append('documentType', documentType);
 
     const response = await apiClient.post(
         `/approvals/requests/${requestId}/upload-resume`,

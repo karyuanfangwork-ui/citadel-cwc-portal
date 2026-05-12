@@ -99,17 +99,17 @@ class RequestController {
             }
         }
 
-        // Apply confidentiality filter for non-ADMIN users without request:confidential permission.
-        // They can only see confidential requests where they are the requester or a designated approver.
+        // Apply confidentiality filter for users without request:confidential permission.
+        // They can only see confidential requests where they are the requester, a designated approver, or the assigned agent.
         if (!canSeeConfidential) {
             if (where.OR) {
-                // Non-ADMIN/AGENT users already have visibility OR conditions (their own requests, etc.).
+                // Users already have visibility OR conditions (their own requests, etc.).
                 // We MUST preserve those visibility restrictions AND add confidentiality filtering.
-                // The confidentiality condition: show non-confidential OR (confidential + own/approver).
+                // The confidentiality condition: show non-confidential OR (confidential + own/approver/assigned).
                 // We wrap the original OR with confidentiality by converting to AND:
                 //   AND[ original_visibility_OR, confidentiality_OR ]
                 // This ensures users only see requests within their visibility scope
-                // AND excludes confidential requests unless they own them or are an approver.
+                // AND excludes confidential requests unless they own them, are an approver, or are assigned.
                 const visibilityOR = where.OR;
                 delete where.OR;
                 where.AND = [
@@ -120,16 +120,18 @@ class RequestController {
                             { isConfidential: false },
                             { requesterId: req.user!.id },
                             { approvals: { some: { approverId: req.user!.id } } },
+                            { assignedToId: req.user!.id },
                         ],
                     },
                 ];
             } else {
                 // ADMIN/AGENT without request:confidential — they see all non-confidential,
-                // plus confidential requests where they are requester or approver.
+                // plus confidential requests where they are requester, approver, or assigned agent.
                 where.OR = [
                     { isConfidential: false },
                     { requesterId: req.user!.id },
                     { approvals: { some: { approverId: req.user!.id } } },
+                    { assignedToId: req.user!.id },
                 ];
             }
         }
@@ -684,12 +686,26 @@ class RequestController {
             const parts: string[] = [];
             for (const [key, value] of Object.entries(cf)) {
                 if (value === null || value === undefined || value === '') continue;
-                if (typeof value === 'object' && value.s3Key) continue;
 
                 let label = key;
                 if (formConfig && Array.isArray(formConfig)) {
                     const field = formConfig.find((f: any) => f.id === key);
                     if (field?.label) label = field.label;
+                }
+
+                if (typeof value === 'object' && value.s3Key) continue;
+                if (typeof value === 'object' && !value.s3Key) {
+                    // candidateDocuments or other nested objects — summarize instead of dumping raw
+                    if (key === 'candidates') {
+                        const candObj = value as Record<string, Record<string, any>>;
+                        const candCount = Object.keys(candObj).length;
+                        if (candCount > 0) {
+                            const totalDocs = Object.values(candObj).reduce((s, d) => s + Object.keys(d).length, 0);
+                            parts.push(`${label}: ${candCount} candidate${candCount > 1 ? 's' : ''}, ${totalDocs} document${totalDocs !== 1 ? 's' : ''}`);
+                        }
+                        continue;
+                    }
+                    continue;
                 }
 
                 parts.push(`${label}: ${value}`);
@@ -1249,11 +1265,12 @@ class RequestController {
             throw new AppError('You do not have permission to view this request', 403);
         }
 
-        // Confidentiality gate: non-ADMIN users without request:confidential
-        // cannot view confidential requests unless they are the requester or a designated approver.
+        // Confidentiality gate: users without request:confidential
+        // cannot view confidential requests unless they are the requester, a designated approver, or the assigned agent.
         if (
             request.isConfidential &&
             request.requesterId !== req.user!.id &&
+            request.assignedToId !== req.user!.id &&
             !hasRole(req, 'ADMIN') &&
             !(req.user?.permissions?.includes('request:confidential')) &&
             !isDesignatedApprover
@@ -1535,11 +1552,12 @@ class RequestController {
             select: {
                 isConfidential: true,
                 requesterId: true,
+                assignedToId: true,
                 referenceNumber: true,
                 approvals: { select: { approverId: true } },
             },
         }) as any;
-        if (attachmentRequest?.isConfidential && attachmentRequest.requesterId !== req.user?.id) {
+        if (attachmentRequest?.isConfidential && attachmentRequest.requesterId !== req.user?.id && attachmentRequest.assignedToId !== req.user?.id) {
             const canSeeConfidential = hasRole(req, 'ADMIN') || req.user?.permissions?.includes('request:confidential');
             const isDesignatedApprover = attachmentRequest.approvals?.some((a: any) => a.approverId === req.user?.id);
             if (!canSeeConfidential && !isDesignatedApprover) {

@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState, useCallback, lazy, Suspense } from 'react';
 import { isHiringRequest } from '@/src/utils/roleDetection';
+
+const UploadResumeModal = lazy(() => import('@/src/components/request-detail/UploadResumeModal'));
 
 interface User {
   id: string;
@@ -13,6 +15,7 @@ interface CandidateResume {
   candidateName?: string;
   fileName: string;
   notes?: string;
+  documentType?: string;
   uploadedBy: { firstName: string; lastName: string };
   createdAt: string;
   fileSize: string;
@@ -63,6 +66,12 @@ interface LetterOfAcceptance {
   approvalComments?: string;
 }
 
+const DOC_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string; bg: string; border: string }> = {
+  RESUME: { label: 'Resume', icon: 'description', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' },
+  CERTIFICATE: { label: 'Certificates', icon: 'workspace_premium', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+  TRANSCRIPT: { label: 'Transcripts', icon: 'school', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+};
+
 interface HiringWorkflowPanelProps {
   request: {
     id: string;
@@ -80,7 +89,8 @@ interface HiringWorkflowPanelProps {
   user: User | null;
   onDeleteResume: (resumeId: string) => void;
   onEditInterview: () => void;
-  onShowUploadModal: () => void;
+  onDocsChanged?: () => void;
+  onShowUploadModal?: () => void;
 }
 
 const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
@@ -92,93 +102,221 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
   user,
   onDeleteResume,
   onEditInterview,
+  onDocsChanged,
   onShowUploadModal,
 }) => {
+  const [showUploadModal, setShowUploadModal] = useState(false);
   const isHiring = isHiringRequest(request.serviceDesk?.code || '', request.status);
-  const loaFileUrl = loaDetails?.loaFileUrl || '';
+  const canUpload = request.status === 'JOB_POSTED' && (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN'));
+  const DOC_TYPES = ['RESUME', 'CERTIFICATE', 'TRANSCRIPT'];
+
+  // Group resumes by candidate name
+  const groupedByCandidate = resumes.reduce<Record<string, CandidateResume[]>>((acc, resume) => {
+    const key = resume.candidateName?.trim() || 'Unnamed Candidate';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(resume);
+    return acc;
+  }, {});
+
+  const candidateCount = Object.keys(groupedByCandidate).length;
+
+  const handleUploadSuccess = useCallback(() => {
+    setShowUploadModal(false);
+    onDocsChanged?.();
+  }, [onDocsChanged]);
 
   if (!isHiring) return null;
 
   return (
     <>
-      {/* Candidate Resumes Section */}
-      {resumes.length > 0 && (
+      {/* Candidate Documents Section */}
+      {(resumes.length > 0 || canUpload) && (
         <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
           <div className="flex items-center justify-between mb-6">
-            <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest">
-              Candidate Resumes ({resumes.length})
-            </span>
-            {request.status === 'JOB_POSTED' && (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && (
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-blue-600 text-xl">folder_open</span>
+              <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest">
+                Candidate Documents
+                {candidateCount > 0 && (
+                  <span className="ml-1.5 text-blue-600">({candidateCount} candidate{candidateCount > 1 ? 's' : ''}, {resumes.length} doc{resumes.length > 1 ? 's' : ''})</span>
+                )}
+              </span>
+            </div>
+            {canUpload && (
               <button
-                onClick={onShowUploadModal}
+                onClick={() => setShowUploadModal(true)}
                 className="text-sm font-bold text-[#0052cc] hover:text-blue-700 flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-lg">add</span>
-                Add Resume
+                Upload Document
               </button>
             )}
           </div>
-          <div className="space-y-4">
-            {resumes.map((resume) => (
-              <div key={resume.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 flex-1">
-                    <span className="material-symbols-outlined text-[#0052cc] text-2xl">description</span>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-[#101418]">
-                        {resume.candidateName || 'Unnamed Candidate'}
-                      </h4>
-                      <p className="text-sm text-[#44546f] mt-1">{resume.fileName}</p>
-                      {resume.notes && (
-                        <p className="text-sm text-[#44546f] mt-2 italic">{resume.notes}</p>
-                      )}
-                      <div className="flex items-center gap-4 mt-2 text-xs text-[#44546f]">
-                        <span>Uploaded by {resume.uploadedBy.firstName} {resume.uploadedBy.lastName}</span>
-                        <span>•</span>
-                        <span>{new Date(resume.createdAt).toLocaleDateString()}</span>
-                        <span>•</span>
-                        <span>{(parseInt(resume.fileSize) / 1024).toFixed(1)} KB</span>
+
+          {resumes.length === 0 && canUpload && (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <span className="material-symbols-outlined text-5xl text-gray-300 mb-3">cloud_upload</span>
+              <p className="text-sm font-semibold text-gray-500">No candidate documents yet</p>
+              <p className="text-xs text-gray-400 mt-1 mb-4">Upload resume, certificates, and transcripts for each candidate (max 5)</p>
+              <button
+                onClick={() => setShowUploadModal(true)}
+                className="px-4 py-2.5 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-blue-700 flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-lg">upload_file</span>
+                Upload First Document
+              </button>
+            </div>
+          )}
+
+          {Object.entries(groupedByCandidate).map(([candidateName, docs]) => {
+            // Track which doc types are present
+            const docsByType: Record<string, CandidateResume> = {};
+            docs.forEach(d => {
+              const dt = d.documentType || 'RESUME';
+              if (!docsByType[dt]) docsByType[dt] = d;
+            });
+            const filledCount = Object.keys(docsByType).length;
+
+            return (
+              <div key={candidateName} className="border border-gray-200 rounded-xl overflow-hidden mb-4 last:mb-0">
+                {/* Candidate Header */}
+                <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[#0052cc] text-xl">person</span>
+                    <span className="text-sm font-bold text-[#101418]">{candidateName}</span>
+                    <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-semibold">
+                      {filledCount}/{DOC_TYPES.length} docs
+                    </span>
+                  </div>
+                  {canUpload && (
+                    <button
+                      onClick={() => setShowUploadModal(true)}
+                      className="text-xs font-semibold text-[#0052cc] hover:text-blue-700 flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-sm">add</span>
+                      Add
+                    </button>
+                  )}
+                </div>
+
+                {/* Document Type Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4">
+                  {DOC_TYPES.map(dt => {
+                    const doc = docsByType[dt];
+                    const config = DOC_TYPE_CONFIG[dt] || DOC_TYPE_CONFIG.RESUME;
+
+                    return (
+                      <div
+                        key={dt}
+                        className={`rounded-lg border-2 border-dashed p-3 transition-all ${
+                          doc
+                            ? `${config.bg} ${config.border} border-solid`
+                            : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className={`material-symbols-outlined text-sm ${doc ? config.color : 'text-gray-400'}`}>
+                            {config.icon}
+                          </span>
+                          <span className={`text-xs font-bold ${doc ? config.color : 'text-gray-400'}`}>
+                            {config.label}
+                          </span>
+                          {!doc && (
+                            <span className="material-symbols-outlined text-xs text-gray-300 ml-auto">
+                              pending
+                            </span>
+                          )}
+                        </div>
+
+                        {doc ? (
+                          <div className="space-y-1.5">
+                            <p className="text-sm font-semibold text-[#101418] truncate" title={doc.fileName}>
+                              {doc.fileName}
+                            </p>
+                            <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                              <span>{(parseInt(doc.fileSize) / 1024).toFixed(1)} KB</span>
+                              <span>•</span>
+                              <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-1.5">
+                              {doc.fileUrl && (
+                                <a
+                                  href={`http://localhost:3000/api/v1/files/download/${doc.fileUrl}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={`px-2 py-1 text-[10px] font-bold rounded ${config.color} ${config.bg} hover:opacity-80 transition-opacity`}
+                                >
+                                  View
+                                </a>
+                              )}
+                              {canUpload && (
+                                <button
+                                  onClick={() => onDeleteResume(doc.id)}
+                                  className="px-2 py-1 text-[10px] font-bold rounded text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic">Not uploaded</p>
+                        )}
                       </div>
+                    );
+                  })}
+                </div>
+
+                {/* Notes from any doc */}
+                {docs.some(d => d.notes) && (
+                  <div className="px-4 pb-3">
+                    <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase">Notes</span>
+                      {docs.filter(d => d.notes).map(d => (
+                        <p key={d.id} className="text-xs text-gray-600 mt-1">
+                          <span className="font-semibold">{(DOC_TYPE_CONFIG[d.documentType || 'RESUME']?.label || 'Resume')}:</span> {d.notes}
+                        </p>
+                      ))}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {resume.fileUrl && (
-                      <a
-                        href={`http://localhost:3000/api/v1/files/download/${loaFileUrl}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#0052cc] hover:bg-gray-50 transition-colors"
-                      >
-                        View
-                      </a>
-                    )}
-                    {request.status === 'JOB_POSTED' && (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN')) && (
-                      <button
-                        onClick={() => onDeleteResume(resume.id)}
-                        className="px-3 py-1.5 text-sm font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </div>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
 
-      {/* Selection Information Section */}
-      {request.customFields?.selectedCandidateId && (
+      {/* Upload Modal — managed by this component */}
+      {showUploadModal && (
+        <Suspense fallback={<div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center"><div className="bg-white rounded-xl p-6 text-sm text-gray-600">Loading...</div></div>}>
+          <UploadResumeModal
+            requestId={request.id}
+            onSuccess={handleUploadSuccess}
+            onClose={() => setShowUploadModal(false)}
+            existingCandidateNames={Object.keys(groupedByCandidate)}
+          />
+        </Suspense>
+      )}
+
+      {/* Selection Information Section — supports multi-candidate selection */}
+      {(request.customFields?.selectedCandidateIds?.length > 0 || request.customFields?.selectedCandidateId) && (
         <div className="bg-white p-6 rounded-xl border border-blue-100 shadow-sm mt-6 bg-gradient-to-r from-blue-50/50 to-transparent">
           <div className="flex items-center gap-4">
             <div className="size-12 rounded-full bg-blue-600 flex items-center justify-center text-white shadow-md">
               <span className="material-symbols-outlined text-2xl">person_check</span>
             </div>
             <div>
-              <h3 className="font-bold text-blue-900">Selected Candidate</h3>
+              <h3 className="font-bold text-blue-900">
+                {request.customFields?.selectedCandidateIds?.length > 1
+                  ? `${request.customFields.selectedCandidateIds.length} Candidates Selected`
+                  : 'Selected Candidate'}
+              </h3>
               <p className="text-sm text-blue-700 font-medium">
-                {request.customFields.selectedCandidateName || 'The candidate'} has been approved for schedule interview.
+                {request.customFields?.selectedCandidateNames?.length > 0
+                  ? `${request.customFields.selectedCandidateNames.join(', ')} approved for interview.`
+                  : request.customFields?.selectedCandidateName
+                    ? `${request.customFields.selectedCandidateName} has been approved for interview.`
+                    : 'Candidates have been approved for interview.'}
               </p>
             </div>
           </div>

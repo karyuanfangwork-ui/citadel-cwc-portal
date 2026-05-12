@@ -7,6 +7,8 @@ interface StepReviewProps {
   deskType: string;
   entityOptions: { code: string; name: string }[];
   isRoleBlocked: boolean;
+  autoSummary?: string;
+  isAutoConfidential?: boolean;
 }
 
 const StepReview: React.FC<StepReviewProps> = ({
@@ -15,6 +17,8 @@ const StepReview: React.FC<StepReviewProps> = ({
   deskType,
   entityOptions,
   isRoleBlocked,
+  autoSummary,
+  isAutoConfidential,
 }) => {
   const getUrgencyLabel = (value: string) => {
     const opt = URGENCY_OPTIONS.find(o => o.value === value);
@@ -32,6 +36,13 @@ const StepReview: React.FC<StepReviewProps> = ({
     }
     if (field.type === 'currency') {
       return `RM ${value}`;
+    }
+    if (field.type === 'candidateDocuments' && typeof value === 'object') {
+      const candidates = value as Record<string, Record<string, any>>;
+      const docTypes = field.documentTypes || ['Resume', 'Certificates', 'Transcripts'];
+      const entries = Object.entries(candidates);
+      if (entries.length === 0) return '—';
+      return `${entries.length} candidate${entries.length > 1 ? 's' : ''} — ${entries.reduce((sum, [, docs]) => sum + Object.keys(docs).length, 0)} document${entries.reduce((sum, [, docs]) => sum + Object.keys(docs).length, 0) !== 1 ? 's' : ''}`;
     }
     return String(value);
   };
@@ -69,8 +80,16 @@ const StepReview: React.FC<StepReviewProps> = ({
 
       {/* Summary */}
       <div className="pb-6 border-b border-cwc-border">
-        <h3 className="text-sm font-bold text-text-tertiary uppercase tracking-wider mb-3">Summary</h3>
-        <p className="text-text-primary font-medium">{formData.summary || '—'}</p>
+        <h3 className="text-sm font-bold text-text-tertiary uppercase tracking-wider mb-3 flex items-center gap-2">
+          Summary
+          {autoSummary && !formData.summary && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-brand-700 bg-brand-50 border border-brand-200 rounded-full">
+              <span className="material-symbols-outlined text-sm">auto_awesome</span>
+              Auto-filled
+            </span>
+          )}
+        </h3>
+        <p className="text-text-primary font-medium">{formData.summary || autoSummary || '—'}</p>
       </div>
 
       {/* Description (IT only) */}
@@ -107,12 +126,12 @@ const StepReview: React.FC<StepReviewProps> = ({
       )}
 
       {/* Confidentiality */}
-      {(deskType === 'hr' || deskType === 'finance') && formData.isConfidential && (
+      {(deskType === 'hr' || deskType === 'finance') && (formData.isConfidential || isAutoConfidential) && (
         <div>
           <h3 className="text-sm font-bold text-text-tertiary uppercase tracking-wider mb-3">Confidentiality</h3>
           <div className="flex items-center gap-2 text-amber-700">
             <span className="material-symbols-outlined text-lg">lock</span>
-            <span className="font-medium">Marked as Confidential</span>
+            <span className="font-medium">{isAutoConfidential ? 'Auto-applied' : 'Marked'} as Confidential</span>
           </div>
         </div>
       )}

@@ -68,6 +68,7 @@ export interface CandidateResume {
     id: string;
     candidateName?: string;
     fileName: string;
+    documentType?: string;
     notes?: string;
     uploadedBy: { firstName: string; lastName: string };
     createdAt: string;
@@ -188,6 +189,7 @@ interface UseRequestDetailReturn {
     setShowLOAApprovalModal: (value: boolean) => void;
     setShowUploadSignedLOAModal: (value: boolean) => void;
     fetchRequestData: () => Promise<void>;
+    fetchResumes: () => Promise<void>;
     handleStatusChange: (newStatus: string) => Promise<void>;
     handleResolutionSubmit: () => Promise<void>;
     handleSkipResolution: () => Promise<void>;
@@ -201,7 +203,7 @@ interface UseRequestDetailReturn {
     handleMarkLOAIssued: () => Promise<void>;
     handleMarkLOAAccepted: () => Promise<void>;
     handleCEODecision: (decision: 'APPROVED' | 'REJECTED', comments: string) => Promise<void>;
-    handleManagerDecision: (decision: 'APPROVED' | 'REJECTED', selectedCandidateId: string, comments: string) => Promise<void>;
+    handleManagerDecision: (decision: 'APPROVED' | 'REJECTED', selectedCandidateIds: string[], comments: string) => Promise<void>;
     handleRouteToManager: () => Promise<void>;
     handleAdvanceOnboardingPhase: () => Promise<void>;
     handleCompleteOnboarding: () => Promise<void>;
@@ -210,7 +212,7 @@ interface UseRequestDetailReturn {
     handleCompleteOffboarding: () => Promise<void>;
     handleReviseAndResubmit: () => Promise<void>;
     handleReopenForNewCandidates: () => Promise<void>;
-    handleUploadResume: (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string) => Promise<void>;
+    handleUploadResume: (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string, documentType?: string) => Promise<void>;
     handleMarkJobPosted: () => Promise<void>;
     updateStatusDirectly: (newStatus: string) => Promise<void>;
 }
@@ -395,11 +397,11 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         }
     }, [id, fetchResumes]);
 
-    const handleUploadResume = useCallback(async (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string) => {
+    const handleUploadResume = useCallback(async (file: File, candidateName: string, candidateEmail: string, candidatePhone: string, notes?: string, documentType?: string) => {
         if (!id) return;
         try {
             setProcessingAction(true);
-            await approvalService.uploadResume(id, file, candidateName, notes);
+            await approvalService.uploadResume(id, file, candidateName, notes, documentType);
             await fetchResumes();
             setShowUploadModal(false);
         } catch (error: any) {
@@ -531,11 +533,11 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         }
     }, [id, fetchRequestData]);
 
-    const handleManagerDecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', selectedCandidateId: string, comments: string) => {
+    const handleManagerDecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', selectedCandidateIds: string[], comments: string) => {
         if (!id) return;
         try {
             setProcessingAction(true);
-            await approvalService.managerDecision(id, decision, selectedCandidateId, comments);
+            await approvalService.managerDecision(id, decision, selectedCandidateIds, comments);
             await fetchRequestData();
             setShowManagerDecisionModal(false);
         } catch (error: any) {
@@ -701,7 +703,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         resolutionComment, pendingStatus, rejectionPendingStatus,
         setRejectionPendingStatus,
         setResolutionComment, setShowResolutionModal, setShowRejectionConfirm, setShowCompleteOnboardingConfirm, setShowUploadModal, setShowJobPostModal, setShowCEODecisionModal, setShowManagerDecisionModal, setShowScheduleInterviewModal, setShowEditInterviewModal, setShowInterviewFeedbackModal, setShowHRScreeningModal, setShowUploadLOAModal, setShowLOAApprovalModal, setShowUploadSignedLOAModal,
-        fetchRequestData, handleStatusChange, handleResolutionSubmit, handleSkipResolution, handleDeleteResume, handleScheduleInterview, handleUpdateInterview, handleSubmitInterviewFeedback, handleStartHRScreening, handleRouteLOAForApproval, handleLOAApprovalDecision, handleMarkLOAIssued, handleMarkLOAAccepted, handleCEODecision, handleManagerDecision, handleRouteToManager, handleAdvanceOnboardingPhase, handleCompleteOnboarding, confirmCompleteOnboarding, handleAdvanceOffboardingPhase, handleCompleteOffboarding, handleReviseAndResubmit, handleReopenForNewCandidates, handleUploadResume, handleMarkJobPosted,
+        fetchRequestData, fetchResumes, handleStatusChange, handleResolutionSubmit, handleSkipResolution, handleDeleteResume, handleScheduleInterview, handleUpdateInterview, handleSubmitInterviewFeedback, handleStartHRScreening, handleRouteLOAForApproval, handleLOAApprovalDecision, handleMarkLOAIssued, handleMarkLOAAccepted, handleCEODecision, handleManagerDecision, handleRouteToManager, handleAdvanceOnboardingPhase, handleCompleteOnboarding, confirmCompleteOnboarding, handleAdvanceOffboardingPhase, handleCompleteOffboarding, handleReviseAndResubmit, handleReopenForNewCandidates, handleUploadResume, handleMarkJobPosted,
         updateStatusDirectly,
     };
 };

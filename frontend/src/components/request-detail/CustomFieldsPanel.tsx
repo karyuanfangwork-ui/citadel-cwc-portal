@@ -159,7 +159,7 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
   }, []);
 
   const labels = getFieldLabels(serviceDeskCode);
-  const HIDDEN_KEYS = new Set(['selectedCandidateId']);
+  const HIDDEN_KEYS = new Set(['selectedCandidateId', 'selectedCandidateIds', 'selectedCandidateNames']);
   const entries = Object.entries(customFields).filter(([k, v]) => !HIDDEN_KEYS.has(k) && v !== null && v !== undefined && v !== '');
 
   if (entries.length === 0) return null;

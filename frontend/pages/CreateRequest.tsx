@@ -35,11 +35,11 @@ const CreateRequest = () => {
             const request = await requestService.createRequest({
                 serviceDeskId: deskId,
                 requestTypeId: wizard.selectedRequestType.id,
-                summary: wizard.formData.summary,
+                summary: wizard.formData.summary.trim() || wizard.autoSummary,
                 description: wizard.formData.description,
                 priority: wizard.formData.urgency as any,
                 customFields: wizard.formData.customFields,
-                isConfidential: wizard.formData.isConfidential
+                isConfidential: wizard.isAutoConfidential ? true : wizard.formData.isConfidential
             });
 
             navigate(`/request/${request.id}`);
@@ -117,6 +117,9 @@ const CreateRequest = () => {
                                     error={wizard.error}
                                     setError={wizard.setError}
                                     handleCustomFieldChange={wizard.handleCustomFieldChange}
+                                    autoSummary={wizard.autoSummary}
+                                    isAutoSummary={wizard.isAutoSummary}
+                                    isAutoConfidential={wizard.isAutoConfidential}
                                 />
                             )}
 
@@ -127,6 +130,8 @@ const CreateRequest = () => {
                                     deskType={deskType!}
                                     entityOptions={wizard.entityOptions}
                                     isRoleBlocked={wizard.isRoleBlocked}
+                                    autoSummary={wizard.autoSummary}
+                                    isAutoConfidential={wizard.isAutoConfidential}
                                 />
                             )}
 

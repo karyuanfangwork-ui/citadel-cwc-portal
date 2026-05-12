@@ -33,7 +33,7 @@ const CloseTicketFinModal = lazy(() => import('./CloseTicketFinModal'));
 import WorkflowActionModal from './WorkflowActionModal';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 
-type ModalType = 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | null;
+type ModalType = 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'MANAGER_DECISION' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -61,6 +61,9 @@ interface ActionSidebarProps {
   hasLOA?: boolean;
   hasSignedLOA?: boolean;
   selectedCandidateId?: string;
+  selectedCandidateIds?: string[];
+  candidateNames?: string[];
+  onManagerDecision?: () => void;
   onActionSuccess: () => void;
   onLOAApproval?: () => void;
   onRouteToManager?: () => void;
@@ -106,6 +109,9 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   hasLOA = false,
   hasSignedLOA = false,
   selectedCandidateId,
+  selectedCandidateIds,
+  candidateNames = [],
+  onManagerDecision,
   onActionSuccess,
   onLOAApproval,
   onRouteToManager,
@@ -152,6 +158,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'MARK_JOB_POSTED': setOpenModal('MARK_JOB_POSTED'); break;
       case 'UPLOAD_RESUME': setOpenModal('UPLOAD_RESUME'); break;
       case 'ROUTE_TO_MANAGER': if (onRouteToManager) onRouteToManager(); break;
+      case 'MANAGER_DECISION': if (onManagerDecision) onManagerDecision(); break;
       case 'SCHEDULE_INTERVIEW': setOpenModal('SCHEDULE_INTERVIEW'); break;
       case 'UPDATE_SCREENING': setOpenModal('UPDATE_SCREENING'); break;
       case 'UPLOAD_LOA': setOpenModal('UPLOAD_LOA'); break;
@@ -420,12 +427,12 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       )}
       {openModal === 'UPLOAD_RESUME' && (
         <Suspense fallback={null}>
-          <UploadResumeModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+          <UploadResumeModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} existingCandidateNames={candidateNames} />
         </Suspense>
       )}
       {openModal === 'SCHEDULE_INTERVIEW' && (
         <Suspense fallback={null}>
-          <ScheduleInterviewModal requestId={requestId} selectedCandidateId={selectedCandidateId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+          <ScheduleInterviewModal requestId={requestId} selectedCandidateId={selectedCandidateId} selectedCandidateIds={selectedCandidateIds} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
       {openModal === 'UPDATE_SCREENING' && (
