@@ -20,7 +20,7 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.INTERVIEW_SCHEDULED]: { label: 'INTERVIEW SCHEDULED', color: 'text-indigo-700', bg: 'bg-indigo-100', icon: 'event' },
   [RequestStatus.INTERVIEW_FEEDBACK_PENDING]: { label: 'FEEDBACK RECEIVED', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'rate_review' },
   [RequestStatus.CANDIDATE_REJECTED_INTERVIEW]: { label: 'CANDIDATE REJECTED', color: 'text-red-700', bg: 'bg-red-100', icon: 'person_off' },
-  [RequestStatus.HR_SCREENING]: { label: 'HR SCREENING', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'person_search' },
+  [RequestStatus.HR_SCREENING]: { label: 'REFERENCE CHECK', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'person_search' },
   [RequestStatus.LOA_PENDING_APPROVAL]: { label: 'LOA APPROVAL', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'pending' },
   [RequestStatus.LOA_APPROVED]: { label: 'LOA APPROVED', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'check_circle' },
   [RequestStatus.LOA_ISSUED]: { label: 'LOA ISSUED', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'description' },

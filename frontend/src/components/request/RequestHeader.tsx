@@ -226,7 +226,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'Manager Review', status: 'PENDING_MANAGER_REVIEW', icon: 'radio_button_checked' },
         { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
         { label: 'Feedback', status: 'INTERVIEW_FEEDBACK_PENDING', icon: 'radio_button_checked' },
-        { label: 'Screening', status: 'HR_SCREENING', icon: 'radio_button_checked' },
+        { label: 'Reference Check', status: 'HR_SCREENING', icon: 'radio_button_checked' },
         { label: 'LOA Pending', status: 'LOA_PENDING_APPROVAL', icon: 'radio_button_checked' },
         { label: 'LOA Approved', status: 'LOA_APPROVED', icon: 'radio_button_checked' },
         { label: 'LOA Issued', status: 'LOA_ISSUED', icon: 'radio_button_checked' },

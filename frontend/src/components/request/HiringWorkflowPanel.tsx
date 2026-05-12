@@ -497,7 +497,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
         </div>
       )}
 
-      {/* HR Screening Details Section */}
+      {/* Reference Check Details Section */}
       {screeningDetails && (
         <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
           <div className="flex items-center gap-3 mb-6">
@@ -505,54 +505,36 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
               <span className="material-symbols-outlined">fact_check</span>
             </div>
             <div>
-              <h3 className="font-bold text-lg text-[#101418]">HR Screening Status</h3>
+              <h3 className="font-bold text-lg text-[#101418]">Reference Check Status</h3>
               <p className="text-xs text-[#44546f] uppercase tracking-wider font-semibold">Verification Stage</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-            <div className="space-y-6">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-bold text-[#44546f] uppercase">Background Check</p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${screeningDetails.backgroundCheckStatus === 'PASSED' ? 'bg-green-100 text-green-700' :
-                    screeningDetails.backgroundCheckStatus === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                    {screeningDetails.backgroundCheckStatus}
-                  </span>
-                </div>
-                <p className="text-sm text-[#44546f] bg-gray-50 p-3 rounded-lg border border-gray-100">
-                  {screeningDetails.backgroundCheckNotes || 'No notes available.'}
-                </p>
+          <div className="space-y-6">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-[#44546f] uppercase">Reference Check</p>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${screeningDetails.referencesCheckStatus === 'PASSED' ? 'bg-green-100 text-green-700' :
+                  screeningDetails.referencesCheckStatus === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                  {screeningDetails.referencesCheckStatus}
+                </span>
               </div>
-            </div>
-
-            <div className="space-y-6">
+              <p className="text-sm text-[#44546f] bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3">
+                {screeningDetails.referencesCheckNotes || 'No notes available.'}
+              </p>
+              {Array.isArray(screeningDetails.referencesContacted) && screeningDetails.referencesContacted.length > 0 && (
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-bold text-[#44546f] uppercase">References Check</p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${screeningDetails.referencesCheckStatus === 'PASSED' ? 'bg-green-100 text-green-700' :
-                    screeningDetails.referencesCheckStatus === 'FAILED' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                    {screeningDetails.referencesCheckStatus}
-                  </span>
+                <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Contacted</p>
+                <div className="flex flex-wrap gap-2">
+                  {screeningDetails.referencesContacted.map((ref, idx) => (
+                    <span key={idx} className="bg-white border border-gray-200 px-2 py-1 rounded text-xs font-medium text-[#101418]">
+                      {ref}
+                    </span>
+                  ))}
                 </div>
-                <p className="text-sm text-[#44546f] bg-gray-50 p-3 rounded-lg border border-gray-100 mb-3">
-                  {screeningDetails.referencesCheckNotes || 'No notes available.'}
-                </p>
-                {Array.isArray(screeningDetails.referencesContacted) && screeningDetails.referencesContacted.length > 0 && (
-                  <div>
-                    <p className="text-[10px] font-bold text-[#44546f] uppercase mb-1">Contacted</p>
-                    <div className="flex flex-wrap gap-2">
-                      {screeningDetails.referencesContacted.map((ref, idx) => (
-                        <span key={idx} className="bg-white border border-gray-200 px-2 py-1 rounded text-xs font-medium text-[#101418]">
-                          {ref}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
+              )}
             </div>
           </div>
         </div>

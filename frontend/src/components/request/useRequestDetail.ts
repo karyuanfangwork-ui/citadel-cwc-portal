@@ -466,7 +466,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
             await screeningService.startScreening(id);
             await fetchRequestData();
         } catch (error: any) {
-            toast.error('Screening Failed', error.message || 'Failed to start HR screening');
+            toast.error('Reference Check Failed', error.message || 'Failed to start reference check');
         } finally {
             setProcessingAction(false);
         }

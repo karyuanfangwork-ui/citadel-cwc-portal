@@ -452,8 +452,8 @@ export function getWorkflowActions(
   if (canAct && isHR && isNewHiring && status === 'HR_SCREENING') {
     actions.push({
       type: 'UPDATE_SCREENING',
-      label: 'Update Screening Status',
-      description: 'Update background check and references check status.',
+      label: 'Update Reference Check',
+      description: 'Update reference check status.',
       variant: 'primary',
     });
     if (!hasLOA) {

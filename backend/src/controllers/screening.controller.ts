@@ -5,7 +5,7 @@ import { pauseSla, resumeSla } from '../services/sla-pause.service';
 const prisma = new PrismaClient();
 
 /**
- * Start HR screening (background and reference checks)
+ * Start HR reference check
  * POST /requests/:id/start-screening
  */
 export const startHRScreening = async (req: Request, res: Response) => {
@@ -80,7 +80,7 @@ export const startHRScreening = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'SYSTEM',
-                message: `HR screening started - background and reference checks initiated${notes ? ': ' + notes : ''}`,
+                message: `Reference check initiated${notes ? ': ' + notes : ''}`,
                 isSystemGenerated: true
             }
         });
@@ -137,27 +137,27 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
             });
         }
 
-        // Determine overall status
+        // Determine overall status — reference check is the deciding factor
+        // (background check is auto-passed since it was removed from the UI)
         let calculatedStatus = agentOverallStatus || 'IN_PROGRESS';
 
-        // If not explicitly set by agent, calculate based on sub-statuses
+        // If not explicitly set by agent, calculate based on reference check status
         if (!agentOverallStatus) {
-            const bgPassed = backgroundCheckStatus === 'PASSED' || backgroundCheckStatus === 'COMPLETED';
             const refPassed = referencesCheckStatus === 'PASSED' || referencesCheckStatus === 'COMPLETED';
 
-            if (bgPassed && refPassed) {
+            if (refPassed) {
                 calculatedStatus = 'COMPLETED';
-            } else if (backgroundCheckStatus === 'FAILED' || referencesCheckStatus === 'FAILED') {
+            } else if (referencesCheckStatus === 'FAILED') {
                 calculatedStatus = 'ISSUES_FOUND';
             }
         }
 
-        // Update screening record
+        // Update screening record — auto-pass background check (removed from UI)
         const updatedScreening = await prisma.hRScreening.update({
             where: { id: request.hrScreening.id },
             data: {
-                backgroundCheckStatus: backgroundCheckStatus || request.hrScreening.backgroundCheckStatus,
-                backgroundCheckNotes: backgroundCheckNotes || request.hrScreening.backgroundCheckNotes,
+                backgroundCheckStatus: 'PASSED',
+                backgroundCheckNotes: 'Auto-passed (removed from workflow)',
                 referencesCheckStatus: referencesCheckStatus || request.hrScreening.referencesCheckStatus,
                 referencesCheckNotes: referencesCheckNotes || request.hrScreening.referencesCheckNotes,
                 referencesContacted: referencesContacted ? JSON.stringify(referencesContacted) : request.hrScreening.referencesContacted,
@@ -201,7 +201,7 @@ export const updateScreeningStatus = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'SYSTEM',
-                message: `HR screening updated - Status: ${calculatedStatus}, Background: ${backgroundCheckStatus || 'unchanged'}, References: ${referencesCheckStatus || 'unchanged'}`,
+                message: `Reference check updated - Status: ${calculatedStatus}, References: ${referencesCheckStatus || 'unchanged'}`,
                 isSystemGenerated: true
             }
         });

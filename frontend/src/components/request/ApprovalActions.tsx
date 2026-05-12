@@ -58,7 +58,7 @@ const ApprovalActions: React.FC<ApprovalActionsProps> = ({
           className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span className="material-symbols-outlined text-lg">play_arrow</span>
-          {processingAction ? 'Processing...' : 'Start HR Screening'}
+          {processingAction ? 'Processing...' : 'Start Reference Check'}
         </button>
       )}
 
