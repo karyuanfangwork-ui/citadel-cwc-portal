@@ -119,6 +119,9 @@ model User {
   crmNotes              CrmNote[]                   @relation("CrmNoteAuthor")
   crmTrustProducts      CrmTrustProduct[]            @relation("CrmTrustProductOwner")
   crmKycApprovals       CrmKycRecord[]               @relation("CrmKycApprovedBy")
+  // Announcement Relations
+  announcements         Announcement[]                @relation("AnnouncementAuthor")
+  announcementReads     AnnouncementRead[]            @relation("AnnouncementReader")
 
   @@map("users")
   @@index([email])
@@ -1829,4 +1832,68 @@ model CrmKycRecord {
   @@map("crm_kyc_records")
   @@index([status])
   @@index([expiresAt])
+}
+
+// ============================================================================
+// ANNOUNCEMENTS / NEWSLETTER
+// ============================================================================
+
+enum AnnouncementCategory {
+  HR
+  MARKETING
+  IT
+  GENERAL
+  FINANCE
+  POLICY
+}
+
+enum AnnouncementPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Announcement {
+  id              String                @id @default(uuid()) @db.Uuid
+  title           String                @db.VarChar(500)
+  content         String                @db.Text
+  excerpt         String?               @db.Text
+  category        AnnouncementCategory  @default(GENERAL)
+  priority        AnnouncementPriority  @default(MEDIUM)
+  targetAudience  String                @default("ALL") @db.VarChar(50)
+  isPinned        Boolean               @default(false) @map("is_pinned")
+  isPublished     Boolean               @default(false) @map("is_published")
+  publishedAt     DateTime?             @map("published_at") @db.Timestamp(6)
+  expiresAt       DateTime?             @map("expires_at") @db.Timestamp(6)
+  authorId        String                @map("author_id") @db.Uuid
+  attachmentUrl   String?               @map("attachment_url") @db.VarChar(1000)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt       DateTime?             @map("deleted_at") @db.Timestamp(6)
+
+  // Relations
+  author          User                  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+  reads           AnnouncementRead[]
+
+  @@map("announcements")
+  @@index([isPublished, publishedAt(sort: Desc)])
+  @@index([category])
+  @@index([isPinned])
+  @@index([expiresAt])
+}
+
+model AnnouncementRead {
+  id              String        @id @default(uuid()) @db.Uuid
+  announcementId  String        @map("announcement_id") @db.Uuid
+  userId          String        @map("user_id") @db.Uuid
+  readAt          DateTime      @default(now()) @map("read_at") @db.Timestamp(6)
+
+  announcement    Announcement  @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user            User          @relation("AnnouncementReader", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@map("announcement_reads")
+  @@index([announcementId])
+  @@index([userId])
 }

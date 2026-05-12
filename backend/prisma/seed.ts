@@ -201,6 +201,10 @@ async function main() {
         { name: 'crm:write', resource: 'crm', action: 'write', description: 'Create and edit CRM records' },
         { name: 'crm:delete', resource: 'crm', action: 'delete', description: 'Delete CRM records' },
         { name: 'crm:admin', resource: 'crm', action: 'admin', description: 'Manage CRM pipelines and system settings' },
+        // Announcement permissions
+        { name: 'announcement:read', resource: 'announcement', action: 'read', description: 'View announcements' },
+        { name: 'announcement:write', resource: 'announcement', action: 'write', description: 'Create and edit announcements' },
+        { name: 'announcement:admin', resource: 'announcement', action: 'admin', description: 'Delete and manage announcements' },
     ];
 
     for (const perm of permissions) {
@@ -246,6 +250,7 @@ async function main() {
         'banner:manage',
         'asset:read', 'asset:write', 'asset:import', 'asset:delete',
         'crm:read', 'crm:write', 'crm:delete', 'crm:admin',
+        'announcement:read', 'announcement:write', 'announcement:admin',
     ];
 
     // AGENT gets full request CRUD + assign + confidential, no admin/user/report/banner/workflow
@@ -253,6 +258,7 @@ async function main() {
     const agentPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
         'request:approve', 'request:assign', 'request:confidential',
+        'announcement:read',
     ];
 
     // IT_AGENT gets asset management permissions (in addition to AGENT's request perms)
@@ -263,11 +269,12 @@ async function main() {
     // NORMAL_STAFF and USER can create and read their own requests
     const staffPerms = [
         'request:create', 'request:read',
+        'announcement:read',
     ];
 
     // Executive approvers get request:read + request:approve
     const executivePerms = [
-        'request:read', 'request:approve',
+        'request:read', 'request:approve', 'announcement:read',
     ];
 
     // HIRING_MANAGER gets request:create, request:read + approve

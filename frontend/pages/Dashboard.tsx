@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../src/context/AuthContext';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { requestService } from '../src/services/request.service';
+import announcementService, { DashboardAnnouncement } from '../src/services/announcement.service';
 import { STATUS_CONFIG } from '../constants';
 import { RequestStatus } from '../types';
 import { friendlyMessage } from '../src/utils/errorMessages';
@@ -66,6 +67,22 @@ function formatRelativeTime(dateString: string): string {
   return `${diffDays}d ago`;
 }
 
+const CATEGORY_COLOR: Record<string, string> = {
+  HR: 'var(--color-hr-500)',
+  IT: 'var(--color-it-500)',
+  FINANCE: 'var(--color-fin-500)',
+  POLICY: '#8b5cf6',
+  MARKETING: '#f59e0b',
+  GENERAL: 'var(--color-brand-700)',
+};
+
+const PRIORITY_BADGE: Record<string, { bg: string; color: string; label: string }> = {
+  CRITICAL: { bg: '#fef2f2', color: '#dc2626', label: 'Critical' },
+  HIGH:     { bg: '#fff7ed', color: '#ea580c', label: 'High' },
+  MEDIUM:   { bg: '#eff6ff', color: '#2563eb', label: 'Medium' },
+  LOW:      { bg: '#f0fdf4', color: '#16a34a', label: 'Low' },
+};
+
 // ── Desk config ────────────────────────────────────────────────────────────
 
 const DESK_STYLE: Record<string, { colorBar: string; iconBg: string; icon: string }> = {
@@ -91,6 +108,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [pinned, setPinned] = useState<DashboardAnnouncement[]>([]);
+  const [latestAnnouncements, setLatestAnnouncements] = useState<DashboardAnnouncement[]>([]);
 
   const handleSearch = () => {
     const q = searchQuery.trim();
@@ -104,13 +123,16 @@ const Dashboard = () => {
       try {
         setLoading(true);
         setError(null);
-        const [desksData, requestsData] = await Promise.all([
+        const [desksData, requestsData, dashboardData] = await Promise.all([
           serviceDeskService.getAllServiceDesks(),
           requestService.getAllRequests({ limit: 50, requesterId: user?.id }),
+          announcementService.getDashboard().catch(() => ({ pinned: [], latest: [] })),
         ]);
         setServiceDesks(desksData);
         const requests: Request[] = requestsData.requests || [];
         setAllRequests(requests);
+        setPinned(dashboardData.pinned ?? []);
+        setLatestAnnouncements(dashboardData.latest ?? []);
       } catch (err: any) {
         setError(friendlyMessage(err, 'Unable to load your dashboard. Please refresh the page.'));
       } finally {
@@ -378,6 +400,83 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+
+      {/* ── ANNOUNCEMENTS WIDGET ── */}
+      {(pinned.length > 0 || latestAnnouncements.length > 0) && (
+        <div style={{ marginBottom: 'var(--space-8)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
+            <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
+              Announcements
+            </h2>
+            <Link to="/announcements" style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-brand-700)', textDecoration: 'none' }}>
+              View all →
+            </Link>
+          </div>
+
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+            {[...pinned.slice(0, 3), ...latestAnnouncements.slice(0, 3)].map((a, idx) => {
+              const isPin = pinned.includes(a);
+              const catColor = CATEGORY_COLOR[a.category] || 'var(--color-brand-700)';
+              const pri = PRIORITY_BADGE[a.priority];
+              return (
+                <Link
+                  key={a.id}
+                  to={`/announcements?open=${a.id}`}
+                  style={{ textDecoration: 'none' }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-3)',
+                      padding: 'var(--space-3) var(--space-5)',
+                      borderTop: idx === 0 ? 'none' : '1px solid var(--color-border-subtle)',
+                      background: isPin ? '#fffbeb' : 'transparent',
+                      borderLeft: !a.isRead ? `3px solid var(--color-brand-700)` : '3px solid transparent',
+                      transition: 'background 0.12s',
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-subtle)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = isPin ? '#fffbeb' : 'transparent'; }}
+                  >
+                    {isPin && (
+                      <span style={{ fontSize: 14, flexShrink: 0 }}>📌</span>
+                    )}
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: catColor, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontSize: 'var(--text-sm)',
+                        fontWeight: a.isRead ? 500 : 700,
+                        color: 'var(--color-text-primary)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {a.title}
+                      </div>
+                      {a.excerpt && (
+                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {a.excerpt}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+                      {pri && (
+                        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 7px', borderRadius: 'var(--radius-full)', background: pri.bg, color: pri.color }}>
+                          {pri.label}
+                        </span>
+                      )}
+                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                        {a.publishedAt ? formatRelativeTime(a.publishedAt) : ''}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── FOOTER CTAs ── */}
       {import.meta.env.DEV && (

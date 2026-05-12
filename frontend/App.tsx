@@ -58,6 +58,9 @@ import CrmPipelineView from './pages/CrmPipeline';
 import CrmTeamDashboard from './pages/CrmTeamDashboard';
 import CrmReports from './pages/CrmReports';
 import CrmGuide from './pages/CrmGuide';
+import Announcements from './pages/Announcements';
+import AnnouncementsManage from './pages/AnnouncementsManage';
+import AnnouncementDetail from './pages/AnnouncementDetail';
 import ChangePassword from './src/pages/ChangePassword';
 import ForgotPassword from './src/pages/ForgotPassword';
 import ResetPassword from './src/pages/ResetPassword';
@@ -104,12 +107,14 @@ const Header = () => {
   const navLinks = [
     { to: '/', label: 'Dashboard', show: true },
     { to: '/my-requests', label: 'My Requests', show: true },
+    { to: '/announcements', label: 'Announcements', show: true },
     { to: '/agent', label: 'Agent Dashboard', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
     { to: '/approvals', label: 'Approvals', show: hasPermission(user, 'request:approve') },
     { to: '/assets', label: 'IT Assets', show: hasAnyPermission(user, ['asset:read']) },
     { to: '/crm', label: 'CRM', show: hasAnyPermission(user, ['crm:read']) },
     { to: '/kb', label: 'Knowledge Base', show: import.meta.env.DEV },
     { to: '/reports', label: 'Reports', show: hasPermission(user, 'report:read') },
+    { to: '/admin/announcements', label: 'Announcements Mgmt', show: hasPermission(user, 'announcement:write') },
     { to: '/admin/settings', label: 'Admin Settings', show: hasPermission(user, 'admin:access') },
   ].filter(l => l.show);
 
@@ -404,6 +409,9 @@ const AppShell = () => {
               <Route path="/kb" element={import.meta.env.DEV ? <ProtectedRoute><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
               <Route path="/kb/:slug" element={import.meta.env.DEV ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
               <Route path="/approvals" element={<ProtectedRoute requirePermission="request:approve"><ApprovalQueue /></ProtectedRoute>} />
+              <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
+              <Route path="/announcements/:id" element={<ProtectedRoute><AnnouncementDetail /></ProtectedRoute>} />
+              <Route path="/admin/announcements" element={<ProtectedRoute requirePermission="announcement:write"><AnnouncementsManage /></ProtectedRoute>} />
               <Route path="/assets" element={<ProtectedRoute requirePermission="asset:read"><AssetManagement /></ProtectedRoute>} />
               <Route path="/crm" element={<ProtectedRoute requirePermission="crm:read"><CrmDashboard /></ProtectedRoute>} />
               <Route path="/crm/accounts" element={<ProtectedRoute requirePermission="crm:read"><CrmAccounts /></ProtectedRoute>} />

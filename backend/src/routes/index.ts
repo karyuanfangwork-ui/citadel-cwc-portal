@@ -32,6 +32,7 @@ import auditLogRoutes from './auditLog.routes';
 import assetRoutes from './asset.routes';
 import systemSettingRoutes from './systemSetting.routes';
 import crmRoutes from './crm.routes';
+import announcementRoutes from './announcement.routes';
 
 const router = Router();
 
@@ -71,6 +72,7 @@ router.use('/admin/audit-logs', auditLogRoutes);
 router.use('/sla', escalationRuleRouter);
 router.use('/assets', assetRoutes);
 router.use('/crm', crmRoutes);
+router.use('/announcements', announcementRoutes);
 
 export default router;
 
