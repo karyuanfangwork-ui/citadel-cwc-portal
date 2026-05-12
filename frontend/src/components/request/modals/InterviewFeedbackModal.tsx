@@ -187,7 +187,7 @@ const InterviewFeedbackModal: React.FC<InterviewFeedbackModalProps> = ({
                     className="w-full px-4 py-2 border border-gray-200 rounded-lg"
                   >
                     <option value="">Select decision...</option>
-                    <option value="PROCEED">Proceed to Screening</option>
+                    <option value="PROCEED">Proceed to Reference Check</option>
                     <option value="REJECT">Reject Candidate</option>
                   </select>
                 </div>

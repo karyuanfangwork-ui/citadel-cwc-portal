@@ -40,7 +40,7 @@ const UploadLOAModal: React.FC<UploadLOAModalProps> = ({ requestId, onSuccess, o
             </div>
             <div>
               <h2 className="font-bold text-base text-gray-900">Upload LOA Document</h2>
-              <p className="text-xs text-gray-500">HR Workflow · Screening completed — prepare offer letter</p>
+              <p className="text-xs text-gray-500">HR Workflow · Reference check completed — prepare offer letter</p>
             </div>
           </div>
           <form onSubmit={handleSubmit}>

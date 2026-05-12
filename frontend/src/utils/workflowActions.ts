@@ -461,7 +461,7 @@ export function getWorkflowActions(
         type: 'UPLOAD_LOA',
         label: 'Upload LOA Document',
         description: screeningCompleted
-          ? 'Screening complete. Upload the draft Letter of Acceptance.'
+          ? 'Reference check complete. Upload the draft Letter of Acceptance.'
           : 'Upload the draft Letter of Acceptance for the candidate.',
         variant: 'success',
       });
