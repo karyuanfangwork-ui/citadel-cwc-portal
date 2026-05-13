@@ -13,6 +13,8 @@ export const apiLimiter = rateLimit({
     },
     standardHeaders: true,
     legacyHeaders: false,
+    // Skip rate limit for SSE connections (long-lived, low frequency)
+    skip: (_req) => _req.headers.accept === 'text/event-stream',
     handler: (_req, res, _next, options) => {
         logger.warn('Rate limit exceeded', {
             ip: _req.ip,
@@ -26,7 +28,7 @@ export const apiLimiter = rateLimit({
 // Strict rate limiter for auth endpoints
 export const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'development' ? 1000 : 30,
+    max: process.env.NODE_ENV === 'development' ? 1000 : 50,
     message: {
         status: 'error',
         statusCode: 429,
@@ -47,7 +49,7 @@ export const authLimiter = rateLimit({
 // File upload rate limiter
 export const uploadLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: 200, // 200 uploads per hour (increased for development)
+    max: process.env.NODE_ENV === 'development' ? 500 : 300, // 300 uploads per hour
     message: {
         status: 'error',
         statusCode: 429,
@@ -60,7 +62,7 @@ export const uploadLimiter = rateLimit({
 // Strict rate limiter for password reset (prevents token brute-force)
 export const passwordResetLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
-    max: process.env.NODE_ENV === 'development' ? 100 : 10,
+    max: process.env.NODE_ENV === 'development' ? 100 : 20,
     message: {
         status: 'error',
         statusCode: 429,
