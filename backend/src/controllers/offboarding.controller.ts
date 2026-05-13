@@ -73,7 +73,7 @@ export const getOffboardingRequest = async (req: Request, res: Response) => {
 export const updateOffboardingStatus = async (req: Request, res: Response) => {
     try {
         const { id: requestId }  = req.params as Record<string, string>;
-        const { overallStatus, currentPhase, exitInterviewScheduledDate, ...rest } = req.body;
+        const { overallStatus, currentPhase, exitInterviewScheduledDate, lastWorkingDay, ...rest } = req.body;
         const user = (req as any).user;
 
         const currentRequest = await prisma.request.findUnique({ where: { id: requestId } });
@@ -85,6 +85,9 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
                 exitInterviewScheduledDate: exitInterviewScheduledDate
                     ? new Date(exitInterviewScheduledDate.includes('T') ? exitInterviewScheduledDate : exitInterviewScheduledDate + 'T00:00:00.000Z')
                     : null,
+            }),
+            ...(lastWorkingDay !== undefined && {
+                lastWorkingDay: new Date(lastWorkingDay.includes('T') ? lastWorkingDay : lastWorkingDay + 'T00:00:00.000Z'),
             }),
         };
 
@@ -134,6 +137,15 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
             data: { overallStatus, currentPhase, ...updates },
             include: { request: true, tasks: true },
         });
+
+        // Sync lastWorkingDay change to request custom_fields.lastDay
+        if (lastWorkingDay !== undefined) {
+            const currentFields = (currentRequest.customFields || {}) as Record<string, any>;
+            await prisma.request.update({
+                where: { id: requestId },
+                data: { customFields: { ...currentFields, lastDay: lastWorkingDay } },
+            });
+        }
 
         // Close open AssetAssignments when hardwareReturned is toggled on
         if (rest.hardwareReturned === true && offboarding.employeeId) {

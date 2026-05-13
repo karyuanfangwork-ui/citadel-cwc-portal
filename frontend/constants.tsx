@@ -30,12 +30,12 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.ONBOARDING_SUBMITTED]: { label: 'ONBOARDING SUBMITTED', color: 'text-cyan-700', bg: 'bg-cyan-100', icon: 'send' },
   [RequestStatus.ONBOARDING_PENDING_HR_APPROVAL]: { label: 'PENDING HR APPROVAL', color: 'text-orange-700', bg: 'bg-orange-100', icon: 'pending' },
   [RequestStatus.ONBOARDING_PRE_ARRIVAL_SETUP]: { label: 'PRE-ARRIVAL SETUP', color: 'text-indigo-700', bg: 'bg-indigo-100', icon: 'settings' },
-  [RequestStatus.ONBOARDING_READY_FOR_DAY_1]: { label: 'READY FOR DAY 1', color: 'text-blue-700', bg: 'bg-blue-100', icon: 'event_available' },
-  [RequestStatus.ONBOARDING_DAY_1_ORIENTATION]: { label: 'DAY 1 ORIENTATION', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'school' },
-  [RequestStatus.ONBOARDING_WEEK_1_INTEGRATION]: { label: 'WEEK 1 INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
-  [RequestStatus.ONBOARDING_MONTH_1_MILESTONE]: { label: '30-DAY MILESTONE', color: 'text-sky-700', bg: 'bg-sky-100', icon: 'flag' },
-  [RequestStatus.ONBOARDING_MONTH_2_MILESTONE]: { label: '60-DAY MILESTONE', color: 'text-teal-700', bg: 'bg-teal-100', icon: 'flag' },
-  [RequestStatus.ONBOARDING_MONTH_3_MILESTONE]: { label: '90-DAY MILESTONE', color: 'text-emerald-700', bg: 'bg-emerald-100', icon: 'flag' },
+  [RequestStatus.ONBOARDING_READY_FOR_DAY_1]: { label: 'ORIENTATION', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'school' },
+  [RequestStatus.ONBOARDING_DAY_1_ORIENTATION]: { label: 'ORIENTATION', color: 'text-purple-700', bg: 'bg-purple-100', icon: 'school' },
+  [RequestStatus.ONBOARDING_WEEK_1_INTEGRATION]: { label: 'INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
+  [RequestStatus.ONBOARDING_MONTH_1_MILESTONE]: { label: 'INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
+  [RequestStatus.ONBOARDING_MONTH_2_MILESTONE]: { label: 'INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
+  [RequestStatus.ONBOARDING_MONTH_3_MILESTONE]: { label: 'INTEGRATION', color: 'text-violet-700', bg: 'bg-violet-100', icon: 'groups' },
   [RequestStatus.ONBOARDING_COMPLETED]: { label: 'ONBOARDING COMPLETE', color: 'text-green-800', bg: 'bg-green-200', icon: 'task_alt' },
   // IT Workflow Statuses
 

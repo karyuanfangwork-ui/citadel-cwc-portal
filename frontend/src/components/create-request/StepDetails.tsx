@@ -383,7 +383,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
         </div>
       )}
 
-      {/* Summary — auto-generated for hiring requests, manual for others */}
+      {/* Summary — auto-generated for hiring/offboarding requests, manual for others */}
       {isAutoSummary ? (
         <div>
           <label className="block text-sm font-bold text-text-primary mb-2 flex items-center gap-2">
@@ -398,7 +398,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
               {autoSummary}
             </div>
           ) : (
-            <p className="text-sm text-text-tertiary">Will be auto-generated from job details below.</p>
+            <p className="text-sm text-text-tertiary">Will be auto-generated from the details below.</p>
           )}
         </div>
       ) : (

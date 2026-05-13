@@ -28,6 +28,10 @@ const HR_FIELD_LABELS: Record<string, string> = {
   jobPostedAt: 'Job Posted At',
   jobPostingUrl: 'Job Posting URL',
   jobPostingNotes: 'Job Posting Notes',
+  employeeName: 'Employee Name',
+  employeeEmail: 'Employee Email',
+  lastDay: 'Last Working Day',
+  reason: 'Reason for Departure',
 };
 
 const IT_FIELD_LABELS: Record<string, string> = {
@@ -96,7 +100,7 @@ function formatPayment(value: Record<string, any>): React.ReactNode {
 // Keys whose values are ISO date strings that should be formatted
 const DATE_KEYS = new Set([
   'jobPostedAt', 'startedAt', 'completedAt', 'createdAt', 'updatedAt',
-  'receiptDate', 'approvalDate', 'acceptedDate',
+  'receiptDate', 'approvalDate', 'acceptedDate', 'lastDay',
 ]);
 
 function formatValue(key: string, value: any, fieldType?: string, entityMap?: Record<string, string>): React.ReactNode {
@@ -121,14 +125,14 @@ function formatValue(key: string, value: any, fieldType?: string, entityMap?: Re
     }
     return JSON.stringify(value);
   }
-  // Detect and format ISO date strings
-  if (typeof value === 'string' && DATE_KEYS.has(key) && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
-    return new Date(value).toLocaleString(undefined, {
+  // Detect and format ISO date strings or plain date strings (YYYY-MM-DD)
+  if (typeof value === 'string' && DATE_KEYS.has(key) && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const d = value.includes('T') ? new Date(value) : new Date(value + 'T00:00:00Z');
+    return d.toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      timeZone: 'UTC',
     });
   }
   // Format currency fields with MYR prefix

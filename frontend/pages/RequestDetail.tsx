@@ -92,8 +92,10 @@ const RequestDetailContainer: React.FC = () => {
 
                     {/* Onboarding Workflow */}
                     {request.requestType?.code === 'EMPLOYEE_ONBOARDING' ||
-                     ['ONBOARDING_SUBMITTED', 'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1',
-                      'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION', 'ONBOARDING_COMPLETED']
+                     ['ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP', 'ONBOARDING_READY_FOR_DAY_1',
+                      'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION',
+                      'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE',
+                      'ONBOARDING_COMPLETED']
                          .includes(request.status) ? (
                         <section className="space-y-6">
                             <div className="flex items-center gap-3 border-b border-gray-100 pb-4">
@@ -181,6 +183,7 @@ const RequestDetailContainer: React.FC = () => {
                         onAdvanceOffboardingPhase={rq.handleAdvanceOffboardingPhase}
                         onCompleteOffboarding={rq.handleCompleteOffboarding}
                         onResolveRequest={() => rq.handleStatusChange('RESOLVED')}
+                        onInterviewFeedback={() => rq.setShowInterviewFeedbackModal(true)}
                     />
                 </div>
             </div>

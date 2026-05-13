@@ -35,7 +35,7 @@ const CloseTicketFinModal = lazy(() => import('./CloseTicketFinModal'));
 import WorkflowActionModal from './WorkflowActionModal';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 
-type ModalType = 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'ROUTE_TO_GROUP_CEO_HR' | 'GROUP_CEO_DECISION_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'MANAGER_DECISION' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | null;
+type ModalType = 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'ROUTE_TO_GROUP_CEO_HR' | 'GROUP_CEO_DECISION_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'MANAGER_DECISION' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | 'INTERVIEW_FEEDBACK' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -76,6 +76,7 @@ interface ActionSidebarProps {
   onAdvanceOffboardingPhase?: () => void;
   onCompleteOffboarding?: () => void;
   onResolveRequest?: () => void;
+  onInterviewFeedback?: () => void;
 }
 
 const PRIORITY_COLOURS: Record<string, string> = {
@@ -124,6 +125,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   onAdvanceOffboardingPhase,
   onCompleteOffboarding,
   onResolveRequest,
+  onInterviewFeedback,
 }) => {
   const [openModal, setOpenModal] = useState<ModalType>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -163,6 +165,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'UPLOAD_RESUME': setOpenModal('UPLOAD_RESUME'); break;
       case 'ROUTE_TO_MANAGER': if (onRouteToManager) onRouteToManager(); break;
       case 'MANAGER_DECISION': if (onManagerDecision) onManagerDecision(); break;
+      case 'SUBMIT_INTERVIEW_FEEDBACK': if (onInterviewFeedback) onInterviewFeedback(); break;
       case 'SCHEDULE_INTERVIEW': setOpenModal('SCHEDULE_INTERVIEW'); break;
       case 'UPDATE_SCREENING': setOpenModal('UPDATE_SCREENING'); break;
       case 'UPLOAD_LOA': setOpenModal('UPLOAD_LOA'); break;

@@ -56,7 +56,8 @@ export type WorkflowActionType =
   | 'MANAGER_REJECT_EXPENSE'
   | 'FINANCE_HEAD_APPROVE_EXPENSE'
   | 'FINANCE_HEAD_REJECT_EXPENSE'
-  | 'MARK_EXPENSE_PAYMENT_COMPLETE';
+  | 'MARK_EXPENSE_PAYMENT_COMPLETE'
+  | 'SUBMIT_INTERVIEW_FEEDBACK';
 
 export interface WorkflowAction {
   type: WorkflowActionType;
@@ -105,6 +106,12 @@ export function getWorkflowActions(
   const canAct = isAdmin || isAgent;
   const isProcurement = isProcurementRequest(requestTypeCode, requestTypeName);
   const isHR = serviceDeskCode === 'HR';
+  const isNewHiring = requestTypeCode === 'NEW_HIRING' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('hiring'));
+  const isOnboardingTicket = requestTypeCode === 'EMPLOYEE_ONBOARDING' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('onboard'));
+  const isOffboardingTicket = requestTypeCode === 'EMPLOYEE_OFFBOARDING' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('offboard'));
   // Procurement lifecycle actions: only assigned person + admin can act
   // (prevents other agents from wrongly updating hardware status)
   const isAssignedToMe = !!assignedToId && !!currentUserId && assignedToId === currentUserId;
@@ -361,6 +368,16 @@ export function getWorkflowActions(
     });
   }
 
+  // Interview feedback — hiring manager submits feedback after interview
+  if (isRequester && status === 'INTERVIEW_SCHEDULED' && isHR && isNewHiring) {
+    actions.push({
+      type: 'SUBMIT_INTERVIEW_FEEDBACK',
+      label: 'Submit Interview Feedback',
+      description: 'The interview has been scheduled. Submit your feedback and hiring decision.',
+      variant: 'primary',
+    });
+  }
+
   // LOA approval — only the hiring manager (i.e. the requester) for this specific request,
   // and only when the HR agent has uploaded the LOA and routed it for approval
   if (isRequester && status === 'LOA_PENDING_APPROVAL' && hasLOA) {
@@ -442,8 +459,6 @@ export function getWorkflowActions(
   }
 
   // HR New Hiring — Route to CEO
-  const isNewHiring = requestTypeCode === 'NEW_HIRING' ||
-    (!requestTypeCode && requestTypeName.toLowerCase().includes('hiring'));
   if (canAct && isHR && isNewHiring && status === 'JOB_POSTED') {
     if (hasResumes) {
       actions.push({
@@ -600,8 +615,6 @@ export function getWorkflowActions(
   }
 
   // Offboarding ticket phase advancement
-  const isOffboardingTicket = requestTypeCode === 'EMPLOYEE_OFFBOARDING' ||
-    (!requestTypeCode && requestTypeName.toLowerCase().includes('offboard'));
   if (canAct && isHR && isOffboardingTicket) {
     const offboardingPhaseActions: Record<string, { label: string; description: string }> = {
       SUBMITTED: {
@@ -645,8 +658,6 @@ export function getWorkflowActions(
   }
 
   // Onboarding ticket phase advancement
-  const isOnboardingTicket = requestTypeCode === 'EMPLOYEE_ONBOARDING' ||
-    (!requestTypeCode && requestTypeName.toLowerCase().includes('onboard'));
   if (canAct && isHR && isOnboardingTicket) {
     const onboardingPhaseActions: Record<string, { label: string; description: string }> = {
       SUBMITTED: {

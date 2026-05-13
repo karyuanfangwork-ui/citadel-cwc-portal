@@ -62,6 +62,9 @@ const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete }) => {
     });
     const [uploadingLetter, setUploadingLetter] = useState(false);
     const [deletingLetter, setDeletingLetter] = useState(false);
+    const [editingLastWorkingDay, setEditingLastWorkingDay] = useState(false);
+    const [lastWorkingDayForm, setLastWorkingDayForm] = useState('');
+    const [savingLastWorkingDay, setSavingLastWorkingDay] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -204,6 +207,22 @@ const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete }) => {
         }
     };
 
+    const handleSaveLastWorkingDay = async () => {
+        if (savingLastWorkingDay || !lastWorkingDayForm) return;
+        setSavingLastWorkingDay(true);
+        try {
+            await apiClient.put(`/offboarding/requests/${requestId}/offboarding/update-status`, {
+                lastWorkingDay: lastWorkingDayForm,
+            });
+            await fetchData();
+            setEditingLastWorkingDay(false);
+        } catch (err: any) {
+            alert(`Error: ${err.response?.data?.message || err.message || 'Failed to update last working day'}`);
+        } finally {
+            setSavingLastWorkingDay(false);
+        }
+    };
+
     const handleUploadResignationLetter = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -324,7 +343,50 @@ const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete }) => {
                         <span className="material-symbols-outlined text-gray-400 text-xl">calendar_today</span>
                         <div>
                             <p className="text-sm text-gray-500">Last Working Day</p>
-                            <p className="font-medium text-gray-900">{formatDate(offboarding.lastWorkingDay)}</p>
+                            {editingLastWorkingDay ? (
+                                <div className="flex items-center gap-2 mt-1">
+                                    <input
+                                        type="date"
+                                        value={lastWorkingDayForm}
+                                        onChange={e => setLastWorkingDayForm(e.target.value)}
+                                        className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                                        disabled={savingLastWorkingDay}
+                                    />
+                                    <button
+                                        onClick={handleSaveLastWorkingDay}
+                                        disabled={savingLastWorkingDay || !lastWorkingDayForm}
+                                        className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                                    >
+                                        {savingLastWorkingDay ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button
+                                        onClick={() => setEditingLastWorkingDay(false)}
+                                        disabled={savingLastWorkingDay}
+                                        className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900">{formatDate(offboarding.lastWorkingDay)}</p>
+                                    {isAdminOrHRAgent && !isCompleted && (
+                                        <button
+                                            onClick={() => {
+                                                const d = offboarding.lastWorkingDay
+                                                    ? (offboarding.lastWorkingDay.includes('T') ? offboarding.lastWorkingDay.split('T')[0] : offboarding.lastWorkingDay.split('T')[0])
+                                                    : '';
+                                                setLastWorkingDayForm(d);
+                                                setEditingLastWorkingDay(true);
+                                            }}
+                                            className="material-symbols-outlined text-base text-gray-400 hover:text-amber-600 transition-colors"
+                                            title="Edit last working day"
+                                        >
+                                            edit_calendar
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
                     {offboarding.department && (

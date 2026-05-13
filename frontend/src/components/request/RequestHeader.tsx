@@ -89,12 +89,24 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
       // Use dynamic workflow steps from database
       const steps = workflowData.steps.sort((a, b) => a.displayOrder - b.displayOrder);
       const statusOrder = steps.map(s => s.status);
-      const currentIndex = statusOrder.indexOf(currentStatus);
+
+      // Map hidden/sub-statuses to their parent stepper step so the progress bar highlights correctly
+      const STEPPER_PARENT_MAP: Record<string, string> = {
+        'ONBOARDING_READY_FOR_DAY_1': 'ONBOARDING_DAY_1_ORIENTATION',
+        'ONBOARDING_MONTH_1_MILESTONE': 'ONBOARDING_WEEK_1_INTEGRATION',
+        'ONBOARDING_MONTH_2_MILESTONE': 'ONBOARDING_WEEK_1_INTEGRATION',
+        'ONBOARDING_MONTH_3_MILESTONE': 'ONBOARDING_WEEK_1_INTEGRATION',
+      };
+
+      // Resolve current status to a step that exists in the stepper
+      const resolvedStatus = STEPPER_PARENT_MAP[currentStatus] || currentStatus;
+      const currentIndex = statusOrder.indexOf(resolvedStatus);
       return steps.map((step) => ({
         label: step.label,
         status: step.status,
         icon: step.icon,
         active: statusOrder.indexOf(step.status) <= currentIndex,
+        current: step.status === resolvedStatus,
       }));
     }
 
@@ -104,17 +116,26 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
         { label: 'Submitted', status: 'ONBOARDING_SUBMITTED', icon: 'check_circle' },
         { label: 'HR Approval', status: 'ONBOARDING_PENDING_HR_APPROVAL', icon: 'radio_button_checked' },
         { label: 'Pre-Arrival', status: 'ONBOARDING_PRE_ARRIVAL_SETUP', icon: 'radio_button_checked' },
-        { label: 'Day 1', status: 'ONBOARDING_DAY_1_ORIENTATION', icon: 'radio_button_checked' },
-        { label: 'Week 1', status: 'ONBOARDING_WEEK_1_INTEGRATION', icon: 'radio_button_checked' },
+        { label: 'Orientation', status: 'ONBOARDING_DAY_1_ORIENTATION', icon: 'radio_button_checked' },
+        { label: 'Integration', status: 'ONBOARDING_WEEK_1_INTEGRATION', icon: 'radio_button_checked' },
         { label: 'Completed', status: 'ONBOARDING_COMPLETED', icon: 'check_circle' },
       ];
+      // statusOrder includes hidden sub-statuses for correct progress tracking
       const statusOrder = [
         'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP',
         'ONBOARDING_READY_FOR_DAY_1', 'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION',
-        'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE', 
+        'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE',
         'ONBOARDING_COMPLETED'
       ];
-      const currentIndex = statusOrder.indexOf(currentStatus);
+      // Map hidden sub-statuses to parent stepper step
+      const parentMap: Record<string, string> = {
+        'ONBOARDING_READY_FOR_DAY_1': 'ONBOARDING_DAY_1_ORIENTATION',
+        'ONBOARDING_MONTH_1_MILESTONE': 'ONBOARDING_WEEK_1_INTEGRATION',
+        'ONBOARDING_MONTH_2_MILESTONE': 'ONBOARDING_WEEK_1_INTEGRATION',
+        'ONBOARDING_MONTH_3_MILESTONE': 'ONBOARDING_WEEK_1_INTEGRATION',
+      };
+      const resolvedStatus = parentMap[currentStatus] || currentStatus;
+      const currentIndex = statusOrder.indexOf(resolvedStatus);
       return allSteps.map((step) => ({
         ...step,
         active: statusOrder.indexOf(step.status) <= currentIndex,

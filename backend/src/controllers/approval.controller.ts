@@ -286,10 +286,10 @@ export const markJobPosted = async (req: Request, res: Response) => {
             return;
         }
 
-        if (request.status !== 'CEO_APPROVED') {
+        if (request.status !== 'CEO_APPROVED' && request.status !== 'GROUP_CEO_APPROVED') {
             res.status(400).json({
                 status: 'error',
-                message: 'Request must be CEO approved before marking as job posted'
+                message: 'Request must be CEO or Group CEO approved before marking as job posted'
             });
             return;
         }

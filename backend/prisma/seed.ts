@@ -240,11 +240,10 @@ async function main() {
     // ADMIN gets everything
     const adminPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
-        'request:approve', 'request:assign', 'request:confidential',
+        'request:assign', 'request:confidential',
         'user:manage',
         'admin:access', 'admin:settings',
         'report:read',
-        'kb:manage',
         'notification:manage',
         'workflow:manage',
         'banner:manage',
@@ -273,9 +272,11 @@ async function main() {
     ];
 
     // Executive approvers get request:read + request:approve
+    // CTO also has admin:access (admin console viewer)
     const executivePerms = [
         'request:read', 'request:approve', 'announcement:read',
     ];
+    const ctoPerms = [...executivePerms, 'admin:access'];
 
     // HIRING_MANAGER gets request:create, request:read + approve
     const hiringManagerPerms = [
@@ -288,7 +289,7 @@ async function main() {
         IT_AGENT: itAgentPerms,
         NORMAL_STAFF: staffPerms,
         CEO: executivePerms,
-        CTO: executivePerms,
+        CTO: ctoPerms,
         CFO: executivePerms,
         CMO: executivePerms,
         GROUP_CEO: executivePerms,
@@ -346,8 +347,30 @@ async function main() {
             }
         }
     }
+
+    // Cleanup: Remove stale permissions from ADMIN role
+    // (ADMIN no longer has request:approve or kb:manage per updated permission matrix)
+    const staleAdminPerms: Record<string, string[]> = {
+        ADMIN: ['request:approve', 'kb:manage'],
+    };
+    for (const [roleName, permNames] of Object.entries(staleAdminPerms)) {
+        const roleId = roleMap.get(roleName);
+        if (!roleId) continue;
+        for (const permName of permNames) {
+            const permId = permMap.get(permName);
+            if (permId) {
+                const deleted = await prisma.rolePermission.deleteMany({
+                    where: { roleId, permissionId: permId },
+                });
+                if (deleted.count > 0) {
+                    console.log(`  🧹 Removed stale ${permName} from ${roleName} role`);
+                    cleanedUp += deleted.count;
+                }
+            }
+        }
+    }
     if (cleanedUp > 0) {
-        console.log(`✅ Cleaned up ${cleanedUp} stale permission(s) from AGENT role`);
+        console.log(`✅ Cleaned up ${cleanedUp} stale permission(s)`);
     }
 
     const hiringManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'HIRING_MANAGER' } });
@@ -863,8 +886,7 @@ async function main() {
             formConfig: [
                 { id: 'employeeName', label: 'Employee Full Name', type: 'text', required: true },
                 { id: 'employeeEmail', label: 'Employee Email', type: 'text', required: true },
-                { id: 'lastDay', label: 'Last Working Day', type: 'text', required: true },
-                { id: 'reason', label: 'Reason for Departure', type: 'text', required: false },
+                { id: 'lastDay', label: 'Last Working Day', type: 'date', required: true },
             ],
             requiredRole: null, slaHours: 48,
         },

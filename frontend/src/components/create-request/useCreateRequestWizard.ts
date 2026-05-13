@@ -48,17 +48,26 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
 
   const { user } = useAuth();
 
-  // Auto-generate summary for hiring request types
+  // Auto-generate summary for hiring and offboarding request types
   const isAutoSummary = useMemo(() => {
     if (!selectedRequestType) return false;
     const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
-    return code === 'NEW_HIRING';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING';
   }, [selectedRequestType]);
 
   const autoSummary = useMemo(() => {
     if (!isAutoSummary) return '';
 
     const cf = formData.customFields;
+    const code = selectedRequestType?.code || selectedRequestType?.requestTypeCode || '';
+
+    if (code === 'EMPLOYEE_OFFBOARDING') {
+      const empName = cf.employeeName || '';
+      const reason = cf.reason || '';
+      return empName ? `Offboard: ${empName}${reason ? ` (${reason})` : ''}` : '';
+    }
+
+    // NEW_HIRING default
     const position = cf.position || '';
     const empType = cf.employmentType || '';
     const dept = cf.department || '';
@@ -72,7 +81,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     }
     const summary = parts.join(' ').trim();
     return summary ? `New Hire: ${summary}` : '';
-  }, [isAutoSummary, formData.customFields, entityOptions]);
+  }, [isAutoSummary, formData.customFields, entityOptions, selectedRequestType]);
 
   // Auto-set confidential for HR requests — all HR requests are confidential by default
   const isAutoConfidential = useMemo(() => deskType === 'hr', [deskType]);
