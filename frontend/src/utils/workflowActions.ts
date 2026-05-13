@@ -17,6 +17,8 @@ export type WorkflowActionType =
   | 'MANAGER_DECISION'
   | 'LOA_APPROVAL'
   | 'ROUTE_TO_CEO_HR'
+  | 'ROUTE_TO_GROUP_CEO_HR'
+  | 'GROUP_CEO_DECISION_HR'
   | 'MARK_JOB_POSTED'
   | 'UPLOAD_RESUME'
   | 'ROUTE_TO_MANAGER'
@@ -163,9 +165,20 @@ export function getWorkflowActions(
         variant: 'primary',
       });
     }
+  }
 
-    // Finance Agent / Admin actions
-    if (canAct) {
+  // Group CEO decision for HR hiring requests — must be before canAct guard
+  if (userRoles.includes('GROUP_CEO') && status === 'PENDING_GROUP_CEO_APPROVAL' && (requestTypeCode === 'NEW_HIRING' || (!requestTypeCode && requestTypeName.toLowerCase().includes('hiring')))) {
+    actions.push({
+      type: 'GROUP_CEO_DECISION_HR',
+      label: 'Group CEO Approval Decision',
+      description: 'Review and approve or reject this hiring request as Group CEO.',
+      variant: 'primary',
+    });
+  }
+
+  // Finance Agent / Admin actions
+  if (canAct) {
       if (status === 'FINANCE_PENDING_ACK' || (isPurchaseRequisition && status === 'SUBMITTED')) {
         actions.push({
           type: 'FIN_ACKNOWLEDGE',
@@ -199,7 +212,6 @@ export function getWorkflowActions(
         });
       }
     }
-  }
 
   // Inter-Company Chargeback workflow
   const isChargeback = requestTypeCode === 'INTERCOMPANY_CHARGEBACK' ||
@@ -515,9 +527,18 @@ export function getWorkflowActions(
 
   if (canAct && isHR && isNewHiring && status === 'CEO_APPROVED') {
     actions.push({
+      type: 'ROUTE_TO_GROUP_CEO_HR',
+      label: 'Route to Group CEO for Approval',
+      description: 'CEO has approved. Route this hiring request to the Group CEO for final sign-off.',
+      variant: 'primary',
+    });
+  }
+
+  if (canAct && isHR && isNewHiring && status === 'GROUP_CEO_APPROVED') {
+    actions.push({
       type: 'MARK_JOB_POSTED',
       label: 'Mark Job as Posted',
-      description: 'CEO has approved. Record the job posting URL to proceed.',
+      description: 'Group CEO has approved. Record the job posting URL to proceed.',
       variant: 'primary',
     });
   }

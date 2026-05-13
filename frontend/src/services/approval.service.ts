@@ -31,6 +31,31 @@ export const ceoDecision = async (
 };
 
 /**
+ * Route HR hiring request to Group CEO for approval
+ */
+export const routeToGroupCeoHR = async (requestId: string, comments?: string) => {
+    const response = await apiClient.post(`/approvals/requests/${requestId}/route-to-group-ceo-hr`, {
+        comments
+    });
+    return response.data.data;
+};
+
+/**
+ * Group CEO approve or reject HR hiring request
+ */
+export const groupCeoDecisionHR = async (
+    requestId: string,
+    decision: 'APPROVED' | 'REJECTED',
+    comments?: string
+) => {
+    const response = await apiClient.post(`/approvals/requests/${requestId}/group-ceo-decision-hr`, {
+        decision,
+        comments
+    });
+    return response.data.data;
+};
+
+/**
  * Mark request as job posted
  */
 export const markJobPosted = async (
@@ -170,6 +195,8 @@ export const bulkAction = async (action: 'approve' | 'reject', requestIds: strin
 const approvalService = {
     routeToCEO,
     ceoDecision,
+    routeToGroupCeoHR,
+    groupCeoDecisionHR,
     markJobPosted,
     routeToManager,
     managerDecision,

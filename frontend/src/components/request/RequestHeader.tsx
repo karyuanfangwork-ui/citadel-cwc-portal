@@ -218,11 +218,12 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
     }
     
     if (workflowCode === 'HR_RECRUITMENT') {
-      // HR Recruitment Workflow: CEO Approval -> Job Posted -> Manager Review -> Interview -> Screening -> LOA
+      // HR Recruitment Workflow: CEO Approval → Group CEO Approval → Job Posted → ...
       const allSteps = [
         { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
         { label: 'In Review', status: 'IN_REVIEW', icon: 'radio_button_checked' },
         { label: 'CEO Approval', status: 'PENDING_CEO_APPROVAL', icon: 'radio_button_checked' },
+        { label: 'Group CEO Approval', status: 'PENDING_GROUP_CEO_APPROVAL', icon: 'radio_button_checked' },
         { label: 'Job Posted', status: 'JOB_POSTED', icon: 'radio_button_checked' },
         { label: 'Manager Review', status: 'PENDING_MANAGER_REVIEW', icon: 'radio_button_checked' },
         { label: 'Interview', status: 'INTERVIEW_SCHEDULED', icon: 'radio_button_checked' },
@@ -237,6 +238,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
       const statusOrder = [
         'SUBMITTED', 'IN_REVIEW', 'IN_PROGRESS',
         'PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED',
+        'PENDING_GROUP_CEO_APPROVAL', 'GROUP_CEO_APPROVED', 'GROUP_CEO_REJECTED',
         'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED',
         'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'CANDIDATE_REJECTED_INTERVIEW',
         'HR_SCREENING',

@@ -18,6 +18,8 @@ const CfoDecisionModal = lazy(() => import('./CfoDecisionModal'));
 const PaymentDoneModal = lazy(() => import('./PaymentDoneModal'));
 const CompleteDeliveryModal = lazy(() => import('./CompleteDeliveryModal'));
 const RouteToCEOHRModal = lazy(() => import('./RouteToCEOHRModal'));
+const RouteToGroupCeoHRModal = lazy(() => import('./RouteToGroupCeoHRModal'));
+const GroupCeoDecisionHRModal = lazy(() => import('./GroupCeoDecisionHRModal'));
 const MarkJobPostedModal = lazy(() => import('./MarkJobPostedModal'));
 const UploadResumeModal = lazy(() => import('./UploadResumeModal'));
 const ScheduleInterviewModal = lazy(() => import('./ScheduleInterviewModal'));
@@ -33,7 +35,7 @@ const CloseTicketFinModal = lazy(() => import('./CloseTicketFinModal'));
 import WorkflowActionModal from './WorkflowActionModal';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 
-type ModalType = 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'MANAGER_DECISION' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | null;
+type ModalType = 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'ROUTE_TO_GROUP_CEO_HR' | 'GROUP_CEO_DECISION_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'MANAGER_DECISION' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'ROUTE_TO_CEO_FIN' | 'CFO_DECISION_FIN' | 'GROUP_CEO_DECISION_FIN' | 'MARK_PAYMENT_COMPLETE_FIN' | 'CLOSE_TICKET_FIN' | 'SET_FINALIZED_AMOUNT' | 'FROM_ENTITY_APPROVE' | 'FROM_ENTITY_REJECT' | 'TO_ENTITY_APPROVE' | 'TO_ENTITY_REJECT' | 'MANAGER_APPROVE_EXPENSE' | 'MANAGER_REJECT_EXPENSE' | 'FINANCE_HEAD_APPROVE_EXPENSE' | 'FINANCE_HEAD_REJECT_EXPENSE' | 'MARK_EXPENSE_PAYMENT_COMPLETE' | null;
 
 interface ActionSidebarProps {
   requestId: string;
@@ -155,6 +157,8 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       case 'PAYMENT_DONE': setOpenModal('PAYMENT_DONE'); break;
       case 'LOA_APPROVAL': if (onLOAApproval) onLOAApproval(); break;
       case 'ROUTE_TO_CEO_HR': setOpenModal('ROUTE_TO_CEO_HR'); break;
+      case 'ROUTE_TO_GROUP_CEO_HR': setOpenModal('ROUTE_TO_GROUP_CEO_HR'); break;
+      case 'GROUP_CEO_DECISION_HR': setOpenModal('GROUP_CEO_DECISION_HR'); break;
       case 'MARK_JOB_POSTED': setOpenModal('MARK_JOB_POSTED'); break;
       case 'UPLOAD_RESUME': setOpenModal('UPLOAD_RESUME'); break;
       case 'ROUTE_TO_MANAGER': if (onRouteToManager) onRouteToManager(); break;
@@ -418,6 +422,16 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
       {openModal === 'ROUTE_TO_CEO_HR' && (
         <Suspense fallback={null}>
           <RouteToCEOHRModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'ROUTE_TO_GROUP_CEO_HR' && (
+        <Suspense fallback={null}>
+          <RouteToGroupCeoHRModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
+        </Suspense>
+      )}
+      {openModal === 'GROUP_CEO_DECISION_HR' && (
+        <Suspense fallback={null}>
+          <GroupCeoDecisionHRModal requestId={requestId} onSuccess={handleSuccess} onClose={() => setOpenModal(null)} />
         </Suspense>
       )}
       {openModal === 'MARK_JOB_POSTED' && (

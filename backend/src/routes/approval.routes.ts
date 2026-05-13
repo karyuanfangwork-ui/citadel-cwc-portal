@@ -6,7 +6,9 @@ import {
     markJobPosted,
     routeToManager,
     managerDecision,
-    entityDecision
+    entityDecision,
+    routeToGroupCeoHr,
+    groupCeoDecisionHr
 } from '../controllers/approval.controller';
 import {
     uploadResume,
@@ -65,6 +67,20 @@ router.post('/requests/:id/manager-decision', managerDecision);
  * @access  Private (Entity Approver)
  */
 router.post('/requests/:id/entity-decision', entityDecision);
+
+/**
+ * @route   POST /api/approvals/requests/:id/route-to-group-ceo-hr
+ * @desc    Route HR hiring request to Group CEO for approval
+ * @access  Private (HR Agent)
+ */
+router.post('/requests/:id/route-to-group-ceo-hr', routeToGroupCeoHr);
+
+/**
+ * @route   POST /api/approvals/requests/:id/group-ceo-decision-hr
+ * @desc    Group CEO approve or reject HR hiring request
+ * @access  Private (Group CEO)
+ */
+router.post('/requests/:id/group-ceo-decision-hr', groupCeoDecisionHr);
 
 // ============================================================================
 // RESUME UPLOAD ROUTES

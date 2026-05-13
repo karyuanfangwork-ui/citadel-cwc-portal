@@ -776,3 +776,230 @@ export const entityDecision = async (req: Request, res: Response) => {
         });
     }
 };
+
+/**
+ * Route HR hiring request to Group CEO for approval
+ * POST /approvals/requests/:id/route-to-group-ceo-hr
+ */
+export const routeToGroupCeoHr = async (req: Request, res: Response) => {
+    try {
+        const id = String(req.params.id);
+        const { comments } = req.body;
+        const userId = (req as any).user?.id;
+
+        const request = await prisma.request.findUnique({
+            where: { id },
+            include: { requester: true }
+        });
+
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== 'CEO_APPROVED') {
+            res.status(400).json({ status: 'error', message: 'Request must be CEO approved before routing to Group CEO' });
+            return;
+        }
+
+        // Find Group CEO user
+        const groupCeo = await prisma.user.findFirst({
+            where: { executiveRole: 'GROUP_CEO', isActive: true }
+        });
+
+        if (!groupCeo) {
+            res.status(404).json({ status: 'error', message: 'No active Group CEO found' });
+            return;
+        }
+
+        // Update request status and assign to Group CEO
+        const updatedRequest = await prisma.request.update({
+            where: { id },
+            data: {
+                status: 'PENDING_GROUP_CEO_APPROVAL',
+                assignedToId: groupCeo.id
+            }
+        });
+
+        // Create approval record
+        const approval = await prisma.requestApproval.create({
+            data: {
+                requestId: id,
+                approverType: 'GROUP_CEO',
+                approverId: groupCeo.id,
+                status: ApprovalStatus.PENDING,
+                comments: comments || null
+            }
+        });
+
+        // Create activity log
+        await prisma.requestActivity.create({
+            data: {
+                requestId: id,
+                authorId: userId,
+                authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                authorRole: 'HR Agent',
+                activityType: 'ASSIGNMENT',
+                message: `Request routed to Group CEO for approval — assigned to ${groupCeo.firstName} ${groupCeo.lastName}${comments ? ': ' + comments : ''}`,
+                isSystemGenerated: true
+            }
+        });
+
+        await auditLog(req as any, 'APPROVAL_ROUTED', 'request', id, {
+            status: 'PENDING_GROUP_CEO_APPROVAL',
+            previousStatus: 'CEO_APPROVED',
+            approverType: 'GROUP_CEO',
+            groupCeoId: groupCeo.id,
+        }, { status: 'CEO_APPROVED' });
+
+        await pauseSla(id);
+
+        // Notify Group CEO
+        await notify({ userId: groupCeo.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group CEO' }, relatedRequestId: id });
+
+        res.json({
+            status: 'success',
+            data: { request: updatedRequest, approval }
+        });
+    } catch (error) {
+        console.error('Error routing to Group CEO:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to route request to Group CEO' });
+    }
+};
+
+/**
+ * Group CEO approve or reject HR hiring request
+ * POST /approvals/requests/:id/group-ceo-decision-hr
+ */
+export const groupCeoDecisionHr = async (req: Request, res: Response) => {
+    try {
+        const id = String(req.params.id);
+        const { decision, comments } = req.body;
+        const userId = (req as any).user?.id;
+
+        if (!decision || !['APPROVED', 'REJECTED'].includes(decision)) {
+            res.status(400).json({ status: 'error', message: 'Decision must be either APPROVED or REJECTED' });
+            return;
+        }
+
+        const request = await prisma.request.findUnique({
+            where: { id },
+            include: {
+                requester: true,
+                approvals: {
+                    where: { approverType: 'GROUP_CEO', status: ApprovalStatus.PENDING }
+                }
+            }
+        });
+
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== 'PENDING_GROUP_CEO_APPROVAL') {
+            res.status(400).json({ status: 'error', message: 'Request is not pending Group CEO approval' });
+            return;
+        }
+
+        const pendingApproval = request.approvals[0];
+        if (!pendingApproval) {
+            res.status(404).json({ status: 'error', message: 'No pending Group CEO approval found' });
+            return;
+        }
+
+        const newStatus = decision === 'APPROVED' ? 'GROUP_CEO_APPROVED' : 'GROUP_CEO_REJECTED';
+
+        // Reassign back to HR agent after Group CEO decision
+        const hrAgent = await prisma.user.findFirst({
+            where: {
+                agentTeam: 'HR',
+                isActive: true,
+                entityId: request.requester?.entityId,
+            }
+        });
+
+        const updateData: any = { status: newStatus };
+        if (hrAgent) {
+            updateData.assignedToId = hrAgent.id;
+        }
+
+        const updatedRequest = await prisma.request.update({
+            where: { id },
+            data: updateData
+        });
+
+        // Update approval record
+        const updatedApproval = await prisma.requestApproval.update({
+            where: { id: pendingApproval.id },
+            data: {
+                status: decision as ApprovalStatus,
+                approverId: userId,
+                comments: comments || null
+            }
+        });
+
+        // Create activity log
+        await prisma.requestActivity.create({
+            data: {
+                requestId: id,
+                authorId: userId,
+                authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                authorRole: 'Group CEO',
+                activityType: decision === 'APPROVED' ? 'APPROVAL' : 'REJECTION',
+                message: `Group CEO ${decision.toLowerCase()} this request${comments ? ': ' + comments : ''}`,
+                isSystemGenerated: false
+            }
+        });
+
+        // Log reassignment back to HR agent
+        if (hrAgent) {
+            await prisma.requestActivity.create({
+                data: {
+                    requestId: id,
+                    authorId: userId,
+                    authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                    authorRole: 'Group CEO',
+                    activityType: 'ASSIGNMENT',
+                    message: `Request reassigned to HR Agent (${hrAgent.firstName} ${hrAgent.lastName}) after Group CEO decision`,
+                    isSystemGenerated: true
+                }
+            });
+        }
+
+        await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
+            decision,
+            approverType: 'GROUP_CEO',
+            newStatus,
+            previousStatus: 'PENDING_GROUP_CEO_APPROVAL',
+            comments: comments || null,
+        }, { status: 'PENDING_GROUP_CEO_APPROVAL' });
+
+        await resumeSla(id);
+
+        // Notify requester
+        if (decision === 'APPROVED') {
+            await notify({
+                userId: request.requesterId,
+                eventType: 'STATUS_CHANGED',
+                variables: { requestId: id, status: 'GROUP_CEO_APPROVED', message: 'Your hiring request has been approved by the Group CEO.' },
+                relatedRequestId: id,
+            });
+        } else {
+            await notify({
+                userId: request.requesterId,
+                eventType: 'REQUEST_REJECTED',
+                variables: { requestId: id, rejectedBy: 'Group CEO', comments: comments || '' },
+                relatedRequestId: id,
+            });
+        }
+
+        res.json({
+            status: 'success',
+            data: { request: updatedRequest, approval: updatedApproval }
+        });
+    } catch (error) {
+        console.error('Error processing Group CEO decision:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to process Group CEO decision' });
+    }
+};
