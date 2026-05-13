@@ -1273,7 +1273,11 @@ class RequestController {
             request.assignedToId !== req.user!.id &&
             !hasRole(req, 'ADMIN') &&
             !(req.user?.permissions?.includes('request:confidential')) &&
-            !isDesignatedApprover
+            !isDesignatedApprover &&
+            !isCEOApprover &&
+            !isCTOApprover &&
+            !isCFOApprover &&
+            !isGroupCeoApprover
         ) {
             throw new AppError('This request is confidential and cannot be viewed', 403);
         }
