@@ -509,7 +509,8 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
             data: {
                 status: 'COMPLETED',
                 resolvedAt: new Date(),
-                closedAt: new Date()
+                closedAt: new Date(),
+                completedAt: new Date()
             }
         });
 

@@ -344,7 +344,7 @@ export const completeChargeback = async (req: Request, res: Response) => {
 
         const updated = await prisma.request.update({
             where: { id },
-            data: { status: RequestStatus.CHARGEBACK_COMPLETED, resolvedAt: new Date() },
+            data: { status: RequestStatus.CHARGEBACK_COMPLETED, resolvedAt: new Date(), completedAt: new Date() },
         });
 
         await logActivity(id, 'Inter-company chargeback completed', userId);

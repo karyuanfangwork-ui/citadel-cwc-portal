@@ -139,7 +139,23 @@ export const cfoDecision = async (req: Request, res: Response) => {
             newStatus = amount > GROUP_CEO_THRESHOLD ? RequestStatus.PENDING_GROUP_CEO_APPROVAL : RequestStatus.PAYMENT_PROCESSING_FIN;
         }
 
-        const updated = await prisma.request.update({ where: { id }, data: { status: newStatus } });
+        // When routing to Group CEO, assign to them
+        const cfoUpdateData: any = { status: newStatus };
+        if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
+            const groupCeoApprovalLookup = await prisma.requestApproval.findFirst({
+                where: { requestId: id, approverType: 'GROUP_CEO', status: 'PENDING' },
+                select: { approverId: true },
+            });
+            const groupCeoId = groupCeoApprovalLookup?.approverId ?? (await prisma.user.findFirst({
+                where: { isActive: true, roles: { some: { role: { name: 'GROUP_CEO' } } } },
+                select: { id: true },
+            }))?.id;
+            if (groupCeoId) {
+                cfoUpdateData.assignedToId = groupCeoId;
+            }
+        }
+
+        const updated = await prisma.request.update({ where: { id }, data: cfoUpdateData });
 
         await prisma.requestApproval.create({
             data: { requestId: id, approverType: 'CFO', approverId: userId, status: decision, comments: comments || null },
@@ -204,7 +220,19 @@ export const groupCeoDecision = async (req: Request, res: Response) => {
         }
 
         const newStatus = decision === 'APPROVED' ? RequestStatus.PAYMENT_PROCESSING_FIN : RequestStatus.GROUP_CEO_REJECTED;
-        const updated = await prisma.request.update({ where: { id }, data: { status: newStatus } });
+
+        // Reassign back to Finance agent after Group CEO decision
+        const requestWithRequester = await prisma.request.findUnique({ where: { id }, include: { requester: true } });
+        const entityFilter = requestWithRequester?.requester?.entityId ? { entityId: requestWithRequester.requester.entityId } : {};
+        const financeAgent = await prisma.user.findFirst({
+            where: { OR: [{ agentTeam: 'FINANCE' }, { agentTeam: 'Finance' }], isActive: true, ...entityFilter },
+        });
+        const gCeoUpdateData: any = { status: newStatus };
+        if (financeAgent) {
+            gCeoUpdateData.assignedToId = financeAgent.id;
+        }
+
+        const updated = await prisma.request.update({ where: { id }, data: gCeoUpdateData });
 
         await prisma.requestApproval.create({
             data: { requestId: id, approverType: 'GROUP_CEO', approverId: userId, status: decision, comments: comments || null },
@@ -280,7 +308,7 @@ export const closeTicket = async (req: Request, res: Response) => {
 
         const updated = await prisma.request.update({
             where: { id },
-            data: { status: RequestStatus.TICKET_CLOSED_FIN, resolvedAt: new Date() },
+            data: { status: RequestStatus.TICKET_CLOSED_FIN, resolvedAt: new Date(), completedAt: new Date() },
         });
 
         await logActivity(id, 'Ticket closed by Finance Agent');
@@ -518,7 +546,7 @@ export const markExpensePaymentComplete = async (req: Request, res: Response) =>
         // auto-close the reimbursement after payment is marked complete
         await prisma.request.update({
             where: { id },
-            data: { status: RequestStatus.REIMBURSEMENT_CLOSED, resolvedAt: new Date() },
+            data: { status: RequestStatus.REIMBURSEMENT_CLOSED, resolvedAt: new Date(), completedAt: new Date() },
         });
 
         await logActivity(id, `Expense payment completed${paymentReference ? ' (Ref: ' + paymentReference + ')' : ''}${notes ? ': ' + notes : ''}`);

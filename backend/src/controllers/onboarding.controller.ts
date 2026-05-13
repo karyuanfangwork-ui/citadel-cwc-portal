@@ -218,7 +218,7 @@ export const updateOnboardingStatus = async (req: Request, res: Response) => {
                 where: { id: requestId },
                 data: { 
                     status: finalStatus as any,
-                    ...(finalStatus === 'ONBOARDING_COMPLETED' && { closedAt: new Date() })
+                    ...(finalStatus === 'ONBOARDING_COMPLETED' && { closedAt: new Date(), completedAt: new Date() })
                 },
             });
 

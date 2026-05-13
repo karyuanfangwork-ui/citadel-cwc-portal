@@ -172,7 +172,7 @@ export const updateOffboardingStatus = async (req: Request, res: Response) => {
                 where: { id: requestId },
                 data: { 
                     status: finalStatus as any,
-                    ...(finalStatus === 'OFFBOARDING_COMPLETED' && { closedAt: new Date() })
+                    ...(finalStatus === 'OFFBOARDING_COMPLETED' && { closedAt: new Date(), completedAt: new Date() })
                 },
             });
 

@@ -1718,6 +1718,7 @@ class RequestController {
             data: {
                 status: status as RequestStatus,
                 ...(TERMINAL_STATUSES.includes(status) && { closedAt: new Date() }),
+                ...(status === 'COMPLETED' && { completedAt: new Date() }),
             },
             include: {
                 requester: {

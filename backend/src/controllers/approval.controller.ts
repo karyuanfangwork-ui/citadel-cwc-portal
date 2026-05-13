@@ -40,10 +40,15 @@ export const routeToCEO = async (req: Request, res: Response) => {
             return;
         }
 
-        // Update request status
+        // Update request status and assign to CEO
+        const updateData: any = { status: 'PENDING_CEO_APPROVAL' };
+        if (ceoId) {
+            updateData.assignedToId = ceoId;
+        }
+
         const updatedRequest = await prisma.request.update({
             where: { id },
-            data: { status: 'PENDING_CEO_APPROVAL' }
+            data: updateData
         });
 
         // Create approval record
@@ -64,8 +69,8 @@ export const routeToCEO = async (req: Request, res: Response) => {
                 authorId: userId,
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
-                activityType: 'SYSTEM',
-                message: `Request routed to CEO for approval${comments ? ': ' + comments : ''}`,
+                activityType: 'ASSIGNMENT',
+                message: `Request routed to CEO for approval — assigned to CEO${comments ? ': ' + comments : ''}`,
                 isSystemGenerated: true
             }
         });
@@ -121,6 +126,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
         const request = await prisma.request.findUnique({
             where: { id },
             include: {
+                requester: true,
                 approvals: {
                     where: {
                         approverType: 'CEO',
@@ -165,11 +171,26 @@ export const ceoDecision = async (req: Request, res: Response) => {
             }
         });
 
-        // Update request status
+        // Update request status and reassign back to the original HR agent
         const newStatus = decision === 'APPROVED' ? 'CEO_APPROVED' : 'CEO_REJECTED';
+
+        // Find an HR agent from the same entity to reassign to
+        const hrAgent = await prisma.user.findFirst({
+            where: {
+                agentTeam: 'HR',
+                isActive: true,
+                entityId: request.requester.entityId,
+            }
+        });
+
+        const updateData: any = { status: newStatus };
+        if (hrAgent) {
+            updateData.assignedToId = hrAgent.id;
+        }
+
         const updatedRequest = await prisma.request.update({
             where: { id },
-            data: { status: newStatus }
+            data: updateData
         });
 
         // Create activity log
@@ -184,6 +205,21 @@ export const ceoDecision = async (req: Request, res: Response) => {
                 isSystemGenerated: false
             }
         });
+
+        // Log reassignment back to HR agent
+        if (hrAgent) {
+            await prisma.requestActivity.create({
+                data: {
+                    requestId: id,
+                    authorId: userId,
+                    authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                    authorRole: 'CEO',
+                    activityType: 'ASSIGNMENT',
+                    message: `Request reassigned to HR Agent (${hrAgent.firstName} ${hrAgent.lastName}) after CEO decision`,
+                    isSystemGenerated: true
+                }
+            });
+        }
 
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,

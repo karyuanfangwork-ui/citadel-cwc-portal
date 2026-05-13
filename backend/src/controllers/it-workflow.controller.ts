@@ -488,7 +488,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
     const hasCeoRole = (ceoUser as any).roles.some((r: any) => r.role?.name === 'CEO');
     if (!hasCeoRole) return res.status(400).json({ error: 'Selected user does not have CEO role' });
 
-    await prisma.request.update({ where: { id }, data: { status: 'PENDING_CEO_APPROVAL_IT' } });
+    await prisma.request.update({ where: { id }, data: { status: 'PENDING_CEO_APPROVAL_IT', assignedToId: ceoId } });
     await pauseSla(id);
 
     await prisma.requestApproval.create({
@@ -536,7 +536,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
     if (!['APPROVED', 'REJECTED'].includes(decision)) return res.status(400).json({ error: 'Decision must be APPROVED or REJECTED' });
 
-    const request = await prisma.request.findUnique({ where: { id } });
+    const request = await prisma.request.findUnique({ where: { id }, include: { requester: true } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (request.status !== 'PENDING_CEO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CEO approval' });
     if (!hasRole(req, 'CEO')) return res.status(403).json({ error: 'Only the CEO can make this decision' });
@@ -555,7 +555,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Specified ctoId does not belong to a CTO user' });
       }
 
-      await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT' } });
+      await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT', assignedToId: ctoId } });
       await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_CTO_APPROVAL_IT' } });
       await pauseSla(id);
@@ -582,7 +582,14 @@ export const ceoDecision = async (req: Request, res: Response) => {
 
       await notify({ userId: ctoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
     } else {
-      await prisma.request.update({ where: { id }, data: { status: 'CEO_REJECTED_IT' } });
+      // Reassign back to IT agent on CEO rejection
+      const itAgent = await prisma.user.findFirst({
+        where: { agentTeam: 'IT', isActive: true, entityId: request.requester?.entityId },
+      });
+      const rejectData: any = { status: 'CEO_REJECTED_IT' };
+      if (itAgent) rejectData.assignedToId = itAgent.id;
+
+      await prisma.request.update({ where: { id }, data: rejectData });
       await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
@@ -635,7 +642,13 @@ export const ctoDecision = async (req: Request, res: Response) => {
     if (!hasRole(req, 'CTO')) return res.status(403).json({ error: 'Only the CTO can make this decision' });
 
     if (decision === 'APPROVED') {
-      await prisma.request.update({ where: { id }, data: { status: 'CTO_APPROVED_IT' } });
+      // Reassign back to IT agent after CTO approval
+      const requestWithRequester = await prisma.request.findUnique({ where: { id }, include: { requester: true } });
+      const itAgentAfterCto = requestWithRequester ? await prisma.user.findFirst({
+        where: { agentTeam: 'IT', isActive: true, entityId: requestWithRequester.requester?.entityId },
+      }) : null;
+
+      await prisma.request.update({ where: { id }, data: { status: 'CTO_APPROVED_IT', ...(itAgentAfterCto ? { assignedToId: itAgentAfterCto.id } : {}) } });
       await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_INVOICE_IT' } });
       await pauseSla(id);

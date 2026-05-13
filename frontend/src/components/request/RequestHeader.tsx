@@ -55,6 +55,7 @@ interface RequestHeaderProps {
       };
     };
     childRequests?: RequestChild[];
+    completedAt?: string;
   };
   activities: Activity[];
   user: { id: string; roles?: string[]; firstName: string; lastName: string } | null;
@@ -403,6 +404,14 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
       }
     });
   statusTimestamps['SUBMITTED'] = request.createdAt;
+  if (request.completedAt) {
+    statusTimestamps['COMPLETED'] = request.completedAt;
+    statusTimestamps['ONBOARDING_COMPLETED'] = request.completedAt;
+    statusTimestamps['OFFBOARDING_COMPLETED'] = request.completedAt;
+    statusTimestamps['REIMBURSEMENT_CLOSED'] = request.completedAt;
+    statusTimestamps['TICKET_CLOSED_FIN'] = request.completedAt;
+    statusTimestamps['CHARGEBACK_COMPLETED'] = request.completedAt;
+  }
 
   const handleActionClick = () => {
     if (currentRole === 'agent' && request.status === 'MANAGER_APPROVED') {

@@ -482,6 +482,7 @@ model Request {
   firstResponseAt      DateTime?       @map("first_response_at") @db.Timestamp(6)
   resolvedAt           DateTime?       @map("resolved_at") @db.Timestamp(6)
   closedAt             DateTime?       @map("closed_at") @db.Timestamp(6)
+  completedAt          DateTime?       @map("completed_at") @db.Timestamp(6)
   
   // Timestamps
   createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
