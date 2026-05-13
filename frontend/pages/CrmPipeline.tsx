@@ -78,7 +78,7 @@ const CrmPipelineView = () => {
     const targetStage = stages.find(s => s.id === stageId);
     let lostReason: string | undefined;
     if (targetStage?.isLostStage) {
-      lostReason = prompt('Reason for losing this deal:') || undefined;
+      lostReason = prompt('Reason for losing this opportunity:') || undefined;
     }
 
     try {
@@ -154,7 +154,7 @@ const CrmPipelineView = () => {
             <button onClick={openCreateOpp}
               className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
               style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">add</span> New Deal
+              <span className="material-symbols-outlined text-base">add</span> New Opportunity
             </button>
             <button onClick={() => navigate('/crm/opportunities')} className="flex items-center gap-2 border border-border bg-surface text-text-primary px-4 py-2 rounded-lg text-sm font-bold hover:bg-bg-subtle transition-colors" style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
               <span className="material-symbols-outlined text-lg">list</span> List View
@@ -209,7 +209,7 @@ const CrmPipelineView = () => {
                   <div className="flex-1 overflow-y-auto p-3 space-y-2.5" style={{ minHeight: 100 }}>
                     {opps.length === 0 && (
                       <div className="text-center py-8 text-text-tertiary text-xs">
-                        {isOver ? <span className="font-bold text-brand-600">Drop here</span> : 'No deals'}
+                        {isOver ? <span className="font-bold text-brand-600">Drop here</span> : 'No opportunities'}
                       </div>
                     )}
                     {opps.map(opp => (
@@ -256,7 +256,7 @@ const CrmPipelineView = () => {
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200 shrink-0">
-              <h2 className="text-lg font-black text-text-primary">New Deal</h2>
+              <h2 className="text-lg font-black text-text-primary">New Opportunity</h2>
               <button onClick={() => { setShowCreate(false); setOppForm({}); }}
                 className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <span className="material-symbols-outlined">close</span>
@@ -264,7 +264,7 @@ const CrmPipelineView = () => {
             </div>
             <form onSubmit={handleCreateOpp} className="p-6 pt-4 space-y-3 overflow-y-auto flex-1">
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Deal Name *</label>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Opportunity Name *</label>
                 <input required value={oppForm.name ?? ''} onChange={e => setOppForm(f => ({ ...f, name: e.target.value }))}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }} />
               </div>
@@ -304,7 +304,7 @@ const CrmPipelineView = () => {
                 <button type="submit" disabled={saving}
                   className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800"
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {saving ? 'Creating...' : 'Create Deal'}
+                  {saving ? 'Creating...' : 'Create Opportunity'}
                 </button>
               </div>
             </form>

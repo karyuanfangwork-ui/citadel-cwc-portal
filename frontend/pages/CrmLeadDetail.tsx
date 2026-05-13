@@ -178,7 +178,7 @@ const CrmLeadDetail = () => {
             <button onClick={openConvert}
               className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-green-700 transition-colors"
               style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">swap_horiz</span> Convert to Deal
+              <span className="material-symbols-outlined text-base">swap_horiz</span> Convert to Opportunity
             </button>
           )}
           {!isConverted && !isLost && (
@@ -192,7 +192,7 @@ const CrmLeadDetail = () => {
             <Link to={`/crm/opportunities/${lead.convertedToOppId}`}
               className="flex items-center gap-2 text-sm font-semibold text-brand-700 border border-brand-200 px-4 py-2 rounded-lg hover:bg-brand-50"
               style={{ textDecoration: 'none' }}>
-              <span className="material-symbols-outlined text-base">open_in_new</span> View Deal
+              <span className="material-symbols-outlined text-base">open_in_new</span> View Opportunity
             </Link>
           )}
           <button onClick={() => setShowAddActivity(true)}
@@ -317,7 +317,7 @@ const CrmLeadDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowConvert(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-1">Convert Lead to Deal</h2>
+            <h2 className="text-lg font-black text-text-primary mb-1">Convert Lead to Opportunity</h2>
             <p className="text-sm text-text-secondary mb-4">This will create a new opportunity from this lead.</p>
             <form onSubmit={handleConvert} className="space-y-4">
               <div>
@@ -326,7 +326,7 @@ const CrmLeadDetail = () => {
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Deal Value (MYR)</label>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Opportunity Value (MYR)</label>
                 <input type="number" min="0" value={convertForm.oppValue} onChange={e => setConvertForm(f => ({ ...f, oppValue: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
@@ -353,7 +353,7 @@ const CrmLeadDetail = () => {
                 <button type="submit" disabled={saving}
                   className="px-4 py-2 text-sm font-bold rounded-lg bg-green-600 text-white hover:bg-green-700"
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {saving ? 'Converting…' : 'Convert to Deal'}
+                  {saving ? 'Converting…' : 'Convert to Opportunity'}
                 </button>
               </div>
             </form>

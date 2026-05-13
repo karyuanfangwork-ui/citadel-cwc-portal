@@ -12,11 +12,11 @@ interface CrmNavItem {
 
 const CRM_NAV_ITEMS: CrmNavItem[] = [
   { to: '/crm', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/crm/leads', label: 'Leads', icon: 'lightbulb' },
+  { to: '/crm/opportunities', label: 'Opportunities', icon: 'monetization_on' },
+  { to: '/crm/pipeline', label: 'Pipeline', icon: 'view_kanban' },
   { to: '/crm/accounts', label: 'Accounts', icon: 'business' },
   { to: '/crm/contacts', label: 'Contacts', icon: 'person' },
-  { to: '/crm/leads', label: 'Leads', icon: 'lightbulb' },
-  { to: '/crm/opportunities', label: 'Deals', icon: 'monetization_on' },
-  { to: '/crm/pipeline', label: 'Pipeline', icon: 'view_kanban' },
   { to: '/crm/team', label: 'Team', icon: 'groups', permission: 'crm:admin' },
   { to: '/crm/reports', label: 'Reports', icon: 'bar_chart' },
   { to: '/crm/guide', label: 'Guide', icon: 'menu_book' },
