@@ -1855,7 +1855,7 @@ class RequestController {
                         newStatus: status,
                     },
                     relatedRequestId: request.id,
-                })
+                }).catch(() => {})
             )
         );
 
