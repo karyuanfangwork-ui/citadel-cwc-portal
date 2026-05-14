@@ -22,6 +22,25 @@ interface CreateRequestData {
     isConfidential?: boolean;
 }
 
+export interface RequestParticipant {
+    id: string;
+    userId: string;
+    requestId: string;
+    createdAt: string;
+    user: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        avatarUrl?: string | null;
+    };
+    addedBy: {
+        id: string;
+        firstName: string;
+        lastName: string;
+    };
+}
+
 export const requestService = {
     async getAllRequests(filters: RequestFilters = {}) {
         const params = new URLSearchParams();
@@ -105,5 +124,19 @@ export const requestService = {
             status,
         });
         return response.data.data.request;
+    },
+
+    async getParticipants(requestId: string): Promise<RequestParticipant[]> {
+        const response = await apiClient.get(`/requests/${requestId}/participants`);
+        return response.data.data.participants;
+    },
+
+    async addParticipant(requestId: string, userId: string): Promise<RequestParticipant> {
+        const response = await apiClient.post(`/requests/${requestId}/participants`, { userId });
+        return response.data.data.participant;
+    },
+
+    async removeParticipant(requestId: string, userId: string): Promise<void> {
+        await apiClient.delete(`/requests/${requestId}/participants/${userId}`);
     },
 };
