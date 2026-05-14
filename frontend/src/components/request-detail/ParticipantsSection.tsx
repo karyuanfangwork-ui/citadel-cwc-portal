@@ -60,7 +60,8 @@ export default function ParticipantsSection({ requestId, canEdit }: Participants
                 // Filter out already-added participants
                 const participantIds = new Set(participants.map((p) => p.userId));
                 setResults(users.filter((u) => !participantIds.has(u.id)));
-            } catch {
+            } catch (err) {
+                console.error('[ParticipantsSection] User search failed:', err);
                 setResults([]);
             } finally {
                 setLoading(false);
