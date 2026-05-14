@@ -122,6 +122,8 @@ model User {
   // Announcement Relations
   announcements         Announcement[]                @relation("AnnouncementAuthor")
   announcementReads     AnnouncementRead[]            @relation("AnnouncementReader")
+  participatingIn       RequestParticipant[]          @relation("RequestParticipants")
+  participantsAdded     RequestParticipant[]          @relation("ParticipantAddedBy")
 
   @@map("users")
   @@index([email])
@@ -515,6 +517,7 @@ model Request {
   assetAssignments    AssetAssignment[] @relation("AssetAssignmentRequest")
   // CRM Relations
   crmAccountLinks     CrmAccountRequest[]
+  participants        RequestParticipant[]
 
   @@map("requests")
   @@index([referenceNumber])
@@ -1897,4 +1900,19 @@ model AnnouncementRead {
   @@map("announcement_reads")
   @@index([announcementId])
   @@index([userId])
+}
+
+model RequestParticipant {
+  id          String   @id @default(uuid()) @db.Uuid
+  requestId   String   @map("request_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  addedById   String   @map("added_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user      User    @relation("RequestParticipants", fields: [userId], references: [id])
+  addedBy   User    @relation("ParticipantAddedBy", fields: [addedById], references: [id])
+
+  @@unique([requestId, userId])
+  @@map("request_participants")
 }
