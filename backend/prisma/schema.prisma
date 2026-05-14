@@ -1914,5 +1914,7 @@ model RequestParticipant {
   addedBy   User    @relation("ParticipantAddedBy", fields: [addedById], references: [id])
 
   @@unique([requestId, userId])
+  @@index([userId])
+  @@index([addedById])
   @@map("request_participants")
 }
