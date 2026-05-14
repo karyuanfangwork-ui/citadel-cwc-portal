@@ -1840,6 +1840,25 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
+        // Notify participants of status change
+        const participantRecords = await prisma.requestParticipant.findMany({
+            where: { requestId: id },
+            select: { userId: true },
+        });
+        await Promise.all(
+            participantRecords.map((p) =>
+                notify({
+                    userId: p.userId,
+                    eventType: 'STATUS_CHANGED',
+                    variables: {
+                        referenceNumber: request.referenceNumber,
+                        newStatus: status,
+                    },
+                    relatedRequestId: request.id,
+                })
+            )
+        );
+
         await auditLog(req, 'STATUS_CHANGED', 'request', request.id, {
             newStatus: status,
             referenceNumber: request.referenceNumber,
