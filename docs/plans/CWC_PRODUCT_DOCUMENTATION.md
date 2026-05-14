@@ -1,7 +1,7 @@
 # Citadel Workplace Connect (CWC) — Production Documentation
 
-**Document Version:** 2.0
-**Date:** 2026-05-01
+**Document Version:** 2.1
+**Date:** 2026-05-13
 **Classification:** Internal / Confidential
 
 ---
@@ -62,6 +62,8 @@ Enterprise organizations face fragmented internal service management:
 | **Knowledge Base**                 | Self-service articles with search, categories, and helpfulness voting |
 | **Comprehensive Admin Panel**      | Full configuration of service desks, categories, workflows, users, entities, templates, and SLA rules |
 | **IT Asset Management**            | Complete asset lifecycle tracking — registry, assignment/return, active assignment list by employee, bulk CSV import/export (with Excel utility for Device_Inventory.xlsx), 9 statuses, 9 categories (incl. PRINTER), serial number + asset tag captured at hardware receipt, linked to procurement requests |
+| **CRM Module**                     | Full Customer Relationship Management — Accounts, Contacts, Leads, Opportunities, Pipeline (Kanban), Activities, Notes, Trust Products, KYC records, Beneficiaries, Team Dashboard, 7 report types, automation engine, Malaysian-specific fields (NRIC/Passport, PDPA consent, registration number, trust products) |
+| **Announcement Board**             | Rich-text announcement/newsletter board for staff — pinned announcements, categories, priorities, unread tracking, dashboard widget, admin management interface, PDF/DOCX parsing, image upload |
 | **Dark Mode**                      | System-wide dark mode with light/dark/system themes, CSS custom property token system, persisted to localStorage |
 | **Error Monitoring**               | Sentry integration for production error tracking with browser tracing and session replay |
 | **Internationalization Foundation**| i18next integrated for multi-language support (v26.0.8) |
@@ -88,6 +90,17 @@ Enterprise organizations face fragmented internal service management:
 | 10 | **Real-Time Notifications**| SSE-based live notification feed with in-app dropdown                    | `NotificationDropdown.tsx`|
 | 11 | **Approval Queue**         | Executive approval dashboard showing pending requests by role            | `ApprovalQueue.tsx`       |
 | 12 | **IT Asset Management**    | IT asset registry with CRUD, assignment/return, employee assets view, CSV import/export | `AssetManagement.tsx` |
+| 13 | **Announcements**          | Staff announcement board — list, detail, unread badge, dashboard widget  | `Announcements.tsx`, `AnnouncementDetail.tsx`, `AnnouncementWidget.tsx` |
+| 14 | **Announcements Admin**    | Create/edit/publish/pin/delete announcements; PDF/DOCX parsing; image upload | `AnnouncementsManage.tsx` |
+| 15 | **CRM Dashboard**          | Sales metrics, pipeline value, lead funnel, follow-up alerts, recent activities | `CrmDashboard.tsx` |
+| 16 | **CRM Accounts**           | Account list and detail — company profile, contacts, opportunities, activities | `CrmAccounts.tsx`, `CrmAccountDetail.tsx` |
+| 17 | **CRM Contacts**           | Contact list and detail — profile, NRIC/Passport, PDPA consent, KYC, beneficiaries | `CrmContacts.tsx`, `CrmContactDetail.tsx` |
+| 18 | **CRM Leads**              | Lead list and detail — status pipeline, convert to opportunity           | `CrmLeads.tsx`, `CrmLeadDetail.tsx` |
+| 19 | **CRM Opportunities**      | Opportunity list and detail — value, stage, expected close date          | `CrmOpportunities.tsx`, `CrmOpportunityDetail.tsx` |
+| 20 | **CRM Pipeline**           | Kanban pipeline board — drag-and-drop opportunity stage management       | `CrmPipeline.tsx` |
+| 21 | **CRM Team Dashboard**     | Team performance metrics (admin-only)                                    | `CrmTeamDashboard.tsx` |
+| 22 | **CRM Reports**            | 7 report types: lead conversion, sales performance, pipeline forecast, activity summary, lead aging, win/loss, KYC compliance | `CrmReports.tsx` |
+| 23 | **CRM Guide**              | User guide / onboarding reference for the CRM module                    | `CrmGuide.tsx` |
 
 #### IT Support Service Desk (5 Categories)
 
@@ -286,8 +299,24 @@ AppShell (BrowserRouter)
 ├── /assets             → AssetManagement (protected, asset:read permission)
 ├── /reports            → Reports (protected, report:read permission)
 ├── /search             → SearchResults (protected)
-├── /kb                 → KnowledgeBase (protected)
-├── /kb/:slug           → ArticleDetail (protected)
+├── /kb                 → KnowledgeBase (protected, DEV only)
+├── /kb/:slug           → ArticleDetail (protected, DEV only)
+├── /announcements      → Announcements (protected)
+├── /announcements/:id  → AnnouncementDetail (protected)
+├── /admin/announcements → AnnouncementsManage (protected, announcement:write permission)
+├── /crm                → CrmDashboard (protected, crm:read permission)
+├── /crm/accounts       → CrmAccounts (protected, crm:read)
+├── /crm/accounts/:id   → CrmAccountDetail (protected, crm:read)
+├── /crm/contacts       → CrmContacts (protected, crm:read)
+├── /crm/contacts/:id   → CrmContactDetail (protected, crm:read)
+├── /crm/leads          → CrmLeads (protected, crm:read)
+├── /crm/leads/:id      → CrmLeadDetail (protected, crm:read)
+├── /crm/opportunities  → CrmOpportunities (protected, crm:read)
+├── /crm/opportunities/:id → CrmOpportunityDetail (protected, crm:read)
+├── /crm/pipeline       → CrmPipeline/Kanban (protected, crm:read)
+├── /crm/team           → CrmTeamDashboard (protected, crm:admin permission)
+├── /crm/reports        → CrmReports (protected, crm:read)
+├── /crm/guide          → CrmGuide (protected, crm:read)
 └── /admin/settings     → AdminSettings (protected, admin:access permission)
     ├── User Accounts tab
     ├── Role Assignment tab
@@ -446,12 +475,29 @@ frontend/
 │   ├── AssetManagement.tsx         # IT asset registry + employee assignment view
 │   ├── AdminSettings.tsx           # Admin configuration panel
 │   ├── Reports.tsx                 # Analytics & reports
-│   ├── KnowledgeBase.tsx           # KB article browser
-│   ├── ArticleDetail.tsx           # KB article viewer
+│   ├── KnowledgeBase.tsx           # KB article browser (DEV only)
+│   ├── ArticleDetail.tsx           # KB article viewer (DEV only)
 │   ├── SearchResults.tsx           # Global search
 │   ├── HRServices.tsx              # HR service desk
 │   ├── ITSupport.tsx               # IT service desk
-│   └── GroupFinance.tsx            # Finance service desk
+│   ├── GroupFinance.tsx            # Finance service desk
+│   ├── Announcements.tsx           # Announcement list (all staff)
+│   ├── AnnouncementDetail.tsx      # Single announcement view
+│   ├── AnnouncementWidget.tsx      # Dashboard widget (pinned + latest)
+│   ├── AnnouncementsManage.tsx     # Admin announcement management
+│   ├── CrmDashboard.tsx            # CRM overview + KPIs
+│   ├── CrmAccounts.tsx             # Account list
+│   ├── CrmAccountDetail.tsx        # Account detail (contacts, opportunities, activities)
+│   ├── CrmContacts.tsx             # Contact list
+│   ├── CrmContactDetail.tsx        # Contact detail (KYC, beneficiaries, trust products)
+│   ├── CrmLeads.tsx                # Lead list
+│   ├── CrmLeadDetail.tsx           # Lead detail + convert to opportunity
+│   ├── CrmOpportunities.tsx        # Opportunity list
+│   ├── CrmOpportunityDetail.tsx    # Opportunity detail
+│   ├── CrmPipeline.tsx             # Kanban pipeline board
+│   ├── CrmTeamDashboard.tsx        # Team performance (crm:admin)
+│   ├── CrmReports.tsx              # 7 CRM report types
+│   └── CrmGuide.tsx                # CRM user guide
 ├── src/
 │   ├── pages/
 │   │   ├── Login.tsx               # Login page
@@ -540,36 +586,38 @@ frontend/
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                    Routes (31 files + index)                │ │
+│  │                    Routes (34 files + index)               │ │
 │  │  /auth /users /requests /service-desks /notifications    │ │
 │  │  /kb /search /approvals /interviews /screening /loa       │ │
 │  │  /onboarding /offboarding /it-workflow /finance-workflow  │ │
 │  │  /chargeback-workflow /reports /files /sla /assets        │ │
-│  │  /system-settings                                         │ │
+│  │  /announcements /crm /system-settings                     │ │
 │  │  /admin/* (entities, workflows, templates, configs)       │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                    Controllers (31 files)                   │ │
+│  │                    Controllers (33 files)                  │ │
 │  │  Auth, User, Request, Resume, ServiceDesk, Notification, │ │
 │  │  KB, Search, Approval, Interview, Screening, LOA,         │ │
 │  │  Onboarding, Offboarding, ITWorkflow, FinanceWorkflow,    │ │
 │  │  ChargebackWorkflow, Reports, Entity, BannerConfig,       │ │
 │  │  EscalationRule, WorkflowTransition, NotificationTemplate,│ │
 │  │  Asset, File, Workflow, RequestStatusDef, SystemSetting,  │ │
-│  │  OnboardingTemplate, OffboardingTemplate, AuditLog        │ │
+│  │  OnboardingTemplate, OffboardingTemplate, AuditLog,       │ │
+│  │  Announcement, CRM                                        │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                   Services (12 files)                    │ │
+│  │                   Services (16 files)                    │ │
 │  │  email, entityRouting, notification, onboarding,          │ │
 │  │  password-reset, permission, s3, sla, sla-pause, token,  │ │
-│  │  serviceDesk, autoAssignment                              │ │
+│  │  serviceDesk, autoAssignment, announcement,               │ │
+│  │  crm, crm-automation, crm-reports                         │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
 │  │                  Data Layer (Prisma ORM)                  │ │
-│  │  PostgreSQL — 43 models, 94 RequestStatus values          │ │
+│  │  PostgreSQL — 58 models, 16 enums, 94 RequestStatus values│ │
 │  │  Redis (ioredis) — token blocklist, rate limiting,        │ │
 │  │                    permission cache, SLA state            │ │
 │  └──────────────────────────────────────────────────────────┘ │
@@ -693,6 +741,20 @@ backend/
 │  NotificationTemplate                                         │
 │  OnboardingTaskTemplate                                       │
 │  OffboardingTaskTemplate                                      │
+│                                                               │
+│  Announcement ──< AnnouncementRead (per-user read tracking)   │
+│                                                               │
+│  CrmAccount ──< CrmContact ──< CrmLead                        │
+│    │         ──< CrmOpportunity                               │
+│    │         ──< CrmActivity                                  │
+│    │         ──< CrmNote                                      │
+│    │         ──< CrmAccountRequest                            │
+│    └─────────── CrmTrustProduct                               │
+│                                                               │
+│  CrmContact ──< CrmBeneficiary                                │
+│            ── CrmKycRecord (one-to-one)                       │
+│                                                               │
+│  CrmPipeline ──< CrmPipelineStage ──< CrmOpportunity          │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -704,7 +766,7 @@ backend/
 
 **Base URL:** `/api/v1`
 **Authentication:** JWT via httpOnly cookies (access_token) or Authorization: Bearer header
-**Rate Limiting:** 100 requests per 15-minute window (configurable)
+**Rate Limiting:** 2000 requests per 15-minute window for general API (configurable)
 
 ### 7.2 Route Summary
 
@@ -741,6 +803,8 @@ backend/
 | `/admin/offboarding-templates`    | offboardingTemplate.controller  | Admin     | Offboarding task templates |
 | `/admin/audit-logs`               | auditLog.controller             | Admin     | Audit log viewer |
 | `/system-settings`                | systemSetting.controller        | Admin     | Global system settings — enable/disable email notifications globally with cache invalidation |
+| `/announcements`                  | announcement.controller         | Protected | Announcement CRUD, publish/pin/unpin, mark-read, unread count, dashboard feed, admin list, PDF/DOCX parse, image upload |
+| `/crm`                            | crm.controller                  | Protected (crm:read/write/delete/admin) | Full CRM — Accounts, Contacts, Leads, Opportunities, Pipelines, Activities, Notes, Trust Products, KYC, Beneficiaries, Dashboard, Reports, Team Performance, Global Search |
 
 ### 7.3 Health Check
 
@@ -918,7 +982,106 @@ CWC integrates a full IT Asset Management module linked to the procurement workf
    - **Employee Assets tab** — employees with active assignments grouped by user, live search by name/email, expandable rows showing asset details, bulk return support
 7. **Database Utilities** — `backend/prisma/import-devices.ts` (Excel/XLSX bulk import from Device_Inventory.xlsx, supports Laptops/Desktops and Printers sheets, dry-run mode), `backend/prisma/assign-imported-assets.ts` (bulk employee-to-asset assignment from employee list, dry-run mode)
 
-### 9.7 Confidential Resume Handling
+### 9.7 CRM Module
+
+The CRM module is a standalone business development platform with 4-tier permission system (`crm:read`, `crm:write`, `crm:delete`, `crm:admin`).
+
+#### CRM Entities
+
+| Entity              | Description |
+|---------------------|-------------|
+| **CrmAccount**      | External company/organization with industry, size, Malaysian registration & tax numbers, bank account, trust product flag, annual revenue |
+| **CrmContact**      | Person at an account with NRIC/Passport, PDPA consent date, marketing opt-in, risk profile |
+| **CrmLead**         | Prospective customer with status pipeline (NEW → CONTACTED → QUALIFIED → UNQUALIFIED → CONVERTED/LOST), source tracking, follow-up date, stale detection |
+| **CrmOpportunity**  | Sales opportunity with value (MYR), expected close date, stage (pipeline-driven), won/lost timestamps |
+| **CrmPipeline**     | Configurable sales pipeline with ordered stages; supports isWonStage/isLostStage flags |
+| **CrmActivity**     | Interaction log — types: CALL, EMAIL, MEETING, NOTE, TASK, FOLLOW_UP, WHATSAPP, SITE_VISIT |
+| **CrmNote**         | Free-text notes attached to accounts, contacts, or opportunities |
+| **CrmTrustProduct** | Trust/investment product linked to an account |
+| **CrmKycRecord**    | KYC compliance record per contact (one-to-one); admin-approvable |
+| **CrmBeneficiary**  | Beneficiary records linked to a contact |
+
+#### CRM API Permissions
+
+| Permission   | Access Level |
+|--------------|-------------|
+| `crm:read`   | View all CRM data, reports, pipeline |
+| `crm:write`  | Create/update accounts, contacts, leads, opportunities, activities, notes, trust products, KYC |
+| `crm:delete` | Delete CRM records |
+| `crm:admin`  | Create/update pipelines, approve KYC, view team performance dashboard |
+
+#### CRM Automation Service (`crm-automation.service.ts`)
+
+Background automation functions run by the CRM automation job:
+
+| Function                   | Trigger                                | Action |
+|----------------------------|----------------------------------------|--------|
+| `notifyStaleDealOwners`    | Opportunities with no activity for N days | Sends `crm_stale_deal` notification to owner |
+| `notifyTrustReviewDue`     | Trust products with upcoming review date | Sends `crm_trust_review_due` notification |
+| `autoAssignLeads`          | New unassigned leads                   | Assigns to available agent; fires `crm_lead_auto_assigned` notification |
+| `checkKycExpiry`           | KYC records approaching expiry         | Sends expiry warning notifications |
+| `checkFollowUpsDue`        | Leads with follow-up date = today      | Sends follow-up reminder notifications |
+
+#### CRM Reports (7 types)
+
+| Report                    | Endpoint |
+|---------------------------|----------|
+| Lead Conversion           | `GET /crm/reports/lead-conversion` |
+| Sales Performance         | `GET /crm/reports/sales-performance` |
+| Pipeline Forecast         | `GET /crm/reports/pipeline-forecast` |
+| Activity Summary          | `GET /crm/reports/activity-summary` |
+| Lead Aging                | `GET /crm/reports/lead-aging` |
+| Win/Loss Analysis         | `GET /crm/reports/win-loss` |
+| KYC Compliance            | `GET /crm/reports/kyc-compliance` |
+
+### 9.8 Announcement Board
+
+Staff announcement and newsletter system for internal communications.
+
+#### Announcement Model
+
+| Field            | Description |
+|------------------|-------------|
+| `title`          | Announcement headline |
+| `content`        | Rich text (HTML) body |
+| `excerpt`        | Short preview text (auto or manual) |
+| `category`       | Enum: GENERAL, HR, IT, FINANCE, COMPANY_NEWS, POLICY, EVENT |
+| `priority`       | Enum: LOW, MEDIUM, HIGH, CRITICAL |
+| `targetAudience` | Role-based audience filter (default: ALL) |
+| `isPinned`       | Pinned announcements shown first in widget |
+| `isPublished`    | Draft (false) vs live (true) |
+| `publishedAt`    | Timestamp set when transitioning to published |
+| `expiresAt`      | Optional auto-expiry date |
+| `attachmentUrl`  | S3 URL of uploaded PDF/DOCX document |
+
+#### Announcement Permissions
+
+| Permission              | Access |
+|-------------------------|--------|
+| (authenticated)         | Read published announcements, mark as read |
+| `announcement:write`    | Create, edit, publish, pin, upload docs/images |
+| `announcement:admin`    | Delete announcements |
+
+#### API Endpoints
+
+| Method | Endpoint                          | Description |
+|--------|-----------------------------------|-------------|
+| GET    | `/announcements`                  | List published, non-expired announcements |
+| GET    | `/announcements/dashboard`        | Pinned + latest (for widget) |
+| GET    | `/announcements/unread-count`     | Unread badge count |
+| GET    | `/announcements/admin/all`        | All (incl. drafts) — requires `announcement:write` |
+| GET    | `/announcements/:id`              | Single announcement |
+| POST   | `/announcements`                  | Create (draft by default) |
+| PATCH  | `/announcements/:id`              | Update |
+| PATCH  | `/announcements/:id/publish`      | Publish (sets `publishedAt`) |
+| PATCH  | `/announcements/:id/pin`          | Toggle pin |
+| DELETE | `/announcements/:id`              | Delete — requires `announcement:admin` |
+| POST   | `/announcements/:id/read`         | Mark as read (creates AnnouncementRead) |
+| POST   | `/announcements/mark-all-read`    | Mark all as read |
+| POST   | `/announcements/parse-doc`        | Upload PDF/DOCX, extract text |
+| POST   | `/announcements/upload-image`     | Upload image for rich text |
+
+### 9.9 Confidential Resume Handling
 
 HR hiring requests support confidential resume management:
 
@@ -1212,11 +1375,24 @@ See section 10.3 for required variables. Additional configuration:
 | **AssetStatus**               | Enum (9): IN_STOCK, ASSIGNED, RESERVED, PENDING_RETURN, IN_REPAIR, RETIRED, LOST, STOLEN, DISPOSED |
 | **SLA Pause**                 | Mechanism to pause SLA countdown during approval/pending statuses; auto-resumes after SLA_MAX_PAUSE_DAYS |
 | **PENDING_APPROVAL_STATUSES** | Map of executive roles to request statuses they can approve; drives the Approvals tab visibility |
+| **CRM**                       | Customer Relationship Management — module for managing external accounts, contacts, leads, and opportunities |
+| **CrmAccount**                | External organization/company tracked in the CRM |
+| **CrmContact**                | Individual person at a CRM account (with PDPA consent, NRIC/Passport, risk profile) |
+| **CrmLead**                   | Prospective customer in the lead pipeline (NEW → CONVERTED/LOST) |
+| **CrmOpportunity**            | Qualified sales deal in the pipeline with monetary value and close date |
+| **CrmPipeline**               | Configurable ordered set of stages for tracking opportunities (Kanban) |
+| **KYC**                       | Know Your Customer — compliance record per contact; includes identity verification and approval status |
+| **PDPA**                      | Personal Data Protection Act — Malaysian data privacy regulation; consent tracking built into CrmContact |
+| **Trust Product**             | Financial trust/investment product offered by the organization, tracked per CRM account |
+| **Announcement**              | Internal staff communication published to the portal; can be pinned, categorized, and targeted by audience |
+| **AnnouncementRead**          | Per-user read receipt for announcements; drives unread badge count |
 
 ---
 
-*This document reflects Citadel Workplace Connect v2.0.0 as of 2026-05-05. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (94 values), i18next foundation, notificationSse route, serviceDesk service, request-detail workflow modals (26+), accessibility hooks (useFocusTrap, useEscapeKey), password management pages (ForgotPassword, ResetPassword, ChangePassword), systemSetting controller + routes (global email toggle), autoAssignment service.*
+*This document reflects Citadel Workplace Connect v2.1.0 as of 2026-05-13. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (94 values), i18next foundation, notificationSse route, serviceDesk service, request-detail workflow modals (26+), accessibility hooks (useFocusTrap, useEscapeKey), password management pages (ForgotPassword, ResetPassword, ChangePassword), systemSetting controller + routes (global email toggle), autoAssignment service.*
 
 **Doc sync (2026-05-05):** Updated RequestStatus count (76→94), controller count (31→30), route files (+notificationSse), service count (10→11, +serviceDesk), validator count (+serviceDesk), schema lines (1363→1364), Prisma data layer (76→94 statuses), backend test counts (112→121), frontend test counts (97→91), admin modals (6→11), request-detail components documented, STATUS_CONFIG count (76+→94), workflow modals (15→26+), FSD modal description (9→26+ with directory split), added hooks (useFocusTrap, useEscapeKey), added notificationSSE route, corrected individual test per-suite counts.
 
 **Doc sync (2026-05-08):** Corrected controller count (30→31, +systemSetting), service count (11→12, +autoAssignment), route count (30→31, +systemSetting), admin tab count (13→12, Role Assignment is modal not a tab); added /forgot-password, /reset-password/:token, /change-password to navigation structure; added ForgotPassword/ResetPassword/ChangePassword to frontend module structure; added /system-settings to API route table and backend architecture diagrams.
+
+**Doc sync (2026-05-13):** Added CRM module (13 frontend pages, 3 backend services crm/crm-automation/crm-reports, 1 route file, 1 controller, 10 CRM Prisma models + 4 enums, 4 permissions crm:read/write/delete/admin, 7 report types, automation engine, Malaysian-specific fields); added Announcement Board (4 frontend pages/widget, 1 backend service, 1 route file, 1 controller, 2 Prisma models, 2 permissions announcement:write/admin, 14 API endpoints including PDF/DOCX parse and image upload); updated route count (31→34), controller count (31→33), service count (12→16), Prisma model count (43→58), enum count (16), KB routes flagged as DEV-only; updated rate limit to 2000/15min; updated navigation structure with all new CRM and announcement routes; added sections 9.7 CRM Module, 9.8 Announcement Board; updated glossary with 12 new terms.*

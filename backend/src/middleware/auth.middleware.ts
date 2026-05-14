@@ -16,6 +16,7 @@ export interface AuthRequest extends Request {
         lastName: string;
         roles: string[];
         permissions: string[];
+        agentTeam?: string | null;
     };
     jti?: string;
     tokenExp?: number;
@@ -94,6 +95,7 @@ export const authenticate = async (
             lastName: user.lastName,
             roles,
             permissions,
+            agentTeam: user.agentTeam,
         };
         // Populate jti and tokenExp so logout can revoke the specific token
         req.jti = decoded.jti;
@@ -167,6 +169,7 @@ export const optionalAuth = async (
                 lastName: user.lastName,
                 roles,
                 permissions,
+                agentTeam: user.agentTeam,
             };
         }
 
@@ -266,6 +269,7 @@ export const sseAuth = async (
             lastName: user.lastName,
             roles,
             permissions,
+            agentTeam: user.agentTeam,
         };
         req.jti = decoded.jti;
         req.tokenExp = decoded.exp;

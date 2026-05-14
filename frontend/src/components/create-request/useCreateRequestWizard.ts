@@ -48,11 +48,11 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
 
   const { user } = useAuth();
 
-  // Auto-generate summary for hiring and offboarding request types
+  // Auto-generate summary for hiring, offboarding, hardware, and IT help request types
   const isAutoSummary = useMemo(() => {
     if (!selectedRequestType) return false;
     const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
-    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP';
   }, [selectedRequestType]);
 
   const autoSummary = useMemo(() => {
@@ -65,6 +65,37 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       const empName = cf.employeeName || '';
       const reason = cf.reason || '';
       return empName ? `Offboard: ${empName}${reason ? ` (${reason})` : ''}` : '';
+    }
+
+    if (code === 'NEW_HARDWARE') {
+      const hwName = cf.hardwareName || '';
+      // Resolve field by label in case admin changed field IDs
+      const formConfig = selectedRequestType?.formConfig || [];
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const name = hwName || resolveByLabel('hardware name') || resolveByLabel('device type');
+      if (!name) return '';
+      return `Request new hardware: ${name}`;
+    }
+
+    if (code === 'GET_IT_HELP') {
+      const desc = (formData.description || '').trim();
+      if (!desc) return '';
+      // Take the first line, truncate to 120 chars
+      const firstLine = desc.split('\n')[0].trim();
+      const maxLen = 120;
+      if (firstLine.length <= maxLen) return `Get IT Help: ${firstLine}`;
+      // Truncate at last space before maxLen to avoid mid-word cutoff
+      const truncated = firstLine.substring(0, maxLen);
+      const lastSpace = truncated.lastIndexOf(' ');
+      const short = lastSpace > maxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
+      return `Get IT Help: ${short}`;
     }
 
     // NEW_HIRING default
@@ -82,7 +113,6 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     const summary = parts.join(' ').trim();
     return summary ? `New Hire: ${summary}` : '';
   }, [isAutoSummary, formData.customFields, entityOptions, selectedRequestType]);
-
   // Auto-set confidential for HR requests — all HR requests are confidential by default
   const isAutoConfidential = useMemo(() => deskType === 'hr', [deskType]);
 

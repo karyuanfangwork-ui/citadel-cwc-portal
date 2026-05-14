@@ -99,11 +99,14 @@ export function getWorkflowActions(
   hasLOA = false,
   hasSignedLOA = false,
   assignedToId = '',
-  currentUserId = ''
+  currentUserId = '',
+  agentTeam = '',
 ): WorkflowAction[] {
   const isAdmin = userRoles.includes('ADMIN');
   const isAgent = userRoles.includes('AGENT');
   const canAct = isAdmin || isAgent;
+  // Agent can only act on tickets belonging to their own service desk (admin bypasses)
+  const canActOnDesk = canAct && (isAdmin || (agentTeam?.toUpperCase() || '') === (serviceDeskCode?.toUpperCase() || ''));
   const isProcurement = isProcurementRequest(requestTypeCode, requestTypeName);
   const isHR = serviceDeskCode === 'HR';
   const isNewHiring = requestTypeCode === 'NEW_HIRING' ||
@@ -113,9 +116,9 @@ export function getWorkflowActions(
   const isOffboardingTicket = requestTypeCode === 'EMPLOYEE_OFFBOARDING' ||
     (!requestTypeCode && requestTypeName.toLowerCase().includes('offboard'));
   // Procurement lifecycle actions: only assigned person + admin can act
-  // (prevents other agents from wrongly updating hardware status)
+  // Also requires the agent to be from the IT desk (procurement is IT-specific)
   const isAssignedToMe = !!assignedToId && !!currentUserId && assignedToId === currentUserId;
-  const canActOnProcurement = canAct && (isAdmin || isAssignedToMe);
+  const canActOnProcurement = canActOnDesk && (isAdmin || isAssignedToMe);
 
   const actions: WorkflowAction[] = [];
 
@@ -184,8 +187,8 @@ export function getWorkflowActions(
     });
   }
 
-  // Finance Agent / Admin actions
-  if (canAct) {
+  // Finance Agent / Admin actions — only finance desk agents/admins
+  if (canActOnDesk && serviceDeskCode === 'FINANCE') {
       if (status === 'FINANCE_PENDING_ACK' || (isPurchaseRequisition && status === 'SUBMITTED')) {
         actions.push({
           type: 'FIN_ACKNOWLEDGE',
@@ -224,7 +227,7 @@ export function getWorkflowActions(
   const isChargeback = requestTypeCode === 'INTERCOMPANY_CHARGEBACK' ||
     (!requestTypeCode && requestTypeName.toLowerCase().includes('inter-company chargeback'));
   // Finance actions — only finance desk agents/admins, not entity approvers or other staff
-  const isFinanceAgent = canAct && serviceDeskCode === 'FINANCE';
+  const isFinanceAgent = canActOnDesk && serviceDeskCode === 'FINANCE';
 
   if (isChargeback) {
     // Finance agent submits chargeback (SUBMITTED → PENDING_FROM_ENTITY_APPROVAL)
@@ -295,7 +298,7 @@ export function getWorkflowActions(
 
   if (isExpenseReimbursement) {
     // Finance agent: route submitted expense to manager
-    if (canAct && status === 'SUBMITTED') {
+    if (canActOnDesk && status === 'SUBMITTED') {
       actions.push({
         type: 'SUBMIT_FOR_APPROVAL',
         label: 'Route to Manager Approval',
@@ -303,9 +306,8 @@ export function getWorkflowActions(
         variant: 'primary',
       });
     }
-    // Manager approval — the requester's manager (isRequester gate doesn't apply here;
-    // manager is the designated approver or admin/agent can act on behalf)
-    if ((isDesignatedApprover || canAct) && status === 'PENDING_MANAGER_APPROVAL_FIN') {
+    // Manager approval — the designated approver or finance desk admin/agent
+    if ((isDesignatedApprover || canActOnDesk) && status === 'PENDING_MANAGER_APPROVAL_FIN') {
       actions.push(
         {
           type: 'MANAGER_APPROVE_EXPENSE',
@@ -322,7 +324,7 @@ export function getWorkflowActions(
       );
     }
     // Finance Head approval
-    if (canAct && status === 'PENDING_FINANCE_HEAD_APPROVAL') {
+    if (canActOnDesk && status === 'PENDING_FINANCE_HEAD_APPROVAL') {
       actions.push(
         {
           type: 'FINANCE_HEAD_APPROVE_EXPENSE',
@@ -339,7 +341,7 @@ export function getWorkflowActions(
       );
     }
     // Payment processing
-    if (canAct && status === 'PAYMENT_PROCESSING') {
+    if (canActOnDesk && status === 'PAYMENT_PROCESSING') {
       actions.push({
         type: 'MARK_EXPENSE_PAYMENT_COMPLETE',
         label: 'Mark Payment Complete',
@@ -391,7 +393,7 @@ export function getWorkflowActions(
 
   if (!canAct) return actions;
 
-  // Unassigned — surface assign action for all agent/admin statuses
+  // Unassigned — surface assign action for any agent/admin (cross-desk allowed)
   if (!isAssigned) {
     actions.push({
       type: 'ASSIGN',
@@ -401,18 +403,16 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct) {
-    // Only non-procurement IT requests basic lifecycle — no manager approval (Scenario 3 removed)
-    // HR hiring requests go to CEO approval instead — skip this action for HR
-    if (status === 'SUBMITTED' && !isProcurement && !isHR && !requiresApproval && serviceDeskCode === 'IT') {
-      actions.push({
-        type: 'START_IT_REVIEW',
-        label: 'Start Review',
-        description: 'Begin reviewing this request and move it to In Review.',
-        variant: 'primary',
-      });
-    }
+  // Below this point: only agents belonging to this ticket's service desk (or admins) see actions
+  if (!canActOnDesk) return actions;
 
+  if (status === 'SUBMITTED' && !isProcurement && !isHR && !requiresApproval && serviceDeskCode === 'IT') {
+    actions.push({
+      type: 'START_IT_REVIEW',
+      label: 'Start Review',
+      description: 'Begin reviewing this request and move it to In Review.',
+      variant: 'primary',
+    });
   }
 
   if (canActOnProcurement && status === 'PROCUREMENT_IN_PROGRESS' && isProcurement) {
@@ -449,7 +449,7 @@ export function getWorkflowActions(
   }
 
   // IT Hardware Executive Approval Chain
-  if (canAct && status === 'SUBMITTED' && isProcurement) {
+  if (canActOnDesk && status === 'SUBMITTED' && isProcurement) {
     actions.push({
       type: 'ACKNOWLEDGE_IT',
       label: 'Acknowledge & Route to CEO',
@@ -459,7 +459,7 @@ export function getWorkflowActions(
   }
 
   // HR New Hiring — Route to CEO
-  if (canAct && isHR && isNewHiring && status === 'JOB_POSTED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'JOB_POSTED') {
     if (hasResumes) {
       actions.push({
         type: 'ROUTE_TO_MANAGER',
@@ -476,7 +476,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'HR_SCREENING') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'HR_SCREENING') {
     actions.push({
       type: 'UPDATE_SCREENING',
       label: 'Update Reference Check',
@@ -495,7 +495,7 @@ export function getWorkflowActions(
     }
   }
 
-  if (canAct && isHR && isNewHiring && status === 'LOA_ACCEPTED' && hasSignedLOA) {
+  if (canActOnDesk && isHR && isNewHiring && status === 'LOA_ACCEPTED' && hasSignedLOA) {
     actions.push({
       type: 'MARK_LOA_ACCEPTED',
       label: 'Mark LOA Accepted',
@@ -504,7 +504,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'LOA_ISSUED' && !hasSignedLOA) {
+  if (canActOnDesk && isHR && isNewHiring && status === 'LOA_ISSUED' && !hasSignedLOA) {
     actions.push({
       type: 'UPLOAD_SIGNED_LOA',
       label: 'Upload Signed LOA',
@@ -513,7 +513,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'LOA_APPROVED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'LOA_APPROVED') {
     actions.push({
       type: 'ISSUE_LOA',
       label: 'Issue LOA to Candidate',
@@ -522,7 +522,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'LOA_PENDING_APPROVAL' && screeningCompleted && !hasLOA) {
+  if (canActOnDesk && isHR && isNewHiring && status === 'LOA_PENDING_APPROVAL' && screeningCompleted && !hasLOA) {
     actions.push({
       type: 'UPLOAD_LOA',
       label: 'Upload LOA Document',
@@ -531,7 +531,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'MANAGER_APPROVED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'MANAGER_APPROVED') {
     actions.push({
       type: 'SCHEDULE_INTERVIEW',
       label: 'Schedule Interview',
@@ -540,7 +540,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'CEO_APPROVED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'CEO_APPROVED') {
     actions.push({
       type: 'ROUTE_TO_GROUP_CEO_HR',
       label: 'Route to Group CEO for Approval',
@@ -549,7 +549,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && status === 'GROUP_CEO_APPROVED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'GROUP_CEO_APPROVED') {
     actions.push({
       type: 'MARK_JOB_POSTED',
       label: 'Mark Job as Posted',
@@ -558,7 +558,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && isHR && isNewHiring && (status === 'SUBMITTED' || status === 'IN_REVIEW')) {
+  if (canActOnDesk && isHR && isNewHiring && (status === 'SUBMITTED' || status === 'IN_REVIEW')) {
     actions.push({
       type: 'ROUTE_TO_CEO_HR',
       label: 'Route to CEO for Approval',
@@ -567,7 +567,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_REVIEW') {
+  if (canActOnDesk && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_REVIEW') {
     actions.push({
       type: 'MARK_IN_PROGRESS',
       label: 'Mark In Progress',
@@ -576,7 +576,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_PROGRESS') {
+  if (canActOnDesk && serviceDeskCode === 'IT' && !isProcurement && status === 'IN_PROGRESS') {
     actions.push({
       type: 'RESOLVE_IT',
       label: 'Resolve Ticket',
@@ -585,7 +585,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && status === 'PENDING_INVOICE_IT') {
+  if (canActOnDesk && status === 'PENDING_INVOICE_IT') {
     actions.push({
       type: 'ROUTE_TO_CFO',
       label: 'Route to CFO for Approval',
@@ -605,7 +605,7 @@ export function getWorkflowActions(
     });
   }
 
-  if (canAct && status === 'PENDING_DELIVERY_IT') {
+  if (canActOnDesk && status === 'PENDING_DELIVERY_IT') {
     actions.push({
       type: 'COMPLETE_DELIVERY',
       label: 'Complete Delivery',
@@ -615,7 +615,7 @@ export function getWorkflowActions(
   }
 
   // Offboarding ticket phase advancement
-  if (canAct && isHR && isOffboardingTicket) {
+  if (canActOnDesk && isHR && isOffboardingTicket) {
     const offboardingPhaseActions: Record<string, { label: string; description: string }> = {
       SUBMITTED: {
         label: 'Start Notice Period',
@@ -658,7 +658,7 @@ export function getWorkflowActions(
   }
 
   // Onboarding ticket phase advancement
-  if (canAct && isHR && isOnboardingTicket) {
+  if (canActOnDesk && isHR && isOnboardingTicket) {
     const onboardingPhaseActions: Record<string, { label: string; description: string }> = {
       SUBMITTED: {
         label: 'Start Pre-Arrival Setup',

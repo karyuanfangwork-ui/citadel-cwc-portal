@@ -5,7 +5,7 @@ export const createRequestSchema = z.object({
     body: z.object({
         requestTypeId: z.string().uuid().optional(),
         serviceDeskId: z.string().uuid('Service desk is required'),
-        summary: z.string().min(1, 'Summary is required').max(500),
+        summary: z.string().max(500).optional().default(''),
         description: z.string().optional(),
         priority: z.nativeEnum(RequestPriority).optional(),
         customFields: z.record(z.any()).optional(),

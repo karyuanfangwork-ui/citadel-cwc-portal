@@ -164,6 +164,7 @@ const RequestDetailContainer: React.FC = () => {
                         slaDueAt={request.slaDueAt}
                         serviceDeskCode={request.serviceDesk?.code || ''}
                         requiresApproval={request.requestType?.requiresApproval ?? true}
+                        agentTeam={user?.agentTeam}
                         attachments={request.attachments || []}
                         hasResumes={rq.resumes.length > 0}
                         screeningCompleted={rq.screeningDetails?.overallStatus === 'COMPLETED'}

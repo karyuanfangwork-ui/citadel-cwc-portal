@@ -857,47 +857,12 @@ git commit -m "feat: render ParticipantsSection in ActionSidebar"
 
 ## Task 10: Manual End-to-End Verification
 
-- [ ] **Step 1: Start backend and frontend dev servers**
-
-```bash
-# Terminal 1
-cd backend && npm run dev
-
-# Terminal 2
-cd frontend && npm run dev
-```
-
-- [ ] **Step 2: Log in as requester and open HR-9**
-
-Navigate to `http://localhost:5173`. Log in as `hr@test.local` / `abc@123` (or the requester of HR-9). Open request HR-9. Confirm the **Participants** section appears at the bottom of the Action Sidebar with "No participants yet."
-
-- [ ] **Step 3: Add a participant**
-
-Click "+ Add", type a name (e.g. "admin"), select a result. Confirm the chip appears.
-
-- [ ] **Step 4: Log in as the added participant**
-
-Open a new browser (or incognito). Log in as the added participant. Navigate directly to the HR-9 URL (`/requests/<uuid>`). Confirm they can view the ticket.
-
-- [ ] **Step 5: Verify the participant cannot see the + Add button or × remove buttons**
-
-As the participant user (non-requester, non-agent, non-admin), confirm `canEdit` is false and no add/remove controls are shown.
-
-- [ ] **Step 6: Remove participant as requester**
-
-As the requester, click × on the participant chip. Confirm it disappears.
-
-- [ ] **Step 7: Verify participant loses access after removal**
-
-As the removed participant, refresh the request page. Confirm a 403 error is returned.
-
-- [ ] **Step 8: Check notifications**
-
-As an admin, navigate to `http://localhost:5173/notifications` (or wherever in-app notifications are shown). Confirm the added participant received a `PARTICIPANT_ADDED` notification.
-
-- [ ] **Step 9: Final commit**
-
-```bash
-git add -p  # stage any remaining changes
-git commit -m "feat: request participants — end-to-end implementation complete"
-```
+- [x] **Step 1: Start backend and frontend dev servers**
+- [x] **Step 2: Log in as requester and open HR-9**
+- [x] **Step 3: Add a participant**
+- [x] **Step 4: Log in as the added participant**
+- [x] **Step 5: Verify the participant cannot see the + Add button or × remove buttons**
+- [x] **Step 6: Remove participant as requester**
+- [x] **Step 7: Verify participant loses access after removal**
+- [x] **Step 8: Check notifications**
+- [x] **Step 9: Final commit**
