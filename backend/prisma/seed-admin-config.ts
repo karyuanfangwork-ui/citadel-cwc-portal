@@ -408,6 +408,18 @@ export const SEED_NOTIFICATION_TEMPLATES = [
     "pushTitle": "New lead assigned to you",
     "pushBody": "A new lead has been auto-assigned. Tap to view.",
     "isActive": true
+  },
+
+  // ── Participant Added ─────────────────────────────────────────────────────
+  {
+    "name": "Added as Request Participant",
+    "eventType": "PARTICIPANT_ADDED",
+    "emailSubject": "You have been added to request {{referenceNumber}}",
+    "emailBody": "<p>Hi {{userName}},</p><p>You have been added as a participant to request <strong>{{referenceNumber}}</strong>: {{summary}}. You can now view this request and will receive status updates.</p>",
+    "smsBody": null,
+    "pushTitle": "Added to Request",
+    "pushBody": "You have been added as a participant to request {{referenceNumber}}.",
+    "isActive": true
   }
 ];
 
