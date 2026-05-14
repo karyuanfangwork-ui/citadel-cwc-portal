@@ -32,6 +32,7 @@ const FinDecisionModal = lazy(() => import('./FinDecisionModal'));
 const MarkPaymentCompleteFinModal = lazy(() => import('./MarkPaymentCompleteFinModal'));
 const CloseTicketFinModal = lazy(() => import('./CloseTicketFinModal'));
 
+import ParticipantsSection from './ParticipantsSection';
 import WorkflowActionModal from './WorkflowActionModal';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 
@@ -57,6 +58,7 @@ interface ActionSidebarProps {
   requesterId?: string;
   serviceDeskCode: string;
   requiresApproval?: boolean;
+  agentTeam?: string;
   attachments?: { id: string; fileName: string; storageUrl: string; mimeType: string; createdAt: string }[];
   hasResumes?: boolean;
   screeningCompleted?: boolean;
@@ -106,6 +108,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   requesterId,
   serviceDeskCode,
   requiresApproval,
+  agentTeam,
   attachments = [],
   hasResumes = false,
   screeningCompleted = false,
@@ -131,12 +134,17 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
   const [actionError, setActionError] = useState<string | null>(null);
   const [directActionLoading, setDirectActionLoading] = useState(false);
 
+  const canEdit =
+    userId === requesterId ||
+    userRoles.includes('ADMIN') ||
+    userRoles.includes('AGENT');
+
   const isAssigned = !!assignedTo;
   const isDesignatedApprover = approvals.some(
     a => a.approverId === userId && a.status === 'PENDING'
   );
   const isRequester = !!(requesterId && userId && requesterId === userId);
-  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester, serviceDeskCode, requiresApproval ?? true, requestTypeCode, hasResumes, screeningCompleted, hasLOA, hasSignedLOA, assignedTo?.id ?? '', userId);
+  const actions = getWorkflowActions(status, userRoles, isAssigned, isDesignatedApprover, requestTypeName, isRequester, serviceDeskCode, requiresApproval ?? true, requestTypeCode, hasResumes, screeningCompleted, hasLOA, hasSignedLOA, assignedTo?.id ?? '', userId, agentTeam);
 
   const handleSuccess = () => {
     setOpenModal(null);
@@ -639,6 +647,10 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
           />
         </Suspense>
       )}
+      <ParticipantsSection
+        requestId={requestId}
+        canEdit={canEdit}
+      />
     </aside>
   );
 };
