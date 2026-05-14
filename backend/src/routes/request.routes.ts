@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requestController } from '../controllers/request.controller';
+import participantRoutes from './participant.routes';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { uploadSingleFile } from '../middleware/upload.middleware';
@@ -119,5 +120,7 @@ router.put('/:id/assign', requirePermission('request:assign'), requestController
  * @access  Private (Agent/Admin only)
  */
 router.put('/:id/status', requirePermission('request:update'), requestController.updateStatus);
+
+router.use('/:id/participants', participantRoutes);
 
 export default router;
