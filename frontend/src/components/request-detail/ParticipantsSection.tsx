@@ -24,16 +24,20 @@ export default function ParticipantsSection({ requestId, canEdit }: Participants
     const [addingId, setAddingId] = useState<string | null>(null);
     const [removingId, setRemovingId] = useState<string | null>(null);
     const searchRef = useRef<HTMLDivElement>(null);
+    const addBtnRef = useRef<HTMLButtonElement>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         requestService.getParticipants(requestId).then(setParticipants).catch(() => {});
     }, [requestId]);
 
-    // Close dropdown on outside click
+    // Close dropdown on outside click (ignore clicks on the "+ Add" button itself)
     useEffect(() => {
         function handleClick(e: MouseEvent) {
-            if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+            const target = e.target as Node;
+            // Ignore clicks on the "+ Add" button — it toggles showSearch on its own
+            if (addBtnRef.current && addBtnRef.current.contains(target)) return;
+            if (searchRef.current && !searchRef.current.contains(target)) {
                 setShowSearch(false);
                 setQuery('');
                 setResults([]);
@@ -103,10 +107,11 @@ export default function ParticipantsSection({ requestId, canEdit }: Participants
                 </span>
                 {canEdit && (
                     <button
+                        ref={addBtnRef}
                         onClick={() => setShowSearch((s) => !s)}
                         className="text-xs text-blue-600 hover:underline"
                     >
-                        + Add
+                        {showSearch ? 'Cancel' : '+ Add'}
                     </button>
                 )}
             </div>
