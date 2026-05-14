@@ -647,6 +647,14 @@ class RequestController {
         const isPurchaseRequisition = requestType?.code === 'PURCHASE_REQUISITION';
         const isIntercompanyChargeback = requestType?.code === 'INTERCOMPANY_CHARGEBACK';
         const isExpenseClaim = requestType?.code === 'EXPENSE_CLAIM';
+
+        // Validate summary: required unless auto-generated for specific request types
+        const autoSummaryCodes = ['NEW_HIRING', 'EMPLOYEE_OFFBOARDING', 'NEW_HARDWARE', 'GET_IT_HELP'];
+        const isAutoSummaryType = requestType?.code ? autoSummaryCodes.includes(requestType.code) : false;
+        if (!summary && !isAutoSummaryType) {
+            throw new AppError('Summary is required', 400);
+        }
+
         const initialStatus = isManualOnboarding
             ? 'ONBOARDING_SUBMITTED'
             : isManualOffboarding
@@ -812,6 +820,47 @@ class RequestController {
             finalDescription = `Budget proposal for ${department} - ${period}. Total requested: ${totalAmount}. Breakdown: ${breakdown}. Justification: ${justification}.`;
         }
 
+        // Auto-generate summary for hardware and IT help requests if not provided
+        let finalSummary = summary;
+        if (!finalSummary && requestType?.code === 'NEW_HARDWARE') {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = (requestType?.formConfig || []) as any[];
+            const resolveField = (...keys: string[]): any => {
+                for (const k of keys) { if (cf[k]) return cf[k]; }
+                return undefined;
+            };
+            const resolveByLabel = (labelMatch: string): any => {
+                for (const f of formConfig) {
+                    if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                        if (cf[f.id]) return cf[f.id];
+                    }
+                }
+                return undefined;
+            };
+            const hwName = resolveField('hardwareName') || resolveByLabel('hardware name') || resolveByLabel('device type') || '';
+            if (hwName) {
+                finalSummary = `Request new hardware: ${hwName}`;
+            }
+        }
+        if (!finalSummary && requestType?.code === 'GET_IT_HELP') {
+            const desc = (rawDescription || '').trim();
+            if (desc) {
+                const firstLine = desc.split('\n')[0].trim();
+                const maxLen = 120;
+                // Reserve 14 chars for "Get IT Help: " prefix
+                const summaryMaxLen = maxLen - 14;
+                let shortSummary: string;
+                if (firstLine.length <= summaryMaxLen) {
+                    shortSummary = firstLine;
+                } else {
+                    const truncated = firstLine.substring(0, summaryMaxLen);
+                    const lastSpace = truncated.lastIndexOf(' ');
+                    shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
+                }
+                finalSummary = `Get IT Help: ${shortSummary}`;
+            }
+        }
+
         // Create request, hardware details, and initial activity in a single transaction
         const request = await prisma.$transaction(async (tx) => {
             const createdRequest = await tx.request.create({
@@ -821,7 +870,7 @@ class RequestController {
                     serviceDeskId,
                     requesterId: req.user!.id,
                     requesterEmail: req.user!.email,
-                    summary,
+                    summary: finalSummary,
                     description: finalDescription,
                     priority,
                     customFields,
@@ -1203,6 +1252,9 @@ class RequestController {
                         },
                     },
                 },
+                participants: {
+                    select: { userId: true },
+                },
             },
         });
 
@@ -1234,6 +1286,7 @@ class RequestController {
         // 4. User is CTO/CFO and request is pending their IT approval
         // 5. User is a designated approver on this request
         const ceoHiringStatuses = ['PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED', 'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED'];
+        const isParticipant = (request as any).participants?.some((p: any) => p.userId === req.user!.id) ?? false;
         const isDesignatedApprover = (request as any).approvals?.some((a: any) => a.approverId === req.user!.id);
         const isCEOApprover = hasRole(req, 'CEO') && (
             ceoHiringStatuses.includes(request.status) ||
@@ -1260,7 +1313,8 @@ class RequestController {
             !isCEOApprover &&
             !isCTOApprover &&
             !isCFOApprover &&
-            !isGroupCeoApprover
+            !isGroupCeoApprover &&
+            !isParticipant
         ) {
             throw new AppError('You do not have permission to view this request', 403);
         }
@@ -1701,9 +1755,23 @@ class RequestController {
         const { status } = req.body;
 
         // Fetch current request to validate transition
-        const currentRequest = await prisma.request.findUnique({ where: { id } });
+        const currentRequest = await prisma.request.findUnique({
+            where: { id },
+            include: { serviceDesk: true },
+        });
         if (!currentRequest) {
             throw new AppError('Request not found', 404);
+        }
+
+        // Authorization: non-admin agents can only update requests belonging to their own service desk
+        const user = req.user!;
+        const isAdmin = user.roles?.includes('ADMIN');
+        if (!isAdmin) {
+            const userTeam = user.agentTeam?.toUpperCase() || '';
+            const requestDesk = currentRequest.serviceDesk?.code?.toUpperCase() || '';
+            if (userTeam && requestDesk && userTeam !== requestDesk) {
+                throw new AppError('You are not authorized to update requests from another service desk', 403);
+            }
         }
 
         // Validate transition
