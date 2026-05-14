@@ -150,6 +150,45 @@ class UserController {
     });
 
     /**
+     * Search users by name/email — lightweight endpoint for participant typeahead.
+     * Returns minimal fields (id, firstName, lastName, email, avatarUrl) so any
+     * authenticated user can find colleagues to add as participants.
+     */
+    searchUsers = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { q, limit = '8' } = req.query;
+
+        if (!q || typeof q !== 'string' || !q.trim()) {
+            res.json({ status: 'success', data: { users: [] } });
+            return;
+        }
+
+        const limitNum = Math.min(parseInt(limit as string, 10) || 8, 20);
+        const search = q.trim();
+
+        const users = await prisma.user.findMany({
+            where: {
+                isActive: true,
+                OR: [
+                    { email: { contains: search, mode: 'insensitive' } },
+                    { firstName: { contains: search, mode: 'insensitive' } },
+                    { lastName: { contains: search, mode: 'insensitive' } },
+                ],
+            },
+            take: limitNum,
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                avatarUrl: true,
+            },
+            orderBy: { firstName: 'asc' },
+        });
+
+        res.json({ status: 'success', data: { users } });
+    });
+
+    /**
      * Get all users with pagination and filters (Admin only)
      */
     getAllUsers = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {

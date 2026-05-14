@@ -93,6 +93,13 @@ router.get('/permissions/all', requirePermission('admin:access'), userController
 router.put('/roles/:roleId/permissions', requirePermission('admin:settings'), userController.updateRolePermissions);
 
 /**
+ * @route   GET /api/v1/users/search
+ * @desc    Search users by name/email (minimal fields) — used by participant typeahead
+ * @access  Private (any authenticated user — needed so requesters can add participants)
+ */
+router.get('/search', authenticate, userController.searchUsers);
+
+/**
  * @route   GET /api/v1/users/:id
  * @desc    Get user by ID
  * @access  Private (Admin only)

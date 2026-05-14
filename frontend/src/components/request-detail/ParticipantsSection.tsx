@@ -55,7 +55,7 @@ export default function ParticipantsSection({ requestId, canEdit }: Participants
         debounceRef.current = setTimeout(async () => {
             setLoading(true);
             try {
-                const res = await apiClient.get(`/users?search=${encodeURIComponent(val)}&limit=8`);
+                const res = await apiClient.get(`/users/search?q=${encodeURIComponent(val)}&limit=8`);
                 const users: UserSearchResult[] = res.data.data?.users ?? res.data.data ?? [];
                 // Filter out already-added participants
                 const participantIds = new Set(participants.map((p) => p.userId));
