@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest, hasRole } from '../middleware/auth.middleware';
 import { notify } from '../services/notification.service';
+import { auditLog } from '../utils/audit';
 
 const prisma = new PrismaClient();
 
@@ -75,6 +76,11 @@ class ParticipantController {
             throw new AppError('The requester is already associated with this request', 400);
         }
 
+        const existing = await prisma.requestParticipant.findUnique({
+            where: { requestId_userId: { requestId, userId } },
+        });
+        if (existing) throw new AppError('User is already a participant', 409);
+
         const targetUser = await prisma.user.findUnique({
             where: { id: userId },
             select: { id: true, firstName: true, lastName: true, email: true },
@@ -89,6 +95,7 @@ class ParticipantController {
             },
             include: {
                 user: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+                addedBy: { select: { id: true, firstName: true, lastName: true } },
             },
         });
 
@@ -102,6 +109,11 @@ class ParticipantController {
             },
             relatedRequestId: requestId,
         });
+
+        await auditLog(req, 'PARTICIPANT_ADDED', 'request', requestId, {
+            userId,
+            referenceNumber: request.referenceNumber,
+        }).catch(() => {});
 
         res.status(201).json({ status: 'success', data: { participant } });
     });
@@ -132,6 +144,10 @@ class ParticipantController {
         }).catch(() => {
             throw new AppError('Participant not found', 404);
         });
+
+        await auditLog(req, 'PARTICIPANT_REMOVED', 'request', requestId, {
+            userId: targetUserId,
+        }).catch(() => {});
 
         res.json({ status: 'success', data: null });
     });
