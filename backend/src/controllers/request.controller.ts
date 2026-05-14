@@ -1331,7 +1331,8 @@ class RequestController {
             !isCEOApprover &&
             !isCTOApprover &&
             !isCFOApprover &&
-            !isGroupCeoApprover
+            !isGroupCeoApprover &&
+            !isParticipant
         ) {
             throw new AppError('This request is confidential and cannot be viewed', 403);
         }
