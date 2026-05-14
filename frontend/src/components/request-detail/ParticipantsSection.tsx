@@ -55,7 +55,9 @@ export default function ParticipantsSection({ requestId, canEdit }: Participants
         debounceRef.current = setTimeout(async () => {
             setLoading(true);
             try {
-                const res = await apiClient.get(`/users/search?q=${encodeURIComponent(val)}&limit=8`);
+                // Add timestamp to query to prevent 304 Not Modified caching issues
+                const res = await apiClient.get(`/users/search?q=${encodeURIComponent(val)}&limit=8&_t=${Date.now()}`);
+                console.log('[ParticipantsSection] Search response:', res.data);
                 const users: UserSearchResult[] = res.data.data?.users ?? res.data.data ?? [];
                 // Filter out already-added participants
                 const participantIds = new Set(participants.map((p) => p.userId));
@@ -162,7 +164,7 @@ export default function ParticipantsSection({ requestId, canEdit }: Participants
                         className="w-full text-xs border border-blue-400 rounded-md px-2 py-1.5 outline-none"
                     />
                     {(results.length > 0 || loading) && (
-                        <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-b-md shadow-lg z-20 max-h-48 overflow-y-auto">
+                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 max-h-48 overflow-y-auto">
                             {loading && (
                                 <div className="px-3 py-2 text-xs text-gray-400">Searching...</div>
                             )}

@@ -254,7 +254,7 @@ const ActionSidebar: React.FC<ActionSidebarProps> = ({
     new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 
   return (
-    <aside className="w-full bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+    <aside className="w-full bg-white border border-gray-100 rounded-xl shadow-sm">
 
       {/* Zone 1 — Next Action Panel */}
       {actions.length > 0 && (
