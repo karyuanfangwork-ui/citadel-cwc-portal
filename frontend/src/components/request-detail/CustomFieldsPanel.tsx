@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { entityService } from '../../services/entity.service';
+import { requestService } from '../../services/request.service';
+import { useToast } from '../../context/ToastContext';
 
 const API_BASE = (import.meta as any).env.VITE_API_URL || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1';
 
@@ -7,7 +9,23 @@ interface CustomFieldsPanelProps {
   customFields: Record<string, any> | undefined;
   serviceDeskCode: string;
   formConfig?: any[];
+  requestId?: string;
+  canEdit?: boolean;
+  onFieldSaved?: (updatedCustomFields: Record<string, any>) => void;
 }
+
+// Fields that finance agents can edit inline
+const FINANCE_EDITABLE_FIELDS = new Set([
+  'estimatedCost',
+  'itemName',
+  'quantity',
+  'vendor',
+  'justification',
+  'finalizedAmount',
+  'paymentReference',
+  'costCenter',
+  'projectCode',
+]);
 
 const HR_FIELD_LABELS: Record<string, string> = {
   jobTitle: 'Job Title',
@@ -72,6 +90,10 @@ const FINANCE_FIELD_LABELS: Record<string, string> = {
   projectCode: 'Project Code',
   finalizedAmount: 'Finalized Amount (MYR)',
   paymentReference: 'Payment Reference',
+  itemName: 'Item / Service Name',
+  quantity: 'Quantity',
+  estimatedCost: 'Estimated Cost (RM)',
+  justification: 'Business Justification',
 };
 
 function getFieldLabels(code: string): Record<string, string> {
@@ -140,6 +162,11 @@ function formatValue(key: string, value: any, fieldType?: string, entityMap?: Re
     const num = Number(value);
     if (!isNaN(num)) return `MYR ${num.toLocaleString()}`;
   }
+  // Format RM currency for known RM fields
+  if (key === 'estimatedCost') {
+    const num = Number(value);
+    if (!isNaN(num)) return `RM${num.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
   // Entity code display — resolve code to human-readable name
   if (fieldType === 'entity' && entityMap && entityMap[String(value)]) {
     return `${entityMap[String(value)]} (${value})`;
@@ -147,10 +174,21 @@ function formatValue(key: string, value: any, fieldType?: string, entityMap?: Re
   return String(value);
 }
 
-const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, serviceDeskCode, formConfig }) => {
+const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({
+  customFields,
+  serviceDeskCode,
+  formConfig,
+  requestId,
+  canEdit = false,
+  onFieldSaved,
+}) => {
   if (!customFields || Object.keys(customFields).length === 0) return null;
 
   const [entityNameMap, setEntityNameMap] = useState<Record<string, string>>({});
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     entityService.listActiveEntities()
@@ -190,22 +228,119 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
     return undefined;
   };
 
+  const isFieldEditable = (key: string): boolean => {
+    if (!canEdit || !requestId) return false;
+    if (serviceDeskCode === 'FINANCE') return FINANCE_EDITABLE_FIELDS.has(key);
+    return false;
+  };
+
+  const startEdit = (key: string) => {
+    const val = customFields[key];
+    // For objects (files etc) don't allow inline edit
+    if (typeof val === 'object' && val !== null) return;
+    setEditingKey(key);
+    setEditValue(String(val ?? ''));
+  };
+
+  const cancelEdit = useCallback(() => {
+    setEditingKey(null);
+    setEditValue('');
+  }, []);
+
+  const saveEdit = useCallback(async () => {
+    if (!requestId || !editingKey) return;
+    setSaving(true);
+    try {
+      const updated = await requestService.updateRequest(requestId, {
+        customFields: { [editingKey]: editValue },
+      });
+      toast.success('Field Updated', `${getLabel(editingKey)} has been updated.`);
+      if (onFieldSaved && updated.customFields) {
+        onFieldSaved(updated.customFields as Record<string, any>);
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to update field';
+      toast.error('Update Failed', msg);
+    } finally {
+      setSaving(false);
+      setEditingKey(null);
+      setEditValue('');
+    }
+  }, [requestId, editingKey, editValue, onFieldSaved, toast]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') saveEdit();
+    if (e.key === 'Escape') cancelEdit();
+  }, [saveEdit, cancelEdit]);
+
   return (
     <section>
       <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-6">
         <span className="material-symbols-outlined text-[#0052cc]">description</span>
         <h3 className="font-bold text-xl">Request Details</h3>
+        {canEdit && serviceDeskCode === 'FINANCE' && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-brand-700 bg-brand-50 border border-brand-200 rounded-full">
+            <span className="material-symbols-outlined text-xs">edit</span>
+            Editable
+          </span>
+        )}
       </div>
       <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
         <dl className="divide-y divide-gray-100">
-          {entries.map(([key, value]) => (
-            <div key={key} className="flex px-6 py-3.5">
-              <dt className="w-44 shrink-0 text-sm font-semibold text-[#44546f]">
-                {getLabel(key)}
-              </dt>
-              <dd className="text-sm text-[#101418] flex-1">{formatValue(key, value, getFieldType(key), entityNameMap)}</dd>
-            </div>
-          ))}
+          {entries.map(([key, value]) => {
+            const editable = isFieldEditable(key);
+            const isEditing = editingKey === key;
+
+            return (
+              <div key={key} className="flex px-6 py-3.5 group">
+                <dt className="w-44 shrink-0 text-sm font-semibold text-[#44546f]">
+                  {getLabel(key)}
+                </dt>
+                <dd className="text-sm text-[#101418] flex-1 flex items-center gap-2">
+                  {isEditing ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <input
+                        type="text"
+                        value={editValue}
+                        onChange={e => setEditValue(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        disabled={saving}
+                        autoFocus
+                        className="flex-1 px-3 py-1.5 border border-brand-300 rounded-md text-sm focus:ring-2 focus:ring-brand-500/20 focus:border-brand-700 outline-none transition-all"
+                      />
+                      <button
+                        onClick={saveEdit}
+                        disabled={saving}
+                        className="px-2.5 py-1.5 text-xs font-bold bg-brand-700 text-white rounded-md hover:bg-brand-800 disabled:opacity-50 transition-colors"
+                      >
+                        {saving ? '...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={cancelEdit}
+                        disabled={saving}
+                        className="px-2.5 py-1.5 text-xs font-semibold border border-gray-200 rounded-md hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <span>{formatValue(key, value, getFieldType(key), entityNameMap)}</span>
+                      {editable && (
+                        <button
+                          onClick={() => startEdit(key)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-gray-100 text-[#44546f] hover:text-[#0052cc]"
+                          title={`Edit ${getLabel(key)}`}
+                        >
+                          <span className="material-symbols-outlined text-base">edit</span>
+                        </button>
+                      )}
+                    </>
+                  )}
+                </dd>
+              </div>
+            );
+          })}
         </dl>
       </div>
     </section>
@@ -213,4 +348,3 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({ customFields, ser
 };
 
 export default CustomFieldsPanel;
-

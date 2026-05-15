@@ -14,6 +14,7 @@ interface Activity {
 
 interface RequestFormFieldsProps {
   request: {
+    id?: string;
     summary: string;
     description?: string | null;
     status: string;
@@ -24,6 +25,8 @@ interface RequestFormFieldsProps {
     itHardwareRequest?: { serialNumber?: string | null; assetTag?: string | null } | null;
   };
   activities: Activity[];
+  canEditCustomFields?: boolean;
+  onCustomFieldsSaved?: (updatedCustomFields: Record<string, any>) => void;
 }
 
 const formatDateTime = (dateStr: string) => {
@@ -37,7 +40,12 @@ const formatDateTime = (dateStr: string) => {
   });
 };
 
-const RequestFormFields: React.FC<RequestFormFieldsProps> = ({ request, activities }) => {
+const RequestFormFields: React.FC<RequestFormFieldsProps> = ({
+  request,
+  activities,
+  canEditCustomFields = false,
+  onCustomFieldsSaved,
+}) => {
   return (
     <>
       {/* Request Summary */}
@@ -66,6 +74,9 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({ request, activiti
           }}
           serviceDeskCode={request.serviceDesk?.code || ''}
           formConfig={request.requestType?.formConfig}
+          requestId={request.id}
+          canEdit={canEditCustomFields}
+          onFieldSaved={onCustomFieldsSaved}
         />
       </section>
 
@@ -81,41 +92,22 @@ const RequestFormFields: React.FC<RequestFormFieldsProps> = ({ request, activiti
             return activityDate <= resolvedDate;
           });
 
-        if (resolutionActivity) {
-          return (
-            <div className="mb-8 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-6 shadow-sm">
-              <div className="flex items-start gap-4">
-                <div className="size-12 rounded-full bg-green-600 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-2xl text-white">check_circle</span>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <h3 className="text-lg font-bold text-green-900">Resolution</h3>
-                    <span className="px-3 py-1 bg-green-600 text-white text-xs font-bold rounded-full">
-                      RESOLVED
-                    </span>
-                  </div>
-                  <div className="bg-white/80 rounded-lg p-4 mb-3 border border-green-200">
-                    <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                      {resolutionActivity.message}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-green-800">
-                    <div className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm">person</span>
-                      <span>Resolved by: <span className="font-bold">{resolutionActivity.authorName}</span></span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-sm">schedule</span>
-                      <span>{formatDateTime(resolutionActivity.createdAt)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        if (!resolutionActivity) return null;
+
+        return (
+          <section>
+            <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-6">
+              <span className="material-symbols-outlined text-[#16a34a]">task_alt</span>
+              <h3 className="font-bold text-xl">Resolution</h3>
             </div>
-          );
-        }
-        return null;
+            <div className="bg-green-50 p-6 rounded-xl border border-green-100">
+              <p className="text-[#101418] leading-relaxed">{resolutionActivity.message}</p>
+              <p className="text-xs text-[#8993a4] mt-3">
+                Resolved by {resolutionActivity.authorName} &middot; {formatDateTime(resolutionActivity.createdAt)}
+              </p>
+            </div>
+          </section>
+        );
       })()}
     </>
   );

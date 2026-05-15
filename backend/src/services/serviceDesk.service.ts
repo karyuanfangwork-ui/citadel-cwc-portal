@@ -49,14 +49,13 @@ class ServiceDeskService {
     }
 
     async updateServiceDesk(id: string, data: {
-        name?: string; code?: string; description?: string; isActive?: boolean;
+        name?: string; description?: string; isActive?: boolean;
         autoAssignTeam?: string; assignmentStrategy?: string; lastAssignedIndex?: number;
     }) {
         return prisma.serviceDesk.update({
             where: { id },
             data: {
                 ...(data.name !== undefined && { name: data.name }),
-                ...(data.code !== undefined && { code: data.code }),
                 ...(data.description !== undefined && { description: data.description }),
                 ...(data.isActive !== undefined && { isActive: data.isActive }),
                 ...(data.autoAssignTeam !== undefined && { autoAssignTeam: data.autoAssignTeam }),

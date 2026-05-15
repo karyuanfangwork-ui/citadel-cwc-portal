@@ -17,7 +17,7 @@ class ParticipantController {
 
         const request = await prisma.request.findUnique({
             where: { id: requestId },
-            select: { id: true, requesterId: true },
+            select: { id: true, requesterId: true, assignedToId: true },
         });
         if (!request) throw new AppError('Request not found', 404);
 
@@ -27,6 +27,7 @@ class ParticipantController {
 
         if (
             request.requesterId !== req.user!.id &&
+            request.assignedToId !== req.user!.id &&
             !hasRole(req, 'ADMIN', 'AGENT') &&
             !isParticipant
         ) {
@@ -60,15 +61,16 @@ class ParticipantController {
 
         const request = await prisma.request.findUnique({
             where: { id: requestId },
-            select: { id: true, requesterId: true, referenceNumber: true, summary: true },
+            select: { id: true, requesterId: true, assignedToId: true, referenceNumber: true, summary: true },
         });
         if (!request) throw new AppError('Request not found', 404);
 
         if (
             request.requesterId !== req.user!.id &&
+            request.assignedToId !== req.user!.id &&
             !hasRole(req, 'ADMIN', 'AGENT')
         ) {
-            throw new AppError('Only the requester or an agent/admin can add participants', 403);
+            throw new AppError('Only the requester, assigned agent, or an admin can add participants', 403);
         }
 
         // Cannot add the requester themselves as a participant
@@ -128,15 +130,16 @@ class ParticipantController {
 
         const request = await prisma.request.findUnique({
             where: { id: requestId },
-            select: { id: true, requesterId: true },
+            select: { id: true, requesterId: true, assignedToId: true },
         });
         if (!request) throw new AppError('Request not found', 404);
 
         if (
             request.requesterId !== req.user!.id &&
+            request.assignedToId !== req.user!.id &&
             !hasRole(req, 'ADMIN', 'AGENT')
         ) {
-            throw new AppError('Only the requester or an agent/admin can remove participants', 403);
+            throw new AppError('Only the requester, assigned agent, or an admin can remove participants', 403);
         }
 
         await prisma.requestParticipant.delete({

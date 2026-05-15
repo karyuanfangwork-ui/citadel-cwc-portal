@@ -17,11 +17,8 @@ export const createServiceDeskSchema = z.object({
 export const updateServiceDeskSchema = z.object({
     body: z.object({
         name: z.string().min(1, 'Name cannot be empty').max(100, 'Name must be at most 100 characters').optional(),
-        code: z.string()
-            .min(3, 'Code must be at least 3 characters')
-            .max(20, 'Code must be at most 20 characters')
-            .regex(/^[A-Z0-9_]+$/, 'Code must contain only uppercase letters, numbers, and underscores')
-            .optional(),
+        // code is intentionally excluded — desk code is immutable after creation
+        // (hardcoded in business logic: IT workflow guards, reference number prefix, agentTeam matching)
         description: z.string().optional(),
         isActive: z.boolean().optional(),
         autoAssignTeam: z.string().max(50).optional(),

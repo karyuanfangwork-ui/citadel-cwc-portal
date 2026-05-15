@@ -649,7 +649,7 @@ class RequestController {
         const isExpenseClaim = requestType?.code === 'EXPENSE_CLAIM';
 
         // Validate summary: required unless auto-generated for specific request types
-        const autoSummaryCodes = ['NEW_HIRING', 'EMPLOYEE_OFFBOARDING', 'NEW_HARDWARE', 'GET_IT_HELP'];
+        const autoSummaryCodes = ['NEW_HIRING', 'EMPLOYEE_OFFBOARDING', 'NEW_HARDWARE', 'GET_IT_HELP', 'PURCHASE_REQUISITION'];
         const isAutoSummaryType = requestType?.code ? autoSummaryCodes.includes(requestType.code) : false;
         if (!summary && !isAutoSummaryType) {
             throw new AppError('Summary is required', 400);
@@ -858,6 +858,24 @@ class RequestController {
                     shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
                 }
                 finalSummary = `Get IT Help: ${shortSummary}`;
+            }
+        }
+        if (!finalSummary && isPurchaseRequisition) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = (requestType?.formConfig || []) as any[];
+            const resolveByLabel = (labelMatch: string): any => {
+                for (const f of formConfig) {
+                    if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                        if (cf[f.id]) return cf[f.id];
+                    }
+                }
+                return undefined;
+            };
+            const itemName = cf.itemName || resolveByLabel('item') || resolveByLabel('service name') || '';
+            const estimatedCost = cf.estimatedCost || resolveByLabel('estimated cost') || '';
+            if (itemName) {
+                const costStr = estimatedCost ? ` (RM${estimatedCost})` : '';
+                finalSummary = `Purchase: ${itemName}${costStr}`;
             }
         }
 
@@ -1360,7 +1378,7 @@ class RequestController {
      */
     updateRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const id = String(req.params.id);
-        const { summary: rawSummary, description: rawDescription, priority, isConfidential } = req.body;
+        const { summary: rawSummary, description: rawDescription, priority, isConfidential, customFields: rawCustomFields } = req.body;
 
         // Sanitize highest-risk text fields
         const summary = rawSummary !== undefined ? sanitizeString(rawSummary) : undefined;
@@ -1393,6 +1411,17 @@ class RequestController {
             isConfidentialUpdate = {};
         }
 
+        // Handle customFields update — merge with existing fields
+        let customFieldsUpdate: Record<string, any> | undefined;
+        if (rawCustomFields && typeof rawCustomFields === 'object') {
+            // Only allow AGENT or ADMIN to update customFields
+            if (!hasRole(req, 'ADMIN', 'AGENT')) {
+                throw new AppError('You do not have permission to update custom fields', 403);
+            }
+            const existingCF = (existingRequest.customFields as Record<string, any>) || {};
+            customFieldsUpdate = { ...existingCF, ...rawCustomFields };
+        }
+
         const request = await prisma.request.update({
             where: { id },
             data: {
@@ -1400,6 +1429,7 @@ class RequestController {
                 description,
                 priority,
                 ...isConfidentialUpdate,
+                ...(customFieldsUpdate ? { customFields: customFieldsUpdate } : {}),
             },
         });
 

@@ -52,7 +52,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const isAutoSummary = useMemo(() => {
     if (!selectedRequestType) return false;
     const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
-    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'PURCHASE_REQUISITION';
   }, [selectedRequestType]);
 
   const autoSummary = useMemo(() => {
@@ -96,6 +96,23 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       const lastSpace = truncated.lastIndexOf(' ');
       const short = lastSpace > maxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
       return `Get IT Help: ${short}`;
+    }
+
+    if (code === 'PURCHASE_REQUISITION') {
+      const formConfig = selectedRequestType?.formConfig || [];
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const itemName = cf.itemName || resolveByLabel('item') || resolveByLabel('service name') || '';
+      const estimatedCost = cf.estimatedCost || resolveByLabel('estimated cost') || '';
+      if (!itemName) return '';
+      const costStr = estimatedCost ? ` (RM${estimatedCost})` : '';
+      return `Purchase: ${itemName}${costStr}`;
     }
 
     // NEW_HIRING default

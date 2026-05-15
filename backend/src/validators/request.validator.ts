@@ -17,6 +17,7 @@ export const updateRequestSchema = z.object({
         summary: z.string().min(1).max(500).optional(),
         description: z.string().optional(),
         priority: z.nativeEnum(RequestPriority).optional(),
+        customFields: z.record(z.any()).optional(),
     }),
 });
 

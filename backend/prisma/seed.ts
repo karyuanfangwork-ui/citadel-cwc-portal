@@ -28,7 +28,9 @@ async function main() {
     // Create Service Desks
     const itDesk = await prisma.serviceDesk.upsert({
         where: { code: 'IT' },
-        update: RETAIN_ADMIN_CONFIG ? {} : { autoAssignTeam: 'IT' },
+        update: RETAIN_ADMIN_CONFIG
+            ? {}
+            : { name: 'IT Support', description: 'Technical support for hardware, software, and infrastructure', autoAssignTeam: 'IT', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
             name: 'IT Support',
             code: 'IT',
@@ -41,7 +43,9 @@ async function main() {
 
     const hrDesk = await prisma.serviceDesk.upsert({
         where: { code: 'HR' },
-        update: RETAIN_ADMIN_CONFIG ? {} : { autoAssignTeam: 'HR' },
+        update: RETAIN_ADMIN_CONFIG
+            ? {}
+            : { name: 'HR Services', description: 'Human resources support for employees', autoAssignTeam: 'HR', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
             name: 'HR Services',
             code: 'HR',
@@ -54,7 +58,9 @@ async function main() {
 
     const financeDesk = await prisma.serviceDesk.upsert({
         where: { code: 'FINANCE' },
-        update: RETAIN_ADMIN_CONFIG ? {} : { autoAssignTeam: 'FINANCE' },
+        update: RETAIN_ADMIN_CONFIG
+            ? {}
+            : { name: 'Group Finance', description: 'Financial services and expense management', autoAssignTeam: 'FINANCE', assignmentStrategy: 'ROUND_ROBIN', isActive: true },
         create: {
             name: 'Group Finance',
             code: 'FINANCE',
@@ -404,7 +410,7 @@ async function main() {
             isActive: true,
         },
     });
-    await assignRoles(adminUser.id, [adminRole.id, agentRole.id, hiringManagerRole.id]);
+    // Admin role assignment deferred — SALES_REP role not yet declared; see below after sales roles
     console.log('✅ Admin user created (email: admin@test.local, password: abc@123)');
 
     const ceoUser = await prisma.user.upsert({
@@ -522,9 +528,16 @@ async function main() {
     }
     console.log('✅ Test users created with NORMAL_STAFF role (password: abc@123)');
 
+    // --- john.doe also gets HIRING_MANAGER role ---
+    const johnDoeUser = await prisma.user.findUniqueOrThrow({ where: { email: 'john.doe@test.local' } });
+    await assignRoles(johnDoeUser.id, [normalStaffRole.id, hiringManagerRole.id]);
+
     // --- Sales team test accounts ---
     const salesManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'SALES_MANAGER' } });
     const salesRepRole = await prisma.role.findUniqueOrThrow({ where: { name: 'SALES_REP' } });
+
+    // --- Deferred admin role assignment (SALES_REP declared here) ---
+    await assignRoles(adminUser.id, [adminRole.id, agentRole.id, hiringManagerRole.id, salesRepRole.id]);
 
     const salesManagerUser = await prisma.user.upsert({
         where: { email: 'salesmanager@test.local' },
@@ -779,13 +792,16 @@ async function main() {
             formConfig = [
                 { id: 'hardwareName', label: 'Hardware Name', type: 'text', required: true },
                 { id: 'estimatedPrice', label: 'Estimated Price  ', type: 'currency', required: false },
-                { id: 'productUrl', label: 'Product URL', type: 'text', required: false },
                 { id: 'businessJustification', label: 'Business Justification', type: 'textarea', required: true },
             ];
         } else if (category.requestTypeCode === 'SOFTWARE_INSTALLATION') {
             formConfig = [
                 { id: 'sw_name', label: 'Software Name', type: 'text', required: true },
                 { id: 'sw_version', label: 'Version Number', type: 'text', required: false }
+            ];
+        } else if (category.requestTypeCode === 'GET_IT_HELP') {
+            formConfig = [
+                { id: 'field_1778721877330', label: 'Attachment', type: 'file', required: false },
             ];
         }
 
@@ -799,16 +815,21 @@ async function main() {
         }) : null;
 
         if (existingByCode) {
-            // Only backfill structural fields — never overwrite admin-editable fields
-            // (name, description, formConfig, slaHours, requiresApproval, isActive)
-            // so Admin UI edits are preserved across re-seeds
+            // When RETAIN_ADMIN_CONFIG=false, sync all fields from seed to DB
+            // When RETAIN_ADMIN_CONFIG=true, only backfill structural fields
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: {
-                    serviceCategory: { connect: { id: cat.id } },
-                    // Only backfill code if missing
-                    ...(existingByCode.code ? {} : { code: category.requestTypeCode }),
-                }
+                data: RETAIN_ADMIN_CONFIG
+                    ? { serviceCategory: { connect: { id: cat.id } }, ...(existingByCode.code ? {} : { code: category.requestTypeCode }) }
+                    : {
+                        serviceCategory: { connect: { id: cat.id } },
+                        ...(existingByCode.code ? {} : { code: category.requestTypeCode }),
+                        name: category.requestTypeName,
+                        description: `Submit a request for ${category.name.toLowerCase()} assistance.`,
+                        formConfig,
+                        slaHours: category.slaHours || null,
+                        ...(category.requestTypeCode === 'NEW_HARDWARE' || category.requestTypeCode === 'SOFTWARE_INSTALLATION' ? { requiresApproval: true } : {}),
+                    },
             });
         } else if (existingLegacy) {
             // Backfill code onto legacy record without touching admin-editable fields
@@ -912,7 +933,7 @@ async function main() {
             },
         });
 
-        // Upsert by code — only create if missing, never overwrite admin-editable fields
+        // Upsert by code — sync all fields when RETAIN_ADMIN_CONFIG=false
         const existingByCode = await prisma.requestType.findFirst({
             where: { code: cat.requestTypeCode }
         });
@@ -921,10 +942,20 @@ async function main() {
             : null;
 
         if (existingByCode) {
-            // Backfill structural fields only — never overwrite admin-editable fields
+            // When RETAIN_ADMIN_CONFIG=false, sync all fields from seed to DB
+            // When RETAIN_ADMIN_CONFIG=true, only backfill structural fields
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategory: { connect: { id: category.id } } },
+                data: RETAIN_ADMIN_CONFIG
+                    ? { serviceCategory: { connect: { id: category.id } } }
+                    : {
+                        serviceCategory: { connect: { id: category.id } },
+                        name: cat.requestTypeName,
+                        description: cat.description,
+                        formConfig: cat.formConfig,
+                        slaHours: cat.slaHours,
+                        requiredRole: cat.requiredRole,
+                    },
             });
         } else if (existingLegacy) {
             // Assign code to legacy record without touching admin-editable fields
@@ -957,11 +988,11 @@ async function main() {
             icon: 'shopping_cart', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1,
             requestTypeName: 'Purchase Requisition', requestTypeCode: 'PURCHASE_REQUISITION', workflowType: 'FINANCE',
             formConfig: [
-                { id: 'itemName', label: 'Item / Service Name', type: 'text', required: true },
-                { id: 'quantity', label: 'Quantity', type: 'number', required: true },
+                { id: 'itemName', label: 'Type Of Purchase', type: 'select', required: true, options: ['IT Hardware / Equipment', 'Marketing & Advertising Services', 'Office Supplies', 'Miscellaneous'] },
+                { id: 'field_1778810317886', label: 'Request under which Business Unit', type: 'entity', required: true },
                 { id: 'estimatedCost', label: 'Estimated Cost (RM)', type: 'currency', required: true },
-                { id: 'vendor', label: 'Preferred Vendor', type: 'text', required: false },
                 { id: 'justification', label: 'Business Justification', type: 'textarea', required: true },
+                { id: 'field_1778810278691', label: 'Quotation/Files/Docs', type: 'file', required: true },
             ],
         },
         {
@@ -1032,10 +1063,19 @@ async function main() {
             : null;
 
         if (existingByCode) {
-            // Backfill structural fields only — never overwrite admin-editable fields
+            // When RETAIN_ADMIN_CONFIG=false, sync all fields from seed to DB
+            // When RETAIN_ADMIN_CONFIG=true, only backfill structural fields
             await prisma.requestType.update({
                 where: { id: existingByCode.id },
-                data: { serviceCategory: { connect: { id: category.id } } },
+                data: RETAIN_ADMIN_CONFIG
+                    ? { serviceCategory: { connect: { id: category.id } } }
+                    : {
+                        serviceCategory: { connect: { id: category.id } },
+                        name: cat.requestTypeName,
+                        description: cat.description,
+                        formConfig: cat.formConfig,
+                        ...('slaHours' in cat ? { slaHours: (cat as any).slaHours } : {}),
+                    },
             });
         } else if (existingLegacy) {
             // Assign code to legacy record without touching admin-editable fields
@@ -1102,6 +1142,13 @@ async function main() {
                 });
             }
         }
+        // Prune onboarding templates not in seed
+        const seedOnbNames = SEED_ONBOARDING_TEMPLATES.map(t => t.taskName);
+        const extraOnb = await prisma.onboardingTaskTemplate.findMany({ where: { taskName: { notIn: seedOnbNames } } });
+        if (extraOnb.length > 0) {
+            await prisma.onboardingTaskTemplate.deleteMany({ where: { taskName: { notIn: seedOnbNames } } });
+            console.log(`🧹 Pruned ${extraOnb.length} extra onboarding task templates: ${extraOnb.map(t => t.taskName).join(', ')}`);
+        }
         console.log(`✅ Seeded ${SEED_ONBOARDING_TEMPLATES.length} onboarding task templates`);
     }
 
@@ -1124,6 +1171,13 @@ async function main() {
                     },
                 });
             }
+        }
+        // Prune offboarding templates not in seed
+        const seedOffNames = SEED_OFFBOARDING_TEMPLATES.map(t => t.taskName);
+        const extraOff = await prisma.offboardingTaskTemplate.findMany({ where: { taskName: { notIn: seedOffNames } } });
+        if (extraOff.length > 0) {
+            await prisma.offboardingTaskTemplate.deleteMany({ where: { taskName: { notIn: seedOffNames } } });
+            console.log(`🧹 Pruned ${extraOff.length} extra offboarding task templates: ${extraOff.map(t => t.taskName).join(', ')}`);
         }
         console.log(`✅ Seeded ${SEED_OFFBOARDING_TEMPLATES.length} offboarding task templates`);
     }
@@ -1189,6 +1243,16 @@ async function main() {
                     isActive: t.isActive ?? true,
                 },
             });
+        }
+        // Prune workflow transitions not in seed
+        const seedTransKeys = SEED_WORKFLOW_TRANSITIONS.map(t => `${t.fromStatus}→${t.toStatus}`);
+        const allTrans = await prisma.workflowTransition.findMany();
+        const extraTransKeys = allTrans.filter(t => !seedTransKeys.includes(`${t.fromStatus}→${t.toStatus}`));
+        if (extraTransKeys.length > 0) {
+            for (const et of extraTransKeys) {
+                await prisma.workflowTransition.delete({ where: { id: et.id } });
+            }
+            console.log(`🧹 Pruned ${extraTransKeys.length} extra workflow transitions: ${extraTransKeys.map(t => `${t.fromStatus}→${t.toStatus}`).join(', ')}`);
         }
         console.log(`✅ Seeded ${SEED_WORKFLOW_TRANSITIONS.length} workflow transitions`);
     }

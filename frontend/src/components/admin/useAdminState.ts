@@ -631,7 +631,6 @@ export function useAdminState(): UseAdminStateReturn {
             if (editingDesk) {
                 await serviceDeskService.updateServiceDesk(editingDesk.id, {
                     name: deskFormData.name,
-                    code: deskFormData.code,
                     description: deskFormData.description,
                     isActive: deskFormData.isActive,
                     autoAssignTeam: deskFormData.autoAssignTeam,

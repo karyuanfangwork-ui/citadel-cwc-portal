@@ -49,6 +49,17 @@ const RequestDetailContainer: React.FC = () => {
 
     const { request, activities } = rq;
 
+    // Determine if current user can edit custom fields (finance agent or admin on finance desk)
+    const serviceDeskCode = request.serviceDesk?.code || '';
+    const isFinanceAgent = serviceDeskCode === 'FINANCE' && (
+        (user?.roles || []).some(r => ['ADMIN', 'AGENT'].includes(r))
+    );
+
+    const handleCustomFieldsSaved = (updatedCustomFields: Record<string, any>) => {
+        // Update the request in place so the UI refreshes without a full reload
+        rq.setRequest({ ...request, customFields: updatedCustomFields });
+    };
+
     return (
         <div className="max-w-[1440px] mx-auto px-6 py-8">
             <RequestHeader
@@ -76,7 +87,12 @@ const RequestDetailContainer: React.FC = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-10">
-                    <RequestFormFields request={request} activities={activities} />
+                    <RequestFormFields
+                        request={request}
+                        activities={activities}
+                        canEditCustomFields={isFinanceAgent}
+                        onCustomFieldsSaved={handleCustomFieldsSaved}
+                    />
 
                     <HiringWorkflowPanel
                         request={request}

@@ -73,12 +73,29 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
         }
 
         const existingFields = (request.customFields as Record<string, unknown>) || {};
+
+        // Find CFO user for assignee reassignment
+        const cfoPendingApproval = await prisma.requestApproval.findFirst({
+            where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
+            select: { approverId: true },
+        });
+        const cfoUserId = cfoPendingApproval?.approverId ?? (await prisma.user.findFirst({
+            where: { executiveRole: 'CFO', isActive: true },
+            select: { id: true },
+        }))?.id;
+
+        const updateData: any = {
+            status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
+            customFields: { ...existingFields, finalizedAmount: Number(finalizedAmount) },
+        };
+        // Reassign to CFO so ticket shows under CFO's dashboard
+        if (cfoUserId) {
+            updateData.assignedToId = cfoUserId;
+        }
+
         const updated = await prisma.request.update({
             where: { id },
-            data: {
-                status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
-                customFields: { ...existingFields, finalizedAmount: Number(finalizedAmount) },
-            },
+            data: updateData,
         });
 
         await logActivity(id, `Finalized amount set to MYR ${finalizedAmount}. Routed to CFO for approval${notes ? ': ' + notes : ''}`);
@@ -91,14 +108,6 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
         await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
 
         // Notify the CFO who was assigned this approval
-        const cfoPendingApproval = await prisma.requestApproval.findFirst({
-            where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
-            select: { approverId: true },
-        });
-        const cfoUserId = cfoPendingApproval?.approverId ?? (await prisma.user.findFirst({
-            where: { executiveRole: 'CFO', isActive: true },
-            select: { id: true },
-        }))?.id;
         if (cfoUserId) {
             await notify({ userId: cfoUserId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CFO' }, relatedRequestId: id });
         }
@@ -139,9 +148,9 @@ export const cfoDecision = async (req: Request, res: Response) => {
             newStatus = amount > GROUP_CEO_THRESHOLD ? RequestStatus.PENDING_GROUP_CEO_APPROVAL : RequestStatus.PAYMENT_PROCESSING_FIN;
         }
 
-        // When routing to Group CEO, assign to them
         const cfoUpdateData: any = { status: newStatus };
         if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
+            // When routing to Group CEO, reassign to them
             const groupCeoApprovalLookup = await prisma.requestApproval.findFirst({
                 where: { requestId: id, approverType: 'GROUP_CEO', status: 'PENDING' },
                 select: { approverId: true },
@@ -152,6 +161,16 @@ export const cfoDecision = async (req: Request, res: Response) => {
             }))?.id;
             if (groupCeoId) {
                 cfoUpdateData.assignedToId = groupCeoId;
+            }
+        } else {
+            // CFO approved (payment processing) or rejected — reassign back to Finance agent (AGENT/ADMIN role only)
+            const requestWithRequester = await prisma.request.findUnique({ where: { id }, include: { requester: true } });
+            const entityFilter = requestWithRequester?.requester?.entityId ? { entityId: requestWithRequester.requester.entityId } : {};
+            const financeAgent = await prisma.user.findFirst({
+                where: { OR: [{ agentTeam: 'FINANCE' }, { agentTeam: 'Finance' }], isActive: true, ...entityFilter, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
+            });
+            if (financeAgent) {
+                cfoUpdateData.assignedToId = financeAgent.id;
             }
         }
 
@@ -221,11 +240,11 @@ export const groupCeoDecision = async (req: Request, res: Response) => {
 
         const newStatus = decision === 'APPROVED' ? RequestStatus.PAYMENT_PROCESSING_FIN : RequestStatus.GROUP_CEO_REJECTED;
 
-        // Reassign back to Finance agent after Group CEO decision
+        // Reassign back to Finance agent after Group CEO decision (AGENT/ADMIN role only)
         const requestWithRequester = await prisma.request.findUnique({ where: { id }, include: { requester: true } });
         const entityFilter = requestWithRequester?.requester?.entityId ? { entityId: requestWithRequester.requester.entityId } : {};
         const financeAgent = await prisma.user.findFirst({
-            where: { OR: [{ agentTeam: 'FINANCE' }, { agentTeam: 'Finance' }], isActive: true, ...entityFilter },
+            where: { OR: [{ agentTeam: 'FINANCE' }, { agentTeam: 'Finance' }], isActive: true, ...entityFilter, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
         });
         const gCeoUpdateData: any = { status: newStatus };
         if (financeAgent) {

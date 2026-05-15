@@ -89,10 +89,10 @@ class ServiceDeskController {
 
     updateServiceDesk = asyncHandler(async (req: AuthRequest, res: Response) => {
         const id = String(req.params.id);
-        const { name, code, description, isActive, autoAssignTeam, assignmentStrategy, lastAssignedIndex } = req.body;
+        const { name, description, isActive, autoAssignTeam, assignmentStrategy, lastAssignedIndex } = req.body;
 
         const serviceDesk = await serviceDeskService.updateServiceDesk(id, {
-            name, code, description, isActive,
+            name, description, isActive,
             autoAssignTeam, assignmentStrategy, lastAssignedIndex,
         });
 

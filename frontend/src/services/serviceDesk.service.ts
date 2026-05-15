@@ -41,7 +41,7 @@ export const serviceDeskService = {
         return response.data.data.serviceDesk;
     },
 
-    async updateServiceDesk(id: string, data: { name?: string; code?: string; description?: string; isActive?: boolean; autoAssignTeam?: string; assignmentStrategy?: string }) {
+    async updateServiceDesk(id: string, data: { name?: string; description?: string; isActive?: boolean; autoAssignTeam?: string; assignmentStrategy?: string }) {
         const response = await apiClient.put(`/service-desks/${id}`, data);
         return response.data.data.serviceDesk;
     },

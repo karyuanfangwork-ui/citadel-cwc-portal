@@ -151,6 +151,7 @@ export interface Request {
 interface UseRequestDetailReturn {
     id: string | undefined;
     request: Request | null;
+    setRequest: React.Dispatch<React.SetStateAction<Request | null>>;
     activities: Activity[];
     setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
     resumes: CandidateResume[];
@@ -704,7 +705,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
     }, [id, fetchRequestData]);
 
     return {
-        id, request, activities, setActivities, resumes, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
+        id, request, setRequest, activities, setActivities, resumes, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
         showResolutionModal, showRejectionConfirm, showCompleteOnboardingConfirm, showUploadModal, showJobPostModal, showCEODecisionModal, showManagerDecisionModal, showScheduleInterviewModal, showEditInterviewModal, showInterviewFeedbackModal, showHRScreeningModal, showUploadLOAModal, showLOAApprovalModal, showUploadSignedLOAModal,
         resolutionComment, pendingStatus, rejectionPendingStatus,
         setRejectionPendingStatus,
