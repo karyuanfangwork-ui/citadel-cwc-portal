@@ -43,7 +43,7 @@ export interface CrmLead {
   lostReason: string | null; convertedAt: string | null; convertedToOppId: string | null;
   createdAt: string; updatedAt: string;
   owner?: UserRef; account?: { id: string; name: string };
-  contact?: { id: string; firstName: string; lastName: string };
+  contact?: { id: string; firstName: string; lastName: string; email?: string; phone?: string };
   activities?: CrmActivity[]; notes?: CrmNote[];
 }
 

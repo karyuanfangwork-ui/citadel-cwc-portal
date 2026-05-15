@@ -250,7 +250,7 @@ class CrmController {
       include: {
         owner: { select: userSelect },
         account: { select: { id: true, name: true } },
-        contact: { select: { id: true, firstName: true, lastName: true, email: true } },
+        contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
         activities: { include: { user: { select: userSelect } }, orderBy: { createdAt: 'desc' }, take: 10 },
         notes: { include: { author: { select: userSelect } }, orderBy: { createdAt: 'desc' }, take: 10 },
       },

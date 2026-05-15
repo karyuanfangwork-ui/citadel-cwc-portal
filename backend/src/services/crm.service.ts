@@ -151,6 +151,10 @@ export async function convertLead(
 
     // Create account if needed
     let accountId = lead.accountId;
+    // Auto-create account when lead has none
+    if (!accountId) {
+      data.createAccount = true;
+    }
     if (data.createAccount && !accountId) {
       const newAccount = await tx.crmAccount.create({
         data: {

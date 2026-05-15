@@ -39,6 +39,8 @@ const CrmLeadDetail = () => {
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
   const [editingOwner, setEditingOwner] = useState(false);
   const [savingOwner, setSavingOwner] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
 
   // Fetch CRM team users for owner reassignment
   useEffect(() => {
@@ -133,6 +135,46 @@ const CrmLeadDetail = () => {
     finally { setSavingOwner(false); }
   };
 
+  const openEdit = () => {
+    if (!lead) return;
+    setEditForm({
+      title: lead.title ?? '',
+      contactName: lead.contactName ?? '',
+      contactEmail: lead.contactEmail ?? '',
+      contactPhone: lead.contactPhone ?? '',
+      companyName: lead.companyName ?? '',
+      source: lead.source ?? 'OTHER',
+      estimatedValue: lead.estimatedValue ?? '',
+      description: lead.description ?? '',
+      followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
+      followUpNote: lead.followUpNote ?? '',
+    });
+    setShowEdit(true);
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    try {
+      setSaving(true);
+      const payload: Record<string, any> = {};
+      for (const [k, v] of Object.entries(editForm)) {
+        if (v === '' || v === undefined || v === null) continue;
+        if (k === 'estimatedValue') { payload[k] = Number(v); if (isNaN(payload[k])) delete payload[k]; }
+        else payload[k] = v;
+      }
+      // Clear fields intentionally set to empty
+      for (const k of ['contactName', 'contactEmail', 'contactPhone', 'companyName', 'description', 'followUpNote']) {
+        if (editForm[k] === '' && (lead as any)[k] != null) payload[k] = null;
+      }
+      if (editForm.followUpDate === '' && lead!.followUpDate) payload.followUpDate = null;
+      await crmService.updateLead(id, payload);
+      setShowEdit(false);
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
   // Type guard for activities/notes - backend returns them when included
   const activities = (lead as any)?.activities ?? [];
   const notes = (lead as any)?.notes ?? [];
@@ -174,6 +216,11 @@ const CrmLeadDetail = () => {
           <p className="text-text-secondary text-sm">{lead.companyName || ''}{lead.contactName ? ` · ${lead.contactName}` : ''}</p>
         </div>
         <div className="flex gap-2">
+          <button onClick={openEdit}
+            className="flex items-center gap-2 border border-brand-200 text-brand-700 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-50 transition-colors"
+            style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+            <span className="material-symbols-outlined text-base">edit</span> Edit
+          </button>
           {!isConverted && !isLost && (
             <button onClick={openConvert}
               className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-green-700 transition-colors"
@@ -208,64 +255,6 @@ const CrmLeadDetail = () => {
         </div>
       </div>
 
-      {/* Info card */}
-      <div className="bg-bg-surface border border-border rounded-xl p-5 mb-6">
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Lead Info</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-          {[
-            { label: 'Source', value: lead.source, icon: 'source' },
-            { label: 'Estimated Value', value: formatCurrency(lead.estimatedValue), icon: 'payments' },
-            { label: 'Contact Name', value: lead.contactName, icon: 'person' },
-            { label: 'Contact Email', value: lead.contactEmail, icon: 'mail' },
-            { label: 'Contact Phone', value: lead.contactPhone, icon: 'call' },
-            { label: 'Company', value: lead.companyName, icon: 'business' },
-            { label: 'Owner', value: lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}` : null, icon: 'manage_accounts', editable: true },
-            { label: 'Created', value: formatDate(lead.createdAt), icon: 'calendar_today' },
-            { label: 'Converted At', value: lead.convertedAt ? formatDate(lead.convertedAt) : null, icon: 'check_circle' },
-          ].map(f => f.value && (
-            <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">{f.label}</span>
-              {(f as any).editable && editingOwner ? (
-                <select
-                  value={lead.owner?.id || ''}
-                  onChange={e => handleChangeOwner(e.target.value)}
-                  disabled={savingOwner}
-                  className="flex-1 px-3 py-1 border border-brand-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-200 outline-none"
-                  style={{ fontFamily: 'var(--font-sans)' }}
-                >
-                  {crmUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                  ))}
-                </select>
-              ) : (
-                <span
-                  className={`text-sm text-text-primary${(f as any).editable ? ' cursor-pointer hover:text-brand-700 transition-colors' : ''}`}
-                  {...((f as any).editable ? { onClick: () => setEditingOwner(true) } : {})}
-                >
-                  {f.value}
-                  {(f as any).editable && (
-                    <span className="material-symbols-outlined text-sm ml-1 align-text-bottom text-text-secondary">edit</span>
-                  )}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-        {lead.description && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <p className="text-xs font-semibold text-text-secondary mb-1">Description</p>
-            <p className="text-sm text-text-primary leading-relaxed">{lead.description}</p>
-          </div>
-        )}
-        {lead.lostReason && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <p className="text-xs font-semibold text-red-500 mb-1">Lost Reason</p>
-            <p className="text-sm text-text-primary">{lead.lostReason}</p>
-          </div>
-        )}
-      </div>
-
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
         {(['overview', 'activities', 'notes'] as const).map(tab => (
@@ -276,6 +265,78 @@ const CrmLeadDetail = () => {
           </button>
         ))}
       </div>
+
+      {/* Overview tab */}
+      {activeTab === 'overview' && (
+        <div className="bg-bg-surface border border-border rounded-xl p-5">
+          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Lead Info</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+            {[
+              { label: 'Status', value: lead.status, icon: 'flag', highlight: true },
+              { label: 'Source', value: lead.source ?? '—', icon: 'source' },
+              { label: 'Company', value: lead.companyName ?? '—', icon: 'business', link: lead.account ? { to: `/crm/accounts/${lead.account.id}`, text: lead.account.name } : null },
+              { label: 'Account', value: lead.account ? lead.account.name : '—', icon: 'apartment', link: lead.account ? { to: `/crm/accounts/${lead.account.id}`, text: lead.account.name } : null },
+              { label: 'Contact', value: lead.contact ? `${lead.contact.firstName} ${lead.contact.lastName}` : (lead.contactName ?? '—'), icon: 'person', link: lead.contact ? { to: `/crm/contacts/${lead.contact.id}`, text: `${lead.contact.firstName} ${lead.contact.lastName}` } : null },
+              { label: 'Email', value: lead.contactEmail ?? (lead.contact?.email ?? '—'), icon: 'mail' },
+              { label: 'Phone', value: lead.contactPhone ?? (lead.contact?.phone ?? '—'), icon: 'call' },
+              { label: 'Estimated Value', value: formatCurrency(lead.estimatedValue), icon: 'payments' },
+              { label: 'Owner', value: lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}` : '—', icon: 'manage_accounts', editable: true },
+              { label: 'Follow-up Date', value: lead.followUpDate ? formatDate(lead.followUpDate) : '—', icon: 'event' },
+              { label: 'Created', value: formatDate(lead.createdAt), icon: 'calendar_today' },
+              { label: 'Converted At', value: lead.convertedAt ? formatDate(lead.convertedAt) : '—', icon: 'check_circle' },
+            ].map(f => (
+              <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
+                <span className="text-xs text-text-secondary w-28 shrink-0">{f.label}</span>
+                {(f as any).editable && editingOwner ? (
+                  <select
+                    value={lead.owner?.id || ''}
+                    onChange={e => handleChangeOwner(e.target.value)}
+                    disabled={savingOwner}
+                    className="flex-1 px-3 py-1 border border-brand-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-200 outline-none"
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                  >
+                    {crmUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                    ))}
+                  </select>
+                ) : (f as any).link ? (
+                  <Link to={(f as any).link.to} className="text-sm text-brand-700 hover:text-brand-800 font-semibold transition-colors">
+                    {(f as any).link.text}
+                  </Link>
+                ) : (
+                  <span className={`text-sm${(f as any).highlight ? ' font-bold' : ''} ${f.value === '—' ? 'text-text-secondary' : 'text-text-primary'}${(f as any).editable ? ' cursor-pointer hover:text-brand-700 transition-colors' : ''}`}
+                    {...((f as any).editable ? { onClick: () => setEditingOwner(true) } : {})}
+                  >
+                    {f.value}
+                    {(f as any).editable && (
+                      <span className="material-symbols-outlined text-sm ml-1 align-text-bottom text-text-secondary">edit</span>
+                    )}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+          {lead.description && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-xs font-semibold text-text-secondary mb-1">Description</p>
+              <p className="text-sm text-text-primary leading-relaxed">{lead.description}</p>
+            </div>
+          )}
+          {lead.followUpNote && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-xs font-semibold text-text-secondary mb-1">Follow-up Note</p>
+              <p className="text-sm text-text-primary leading-relaxed">{lead.followUpNote}</p>
+            </div>
+          )}
+          {lead.lostReason && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-xs font-semibold text-red-500 mb-1">Lost Reason</p>
+              <p className="text-sm text-text-primary">{lead.lostReason}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Activities tab */}
       {activeTab === 'activities' && (
@@ -420,6 +481,98 @@ const CrmLeadDetail = () => {
                   className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving…' : 'Add Note'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Lead modal */}
+      {showEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEdit(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-lg font-extrabold text-text-primary">Edit Lead</h2>
+              <button onClick={() => setShowEdit(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+            </div>
+            <form onSubmit={handleEditSave} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Title *</label>
+                <input required value={editForm.title ?? ''} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Contact Name</label>
+                  <input value={editForm.contactName ?? ''} onChange={e => setEditForm(f => ({ ...f, contactName: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Company</label>
+                  <input value={editForm.companyName ?? ''} onChange={e => setEditForm(f => ({ ...f, companyName: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Email</label>
+                  <input type="email" value={editForm.contactEmail ?? ''} onChange={e => setEditForm(f => ({ ...f, contactEmail: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Phone</label>
+                  <input value={editForm.contactPhone ?? ''} onChange={e => setEditForm(f => ({ ...f, contactPhone: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Source</label>
+                  <select value={editForm.source ?? 'OTHER'} onChange={e => setEditForm(f => ({ ...f, source: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
+                      <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Estimated Value (MYR)</label>
+                  <input type="number" min="0" value={editForm.estimatedValue ?? ''} onChange={e => setEditForm(f => ({ ...f, estimatedValue: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Follow-up Date</label>
+                  <input type="date" value={editForm.followUpDate ?? ''} onChange={e => setEditForm(f => ({ ...f, followUpDate: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Owner</label>
+                  <select value={lead!.owner?.id ?? ''} onChange={e => setEditForm(f => ({ ...f, ownerId: e.target.value || undefined }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    {crmUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Follow-up Note</label>
+                <input value={editForm.followUpNote ?? ''} onChange={e => setEditForm(f => ({ ...f, followUpNote: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
+                <textarea rows={3} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowEdit(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
