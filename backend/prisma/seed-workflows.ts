@@ -172,9 +172,57 @@ export async function seedWorkflows(prisma: PrismaClient, retainAdminConfig: boo
       });
 
       if (existing) {
-        // Do NOT overwrite name/description — admin may have edited them via console.
-        // Also do NOT overwrite steps — admin may have added/removed/reordered steps.
-        console.log(`⏭️  Workflow already exists: ${workflow.code} — preserving admin config`);
+        // Sync workflow steps to match seed definition
+        // Delete steps not in seed, upsert steps that exist, create new ones
+        const seedStepStatuses = workflow.steps.map(s => s.status);
+        const existingSteps = await prisma.workflowStep.findMany({
+          where: { workflowTypeId: existing.id }
+        });
+
+        // Delete steps not in seed definition
+        const extraSteps = existingSteps.filter(s => !seedStepStatuses.includes(s.status));
+        for (const step of extraSteps) {
+          await prisma.workflowStep.delete({ where: { id: step.id } });
+        }
+        if (extraSteps.length > 0) {
+          console.log(`🧹 Pruned ${extraSteps.length} extra steps from ${workflow.code}: ${extraSteps.map(s => s.status).join(', ')}`);
+        }
+
+        // Upsert each seed step
+        for (let index = 0; index < workflow.steps.length; index++) {
+          const step = workflow.steps[index];
+          const existingStep = existingSteps.find(s => s.status === step.status);
+
+          if (existingStep) {
+            // Update existing step to match seed
+            await prisma.workflowStep.update({
+              where: { id: existingStep.id },
+              data: {
+                label: step.label,
+                icon: step.icon,
+                displayOrder: index + 1,
+                isInitial: step.isInitial || false,
+                isFinal: step.isFinal || false,
+                slaPause: step.slaPause || false,
+              }
+            });
+          } else {
+            // Create missing step
+            await prisma.workflowStep.create({
+              data: {
+                workflowTypeId: existing.id,
+                label: step.label,
+                status: step.status,
+                icon: step.icon,
+                displayOrder: index + 1,
+                isInitial: step.isInitial || false,
+                isFinal: step.isFinal || false,
+                slaPause: step.slaPause || false,
+              }
+            });
+          }
+        }
+        console.log(`✅ Synced workflow steps: ${workflow.code} (${workflow.steps.length} steps)`);
       } else {
         // Create new workflow with steps
         const created = await prisma.workflowType.create({
