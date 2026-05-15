@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { requestService } from '../src/services/request.service';
-import { STATUS_CONFIG } from '../constants';
+import { STATUS_CONFIG, RESOLVED_STATUSES_LIST } from '../constants';
 import { useAuth } from '../src/context/AuthContext';
 import { friendlyMessage } from '../src/utils/errorMessages';
+import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
+import axios from 'axios';
 
 interface Request {
   id: string;
@@ -28,17 +30,6 @@ interface Request {
   } | null;
 }
 
-// Statuses that represent a terminal/closed state — used for server-side "open" filtering
-const RESOLVED_STATUSES = [
-  'RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED',
-  'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED',
-  'CTO_REJECTED_IT', 'CFO_REJECTED_IT',
-  'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED',
-  'LOA_ACCEPTED', 'COMPLETED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN',
-  'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED',
-  'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED',
-];
-
 const MyRequests = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -47,6 +38,7 @@ const MyRequests = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearch = useDebouncedValue(searchTerm, 300);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -55,10 +47,12 @@ const MyRequests = () => {
   const limit = 10;
 
   useEffect(() => {
-    fetchRequests();
-  }, [filter, searchTerm, page, selectedRequestTypeId]);
+    const controller = new AbortController();
+    fetchRequests(controller.signal);
+    return () => controller.abort();
+  }, [filter, debouncedSearch, page, selectedRequestTypeId]);
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (signal?: AbortSignal) => {
     try {
       setLoading(true);
       setError(null);
@@ -69,8 +63,8 @@ const MyRequests = () => {
         requesterId: user?.id,
       };
 
-      if (searchTerm) {
-        apiFilters.search = searchTerm;
+      if (debouncedSearch) {
+        apiFilters.search = debouncedSearch;
       }
 
       if (selectedRequestTypeId) {
@@ -79,11 +73,11 @@ const MyRequests = () => {
 
       // Server-side filtering by status
       if (filter === 'open') {
-        apiFilters.excludedStatuses = RESOLVED_STATUSES.join(',');
+        apiFilters.excludedStatuses = RESOLVED_STATUSES_LIST.join(',');
       }
       // filter === 'all' → no status filter needed
 
-      const data = await requestService.getAllRequests(apiFilters);
+      const data = await requestService.getAllRequests(apiFilters, signal);
 
       setRequests(data.requests || []);
       setTotal(data.pagination?.total || 0);
@@ -102,10 +96,14 @@ const MyRequests = () => {
         setRequestTypeOptions(options);
       }
     } catch (err: any) {
+      // Swallow aborts — they're expected when the user keeps typing
+      if (axios.isCancel?.(err) || err?.name === 'CanceledError' || err?.name === 'AbortError') {
+        return;
+      }
       console.error('Error fetching requests:', err);
       setError(friendlyMessage(err, 'Unable to load requests. Please refresh.'));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 

@@ -191,8 +191,8 @@ const crmService = {
   },
 
   // Global Search
-  async globalSearch(q: string) {
-    const res = await api.get('/crm/search', { params: { q } });
+  async globalSearch(q: string, signal?: AbortSignal) {
+    const res = await api.get('/crm/search', { params: { q }, signal });
     return res.data.data as {
       accounts: Array<{ id: string; name: string; industry: string | null; isActive: boolean }>;
       contacts: Array<{ id: string; firstName: string; lastName: string; email: string | null; jobTitle: string | null; account?: { id: string; name: string } }>;

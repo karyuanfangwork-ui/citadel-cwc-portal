@@ -1,13 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debouncedValue;
-}
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 interface UserPagination {
     page: number;
@@ -58,7 +50,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
     onToggleUserStatus,
 }) => {
     const [searchInput, setSearchInput] = useState(userSearch);
-    const debouncedSearch = useDebounce(searchInput, 300);
+    const debouncedSearch = useDebouncedValue(searchInput, 300);
 
     useEffect(() => {
         if (debouncedSearch !== userSearch) {

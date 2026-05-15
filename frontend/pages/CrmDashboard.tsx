@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import crmService, { DashboardStats, CrmActivity } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
+import axios from 'axios';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
 const formatRelative = (d: string) => { const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m/60)}h ago` : `${Math.floor(m/1440)}d ago`; };
@@ -26,27 +28,34 @@ const CrmDashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [myDeals, setMyDeals] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedQuery = useDebouncedValue(searchQuery, 350);
   const [searchResults, setSearchResults] = useState<Awaited<ReturnType<typeof crmService.globalSearch>> | null>(null);
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
   useEffect(() => {
-    if (!searchQuery || searchQuery.length < 2) {
+    if (!debouncedQuery || debouncedQuery.length < 2) {
       setSearchResults(null);
       setShowResults(false);
+      setSearching(false);
       return;
     }
-    const timer = setTimeout(async () => {
-      setSearching(true);
+    const controller = new AbortController();
+    setSearching(true);
+    (async () => {
       try {
-        const results = await crmService.globalSearch(searchQuery);
+        const results = await crmService.globalSearch(debouncedQuery, controller.signal);
         setSearchResults(results);
         setShowResults(true);
-      } catch { /* silent */ }
-      finally { setSearching(false); }
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+      } catch (err: any) {
+        if (axios.isCancel?.(err) || err?.name === 'CanceledError' || err?.name === 'AbortError') return;
+        /* other errors silent — matches prior behavior */
+      } finally {
+        if (!controller.signal.aborted) setSearching(false);
+      }
+    })();
+    return () => controller.abort();
+  }, [debouncedQuery]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

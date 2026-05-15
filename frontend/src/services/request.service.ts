@@ -42,7 +42,7 @@ export interface RequestParticipant {
 }
 
 export const requestService = {
-    async getAllRequests(filters: RequestFilters = {}) {
+    async getAllRequests(filters: RequestFilters = {}, signal?: AbortSignal) {
         const params = new URLSearchParams();
         if (filters.page) params.append('page', filters.page.toString());
         if (filters.limit) params.append('limit', filters.limit.toString());
@@ -53,7 +53,7 @@ export const requestService = {
         if (filters.search) params.append('search', filters.search);
         if (filters.requestTypeId) params.append('requestTypeId', filters.requestTypeId);
 
-        const response = await apiClient.get(`/requests?${params.toString()}`);
+        const response = await apiClient.get(`/requests?${params.toString()}`, { signal });
         return response.data.data;
     },
 

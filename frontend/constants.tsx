@@ -99,6 +99,37 @@ export const STATUS_CONFIG: Record<RequestStatus, { label: string, color: string
   [RequestStatus.CHARGEBACK_COMPLETED]: { label: 'Chargeback Complete', color: 'text-green-700', bg: 'bg-green-100', icon: 'task_alt' },
 };
 
+/**
+ * Terminal / closed statuses — requests in these states are treated as
+ * "resolved" in list views. Single source of truth; import everywhere instead
+ * of re-defining locally (audit finding C5).
+ */
+export const RESOLVED_STATUSES = new Set<string>([
+  RequestStatus.RESOLVED,
+  RequestStatus.COMPLETED,
+  RequestStatus.REJECTED,
+  RequestStatus.CEO_REJECTED,
+  RequestStatus.REIMBURSEMENT_CLOSED,
+  RequestStatus.ONBOARDING_COMPLETED,
+  RequestStatus.OFFBOARDING_COMPLETED,
+  RequestStatus.PAYMENT_COMPLETED,
+  RequestStatus.LOA_ACCEPTED,
+  RequestStatus.CTO_REJECTED_IT,
+  RequestStatus.CFO_REJECTED_IT,
+  RequestStatus.MANAGER_REJECTED_FIN,
+  RequestStatus.FINANCE_HEAD_REJECTED,
+  RequestStatus.CFO_REJECTED_FIN,
+  RequestStatus.GROUP_CEO_REJECTED,
+  RequestStatus.PAYMENT_CONFIRMED_FIN,
+  RequestStatus.TICKET_CLOSED_FIN,
+  RequestStatus.FROM_ENTITY_REJECTED,
+  RequestStatus.TO_ENTITY_REJECTED,
+  RequestStatus.CHARGEBACK_COMPLETED,
+]);
+
+/** Array form for APIs that accept a comma-joined excludedStatuses param. */
+export const RESOLVED_STATUSES_LIST = [...RESOLVED_STATUSES];
+
 export const MOCK_REQUESTS = [
   {
     id: '1',

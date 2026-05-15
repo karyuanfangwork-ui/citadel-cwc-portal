@@ -40,6 +40,7 @@ export interface AuditLogParams {
     limit?: number;
     action?: string;
     resourceId?: string;
+    resourceType?: string;
     userId?: string;
     startDate?: string;
     endDate?: string;
@@ -54,6 +55,7 @@ export const auditLogService = {
         if (params.limit) query.set('limit', String(params.limit));
         if (params.action) query.set('action', params.action);
         if (params.resourceId) query.set('resourceId', params.resourceId);
+        if (params.resourceType) query.set('resourceType', params.resourceType);
         if (params.userId) query.set('userId', params.userId);
         if (params.startDate) query.set('startDate', params.startDate);
         if (params.endDate) query.set('endDate', params.endDate);

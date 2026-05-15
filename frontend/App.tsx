@@ -25,6 +25,8 @@ import { ThemeProvider } from './src/context/ThemeContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { hasPermission, hasAnyPermission, hasAnyRole } from './src/utils/permissions';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { useFocusTrap } from './src/hooks/useFocusTrap';
+import NavMoreDropdown from './src/components/NavMoreDropdown';
 import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
 import Login from './src/pages/Login';
@@ -64,6 +66,7 @@ import AnnouncementDetail from './pages/AnnouncementDetail';
 import ChangePassword from './src/pages/ChangePassword';
 import ForgotPassword from './src/pages/ForgotPassword';
 import ResetPassword from './src/pages/ResetPassword';
+import NotFound from './pages/NotFound';
 
 const Header = () => {
   const location = useLocation();
@@ -71,6 +74,25 @@ const Header = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
+  const drawerRef = useFocusTrap(mobileMenuOpen);
+
+  // Escape closes the drawer
+  React.useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [mobileMenuOpen]);
+
+  // Lock body scroll while drawer is open
+  React.useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [mobileMenuOpen]);
   const isActive = (path: string) => {
     if (path === '/') return location.pathname === '/';
     return location.pathname === path || location.pathname.startsWith(path + '/');
@@ -104,19 +126,26 @@ const Header = () => {
     return null;
   }
 
-  const navLinks = [
-    { to: '/', label: 'Dashboard', show: true },
-    { to: '/my-requests', label: 'My Requests', show: true },
-    { to: '/announcements', label: 'Announcements', show: true },
-    { to: '/agent', label: 'Agent Dashboard', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
-    { to: '/approvals', label: 'Approvals', show: hasPermission(user, 'request:approve') },
-    { to: '/assets', label: 'IT Assets', show: hasAnyPermission(user, ['asset:read']) },
-    { to: '/crm', label: 'CRM', show: hasAnyPermission(user, ['crm:read']) },
-    { to: '/kb', label: 'Knowledge Base', show: import.meta.env.DEV },
-    { to: '/reports', label: 'Reports', show: hasPermission(user, 'report:read') },
-    { to: '/admin/announcements', label: 'Announcements Mgmt', show: hasPermission(user, 'announcement:write') },
-    { to: '/admin/settings', label: 'Admin Settings', show: hasPermission(user, 'admin:access') },
+  // Nav links grouped by display priority
+  // primary: always inline at md+; secondary: behind "More" dropdown; admin: dropdown with divider
+  const allNavLinks = [
+    { to: '/', label: 'Dashboard', icon: 'space_dashboard', group: 'primary' as const, show: true },
+    { to: '/my-requests', label: 'My Requests', icon: 'assignment', group: 'primary' as const, show: true },
+    { to: '/announcements', label: 'Announcements', icon: 'campaign', group: 'primary' as const, show: true },
+    { to: '/agent', label: 'Agent Dashboard', icon: 'support_agent', group: 'primary' as const, show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
+    { to: '/approvals', label: 'Approvals', icon: 'approval', group: 'primary' as const, show: hasPermission(user, 'request:approve') },
+    { to: '/assets', label: 'IT Assets', icon: 'devices', group: 'secondary' as const, show: hasAnyPermission(user, ['asset:read']) },
+    { to: '/crm', label: 'CRM', icon: 'group', group: 'secondary' as const, show: hasAnyPermission(user, ['crm:read']) },
+    { to: '/kb', label: 'Knowledge Base', icon: 'menu_book', group: 'secondary' as const, show: import.meta.env.DEV },
+    { to: '/reports', label: 'Reports', icon: 'assessment', group: 'secondary' as const, show: hasPermission(user, 'report:read') },
+    { to: '/admin/announcements', label: 'Announcements Mgmt', icon: 'campaign', group: 'admin' as const, show: hasPermission(user, 'announcement:write') },
+    { to: '/admin/settings', label: 'Admin Settings', icon: 'settings', group: 'admin' as const, show: hasPermission(user, 'admin:access') },
   ].filter(l => l.show);
+
+  const primaryLinks = allNavLinks.filter(l => l.group === 'primary');
+  const secondaryLinks = allNavLinks.filter(l => l.group === 'secondary');
+  const adminLinks = allNavLinks.filter(l => l.group === 'admin');
+  const hasMoreMenu = secondaryLinks.length > 0 || adminLinks.length > 0;
 
   return (
     <>
@@ -129,18 +158,25 @@ const Header = () => {
               </div>
               <h2 className="text-text-primary text-lg font-bold leading-tight tracking-tight">Citadel Workplace Connect</h2>
             </Link>
-            <nav className="hidden md:flex items-center gap-8">
-              {navLinks.map(link => (
+            <nav className="hidden md:flex items-center gap-6">
+              {primaryLinks.map(link => (
                 <Link
                   key={link.to}
                   to={link.to}
-                  className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 ${
+                  className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 whitespace-nowrap ${
                     isActive(link.to) ? 'text-[#0052cc] border-[#0052cc]' : 'text-text-secondary border-transparent'
                   }`}
                 >
                   {link.label}
                 </Link>
               ))}
+              {hasMoreMenu && (
+                <NavMoreDropdown
+                  items={secondaryLinks}
+                  adminItems={adminLinks}
+                  isActive={isActive}
+                />
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-2 sm:gap-6">
@@ -216,7 +252,9 @@ const Header = () => {
             <button
               className="md:hidden flex items-center justify-center rounded-lg h-10 w-10 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors"
               onClick={() => setMobileMenuOpen(o => !o)}
-              aria-label="Open navigation menu"
+              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-nav-drawer"
             >
               <span className="material-symbols-outlined">{mobileMenuOpen ? 'close' : 'menu'}</span>
             </button>
@@ -227,8 +265,13 @@ const Header = () => {
       {/* Mobile slide-out drawer */}
       {mobileMenuOpen && (
         <div className="md:hidden fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
           <div
+            ref={drawerRef}
+            id="mobile-nav-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Main navigation"
             className="absolute top-0 left-0 w-72 h-full bg-surface shadow-2xl flex flex-col"
             onClick={e => e.stopPropagation()}
           >
@@ -275,17 +318,57 @@ const Header = () => {
 
             {/* Nav links */}
             <nav className="flex flex-col py-2 flex-1 overflow-y-auto">
-              {navLinks.map(link => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className={`px-4 py-3 text-sm font-semibold transition-colors ${
-                    isActive(link.to) ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {primaryLinks.length > 0 && (
+                <>
+                  <p className="px-4 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-text-tertiary">Main</p>
+                  {primaryLinks.map(link => (
+                    <Link
+                      key={link.to}
+                      to={link.to}
+                      className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
+                        isActive(link.to) ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-lg">{link.icon}</span>
+                      {link.label}
+                    </Link>
+                  ))}
+                </>
+              )}
+              {secondaryLinks.length > 0 && (
+                <>
+                  <p className="px-4 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-text-tertiary">Modules</p>
+                  {secondaryLinks.map(link => (
+                    <Link
+                      key={link.to}
+                      to={link.to}
+                      className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
+                        isActive(link.to) ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-lg">{link.icon}</span>
+                      {link.label}
+                    </Link>
+                  ))}
+                </>
+              )}
+              {adminLinks.length > 0 && (
+                <>
+                  <p className="px-4 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-text-tertiary">Admin</p>
+                  {adminLinks.map(link => (
+                    <Link
+                      key={link.to}
+                      to={link.to}
+                      className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
+                        isActive(link.to) ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-lg">{link.icon}</span>
+                      {link.label}
+                    </Link>
+                  ))}
+                </>
+              )}
             </nav>
 
             {/* User section at bottom */}
@@ -435,6 +518,7 @@ const AppShell = () => {
                 </ProtectedRoute>
               } />
               <Route path="/:deskType/:deskId/create/:categoryId" element={<ProtectedRoute><CreateRequest /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
           {showFooter && <Footer />}

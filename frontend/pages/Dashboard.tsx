@@ -5,7 +5,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { serviceDeskService } from '../src/services/serviceDesk.service';
 import { requestService } from '../src/services/request.service';
 import announcementService, { DashboardAnnouncement } from '../src/services/announcement.service';
-import { STATUS_CONFIG } from '../constants';
+import { STATUS_CONFIG, RESOLVED_STATUSES } from '../constants';
 import { RequestStatus } from '../types';
 import { friendlyMessage } from '../src/utils/errorMessages';
 
@@ -27,22 +27,6 @@ interface Request {
   updatedAt: string;
   serviceDesk?: { name: string; code: string };
 }
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-const RESOLVED_STATUSES = new Set<string>([
-  RequestStatus.RESOLVED,
-  RequestStatus.COMPLETED,
-  RequestStatus.REIMBURSEMENT_CLOSED,
-  RequestStatus.ONBOARDING_COMPLETED,
-  RequestStatus.OFFBOARDING_COMPLETED,
-  RequestStatus.PAYMENT_COMPLETED,
-  RequestStatus.LOA_ACCEPTED,
-  'TICKET_CLOSED_FIN',
-  'CFO_REJECTED_FIN',
-  'GROUP_CEO_REJECTED',
-  'PAYMENT_CONFIRMED_FIN',
-]);
 
 function getGreeting(firstName: string): string {
   const hour = new Date().getHours();
