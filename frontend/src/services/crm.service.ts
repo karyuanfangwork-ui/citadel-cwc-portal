@@ -41,6 +41,8 @@ export interface CrmLead {
   companyName: string | null; estimatedValue: number | null; description: string | null;
   followUpDate: string | null; followUpNote: string | null;
   lostReason: string | null; convertedAt: string | null; convertedToOppId: string | null;
+  // AI scoring fields
+  aiScore: number | null; aiScoreReason: string | null; aiScoredAt: string | null;
   createdAt: string; updatedAt: string;
   owner?: UserRef; account?: { id: string; name: string };
   contact?: { id: string; firstName: string; lastName: string; email?: string; phone?: string };
@@ -67,11 +69,14 @@ export interface CrmOpportunity {
   value: number; currency: string; probability: number;
   expectedCloseDate: string | null; description: string | null;
   lostReason: string | null; wonAt: string | null; lostAt: string | null;
+  // AI scoring fields
+  aiWinProbability: number | null; aiWinReason: string | null; aiScoredAt: string | null;
   createdAt: string; updatedAt: string;
   account?: { id: string; name: string; industry?: string };
   contact?: { id: string; firstName: string; lastName: string; email?: string; phone?: string };
   stage?: CrmPipelineStage; pipeline?: CrmPipeline; owner?: UserRef;
   activities?: CrmActivity[]; notes?: CrmNote[];
+  trustProduct?: any;
 }
 
 export interface CrmActivity {
@@ -417,6 +422,48 @@ const crmService = {
   async getKycComplianceReport() {
     const res = await api.get('/crm/reports/kyc-compliance');
     return res.data.data;
+  },
+
+  // ── AI Features ───────────────────────────────────────────────────────────────────────────
+  async analyzeActivityNote(activityId: string) {
+    const { data } = await api.post(`/crm/ai/activities/${activityId}/analyze`);
+    return data as { sentiment: 'positive' | 'neutral' | 'negative'; nextAction: string; suggestedStatusChange: string | null; keyFacts: string[] };
+  },
+  async draftLeadMessage(leadId: string, payload: { channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' }) {
+    const { data } = await api.post(`/crm/ai/leads/${leadId}/draft-message`, { entityType: 'lead', ...payload });
+    return data as { subject: string | null; body: string };
+  },
+  async draftContactMessage(contactId: string, payload: { channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' }) {
+    const { data } = await api.post(`/crm/ai/contacts/${contactId}/draft-message`, { entityType: 'contact', ...payload });
+    return data as { subject: string | null; body: string };
+  },
+  async getLeadSummary(leadId: string) {
+    const { data } = await api.get(`/crm/ai/leads/${leadId}/summary`);
+    return data as { statusSummary: string; keyFacts: string; recommendedNextStep: string };
+  },
+  async getLeadScore(leadId: string) {
+    const { data } = await api.get(`/crm/ai/leads/${leadId}/score`);
+    return data as { score: number; reason: string };
+  },
+  async getWinProbability(opportunityId: string) {
+    const { data } = await api.get(`/crm/ai/opportunities/${opportunityId}/win-probability`);
+    return data as { probability: number; confidence: 'high' | 'medium' | 'low'; reason: string };
+  },
+  async getDailyBriefing() {
+    const { data } = await api.get(`/crm/ai/dashboard/briefing`);
+    return data as { headline: string; bullets: string[]; topPriority: string };
+  },
+  async getKycGaps(contactId: string) {
+    const { data } = await api.get(`/crm/ai/contacts/${contactId}/kyc-gaps`);
+    return data as { gaps: Array<{ field: string; requirement: string; severity: 'required' | 'recommended' }>; complianceSummary: string; isCompliant: boolean };
+  },
+  async getRiskProfile(contactId: string) {
+    const { data } = await api.get(`/crm/ai/contacts/${contactId}/risk-profile`);
+    return data as { suggestedRiskTier: 'Low' | 'Medium' | 'High'; justification: string; regulatoryBasis: string };
+  },
+  async getDocumentChecklist(trustProductId: string) {
+    const { data } = await api.get(`/crm/ai/trust-products/${trustProductId}/document-checklist`);
+    return data as { documents: Array<{ name: string; description: string; required: boolean }>; notes: string };
   },
 };
 

@@ -1568,6 +1568,11 @@ model CrmLead {
   followUpNote       String?    @map("follow_up_note") @db.Text
   deletedAt          DateTime?  @map("deleted_at") @db.Timestamp(6)
 
+  // AI scoring
+  aiScore        Int?       @map("ai_score")
+  aiScoreReason  String?    @map("ai_score_reason") @db.Text
+  aiScoredAt     DateTime?  @map("ai_scored_at") @db.Timestamp(6)
+
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
@@ -1641,6 +1646,11 @@ model CrmOpportunity {
   wonAt          DateTime?        @map("won_at") @db.Timestamp(6)
   lostAt         DateTime?        @map("lost_at") @db.Timestamp(6)
   deletedAt      DateTime?        @map("deleted_at") @db.Timestamp(6)
+
+  // AI scoring
+  aiWinProbability  Float?     @map("ai_win_probability")
+  aiWinReason       String?    @map("ai_win_reason") @db.Text
+  aiScoredAt        DateTime?  @map("ai_scored_at") @db.Timestamp(6)
 
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)

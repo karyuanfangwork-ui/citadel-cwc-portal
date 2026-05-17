@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { crmController } from '../controllers/crm.controller';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
+import crmAiRoutes from './crm-ai.routes';
 import {
   createAccountSchema, updateAccountSchema,
   createContactSchema, updateContactSchema,
@@ -102,5 +103,8 @@ router.get('/reports/activity-summary', requirePermission('crm:read'), crmContro
 router.get('/reports/lead-aging', requirePermission('crm:read'), crmController.getLeadAgingReport);
 router.get('/reports/win-loss', requirePermission('crm:read'), crmController.getWinLossReport);
 router.get('/reports/kyc-compliance', requirePermission('crm:read'), crmController.getKycComplianceReport);
+
+// ======== AI FEATURES ========
+router.use('/ai', crmAiRoutes);
 
 export default router;

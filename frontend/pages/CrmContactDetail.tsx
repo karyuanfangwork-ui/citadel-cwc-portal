@@ -4,6 +4,7 @@ import crmService, {
   CrmContact, CrmOpportunity, CrmKycRecord, CrmNote,
 } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import AiInsightCard from '../src/components/crm/AiInsightCard';
 
 // ── Formatters ────────────────────────────────────────────────────
 const fmt = new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 });
@@ -290,6 +291,29 @@ const CrmContactDetail = () => {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [loadedTabs, setLoadedTabs] = useState<Set<Tab>>(new Set(['overview']));
 
+  // ── AI state (Task 5/6/11/12) ───────────────────────────────────────
+  // Draft Message
+  const [draftModal, setDraftModal] = useState(false);
+  const [draftConfig, setDraftConfig] = useState<{ channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' }>({ channel: 'whatsapp', tone: 'friendly' });
+  const [draftResult, setDraftResult] = useState<{ subject: string | null; body: string } | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+
+  // KYC Gap Detector
+  const [kycGaps, setKycGaps] = useState<{
+    gaps: Array<{ field: string; requirement: string; severity: 'required' | 'recommended' }>;
+    complianceSummary: string;
+    isCompliant: boolean;
+  } | null>(null);
+  const [kycLoading, setKycLoading] = useState(false);
+
+  // Risk Profile
+  const [riskProfile, setRiskProfile] = useState<{
+    suggestedRiskTier: 'Low' | 'Medium' | 'High';
+    justification: string;
+    regulatoryBasis: string;
+  } | null>(null);
+  const [riskLoading, setRiskLoading] = useState(false);
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
@@ -298,6 +322,47 @@ const CrmContactDetail = () => {
       .catch(() => navigate('/crm/contacts'))
       .finally(() => setLoading(false));
   }, [id, navigate]);
+
+  // ── AI handlers ─────────────────────────────────────────────────────
+  const handleDraftMessage = async () => {
+    if (!contact) return;
+    setDraftLoading(true);
+    setDraftResult(null);
+    try {
+      const result = await crmService.draftContactMessage(contact.id, draftConfig);
+      setDraftResult(result);
+    } catch {
+      // fail silently
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const handleKycCheck = async () => {
+    if (!contact) return;
+    setKycLoading(true);
+    try {
+      const result = await crmService.getKycGaps(contact.id);
+      setKycGaps(result);
+    } catch {
+      // fail silently
+    } finally {
+      setKycLoading(false);
+    }
+  };
+
+  const handleRiskProfile = async () => {
+    if (!contact) return;
+    setRiskLoading(true);
+    try {
+      const result = await crmService.getRiskProfile(contact.id);
+      setRiskProfile(result);
+    } catch {
+      // fail silently
+    } finally {
+      setRiskLoading(false);
+    }
+  };
 
   const switchTab = (tab: Tab) => {
     setActiveTab(tab);
@@ -353,6 +418,17 @@ const CrmContactDetail = () => {
             ) : ''}
           </p>
         </div>
+        {/* Draft Message button (Task 6) */}
+        <div className="ml-auto">
+          <button
+            onClick={() => { setDraftModal(true); setDraftResult(null); }}
+            className="flex items-center gap-2 border border-violet-300 bg-violet-50 px-4 py-2 rounded-lg text-sm font-bold text-violet-700 hover:bg-violet-100 transition-colors"
+            style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+          >
+            <span className="material-icons text-sm">auto_awesome</span>
+            Draft Message
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -403,7 +479,59 @@ const CrmContactDetail = () => {
       )}
 
       {activeTab === 'kyc' && loadedTabs.has('kyc') && id && (
-        <KycTab contactId={id} />
+        <div className="space-y-4">
+          <KycTab contactId={id} />
+          {/* AI KYC Gap Detector (Task 11) */}
+          <AiInsightCard title="AI KYC Compliance Check" loading={kycLoading} onRefresh={handleKycCheck}>
+            {!kycGaps ? (
+              <button onClick={handleKycCheck} className="text-sm text-violet-600 hover:underline">
+                Run compliance check
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <div className={`flex items-center gap-2 text-sm font-semibold ${kycGaps.isCompliant ? 'text-green-700' : 'text-red-600'}`}>
+                  <span className="material-icons text-base">{kycGaps.isCompliant ? 'check_circle' : 'warning'}</span>
+                  {kycGaps.complianceSummary}
+                </div>
+                {kycGaps.gaps.length > 0 && (
+                  <ul className="space-y-1">
+                    {kycGaps.gaps.map((g, i) => (
+                      <li key={i} className={`flex items-start gap-2 rounded-md px-2 py-1 text-xs ${g.severity === 'required' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                        <span className="material-icons mt-0.5 text-sm">{g.severity === 'required' ? 'error' : 'info'}</span>
+                        <span><span className="font-semibold">{g.field}:</span> {g.requirement}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="text-xs text-gray-400">AI-generated — verify against latest BNM guidelines.</p>
+              </div>
+            )}
+          </AiInsightCard>
+
+          {/* AI Risk Profile Classifier (Task 12) */}
+          <AiInsightCard title="AI Risk Classification" loading={riskLoading} onRefresh={handleRiskProfile}>
+            {!riskProfile ? (
+              <button onClick={handleRiskProfile} className="text-sm text-violet-600 hover:underline">
+                Classify risk profile
+              </button>
+            ) : (
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    riskProfile.suggestedRiskTier === 'High' ? 'bg-red-100 text-red-700'
+                    : riskProfile.suggestedRiskTier === 'Medium' ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-green-100 text-green-700'
+                  }`}>
+                    {riskProfile.suggestedRiskTier} Risk
+                  </span>
+                  <span className="text-xs text-gray-400">(AI suggestion — agent must confirm)</span>
+                </div>
+                <p className="text-gray-700">{riskProfile.justification}</p>
+                <p className="text-xs text-gray-500 italic">{riskProfile.regulatoryBasis}</p>
+              </div>
+            )}
+          </AiInsightCard>
+        </div>
       )}
 
       {activeTab === 'deals' && (
@@ -435,6 +563,76 @@ const CrmContactDetail = () => {
 
       {activeTab === 'notes' && loadedTabs.has('notes') && id && (
         <NotesTab contactId={id} />
+      )}
+
+      {/* Draft Message modal (Task 6) */}
+      {draftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Draft Follow-Up Message</h2>
+              <button onClick={() => setDraftModal(false)} className="text-gray-400 hover:text-gray-600" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <span className="material-icons">close</span>
+              </button>
+            </div>
+            <div className="mb-4 flex gap-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Channel</label>
+                <select
+                  value={draftConfig.channel}
+                  onChange={(e) => setDraftConfig((p) => ({ ...p, channel: e.target.value as 'whatsapp' | 'email' }))}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">Email</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Tone</label>
+                <select
+                  value={draftConfig.tone}
+                  onChange={(e) => setDraftConfig((p) => ({ ...p, tone: e.target.value as 'formal' | 'friendly' }))}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
+                  <option value="friendly">Friendly</option>
+                  <option value="formal">Formal</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={handleDraftMessage}
+                  disabled={draftLoading}
+                  className="rounded-md bg-violet-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                  style={{ border: 'none', cursor: 'pointer' }}
+                >
+                  {draftLoading ? 'Drafting…' : 'Generate'}
+                </button>
+              </div>
+            </div>
+            {draftResult && (
+              <div className="space-y-3">
+                {draftResult.subject && (
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-gray-600">Subject</p>
+                    <p className="rounded-md bg-gray-50 px-3 py-2 text-sm">{draftResult.subject}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="mb-1 text-xs font-medium text-gray-600">Message</p>
+                  <textarea
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    rows={8}
+                    defaultValue={draftResult.body}
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400">Edit as needed before sending. AI-generated — review before use.</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
     </>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmLead, CrmUser, CrmPipeline, CrmActivity, CrmNote, CrmActivityType } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import AiInsightCard from '../src/components/crm/AiInsightCard';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -42,10 +43,85 @@ const CrmLeadDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
 
+  // ── AI state ─────────────────────────────────────────────────────
+  // Note Analyzer (Task 5)
+  const [analyzedNotes, setAnalyzedNotes] = useState<Record<string, { sentiment: string; nextAction: string; suggestedStatusChange: string | null; keyFacts: string[] } | null>>({});
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+
+  // Draft Message (Task 6)
+  const [draftModal, setDraftModal] = useState(false);
+  const [draftConfig, setDraftConfig] = useState<{ channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' }>({ channel: 'whatsapp', tone: 'friendly' });
+  const [draftResult, setDraftResult] = useState<{ subject: string | null; body: string } | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
+
+  // Lead Summary (Task 7)
+  const [summary, setSummary] = useState<{ statusSummary: string; keyFacts: string; recommendedNextStep: string } | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  // Lead Score (Task 8)
+  const scoreColor = (score: number) =>
+    score >= 70 ? 'bg-green-100 text-green-700' : score >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600';
+
   // Fetch CRM team users for owner reassignment
   useEffect(() => {
     crmService.listCrmUsers().then(setCrmUsers).catch(() => {});
   }, []);
+
+  // ── AI handlers ─────────────────────────────────────────────────────
+  const handleAnalyzeNote = async (activityId: string) => {
+    setAnalyzingId(activityId);
+    try {
+      const result = await crmService.analyzeActivityNote(activityId);
+      setAnalyzedNotes((prev) => ({ ...prev, [activityId]: result }));
+    } catch {
+      // fail silently — AI is optional
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
+
+  const handleDraftMessage = async () => {
+    if (!lead) return;
+    setDraftLoading(true);
+    setDraftResult(null);
+    try {
+      const result = await crmService.draftLeadMessage(lead.id, draftConfig);
+      setDraftResult(result);
+    } catch {
+      // fail silently
+    } finally {
+      setDraftLoading(false);
+    }
+  };
+
+  const handleGetSummary = async () => {
+    if (!lead) return;
+    setSummaryLoading(true);
+    try {
+      const result = await crmService.getLeadSummary(lead.id);
+      setSummary(result);
+    } catch {
+      // fail silently
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  const [scoreData, setScoreData] = useState<{ score: number; reason: string } | null>(null);
+  const [scoreLoading, setScoreLoading] = useState(false);
+
+  const handleGetScore = async () => {
+    if (!lead) return;
+    setScoreLoading(true);
+    try {
+      const result = await crmService.getLeadScore(lead.id);
+      setScoreData(result);
+    } catch {
+      // fail silently
+    } finally {
+      setScoreLoading(false);
+    }
+  };
 
   const reload = () => {
     if (!id) return;
@@ -212,6 +288,27 @@ const CrmLeadDetail = () => {
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-black text-text-primary">{lead.title}</h1>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: statusStyle.bg, color: statusStyle.text }}>{lead.status}</span>
+            {/* AI Score Badge (Task 8) */}
+            {(scoreData || lead.aiScore != null) ? (
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  scoreColor(scoreData?.score ?? lead.aiScore!)
+                }`}
+                title={scoreData?.reason ?? lead.aiScoreReason ?? ''}
+              >
+                <span className="material-icons text-xs">auto_awesome</span>
+                {scoreData?.score ?? lead.aiScore}/100
+              </span>
+            ) : (
+              <button
+                onClick={handleGetScore}
+                disabled={scoreLoading}
+                className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500 hover:bg-violet-100 hover:text-violet-700 disabled:opacity-50"
+              >
+                <span className="material-icons text-xs">auto_awesome</span>
+                {scoreLoading ? '…' : 'Score'}
+              </button>
+            )}
           </div>
           <p className="text-text-secondary text-sm">{lead.companyName || ''}{lead.contactName ? ` · ${lead.contactName}` : ''}</p>
         </div>
@@ -252,6 +349,17 @@ const CrmLeadDetail = () => {
             style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
             <span className="material-symbols-outlined text-base">sticky_note_2</span> Add Note
           </button>
+          {/* Draft Message button (Task 6) */}
+          {!isConverted && !isLost && (
+            <button
+              onClick={() => { setDraftModal(true); setDraftResult(null); }}
+              className="flex items-center gap-2 border border-violet-300 bg-violet-50 px-4 py-2.5 rounded-lg text-sm font-bold text-violet-700 hover:bg-violet-100 transition-colors"
+              style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            >
+              <span className="material-icons text-sm">auto_awesome</span>
+              Draft Message
+            </button>
+          )}
         </div>
       </div>
 
@@ -335,6 +443,30 @@ const CrmLeadDetail = () => {
               <p className="text-sm text-text-primary">{lead.lostReason}</p>
             </div>
           )}
+
+          {/* AI Summary Panel (Task 7) */}
+          <div className="mt-4 pt-4 border-t border-border">
+            <AiInsightCard
+              title="AI Summary"
+              loading={summaryLoading}
+              onRefresh={handleGetSummary}
+            >
+              {!summary ? (
+                <button
+                  onClick={handleGetSummary}
+                  className="text-sm text-violet-600 hover:underline"
+                >
+                  Generate summary
+                </button>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  <li><span className="font-medium text-gray-700">Status:</span> {summary.statusSummary}</li>
+                  <li><span className="font-medium text-gray-700">Key facts:</span> {summary.keyFacts}</li>
+                  <li><span className="font-medium text-violet-700">Next step:</span> {summary.recommendedNextStep}</li>
+                </ul>
+              )}
+            </AiInsightCard>
+          </div>
         </div>
       )}
 
@@ -352,6 +484,47 @@ const CrmLeadDetail = () => {
                   {a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
                   {a.scheduledAt && <span className="ml-2 text-brand-600">Scheduled: {formatDate(a.scheduledAt)}</span>}
                 </p>
+                {/* AI Note Analyzer (Task 5) */}
+                {['CALL', 'MEETING', 'WHATSAPP'].includes(a.activityType) && (
+                  <div className="mt-2">
+                    {!analyzedNotes[a.id] ? (
+                      <button
+                        onClick={() => handleAnalyzeNote(a.id)}
+                        disabled={analyzingId === a.id}
+                        className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-50"
+                      >
+                        <span className="material-icons text-sm">auto_awesome</span>
+                        {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
+                      </button>
+                    ) : (
+                      <AiInsightCard title="Note Analysis" className="mt-1">
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center gap-1">
+                            <span className={`material-icons text-sm ${
+                              analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-green-600'
+                              : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-red-500'
+                              : 'text-gray-500'
+                            }`}>
+                              {analyzedNotes[a.id]!.sentiment === 'positive' ? 'sentiment_satisfied'
+                                : analyzedNotes[a.id]!.sentiment === 'negative' ? 'sentiment_dissatisfied'
+                                : 'sentiment_neutral'}
+                            </span>
+                            <span className="capitalize text-gray-600">{analyzedNotes[a.id]!.sentiment}</span>
+                          </div>
+                          <p><span className="font-medium">Next action:</span> {analyzedNotes[a.id]!.nextAction}</p>
+                          {analyzedNotes[a.id]!.suggestedStatusChange && (
+                            <p className="text-violet-700"><span className="font-medium">Suggest status:</span> {analyzedNotes[a.id]!.suggestedStatusChange}</p>
+                          )}
+                          {analyzedNotes[a.id]!.keyFacts.length > 0 && (
+                            <ul className="list-disc pl-4 text-gray-600">
+                              {analyzedNotes[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
+                            </ul>
+                          )}
+                        </div>
+                      </AiInsightCard>
+                    )}
+                  </div>
+                )}
               </div>
               <span className="text-xs text-text-secondary shrink-0">{a.activityType}</span>
             </div>
@@ -484,6 +657,78 @@ const CrmLeadDetail = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Draft Message modal (Task 6) */}
+      {draftModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Draft Follow-Up Message</h2>
+              <button onClick={() => setDraftModal(false)} className="text-gray-400 hover:text-gray-600" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <span className="material-icons">close</span>
+              </button>
+            </div>
+
+            <div className="mb-4 flex gap-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Channel</label>
+                <select
+                  value={draftConfig.channel}
+                  onChange={(e) => setDraftConfig((p) => ({ ...p, channel: e.target.value as 'whatsapp' | 'email' }))}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">Email</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Tone</label>
+                <select
+                  value={draftConfig.tone}
+                  onChange={(e) => setDraftConfig((p) => ({ ...p, tone: e.target.value as 'formal' | 'friendly' }))}
+                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
+                  <option value="friendly">Friendly</option>
+                  <option value="formal">Formal</option>
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={handleDraftMessage}
+                  disabled={draftLoading}
+                  className="rounded-md bg-violet-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                  style={{ border: 'none', cursor: 'pointer' }}
+                >
+                  {draftLoading ? 'Drafting…' : 'Generate'}
+                </button>
+              </div>
+            </div>
+
+            {draftResult && (
+              <div className="space-y-3">
+                {draftResult.subject && (
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-gray-600">Subject</p>
+                    <p className="rounded-md bg-gray-50 px-3 py-2 text-sm">{draftResult.subject}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="mb-1 text-xs font-medium text-gray-600">Message</p>
+                  <textarea
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    rows={8}
+                    defaultValue={draftResult.body}
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                  />
+                </div>
+                <p className="text-xs text-gray-400">Edit as needed before sending. AI-generated — review before use.</p>
+              </div>
+            )}
           </div>
         </div>
       )}

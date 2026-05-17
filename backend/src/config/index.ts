@@ -62,6 +62,11 @@ export const config = {
         devRecipient: process.env.EMAIL_DEV_RECIPIENT || '',
     },
 
+    // OpenAI
+    openai: {
+        apiKey: process.env.OPENAI_API_KEY || '',
+    },
+
     // Elasticsearch
     elasticsearch: {
         node: process.env.ELASTICSEARCH_NODE || 'http://localhost:9200',
