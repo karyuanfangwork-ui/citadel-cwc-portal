@@ -5,6 +5,12 @@ import CrmNav from '../src/components/CrmNav';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
 const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
+const winProbStyle = (prob: number) =>
+  prob >= 70
+    ? { bg: '#f0fdf4', text: '#15803d', icon: 'trending_up' }
+    : prob >= 40
+    ? { bg: '#fffbeb', text: '#b45309', icon: 'trending_flat' }
+    : { bg: '#fef2f2', text: '#dc2626', icon: 'trending_down' };
 
 const CrmPipelineView = () => {
   const navigate = useNavigate();
@@ -224,6 +230,19 @@ const CrmPipelineView = () => {
                       >
                         <div className="text-sm font-bold text-text-primary mb-1 line-clamp-2">{opp.name}</div>
                         <div className="text-lg font-black text-indigo-600 mb-2">{formatCurrency(Number(opp.value))}</div>
+                        {opp.aiWinProbability != null && (() => {
+                          const ws = winProbStyle(opp.aiWinProbability);
+                          return (
+                            <span
+                              className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold mb-2"
+                              style={{ background: ws.bg, color: ws.text }}
+                              title={opp.aiWinReason ?? `AI Win Probability`}
+                            >
+                              <span className="material-symbols-outlined text-sm">{ws.icon}</span>
+                              AI {opp.aiWinProbability}%
+                            </span>
+                          );
+                        })()}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5">
                             <span className="material-symbols-outlined text-text-tertiary text-sm">business</span>
