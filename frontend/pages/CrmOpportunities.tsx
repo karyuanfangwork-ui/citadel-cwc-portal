@@ -15,6 +15,13 @@ const STAGE_COLORS: Record<string, string> = {
   CLOSED_LOST: '#ef4444',
 };
 
+const winProbStyle = (prob: number) =>
+  prob >= 70
+    ? { bg: '#f0fdf4', text: '#15803d', icon: 'trending_up' }
+    : prob >= 40
+    ? { bg: '#fffbeb', text: '#b45309', icon: 'trending_flat' }
+    : { bg: '#fef2f2', text: '#dc2626', icon: 'trending_down' };
+
 const CrmOpportunities = () => {
   const navigate = useNavigate();
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([]);
@@ -162,6 +169,19 @@ const CrmOpportunities = () => {
                       <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: getStageColor(opp.stage?.name) }} />
                     </div>
                     <span className="text-xs font-bold text-text-secondary">{opp.probability}%</span>
+                    {opp.aiWinProbability != null && (() => {
+                      const ws = winProbStyle(opp.aiWinProbability);
+                      return (
+                        <span
+                          className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold ml-2"
+                          style={{ background: ws.bg, color: ws.text }}
+                          title={`AI Win Probability: ${opp.aiWinProbability}%${opp.aiWinReason ? ' — ' + opp.aiWinReason : ''}`}
+                        >
+                          <span className="material-symbols-outlined text-sm">{ws.icon}</span>
+                          AI {opp.aiWinProbability}%
+                        </span>
+                      );
+                    })()}
                   </div>
                 </td>
                 <td className="px-5 py-4">
