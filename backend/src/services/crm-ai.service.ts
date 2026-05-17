@@ -2,7 +2,18 @@ import OpenAI from 'openai';
 import { config } from '../config';
 import prisma from '../utils/prisma';
 
-const openai = new OpenAI({ apiKey: config.openai.apiKey });
+// Lazy-initialize the OpenAI client so the server starts even without
+// OPENAI_API_KEY set. The error surfaces only when an AI endpoint is called.
+let _openai: OpenAI | null = null;
+const getOpenAI = (): OpenAI => {
+  if (!_openai) {
+    if (!config.openai.apiKey) {
+      throw new Error('OPENAI_API_KEY is not set. Add it to backend/.env to enable AI features.');
+    }
+    _openai = new OpenAI({ apiKey: config.openai.apiKey });
+  }
+  return _openai;
+};
 
 const FAST = 'gpt-4o-mini';
 const SMART = 'gpt-4o';
@@ -29,7 +40,7 @@ export async function analyzeActivityNote(activityId: string): Promise<{
     ? `Opportunity: "${activity.opportunity.name}"`
     : 'No linked entity';
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: FAST,
     max_tokens: 512,
     messages: [
@@ -103,7 +114,7 @@ export async function draftFollowUpMessage(
     }
   }
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: FAST,
     max_tokens: 600,
     messages: [
@@ -152,7 +163,7 @@ export async function summarizeLead(leadId: string): Promise<{
     .join('\n');
   const notesText = lead.notes.map((n) => `[${n.createdAt.toISOString().slice(0, 10)}] ${n.content}`).join('\n');
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: FAST,
     max_tokens: 400,
     messages: [
@@ -197,7 +208,7 @@ export async function scoreLead(leadId: string): Promise<{
     where: { leadId, createdAt: { gte: new Date(Date.now() - 14 * 86400000) } },
   });
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: FAST,
     max_tokens: 200,
     messages: [
@@ -255,7 +266,7 @@ export async function predictWinProbability(opportunityId: string): Promise<{
     ? Math.floor((opp.expectedCloseDate.getTime() - Date.now()) / 86400000)
     : null;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: FAST,
     max_tokens: 250,
     messages: [
@@ -325,7 +336,7 @@ export async function generateDailyBriefing(userId: string): Promise<{
   const staleDealsText = staleDeals.map((d) => `"${d.name}" (MYR ${d.value}, stage: ${d.stage.name})`).join(', ');
   const topOppText = topOpportunities.map((o) => `"${o.name}" MYR ${o.value} at ${o.stage.name}`).join('; ');
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: FAST,
     max_tokens: 350,
     messages: [
@@ -362,7 +373,7 @@ export async function detectKycGaps(contactId: string): Promise<{
 
   const kyc = contact.kycRecord;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: SMART,
     max_tokens: 600,
     messages: [
@@ -403,7 +414,7 @@ export async function classifyRiskProfile(contactId: string): Promise<{
 
   const kyc = contact.kycRecord;
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: SMART,
     max_tokens: 400,
     messages: [
@@ -457,7 +468,7 @@ export async function generateDocumentChecklist(trustProductId: string): Promise
     ? `${trustProduct.opportunity.contact.firstName} ${trustProduct.opportunity.contact.lastName}`
     : trustProduct.contact?.id ?? 'Unknown';
 
-  const response = await openai.chat.completions.create({
+  const response = await getOpenAI().chat.completions.create({
     model: SMART,
     max_tokens: 700,
     messages: [
