@@ -323,6 +323,17 @@ const CrmContactDetail = () => {
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
+  // Auto-load KYC gaps and risk profile when contact is loaded
+  useEffect(() => {
+    if (!contact) return;
+    crmService.getKycGaps(contact.id)
+      .then(setKycGaps)
+      .catch(() => { /* fail silently on auto-load */ });
+    crmService.getRiskProfile(contact.id)
+      .then(setRiskProfile)
+      .catch(() => { /* fail silently on auto-load */ });
+  }, [contact?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── AI handlers ─────────────────────────────────────────────────────
   const handleDraftMessage = async () => {
     if (!contact) return;
@@ -485,7 +496,8 @@ const CrmContactDetail = () => {
           <AiInsightCard title="AI KYC Compliance Check" loading={kycLoading} onRefresh={handleKycCheck}>
             {!kycGaps ? (
               <button onClick={handleKycCheck} className="text-sm text-violet-600 hover:underline">
-                Run compliance check
+                <span className="material-symbols-outlined text-sm">refresh</span>
+                Refresh
               </button>
             ) : (
               <div className="space-y-2">
@@ -512,7 +524,8 @@ const CrmContactDetail = () => {
           <AiInsightCard title="AI Risk Classification" loading={riskLoading} onRefresh={handleRiskProfile}>
             {!riskProfile ? (
               <button onClick={handleRiskProfile} className="text-sm text-violet-600 hover:underline">
-                Classify risk profile
+                <span className="material-symbols-outlined text-sm">refresh</span>
+                Refresh
               </button>
             ) : (
               <div className="space-y-2 text-sm">
