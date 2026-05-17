@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import crmService, { DashboardStats, CrmActivity } from '../src/services/crm.service';
@@ -21,6 +21,8 @@ const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
   <div style={{ width: w, height: h, background: 'var(--color-border)', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
 );
 
+const BRIEFING_KEY = 'crm_daily_briefing_v1';
+
 const CrmDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -35,19 +37,18 @@ const CrmDashboard = () => {
   const [showResults, setShowResults] = useState(false);
 
   // ── AI Daily Briefing (Task 10) ────────────────────────────────────────────
-  const BRIEFING_KEY = 'crm_daily_briefing_v1';
-  const cachedBriefing = (() => {
-    try { return JSON.parse(sessionStorage.getItem(BRIEFING_KEY) || 'null'); } catch { return null; }
-  })();
   const [briefing, setBriefing] = useState<{
     headline: string;
     bullets: string[];
     topPriority: string;
-  } | null>(cachedBriefing);
+  } | null>(() => {
+    try { return JSON.parse(sessionStorage.getItem(BRIEFING_KEY) || 'null'); }
+    catch { return null; }
+  });
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
 
-  const handleGetBriefing = async () => {
+  const handleGetBriefing = useCallback(async () => {
     setBriefingLoading(true);
     setBriefingError(null);
     try {
@@ -59,7 +60,7 @@ const CrmDashboard = () => {
     } finally {
       setBriefingLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < 2) {
@@ -103,12 +104,17 @@ const CrmDashboard = () => {
     fetch();
   }, [myDeals]);
 
+  const didAutoLoad = React.useRef(false);
   useEffect(() => {
-    if (!cachedBriefing) {
-      handleGetBriefing();
+    if (!didAutoLoad.current) {
+      didAutoLoad.current = true;
+      // Read directly from sessionStorage to decide whether to auto-load
+      const cached = sessionStorage.getItem(BRIEFING_KEY);
+      if (!cached) {
+        handleGetBriefing();
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleGetBriefing]);
 
   return (
     <>
@@ -280,7 +286,20 @@ const CrmDashboard = () => {
         >
           {!briefing ? (
             briefingLoading ? null : (
-              <p className="text-sm text-text-secondary italic">Briefing unavailable.</p>
+              <div>
+                <p className="text-sm text-text-secondary italic">
+                  {briefingError ? briefingError : 'Briefing unavailable.'}
+                </p>
+                {briefingError && (
+                  <button
+                    onClick={handleGetBriefing}
+                    className="mt-2 text-sm text-brand-700 hover:underline font-semibold"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
             )
           ) : (
             <div className="space-y-3">
