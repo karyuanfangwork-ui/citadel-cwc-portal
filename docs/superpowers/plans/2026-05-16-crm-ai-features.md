@@ -1,12 +1,15 @@
 # CRM AI Features Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **STATUS: ✅ FULLY IMPLEMENTED** — Completed 2026-05-17. All 13 tasks done across 2 commits on `dev2.0`.
 
-**Goal:** Add a Claude-powered AI intelligence layer to the CRM — 9 features across 3 phases: agent productivity, sales intelligence, and compliance assistance.
 
-**Architecture:** A single `crm-ai.service.ts` owns all Anthropic SDK calls; `crm-ai.controller.ts` + `crm-ai.routes.ts` expose 9 REST endpoints under `/api/v1/crm/ai/`. Frontend consumes via a shared `useCrmAi` hook collection + `AiInsightCard` component. Phase 2 persists AI scores to two new Prisma fields.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
-**Tech Stack:** `@anthropic-ai/sdk`, Node.js/Express/TypeScript, Prisma/PostgreSQL, React 19, Vite
+**Goal:** Add an OpenAI-powered AI intelligence layer to the CRM — 9 features across 3 phases: agent productivity, sales intelligence, and compliance assistance.
+
+**Architecture:** A single `crm-ai.service.ts` owns all OpenAI SDK calls; `crm-ai.controller.ts` + `crm-ai.routes.ts` expose 9 REST endpoints under `/api/v1/crm/ai/`. Frontend consumes via a shared `useCrmAi` hook collection + `AiInsightCard` component. Phase 2 persists AI scores to two new Prisma fields.
+
+**Tech Stack:** `openai`, Node.js/Express/TypeScript, Prisma/PostgreSQL, React 19, Vite
 
 **Prerequisite:** P0 routing bug B1 must be fixed (Lead Detail and Contact Detail pages must be reachable) before Phase 1 UI tasks.
 
@@ -17,18 +20,18 @@
 ### New files
 | File | Purpose |
 |---|---|
-| `backend/src/services/crm-ai.service.ts` | All 9 Claude AI methods |
+| `backend/src/services/crm-ai.service.ts` | All 9 OpenAI AI methods |
 | `backend/src/controllers/crm-ai.controller.ts` | HTTP request handlers for AI routes |
 | `backend/src/routes/crm-ai.routes.ts` | Route definitions, mounted inside crm.routes.ts |
-| `backend/src/__tests__/crm-ai.test.ts` | Unit tests (mocked Anthropic client) |
+| `backend/src/__tests__/crm-ai.test.ts` | Unit tests (mocked OpenAI client) |
 | `frontend/src/components/crm/AiInsightCard.tsx` | Shared AI result display component |
 | `frontend/src/hooks/useCrmAi.ts` | All AI feature hooks |
 
 ### Modified files
 | File | Change |
 |---|---|
-| `backend/package.json` | Add `@anthropic-ai/sdk` |
-| `backend/src/config/index.ts` | Add `anthropic.apiKey` config entry |
+| `backend/package.json` | Add `openai` |
+| `backend/src/config/index.ts` | Add `openai.apiKey` config entry |
 | `backend/src/routes/crm.routes.ts` | Mount crm-ai routes |
 | `backend/prisma/schema.prisma` | Add `aiScore`/`aiWinProbability` fields (Phase 2) |
 | `frontend/src/services/crm.service.ts` | Add 9 AI API call methods |
@@ -51,46 +54,46 @@
 - Create: `backend/src/routes/crm-ai.routes.ts`
 - Modify: `backend/src/routes/crm.routes.ts`
 
-- [ ] **Step 1: Install Anthropic SDK**
+- [x] **Step 1: Install OpenAI SDK**
 
 ```bash
-cd backend && npm install @anthropic-ai/sdk
+cd backend && npm install openai
 ```
 
-Expected: `@anthropic-ai/sdk` appears in `backend/package.json` dependencies.
+Expected: `openai` appears in `backend/package.json` dependencies.
 
-- [ ] **Step 2: Add config entry**
+- [x] **Step 2: Add config entry**
 
 In `backend/src/config/index.ts`, add after the `email` block (around line 64):
 
 ```typescript
-    // Anthropic AI
-    anthropic: {
-        apiKey: process.env.ANTHROPIC_API_KEY || '',
+    // OpenAI
+    openai: {
+        apiKey: process.env.OPENAI_API_KEY || '',
     },
 ```
 
-- [ ] **Step 3: Add env var to .env**
+- [x] **Step 3: Add env var to .env**
 
 Add to `backend/.env` (do NOT commit this file):
 ```
-ANTHROPIC_API_KEY=sk-ant-...your-key-here...
+OPENAI_API_KEY=sk-...your-key-here...
 ```
 
-- [ ] **Step 4: Create crm-ai.service.ts scaffold**
+- [x] **Step 4: Create crm-ai.service.ts scaffold**
 
 Create `backend/src/services/crm-ai.service.ts`:
 
 ```typescript
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { config } from '../config';
 import prisma from '../utils/prisma';
 import { logger } from '../utils/logger';
 
-const anthropic = new Anthropic({ apiKey: config.anthropic.apiKey });
+const openai = new OpenAI({ apiKey: config.openai.apiKey });
 
-const HAIKU = 'claude-haiku-4-5-20251001';
-const SONNET = 'claude-sonnet-4-6';
+const FAST = 'gpt-4o-mini';
+const SMART = 'gpt-4o';
 
 // ─── Phase 1: Agent Productivity ─────────────────────────────────────────────
 
@@ -114,16 +117,14 @@ export async function analyzeActivityNote(activityId: string): Promise<{
     ? `Opportunity: "${activity.opportunity.name}"`
     : 'No linked entity';
 
-  const response = await anthropic.messages.create({
-    model: HAIKU,
+  const response = await openai.chat.completions.create({
+    model: FAST,
     max_tokens: 512,
-    system: {
-      type: 'text',
-      text: `You are a CRM assistant for a Malaysian trust and estate planning company. Analyze sales activity notes and extract structured insights. Always respond with valid JSON only — no markdown, no explanation.`,
-      // @ts-ignore — cache_control is supported but not yet in SDK types
-      cache_control: { type: 'ephemeral' },
-    } as any,
     messages: [
+      {
+        role: 'system',
+        content: `You are a CRM assistant for a Malaysian trust and estate planning company. Analyze sales activity notes and extract structured insights. Always respond with valid JSON only — no markdown, no explanation.`,
+      },
       {
         role: 'user',
         content: `Analyze this CRM activity note and return JSON with these fields:
@@ -140,7 +141,7 @@ Context: ${entityContext}`,
     ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text;
+  const raw = response.choices[0].message.content!;
   return JSON.parse(raw);
 }
 
@@ -190,16 +191,14 @@ export async function draftFollowUpMessage(
     }
   }
 
-  const response = await anthropic.messages.create({
-    model: HAIKU,
+  const response = await openai.chat.completions.create({
+    model: FAST,
     max_tokens: 600,
-    system: {
-      type: 'text',
-      text: `You are a sales assistant at a Malaysian trust and estate planning company (Citadel). Write professional, culturally appropriate ${channel} messages. Respond with JSON only — no markdown.`,
-      // @ts-ignore
-      cache_control: { type: 'ephemeral' },
-    } as any,
     messages: [
+      {
+        role: 'system',
+        content: `You are a sales assistant at a Malaysian trust and estate planning company (Citadel). Write professional, culturally appropriate ${channel} messages. Respond with JSON only — no markdown.`,
+      },
       {
         role: 'user',
         content: `Draft a ${channel} follow-up message.
@@ -217,7 +216,7 @@ For email: include subject line. For WhatsApp: subject is null, body is conversa
     ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text;
+  const raw = response.choices[0].message.content!;
   return JSON.parse(raw);
 }
 
@@ -241,8 +240,8 @@ export async function summarizeLead(leadId: string): Promise<{
     .join('\n');
   const notesText = lead.notes.map((n) => `[${n.createdAt.toISOString().slice(0, 10)}] ${n.content}`).join('\n');
 
-  const response = await anthropic.messages.create({
-    model: HAIKU,
+  const response = await openai.chat.completions.create({
+    model: FAST,
     max_tokens: 400,
     messages: [
       {
@@ -263,7 +262,7 @@ ${notesText || '(none)'}`,
     ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text;
+  const raw = response.choices[0].message.content!;
   return JSON.parse(raw);
 }
 
@@ -286,16 +285,14 @@ export async function scoreLead(leadId: string): Promise<{
     where: { leadId, createdAt: { gte: new Date(Date.now() - 14 * 86400000) } },
   });
 
-  const response = await anthropic.messages.create({
-    model: HAIKU,
+  const response = await openai.chat.completions.create({
+    model: FAST,
     max_tokens: 200,
-    system: {
-      type: 'text',
-      text: `You are a CRM lead scoring engine for a Malaysian trust and estate planning company. Score leads 0-100 based on engagement signals and deal potential. Return JSON only.`,
-      // @ts-ignore
-      cache_control: { type: 'ephemeral' },
-    } as any,
     messages: [
+      {
+        role: 'system',
+        content: `You are a CRM lead scoring engine for a Malaysian trust and estate planning company. Score leads 0-100 based on engagement signals and deal potential. Return JSON only.`,
+      },
       {
         role: 'user',
         content: `Score this lead 0-100 and give a one-sentence reason.
@@ -314,7 +311,7 @@ Return JSON: { "score": number (0-100), "reason": string (1 sentence) }`,
     ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text;
+  const raw = response.choices[0].message.content!;
   const result = JSON.parse(raw);
 
   // Persist score back to DB
@@ -346,16 +343,14 @@ export async function predictWinProbability(opportunityId: string): Promise<{
     ? Math.floor((opp.expectedCloseDate.getTime() - Date.now()) / 86400000)
     : null;
 
-  const response = await anthropic.messages.create({
-    model: HAIKU,
+  const response = await openai.chat.completions.create({
+    model: FAST,
     max_tokens: 250,
-    system: {
-      type: 'text',
-      text: `You are a CRM win probability engine for a Malaysian trust and estate planning company. Predict deal win probability as a percentage. Return JSON only.`,
-      // @ts-ignore
-      cache_control: { type: 'ephemeral' },
-    } as any,
     messages: [
+      {
+        role: 'system',
+        content: `You are a CRM win probability engine for a Malaysian trust and estate planning company. Predict deal win probability as a percentage. Return JSON only.`,
+      },
       {
         role: 'user',
         content: `Predict win probability for this opportunity.
@@ -371,7 +366,7 @@ Return JSON: { "probability": number (0-100), "confidence": "high"|"medium"|"low
     ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text;
+  const raw = response.choices[0].message.content!;
   const result = JSON.parse(raw);
 
   await prisma.crmOpportunity.update({
@@ -418,8 +413,8 @@ export async function generateDailyBriefing(userId: string): Promise<{
   const staleDealsText = staleDeals.map((d) => `"${d.name}" (MYR ${d.value}, stage: ${d.stage.name})`).join(', ');
   const topOppText = topOpportunities.map((o) => `"${o.name}" MYR ${o.value} at ${o.stage.name}`).join('; ');
 
-  const response = await anthropic.messages.create({
-    model: HAIKU,
+  const response = await openai.chat.completions.create({
+    model: FAST,
     max_tokens: 350,
     messages: [
       {
@@ -437,7 +432,7 @@ Return JSON: { "headline": string (1 sentence summary), "bullets": string[] (2-3
     ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text;
+  const raw = response.choices[0].message.content!;
   return JSON.parse(raw);
 }
 
@@ -455,16 +450,14 @@ export async function detectKycGaps(contactId: string): Promise<{
 
   const kyc = contact.kycRecord;
 
-  const response = await anthropic.messages.create({
-    model: SONNET,
+  const response = await openai.chat.completions.create({
+    model: SMART,
     max_tokens: 600,
-    system: {
-      type: 'text',
-      text: `You are a Malaysian financial services compliance specialist. Assess KYC records against BNM/AMLA requirements for trust product sales. Return JSON only.`,
-      // @ts-ignore
-      cache_control: { type: 'ephemeral' },
-    } as any,
     messages: [
+      {
+        role: 'system',
+        content: `You are a Malaysian financial services compliance specialist. Assess KYC records against BNM/AMLA requirements for trust product sales. Return JSON only.`,
+      },
       {
         role: 'user',
         content: `Assess this KYC record for a trust product client.
@@ -483,7 +476,7 @@ Return JSON: { "gaps": [{ "field": string, "requirement": string (cite BNM/AMLA 
     ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text;
+  const raw = response.choices[0].message.content!;
   return JSON.parse(raw);
 }
 
@@ -499,16 +492,14 @@ export async function classifyRiskProfile(contactId: string): Promise<{
 
   const kyc = contact.kycRecord;
 
-  const response = await anthropic.messages.create({
-    model: SONNET,
+  const response = await openai.chat.completions.create({
+    model: SMART,
     max_tokens: 400,
-    system: {
-      type: 'text',
-      text: `You are a Malaysian financial services compliance specialist applying BNM's risk-based approach (RBA) framework for AML/CFT. Classify client risk tiers. Return JSON only.`,
-      // @ts-ignore
-      cache_control: { type: 'ephemeral' },
-    } as any,
     messages: [
+      {
+        role: 'system',
+        content: `You are a Malaysian financial services compliance specialist applying BNM's risk-based approach (RBA) framework for AML/CFT. Classify client risk tiers. Return JSON only.`,
+      },
       {
         role: 'user',
         content: `Suggest a risk tier for this trust product client based on BNM's risk-based approach.
@@ -524,7 +515,7 @@ Return JSON: { "suggestedRiskTier": "Low"|"Medium"|"High", "justification": stri
     ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text;
+  const raw = response.choices[0].message.content!;
   return JSON.parse(raw);
 }
 
@@ -548,16 +539,14 @@ export async function generateDocumentChecklist(trustProductId: string): Promise
   const beneficiaryCount = trustProduct.beneficiaries.length;
   const clientType = trustProduct.opportunity.account?.accountType ?? 'INDIVIDUAL';
 
-  const response = await anthropic.messages.create({
-    model: SONNET,
+  const response = await openai.chat.completions.create({
+    model: SMART,
     max_tokens: 700,
-    system: {
-      type: 'text',
-      text: `You are a Malaysian trust and estate planning specialist. Generate document checklists for trust product setup in Malaysia. Return JSON only.`,
-      // @ts-ignore
-      cache_control: { type: 'ephemeral' },
-    } as any,
     messages: [
+      {
+        role: 'system',
+        content: `You are a Malaysian trust and estate planning specialist. Generate document checklists for trust product setup in Malaysia. Return JSON only.`,
+      },
       {
         role: 'user',
         content: `Generate a document checklist for this trust product.
@@ -573,12 +562,12 @@ Return JSON: { "documents": [{ "name": string, "description": string (what this 
     ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text;
+  const raw = response.choices[0].message.content!;
   return JSON.parse(raw);
 }
 ```
 
-- [ ] **Step 5: Create crm-ai.controller.ts**
+- [x] **Step 5: Create crm-ai.controller.ts**
 
 Create `backend/src/controllers/crm-ai.controller.ts`:
 
@@ -645,7 +634,7 @@ export const crmAiController = {
 };
 ```
 
-- [ ] **Step 6: Create crm-ai.routes.ts**
+- [x] **Step 6: Create crm-ai.routes.ts**
 
 Create `backend/src/routes/crm-ai.routes.ts`:
 
@@ -675,7 +664,7 @@ router.get('/trust-products/:id/document-checklist', requirePermission('crm:read
 export default router;
 ```
 
-- [ ] **Step 7: Mount AI routes in crm.routes.ts**
+- [x] **Step 7: Mount AI routes in crm.routes.ts**
 
 At the bottom of `backend/src/routes/crm.routes.ts`, before `export default router`, add:
 
@@ -686,7 +675,7 @@ import crmAiRoutes from './crm-ai.routes';
 router.use('/ai', crmAiRoutes);
 ```
 
-- [ ] **Step 8: Verify TypeScript compiles**
+- [x] **Step 8: Verify TypeScript compiles**
 
 ```bash
 cd backend && npm run build 2>&1 | head -30
@@ -694,11 +683,11 @@ cd backend && npm run build 2>&1 | head -30
 
 Expected: Build succeeds with no errors.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add backend/package.json backend/package-lock.json backend/src/config/index.ts backend/src/services/crm-ai.service.ts backend/src/controllers/crm-ai.controller.ts backend/src/routes/crm-ai.routes.ts backend/src/routes/crm.routes.ts
-git commit -m "feat(crm): add AI service scaffold with 9 methods + routes (Anthropic SDK)"
+git commit -m "feat(crm): add AI service scaffold with 9 methods + routes (OpenAI SDK)"
 ```
 
 ---
@@ -708,7 +697,7 @@ git commit -m "feat(crm): add AI service scaffold with 9 methods + routes (Anthr
 **Files:**
 - Create: `backend/src/__tests__/crm-ai.test.ts`
 
-- [ ] **Step 1: Create test file with mocked Anthropic client**
+- [x] **Step 1: Create test file with mocked OpenAI client**
 
 Create `backend/src/__tests__/crm-ai.test.ts`:
 
@@ -716,12 +705,14 @@ Create `backend/src/__tests__/crm-ai.test.ts`:
 import { analyzeActivityNote, draftFollowUpMessage, summarizeLead, scoreLead, predictWinProbability, generateDailyBriefing } from '../services/crm-ai.service';
 import prisma from '../utils/prisma';
 
-// Mock the entire Anthropic SDK
-jest.mock('@anthropic-ai/sdk', () => {
+// Mock the entire OpenAI SDK
+jest.mock('openai', () => {
   return {
     default: jest.fn().mockImplementation(() => ({
-      messages: {
-        create: jest.fn(),
+      chat: {
+        completions: {
+          create: jest.fn(),
+        },
       },
     })),
   };
@@ -730,13 +721,13 @@ jest.mock('@anthropic-ai/sdk', () => {
 // Capture the mock instance for per-test configuration
 let mockCreate: jest.Mock;
 beforeAll(() => {
-  const Anthropic = require('@anthropic-ai/sdk').default;
-  mockCreate = Anthropic.mock.results[0].value.messages.create;
+  const OpenAI = require('openai').default;
+  mockCreate = OpenAI.mock.results[0].value.chat.completions.create;
 });
 
 const mockJson = (obj: object) =>
   mockCreate.mockResolvedValueOnce({
-    content: [{ type: 'text', text: JSON.stringify(obj) }],
+    choices: [{ message: { content: JSON.stringify(obj) } }],
   });
 
 // Use real test DB — create and clean up test records
@@ -810,7 +801,7 @@ describe('analyzeActivityNote', () => {
     expect(result.sentiment).toBe('positive');
     expect(result.nextAction).toBeTruthy();
     expect(Array.isArray(result.keyFacts)).toBe(true);
-    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude-haiku-4-5-20251001' }));
+    expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: 'gpt-4o-mini' }));
   });
 });
 
@@ -866,7 +857,7 @@ describe('generateDailyBriefing', () => {
 });
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 cd backend && npm test -- --testPathPattern=crm-ai 2>&1 | tail -20
@@ -874,11 +865,11 @@ cd backend && npm test -- --testPathPattern=crm-ai 2>&1 | tail -20
 
 Expected: All 5 test suites pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add backend/src/__tests__/crm-ai.test.ts
-git commit -m "test(crm): add unit tests for AI service (mocked Anthropic client)"
+git commit -m "test(crm): add unit tests for AI service (mocked OpenAI client)"
 ```
 
 ---
@@ -888,7 +879,7 @@ git commit -m "test(crm): add unit tests for AI service (mocked Anthropic client
 **Files:**
 - Modify: `backend/prisma/schema.prisma`
 
-- [ ] **Step 1: Add AI fields to CrmLead model**
+- [x] **Step 1: Add AI fields to CrmLead model**
 
 In `backend/prisma/schema.prisma`, in the `CrmLead` model, add after the `followUpNote` line:
 
@@ -899,7 +890,7 @@ In `backend/prisma/schema.prisma`, in the `CrmLead` model, add after the `follow
   aiScoredAt     DateTime?  @map("ai_scored_at") @db.Timestamp(6)
 ```
 
-- [ ] **Step 2: Add AI fields to CrmOpportunity model**
+- [x] **Step 2: Add AI fields to CrmOpportunity model**
 
 In `backend/prisma/schema.prisma`, in the `CrmOpportunity` model, add after the `deletedAt` line:
 
@@ -910,7 +901,7 @@ In `backend/prisma/schema.prisma`, in the `CrmOpportunity` model, add after the 
   aiScoredAt        DateTime?  @map("ai_scored_at") @db.Timestamp(6)
 ```
 
-- [ ] **Step 3: Run migration**
+- [x] **Step 3: Run migration**
 
 ```bash
 cd backend && npx prisma migrate dev --name add_crm_ai_score_fields
@@ -918,7 +909,7 @@ cd backend && npx prisma migrate dev --name add_crm_ai_score_fields
 
 Expected: Migration created and applied. Prisma client regenerated.
 
-- [ ] **Step 4: Verify TypeScript build still passes**
+- [x] **Step 4: Verify TypeScript build still passes**
 
 ```bash
 cd backend && npm run build 2>&1 | grep -E "error|Error" | head -10
@@ -926,7 +917,7 @@ cd backend && npm run build 2>&1 | grep -E "error|Error" | head -10
 
 Expected: No output (no errors).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add backend/prisma/schema.prisma backend/prisma/migrations/
@@ -941,7 +932,7 @@ git commit -m "feat(crm): add aiScore and aiWinProbability fields to Prisma sche
 - Create: `frontend/src/components/crm/AiInsightCard.tsx`
 - Modify: `frontend/src/services/crm.service.ts`
 
-- [ ] **Step 1: Create AiInsightCard component**
+- [x] **Step 1: Create AiInsightCard component**
 
 Create `frontend/src/components/crm/AiInsightCard.tsx`:
 
@@ -1001,7 +992,7 @@ export default function AiInsightCard({
 }
 ```
 
-- [ ] **Step 2: Add AI API methods to crm.service.ts**
+- [x] **Step 2: Add AI API methods to crm.service.ts**
 
 At the end of the `crmService` object in `frontend/src/services/crm.service.ts`, before the closing `}`, add:
 
@@ -1049,7 +1040,7 @@ At the end of the `crmService` object in `frontend/src/services/crm.service.ts`,
   },
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/components/crm/AiInsightCard.tsx frontend/src/services/crm.service.ts
@@ -1065,7 +1056,7 @@ git commit -m "feat(crm): add AiInsightCard component and AI API service methods
 
 In the activity feed section where activities are rendered, add an "Analyze" button that calls the API and shows the result inline. The pattern is the same in both Lead and Contact detail pages.
 
-- [ ] **Step 1: Add useAiNoteAnalysis hook at top of CrmLeadDetail.tsx**
+- [x] **Step 1: Add useAiNoteAnalysis hook at top of CrmLeadDetail.tsx**
 
 Find the imports section in `frontend/pages/CrmLeadDetail.tsx` and add:
 
@@ -1093,7 +1084,7 @@ const handleAnalyzeNote = async (activityId: string) => {
 };
 ```
 
-- [ ] **Step 2: Add Analyze button and result to each activity row**
+- [x] **Step 2: Add Analyze button and result to each activity row**
 
 In the JSX where each activity is rendered, after the activity description, add:
 
@@ -1134,11 +1125,11 @@ In the JSX where each activity is rendered, after the activity description, add:
 )}
 ```
 
-- [ ] **Step 3: Repeat the same pattern in CrmContactDetail.tsx**
+- [x] **Step 3: Repeat the same pattern in CrmContactDetail.tsx**
 
 Apply identical state + JSX changes to `frontend/pages/CrmContactDetail.tsx` in its activity feed section.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/pages/CrmLeadDetail.tsx frontend/pages/CrmContactDetail.tsx
@@ -1153,7 +1144,7 @@ git commit -m "feat(crm): add AI note analyzer to Lead and Contact activity feed
 - Modify: `frontend/pages/CrmLeadDetail.tsx`
 - Modify: `frontend/pages/CrmContactDetail.tsx`
 
-- [ ] **Step 1: Add draft message state and handler to CrmLeadDetail.tsx**
+- [x] **Step 1: Add draft message state and handler to CrmLeadDetail.tsx**
 
 Inside the component, add:
 
@@ -1177,7 +1168,7 @@ const handleDraftMessage = async () => {
 };
 ```
 
-- [ ] **Step 2: Add Draft Message button in the Lead Detail action area**
+- [x] **Step 2: Add Draft Message button in the Lead Detail action area**
 
 In the action buttons area (near the Edit button), add:
 
@@ -1191,7 +1182,7 @@ In the action buttons area (near the Edit button), add:
 </button>
 ```
 
-- [ ] **Step 3: Add Draft Message modal JSX**
+- [x] **Step 3: Add Draft Message modal JSX**
 
 Somewhere in the component return, before the closing fragment/div, add:
 
@@ -1264,11 +1255,11 @@ Somewhere in the component return, before the closing fragment/div, add:
 )}
 ```
 
-- [ ] **Step 4: Repeat in CrmContactDetail.tsx**
+- [x] **Step 4: Repeat in CrmContactDetail.tsx**
 
 Apply identical state + button + modal to `CrmContactDetail.tsx`, changing `draftLeadMessage` to `draftContactMessage`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/pages/CrmLeadDetail.tsx frontend/pages/CrmContactDetail.tsx
@@ -1282,7 +1273,7 @@ git commit -m "feat(crm): add AI draft message modal to Lead and Contact detail 
 **Files:**
 - Modify: `frontend/pages/CrmLeadDetail.tsx`
 
-- [ ] **Step 1: Add summary state and handler**
+- [x] **Step 1: Add summary state and handler**
 
 In `CrmLeadDetail.tsx`, add state:
 
@@ -1303,7 +1294,7 @@ const handleGetSummary = async () => {
 };
 ```
 
-- [ ] **Step 2: Add summary panel to the sidebar**
+- [x] **Step 2: Add summary panel to the sidebar**
 
 In the right sidebar area (alongside existing info panels), add:
 
@@ -1331,7 +1322,7 @@ In the right sidebar area (alongside existing info panels), add:
 </AiInsightCard>
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/pages/CrmLeadDetail.tsx
@@ -1346,7 +1337,7 @@ git commit -m "feat(crm): add AI lead summary panel to Lead Detail sidebar"
 - Modify: `frontend/pages/CrmLeadDetail.tsx`
 - Modify: `frontend/pages/CrmLeads.tsx`
 
-- [ ] **Step 1: Add score color helper**
+- [x] **Step 1: Add score color helper**
 
 Create a small helper function at the top of both files (or in a shared util):
 
@@ -1355,7 +1346,7 @@ const scoreColor = (score: number) =>
   score >= 70 ? 'bg-green-100 text-green-700' : score >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600';
 ```
 
-- [ ] **Step 2: Add score state and fetch to CrmLeadDetail.tsx**
+- [x] **Step 2: Add score state and fetch to CrmLeadDetail.tsx**
 
 ```tsx
 const [scoreData, setScoreData] = React.useState<{ score: number; reason: string } | null>(
@@ -1376,7 +1367,7 @@ const handleGetScore = async () => {
 };
 ```
 
-- [ ] **Step 3: Display score badge in Lead Detail header area**
+- [x] **Step 3: Display score badge in Lead Detail header area**
 
 Near the lead title / status badge area:
 
@@ -1401,7 +1392,7 @@ Near the lead title / status badge area:
 )}
 ```
 
-- [ ] **Step 4: Add score badges to lead cards in CrmLeads.tsx**
+- [x] **Step 4: Add score badges to lead cards in CrmLeads.tsx**
 
 In `CrmLeads.tsx`, for each lead card, add a score badge if `lead.aiScore` is present (it comes from the list API if the field is selected):
 
@@ -1416,7 +1407,7 @@ In `CrmLeads.tsx`, for each lead card, add a score badge if `lead.aiScore` is pr
 
 Note: The lead list API returns `aiScore` once the Prisma schema migration (Task 3) has been applied. No backend change needed — Prisma selects all scalar fields by default.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/pages/CrmLeadDetail.tsx frontend/pages/CrmLeads.tsx
@@ -1431,7 +1422,7 @@ git commit -m "feat(crm): add AI lead score badges to Lead Detail and Leads list
 - Modify: `frontend/pages/CrmOpportunityDetail.tsx`
 - Modify: `frontend/pages/CrmPipeline.tsx`
 
-- [ ] **Step 1: Add win probability to CrmOpportunityDetail.tsx**
+- [x] **Step 1: Add win probability to CrmOpportunityDetail.tsx**
 
 Import `AiInsightCard` and add state:
 
@@ -1456,7 +1447,7 @@ const handleGetWinProb = async () => {
 };
 ```
 
-- [ ] **Step 2: Display win probability in Opportunity Detail**
+- [x] **Step 2: Display win probability in Opportunity Detail**
 
 Replace or augment the static probability display (look for where `opportunity.probability` or `stage.probability` is shown) with:
 
@@ -1480,7 +1471,7 @@ Replace or augment the static probability display (look for where `opportunity.p
 </AiInsightCard>
 ```
 
-- [ ] **Step 3: Add win probability to kanban cards in CrmPipeline.tsx**
+- [x] **Step 3: Add win probability to kanban cards in CrmPipeline.tsx**
 
 In `CrmPipeline.tsx`, on each opportunity kanban card, display `opportunity.aiWinProbability` if present:
 
@@ -1493,7 +1484,7 @@ In `CrmPipeline.tsx`, on each opportunity kanban card, display `opportunity.aiWi
 )}
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/pages/CrmOpportunityDetail.tsx frontend/pages/CrmPipeline.tsx
@@ -1507,7 +1498,7 @@ git commit -m "feat(crm): add AI win probability to Opportunity Detail and Pipel
 **Files:**
 - Modify: `frontend/pages/CrmDashboard.tsx`
 
-- [ ] **Step 1: Add briefing state to CrmDashboard.tsx**
+- [x] **Step 1: Add briefing state to CrmDashboard.tsx**
 
 Add at the top of the component:
 
@@ -1537,7 +1528,7 @@ React.useEffect(() => {
 }, []);
 ```
 
-- [ ] **Step 2: Add briefing card to Dashboard JSX above stat cards**
+- [x] **Step 2: Add briefing card to Dashboard JSX above stat cards**
 
 Before the existing stat cards grid, add:
 
@@ -1569,7 +1560,7 @@ Before the existing stat cards grid, add:
 </AiInsightCard>
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/pages/CrmDashboard.tsx
@@ -1583,7 +1574,7 @@ git commit -m "feat(crm): add AI daily briefing card to CRM dashboard"
 **Files:**
 - Modify: `frontend/pages/CrmContactDetail.tsx`
 
-- [ ] **Step 1: Add KYC gap state and handler**
+- [x] **Step 1: Add KYC gap state and handler**
 
 In `CrmContactDetail.tsx`, inside the component:
 
@@ -1608,7 +1599,7 @@ const handleKycCheck = async () => {
 };
 ```
 
-- [ ] **Step 2: Add KYC Gap panel in the KYC section of Contact Detail**
+- [x] **Step 2: Add KYC Gap panel in the KYC section of Contact Detail**
 
 In the KYC section (look for where KYC record is displayed):
 
@@ -1640,7 +1631,7 @@ In the KYC section (look for where KYC record is displayed):
 </AiInsightCard>
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/pages/CrmContactDetail.tsx
@@ -1654,7 +1645,7 @@ git commit -m "feat(crm): add AI KYC gap detector to Contact Detail"
 **Files:**
 - Modify: `frontend/pages/CrmContactDetail.tsx`
 
-- [ ] **Step 1: Add risk profile state and handler**
+- [x] **Step 1: Add risk profile state and handler**
 
 In `CrmContactDetail.tsx`, add:
 
@@ -1679,7 +1670,7 @@ const handleRiskProfile = async () => {
 };
 ```
 
-- [ ] **Step 2: Add Risk Profile panel near KYC section**
+- [x] **Step 2: Add Risk Profile panel near KYC section**
 
 ```tsx
 <AiInsightCard title="AI Risk Classification" loading={riskLoading} onRefresh={handleRiskProfile} className="mt-4">
@@ -1702,7 +1693,7 @@ const handleRiskProfile = async () => {
 </AiInsightCard>
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/pages/CrmContactDetail.tsx
@@ -1716,7 +1707,7 @@ git commit -m "feat(crm): add AI risk profile classifier to Contact Detail"
 **Files:**
 - Modify: The Trust Product detail view (in `CrmOpportunityDetail.tsx` or wherever `CrmTrustProduct` data is displayed — look for the `trustProduct` section in `CrmOpportunityDetail.tsx`)
 
-- [ ] **Step 1: Locate trust product section**
+- [x] **Step 1: Locate trust product section**
 
 Search `CrmOpportunityDetail.tsx` for where `trustProduct` data is displayed:
 
@@ -1724,7 +1715,7 @@ Search `CrmOpportunityDetail.tsx` for where `trustProduct` data is displayed:
 grep -n "trustProduct\|TrustProduct\|trust_product" /Users/fangkaryuan/cwc2.0/citadel-cwc-portal/frontend/pages/CrmOpportunityDetail.tsx
 ```
 
-- [ ] **Step 2: Add document checklist state and handler**
+- [x] **Step 2: Add document checklist state and handler**
 
 In `CrmOpportunityDetail.tsx`, add state (only if `opportunity.trustProduct` exists):
 
@@ -1749,7 +1740,7 @@ const handleDocChecklist = async () => {
 };
 ```
 
-- [ ] **Step 3: Add document checklist panel in trust product section**
+- [x] **Step 3: Add document checklist panel in trust product section**
 
 ```tsx
 {opportunity.trustProduct && (
@@ -1783,7 +1774,7 @@ const handleDocChecklist = async () => {
 )}
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add frontend/pages/CrmOpportunityDetail.tsx
@@ -1801,9 +1792,8 @@ git commit -m "feat(crm): add AI document checklist generator to Trust Product s
 - [x] **Tasks 5–7** cover Phase 1 features: note analyzer, draft message, lead summary
 - [x] **Tasks 8–10** cover Phase 2 features: lead score, win probability, daily briefing
 - [x] **Tasks 11–13** cover Phase 3 features: KYC gaps, risk profile, document checklist
-- [x] All methods use the correct model — HAIKU for Phase 1–2, SONNET for Phase 3
+- [x] All methods use the correct model — `gpt-4o-mini` (FAST) for Phase 1–2, `gpt-4o` (SMART) for Phase 3
 - [x] All DB writes (score, win probability) verified present in service methods and tested
-- [x] `cache_control` added to system prompts that repeat across calls
 - [x] Error handling: all frontend handlers catch silently — AI failures don't break CRM
 - [x] "Human in the loop" explicit for risk profile (UI says "AI suggestion — agent must confirm")
 - [x] Phase 2 note: `aiScore` appears in list API response without backend change since Prisma selects all scalar fields by default
