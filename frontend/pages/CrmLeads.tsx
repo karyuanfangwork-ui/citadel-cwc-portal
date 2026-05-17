@@ -66,6 +66,7 @@ const CrmLeads = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParam = searchParams.get('filter') || '';
+  const [prioritySort, setPrioritySort] = useState(false);
 
   const [leads, setLeads] = useState<CrmLead[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
@@ -94,13 +95,19 @@ const CrmLeads = () => {
 
   // ── Apply URL-based filter ────────────────────────────────
   const displayedLeads = useMemo(() => {
-    if (!filterParam) return leads;
-    if (filterParam === 'followup')
-      return leads.filter(l => l.followUpDate != null);
-    if (filterParam === 'stale')
-      return leads.filter(l => isStale(l.updatedAt) && l.status !== 'CONVERTED' && l.status !== 'LOST');
-    return leads;
-  }, [leads, filterParam]);
+    let result = leads;
+    if (filterParam === 'followup') result = leads.filter(l => l.followUpDate != null);
+    else if (filterParam === 'stale') result = leads.filter(l => isStale(l.updatedAt) && l.status !== 'CONVERTED' && l.status !== 'LOST');
+    if (prioritySort) {
+      result = [...result].sort((a, b) => {
+        if (a.aiScore == null && b.aiScore == null) return 0;
+        if (a.aiScore == null) return 1;
+        if (b.aiScore == null) return -1;
+        return b.aiScore - a.aiScore;
+      });
+    }
+    return result;
+  }, [leads, filterParam, prioritySort]);
 
   const clearFilterParam = () => {
     searchParams.delete('filter');
@@ -131,9 +138,24 @@ const CrmLeads = () => {
           </div>
           <h1 className="text-2xl font-black text-text-primary">Leads</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-          <span className="material-symbols-outlined text-lg">add</span> New Lead
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setPrioritySort(p => !p)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
+              prioritySort
+                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                : 'bg-surface border border-border text-text-secondary hover:bg-gray-100'
+            }`}
+            style={{ border: prioritySort ? 'none' : undefined, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            title={prioritySort ? 'Showing highest AI score first' : 'Sort by AI priority'}
+          >
+            <span className="material-symbols-outlined text-lg">auto_awesome</span>
+            Priority
+          </button>
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+            <span className="material-symbols-outlined text-lg">add</span> New Lead
+          </button>
+        </div>
       </div>
 
       {/* Status pills */}
