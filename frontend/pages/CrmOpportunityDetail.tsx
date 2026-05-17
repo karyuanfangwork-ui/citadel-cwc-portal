@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmOpportunity, CrmActivity, CrmActivityType } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import AiInsightCard from '../src/components/crm/AiInsightCard';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -32,6 +33,34 @@ const CrmOpportunityDetail = () => {
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
   const [noteContent, setNoteContent] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // ── AI state (Task 9) ─────────────────────────────────────────────────
+  const [winData, setWinData] = useState<{ probability: number; confidence: 'high' | 'medium' | 'low'; reason: string } | null>(null);
+  const [winLoading, setWinLoading] = useState(false);
+  const [analyzedNotes, setAnalyzedNotes] = useState<Record<string, { sentiment: string; nextAction: string; suggestedStatusChange: string | null; keyFacts: string[] } | null>>({});
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+
+  const handleWinProbability = async () => {
+    if (!id) return;
+    setWinLoading(true);
+    try {
+      const result = await crmService.getWinProbability(id);
+      setWinData(result);
+    } catch { /* fail silently */ }
+    finally { setWinLoading(false); }
+  };
+
+  const handleAnalyzeNote = async (activityId: string) => {
+    setAnalyzingId(activityId);
+    try {
+      const result = await crmService.analyzeActivityNote(activityId);
+      setAnalyzedNotes((prev) => ({ ...prev, [activityId]: result }));
+    } catch { /* fail silently */ }
+    finally { setAnalyzingId(null); }
+  };
+
+  const confidenceColor = (c: string) =>
+    c === 'high' ? 'text-green-700 bg-green-100' : c === 'low' ? 'text-red-600 bg-red-100' : 'text-yellow-700 bg-yellow-100';
 
   const reload = () => {
     if (!id) return;
@@ -185,6 +214,29 @@ const CrmOpportunityDetail = () => {
             <span className="font-bold">{isWon ? 'Won' : 'Lost'}</span>
           </div>
         )}
+        {/* AI Win Probability chip (Task 9) */}
+        {!isWon && !isLost && (
+          winData ? (
+            <div
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm border font-semibold ${confidenceColor(winData.confidence)}`}
+              title={winData.reason}
+            >
+              <span className="material-icons text-base">auto_awesome</span>
+              AI Win: {winData.probability}%
+              <span className="text-xs opacity-70">({winData.confidence})</span>
+            </div>
+          ) : (
+            <button
+              onClick={handleWinProbability}
+              disabled={winLoading}
+              className="flex items-center gap-2 border border-violet-300 bg-violet-50 px-4 py-2 rounded-xl text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+              style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            >
+              <span className="material-icons text-base">auto_awesome</span>
+              {winLoading ? 'Predicting…' : 'AI Win %'}
+            </button>
+          )
+        )}
       </div>
 
       {/* Tabs */}
@@ -242,6 +294,48 @@ const CrmOpportunityDetail = () => {
                 <p className="font-semibold text-text-primary text-sm">{a.subject}</p>
                 {a.description && <p className="text-xs text-text-secondary mt-0.5">{a.description}</p>}
                 <p className="text-xs text-text-secondary mt-1">{a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}</p>
+                {/* AI Note Analyzer (Task 9) */}
+                {['CALL', 'MEETING', 'WHATSAPP'].includes(a.activityType) && (
+                  <div className="mt-2">
+                    {!analyzedNotes[a.id] ? (
+                      <button
+                        onClick={() => handleAnalyzeNote(a.id)}
+                        disabled={analyzingId === a.id}
+                        className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-50"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                      >
+                        <span className="material-icons text-sm">auto_awesome</span>
+                        {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
+                      </button>
+                    ) : (
+                      <AiInsightCard title="Note Analysis" className="mt-1">
+                        <div className="space-y-1 text-sm">
+                          <div className="flex items-center gap-1">
+                            <span className={`material-icons text-sm ${
+                              analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-green-600'
+                              : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-red-500'
+                              : 'text-gray-500'
+                            }`}>
+                              {analyzedNotes[a.id]!.sentiment === 'positive' ? 'sentiment_satisfied'
+                                : analyzedNotes[a.id]!.sentiment === 'negative' ? 'sentiment_dissatisfied'
+                                : 'sentiment_neutral'}
+                            </span>
+                            <span className="capitalize text-gray-600">{analyzedNotes[a.id]!.sentiment}</span>
+                          </div>
+                          <p><span className="font-medium">Next action:</span> {analyzedNotes[a.id]!.nextAction}</p>
+                          {analyzedNotes[a.id]!.suggestedStatusChange && (
+                            <p className="text-violet-700"><span className="font-medium">Suggest stage:</span> {analyzedNotes[a.id]!.suggestedStatusChange}</p>
+                          )}
+                          {analyzedNotes[a.id]!.keyFacts.length > 0 && (
+                            <ul className="list-disc pl-4 text-gray-600">
+                              {analyzedNotes[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
+                            </ul>
+                          )}
+                        </div>
+                      </AiInsightCard>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           ))}

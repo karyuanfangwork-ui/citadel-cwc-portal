@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import crmService, { DashboardStats, CrmActivity } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import AiInsightCard from '../src/components/crm/AiInsightCard';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import axios from 'axios';
 
@@ -32,6 +33,28 @@ const CrmDashboard = () => {
   const [searchResults, setSearchResults] = useState<Awaited<ReturnType<typeof crmService.globalSearch>> | null>(null);
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
+
+  // ── AI Daily Briefing (Task 10) ────────────────────────────────────────────
+  const [briefing, setBriefing] = useState<{
+    headline: string;
+    bullets: string[];
+    topPriority: string;
+  } | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [briefingError, setBriefingError] = useState<string | null>(null);
+
+  const handleGetBriefing = async () => {
+    setBriefingLoading(true);
+    setBriefingError(null);
+    try {
+      const result = await crmService.getDailyBriefing();
+      setBriefing(result);
+    } catch {
+      setBriefingError('Could not generate briefing. Check OPENAI_API_KEY.');
+    } finally {
+      setBriefingLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < 2) {
@@ -232,6 +255,45 @@ const CrmDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* AI Daily Briefing (Task 10) */}
+      <div className="mb-6">
+        <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">AI Daily Briefing</h2>
+        <AiInsightCard
+          title="Your Sales Briefing"
+          loading={briefingLoading}
+          error={briefingError}
+          onRefresh={handleGetBriefing}
+          className="border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50"
+        >
+          {!briefing ? (
+            <button
+              onClick={handleGetBriefing}
+              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700"
+              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            >
+              <span className="material-icons text-base">auto_awesome</span>
+              Generate today's briefing
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <p className="font-semibold text-gray-800">{briefing.headline}</p>
+              <ul className="space-y-1">
+                {briefing.bullets.map((b, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                    <span className="material-icons text-sm text-violet-500 mt-0.5">chevron_right</span>
+                    {b}
+                  </li>
+                ))}
+              </ul>
+              <div className="rounded-lg border border-violet-300 bg-white px-3 py-2">
+                <p className="text-xs font-bold text-violet-600 uppercase tracking-wide mb-0.5">Top Priority Today</p>
+                <p className="text-sm font-semibold text-gray-800">{briefing.topPriority}</p>
+              </div>
+            </div>
+          )}
+        </AiInsightCard>
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">

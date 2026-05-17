@@ -54,6 +54,14 @@ const getUrgencyBadge = (lead: CrmLead): UrgencyBadge => {
   return null;
 };
 
+// AI score colour helper
+const scoreStyle = (score: number) =>
+  score >= 70
+    ? { bg: '#f0fdf4', text: '#15803d' }
+    : score >= 40
+    ? { bg: '#fffbeb', text: '#b45309' }
+    : { bg: '#fef2f2', text: '#dc2626' };
+
 const CrmLeads = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -204,6 +212,20 @@ const CrmLeads = () => {
                       <span className="material-symbols-outlined text-sm">{badge.icon}</span>{badge.label}
                     </span>
                   )}
+                  {/* AI Score badge (persisted from previous scoring) */}
+                  {lead.aiScore != null && (() => {
+                    const s = scoreStyle(lead.aiScore!);
+                    return (
+                      <span
+                        className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold"
+                        style={{ background: s.bg, color: s.text }}
+                        title={lead.aiScoreReason ?? ''}
+                      >
+                        <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                        {lead.aiScore}/100
+                      </span>
+                    );
+                  })()}
                 </div>
                 <span className="text-xs text-text-tertiary">{formatDate(lead.createdAt)}</span>
               </div>
