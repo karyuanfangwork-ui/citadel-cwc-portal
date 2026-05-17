@@ -58,4 +58,4 @@ backend/remove-*.js
 # Superpowers brainstorm sessions
 .superpowers/
 
-.claude/
+.claude/.worktrees/
