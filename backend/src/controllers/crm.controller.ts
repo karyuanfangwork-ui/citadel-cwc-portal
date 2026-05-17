@@ -5,6 +5,8 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import crmReportsService from '../services/crm-reports.service';
+import { scoreLead } from '../services/crm-ai.service';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -278,11 +280,24 @@ class CrmController {
           where: { id: lead.id },
           include: { owner: { select: userSelect }, account: { select: { id: true, name: true } } },
         });
-        return res.status(201).json({ status: 'success', data: { lead: refreshed } });
+        res.status(201).json({ status: 'success', data: { lead: refreshed } });
+        const leadIdToScore = lead.id;
+        setImmediate(() => {
+          scoreLead(leadIdToScore).catch((err: unknown) =>
+            logger.warn(`[CRM] Background lead scoring failed for ${leadIdToScore}`, { error: err }),
+          );
+        });
+        return;
       }
     }
 
     res.status(201).json({ status: 'success', data: { lead } });
+    const leadIdToScore = lead.id;
+    setImmediate(() => {
+      scoreLead(leadIdToScore).catch((err: unknown) =>
+        logger.warn(`[CRM] Background lead scoring failed for ${leadIdToScore}`, { error: err }),
+      );
+    });
   });
 
   updateLead = asyncHandler(async (req: AuthRequest, res: Response) => {
