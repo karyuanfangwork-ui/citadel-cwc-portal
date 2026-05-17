@@ -572,7 +572,7 @@ const CrmContactDetail = () => {
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Draft Follow-Up Message</h2>
               <button onClick={() => setDraftModal(false)} className="text-gray-400 hover:text-gray-600" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <span className="material-symbols-outlined">close/span>
+                <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             <div className="mb-4 flex gap-4">
