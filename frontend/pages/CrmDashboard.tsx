@@ -35,11 +35,15 @@ const CrmDashboard = () => {
   const [showResults, setShowResults] = useState(false);
 
   // ── AI Daily Briefing (Task 10) ────────────────────────────────────────────
+  const BRIEFING_KEY = 'crm_daily_briefing_v1';
+  const cachedBriefing = (() => {
+    try { return JSON.parse(sessionStorage.getItem(BRIEFING_KEY) || 'null'); } catch { return null; }
+  })();
   const [briefing, setBriefing] = useState<{
     headline: string;
     bullets: string[];
     topPriority: string;
-  } | null>(null);
+  } | null>(cachedBriefing);
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
 
@@ -49,6 +53,7 @@ const CrmDashboard = () => {
     try {
       const result = await crmService.getDailyBriefing();
       setBriefing(result);
+      sessionStorage.setItem(BRIEFING_KEY, JSON.stringify(result));
     } catch {
       setBriefingError('Could not generate briefing. Check OPENAI_API_KEY.');
     } finally {
@@ -97,6 +102,13 @@ const CrmDashboard = () => {
     };
     fetch();
   }, [myDeals]);
+
+  useEffect(() => {
+    if (!cachedBriefing) {
+      handleGetBriefing();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <>
@@ -267,14 +279,9 @@ const CrmDashboard = () => {
           className="border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50"
         >
           {!briefing ? (
-            <button
-              onClick={handleGetBriefing}
-              className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700"
-              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-            >
-              <span className="material-symbols-outlined text-base">auto_awesome</span>
-              Generate today's briefing
-            </button>
+            briefingLoading ? null : (
+              <p className="text-sm text-text-secondary italic">Briefing unavailable.</p>
+            )
           ) : (
             <div className="space-y-3">
               <p className="font-semibold text-gray-800">{briefing.headline}</p>
