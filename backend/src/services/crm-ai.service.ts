@@ -18,6 +18,16 @@ const getOpenAI = (): OpenAI => {
 const FAST = 'gpt-4o-mini';
 const SMART = 'gpt-4o';
 
+// GPT sometimes wraps JSON in markdown fences despite instructions — strip them.
+const parseJson = <T>(raw: string): T => {
+  const cleaned = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  return JSON.parse(cleaned) as T;
+};
+
 // ─── Phase 1: Agent Productivity ─────────────────────────────────────────────
 
 export async function analyzeActivityNote(activityId: string): Promise<{
@@ -65,7 +75,7 @@ Context: ${entityContext}`,
   });
 
   const raw = response.choices[0].message.content!;
-  return JSON.parse(raw);
+  return parseJson(raw);
 }
 
 export async function draftFollowUpMessage(
@@ -140,7 +150,7 @@ For email: include subject line. For WhatsApp: subject is null, body is conversa
   });
 
   const raw = response.choices[0].message.content!;
-  return JSON.parse(raw);
+  return parseJson(raw);
 }
 
 export async function summarizeLead(leadId: string): Promise<{
@@ -186,7 +196,7 @@ ${notesText || '(none)'}`,
   });
 
   const raw = response.choices[0].message.content!;
-  return JSON.parse(raw);
+  return parseJson(raw);
 }
 
 // ─── Phase 2: Sales Intelligence ─────────────────────────────────────────────
@@ -235,7 +245,7 @@ Return JSON: { "score": number (0-100), "reason": string (1 sentence) }`,
   });
 
   const raw = response.choices[0].message.content!;
-  const result = JSON.parse(raw);
+  const result = parseJson<any>(raw);
 
   // Persist score back to DB
   await prisma.crmLead.update({
@@ -290,7 +300,7 @@ Return JSON: { "probability": number (0-100), "confidence": "high"|"medium"|"low
   });
 
   const raw = response.choices[0].message.content!;
-  const result = JSON.parse(raw);
+  const result = parseJson<any>(raw);
 
   await prisma.crmOpportunity.update({
     where: { id: opportunityId },
@@ -356,7 +366,7 @@ Return JSON: { "headline": string (1 sentence summary), "bullets": string[] (2-3
   });
 
   const raw = response.choices[0].message.content!;
-  return JSON.parse(raw);
+  return parseJson(raw);
 }
 
 // ─── Phase 3: Compliance Assist ──────────────────────────────────────────────
@@ -399,7 +409,7 @@ Return JSON: { "gaps": [{ "field": string, "requirement": string (cite BNM/AMLA 
   });
 
   const raw = response.choices[0].message.content!;
-  return JSON.parse(raw);
+  return parseJson(raw);
 }
 
 export async function classifyRiskProfile(contactId: string): Promise<{
@@ -438,7 +448,7 @@ Return JSON: { "suggestedRiskTier": "Low"|"Medium"|"High", "justification": stri
   });
 
   const raw = response.choices[0].message.content!;
-  return JSON.parse(raw);
+  return parseJson(raw);
 }
 
 export async function generateDocumentChecklist(trustProductId: string): Promise<{
@@ -492,5 +502,5 @@ Return JSON: { "documents": [{ "name": string, "description": string (what this 
   });
 
   const raw = response.choices[0].message.content!;
-  return JSON.parse(raw);
+  return parseJson(raw);
 }
