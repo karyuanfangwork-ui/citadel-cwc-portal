@@ -296,7 +296,7 @@ const CrmLeadDetail = () => {
                 }`}
                 title={scoreData?.reason ?? lead.aiScoreReason ?? ''}
               >
-                <span className="material-icons text-xs">auto_awesome</span>
+                <span className="material-symbols-outlined text-xs">auto_awesome</span>
                 {scoreData?.score ?? lead.aiScore}/100
               </span>
             ) : (
@@ -305,7 +305,7 @@ const CrmLeadDetail = () => {
                 disabled={scoreLoading}
                 className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500 hover:bg-violet-100 hover:text-violet-700 disabled:opacity-50"
               >
-                <span className="material-icons text-xs">auto_awesome</span>
+                <span className="material-symbols-outlined text-xs">auto_awesome</span>
                 {scoreLoading ? '…' : 'Score'}
               </button>
             )}
@@ -356,7 +356,7 @@ const CrmLeadDetail = () => {
               className="flex items-center gap-2 border border-violet-300 bg-violet-50 px-4 py-2.5 rounded-lg text-sm font-bold text-violet-700 hover:bg-violet-100 transition-colors"
               style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             >
-              <span className="material-icons text-sm">auto_awesome</span>
+              <span className="material-symbols-outlined text-sm">auto_awesome</span>
               Draft Message
             </button>
           )}
@@ -493,14 +493,14 @@ const CrmLeadDetail = () => {
                         disabled={analyzingId === a.id}
                         className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-50"
                       >
-                        <span className="material-icons text-sm">auto_awesome</span>
+                        <span className="material-symbols-outlined text-sm">auto_awesome</span>
                         {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
                       </button>
                     ) : (
                       <AiInsightCard title="Note Analysis" className="mt-1">
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
-                            <span className={`material-icons text-sm ${
+                            <span className={`material-symbols-outlined text-sm ${
                               analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-green-600'
                               : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-red-500'
                               : 'text-gray-500'
@@ -668,7 +668,7 @@ const CrmLeadDetail = () => {
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Draft Follow-Up Message</h2>
               <button onClick={() => setDraftModal(false)} className="text-gray-400 hover:text-gray-600" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <span className="material-icons">close</span>
+                <span className="material-symbols-outlined">close/span>
               </button>
             </div>
 

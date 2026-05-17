@@ -272,7 +272,7 @@ const CrmDashboard = () => {
               className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-bold text-white hover:bg-violet-700"
               style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             >
-              <span className="material-icons text-base">auto_awesome</span>
+              <span className="material-symbols-outlined text-base">auto_awesome</span>
               Generate today's briefing
             </button>
           ) : (
@@ -281,7 +281,7 @@ const CrmDashboard = () => {
               <ul className="space-y-1">
                 {briefing.bullets.map((b, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="material-icons text-sm text-violet-500 mt-0.5">chevron_right</span>
+                    <span className="material-symbols-outlined text-sm text-violet-500 mt-0.5">chevron_right</span>
                     {b}
                   </li>
                 ))}

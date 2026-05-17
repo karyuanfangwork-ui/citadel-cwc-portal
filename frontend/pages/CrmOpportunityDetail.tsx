@@ -221,7 +221,7 @@ const CrmOpportunityDetail = () => {
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm border font-semibold ${confidenceColor(winData.confidence)}`}
               title={winData.reason}
             >
-              <span className="material-icons text-base">auto_awesome</span>
+              <span className="material-symbols-outlined text-base">auto_awesome</span>
               AI Win: {winData.probability}%
               <span className="text-xs opacity-70">({winData.confidence})</span>
             </div>
@@ -232,7 +232,7 @@ const CrmOpportunityDetail = () => {
               className="flex items-center gap-2 border border-violet-300 bg-violet-50 px-4 py-2 rounded-xl text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
               style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             >
-              <span className="material-icons text-base">auto_awesome</span>
+              <span className="material-symbols-outlined text-base">auto_awesome</span>
               {winLoading ? 'Predicting…' : 'AI Win %'}
             </button>
           )
@@ -304,14 +304,14 @@ const CrmOpportunityDetail = () => {
                         className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-50"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
                       >
-                        <span className="material-icons text-sm">auto_awesome</span>
+                        <span className="material-symbols-outlined text-sm">auto_awesome</span>
                         {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
                       </button>
                     ) : (
                       <AiInsightCard title="Note Analysis" className="mt-1">
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
-                            <span className={`material-icons text-sm ${
+                            <span className={`material-symbols-outlined text-sm ${
                               analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-green-600'
                               : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-red-500'
                               : 'text-gray-500'

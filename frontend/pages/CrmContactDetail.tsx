@@ -425,7 +425,7 @@ const CrmContactDetail = () => {
             className="flex items-center gap-2 border border-violet-300 bg-violet-50 px-4 py-2 rounded-lg text-sm font-bold text-violet-700 hover:bg-violet-100 transition-colors"
             style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
           >
-            <span className="material-icons text-sm">auto_awesome</span>
+            <span className="material-symbols-outlined text-sm">auto_awesome</span>
             Draft Message
           </button>
         </div>
@@ -490,14 +490,14 @@ const CrmContactDetail = () => {
             ) : (
               <div className="space-y-2">
                 <div className={`flex items-center gap-2 text-sm font-semibold ${kycGaps.isCompliant ? 'text-green-700' : 'text-red-600'}`}>
-                  <span className="material-icons text-base">{kycGaps.isCompliant ? 'check_circle' : 'warning'}</span>
+                  <span className="material-symbols-outlined text-base">{kycGaps.isCompliant ? 'check_circle' : 'warning'}</span>
                   {kycGaps.complianceSummary}
                 </div>
                 {kycGaps.gaps.length > 0 && (
                   <ul className="space-y-1">
                     {kycGaps.gaps.map((g, i) => (
                       <li key={i} className={`flex items-start gap-2 rounded-md px-2 py-1 text-xs ${g.severity === 'required' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>
-                        <span className="material-icons mt-0.5 text-sm">{g.severity === 'required' ? 'error' : 'info'}</span>
+                        <span className="material-symbols-outlined mt-0.5 text-sm">{g.severity === 'required' ? 'error' : 'info'}</span>
                         <span><span className="font-semibold">{g.field}:</span> {g.requirement}</span>
                       </li>
                     ))}
@@ -572,7 +572,7 @@ const CrmContactDetail = () => {
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Draft Follow-Up Message</h2>
               <button onClick={() => setDraftModal(false)} className="text-gray-400 hover:text-gray-600" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                <span className="material-icons">close</span>
+                <span className="material-symbols-outlined">close/span>
               </button>
             </div>
             <div className="mb-4 flex gap-4">
