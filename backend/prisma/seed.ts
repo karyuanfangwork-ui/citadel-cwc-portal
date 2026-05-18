@@ -1641,6 +1641,14 @@ async function main() {
     }
     console.log('✅ CRM default pipeline seeded');
 
+    // Sprint 6 — Credit demo data
+    try {
+        const { seedCreditDemo } = await import('./creditDemoSeed');
+        await seedCreditDemo();
+    } catch (e: any) {
+        console.warn('⚠️  Credit demo seed skipped:', e.message || e);
+    }
+
     console.log('🎉 Database seeding completed!');
 }
 

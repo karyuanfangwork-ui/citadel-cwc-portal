@@ -59,3 +59,4 @@ backend/remove-*.js
 .superpowers/
 
 .claude/.worktrees/
+.worktrees/
