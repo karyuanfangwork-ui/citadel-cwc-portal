@@ -5,7 +5,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import crmReportsService from '../services/crm-reports.service';
-import { scoreLead } from '../services/crm-ai.service';
+import { scoreLead, predictWinProbability } from '../services/crm-ai.service';
 import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
@@ -410,6 +410,14 @@ class CrmController {
     const opportunity = await crmService.moveOpportunityStage(req.params.id as string, req.body.stageId, req.user!.id, req.body.lostReason);
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: req.params.id as string, oldValues: existing ? { stageId: (existing as any).stageId } as any : undefined, newValues: { stageId: req.body.stageId } } });
     res.json({ status: 'success', data: { opportunity } });
+
+    // Fire-and-forget AI win probability after stage move
+    const oppId = req.params.id as string;
+    setImmediate(() => {
+      predictWinProbability(oppId).catch((err: unknown) =>
+        logger.warn(`[CRM] Background win probability scoring failed for ${oppId}`, { error: err }),
+      );
+    });
   });
 
   deleteOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
