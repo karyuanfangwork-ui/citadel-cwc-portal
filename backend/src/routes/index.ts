@@ -33,6 +33,7 @@ import assetRoutes from './asset.routes';
 import systemSettingRoutes from './systemSetting.routes';
 import crmRoutes from './crm.routes';
 import announcementRoutes from './announcement.routes';
+import creditRoutes from '../credit/routes/credit.routes';
 
 const router = Router();
 
@@ -73,6 +74,7 @@ router.use('/sla', escalationRuleRouter);
 router.use('/assets', assetRoutes);
 router.use('/crm', crmRoutes);
 router.use('/announcements', announcementRoutes);
+router.use('/credit', creditRoutes);
 
 export default router;
 

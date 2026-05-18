@@ -1,0 +1,100 @@
+import { Router, Request, Response } from 'express';
+import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { requireFeatureFlag } from '../middleware/featureFlag.middleware';
+import { getQueueHealth } from '../queues';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+const router = Router();
+
+// ============================================================================
+// FEATURE FLAGS — admin management (MUST be before the feature flag gate)
+// These routes need to work even when credit:module is OFF so admins can
+// re-enable the module. Only auth + credit:admin permission required.
+// ============================================================================
+router.use(authenticate);
+
+// List all feature flags
+router.get('/feature-flags', requirePermission('credit:admin'), async (_req: Request, res: Response) => {
+  const flags = await prisma.featureFlag.findMany({
+    orderBy: { category: 'asc' },
+  });
+  res.json(flags);
+});
+
+// Toggle a feature flag
+router.patch('/feature-flags/:key', requirePermission('credit:admin'), async (req: Request, res: Response) => {
+  const key = req.params.key as string;
+  const { enabled, rolloutPct, description } = req.body;
+
+  const flag = await prisma.featureFlag.findUnique({ where: { key } });
+  if (!flag) {
+    return res.status(404).json({ error: `Feature flag '${key}' not found` });
+  }
+
+  const updated = await prisma.featureFlag.update({
+    where: { key },
+    data: {
+      ...(enabled !== undefined && { enabled }),
+      ...(rolloutPct !== undefined && { rolloutPct }),
+      ...(description !== undefined && { description }),
+    },
+  });
+
+  // Invalidate the in-memory cache so changes take effect immediately
+  const { invalidateFlagCache } = await import('../middleware/featureFlag.middleware');
+  await invalidateFlagCache();
+
+  res.json(updated);
+});
+
+// ============================================================================
+// FEATURE FLAG GATE — all routes below require credit:module to be enabled
+// ============================================================================
+router.use(requireFeatureFlag('credit:module'));
+
+// ============================================================================
+// HEALTH CHECK — verifies credit module is alive and queues are connected
+// ============================================================================
+router.get('/health', requirePermission('credit:read'), async (_req: Request, res: Response) => {
+  try {
+    const queueHealth = await getQueueHealth();
+    res.json({
+      status: 'ok',
+      module: 'credit',
+      queues: queueHealth,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(503).json({
+      status: 'degraded',
+      module: 'credit',
+      error: 'Queue health check failed — Redis may be unavailable',
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// ============================================================================
+// PLACEHOLDER ROUTES — Sprint 1+ will replace with real controllers
+// ============================================================================
+
+// Borrowers — Sprint 1
+// router.use('/borrowers', borrowerRoutes);
+
+// Applications — Sprint 2
+// router.use('/applications', applicationRoutes);
+
+// Financials — Sprint 3
+// router.use('/borrowers/:borrowerId/financials', financialRoutes);
+
+// Scorecards — Sprint 3
+// router.use('/scorecards', scorecardRoutes);
+
+// Committee — Sprint 4
+// router.use('/committee', committeeRoutes);
+
+// Dashboards — Sprint 5
+// router.use('/dashboard', dashboardRoutes);
+
+export default router;

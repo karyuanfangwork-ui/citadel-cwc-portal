@@ -2,7 +2,7 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["fullTextSearch", "fullTextIndex"]
 }
 
@@ -51,84 +51,84 @@ enum AssetCategory {
 // ============================================================================
 
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String    @unique @db.VarChar(255)
-  passwordHash  String    @map("password_hash") @db.VarChar(255)
-  firstName     String    @map("first_name") @db.VarChar(100)
-  lastName      String    @map("last_name") @db.VarChar(100)
-  phone         String?   @db.VarChar(20)
-  avatarUrl     String?   @map("avatar_url") @db.Text
-  department    String?   @db.VarChar(100)
-  jobTitle      String?   @map("job_title") @db.VarChar(100)
-  managerId     String?   @map("manager_id") @db.Uuid
-  isActive      Boolean   @default(true) @map("is_active")
-  agentTeam     String?   @map("agent_team") @db.VarChar(50)
-  executiveRole ExecutiveRole? @map("executive_role")
-  entityId      String?   @map("entity_id") @db.Uuid
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
-  lastLoginAt   DateTime? @map("last_login_at") @db.Timestamp(6)
-  passwordChangedAt DateTime? @map("password_changed_at") @db.Timestamp(6)
+  id                String         @id @default(uuid()) @db.Uuid
+  email             String         @unique @db.VarChar(255)
+  passwordHash      String         @map("password_hash") @db.VarChar(255)
+  firstName         String         @map("first_name") @db.VarChar(100)
+  lastName          String         @map("last_name") @db.VarChar(100)
+  phone             String?        @db.VarChar(20)
+  avatarUrl         String?        @map("avatar_url") @db.Text
+  department        String?        @db.VarChar(100)
+  jobTitle          String?        @map("job_title") @db.VarChar(100)
+  managerId         String?        @map("manager_id") @db.Uuid
+  isActive          Boolean        @default(true) @map("is_active")
+  agentTeam         String?        @map("agent_team") @db.VarChar(50)
+  executiveRole     ExecutiveRole? @map("executive_role")
+  entityId          String?        @map("entity_id") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
+  lastLoginAt       DateTime?      @map("last_login_at") @db.Timestamp(6)
+  passwordChangedAt DateTime?      @map("password_changed_at") @db.Timestamp(6)
 
   // Relations
-  manager               User?                        @relation("UserManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  subordinates          User[]                       @relation("UserManager")
-  roles                 UserRole[]
-  sessions              Session[]
-  passwordResetTokens   PasswordResetToken[]
-  createdRequests       Request[]                    @relation("RequestRequester")
-  assignedRequests      Request[]                    @relation("RequestAssignee")
-  activities            RequestActivity[]
-  attachments           RequestAttachment[]
-  kbArticles            KnowledgeBaseArticle[]
-  auditLogs             AuditLog[]
-  notifications         Notification[]
-  itHardwareApprovals   ITHardwareRequest[]          @relation("HardwareManagerApproval")
-  requestApprovals      RequestApproval[]
-  uploadedResumes       CandidateResume[]
-  scheduledInterviews   InterviewSchedule[]
-  submittedFeedbacks    InterviewFeedback[]
-  completedScreenings   HRScreening[]
-  uploadedLOAs          LetterOfAcceptance[]         @relation("LOAUploadedBy")
-  approvedLOAs          LetterOfAcceptance[]         @relation("LOAApprovedBy")
+  manager                   User?                  @relation("UserManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordinates              User[]                 @relation("UserManager")
+  roles                     UserRole[]
+  sessions                  Session[]
+  passwordResetTokens       PasswordResetToken[]
+  createdRequests           Request[]              @relation("RequestRequester")
+  assignedRequests          Request[]              @relation("RequestAssignee")
+  activities                RequestActivity[]
+  attachments               RequestAttachment[]
+  kbArticles                KnowledgeBaseArticle[]
+  auditLogs                 AuditLog[]
+  notifications             Notification[]
+  itHardwareApprovals       ITHardwareRequest[]    @relation("HardwareManagerApproval")
+  requestApprovals          RequestApproval[]
+  uploadedResumes           CandidateResume[]
+  scheduledInterviews       InterviewSchedule[]
+  submittedFeedbacks        InterviewFeedback[]
+  completedScreenings       HRScreening[]
+  uploadedLOAs              LetterOfAcceptance[]   @relation("LOAUploadedBy")
+  approvedLOAs              LetterOfAcceptance[]   @relation("LOAApprovedBy")
   // Offboarding Relations
-  offboardingAsEmployee     OffboardingRequest[]     @relation("OffboardingEmployee")
-  offboardingAsManager      OffboardingRequest[]     @relation("OffboardingManager")
-  offboardingCompletedBy    OffboardingRequest[]     @relation("OffboardingCompletedBy")
-  offboardingTasksAssigned  OffboardingTask[]        @relation("OffboardingTaskAssignedTo")
-  offboardingTasksCompleted OffboardingTask[]        @relation("OffboardingTaskCompletedBy")
+  offboardingAsEmployee     OffboardingRequest[]   @relation("OffboardingEmployee")
+  offboardingAsManager      OffboardingRequest[]   @relation("OffboardingManager")
+  offboardingCompletedBy    OffboardingRequest[]   @relation("OffboardingCompletedBy")
+  offboardingTasksAssigned  OffboardingTask[]      @relation("OffboardingTaskAssignedTo")
+  offboardingTasksCompleted OffboardingTask[]      @relation("OffboardingTaskCompletedBy")
   // Onboarding Relations
-  onboardingAsHiringManager OnboardingRequest[]      @relation("OnboardingHiringManager")
-  onboardingAsNewHire       OnboardingRequest[]      @relation("OnboardingNewHire")
-  onboardingAsBuddy         OnboardingRequest[]      @relation("OnboardingBuddy")
-  onboardingCompletedBy     OnboardingRequest[]      @relation("OnboardingCompletedBy")
-  onboardingTasksAssigned   OnboardingTask[]         @relation("OnboardingTaskAssignedTo")
-  onboardingTasksCompleted  OnboardingTask[]         @relation("OnboardingTaskCompletedBy")
+  onboardingAsHiringManager OnboardingRequest[]    @relation("OnboardingHiringManager")
+  onboardingAsNewHire       OnboardingRequest[]    @relation("OnboardingNewHire")
+  onboardingAsBuddy         OnboardingRequest[]    @relation("OnboardingBuddy")
+  onboardingCompletedBy     OnboardingRequest[]    @relation("OnboardingCompletedBy")
+  onboardingTasksAssigned   OnboardingTask[]       @relation("OnboardingTaskAssignedTo")
+  onboardingTasksCompleted  OnboardingTask[]       @relation("OnboardingTaskCompletedBy")
   // Entity Relations
-  entity                Entity?                     @relation("UserEntity", fields: [entityId], references: [id])
-  approverForEntities   Entity[]                    @relation("EntityApprover")
+  entity                    Entity?                @relation("UserEntity", fields: [entityId], references: [id])
+  approverForEntities       Entity[]               @relation("EntityApprover")
   // Asset Relations
-  createdAssets         Asset[]                     @relation("AssetCreatedBy")
-  assetAssignments      AssetAssignment[]           @relation("AssetAssignmentUser")
-  assetAssignedBy       AssetAssignment[]           @relation("AssetAssignmentAssignedBy")
+  createdAssets             Asset[]                @relation("AssetCreatedBy")
+  assetAssignments          AssetAssignment[]      @relation("AssetAssignmentUser")
+  assetAssignedBy           AssetAssignment[]      @relation("AssetAssignmentAssignedBy")
   // CRM Relations
-  crmOwnedAccounts      CrmAccount[]                @relation("CrmAccountOwner")
-  crmOwnedLeads         CrmLead[]                   @relation("CrmLeadOwner")
-  crmOwnedOpportunities CrmOpportunity[]            @relation("CrmOpportunityOwner")
-  crmActivities         CrmActivity[]               @relation("CrmActivityUser")
-  crmNotes              CrmNote[]                   @relation("CrmNoteAuthor")
-  crmTrustProducts      CrmTrustProduct[]            @relation("CrmTrustProductOwner")
-  crmKycApprovals       CrmKycRecord[]               @relation("CrmKycApprovedBy")
+  crmOwnedAccounts          CrmAccount[]           @relation("CrmAccountOwner")
+  crmOwnedLeads             CrmLead[]              @relation("CrmLeadOwner")
+  crmOwnedOpportunities     CrmOpportunity[]       @relation("CrmOpportunityOwner")
+  crmActivities             CrmActivity[]          @relation("CrmActivityUser")
+  crmNotes                  CrmNote[]              @relation("CrmNoteAuthor")
+  crmTrustProducts          CrmTrustProduct[]      @relation("CrmTrustProductOwner")
+  crmKycApprovals           CrmKycRecord[]         @relation("CrmKycApprovedBy")
   // Announcement Relations
-  announcements         Announcement[]                @relation("AnnouncementAuthor")
-  announcementReads     AnnouncementRead[]            @relation("AnnouncementReader")
-  participatingIn       RequestParticipant[]          @relation("RequestParticipants")
-  participantsAdded     RequestParticipant[]          @relation("ParticipantAddedBy")
+  announcements             Announcement[]         @relation("AnnouncementAuthor")
+  announcementReads         AnnouncementRead[]     @relation("AnnouncementReader")
+  participatingIn           RequestParticipant[]   @relation("RequestParticipants")
+  participantsAdded         RequestParticipant[]   @relation("ParticipantAddedBy")
 
-  @@map("users")
   @@index([email])
   @@index([managerId])
   @@index([entityId])
+  @@map("users")
 }
 
 model Role {
@@ -158,11 +158,11 @@ model UserRole {
 }
 
 model Permission {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique @db.VarChar(100)
-  resource    String   @db.VarChar(50)
-  action      String   @db.VarChar(50)
-  description String?  @db.Text
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @unique @db.VarChar(100)
+  resource    String  @db.VarChar(50)
+  action      String  @db.VarChar(50)
+  description String? @db.Text
 
   // Relations
   roles RolePermission[]
@@ -183,20 +183,20 @@ model RolePermission {
 }
 
 model Session {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  token     String    @unique @db.VarChar(500)
-  ipAddress String?   @map("ip_address") @db.Inet
-  userAgent String?   @map("user_agent") @db.Text
-  expiresAt DateTime  @map("expires_at") @db.Timestamp(6)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique @db.VarChar(500)
+  ipAddress String?  @map("ip_address") @db.Inet
+  userAgent String?  @map("user_agent") @db.Text
+  expiresAt DateTime @map("expires_at") @db.Timestamp(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("sessions")
   @@index([token])
   @@index([userId])
+  @@map("sessions")
 }
 
 model PasswordResetToken {
@@ -209,9 +209,9 @@ model PasswordResetToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("password_reset_tokens")
   @@index([tokenHash])
   @@index([userId])
+  @@map("password_reset_tokens")
 }
 
 // ============================================================================
@@ -219,17 +219,17 @@ model PasswordResetToken {
 // ============================================================================
 
 model ServiceDesk {
-  id          String    @id @default(uuid()) @db.Uuid
-  name        String    @unique @db.VarChar(100)
-  code        String    @unique @db.VarChar(20)
-  description String?   @db.Text
-  isActive    Boolean   @default(true) @map("is_active")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  code        String   @unique @db.VarChar(20)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Auto-assignment config
-  autoAssignTeam    String  @default("NONE") @map("auto_assign_team") @db.VarChar(50)
+  autoAssignTeam     String @default("NONE") @map("auto_assign_team") @db.VarChar(50)
   assignmentStrategy String @default("ROUND_ROBIN") @map("assignment_strategy") @db.VarChar(20)
-  lastAssignedIndex Int     @default(0) @map("last_assigned_index")
+  lastAssignedIndex  Int    @default(0) @map("last_assigned_index")
 
   // Relations
   categories ServiceCategory[]
@@ -255,8 +255,8 @@ model ServiceCategory {
   requestTypes RequestType[]
 
   @@unique([serviceDeskId, name])
-  @@map("service_categories")
   @@index([serviceDeskId])
+  @@map("service_categories")
 }
 
 model RequestType {
@@ -275,26 +275,26 @@ model RequestType {
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
-  serviceCategory ServiceCategory @relation(fields: [serviceCategoryId], references: [id], onDelete: Cascade)
-  workflow        WorkflowType?   @relation(fields: [workflowTypeId], references: [id], onDelete: SetNull)
+  serviceCategory ServiceCategory            @relation(fields: [serviceCategoryId], references: [id], onDelete: Cascade)
+  workflow        WorkflowType?              @relation(fields: [workflowTypeId], references: [id], onDelete: SetNull)
   requests        Request[]
   entityRoutings  RequestTypeEntityRouting[]
   escalationRules EscalationRule[]
 
-  @@map("request_types")
   @@index([serviceCategoryId])
   @@index([workflowTypeId])
+  @@map("request_types")
 }
 
 model EscalationRule {
-  id                      String      @id @default(uuid()) @db.Uuid
-  requestTypeId           String      @map("request_type_id") @db.Uuid
-  triggerHoursAfterBreach Int         @map("trigger_hours_after_breach")
-  notifyRoles             String[]    @map("notify_roles")
+  id                      String   @id @default(uuid()) @db.Uuid
+  requestTypeId           String   @map("request_type_id") @db.Uuid
+  triggerHoursAfterBreach Int      @map("trigger_hours_after_breach")
+  notifyRoles             String[] @map("notify_roles")
   label                   String?
-  isActive                Boolean     @default(true) @map("is_active")
-  createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamp(6)
+  isActive                Boolean  @default(true) @map("is_active")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   requestType RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
 
@@ -303,41 +303,41 @@ model EscalationRule {
 }
 
 model WorkflowType {
-  id              String   @id @default(uuid()) @db.Uuid
-  name            String   @db.VarChar(100)
-  code            String   @unique @db.VarChar(50)
-  description     String?  @db.Text
-  isActive        Boolean  @default(true) @map("is_active")
-  displayOrder    Int      @default(0) @map("display_order")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(100)
+  code         String   @unique @db.VarChar(50)
+  description  String?  @db.Text
+  isActive     Boolean  @default(true) @map("is_active")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  steps           WorkflowStep[]
-  requestTypes    RequestType[]
+  steps        WorkflowStep[]
+  requestTypes RequestType[]
 
   @@map("workflow_types")
 }
 
 model WorkflowStep {
-  id              String   @id @default(uuid()) @db.Uuid
-  workflowTypeId  String   @map("workflow_type_id") @db.Uuid
-  label           String   @db.VarChar(100)
-  status          String   @db.VarChar(100)
-  icon            String   @db.VarChar(50) @default("radio_button_checked")
-  displayOrder    Int      @map("display_order")
-  isInitial       Boolean  @default(false) @map("is_initial")
-  isFinal         Boolean  @default(false) @map("is_final")
-  slaPause        Boolean  @default(false) @map("sla_pause")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  id             String   @id @default(uuid()) @db.Uuid
+  workflowTypeId String   @map("workflow_type_id") @db.Uuid
+  label          String   @db.VarChar(100)
+  status         String   @db.VarChar(100)
+  icon           String   @default("radio_button_checked") @db.VarChar(50)
+  displayOrder   Int      @map("display_order")
+  isInitial      Boolean  @default(false) @map("is_initial")
+  isFinal        Boolean  @default(false) @map("is_final")
+  slaPause       Boolean  @default(false) @map("sla_pause")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  workflow        WorkflowType @relation(fields: [workflowTypeId], references: [id], onDelete: Cascade)
+  workflow WorkflowType @relation(fields: [workflowTypeId], references: [id], onDelete: Cascade)
 
-  @@map("workflow_steps")
-  @@index([workflowTypeId])
   @@unique([workflowTypeId, status])
+  @@index([workflowTypeId])
+  @@map("workflow_steps")
 }
 
 enum RequestStatus {
@@ -451,81 +451,81 @@ enum RequestPriority {
 }
 
 model Request {
-  id               String          @id @default(uuid()) @db.Uuid
-  referenceNumber  String          @unique @map("reference_number") @db.VarChar(50)
-  requestTypeId    String?         @map("request_type_id") @db.Uuid
-  serviceDeskId    String?         @map("service_desk_id") @db.Uuid
-  
+  id              String  @id @default(uuid()) @db.Uuid
+  referenceNumber String  @unique @map("reference_number") @db.VarChar(50)
+  requestTypeId   String? @map("request_type_id") @db.Uuid
+  serviceDeskId   String? @map("service_desk_id") @db.Uuid
+
   // Requester Information
-  requesterId      String          @map("requester_id") @db.Uuid
-  requesterEmail   String          @map("requester_email") @db.VarChar(255)
-  requesterPhone   String?         @map("requester_phone") @db.VarChar(20)
-  
+  requesterId    String  @map("requester_id") @db.Uuid
+  requesterEmail String  @map("requester_email") @db.VarChar(255)
+  requesterPhone String? @map("requester_phone") @db.VarChar(20)
+
   // Request Details
-  summary          String          @db.VarChar(500)
-  description      String?         @db.Text
-  priority         RequestPriority @default(MEDIUM)
-  status           RequestStatus   @default(SUBMITTED)
-  
+  summary     String          @db.VarChar(500)
+  description String?         @db.Text
+  priority    RequestPriority @default(MEDIUM)
+  status      RequestStatus   @default(SUBMITTED)
+
   // Assignment
-  assignedToId     String?         @map("assigned_to_id") @db.Uuid
-  assignedTeam     String?         @map("assigned_team") @db.VarChar(100)
-  parentRequestId  String?         @map("parent_request_id") @db.Uuid
+  assignedToId    String? @map("assigned_to_id") @db.Uuid
+  assignedTeam    String? @map("assigned_team") @db.VarChar(100)
+  parentRequestId String? @map("parent_request_id") @db.Uuid
 
   // Metadata
-  isConfidential   Boolean         @default(false) @map("is_confidential")
-  tags             String[]        @db.Text
-  customFields     Json?           @map("custom_fields") @db.JsonB
-  
+  isConfidential Boolean  @default(false) @map("is_confidential")
+  tags           String[] @db.Text
+  customFields   Json?    @map("custom_fields") @db.JsonB
+
   // SLA Tracking
-  slaDueAt             DateTime?       @map("sla_due_at") @db.Timestamp(6)
-  slaPausedAt          DateTime?       @map("sla_paused_at") @db.Timestamp(6)
-  slaPauseDurationMs   BigInt          @default(0) @map("sla_pause_duration_ms")
-  firstResponseAt      DateTime?       @map("first_response_at") @db.Timestamp(6)
-  resolvedAt           DateTime?       @map("resolved_at") @db.Timestamp(6)
-  closedAt             DateTime?       @map("closed_at") @db.Timestamp(6)
-  completedAt          DateTime?       @map("completed_at") @db.Timestamp(6)
-  
+  slaDueAt           DateTime? @map("sla_due_at") @db.Timestamp(6)
+  slaPausedAt        DateTime? @map("sla_paused_at") @db.Timestamp(6)
+  slaPauseDurationMs BigInt    @default(0) @map("sla_pause_duration_ms")
+  firstResponseAt    DateTime? @map("first_response_at") @db.Timestamp(6)
+  resolvedAt         DateTime? @map("resolved_at") @db.Timestamp(6)
+  closedAt           DateTime? @map("closed_at") @db.Timestamp(6)
+  completedAt        DateTime? @map("completed_at") @db.Timestamp(6)
+
   // Timestamps
-  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt        DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
-  deletedAt        DateTime?       @map("deleted_at") @db.Timestamp(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
 
   // Relations
-  requestType         RequestType?              @relation(fields: [requestTypeId], references: [id])
-  serviceDesk         ServiceDesk?              @relation(fields: [serviceDeskId], references: [id])
-  requester           User                      @relation("RequestRequester", fields: [requesterId], references: [id])
-  assignedTo          User?                     @relation("RequestAssignee", fields: [assignedToId], references: [id])
-  activities          RequestActivity[]
-  attachments         RequestAttachment[]
-  itHardwareRequest   ITHardwareRequest?
-  hrLeaveRequest      HRLeaveRequest?
+  requestType          RequestType?                 @relation(fields: [requestTypeId], references: [id])
+  serviceDesk          ServiceDesk?                 @relation(fields: [serviceDeskId], references: [id])
+  requester            User                         @relation("RequestRequester", fields: [requesterId], references: [id])
+  assignedTo           User?                        @relation("RequestAssignee", fields: [assignedToId], references: [id])
+  activities           RequestActivity[]
+  attachments          RequestAttachment[]
+  itHardwareRequest    ITHardwareRequest?
+  hrLeaveRequest       HRLeaveRequest?
   expenseReimbursement FinanceExpenseReimbursement?
-  notifications       Notification[]
-  approvals           RequestApproval[]
-  candidateResumes    CandidateResume[]
-  interviewSchedules  InterviewSchedule[]
-  interviewFeedbacks  InterviewFeedback[]
-  hrScreening         HRScreening?
-  letterOfAcceptance  LetterOfAcceptance?
-  onboardingRequest   OnboardingRequest?
-  offboardingRequest  OffboardingRequest?
-  parentRequest       Request?          @relation("RequestChildren", fields: [parentRequestId], references: [id])
-  childRequests       Request[]         @relation("RequestChildren")
+  notifications        Notification[]
+  approvals            RequestApproval[]
+  candidateResumes     CandidateResume[]
+  interviewSchedules   InterviewSchedule[]
+  interviewFeedbacks   InterviewFeedback[]
+  hrScreening          HRScreening?
+  letterOfAcceptance   LetterOfAcceptance?
+  onboardingRequest    OnboardingRequest?
+  offboardingRequest   OffboardingRequest?
+  parentRequest        Request?                     @relation("RequestChildren", fields: [parentRequestId], references: [id])
+  childRequests        Request[]                    @relation("RequestChildren")
   // Asset Relations
-  sourceAssets        Asset[]           @relation("AssetSourceRequest")
-  assetAssignments    AssetAssignment[] @relation("AssetAssignmentRequest")
+  sourceAssets         Asset[]                      @relation("AssetSourceRequest")
+  assetAssignments     AssetAssignment[]            @relation("AssetAssignmentRequest")
   // CRM Relations
-  crmAccountLinks     CrmAccountRequest[]
-  participants        RequestParticipant[]
+  crmAccountLinks      CrmAccountRequest[]
+  participants         RequestParticipant[]
 
-  @@map("requests")
   @@index([referenceNumber])
   @@index([requesterId])
   @@index([status])
   @@index([serviceDeskId])
   @@index([assignedToId])
   @@index([createdAt(sort: Desc)])
+  @@map("requests")
 }
 
 // ============================================================================
@@ -543,63 +543,63 @@ enum ActivityType {
 }
 
 model RequestActivity {
-  id                String       @id @default(uuid()) @db.Uuid
-  requestId         String       @map("request_id") @db.Uuid
-  
+  id        String @id @default(uuid()) @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+
   // Author
-  authorId          String?      @map("author_id") @db.Uuid
-  authorName        String       @map("author_name") @db.VarChar(200)
-  authorRole        String?      @map("author_role") @db.VarChar(100)
-  authorAvatarUrl   String?      @map("author_avatar_url") @db.Text
-  
+  authorId        String? @map("author_id") @db.Uuid
+  authorName      String  @map("author_name") @db.VarChar(200)
+  authorRole      String? @map("author_role") @db.VarChar(100)
+  authorAvatarUrl String? @map("author_avatar_url") @db.Text
+
   // Activity Details
   activityType      ActivityType @map("activity_type")
   message           String       @db.Text
   isSystemGenerated Boolean      @default(false) @map("is_system_generated")
   isInternal        Boolean      @default(false) @map("is_internal")
-  
+
   // Metadata
-  metadata          Json?        @db.JsonB
-  
-  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  metadata Json? @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
-  request     Request               @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  author      User?                 @relation(fields: [authorId], references: [id])
+  request     Request             @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author      User?               @relation(fields: [authorId], references: [id])
   attachments RequestAttachment[]
 
-  @@map("request_activities")
   @@index([requestId, createdAt(sort: Desc)])
+  @@map("request_activities")
 }
 
 model RequestAttachment {
-  id         String    @id @default(uuid()) @db.Uuid
-  requestId  String    @map("request_id") @db.Uuid
-  activityId String?   @map("activity_id") @db.Uuid
-  
+  id         String  @id @default(uuid()) @db.Uuid
+  requestId  String  @map("request_id") @db.Uuid
+  activityId String? @map("activity_id") @db.Uuid
+
   uploadedById String? @map("uploaded_by_id") @db.Uuid
-  
-  fileName     String  @map("file_name") @db.VarChar(255)
-  fileSize     BigInt  @map("file_size")
-  fileType     String? @map("file_type") @db.VarChar(100)
-  mimeType     String? @map("mime_type") @db.VarChar(100)
-  storagePath  String  @map("storage_path") @db.Text
-  storageUrl   String  @map("storage_url") @db.Text
-  
-  isScanned    Boolean @default(false) @map("is_scanned")
-  scanResult   String? @map("scan_result") @db.VarChar(50)
-  
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  deletedAt    DateTime? @map("deleted_at") @db.Timestamp(6)
+
+  fileName    String  @map("file_name") @db.VarChar(255)
+  fileSize    BigInt  @map("file_size")
+  fileType    String? @map("file_type") @db.VarChar(100)
+  mimeType    String? @map("mime_type") @db.VarChar(100)
+  storagePath String  @map("storage_path") @db.Text
+  storageUrl  String  @map("storage_url") @db.Text
+
+  isScanned  Boolean @default(false) @map("is_scanned")
+  scanResult String? @map("scan_result") @db.VarChar(50)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
 
   // Relations
-  request       Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  activity      RequestActivity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
-  uploadedBy    User?            @relation(fields: [uploadedById], references: [id])
+  request          Request           @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  activity         RequestActivity?  @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  uploadedBy       User?             @relation(fields: [uploadedById], references: [id])
   expenseLineItems ExpenseLineItem[]
 
-  @@map("request_attachments")
   @@index([requestId])
+  @@map("request_attachments")
 }
 
 // ============================================================================
@@ -608,29 +608,29 @@ model RequestAttachment {
 
 // IT Hardware Requests
 model ITHardwareRequest {
-  id                      String    @id @default(uuid()) @db.Uuid
-  requestId               String    @unique @map("request_id") @db.Uuid
-  
-  hardwareName            String    @map("hardware_name") @db.VarChar(255)
-  hardwareModel           String?   @map("hardware_model") @db.VarChar(255)
-  estimatedPrice          Decimal?  @map("estimated_price") @db.Decimal(10, 2)
-  preferredVendor         String?   @map("preferred_vendor") @db.VarChar(200)
-  productUrl              String?   @map("product_url") @db.Text
-  businessJustification   String    @map("business_justification") @db.Text
-  
+  id        String @id @default(uuid()) @db.Uuid
+  requestId String @unique @map("request_id") @db.Uuid
+
+  hardwareName          String   @map("hardware_name") @db.VarChar(255)
+  hardwareModel         String?  @map("hardware_model") @db.VarChar(255)
+  estimatedPrice        Decimal? @map("estimated_price") @db.Decimal(10, 2)
+  preferredVendor       String?  @map("preferred_vendor") @db.VarChar(200)
+  productUrl            String?  @map("product_url") @db.Text
+  businessJustification String   @map("business_justification") @db.Text
+
   managerApprovalRequired Boolean   @default(true) @map("manager_approval_required")
   managerApprovedAt       DateTime? @map("manager_approved_at") @db.Timestamp(6)
   managerApprovedById     String?   @map("manager_approved_by_id") @db.Uuid
-  
-  procurementStatus       String?   @map("procurement_status") @db.VarChar(50)
-  orderNumber             String?   @map("order_number") @db.VarChar(100)
-  trackingNumber          String?   @map("tracking_number") @db.VarChar(100)
-  serialNumber            String?   @map("serial_number") @db.VarChar(100)
-  assetTag                String?   @map("asset_tag") @db.VarChar(100)
-  assetId                 String?   @map("asset_id") @db.Uuid
-  
-  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  procurementStatus String? @map("procurement_status") @db.VarChar(50)
+  orderNumber       String? @map("order_number") @db.VarChar(100)
+  trackingNumber    String? @map("tracking_number") @db.VarChar(100)
+  serialNumber      String? @map("serial_number") @db.VarChar(100)
+  assetTag          String? @map("asset_tag") @db.VarChar(100)
+  assetId           String? @map("asset_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
   request           Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
@@ -642,23 +642,23 @@ model ITHardwareRequest {
 
 // HR Leave Requests
 model HRLeaveRequest {
-  id                    String    @id @default(uuid()) @db.Uuid
-  requestId             String    @unique @map("request_id") @db.Uuid
-  
-  leaveType             String    @map("leave_type") @db.VarChar(50)
-  startDate             DateTime  @map("start_date") @db.Date
-  endDate               DateTime  @map("end_date") @db.Date
-  totalDays             Decimal   @map("total_days") @db.Decimal(4, 2)
-  
-  reason                String?   @db.Text
-  emergencyContact      String?   @map("emergency_contact") @db.VarChar(200)
-  emergencyPhone        String?   @map("emergency_phone") @db.VarChar(20)
-  
-  managerApprovalStatus String?   @map("manager_approval_status") @db.VarChar(50)
-  hrApprovalStatus      String?   @map("hr_approval_status") @db.VarChar(50)
-  
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  id        String @id @default(uuid()) @db.Uuid
+  requestId String @unique @map("request_id") @db.Uuid
+
+  leaveType String   @map("leave_type") @db.VarChar(50)
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  totalDays Decimal  @map("total_days") @db.Decimal(4, 2)
+
+  reason           String? @db.Text
+  emergencyContact String? @map("emergency_contact") @db.VarChar(200)
+  emergencyPhone   String? @map("emergency_phone") @db.VarChar(20)
+
+  managerApprovalStatus String? @map("manager_approval_status") @db.VarChar(50)
+  hrApprovalStatus      String? @map("hr_approval_status") @db.VarChar(50)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
   request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
@@ -668,29 +668,29 @@ model HRLeaveRequest {
 
 // Finance Expense Reimbursements
 model FinanceExpenseReimbursement {
-  id                String    @id @default(uuid()) @db.Uuid
-  requestId         String    @unique @map("request_id") @db.Uuid
-  
-  expenseDate       DateTime  @map("expense_date") @db.Date
-  expenseCategory   String    @map("expense_category") @db.VarChar(100)
-  totalAmount       Decimal   @map("total_amount") @db.Decimal(10, 2)
-  currency          String    @default("USD") @db.VarChar(3)
-  
-  merchantName      String?   @map("merchant_name") @db.VarChar(200)
-  paymentMethod     String?   @map("payment_method") @db.VarChar(50)
-  
-  businessPurpose   String    @map("business_purpose") @db.Text
-  projectCode       String?   @map("project_code") @db.VarChar(50)
-  costCenter        String?   @map("cost_center") @db.VarChar(50)
-  
-  approvalStatus    String?   @map("approval_status") @db.VarChar(50)
-  approvedAmount    Decimal?  @map("approved_amount") @db.Decimal(10, 2)
-  paymentStatus     String?   @map("payment_status") @db.VarChar(50)
-  paymentDate       DateTime? @map("payment_date") @db.Date
-  paymentReference  String?   @map("payment_reference") @db.VarChar(100)
-  
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  id        String @id @default(uuid()) @db.Uuid
+  requestId String @unique @map("request_id") @db.Uuid
+
+  expenseDate     DateTime @map("expense_date") @db.Date
+  expenseCategory String   @map("expense_category") @db.VarChar(100)
+  totalAmount     Decimal  @map("total_amount") @db.Decimal(10, 2)
+  currency        String   @default("USD") @db.VarChar(3)
+
+  merchantName  String? @map("merchant_name") @db.VarChar(200)
+  paymentMethod String? @map("payment_method") @db.VarChar(50)
+
+  businessPurpose String  @map("business_purpose") @db.Text
+  projectCode     String? @map("project_code") @db.VarChar(50)
+  costCenter      String? @map("cost_center") @db.VarChar(50)
+
+  approvalStatus   String?   @map("approval_status") @db.VarChar(50)
+  approvedAmount   Decimal?  @map("approved_amount") @db.Decimal(10, 2)
+  paymentStatus    String?   @map("payment_status") @db.VarChar(50)
+  paymentDate      DateTime? @map("payment_date") @db.Date
+  paymentReference String?   @map("payment_reference") @db.VarChar(100)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
   request   Request           @relation(fields: [requestId], references: [id], onDelete: Cascade)
@@ -700,22 +700,22 @@ model FinanceExpenseReimbursement {
 }
 
 model ExpenseLineItem {
-  id                  String    @id @default(uuid()) @db.Uuid
-  expenseId           String    @map("expense_id") @db.Uuid
-  
-  description         String    @db.VarChar(500)
-  amount              Decimal   @db.Decimal(10, 2)
-  quantity            Int       @default(1)
-  receiptAttachmentId String?   @map("receipt_attachment_id") @db.Uuid
-  
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  id        String @id @default(uuid()) @db.Uuid
+  expenseId String @map("expense_id") @db.Uuid
+
+  description         String  @db.VarChar(500)
+  amount              Decimal @db.Decimal(10, 2)
+  quantity            Int     @default(1)
+  receiptAttachmentId String? @map("receipt_attachment_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
   expense           FinanceExpenseReimbursement @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   receiptAttachment RequestAttachment?          @relation(fields: [receiptAttachmentId], references: [id])
 
-  @@map("expense_line_items")
   @@index([expenseId])
+  @@map("expense_line_items")
 }
 
 // ============================================================================
@@ -729,55 +729,55 @@ enum ApprovalStatus {
 }
 
 model RequestApproval {
-  id            String         @id @default(uuid()) @db.Uuid
-  requestId     String         @map("request_id") @db.Uuid
-  
-  approverType  String         @map("approver_type") @db.VarChar(50) // 'CEO', 'HIRING_MANAGER', 'ENTITY'
-  approverId    String?        @map("approver_id") @db.Uuid
-  entityId      String?        @map("entity_id") @db.Uuid
-  
-  status        ApprovalStatus @default(PENDING)
-  comments      String?        @db.Text
-  
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+  id        String @id @default(uuid()) @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+
+  approverType String  @map("approver_type") @db.VarChar(50) // 'CEO', 'HIRING_MANAGER', 'ENTITY'
+  approverId   String? @map("approver_id") @db.Uuid
+  entityId     String? @map("entity_id") @db.Uuid
+
+  status   ApprovalStatus @default(PENDING)
+  comments String?        @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
   // Relations
   request  Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
   approver User?   @relation(fields: [approverId], references: [id])
   entity   Entity? @relation("ApprovalEntity", fields: [entityId], references: [id])
-  
-  @@map("request_approvals")
+
   @@index([requestId])
   @@index([approverId])
   @@index([entityId])
+  @@map("request_approvals")
 }
 
 model CandidateResume {
-  id            String   @id @default(uuid()) @db.Uuid
-  requestId     String   @map("request_id") @db.Uuid
-  
-  fileName      String   @map("file_name") @db.VarChar(255)
-  fileUrl       String   @map("file_url") @db.Text
-  fileSize      BigInt   @map("file_size")
-  mimeType      String?  @map("mime_type") @db.VarChar(100)
-  
-  uploadedById  String   @map("uploaded_by_id") @db.Uuid
-  
-  candidateName String?  @map("candidate_name") @db.VarChar(200)
-  documentType  String   @default("RESUME") @map("document_type") @db.VarChar(50)
-  notes         String?  @db.Text
-  
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  
+  id        String @id @default(uuid()) @db.Uuid
+  requestId String @map("request_id") @db.Uuid
+
+  fileName String  @map("file_name") @db.VarChar(255)
+  fileUrl  String  @map("file_url") @db.Text
+  fileSize BigInt  @map("file_size")
+  mimeType String? @map("mime_type") @db.VarChar(100)
+
+  uploadedById String @map("uploaded_by_id") @db.Uuid
+
+  candidateName String? @map("candidate_name") @db.VarChar(200)
+  documentType  String  @default("RESUME") @map("document_type") @db.VarChar(50)
+  notes         String? @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
   // Relations
-  request            Request              @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  uploadedBy         User                 @relation(fields: [uploadedById], references: [id])
+  request            Request             @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  uploadedBy         User                @relation(fields: [uploadedById], references: [id])
   interviewSchedules InterviewSchedule[]
   interviewFeedbacks InterviewFeedback[]
-  
-  @@map("candidate_resumes")
+
   @@index([requestId])
+  @@map("candidate_resumes")
 }
 
 // ============================================================================
@@ -785,19 +785,19 @@ model CandidateResume {
 // ============================================================================
 
 model NotificationTemplate {
-  id           String   @id @default(uuid()) @db.Uuid
-  name         String   @unique @db.VarChar(100)
-  eventType    String   @map("event_type") @db.VarChar(100)
-  
-  emailSubject String?  @map("email_subject") @db.Text
-  emailBody    String?  @map("email_body") @db.Text
-  smsBody      String?  @map("sms_body") @db.Text
-  pushTitle    String?  @map("push_title") @db.VarChar(200)
-  pushBody     String?  @map("push_body") @db.Text
-  
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  id        String @id @default(uuid()) @db.Uuid
+  name      String @unique @db.VarChar(100)
+  eventType String @map("event_type") @db.VarChar(100)
+
+  emailSubject String? @map("email_subject") @db.Text
+  emailBody    String? @map("email_body") @db.Text
+  smsBody      String? @map("sms_body") @db.Text
+  pushTitle    String? @map("push_title") @db.VarChar(200)
+  pushBody     String? @map("push_body") @db.Text
+
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   @@map("notification_templates")
 }
@@ -817,30 +817,30 @@ enum NotificationStatus {
 }
 
 model Notification {
-  id               String             @id @default(uuid()) @db.Uuid
-  userId           String             @map("user_id") @db.Uuid
-  
-  channel          NotificationChannel
-  status           NotificationStatus @default(PENDING)
-  
-  subject          String?            @db.VarChar(500)
-  body             String             @db.Text
-  
-  relatedRequestId String?            @map("related_request_id") @db.Uuid
-  
-  sentAt           DateTime?          @map("sent_at") @db.Timestamp(6)
-  readAt           DateTime?          @map("read_at") @db.Timestamp(6)
-  errorMessage     String?            @map("error_message") @db.Text
-  
-  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  channel NotificationChannel
+  status  NotificationStatus  @default(PENDING)
+
+  subject String? @db.VarChar(500)
+  body    String  @db.Text
+
+  relatedRequestId String? @map("related_request_id") @db.Uuid
+
+  sentAt       DateTime? @map("sent_at") @db.Timestamp(6)
+  readAt       DateTime? @map("read_at") @db.Timestamp(6)
+  errorMessage String?   @map("error_message") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   relatedRequest Request? @relation(fields: [relatedRequestId], references: [id], onDelete: SetNull)
 
-  @@map("notifications")
   @@index([userId, createdAt(sort: Desc)])
   @@index([status])
+  @@map("notifications")
 }
 
 // ============================================================================
@@ -848,38 +848,38 @@ model Notification {
 // ============================================================================
 
 model KnowledgeBaseArticle {
-  id              String    @id @default(uuid()) @db.Uuid
-  serviceDeskId   String?   @map("service_desk_id") @db.Uuid
-  
-  title           String    @db.VarChar(500)
-  slug            String    @unique @db.VarChar(500)
-  content         String    @db.Text
-  excerpt         String?   @db.Text
-  
-  authorId        String?   @map("author_id") @db.Uuid
-  
-  category        String?   @db.VarChar(100)
-  tags            String[]  @db.Text
-  
-  viewCount       Int       @default(0) @map("view_count")
-  helpfulCount    Int       @default(0) @map("helpful_count")
-  notHelpfulCount Int       @default(0) @map("not_helpful_count")
-  
-  isPublished     Boolean   @default(false) @map("is_published")
-  publishedAt     DateTime? @map("published_at") @db.Timestamp(6)
-  
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
-  deletedAt       DateTime? @map("deleted_at") @db.Timestamp(6)
+  id            String  @id @default(uuid()) @db.Uuid
+  serviceDeskId String? @map("service_desk_id") @db.Uuid
+
+  title   String  @db.VarChar(500)
+  slug    String  @unique @db.VarChar(500)
+  content String  @db.Text
+  excerpt String? @db.Text
+
+  authorId String? @map("author_id") @db.Uuid
+
+  category String?  @db.VarChar(100)
+  tags     String[] @db.Text
+
+  viewCount       Int @default(0) @map("view_count")
+  helpfulCount    Int @default(0) @map("helpful_count")
+  notHelpfulCount Int @default(0) @map("not_helpful_count")
+
+  isPublished Boolean   @default(false) @map("is_published")
+  publishedAt DateTime? @map("published_at") @db.Timestamp(6)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamp(6)
 
   // Relations
   serviceDesk ServiceDesk? @relation(fields: [serviceDeskId], references: [id])
   author      User?        @relation(fields: [authorId], references: [id])
 
-  @@map("kb_articles")
   @@index([slug])
   @@index([serviceDeskId])
   @@index([isPublished, publishedAt(sort: Desc)])
+  @@map("kb_articles")
 }
 
 // ============================================================================
@@ -887,83 +887,84 @@ model KnowledgeBaseArticle {
 // ============================================================================
 
 model AuditLog {
-  id           String    @id @default(uuid()) @db.Uuid
-  
-  userId       String?   @map("user_id") @db.Uuid
-  userEmail    String?   @map("user_email") @db.VarChar(255)
-  
-  action       String    @db.VarChar(100)
-  resourceType String    @map("resource_type") @db.VarChar(100)
-  resourceId   String?   @map("resource_id") @db.Uuid
-  
-  ipAddress    String?   @map("ip_address") @db.Inet
-  userAgent    String?   @map("user_agent") @db.Text
-  
-  oldValues    Json?     @map("old_values") @db.JsonB
-  newValues    Json?     @map("new_values") @db.JsonB
-  
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  id String @id @default(uuid()) @db.Uuid
+
+  userId    String? @map("user_id") @db.Uuid
+  userEmail String? @map("user_email") @db.VarChar(255)
+
+  action       String  @db.VarChar(100)
+  resourceType String  @map("resource_type") @db.VarChar(100)
+  resourceId   String? @map("resource_id") @db.Uuid
+
+  ipAddress String? @map("ip_address") @db.Inet
+  userAgent String? @map("user_agent") @db.Text
+
+  oldValues Json? @map("old_values") @db.JsonB
+  newValues Json? @map("new_values") @db.JsonB
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
   user User? @relation(fields: [userId], references: [id])
 
-  @@map("audit_logs")
   @@index([userId, createdAt(sort: Desc)])
   @@index([resourceType, resourceId])
   @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
 }
+
 // ============================================================================
 // EXTENDED HIRING WORKFLOW
 // ============================================================================
 
 model InterviewSchedule {
-  id                String   @id @default(uuid()) @db.Uuid
-  requestId         String   @map("request_id") @db.Uuid
-  candidateId       String   @map("candidate_id") @db.Uuid
-  interviewDate     DateTime @map("interview_date") @db.Date
-  interviewTime     String   @map("interview_time") @db.VarChar(50)
-  location          String?  @db.VarChar(100)
-  meetingLink       String?  @map("meeting_link") @db.Text
-  interviewers      String   @db.Text // JSON array
-  notes             String?  @db.Text
-  scheduledBy       String   @map("scheduled_by") @db.Uuid
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+  id            String   @id @default(uuid()) @db.Uuid
+  requestId     String   @map("request_id") @db.Uuid
+  candidateId   String   @map("candidate_id") @db.Uuid
+  interviewDate DateTime @map("interview_date") @db.Date
+  interviewTime String   @map("interview_time") @db.VarChar(50)
+  location      String?  @db.VarChar(100)
+  meetingLink   String?  @map("meeting_link") @db.Text
+  interviewers  String   @db.Text // JSON array
+  notes         String?  @db.Text
+  scheduledBy   String   @map("scheduled_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
   // Relations
-  request           Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  candidateResume   CandidateResume  @relation(fields: [candidateId], references: [id])
-  scheduledByUser   User             @relation(fields: [scheduledBy], references: [id])
-  
-  @@map("interview_schedules")
+  request         Request         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  candidateResume CandidateResume @relation(fields: [candidateId], references: [id])
+  scheduledByUser User            @relation(fields: [scheduledBy], references: [id])
+
   @@unique([requestId, candidateId])
   @@index([requestId])
   @@index([candidateId])
+  @@map("interview_schedules")
 }
 
 model InterviewFeedback {
-  id                String   @id @default(uuid()) @db.Uuid
-  requestId         String   @map("request_id") @db.Uuid
-  candidateId       String?  @map("candidate_id") @db.Uuid
-  decision          String   @db.VarChar(20) // "PROCEED", "REJECT"
-  overallRating     Int?     @map("overall_rating")
-  technicalSkills   Int?     @map("technical_skills")
-  culturalFit       Int?     @map("cultural_fit")
-  communication     Int?
-  feedback          String   @db.Text
-  concerns          String?  @db.Text
-  submittedBy       String   @map("submitted_by") @db.Uuid
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+  id              String   @id @default(uuid()) @db.Uuid
+  requestId       String   @map("request_id") @db.Uuid
+  candidateId     String?  @map("candidate_id") @db.Uuid
+  decision        String   @db.VarChar(20) // "PROCEED", "REJECT"
+  overallRating   Int?     @map("overall_rating")
+  technicalSkills Int?     @map("technical_skills")
+  culturalFit     Int?     @map("cultural_fit")
+  communication   Int?
+  feedback        String   @db.Text
+  concerns        String?  @db.Text
+  submittedBy     String   @map("submitted_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
   // Relations
-  request           Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  candidateResume   CandidateResume? @relation(fields: [candidateId], references: [id])
-  submittedByUser   User             @relation(fields: [submittedBy], references: [id])
-  
-  @@map("interview_feedbacks")
+  request         Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  candidateResume CandidateResume? @relation(fields: [candidateId], references: [id])
+  submittedByUser User             @relation(fields: [submittedBy], references: [id])
+
   @@index([requestId])
   @@index([candidateId])
+  @@map("interview_feedbacks")
 }
 
 model HRScreening {
@@ -978,138 +979,138 @@ model HRScreening {
   completedBy           String?  @map("completed_by") @db.Uuid
   createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+
   // Relations
-  request             Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  completedByUser     User?    @relation(fields: [completedBy], references: [id])
-  
-  @@map("hr_screenings")
+  request         Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  completedByUser User?   @relation(fields: [completedBy], references: [id])
+
   @@index([requestId])
+  @@map("hr_screenings")
 }
 
 model LetterOfAcceptance {
-  id                  String    @id @default(uuid()) @db.Uuid
-  requestId           String    @unique @map("request_id") @db.Uuid
-  loaFileUrl          String    @map("loa_file_url") @db.Text
-  loaFileName         String    @map("loa_file_name") @db.VarChar(255)
-  loaFileSize         Int       @map("loa_file_size")
-  signedLoaFileUrl    String?   @map("signed_loa_file_url") @db.Text
-  signedLoaFileName   String?   @map("signed_loa_file_name") @db.VarChar(255)
-  signedLoaFileSize   Int?      @map("signed_loa_file_size")
-  uploadedBy          String    @map("uploaded_by") @db.Uuid
-  approvedBy          String?   @map("approved_by") @db.Uuid
-  approvalDate        DateTime? @map("approval_date") @db.Timestamp(6)
-  approvalComments    String?   @map("approval_comments") @db.Text
-  issuedDate          DateTime? @map("issued_date") @db.Timestamp(6)
-  acceptedDate        DateTime? @map("accepted_date") @db.Timestamp(6)
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+  id                String    @id @default(uuid()) @db.Uuid
+  requestId         String    @unique @map("request_id") @db.Uuid
+  loaFileUrl        String    @map("loa_file_url") @db.Text
+  loaFileName       String    @map("loa_file_name") @db.VarChar(255)
+  loaFileSize       Int       @map("loa_file_size")
+  signedLoaFileUrl  String?   @map("signed_loa_file_url") @db.Text
+  signedLoaFileName String?   @map("signed_loa_file_name") @db.VarChar(255)
+  signedLoaFileSize Int?      @map("signed_loa_file_size")
+  uploadedBy        String    @map("uploaded_by") @db.Uuid
+  approvedBy        String?   @map("approved_by") @db.Uuid
+  approvalDate      DateTime? @map("approval_date") @db.Timestamp(6)
+  approvalComments  String?   @map("approval_comments") @db.Text
+  issuedDate        DateTime? @map("issued_date") @db.Timestamp(6)
+  acceptedDate      DateTime? @map("accepted_date") @db.Timestamp(6)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
   // Relations
-  request             Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  uploadedByUser      User     @relation("LOAUploadedBy", fields: [uploadedBy], references: [id])
-  approvedByUser      User?    @relation("LOAApprovedBy", fields: [approvedBy], references: [id])
-  
-  @@map("letters_of_acceptance")
+  request        Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  uploadedByUser User    @relation("LOAUploadedBy", fields: [uploadedBy], references: [id])
+  approvedByUser User?   @relation("LOAApprovedBy", fields: [approvedBy], references: [id])
+
   @@index([requestId])
+  @@map("letters_of_acceptance")
 }
 
 // Onboarding Requests
 model OnboardingRequest {
-  id                String    @id @default(uuid()) @db.Uuid
-  requestId         String    @unique @map("request_id") @db.Uuid
-  
+  id        String @id @default(uuid()) @db.Uuid
+  requestId String @unique @map("request_id") @db.Uuid
+
   // New Hire Information
-  newHireId         String?   @map("new_hire_id") @db.Uuid
-  newHireFirstName  String    @map("new_hire_first_name") @db.VarChar(100)
-  newHireLastName   String    @map("new_hire_last_name") @db.VarChar(100)
-  newHireEmail      String    @map("new_hire_email") @db.VarChar(255)
-  newHirePhone      String?   @map("new_hire_phone") @db.VarChar(20)
-  
+  newHireId        String? @map("new_hire_id") @db.Uuid
+  newHireFirstName String  @map("new_hire_first_name") @db.VarChar(100)
+  newHireLastName  String  @map("new_hire_last_name") @db.VarChar(100)
+  newHireEmail     String  @map("new_hire_email") @db.VarChar(255)
+  newHirePhone     String? @map("new_hire_phone") @db.VarChar(20)
+
   // Position Details
-  jobTitle          String    @map("job_title") @db.VarChar(200)
-  department        String    @db.VarChar(100)
-  hiringManagerId   String    @map("hiring_manager_id") @db.Uuid
-  startDate         DateTime  @map("start_date") @db.Date
-  employmentType    String    @map("employment_type") @db.VarChar(50)
-  
+  jobTitle        String   @map("job_title") @db.VarChar(200)
+  department      String   @db.VarChar(100)
+  hiringManagerId String   @map("hiring_manager_id") @db.Uuid
+  startDate       DateTime @map("start_date") @db.Date
+  employmentType  String   @map("employment_type") @db.VarChar(50)
+
   // Onboarding Status
-  overallStatus     String    @map("overall_status") @db.VarChar(50)
-  currentPhase      String    @map("current_phase") @db.VarChar(50)
-  
+  overallStatus String @map("overall_status") @db.VarChar(50)
+  currentPhase  String @map("current_phase") @db.VarChar(50)
+
   // IT Setup Flags
-  itAccountCreated  Boolean   @default(false) @map("it_account_created")
-  emailSetup        Boolean   @default(false) @map("email_setup")
-  hardwareAssigned  Boolean   @default(false) @map("hardware_assigned")
-  accessBadgeReady  Boolean   @default(false) @map("access_badge_ready")
-  
+  itAccountCreated Boolean @default(false) @map("it_account_created")
+  emailSetup       Boolean @default(false) @map("email_setup")
+  hardwareAssigned Boolean @default(false) @map("hardware_assigned")
+  accessBadgeReady Boolean @default(false) @map("access_badge_ready")
+
   // HR Documentation Flags
-  i9Completed       Boolean   @default(false) @map("i9_completed")
-  w4Completed       Boolean   @default(false) @map("w4_completed")
-  benefitsEnrolled  Boolean   @default(false) @map("benefits_enrolled")
+  i9Completed          Boolean @default(false) @map("i9_completed")
+  w4Completed          Boolean @default(false) @map("w4_completed")
+  benefitsEnrolled     Boolean @default(false) @map("benefits_enrolled")
   policiesAcknowledged Boolean @default(false) @map("policies_acknowledged")
-  
+
   // Training & Integration Flags
   orientationCompleted Boolean @default(false) @map("orientation_completed")
   trainingScheduled    Boolean @default(false) @map("training_scheduled")
   buddyAssigned        String? @map("buddy_assigned") @db.Uuid
-  
+
   // Milestone Timestamps
-  day1Completed     DateTime? @map("day1_completed") @db.Timestamp(6)
-  week1Completed    DateTime? @map("week1_completed") @db.Timestamp(6)
-  day30Completed    DateTime? @map("day30_completed") @db.Timestamp(6)
-  day60Completed    DateTime? @map("day60_completed") @db.Timestamp(6)
-  day90Completed    DateTime? @map("day90_completed") @db.Timestamp(6)
-  
-  completedBy       String?   @map("completed_by") @db.Uuid
-  completedAt       DateTime? @map("completed_at") @db.Timestamp(6)
-  
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+  day1Completed  DateTime? @map("day1_completed") @db.Timestamp(6)
+  week1Completed DateTime? @map("week1_completed") @db.Timestamp(6)
+  day30Completed DateTime? @map("day30_completed") @db.Timestamp(6)
+  day60Completed DateTime? @map("day60_completed") @db.Timestamp(6)
+  day90Completed DateTime? @map("day90_completed") @db.Timestamp(6)
+
+  completedBy String?   @map("completed_by") @db.Uuid
+  completedAt DateTime? @map("completed_at") @db.Timestamp(6)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
   // Relations
-  request           Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  hiringManager     User      @relation("OnboardingHiringManager", fields: [hiringManagerId], references: [id])
-  newHire           User?     @relation("OnboardingNewHire", fields: [newHireId], references: [id])
-  buddy             User?     @relation("OnboardingBuddy", fields: [buddyAssigned], references: [id])
-  completedByUser   User?     @relation("OnboardingCompletedBy", fields: [completedBy], references: [id])
-  tasks             OnboardingTask[]
-  
-  @@map("onboarding_requests")
+  request         Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  hiringManager   User             @relation("OnboardingHiringManager", fields: [hiringManagerId], references: [id])
+  newHire         User?            @relation("OnboardingNewHire", fields: [newHireId], references: [id])
+  buddy           User?            @relation("OnboardingBuddy", fields: [buddyAssigned], references: [id])
+  completedByUser User?            @relation("OnboardingCompletedBy", fields: [completedBy], references: [id])
+  tasks           OnboardingTask[]
+
   @@index([requestId])
   @@index([newHireId])
   @@index([startDate])
+  @@map("onboarding_requests")
 }
 
 // Onboarding Tasks
 model OnboardingTask {
-  id                String    @id @default(uuid()) @db.Uuid
-  onboardingId      String    @map("onboarding_id") @db.Uuid
-  
-  taskName          String    @map("task_name") @db.VarChar(200)
-  taskDescription   String?   @map("task_description") @db.Text
-  taskCategory      String    @map("task_category") @db.VarChar(50)
-  assignedTo        String?   @map("assigned_to") @db.Uuid
-  dueDate           DateTime? @map("due_date") @db.Date
-  priority          String    @default("MEDIUM") @db.VarChar(20)
-  
-  status            String    @default("PENDING") @db.VarChar(50)
-  completedBy       String?   @map("completed_by") @db.Uuid
-  completedAt       DateTime? @map("completed_at") @db.Timestamp(6)
-  notes             String?   @db.Text
-  
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+  id           String @id @default(uuid()) @db.Uuid
+  onboardingId String @map("onboarding_id") @db.Uuid
+
+  taskName        String    @map("task_name") @db.VarChar(200)
+  taskDescription String?   @map("task_description") @db.Text
+  taskCategory    String    @map("task_category") @db.VarChar(50)
+  assignedTo      String?   @map("assigned_to") @db.Uuid
+  dueDate         DateTime? @map("due_date") @db.Date
+  priority        String    @default("MEDIUM") @db.VarChar(20)
+
+  status      String    @default("PENDING") @db.VarChar(50)
+  completedBy String?   @map("completed_by") @db.Uuid
+  completedAt DateTime? @map("completed_at") @db.Timestamp(6)
+  notes       String?   @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
   // Relations
-  onboarding        OnboardingRequest @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
-  assignedToUser    User?             @relation("OnboardingTaskAssignedTo", fields: [assignedTo], references: [id])
-  completedByUser   User?             @relation("OnboardingTaskCompletedBy", fields: [completedBy], references: [id])
-  
-  @@map("onboarding_tasks")
+  onboarding      OnboardingRequest @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  assignedToUser  User?             @relation("OnboardingTaskAssignedTo", fields: [assignedTo], references: [id])
+  completedByUser User?             @relation("OnboardingTaskCompletedBy", fields: [completedBy], references: [id])
+
   @@index([onboardingId])
   @@index([assignedTo])
   @@index([status])
+  @@map("onboarding_tasks")
 }
 
 // Onboarding Task Templates (admin-managed)
@@ -1125,96 +1126,96 @@ model OnboardingTaskTemplate {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  @@map("onboarding_task_templates")
   @@index([taskCategory])
   @@index([isActive])
+  @@map("onboarding_task_templates")
 }
 
 // Offboarding Requests
 model OffboardingRequest {
-  id                  String    @id @default(uuid()) @db.Uuid
-  requestId           String    @unique @map("request_id") @db.Uuid
+  id        String @id @default(uuid()) @db.Uuid
+  requestId String @unique @map("request_id") @db.Uuid
 
   // Departing Employee
-  employeeFirstName   String    @map("employee_first_name") @db.VarChar(100)
-  employeeLastName    String    @map("employee_last_name") @db.VarChar(100)
-  employeeEmail       String    @map("employee_email") @db.VarChar(255)
-  employeeId          String?   @map("employee_id") @db.Uuid
+  employeeFirstName String  @map("employee_first_name") @db.VarChar(100)
+  employeeLastName  String  @map("employee_last_name") @db.VarChar(100)
+  employeeEmail     String  @map("employee_email") @db.VarChar(255)
+  employeeId        String? @map("employee_id") @db.Uuid
 
   // Position Details
-  department          String?   @db.VarChar(100)
-  managerId           String    @map("manager_id") @db.Uuid
-  lastWorkingDay      DateTime  @map("last_working_day") @db.Date
-  reasonForDeparture  String?   @map("reason_for_departure") @db.Text
+  department         String?  @db.VarChar(100)
+  managerId          String   @map("manager_id") @db.Uuid
+  lastWorkingDay     DateTime @map("last_working_day") @db.Date
+  reasonForDeparture String?  @map("reason_for_departure") @db.Text
 
   // Offboarding Status
-  overallStatus       String    @map("overall_status") @db.VarChar(50)
-  currentPhase        String    @map("current_phase") @db.VarChar(50)
+  overallStatus String @map("overall_status") @db.VarChar(50)
+  currentPhase  String @map("current_phase") @db.VarChar(50)
 
   // IT Revocation Flags
-  accountsDisabled    Boolean   @default(false) @map("accounts_disabled")
-  emailRevoked        Boolean   @default(false) @map("email_revoked")
-  hardwareReturned    Boolean   @default(false) @map("hardware_returned")
-  accessBadgeRevoked  Boolean   @default(false) @map("access_badge_revoked")
+  accountsDisabled   Boolean @default(false) @map("accounts_disabled")
+  emailRevoked       Boolean @default(false) @map("email_revoked")
+  hardwareReturned   Boolean @default(false) @map("hardware_returned")
+  accessBadgeRevoked Boolean @default(false) @map("access_badge_revoked")
 
   // HR Documentation Flags
   resignationLetterAttached  Boolean   @default(false) @map("resignation_letter_attached")
   resignationLetterUrl       String?   @map("resignation_letter_url") @db.VarChar(500)
   resignationLetterFileName  String?   @map("resignation_letter_file_name") @db.VarChar(255)
   exitInterviewScheduledDate DateTime? @map("exit_interview_scheduled_date") @db.Date
-  exitInterviewDone   Boolean   @default(false) @map("exit_interview_done")
-  finalPayrollDone    Boolean   @default(false) @map("final_payroll_done")
-  benefitsTerminated  Boolean   @default(false) @map("benefits_terminated")
-  knowledgeTransferDone Boolean @default(false) @map("knowledge_transfer_done")
+  exitInterviewDone          Boolean   @default(false) @map("exit_interview_done")
+  finalPayrollDone           Boolean   @default(false) @map("final_payroll_done")
+  benefitsTerminated         Boolean   @default(false) @map("benefits_terminated")
+  knowledgeTransferDone      Boolean   @default(false) @map("knowledge_transfer_done")
 
-  completedBy         String?   @map("completed_by") @db.Uuid
-  completedAt         DateTime? @map("completed_at") @db.Timestamp(6)
+  completedBy String?   @map("completed_by") @db.Uuid
+  completedAt DateTime? @map("completed_at") @db.Timestamp(6)
 
-  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  request             Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  manager             User      @relation("OffboardingManager", fields: [managerId], references: [id])
-  employee            User?     @relation("OffboardingEmployee", fields: [employeeId], references: [id])
-  completedByUser     User?     @relation("OffboardingCompletedBy", fields: [completedBy], references: [id])
-  tasks               OffboardingTask[]
+  request         Request           @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  manager         User              @relation("OffboardingManager", fields: [managerId], references: [id])
+  employee        User?             @relation("OffboardingEmployee", fields: [employeeId], references: [id])
+  completedByUser User?             @relation("OffboardingCompletedBy", fields: [completedBy], references: [id])
+  tasks           OffboardingTask[]
 
-  @@map("offboarding_requests")
   @@index([requestId])
   @@index([employeeId])
   @@index([lastWorkingDay])
+  @@map("offboarding_requests")
 }
 
 // Offboarding Tasks
 model OffboardingTask {
-  id                String    @id @default(uuid()) @db.Uuid
-  offboardingId     String    @map("offboarding_id") @db.Uuid
+  id            String @id @default(uuid()) @db.Uuid
+  offboardingId String @map("offboarding_id") @db.Uuid
 
-  taskName          String    @map("task_name") @db.VarChar(200)
-  taskDescription   String?   @map("task_description") @db.Text
-  taskCategory      String    @map("task_category") @db.VarChar(50)
-  assignedTo        String?   @map("assigned_to") @db.Uuid
-  dueDate           DateTime? @map("due_date") @db.Date
-  priority          String    @default("MEDIUM") @db.VarChar(20)
+  taskName        String    @map("task_name") @db.VarChar(200)
+  taskDescription String?   @map("task_description") @db.Text
+  taskCategory    String    @map("task_category") @db.VarChar(50)
+  assignedTo      String?   @map("assigned_to") @db.Uuid
+  dueDate         DateTime? @map("due_date") @db.Date
+  priority        String    @default("MEDIUM") @db.VarChar(20)
 
-  status            String    @default("PENDING") @db.VarChar(50)
-  completedBy       String?   @map("completed_by") @db.Uuid
-  completedAt       DateTime? @map("completed_at") @db.Timestamp(6)
-  notes             String?   @db.Text
+  status      String    @default("PENDING") @db.VarChar(50)
+  completedBy String?   @map("completed_by") @db.Uuid
+  completedAt DateTime? @map("completed_at") @db.Timestamp(6)
+  notes       String?   @db.Text
 
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  offboarding       OffboardingRequest @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
-  assignedToUser    User?              @relation("OffboardingTaskAssignedTo", fields: [assignedTo], references: [id])
-  completedByUser   User?              @relation("OffboardingTaskCompletedBy", fields: [completedBy], references: [id])
+  offboarding     OffboardingRequest @relation(fields: [offboardingId], references: [id], onDelete: Cascade)
+  assignedToUser  User?              @relation("OffboardingTaskAssignedTo", fields: [assignedTo], references: [id])
+  completedByUser User?              @relation("OffboardingTaskCompletedBy", fields: [completedBy], references: [id])
 
-  @@map("offboarding_tasks")
   @@index([offboardingId])
   @@index([assignedTo])
   @@index([status])
+  @@map("offboarding_tasks")
 }
 
 // Offboarding Task Templates (admin-managed)
@@ -1230,9 +1231,9 @@ model OffboardingTaskTemplate {
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  @@map("offboarding_task_templates")
   @@index([taskCategory])
   @@index([isActive])
+  @@map("offboarding_task_templates")
 }
 
 model BannerConfig {
@@ -1262,34 +1263,34 @@ model RequestStatusDefinition {
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  @@map("request_status_definitions")
   @@index([isActive])
   @@index([category])
+  @@map("request_status_definitions")
 }
 
 // Workflow transition rules — source of truth for valid status changes.
 // The VALID_TRANSITIONS map in workflowTransitions.ts is the SEED reference;
 // this table is the runtime source of truth.
 model WorkflowTransition {
-  id              String   @id @default(uuid()) @db.Uuid
-  fromStatus      String   @map("from_status") @db.VarChar(100)
-  toStatus        String   @map("to_status") @db.VarChar(100)
-  transitionLabel String?  @map("transition_label") @db.VarChar(50)
+  id               String   @id @default(uuid()) @db.Uuid
+  fromStatus       String   @map("from_status") @db.VarChar(100)
+  toStatus         String   @map("to_status") @db.VarChar(100)
+  transitionLabel  String?  @map("transition_label") @db.VarChar(50)
   // Label values: APPROVE | REJECT | SUBMIT | ADVANCE | RETURN | ESCALATE | CLOSE
-  requiresComment Boolean  @default(false) @map("requires_comment")
+  requiresComment  Boolean  @default(false) @map("requires_comment")
   // Hint: optional role or userId to auto-assign after this transition
-  autoAssignRole  String?  @map("auto_assign_role") @db.VarChar(50)
-  autoAssignUserId String? @map("auto_assign_user_id") @db.Uuid
-  isActive        Boolean  @default(true) @map("is_active")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  autoAssignRole   String?  @map("auto_assign_role") @db.VarChar(50)
+  autoAssignUserId String?  @map("auto_assign_user_id") @db.Uuid
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Each (fromStatus, toStatus) pair is unique
   @@unique([fromStatus, toStatus])
-  @@map("workflow_transitions")
   @@index([fromStatus])
   @@index([toStatus])
   @@index([isActive])
+  @@map("workflow_transitions")
 }
 
 // ============================================================================
@@ -1302,23 +1303,23 @@ enum EntityRoutingMode {
 }
 
 model Entity {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(200)
-  code        String   @unique @db.VarChar(50)
-  description String?  @db.Text
-  approverId  String   @map("approver_id") @db.Uuid
-  isActive    Boolean  @default(true) @map("is_active")
-  displayOrder Int     @default(0) @map("display_order")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @db.VarChar(200)
+  code         String   @unique @db.VarChar(50)
+  description  String?  @db.Text
+  approverId   String   @map("approver_id") @db.Uuid
+  isActive     Boolean  @default(true) @map("is_active")
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   // Relations
-  approver          User                       @relation("EntityApprover", fields: [approverId], references: [id])
-  users             User[]                     @relation("UserEntity")
-  requestApprovals  RequestApproval[]          @relation("ApprovalEntity")
+  approver         User              @relation("EntityApprover", fields: [approverId], references: [id])
+  users            User[]            @relation("UserEntity")
+  requestApprovals RequestApproval[] @relation("ApprovalEntity")
 
-  @@map("entities")
   @@index([approverId])
+  @@map("entities")
 }
 
 model RequestTypeEntityRouting {
@@ -1333,8 +1334,8 @@ model RequestTypeEntityRouting {
   // Relations
   requestType RequestType @relation(fields: [requestTypeId], references: [id], onDelete: Cascade)
 
-  @@map("request_type_entity_routings")
   @@index([requestTypeId])
+  @@map("request_type_entity_routings")
 }
 
 // ============================================================================
@@ -1365,20 +1366,20 @@ model Asset {
   previousUser   String?       @map("previous_user") @db.VarChar(200)
   entity         String?       @db.VarChar(200)
 
-  sourceRequestId String? @map("source_request_id") @db.Uuid
-  createdById     String  @map("created_by_id") @db.Uuid
+  sourceRequestId String?  @map("source_request_id") @db.Uuid
+  createdById     String   @map("created_by_id") @db.Uuid
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  sourceRequest      Request?          @relation("AssetSourceRequest", fields: [sourceRequestId], references: [id])
-  createdBy          User              @relation("AssetCreatedBy", fields: [createdById], references: [id])
+  sourceRequest      Request?            @relation("AssetSourceRequest", fields: [sourceRequestId], references: [id])
+  createdBy          User                @relation("AssetCreatedBy", fields: [createdById], references: [id])
   assignments        AssetAssignment[]
   itHardwareRequests ITHardwareRequest[]
 
-  @@map("assets")
   @@index([status])
   @@index([category])
   @@index([createdById])
+  @@map("assets")
 }
 
 model AssetAssignment {
@@ -1392,14 +1393,14 @@ model AssetAssignment {
   linkedRequestId String?   @map("linked_request_id") @db.Uuid
   notes           String?   @db.Text
 
-  asset          Asset    @relation(fields: [assetId], references: [id])
-  user           User     @relation("AssetAssignmentUser", fields: [userId], references: [id])
-  assignedBy     User     @relation("AssetAssignmentAssignedBy", fields: [assignedById], references: [id])
-  linkedRequest  Request? @relation("AssetAssignmentRequest", fields: [linkedRequestId], references: [id])
+  asset         Asset    @relation(fields: [assetId], references: [id])
+  user          User     @relation("AssetAssignmentUser", fields: [userId], references: [id])
+  assignedBy    User     @relation("AssetAssignmentAssignedBy", fields: [assignedById], references: [id])
+  linkedRequest Request? @relation("AssetAssignmentRequest", fields: [linkedRequestId], references: [id])
 
-  @@map("asset_assignments")
   @@index([assetId])
   @@index([userId])
+  @@map("asset_assignments")
 }
 
 model SystemSetting {
@@ -1456,60 +1457,60 @@ enum CrmActivityType {
 
 // CRM Accounts — external companies/organizations
 model CrmAccount {
-  id                String    @id @default(uuid()) @db.Uuid
-  name              String    @db.VarChar(255)
-  industry          String?   @db.VarChar(100)
-  companySize       String?   @map("company_size") @db.VarChar(50)
-  website           String?   @db.VarChar(500)
-  phone             String?   @db.VarChar(50)
-  email             String?   @db.VarChar(255)
-  address           String?   @db.Text
-  city              String?   @db.VarChar(100)
-  state             String?   @db.VarChar(100)
-  country           String?   @db.VarChar(100)
-  postalCode        String?   @map("postal_code") @db.VarChar(20)
-  description       String?   @db.Text
-  annualRevenue     Decimal?  @map("annual_revenue") @db.Decimal(15, 2)
+  id                 String    @id @default(uuid()) @db.Uuid
+  name               String    @db.VarChar(255)
+  industry           String?   @db.VarChar(100)
+  companySize        String?   @map("company_size") @db.VarChar(50)
+  website            String?   @db.VarChar(500)
+  phone              String?   @db.VarChar(50)
+  email              String?   @db.VarChar(255)
+  address            String?   @db.Text
+  city               String?   @db.VarChar(100)
+  state              String?   @db.VarChar(100)
+  country            String?   @db.VarChar(100)
+  postalCode         String?   @map("postal_code") @db.VarChar(20)
+  description        String?   @db.Text
+  annualRevenue      Decimal?  @map("annual_revenue") @db.Decimal(15, 2)
   // Malaysian-specific fields
-  registrationNumber String?  @map("registration_number") @db.VarChar(50)
-  taxNumber          String?  @map("tax_number") @db.VarChar(50)
-  bankAccount        String?  @map("bank_account") @db.VarChar(100)
-  purchaseCashTrust  Boolean  @default(false) @map("purchase_cash_trust")
-  accountType        String   @default("CORPORATE") @map("account_type") @db.VarChar(20)
-  ownerId           String    @map("owner_id") @db.Uuid
-  deletedAt         DateTime? @map("deleted_at") @db.Timestamp(6)
-  isActive          Boolean   @default(true) @map("is_active")
-  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  registrationNumber String?   @map("registration_number") @db.VarChar(50)
+  taxNumber          String?   @map("tax_number") @db.VarChar(50)
+  bankAccount        String?   @map("bank_account") @db.VarChar(100)
+  purchaseCashTrust  Boolean   @default(false) @map("purchase_cash_trust")
+  accountType        String    @default("CORPORATE") @map("account_type") @db.VarChar(20)
+  ownerId            String    @map("owner_id") @db.Uuid
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamp(6)
+  isActive           Boolean   @default(true) @map("is_active")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  owner          User               @relation("CrmAccountOwner", fields: [ownerId], references: [id])
+  owner          User                @relation("CrmAccountOwner", fields: [ownerId], references: [id])
   contacts       CrmContact[]
   leads          CrmLead[]
   opportunities  CrmOpportunity[]
-  activities     CrmActivity[]      @relation("ActivityAccount")
-  notes          CrmNote[]          @relation("NoteAccount")
+  activities     CrmActivity[]       @relation("ActivityAccount")
+  notes          CrmNote[]           @relation("NoteAccount")
   linkedRequests CrmAccountRequest[]
   trustProducts  CrmTrustProduct[]
 
-  @@map("crm_accounts")
   @@index([ownerId])
   @@index([name])
   @@index([industry])
+  @@map("crm_accounts")
 }
 
 // CRM Contacts — people at external accounts
 model CrmContact {
-  id          String    @id @default(uuid()) @db.Uuid
-  accountId   String    @map("account_id") @db.Uuid
-  firstName   String    @map("first_name") @db.VarChar(100)
-  lastName    String    @map("last_name") @db.VarChar(100)
-  email       String?   @db.VarChar(255)
-  phone       String?   @db.VarChar(50)
-  mobile      String?   @db.VarChar(50)
-  jobTitle    String?   @map("job_title") @db.VarChar(150)
-  department  String?   @db.VarChar(100)
-  isPrimary   Boolean   @default(false) @map("is_primary")
-  description String?   @db.Text
+  id                String    @id @default(uuid()) @db.Uuid
+  accountId         String    @map("account_id") @db.Uuid
+  firstName         String    @map("first_name") @db.VarChar(100)
+  lastName          String    @map("last_name") @db.VarChar(100)
+  email             String?   @db.VarChar(255)
+  phone             String?   @db.VarChar(50)
+  mobile            String?   @db.VarChar(50)
+  jobTitle          String?   @map("job_title") @db.VarChar(150)
+  department        String?   @db.VarChar(100)
+  isPrimary         Boolean   @default(false) @map("is_primary")
+  description       String?   @db.Text
   followUpDate      DateTime? @map("follow_up_date") @db.Timestamp(6)
   followUpNote      String?   @map("follow_up_note") @db.Text
   // Phase 2 additions
@@ -1523,83 +1524,83 @@ model CrmContact {
   // Phase 3: Risk profile for trust industry
   riskProfile       String?   @map("risk_profile") @db.VarChar(20)
 
-  isActive    Boolean   @default(true) @map("is_active")
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  account       CrmAccount       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account       CrmAccount        @relation(fields: [accountId], references: [id], onDelete: Cascade)
   leads         CrmLead[]
   opportunities CrmOpportunity[]
-  activities    CrmActivity[]    @relation("ActivityContact")
-  notes         CrmNote[]        @relation("NoteContact")
+  activities    CrmActivity[]     @relation("ActivityContact")
+  notes         CrmNote[]         @relation("NoteContact")
   kycRecord     CrmKycRecord?
   beneficiaries CrmBeneficiary[]
   trustProducts CrmTrustProduct[]
 
-  @@map("crm_contacts")
   @@index([accountId])
   @@index([email])
+  @@map("crm_contacts")
 }
 
 // CRM Leads — pre-qualified prospects
 model CrmLead {
-  id          String      @id @default(uuid()) @db.Uuid
-  title       String      @db.VarChar(255)
-  status      LeadStatus  @default(NEW)
-  source      LeadSource  @default(OTHER)
-  accountId   String?     @map("account_id") @db.Uuid
-  contactId   String?     @map("contact_id") @db.Uuid
-  ownerId     String      @map("owner_id") @db.Uuid
+  id        String     @id @default(uuid()) @db.Uuid
+  title     String     @db.VarChar(255)
+  status    LeadStatus @default(NEW)
+  source    LeadSource @default(OTHER)
+  accountId String?    @map("account_id") @db.Uuid
+  contactId String?    @map("contact_id") @db.Uuid
+  ownerId   String     @map("owner_id") @db.Uuid
 
   // Lead-specific contact info (for leads without an existing contact)
-  contactName  String?    @map("contact_name") @db.VarChar(200)
-  contactEmail String?    @map("contact_email") @db.VarChar(255)
-  contactPhone String?    @map("contact_phone") @db.VarChar(50)
-  companyName  String?    @map("company_name") @db.VarChar(255)
+  contactName  String? @map("contact_name") @db.VarChar(200)
+  contactEmail String? @map("contact_email") @db.VarChar(255)
+  contactPhone String? @map("contact_phone") @db.VarChar(50)
+  companyName  String? @map("company_name") @db.VarChar(255)
 
   estimatedValue Decimal? @map("estimated_value") @db.Decimal(15, 2)
   description    String?  @db.Text
   lostReason     String?  @map("lost_reason") @db.Text
 
   // Conversion tracking
-  convertedAt        DateTime?  @map("converted_at") @db.Timestamp(6)
-  convertedToOppId   String?    @map("converted_to_opp_id") @db.Uuid
+  convertedAt      DateTime? @map("converted_at") @db.Timestamp(6)
+  convertedToOppId String?   @map("converted_to_opp_id") @db.Uuid
 
   // Phase 2 additions — follow-up tracking
-  followUpDate       DateTime?  @map("follow_up_date") @db.Timestamp(6)
-  followUpNote       String?    @map("follow_up_note") @db.Text
-  deletedAt          DateTime?  @map("deleted_at") @db.Timestamp(6)
+  followUpDate DateTime? @map("follow_up_date") @db.Timestamp(6)
+  followUpNote String?   @map("follow_up_note") @db.Text
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamp(6)
 
   // AI scoring
-  aiScore        Int?       @map("ai_score")
-  aiScoreReason  String?    @map("ai_score_reason") @db.Text
-  aiScoredAt     DateTime?  @map("ai_scored_at") @db.Timestamp(6)
+  aiScore       Int?      @map("ai_score")
+  aiScoreReason String?   @map("ai_score_reason") @db.Text
+  aiScoredAt    DateTime? @map("ai_scored_at") @db.Timestamp(6)
 
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  owner      User           @relation("CrmLeadOwner", fields: [ownerId], references: [id])
-  account    CrmAccount?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  contact    CrmContact?    @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  activities CrmActivity[]  @relation("ActivityLead")
-  notes      CrmNote[]      @relation("NoteLead")
+  owner      User          @relation("CrmLeadOwner", fields: [ownerId], references: [id])
+  account    CrmAccount?   @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  contact    CrmContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  activities CrmActivity[] @relation("ActivityLead")
+  notes      CrmNote[]     @relation("NoteLead")
 
-  @@map("crm_leads")
   @@index([ownerId])
   @@index([status])
   @@index([accountId])
   @@index([contactId])
+  @@map("crm_leads")
 }
 
 // CRM Pipelines — configurable deal pipelines
 model CrmPipeline {
-  id           String    @id @default(uuid()) @db.Uuid
-  name         String    @db.VarChar(100)
-  description  String?   @db.Text
-  isDefault    Boolean   @default(false) @map("is_default")
-  isActive     Boolean   @default(true) @map("is_active")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  isDefault   Boolean  @default(false) @map("is_default")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   stages        CrmPipelineStage[]
   opportunities CrmOpportunity[]
@@ -1609,116 +1610,115 @@ model CrmPipeline {
 
 // CRM Pipeline Stages — ordered stages within a pipeline
 model CrmPipelineStage {
-  id           String    @id @default(uuid()) @db.Uuid
-  pipelineId   String    @map("pipeline_id") @db.Uuid
-  name         String    @db.VarChar(100)
-  displayOrder Int       @map("display_order")
-  probability  Int       @default(0) // Win probability percentage (0-100)
-  color        String    @default("#0052cc") @db.VarChar(20)
-  isWonStage   Boolean   @default(false) @map("is_won_stage")
-  isLostStage  Boolean   @default(false) @map("is_lost_stage")
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  id           String   @id @default(uuid()) @db.Uuid
+  pipelineId   String   @map("pipeline_id") @db.Uuid
+  name         String   @db.VarChar(100)
+  displayOrder Int      @map("display_order")
+  probability  Int      @default(0) // Win probability percentage (0-100)
+  color        String   @default("#0052cc") @db.VarChar(20)
+  isWonStage   Boolean  @default(false) @map("is_won_stage")
+  isLostStage  Boolean  @default(false) @map("is_lost_stage")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   pipeline      CrmPipeline      @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
   opportunities CrmOpportunity[]
 
-  @@map("crm_pipeline_stages")
-  @@index([pipelineId])
   @@unique([pipelineId, displayOrder])
+  @@index([pipelineId])
+  @@map("crm_pipeline_stages")
 }
 
 // CRM Opportunities — revenue-tracked deals
 model CrmOpportunity {
-  id             String           @id @default(uuid()) @db.Uuid
-  name           String           @db.VarChar(255)
-  accountId      String           @map("account_id") @db.Uuid
-  contactId      String?          @map("contact_id") @db.Uuid
-  pipelineId     String           @map("pipeline_id") @db.Uuid
-  stageId        String           @map("stage_id") @db.Uuid
-  ownerId        String           @map("owner_id") @db.Uuid
+  id         String  @id @default(uuid()) @db.Uuid
+  name       String  @db.VarChar(255)
+  accountId  String  @map("account_id") @db.Uuid
+  contactId  String? @map("contact_id") @db.Uuid
+  pipelineId String  @map("pipeline_id") @db.Uuid
+  stageId    String  @map("stage_id") @db.Uuid
+  ownerId    String  @map("owner_id") @db.Uuid
 
-  value          Decimal          @default(0) @db.Decimal(15, 2)
-  currency       String           @default("MYR") @db.VarChar(3)
-  probability    Int              @default(0) // 0-100
-  expectedCloseDate DateTime?     @map("expected_close_date") @db.Date
+  value             Decimal   @default(0) @db.Decimal(15, 2)
+  currency          String    @default("MYR") @db.VarChar(3)
+  probability       Int       @default(0) // 0-100
+  expectedCloseDate DateTime? @map("expected_close_date") @db.Date
 
-  description    String?          @db.Text
-  lostReason     String?          @map("lost_reason") @db.Text
-  wonAt          DateTime?        @map("won_at") @db.Timestamp(6)
-  lostAt         DateTime?        @map("lost_at") @db.Timestamp(6)
-  deletedAt      DateTime?        @map("deleted_at") @db.Timestamp(6)
+  description String?   @db.Text
+  lostReason  String?   @map("lost_reason") @db.Text
+  wonAt       DateTime? @map("won_at") @db.Timestamp(6)
+  lostAt      DateTime? @map("lost_at") @db.Timestamp(6)
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamp(6)
 
   // AI scoring
-  aiWinProbability  Float?     @map("ai_win_probability")
-  aiWinReason       String?    @map("ai_win_reason") @db.Text
-  aiScoredAt        DateTime?  @map("ai_scored_at") @db.Timestamp(6)
+  aiWinProbability Float?    @map("ai_win_probability")
+  aiWinReason      String?   @map("ai_win_reason") @db.Text
+  aiScoredAt       DateTime? @map("ai_scored_at") @db.Timestamp(6)
 
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  account    CrmAccount        @relation(fields: [accountId], references: [id])
-  contact    CrmContact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  pipeline   CrmPipeline       @relation(fields: [pipelineId], references: [id])
-  stage      CrmPipelineStage  @relation(fields: [stageId], references: [id])
-  owner      User              @relation("CrmOpportunityOwner", fields: [ownerId], references: [id])
-  activities CrmActivity[]     @relation("ActivityOpportunity")
-  notes      CrmNote[]         @relation("NoteOpportunity")
+  account      CrmAccount                   @relation(fields: [accountId], references: [id])
+  contact      CrmContact?                  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  pipeline     CrmPipeline                  @relation(fields: [pipelineId], references: [id])
+  stage        CrmPipelineStage             @relation(fields: [stageId], references: [id])
+  owner        User                         @relation("CrmOpportunityOwner", fields: [ownerId], references: [id])
+  activities   CrmActivity[]                @relation("ActivityOpportunity")
+  notes        CrmNote[]                    @relation("NoteOpportunity")
   trustProduct CrmTrustProduct?
   stageHistory CrmOpportunityStageHistory[]
 
-  @@map("crm_opportunities")
   @@index([accountId])
   @@index([pipelineId])
   @@index([stageId])
   @@index([ownerId])
   @@index([expectedCloseDate])
+  @@map("crm_opportunities")
 }
 
 // CRM Opportunity Stage History — records each stage progression
 model CrmOpportunityStageHistory {
-  id              String         @id @default(cuid())
-  opportunityId   String         @map("opportunity_id") @db.Uuid
-  opportunity     CrmOpportunity @relation(fields: [opportunityId], references: [id])
-  fromStageName   String?        @map("from_stage_name") @db.VarChar(100)
-  toStageName     String         @map("to_stage_name") @db.VarChar(100)
-  movedByUserId   String         @map("moved_by_user_id") @db.Uuid
-  movedAt         DateTime       @default(now()) @map("moved_at") @db.Timestamp(6)
+  id            String         @id @default(cuid())
+  opportunityId String         @map("opportunity_id") @db.Uuid
+  opportunity   CrmOpportunity @relation(fields: [opportunityId], references: [id])
+  fromStageName String?        @map("from_stage_name") @db.VarChar(100)
+  toStageName   String         @map("to_stage_name") @db.VarChar(100)
+  movedByUserId String         @map("moved_by_user_id") @db.Uuid
+  movedAt       DateTime       @default(now()) @map("moved_at") @db.Timestamp(6)
 
-  @@map("crm_opportunity_stage_history")
   @@index([opportunityId])
+  @@map("crm_opportunity_stage_history")
 }
 
 // CRM Activities — polymorphic activity log
 model CrmActivity {
-  id             String          @id @default(uuid()) @db.Uuid
-  activityType   CrmActivityType @map("activity_type")
-  subject        String          @db.VarChar(255)
-  description    String?         @db.Text
-  userId         String          @map("user_id") @db.Uuid
+  id           String          @id @default(uuid()) @db.Uuid
+  activityType CrmActivityType @map("activity_type")
+  subject      String          @db.VarChar(255)
+  description  String?         @db.Text
+  userId       String          @map("user_id") @db.Uuid
 
   // Polymorphic relations — only one should be set
-  accountId      String?         @map("account_id") @db.Uuid
-  contactId      String?         @map("contact_id") @db.Uuid
-  leadId         String?         @map("lead_id") @db.Uuid
-  opportunityId  String?         @map("opportunity_id") @db.Uuid
+  accountId     String? @map("account_id") @db.Uuid
+  contactId     String? @map("contact_id") @db.Uuid
+  leadId        String? @map("lead_id") @db.Uuid
+  opportunityId String? @map("opportunity_id") @db.Uuid
 
   // Scheduling
-  scheduledAt    DateTime?       @map("scheduled_at") @db.Timestamp(6)
-  completedAt    DateTime?       @map("completed_at") @db.Timestamp(6)
-  durationMinutes Int?           @map("duration_minutes")
+  scheduledAt     DateTime? @map("scheduled_at") @db.Timestamp(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamp(6)
+  durationMinutes Int?      @map("duration_minutes")
 
-  metadata       Json?           @db.JsonB
-  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt      DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
+  metadata  Json?    @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  user        User             @relation("CrmActivityUser", fields: [userId], references: [id])
-  account     CrmAccount?      @relation("ActivityAccount", fields: [accountId], references: [id], onDelete: Cascade)
-  contact     CrmContact?      @relation("ActivityContact", fields: [contactId], references: [id], onDelete: Cascade)
-  lead        CrmLead?         @relation("ActivityLead", fields: [leadId], references: [id], onDelete: Cascade)
-  opportunity CrmOpportunity?  @relation("ActivityOpportunity", fields: [opportunityId], references: [id], onDelete: Cascade)
+  user        User            @relation("CrmActivityUser", fields: [userId], references: [id])
+  account     CrmAccount?     @relation("ActivityAccount", fields: [accountId], references: [id], onDelete: Cascade)
+  contact     CrmContact?     @relation("ActivityContact", fields: [contactId], references: [id], onDelete: Cascade)
+  lead        CrmLead?        @relation("ActivityLead", fields: [leadId], references: [id], onDelete: Cascade)
+  opportunity CrmOpportunity? @relation("ActivityOpportunity", fields: [opportunityId], references: [id], onDelete: Cascade)
 
-  @@map("crm_activities")
   @@index([userId])
   @@index([accountId])
   @@index([contactId])
@@ -1726,129 +1726,130 @@ model CrmActivity {
   @@index([opportunityId])
   @@index([activityType])
   @@index([createdAt(sort: Desc)])
+  @@map("crm_activities")
 }
 
 // CRM Notes — rich-text notes on any CRM entity
 model CrmNote {
-  id             String    @id @default(uuid()) @db.Uuid
-  content        String    @db.Text
-  authorId       String    @map("author_id") @db.Uuid
+  id       String @id @default(uuid()) @db.Uuid
+  content  String @db.Text
+  authorId String @map("author_id") @db.Uuid
 
   // Polymorphic — only one should be set
-  accountId      String?   @map("account_id") @db.Uuid
-  contactId      String?   @map("contact_id") @db.Uuid
-  leadId         String?   @map("lead_id") @db.Uuid
-  opportunityId  String?   @map("opportunity_id") @db.Uuid
+  accountId     String? @map("account_id") @db.Uuid
+  contactId     String? @map("contact_id") @db.Uuid
+  leadId        String? @map("lead_id") @db.Uuid
+  opportunityId String? @map("opportunity_id") @db.Uuid
 
-  isPinned       Boolean   @default(false) @map("is_pinned")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+  isPinned  Boolean  @default(false) @map("is_pinned")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  author      User             @relation("CrmNoteAuthor", fields: [authorId], references: [id])
-  account     CrmAccount?      @relation("NoteAccount", fields: [accountId], references: [id], onDelete: Cascade)
-  contact     CrmContact?      @relation("NoteContact", fields: [contactId], references: [id], onDelete: Cascade)
-  lead        CrmLead?         @relation("NoteLead", fields: [leadId], references: [id], onDelete: Cascade)
-  opportunity CrmOpportunity?  @relation("NoteOpportunity", fields: [opportunityId], references: [id], onDelete: Cascade)
+  author      User            @relation("CrmNoteAuthor", fields: [authorId], references: [id])
+  account     CrmAccount?     @relation("NoteAccount", fields: [accountId], references: [id], onDelete: Cascade)
+  contact     CrmContact?     @relation("NoteContact", fields: [contactId], references: [id], onDelete: Cascade)
+  lead        CrmLead?        @relation("NoteLead", fields: [leadId], references: [id], onDelete: Cascade)
+  opportunity CrmOpportunity? @relation("NoteOpportunity", fields: [opportunityId], references: [id], onDelete: Cascade)
 
-  @@map("crm_notes")
   @@index([authorId])
   @@index([accountId])
   @@index([contactId])
   @@index([leadId])
   @@index([opportunityId])
   @@index([createdAt(sort: Desc)])
+  @@map("crm_notes")
 }
 
 // CRM Account ↔ Request junction — links service desk tickets to CRM accounts
 model CrmAccountRequest {
-  id         String   @id @default(uuid()) @db.Uuid
-  accountId  String   @map("account_id") @db.Uuid
-  requestId  String   @map("request_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  id        String   @id @default(uuid()) @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  requestId String   @map("request_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   account CrmAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   request Request    @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@unique([accountId, requestId])
-  @@map("crm_account_requests")
   @@index([accountId])
   @@index([requestId])
+  @@map("crm_account_requests")
 }
 
 // CRM Beneficiary — linked to a contact for trust/estate planning
 model CrmBeneficiary {
-  id              String   @id @default(uuid()) @db.Uuid
-  contactId       String   @map("contact_id") @db.Uuid
-  contact         CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  firstName       String   @map("first_name") @db.VarChar(100)
-  lastName        String   @map("last_name") @db.VarChar(100)
-  relationship    String   @db.VarChar(20)
-  allocationPct   Decimal  @map("allocation_pct") @db.Decimal(5, 2)
-  email           String?  @db.VarChar(255)
-  phone           String?  @db.VarChar(50)
-  nricPassport    String?  @map("nric_passport") @db.VarChar(50)
-  dateOfBirth     DateTime? @map("date_of_birth") @db.Date
-  isMinor         Boolean  @default(false) @map("is_minor")
-  guardianName    String?  @map("guardian_name") @db.VarChar(200)
-  notes           String?  @db.Text
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  id            String     @id @default(uuid()) @db.Uuid
+  contactId     String     @map("contact_id") @db.Uuid
+  contact       CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  firstName     String     @map("first_name") @db.VarChar(100)
+  lastName      String     @map("last_name") @db.VarChar(100)
+  relationship  String     @db.VarChar(20)
+  allocationPct Decimal    @map("allocation_pct") @db.Decimal(5, 2)
+  email         String?    @db.VarChar(255)
+  phone         String?    @db.VarChar(50)
+  nricPassport  String?    @map("nric_passport") @db.VarChar(50)
+  dateOfBirth   DateTime?  @map("date_of_birth") @db.Date
+  isMinor       Boolean    @default(false) @map("is_minor")
+  guardianName  String?    @map("guardian_name") @db.VarChar(200)
+  notes         String?    @db.Text
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  @@map("crm_beneficiaries")
   @@index([contactId])
+  @@map("crm_beneficiaries")
 }
 
 // CRM Trust Product — trust/estate products linked to accounts/contacts
 model CrmTrustProduct {
-  id              String   @id @default(uuid()) @db.Uuid
-  accountId       String   @map("account_id") @db.Uuid
-  account         CrmAccount @relation(fields: [accountId], references: [id])
-  contactId       String?  @map("contact_id") @db.Uuid
-  contact         CrmContact? @relation(fields: [contactId], references: [id])
-  opportunityId   String?  @unique @map("opportunity_id") @db.Uuid
-  opportunity     CrmOpportunity? @relation(fields: [opportunityId], references: [id])
+  id            String          @id @default(uuid()) @db.Uuid
+  accountId     String          @map("account_id") @db.Uuid
+  account       CrmAccount      @relation(fields: [accountId], references: [id])
+  contactId     String?         @map("contact_id") @db.Uuid
+  contact       CrmContact?     @relation(fields: [contactId], references: [id])
+  opportunityId String?         @unique @map("opportunity_id") @db.Uuid
+  opportunity   CrmOpportunity? @relation(fields: [opportunityId], references: [id])
 
-  trustType       String   @map("trust_type") @db.VarChar(30)
-  deedRefNumber   String?  @unique @map("deed_ref_number") @db.VarChar(50)
-  status          String   @default("ACTIVE") @db.VarChar(20)
+  trustType     String  @map("trust_type") @db.VarChar(30)
+  deedRefNumber String? @unique @map("deed_ref_number") @db.VarChar(50)
+  status        String  @default("ACTIVE") @db.VarChar(20)
 
-  assetValue      Decimal? @map("asset_value") @db.Decimal(15, 2)
-  currency        String   @default("MYR") @db.VarChar(3)
-  assetDescription String? @map("asset_description") @db.Text
+  assetValue       Decimal? @map("asset_value") @db.Decimal(15, 2)
+  currency         String   @default("MYR") @db.VarChar(3)
+  assetDescription String?  @map("asset_description") @db.Text
 
-  trusteeName     String?  @map("trustee_name") @db.VarChar(200)
-  trusteeContact   String?  @map("trustee_contact") @db.VarChar(100)
-  settlementDate  DateTime? @map("settlement_date") @db.Date
-  maturityDate    DateTime? @map("maturity_date") @db.Date
-  nextReviewDate  DateTime? @map("next_review_date") @db.Date
+  trusteeName    String?   @map("trustee_name") @db.VarChar(200)
+  trusteeContact String?   @map("trustee_contact") @db.VarChar(100)
+  settlementDate DateTime? @map("settlement_date") @db.Date
+  maturityDate   DateTime? @map("maturity_date") @db.Date
+  nextReviewDate DateTime? @map("next_review_date") @db.Date
 
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-  ownerId         String   @map("owner_id") @db.Uuid
-  owner           User     @relation("CrmTrustProductOwner", fields: [ownerId], references: [id])
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  ownerId   String   @map("owner_id") @db.Uuid
+  owner     User     @relation("CrmTrustProductOwner", fields: [ownerId], references: [id])
 
-  @@map("crm_trust_products")
   @@index([accountId])
   @@index([contactId])
   @@index([nextReviewDate])
   @@index([status])
+  @@map("crm_trust_products")
 }
 
 // CRM KYC Record — Know Your Customer verification for a contact
 model CrmKycRecord {
-  id              String   @id @default(uuid()) @db.Uuid
-  contactId       String   @unique @map("contact_id") @db.Uuid
-  contact         CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  id        String     @id @default(uuid()) @db.Uuid
+  contactId String     @unique @map("contact_id") @db.Uuid
+  contact   CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
-  status          String   @default("PENDING") @db.VarChar(20)
-  riskLevel       String?  @db.VarChar(10)
-  isPep           Boolean  @default(false) @map("is_pep")
+  status    String  @default("PENDING") @db.VarChar(20)
+  riskLevel String? @db.VarChar(10)
+  isPep     Boolean @default(false) @map("is_pep")
 
-  nricVerified    Boolean  @default(false) @map("nric_verified")
-  addressVerified Boolean  @default(false) @map("address_verified")
-  incomeVerified  Boolean  @default(false) @map("income_verified")
+  nricVerified          Boolean @default(false) @map("nric_verified")
+  addressVerified       Boolean @default(false) @map("address_verified")
+  incomeVerified        Boolean @default(false) @map("income_verified")
   sourceOfFundsVerified Boolean @default(false) @map("source_of_funds_verified")
-  riskProfileDone Boolean  @default(false) @map("risk_profile_done")
+  riskProfileDone       Boolean @default(false) @map("risk_profile_done")
 
   approvedAt      DateTime? @map("approved_at") @db.Timestamp(6)
   approvedBy      String?   @map("approved_by") @db.Uuid
@@ -1856,13 +1857,13 @@ model CrmKycRecord {
   expiresAt       DateTime? @map("expires_at") @db.Timestamp(6)
   rejectionReason String?   @map("rejection_reason") @db.Text
 
-  notes           String?  @db.Text
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
-  @@map("crm_kyc_records")
   @@index([status])
   @@index([expiresAt])
+  @@map("crm_kyc_records")
 }
 
 // ============================================================================
@@ -1886,62 +1887,82 @@ enum AnnouncementPriority {
 }
 
 model Announcement {
-  id              String                @id @default(uuid()) @db.Uuid
-  title           String                @db.VarChar(500)
-  content         String                @db.Text
-  excerpt         String?               @db.Text
-  category        AnnouncementCategory  @default(GENERAL)
-  priority        AnnouncementPriority  @default(MEDIUM)
-  targetAudience  String                @default("ALL") @db.VarChar(50)
-  isPinned        Boolean               @default(false) @map("is_pinned")
-  isPublished     Boolean               @default(false) @map("is_published")
-  publishedAt     DateTime?             @map("published_at") @db.Timestamp(6)
-  expiresAt       DateTime?             @map("expires_at") @db.Timestamp(6)
-  authorId        String                @map("author_id") @db.Uuid
-  attachmentUrl   String?               @map("attachment_url") @db.VarChar(1000)
-  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime              @updatedAt @map("updated_at") @db.Timestamp(6)
-  deletedAt       DateTime?             @map("deleted_at") @db.Timestamp(6)
+  id             String               @id @default(uuid()) @db.Uuid
+  title          String               @db.VarChar(500)
+  content        String               @db.Text
+  excerpt        String?              @db.Text
+  category       AnnouncementCategory @default(GENERAL)
+  priority       AnnouncementPriority @default(MEDIUM)
+  targetAudience String               @default("ALL") @db.VarChar(50)
+  isPinned       Boolean              @default(false) @map("is_pinned")
+  isPublished    Boolean              @default(false) @map("is_published")
+  publishedAt    DateTime?            @map("published_at") @db.Timestamp(6)
+  expiresAt      DateTime?            @map("expires_at") @db.Timestamp(6)
+  authorId       String               @map("author_id") @db.Uuid
+  attachmentUrl  String?              @map("attachment_url") @db.VarChar(1000)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamp(6)
+  deletedAt      DateTime?            @map("deleted_at") @db.Timestamp(6)
 
   // Relations
-  author          User                  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
-  reads           AnnouncementRead[]
+  author User               @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+  reads  AnnouncementRead[]
 
-  @@map("announcements")
   @@index([isPublished, publishedAt(sort: Desc)])
   @@index([category])
   @@index([isPinned])
   @@index([expiresAt])
+  @@map("announcements")
 }
 
 model AnnouncementRead {
-  id              String        @id @default(uuid()) @db.Uuid
-  announcementId  String        @map("announcement_id") @db.Uuid
-  userId          String        @map("user_id") @db.Uuid
-  readAt          DateTime      @default(now()) @map("read_at") @db.Timestamp(6)
+  id             String   @id @default(uuid()) @db.Uuid
+  announcementId String   @map("announcement_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  readAt         DateTime @default(now()) @map("read_at") @db.Timestamp(6)
 
-  announcement    Announcement  @relation(fields: [announcementId], references: [id], onDelete: Cascade)
-  user            User          @relation("AnnouncementReader", fields: [userId], references: [id], onDelete: Cascade)
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user         User         @relation("AnnouncementReader", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([announcementId, userId])
-  @@map("announcement_reads")
   @@index([announcementId])
   @@index([userId])
+  @@map("announcement_reads")
 }
 
 model RequestParticipant {
-  id          String   @id @default(uuid()) @db.Uuid
-  requestId   String   @map("request_id") @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  addedById   String   @map("added_by_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  id        String   @id @default(uuid()) @db.Uuid
+  requestId String   @map("request_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  addedById String   @map("added_by_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
-  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  user      User    @relation("RequestParticipants", fields: [userId], references: [id])
-  addedBy   User    @relation("ParticipantAddedBy", fields: [addedById], references: [id])
+  request Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User    @relation("RequestParticipants", fields: [userId], references: [id])
+  addedBy User    @relation("ParticipantAddedBy", fields: [addedById], references: [id])
 
   @@unique([requestId, userId])
   @@index([userId])
   @@index([addedById])
   @@map("request_participants")
+}
+
+// ============================================================================
+// FEATURE FLAGS — Credit Module & Beyond
+// ============================================================================
+
+model FeatureFlag {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  enabled     Boolean  @default(false)
+  rolloutPct  Int      @default(0) @map("rollout_pct") // 0-100 for gradual rollout
+  category    String   @default("general") @db.VarChar(50) // e.g. 'credit', 'crm', 'general'
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([key])
+  @@index([category])
+  @@index([enabled])
+  @@map("feature_flags")
 }

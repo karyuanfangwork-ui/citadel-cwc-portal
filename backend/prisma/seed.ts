@@ -179,6 +179,38 @@ async function main() {
         create: { name: 'SALES_REP', description: 'CRM Sales Representative — can manage own accounts, leads, and deals' }
     });
 
+    // Credit module roles
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_RM' },
+        update: {},
+        create: { name: 'CREDIT_RM', description: 'Credit Relationship Manager — manages borrower relationships and applications' }
+    });
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_ANALYST' },
+        update: {},
+        create: { name: 'CREDIT_ANALYST', description: 'Credit Analyst — performs financial spreading, scoring, and analysis' }
+    });
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_MANAGER' },
+        update: {},
+        create: { name: 'CREDIT_MANAGER', description: 'Credit Manager — approves applications within authority, manages team' }
+    });
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_SENIOR' },
+        update: {},
+        create: { name: 'CREDIT_SENIOR', description: 'Senior Credit Officer — approves higher-value applications, risk oversight' }
+    });
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_COMMITTEE' },
+        update: {},
+        create: { name: 'CREDIT_COMMITTEE', description: 'Credit Committee Member — votes on committee-level decisions' }
+    });
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_ADMIN' },
+        update: {},
+        create: { name: 'CREDIT_ADMIN', description: 'Credit Administrator — full credit module configuration and management' }
+    });
+
     console.log('✅ Roles created');
 
     console.log('📋 Creating permission list...');
@@ -211,6 +243,22 @@ async function main() {
         { name: 'announcement:read', resource: 'announcement', action: 'read', description: 'View announcements' },
         { name: 'announcement:write', resource: 'announcement', action: 'write', description: 'Create and edit announcements' },
         { name: 'announcement:admin', resource: 'announcement', action: 'admin', description: 'Delete and manage announcements' },
+        // Credit module permissions
+        { name: 'credit:read', resource: 'credit', action: 'read', description: 'View credit module data' },
+        { name: 'credit:write', resource: 'credit', action: 'write', description: 'Create and edit credit data' },
+        { name: 'credit:delete', resource: 'credit', action: 'delete', description: 'Delete credit data' },
+        { name: 'credit:approve', resource: 'credit', action: 'approve', description: 'Approve or reject credit applications' },
+        { name: 'credit:committee', resource: 'credit', action: 'committee', description: 'Participate in credit committee votes' },
+        { name: 'credit:score', resource: 'credit', action: 'score', description: 'Run scorecards and manage credit scoring' },
+        { name: 'credit:spread', resource: 'credit', action: 'spread', description: 'Enter and review financial spreading' },
+        { name: 'credit:analyze', resource: 'credit', action: 'analyze', description: 'Access credit analytics and dashboards' },
+        { name: 'credit:admin', resource: 'credit', action: 'admin', description: 'Configure credit module settings' },
+        { name: 'credit:compliance', resource: 'credit', action: 'compliance', description: 'Access credit compliance and AML functions' },
+        { name: 'credit:risk', resource: 'credit', action: 'risk', description: 'Access credit risk management functions' },
+        { name: 'credit:export', resource: 'credit', action: 'export', description: 'Export credit data with reason capture' },
+        { name: 'credit:override', resource: 'credit', action: 'override', description: 'Override automated credit decisions with justification' },
+        { name: 'credit:monitor', resource: 'credit', action: 'monitor', description: 'Access post-disbursement credit monitoring' },
+        { name: 'credit:document', resource: 'credit', action: 'document', description: 'Manage credit documents, upload and download' },
     ];
 
     for (const perm of permissions) {
@@ -256,6 +304,10 @@ async function main() {
         'asset:read', 'asset:write', 'asset:import', 'asset:delete',
         'crm:read', 'crm:write', 'crm:delete', 'crm:admin',
         'announcement:read', 'announcement:write', 'announcement:admin',
+        'credit:read', 'credit:write', 'credit:delete', 'credit:approve',
+        'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze',
+        'credit:admin', 'credit:compliance', 'credit:risk', 'credit:export',
+        'credit:override', 'credit:monitor', 'credit:document',
     ];
 
     // AGENT gets full request CRUD + assign + confidential, no admin/user/report/banner/workflow
@@ -303,6 +355,12 @@ async function main() {
         FINANCE_HEAD: executivePerms,
         SALES_MANAGER: ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'],
         SALES_REP: ['crm:read', 'crm:write'],
+        CREDIT_RM: ['credit:read', 'credit:write', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
+        CREDIT_ANALYST: ['credit:read', 'credit:write', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
+        CREDIT_MANAGER: ['credit:read', 'credit:write', 'credit:approve', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
+        CREDIT_SENIOR: ['credit:read', 'credit:write', 'credit:approve', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
+        CREDIT_COMMITTEE: ['credit:read', 'credit:committee', 'credit:analyze', 'credit:risk', 'credit:monitor'],
+        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:delete', 'credit:approve', 'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:admin', 'credit:compliance', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
     };
 
     // Upsert RolePermission records: only add seed-default assignments,
