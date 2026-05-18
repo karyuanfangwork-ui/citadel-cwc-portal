@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import { useAuth } from '../src/context/AuthContext';
+import { hasPermission } from '../src/utils/permissions';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -16,9 +18,10 @@ const ACTIVITY_ICONS: Record<CrmActivityType, string> = {
 const CrmAccountDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [account, setAccount] = useState<CrmAccount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'activities' | 'notes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'activities' | 'notes' | 'credit'>('overview');
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
@@ -132,11 +135,11 @@ const CrmAccountDetail = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
-        {(['overview', 'contacts', 'deals', 'activities', 'notes'] as const).map(tab => (
+        {(['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const)] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
             className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-            {tab}
+            {tab === 'credit' ? 'Credit' : tab}
           </button>
         ))}
       </div>
@@ -244,6 +247,46 @@ const CrmAccountDetail = () => {
               <p className="text-xs text-text-secondary mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Credit tab — deep link to Credit/Borrower Profiles */}
+      {activeTab === 'credit' && (
+        <div className="space-y-4">
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Credit Module</h3>
+            <p className="text-sm text-text-secondary mb-4">View and manage borrower profiles, credit applications, and documents for this account from the Credit module.</p>
+            <div className="flex gap-3 flex-wrap">
+              <Link
+                to={`/credit/borrowers?accountId=${account.id}`}
+                className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+                style={{ textDecoration: 'none' }}
+              >
+                <span className="material-symbols-outlined text-base">person</span> View Borrower Profiles
+              </Link>
+              <Link
+                to="/credit/applications"
+                className="flex items-center gap-2 border border-border px-4 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors"
+                style={{ textDecoration: 'none', color: 'var(--color-text-primary)' }}
+              >
+                <span className="material-symbols-outlined text-base">description</span> Credit Applications
+              </Link>
+              <Link
+                to="/credit"
+                className="flex items-center gap-2 border border-border px-4 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors"
+                style={{ textDecoration: 'none', color: 'var(--color-text-primary)' }}
+              >
+                <span className="material-symbols-outlined text-base">dashboard</span> Credit Dashboard
+              </Link>
+            </div>
+          </div>
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start gap-3">
+            <span className="material-symbols-outlined text-indigo-600 text-xl shrink-0 mt-0.5">info</span>
+            <div>
+              <p className="text-sm font-semibold text-indigo-800">Cross-module navigation</p>
+              <p className="text-xs text-indigo-700 mt-0.5">Clicking "View Borrower Profiles" will take you to the Credit module, pre-filtered to show borrower profiles linked to this account ({account.name}).</p>
+            </div>
+          </div>
         </div>
       )}
 

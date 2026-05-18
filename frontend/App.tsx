@@ -60,6 +60,9 @@ import CrmPipelineView from './pages/CrmPipeline';
 import CrmTeamDashboard from './pages/CrmTeamDashboard';
 import CrmReports from './pages/CrmReports';
 import CrmGuide from './pages/CrmGuide';
+import CreditDashboard from './pages/CreditDashboard';
+import BorrowerProfileList from './pages/BorrowerProfileList';
+import BorrowerProfileDetail from './pages/BorrowerProfileDetail';
 import Announcements from './pages/Announcements';
 import AnnouncementsManage from './pages/AnnouncementsManage';
 import AnnouncementDetail from './pages/AnnouncementDetail';
@@ -136,6 +139,7 @@ const Header = () => {
     { to: '/approvals', label: 'Approvals', icon: 'approval', group: 'primary' as const, show: hasPermission(user, 'request:approve') },
     { to: '/assets', label: 'IT Assets', icon: 'devices', group: 'secondary' as const, show: hasAnyPermission(user, ['asset:read']) },
     { to: '/crm', label: 'CRM', icon: 'group', group: 'secondary' as const, show: hasAnyPermission(user, ['crm:read']) },
+    { to: '/credit', label: 'Credit', icon: 'account_balance', group: 'secondary' as const, show: hasAnyPermission(user, ['credit:read']) },
     { to: '/kb', label: 'Knowledge Base', icon: 'menu_book', group: 'secondary' as const, show: import.meta.env.DEV },
     { to: '/reports', label: 'Reports', icon: 'assessment', group: 'secondary' as const, show: hasPermission(user, 'report:read') },
     { to: '/admin/announcements', label: 'Announcements Mgmt', icon: 'campaign', group: 'admin' as const, show: hasPermission(user, 'announcement:write') },
@@ -509,6 +513,10 @@ const AppShell = () => {
               <Route path="/crm/team" element={<ProtectedRoute requirePermission="crm:admin"><CrmTeamDashboard /></ProtectedRoute>} />
               <Route path="/crm/reports" element={<ProtectedRoute requirePermission="crm:read"><CrmReports /></ProtectedRoute>} />
               <Route path="/crm/guide" element={<ProtectedRoute requirePermission="crm:read"><CrmGuide /></ProtectedRoute>} />
+              {/* Credit Module routes */}
+              <Route path="/credit" element={<ProtectedRoute requirePermission="credit:read"><CreditDashboard /></ProtectedRoute>} />
+              <Route path="/credit/borrowers" element={<ProtectedRoute requirePermission="credit:read"><BorrowerProfileList /></ProtectedRoute>} />
+              <Route path="/credit/borrowers/:id" element={<ProtectedRoute requirePermission="credit:read"><BorrowerProfileDetail /></ProtectedRoute>} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
                 <ProtectedRoute requirePermission="admin:access">

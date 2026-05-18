@@ -124,6 +124,11 @@ model User {
   announcementReads         AnnouncementRead[]     @relation("AnnouncementReader")
   participatingIn           RequestParticipant[]   @relation("RequestParticipants")
   participantsAdded         RequestParticipant[]   @relation("ParticipantAddedBy")
+  // Credit Relations
+  creditApplicationRm      CreditApplication[]     @relation("CreditApplicationRm")
+  creditApplicationAnalyst CreditApplication[]     @relation("CreditApplicationAnalyst")
+  creditDocumentUploads    CreditDocument[]        @relation("CreditDocumentUpload")
+  creditDecisions          CreditDecision[]        @relation("CreditDecisionBy")
 
   @@index([email])
   @@index([managerId])
@@ -1491,6 +1496,7 @@ model CrmAccount {
   notes          CrmNote[]           @relation("NoteAccount")
   linkedRequests CrmAccountRequest[]
   trustProducts  CrmTrustProduct[]
+  borrowerProfile BorrowerProfile?
 
   @@index([ownerId])
   @@index([name])
@@ -1536,6 +1542,9 @@ model CrmContact {
   kycRecord     CrmKycRecord?
   beneficiaries CrmBeneficiary[]
   trustProducts CrmTrustProduct[]
+  borrowerProfile BorrowerProfile?
+  directors       Director[]
+  shareholders    Shareholder[]
 
   @@index([accountId])
   @@index([email])
@@ -1856,6 +1865,11 @@ model CrmKycRecord {
   approvedByUser  User?     @relation("CrmKycApprovedBy", fields: [approvedBy], references: [id])
   expiresAt       DateTime? @map("expires_at") @db.Timestamp(6)
   rejectionReason String?   @map("rejection_reason") @db.Text
+  amlRiskTier        String?   @map("aml_risk_tier") @db.VarChar(10)
+  screeningStatus    String?   @map("screening_status") @db.VarChar(20)
+  screeningHits      Json?     @map("screening_hits")
+  lastScreeningAt    DateTime? @map("last_screening_at") @db.Timestamp(6)
+  nextScreeningDueAt DateTime? @map("next_screening_due_at") @db.Timestamp(6)
 
   notes     String?  @db.Text
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
@@ -1965,4 +1979,683 @@ model FeatureFlag {
   @@index([category])
   @@index([enabled])
   @@map("feature_flags")
+}
+
+// ============================================================================
+// CREDIT ASSESSMENT MODULE
+// ============================================================================
+
+// Credit Application States
+enum ApplicationState {
+  DRAFT
+  SUBMITTED
+  KYC_REVIEW
+  KYC_APPROVED
+  KYC_REJECTED
+  UNDERWRITING
+  CREDIT_ASSESSMENT
+  COMMITTEE_REVIEW
+  APPROVED
+  REJECTED
+  OFFER
+  ACCEPTED
+  DISBURSED
+  ACTIVE
+  CLOSED
+  WITHDRAWN
+}
+
+// Borrower types
+enum BorrowerType {
+  INDIVIDUAL
+  CORPORATE
+  JOINT
+}
+
+// Risk ratings
+enum RiskRating {
+  AAA
+  AA
+  A
+  BBB
+  BB
+  B
+  CCC
+  CC
+  C
+  D
+  NR // Not Rated
+}
+
+// AML Risk Tiers
+enum AmlRiskTier {
+  LOW
+  MEDIUM
+  HIGH
+  PROHIBITED
+}
+
+// Product types for credit
+enum CreditProductType {
+  TERM_LOAN
+  REVOLVING_FACILITY
+  TRADE_FINANCE
+  OVERDRAFT
+  PROJECT_FINANCE
+  SYNDICATED
+  BRIDGING
+  HIRE_PURCHASE
+}
+
+// Facility types
+enum FacilityType {
+  TERM_LOAN
+  REVOLVING
+  OVERDRAFT
+  LC
+  BG
+  TRUST_RECEIPT
+  BRIDGING
+}
+
+// Document classification
+enum DocumentClass {
+  NRIC_PASSPORT
+  MEMORANDUM_ARTICLES
+  AUDITED_FINANCIALS
+  MANAGEMENT_ACCOUNTS
+  BANK_STATEMENT
+  TAX_RETURN
+  BUSINESS_PLAN
+  CREDIT_BUREAU_REPORT
+  VALUATION_REPORT
+  INSURANCE_CERT
+  BOARD_RESOLUTION
+  AUTHORIZED_SIGNATORY
+  GUARANTEE_LETTER
+  PLEDGE_AGREEMENT
+  SECURITY_DOCUMENT
+  OTHER
+}
+
+// Covenant types
+enum CovenantType {
+  FINANCIAL_RATIO
+  NEGATIVE_PLEDGE
+  MINIMUM_TURNOVER
+  DEBT_SERVICE_COVERAGE
+  LOAN_TO_VALUE
+  INSURANCE
+  REPORTING
+  OTHER
+}
+
+// Condition types
+enum ConditionType {
+  PRECEDENT
+  SUBSEQUENT
+}
+
+// Approval decision types
+enum ApprovalDecisionType {
+  APPROVE
+  REJECT
+  RETURN
+  ESCALATE
+  DEFER
+}
+
+// Committee vote
+enum CommitteeVoteDecision {
+  APPROVE
+  REJECT
+  ABSTAIN
+}
+
+// Early warning severity
+enum EarlyWarningSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// Currency
+enum CurrencyCode {
+  MYR
+  USD
+  SGD
+  EUR
+  GBP
+  JPY
+  CNY
+  THB
+  IDR
+}
+
+// ============================================================================
+// Borrower Profile — 1:1 extension of CrmAccount (CORPORATE) or CrmContact (INDIVIDUAL)
+// ============================================================================
+model BorrowerProfile {
+  id                String       @id @default(uuid()) @db.Uuid
+  borrowerType      BorrowerType @default(CORPORATE) @map("borrower_type")
+  
+  // Link to CRM — exactly one of accountId or contactId must be set
+  accountId         String?      @unique @map("account_id") @db.Uuid
+  contactId         String?      @unique @map("contact_id") @db.Uuid
+  
+  // Credit-specific fields
+  creditRiskRating   RiskRating?  @map("credit_risk_rating")
+  amlRiskTier       AmlRiskTier?  @map("aml_risk_tier")
+  exposureLimit     Decimal?      @map("exposure_limit") @db.Decimal(15, 2)
+  totalExposure     Decimal?      @default(0) @map("total_exposure") @db.Decimal(15, 2)
+  isSanctionedEntity Boolean      @default(false) @map("is_sanctioned_entity")
+  sourceOfWealth    String?       @map("source_of_wealth") @db.VarChar(255)
+  purposeOfAccount  String?       @map("purpose_of_account") @db.VarChar(255)
+  occupation        String?       @db.VarChar(100)
+  employer          String?       @db.VarChar(255)
+  annualIncome      Decimal?      @map("annual_income") @db.Decimal(15, 2)
+  netWorth          Decimal?      @map("net_worth") @db.Decimal(15, 2)
+  
+  isActive          Boolean      @default(true) @map("is_active")
+  deletedAt         DateTime?    @map("deleted_at") @db.Timestamp(6)
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  // Relations
+  account           CrmAccount?  @relation(fields: [accountId], references: [id])
+  contact           CrmContact?  @relation(fields: [contactId], references: [id])
+  directors         Director[]
+  shareholders      Shareholder[]
+  beneficialOwners  UltimateBeneficialOwner[]
+  applications      CreditApplication[]
+  documents         CreditDocument[]
+  relatedPartyMembers RelatedPartyMember[]
+  applicationParties ApplicationParty[]
+  guarantees        Guarantee[]
+  
+  @@index([accountId])
+  @@index([contactId])
+  @@index([borrowerType])
+  @@index([creditRiskRating])
+  @@index([amlRiskTier])
+  @@map("borrower_profiles")
+}
+
+// ============================================================================
+// Director — linked to a BorrowerProfile (corporate) and optionally to CrmContact
+// ============================================================================
+model Director {
+  id               String   @id @default(uuid()) @db.Uuid
+  borrowerProfileId String   @map("borrower_profile_id") @db.Uuid
+  contactId         String?  @map("contact_id") @db.Uuid
+  
+  name             String   @db.VarChar(255)
+  nricPassport     String?  @map("nric_passport") @db.VarChar(50)
+  position        String?   @db.VarChar(100)
+  appointmentDate DateTime? @map("appointment_date") @db.Date
+  resignationDate DateTime? @map("resignation_date") @db.Date
+  isExecutive     Boolean  @default(false) @map("is_executive")
+  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  borrowerProfile BorrowerProfile @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
+  contact         CrmContact?    @relation(fields: [contactId], references: [id])
+  
+  @@index([borrowerProfileId])
+  @@map("directors")
+}
+
+// ============================================================================
+// Shareholder
+// ============================================================================
+model Shareholder {
+  id                String   @id @default(uuid()) @db.Uuid
+  borrowerProfileId String   @map("borrower_profile_id") @db.Uuid
+  contactId         String?  @map("contact_id") @db.Uuid
+  
+  name             String    @db.VarChar(255)
+  nricPassport     String?   @map("nric_passport") @db.VarChar(50)
+  shareholdingPct  Decimal?  @map("shareholding_pct") @db.Decimal(5, 2)
+  shareClass       String?   @map("share_class") @db.VarChar(50)
+  numberOfShares   Int?      @map("number_of_shares")
+  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  borrowerProfile BorrowerProfile @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
+  contact         CrmContact?    @relation(fields: [contactId], references: [id])
+  
+  @@index([borrowerProfileId])
+  @@map("shareholders")
+}
+
+// ============================================================================
+// Ultimate Beneficial Owner (UBO)
+// ============================================================================
+model UltimateBeneficialOwner {
+  id                String   @id @default(uuid()) @db.Uuid
+  borrowerProfileId String   @map("borrower_profile_id") @db.Uuid
+  
+  name             String   @db.VarChar(255)
+  nricPassport     String?  @map("nric_passport") @db.VarChar(50)
+  ownershipPct     Decimal  @map("ownership_pct") @db.Decimal(5, 2)
+  isPep            Boolean  @default(false) @map("is_pep")
+  sourceOfWealth   String?  @map("source_of_wealth") @db.VarChar(255)
+  countryOfResidence String? @map("country_of_residence") @db.VarChar(100)
+  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  borrowerProfile BorrowerProfile @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
+  
+  @@index([borrowerProfileId])
+  @@map("ultimate_beneficial_owners")
+}
+
+// ============================================================================
+// Related Party Group — connected-party / common-ownership tracking
+// ============================================================================
+model RelatedPartyGroup {
+  id          String  @id @default(uuid()) @db.Uuid
+  name        String  @db.VarChar(255)
+  description String? @db.Text
+  relationshipType String? @map("relationship_type") @db.VarChar(100)
+  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  members RelatedPartyMember[]
+  
+  @@map("related_party_groups")
+}
+
+model RelatedPartyMember {
+  id                String  @id @default(uuid()) @db.Uuid
+  groupId           String  @map("group_id") @db.Uuid
+  borrowerProfileId String  @map("borrower_profile_id") @db.Uuid
+  
+  role               String? @db.VarChar(100)
+  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  group           RelatedPartyGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  borrowerProfile BorrowerProfile  @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
+  
+  @@unique([groupId, borrowerProfileId])
+  @@index([groupId])
+  @@index([borrowerProfileId])
+  @@map("related_party_members")
+}
+
+// ============================================================================
+// Credit Application
+// ============================================================================
+model CreditApplication {
+  id              String           @id @default(uuid()) @db.Uuid
+  applicationNo    String           @unique @map("application_no") @db.VarChar(50) // e.g. CA-2026-00001
+  state           ApplicationState @default(DRAFT)
+  
+  // Borrower
+  borrowerProfileId String          @map("borrower_profile_id") @db.Uuid
+  
+  // Product
+  productType     CreditProductType @map("product_type")
+  purpose         String?           @db.Text
+  requestedAmount Decimal           @map("requested_amount") @db.Decimal(15, 2)
+  requestedTenor  Int?              @map("requested_tenor") // months
+  currency        CurrencyCode      @default(MYR)
+  
+  // Assignment
+  assignedRmId    String?           @map("assigned_rm_id") @db.Uuid
+  assignedAnalystId String?        @map("assigned_analyst_id") @db.Uuid
+  
+  // Timestamps
+  submittedAt     DateTime?        @map("submitted_at") @db.Timestamp(6)
+  decisionedAt    DateTime?        @map("decisioned_at") @db.Timestamp(6)
+  closedAt        DateTime?        @map("closed_at") @db.Timestamp(6)
+  
+  // Rejection/withdrawal
+  rejectionReason String?          @map("rejection_reason") @db.Text
+  withdrawalReason String?         @map("withdrawal_reason") @db.Text
+  
+  // Internal
+  deletedAt       DateTime?        @map("deleted_at") @db.Timestamp(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  // Relations
+  borrowerProfile  BorrowerProfile     @relation(fields: [borrowerProfileId], references: [id])
+  assignedRm       User?               @relation("CreditApplicationRm", fields: [assignedRmId], references: [id])
+  assignedAnalyst  User?               @relation("CreditApplicationAnalyst", fields: [assignedAnalystId], references: [id])
+  facilities       ApplicationFacility[]
+  parties          ApplicationParty[]
+  documents        CreditDocument[]
+  documentRequirements DocumentRequirement[]
+  auditEvents      CreditAuditEvent[]
+  conditions       Condition[]
+  decisions        CreditDecision[]
+  
+  @@index([borrowerProfileId])
+  @@index([state])
+  @@index([assignedRmId])
+  @@index([productType])
+  @@index([submittedAt])
+  @@map("credit_applications")
+}
+
+// ============================================================================
+// Application Facility — the credit facility being requested
+// ============================================================================
+model ApplicationFacility {
+  id              String       @id @default(uuid()) @db.Uuid
+  applicationId    String       @map("application_id") @db.Uuid
+  facilityType    FacilityType @map("facility_type")
+  amount          Decimal      @db.Decimal(15, 2)
+  tenorMonths     Int?         @map("tenor_months")
+  ratePct         Decimal?     @map("rate_pct") @db.Decimal(5, 4)
+  purpose         String?      @db.Text
+  
+  approvedAmount  Decimal?     @map("approved_amount") @db.Decimal(15, 2)
+  approvedTenor    Int?         @map("approved_tenor")
+  approvedRate    Decimal?     @map("approved_rate") @db.Decimal(5, 4)
+  
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  collaterals Collateral[]
+  guarantees  Guarantee[]
+  
+  @@index([applicationId])
+  @@map("application_facilities")
+}
+
+// ============================================================================
+// Application Party — borrower, guarantor, co-borrower, sponsor
+// ============================================================================
+model ApplicationParty {
+  id               String   @id @default(uuid()) @db.Uuid
+  applicationId     String   @map("application_id") @db.Uuid
+  borrowerProfileId String   @map("borrower_profile_id") @db.Uuid
+  
+  role             String   @db.VarChar(50) // borrower, guarantor, co_borrower, sponsor
+  liabilityPct     Decimal? @map("liability_pct") @db.Decimal(5, 2)
+  
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  borrowerProfile BorrowerProfile   @relation(fields: [borrowerProfileId], references: [id])
+  
+  @@index([applicationId])
+  @@index([borrowerProfileId])
+  @@map("application_parties")
+}
+
+// ============================================================================
+// Credit Document
+// ============================================================================
+model CreditDocument {
+  id               String        @id @default(uuid()) @db.Uuid
+  applicationId    String?        @map("application_id") @db.Uuid // null if standalone borrower doc
+  borrowerProfileId String        @map("borrower_profile_id") @db.Uuid
+  
+  classification   DocumentClass
+  fileName         String         @map("file_name") @db.VarChar(500)
+  filePath         String         @map("file_path") @db.VarChar(1000)
+  fileSize         Int?           @map("file_size")
+  mimeType         String?        @map("mime_type") @db.VarChar(100)
+  sha256Hash       String?        @map("sha256_hash") @db.VarChar(64)
+  isAvClean        Boolean?       @map("is_av_clean") // null = not scanned yet
+  
+  uploadedById     String         @map("uploaded_by_id") @db.Uuid
+  
+  description      String?        @db.Text
+  
+  deletedAt        DateTime?      @map("deleted_at") @db.Timestamp(6)
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  application      CreditApplication? @relation(fields: [applicationId], references: [id])
+  borrowerProfile  BorrowerProfile     @relation(fields: [borrowerProfileId], references: [id])
+  uploadedBy       User                @relation("CreditDocumentUpload", fields: [uploadedById], references: [id])
+  versions         CreditDocumentVersion[]
+  
+  @@index([applicationId])
+  @@index([borrowerProfileId])
+  @@index([classification])
+  @@index([sha256Hash])
+  @@map("credit_documents")
+}
+
+// ============================================================================
+// Credit Document Version — tracks replacements
+// ============================================================================
+model CreditDocumentVersion {
+  id             String   @id @default(uuid()) @db.Uuid
+  documentId     String   @map("document_id") @db.Uuid
+  
+  version        Int      @default(1)
+  filePath       String   @map("file_path") @db.VarChar(1000)
+  fileName       String   @map("file_name") @db.VarChar(500)
+  fileSize       Int?     @map("file_size")
+  sha256Hash     String?  @map("sha256_hash") @db.VarChar(64)
+  changeSummary  String?  @map("change_summary") @db.Text
+  
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  
+  document       CreditDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  @@index([documentId])
+  @@map("credit_document_versions")
+}
+
+// ============================================================================
+// Document Requirement — checklist per application type
+// ============================================================================
+model DocumentRequirement {
+  id             String   @id @default(uuid()) @db.Uuid
+  applicationId  String   @map("application_id") @db.Uuid
+  
+  documentClass  DocumentClass @map("document_class")
+  label         String   @db.VarChar(255)
+  isMandatory    Boolean  @default(true) @map("is_mandatory")
+  isCollected    Boolean  @default(false) @map("is_collected")
+  collectedDocId String?  @map("collected_doc_id") @db.Uuid
+  
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  application    CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  @@index([applicationId])
+  @@map("document_requirements")
+}
+
+// ============================================================================
+// Credit Audit Event — append-only audit trail for credit applications
+// ============================================================================
+model CreditAuditEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  applicationId  String   @map("application_id") @db.Uuid
+  
+  eventType      String   @map("event_type") @db.VarChar(50)
+  actorId        String?  @map("actor_id") @db.Uuid
+  action         String   @db.VarChar(50)
+  oldState       String?  @map("old_state") @db.VarChar(30)
+  newState       String?  @map("new_state") @db.VarChar(30)
+  metadata       Json?
+  hash           String?  @db.VarChar(64) // hash-chain for tamper evidence
+  
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  
+  application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  @@index([applicationId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("credit_audit_events")
+}
+
+// ============================================================================
+// Collateral
+// ============================================================================
+model Collateral {
+  id             String       @id @default(uuid()) @db.Uuid
+  facilityId     String       @map("facility_id") @db.Uuid
+  
+  collateralType String       @map("collateral_type") @db.VarChar(50)
+  description    String?      @db.Text
+  titleReference String?       @map("title_reference") @db.VarChar(255)
+  registeredTo   String?       @map("registered_to") @db.VarChar(255)
+  
+  marketValue    Decimal?      @map("market_value") @db.Decimal(15, 2)
+  forcedSaleValue Decimal?     @map("forced_sale_value") @db.Decimal(15, 2)
+  valuationDate  DateTime?    @map("valuation_date") @db.Date
+  valuer         String?      @db.VarChar(255)
+  
+  insuranceCoverRequired Boolean @default(false) @map("insurance_cover_required")
+  
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  facility       ApplicationFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  valuations     CollateralValuation[]
+  liens          CollateralLien[]
+  insuranceCovers InsuranceCover[]
+  
+  @@index([facilityId])
+  @@map("collaterals")
+}
+
+model CollateralValuation {
+  id            String   @id @default(uuid()) @db.Uuid
+  collateralId  String   @map("collateral_id") @db.Uuid
+  
+  marketValue       Decimal   @map("market_value") @db.Decimal(15, 2)
+  forcedSaleValue   Decimal   @map("forced_sale_value") @db.Decimal(15, 2)
+  valuationDate     DateTime  @map("valuation_date") @db.Date
+  valuer           String    @db.VarChar(255)
+  reportReference  String?   @map("report_reference") @db.VarChar(255)
+  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  
+  collateral Collateral @relation(fields: [collateralId], references: [id], onDelete: Cascade)
+  
+  @@index([collateralId])
+  @@map("collateral_valuations")
+}
+
+model CollateralLien {
+  id            String   @id @default(uuid()) @db.Uuid
+  collateralId  String   @map("collateral_id") @db.Uuid
+  
+  lienHolder    String   @map("lien_holder") @db.VarChar(255)
+  lienAmount    Decimal? @map("lien_amount") @db.Decimal(15, 2)
+  priority      Int      @default(1)
+  registeredAt  DateTime? @map("registered_at") @db.Date
+  dischargeDate DateTime? @map("discharge_date") @db.Date
+  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  collateral Collateral @relation(fields: [collateralId], references: [id], onDelete: Cascade)
+  
+  @@index([collateralId])
+  @@map("collateral_liens")
+}
+
+model InsuranceCover {
+  id            String    @id @default(uuid()) @db.Uuid
+  collateralId  String    @map("collateral_id") @db.Uuid
+  
+  insurer       String    @db.VarChar(255)
+  policyNumber  String?   @map("policy_number") @db.VarChar(100)
+  coverageAmount Decimal   @map("coverage_amount") @db.Decimal(15, 2)
+  effectiveDate DateTime  @map("effective_date") @db.Date
+  expiryDate    DateTime  @map("expiry_date") @db.Date
+  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  collateral Collateral @relation(fields: [collateralId], references: [id], onDelete: Cascade)
+  
+  @@index([collateralId])
+  @@map("insurance_covers")
+}
+
+// ============================================================================
+// Guarantee
+// ============================================================================
+model Guarantee {
+  id             String   @id @default(uuid()) @db.Uuid
+  facilityId     String   @map("facility_id") @db.Uuid
+  
+  guarantorProfileId String  @map("guarantor_profile_id") @db.Uuid
+  guaranteeType  String  @map("guarantee_type") @db.VarChar(50)
+  amount         Decimal  @db.Decimal(15, 2)
+  isLimited      Boolean  @default(true) @map("is_limited")
+  
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  facility       ApplicationFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  guarantorProfile BorrowerProfile  @relation(fields: [guarantorProfileId], references: [id])
+  
+  @@index([facilityId])
+  @@index([guarantorProfileId])
+  @@map("guarantees")
+}
+
+// ============================================================================
+// Credit Decision — approval/rejection record
+// ============================================================================
+model CreditDecision {
+  id              String              @id @default(uuid()) @db.Uuid
+  applicationId   String              @map("application_id") @db.Uuid
+  
+  decisionType    ApprovalDecisionType @map("decision_type")
+  decisionById    String              @map("decided_by_id") @db.Uuid
+  decisionAt      DateTime            @default(now()) @map("decision_at") @db.Timestamp(6)
+  
+  authorityLevel  String?             @map("authority_level") @db.VarChar(50)
+  conditions      String?             @db.Text
+  comments        String?             @db.Text
+  
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamp(6)
+  
+  application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  decidedBy       User              @relation("CreditDecisionBy", fields: [decisionById], references: [id])
+  
+  @@index([applicationId])
+  @@map("credit_decisions")
+}
+
+// ============================================================================
+// Condition — precedent and subsequent
+// ============================================================================
+model Condition {
+  id              String         @id @default(uuid()) @db.Uuid
+  applicationId   String         @map("application_id") @db.Uuid
+  
+  conditionType   ConditionType  @map("condition_type")
+  description     String         @db.Text
+  dueDate         DateTime?      @map("due_date") @db.Date
+  isFulfilled     Boolean        @default(false) @map("is_fulfilled")
+  fulfilledAt     DateTime?      @map("fulfilled_at") @db.Timestamp(6)
+  fulfilledById   String?        @map("fulfilled_by_id") @db.Uuid
+  fulfilmentNotes String?        @map("fulfilment_notes") @db.Text
+  
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  
+  @@index([applicationId])
+  @@index([conditionType])
+  @@map("conditions")
 }

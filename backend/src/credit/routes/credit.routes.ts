@@ -2,9 +2,14 @@ import { Router, Request, Response } from 'express';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { requireFeatureFlag } from '../middleware/featureFlag.middleware';
 import { getQueueHealth } from '../queues';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../utils/prisma';
+import borrowerProfileRoutes from './borrowerProfile.routes';
+import directorRoutes from './director.routes';
+import shareholderRoutes from './shareholder.routes';
+import uboRoutes from './ubo.routes';
+import relatedPartyGroupRoutes from './relatedPartyGroup.routes';
+import creditDocumentRoutes from './creditDocument.routes';
 
-const prisma = new PrismaClient();
 const router = Router();
 
 // ============================================================================
@@ -19,7 +24,7 @@ router.get('/feature-flags', requirePermission('credit:admin'), async (_req: Req
   const flags = await prisma.featureFlag.findMany({
     orderBy: { category: 'asc' },
   });
-  res.json(flags);
+  res.json({ status: 'success', data: flags });
 });
 
 // Toggle a feature flag
@@ -29,7 +34,7 @@ router.patch('/feature-flags/:key', requirePermission('credit:admin'), async (re
 
   const flag = await prisma.featureFlag.findUnique({ where: { key } });
   if (!flag) {
-    return res.status(404).json({ error: `Feature flag '${key}' not found` });
+    return res.status(404).json({ status: 'error', message: `Feature flag '${key}' not found` });
   }
 
   const updated = await prisma.featureFlag.update({
@@ -45,7 +50,7 @@ router.patch('/feature-flags/:key', requirePermission('credit:admin'), async (re
   const { invalidateFlagCache } = await import('../middleware/featureFlag.middleware');
   await invalidateFlagCache();
 
-  res.json(updated);
+  res.json({ status: 'success', data: updated });
 });
 
 // ============================================================================
@@ -80,7 +85,18 @@ router.get('/health', requirePermission('credit:read'), async (_req: Request, re
 // ============================================================================
 
 // Borrowers — Sprint 1
-// router.use('/borrowers', borrowerRoutes);
+router.use('/borrowers', borrowerProfileRoutes);
+
+// Directors, Shareholders, UBOs — nested under /borrowers
+router.use('/borrowers', directorRoutes);
+router.use('/borrowers', shareholderRoutes);
+router.use('/borrowers', uboRoutes);
+
+// Related Party Groups — top-level
+router.use('/related-party-groups', relatedPartyGroupRoutes);
+
+// Credit Documents & Requirements
+router.use(creditDocumentRoutes);
 
 // Applications — Sprint 2
 // router.use('/applications', applicationRoutes);

@@ -3,38 +3,32 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { hasPermission } from '../utils/permissions';
 
-interface CrmNavItem {
+interface CreditNavItem {
   to: string;
   label: string;
   icon: string;
   permission?: string;
 }
 
-const CRM_NAV_ITEMS: CrmNavItem[] = [
-  { to: '/crm', label: 'Dashboard', icon: 'dashboard' },
-  { to: '/crm/leads', label: 'Leads', icon: 'lightbulb' },
-  { to: '/crm/opportunities', label: 'Opportunities', icon: 'monetization_on' },
-  { to: '/crm/pipeline', label: 'Pipeline', icon: 'view_kanban' },
-  { to: '/crm/accounts', label: 'Accounts', icon: 'business' },
-  { to: '/crm/contacts', label: 'Contacts', icon: 'person' },
-  { to: '/credit', label: 'Credit', icon: 'account_balance', permission: 'credit:read' },
-  { to: '/crm/team', label: 'Team', icon: 'groups', permission: 'crm:admin' },
-  { to: '/crm/reports', label: 'Reports', icon: 'bar_chart' },
-  { to: '/crm/guide', label: 'Guide', icon: 'menu_book' },
+const CREDIT_NAV_ITEMS: CreditNavItem[] = [
+  { to: '/credit', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/credit/borrowers', label: 'Borrowers', icon: 'person' },
+  { to: '/credit/applications', label: 'Applications', icon: 'description' },
+  { to: '/credit/reviews', label: 'Reviews', icon: 'rate_review', permission: 'credit:review' },
+  { to: '/credit/disbursements', label: 'Disbursements', icon: 'payments', permission: 'credit:disburse' },
+  { to: '/credit/reports', label: 'Reports', icon: 'bar_chart' },
 ];
 
-const CrmNav: React.FC = () => {
+const CreditNav: React.FC = () => {
   const location = useLocation();
   const { user } = useAuth();
 
-  // Determine active tab: /crm matches Dashboard, /crm/team matches Team, etc.
   const isActive = (path: string) => {
-    if (path === '/crm') return location.pathname === '/crm';
+    if (path === '/credit') return location.pathname === '/credit';
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
 
-  // Filter items by permission
-  const visibleItems = CRM_NAV_ITEMS.filter(item => {
+  const visibleItems = CREDIT_NAV_ITEMS.filter(item => {
     if (item.permission) {
       return hasPermission(user, item.permission);
     }
@@ -64,4 +58,4 @@ const CrmNav: React.FC = () => {
   );
 };
 
-export default CrmNav;
+export default CreditNav;

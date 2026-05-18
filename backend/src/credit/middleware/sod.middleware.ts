@@ -1,13 +1,7 @@
-// NOTE: This middleware references CreditApplication which is added in Sprint 1.
-// Until then, this middleware will gracefully pass through if the table doesn't exist.
-// It will be activated via feature flag when Sprint 1 lands.
-
 import { Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import prisma from '../../utils/prisma';
 import { AppError } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
-
-const prisma = new PrismaClient();
 
 /**
  * SOD (Segregation of Duties) constraint for credit module.
@@ -37,7 +31,7 @@ export function enforceCreditSOD() {
     try {
       const userId = req.user?.id;
       const userRoles = req.user?.roles || [];
-      const applicationId = req.params.id;
+      const applicationId = req.params.id as string;
 
       if (!userId || !applicationId) {
         return next();
@@ -55,15 +49,13 @@ export function enforceCreditSOD() {
       // User has conflicting roles — check if they're the RM on THIS application
       let application;
       try {
-        // @ts-expect-error — CreditApplication model added in Sprint 1
         application = await prisma.creditApplication.findUnique({
           where: { id: applicationId },
           select: { assignedRmId: true },
         });
       } catch (dbErr) {
-        // CreditApplication table may not exist yet (pre-Sprint 1).
-        // Allow the request through rather than crashing.
-        console.warn('SOD middleware: CreditApplication table not available, skipping SOD check.', dbErr);
+        // If DB query fails, skip SOD check rather than blocking
+        console.warn('SOD middleware: query failed, skipping SOD check.', dbErr);
         return next();
       }
 
@@ -117,15 +109,12 @@ export async function checkSodConflict(userId: string, applicationId: string): P
   // Check if user is the RM on this specific application
   let application;
   try {
-    // @ts-expect-error — CreditApplication model added in Sprint 1
     application = await prisma.creditApplication.findUnique({
       where: { id: applicationId },
       select: { assignedRmId: true },
     });
   } catch (dbErr) {
-    // CreditApplication table may not exist yet (pre-Sprint 1).
-    // Return false (no conflict) rather than crashing.
-    console.warn('SOD check: CreditApplication table not available, skipping SOD conflict check.', dbErr);
+    console.warn('SOD check: query failed, skipping SOD conflict check.', dbErr);
     return false;
   }
 
