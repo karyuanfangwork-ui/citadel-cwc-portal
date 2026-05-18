@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import crmService, { CrmOpportunity, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 
 const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
-const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
 const STAGE_COLORS: Record<string, string> = {
   PROSPECTING: '#6366f1',
@@ -24,6 +24,8 @@ const winProbStyle = (prob: number) =>
 
 const CrmOpportunities = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterParam = searchParams.get('filter') || '';
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -33,15 +35,16 @@ const CrmOpportunities = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<Partial<CrmOpportunity>>({});
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
-  const [pipelines, setPipelines] = useState<{ id: string; name: string; stages?: { id: string; name: string }[] }[]>([]);
+  const [pipelines, setPipelines] = useState<{ id: string; name: string; stages?: { id: string; name: string; probability: number }[] }[]>([]);
   const [saving, setSaving] = useState(false);
 
   const fetchOpportunities = useCallback(async (page = 1) => {
     try { setLoading(true);
-      const data = await crmService.listOpportunities({ page, limit: 20, search: search || undefined, pipelineId: pipelineFilter || undefined, stageId: stageFilter || undefined });
+      const overdue = filterParam === 'overdue';
+      const data = await crmService.listOpportunities({ page, limit: 20, search: search || undefined, pipelineId: (overdue ? '' : pipelineFilter) || undefined, stageId: (overdue ? '' : stageFilter) || undefined, overdue: overdue || undefined });
       setOpportunities(data.opportunities); setPagination(data.pagination);
     } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [search, pipelineFilter, stageFilter]);
+  }, [search, pipelineFilter, stageFilter, filterParam]);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -55,7 +58,7 @@ const CrmOpportunities = () => {
       const data = await crmService.listPipelines();
       setPipelines(data);
       if (data.length > 0 && !form.pipelineId) {
-        setForm(prev => ({ ...prev, pipelineId: data[0].id, stageId: data[0].stages[0]?.id }));
+        setForm(prev => ({ ...prev, pipelineId: data[0].id, stageId: data[0].stages[0]?.id, probability: data[0].stages[0]?.probability ?? 0 }));
       }
     } catch (e) { console.error(e); }
   }, []);
@@ -122,6 +125,22 @@ const CrmOpportunities = () => {
         </select>
       </div>
 
+      {/* Overdue filter badge */}
+      {filterParam && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold" style={{
+            background: filterParam === 'overdue' ? '#fef2f2' : '#f3f4f6',
+            color: filterParam === 'overdue' ? '#dc2626' : '#6b7280',
+          }}>
+            <span className="material-symbols-outlined text-sm">{filterParam === 'overdue' ? 'notifications_active' : 'filter_list'}</span>
+            {filterParam === 'overdue' ? 'Overdue Deals (past expected close date)' : `Filtered: ${filterParam}`}
+          </span>
+          <button onClick={() => { searchParams.delete('filter'); setSearchParams(searchParams); }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6b7280' }} className="text-sm hover:text-gray-900">
+            <span className="material-symbols-outlined text-base">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Opportunities Table */}
       <div className="bg-surface border border-border rounded-xl overflow-hidden">
         <table className="w-full">
@@ -143,7 +162,7 @@ const CrmOpportunities = () => {
               <tr><td colSpan={7} className="px-5 py-16 text-center text-text-secondary">
                 <span className="material-symbols-outlined text-5xl mb-3 block opacity-30">folder_open</span>
                 <p className="font-bold">No opportunities found</p>
-                <p className="text-sm mt-1">Create your first opportunity to start tracking deals</p>
+                <p className="text-sm mt-1">{filterParam === 'overdue' ? 'No overdue deals — great work!' : 'Create your first opportunity to start tracking deals'}</p>
               </td></tr>
             ) : opportunities.map(opp => (
               <tr key={opp.id} onClick={() => navigate(`/crm/opportunities/${opp.id}`)} className="hover:bg-surface-hover cursor-pointer transition-colors">
@@ -239,7 +258,7 @@ const CrmOpportunities = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Pipeline *</label>
-                  <select value={(form as any).pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: p?.stages[0]?.id })); }} required
+                  <select value={(form as any).pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); const firstStage = p?.stages?.[0]; setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: firstStage?.id, probability: firstStage?.probability ?? 0 })); }} required
                     className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Pipeline</option>
                     {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -247,7 +266,7 @@ const CrmOpportunities = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Stage *</label>
-                  <select value={(form as any).stageId || ''} onChange={e => setForm(prev => ({ ...prev, stageId: e.target.value }))} required
+                  <select value={(form as any).stageId || ''} onChange={e => { const selP = pipelines.find(p => p.id === form.pipelineId); const selS = selP?.stages?.find(s => s.id === e.target.value); setForm(prev => ({ ...prev, stageId: e.target.value, probability: selS?.probability ?? prev.probability ?? 0 })); }} required
                     className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Stage</option>
                     {pipelines.find(p => p.id === form.pipelineId)?.stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}

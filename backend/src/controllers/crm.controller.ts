@@ -215,6 +215,8 @@ class CrmController {
     const status = req.query.status as string | undefined;
     const source = req.query.source as string | undefined;
     const ownerId = req.query.ownerId as string | undefined;
+    const stale = req.query.stale === 'true';
+    const followup = req.query.followup === 'true';
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const where: any = { deletedAt: null };
@@ -227,6 +229,16 @@ class CrmController {
     }
     if (status) where.status = status;
     if (source) where.source = source;
+    if (stale) {
+      where.status = { notIn: ['CONVERTED', 'LOST'] };
+      where.activities = { none: { createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } } };
+    }
+    if (followup) {
+      // Follow-ups due today or overdue (date <= end of today), excluding converted/lost
+      const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
+      where.followUpDate = { lte: todayEnd };
+      where.status = { notIn: ['CONVERTED', 'LOST'] };
+    }
     if (search) {
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
@@ -337,6 +349,7 @@ class CrmController {
     const stageId = req.query.stageId as string | undefined;
     const ownerId = req.query.ownerId as string | undefined;
     const accountId = req.query.accountId as string | undefined;
+    const overdue = req.query.overdue === 'true';
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const where: any = { deletedAt: null };
@@ -350,6 +363,11 @@ class CrmController {
     if (pipelineId) where.pipelineId = pipelineId;
     if (stageId) where.stageId = stageId;
     if (accountId) where.accountId = accountId;
+    if (overdue) {
+      where.expectedCloseDate = { lt: new Date() };
+      where.wonAt = null;
+      where.lostAt = null;
+    }
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
@@ -400,8 +418,14 @@ class CrmController {
 
   createOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { expectedCloseDate, ...rest } = req.body;
+    // Auto-set probability from the selected stage if not explicitly provided
+    let probability = req.body.probability;
+    if (probability === undefined && rest.stageId) {
+      const stage = await prisma.crmPipelineStage.findUnique({ where: { id: rest.stageId } });
+      if (stage) probability = stage.probability;
+    }
     const opportunity = await prisma.crmOpportunity.create({
-      data: { ...rest, ownerId: req.user!.id, expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : undefined },
+      data: { ...rest, ownerId: req.user!.id, probability, expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : undefined },
       include: { account: { select: { id: true, name: true } }, stage: true, owner: { select: userSelect } },
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmOpportunity', resourceId: opportunity.id, newValues: req.body } });

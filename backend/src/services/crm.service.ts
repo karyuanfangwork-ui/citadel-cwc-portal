@@ -188,6 +188,11 @@ export async function convertLead(
       throw new Error('Lead must have an account or createAccount must be true');
     }
 
+    // Look up the stage to inherit its default probability
+    const stage = await tx.crmPipelineStage.findUniqueOrThrow({
+      where: { id: data.stageId },
+    });
+
     // Create the opportunity
     const opportunity = await tx.crmOpportunity.create({
       data: {
@@ -198,6 +203,7 @@ export async function convertLead(
         stageId: data.stageId,
         ownerId: userId,
         value: data.value || lead.estimatedValue || 0,
+        probability: stage.probability,
         expectedCloseDate: data.expectedCloseDate ? new Date(data.expectedCloseDate) : undefined,
         description: lead.description,
       },

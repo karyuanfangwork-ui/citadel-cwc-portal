@@ -107,18 +107,18 @@ const CrmLeads = () => {
 
   const fetchLeads = useCallback(async (page = 1) => {
     try { setLoading(true);
-      const data = await crmService.listLeads({ page, limit: 20, search: search || undefined, status: statusFilter || undefined, source: sourceFilter || undefined });
+      const stale = filterParam === 'stale';
+      const followup = filterParam === 'followup';
+      const data = await crmService.listLeads({ page, limit: 20, search: search || undefined, status: (stale || followup) ? undefined : (statusFilter || undefined), source: sourceFilter || undefined, stale: stale || undefined, followup: followup || undefined });
       setLeads(data.leads); setPagination(data.pagination);
     } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [search, statusFilter, sourceFilter]);
+  }, [search, statusFilter, sourceFilter, filterParam]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
-  // ── Apply URL-based filter ────────────────────────────────
+  // ── Apply client-side filters (server handles stale/followup) ──
   const displayedLeads = useMemo(() => {
     let result = leads;
-    if (filterParam === 'followup') result = leads.filter(l => l.followUpDate != null);
-    else if (filterParam === 'stale') result = leads.filter(l => isStale(l.updatedAt) && l.status !== 'CONVERTED' && l.status !== 'LOST');
     if (prioritySort) {
       result = [...result].sort((a, b) => {
         if (a.aiScore == null && b.aiScore == null) return 0;
@@ -128,7 +128,7 @@ const CrmLeads = () => {
       });
     }
     return result;
-  }, [leads, filterParam, prioritySort]);
+  }, [leads, prioritySort]);
 
   const clearFilterParam = () => {
     searchParams.delete('filter');
@@ -198,7 +198,7 @@ const CrmLeads = () => {
             color: filterParam === 'stale' ? '#6b7280' : '#92400e',
           }}>
             <span className="material-symbols-outlined text-sm">{filterParam === 'stale' ? 'hourglass_empty' : 'event_repeat'}</span>
-            {filterParam === 'followup' ? 'Has Follow-up Date' : 'Stale Leads (7+ days inactive)'}
+            {filterParam === 'followup' ? 'Follow-ups Due Today & Overdue' : 'Stale Leads (7+ days inactive)'}
           </span>
           <button onClick={clearFilterParam} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6b7280' }} className="text-sm hover:text-gray-900">
             <span className="material-symbols-outlined text-base">close</span>

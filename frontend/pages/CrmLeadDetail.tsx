@@ -30,7 +30,7 @@ const CrmLeadDetail = () => {
   const [loading, setLoading] = useState(true);
   const [showConvert, setShowConvert] = useState(false);
   const [pipelines, setPipelines] = useState<CrmPipeline[]>([]);
-  const [convertForm, setConvertForm] = useState({ pipelineId: '', stageId: '', oppName: '', oppValue: '' });
+  const [convertForm, setConvertForm] = useState({ pipelineId: '', stageId: '', oppName: '', oppValue: '', expectedCloseDate: '' });
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes'>('overview');
   const [showAddActivity, setShowAddActivity] = useState(false);
@@ -146,7 +146,7 @@ const CrmLeadDetail = () => {
       if (pl.length > 0) {
         const defaultPipeline = pl.find(p => p.isDefault) ?? pl[0];
         const firstStage = defaultPipeline.stages?.[0];
-        setConvertForm({ pipelineId: defaultPipeline.id, stageId: firstStage?.id ?? '', oppName: lead?.title ?? '', oppValue: String(lead?.estimatedValue ?? '') });
+        setConvertForm({ pipelineId: defaultPipeline.id, stageId: firstStage?.id ?? '', oppName: lead?.title ?? '', oppValue: String(lead?.estimatedValue ?? ''), expectedCloseDate: '' });
       }
     } catch (e) { console.error(e); }
     setShowConvert(true);
@@ -164,6 +164,7 @@ const CrmLeadDetail = () => {
         stageId: convertForm.stageId,
         opportunityName: convertForm.oppName,
         value: convertForm.oppValue ? Number(convertForm.oppValue) : undefined,
+        expectedCloseDate: convertForm.expectedCloseDate || undefined,
       });
       navigate(`/crm/opportunities/${opp.id}`);
     } catch (e) { console.error(e); }
@@ -602,6 +603,11 @@ const CrmLeadDetail = () => {
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Opportunity Value (MYR)</label>
                 <input type="number" min="0" value={convertForm.oppValue} onChange={e => setConvertForm(f => ({ ...f, oppValue: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Expected Close Date</label>
+                <input type="date" value={convertForm.expectedCloseDate} onChange={e => setConvertForm(f => ({ ...f, expectedCloseDate: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div>
