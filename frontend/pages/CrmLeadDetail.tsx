@@ -45,7 +45,13 @@ const CrmLeadDetail = () => {
 
   // ── AI state ─────────────────────────────────────────────────────
   // Note Analyzer (Task 5)
-  const [analyzedNotes, setAnalyzedNotes] = useState<Record<string, { sentiment: string; nextAction: string; suggestedStatusChange: string | null; keyFacts: string[] } | null>>({});
+  const [analyzedNotes, setAnalyzedNotes] = useState<Record<string, {
+    sentiment: string;
+    nextAction: string;
+    suggestedStatusChange: string | null;
+    keyFacts: string[];
+    suggestedFollowUpDays?: number | null;
+  } | null>>({});
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
 
   // Draft Message (Task 6)
@@ -169,10 +175,16 @@ const CrmLeadDetail = () => {
     if (!id) return;
     try {
       setSaving(true);
-      await crmService.createActivity({ ...activityForm, leadId: id });
+      const activity = await crmService.createActivity({ ...activityForm, leadId: id });
       setShowAddActivity(false);
       setActivityForm({ activityType: 'CALL' });
       reload();
+      if (
+        ['CALL', 'MEETING', 'WHATSAPP'].includes(activityForm.activityType ?? '') &&
+        activityForm.description?.trim()
+      ) {
+        handleAnalyzeNote(activity.id);
+      }
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
   };
@@ -190,12 +202,24 @@ const CrmLeadDetail = () => {
     finally { setSaving(false); }
   };
 
-  const handleMarkLost = async () => {
-    if (!id) return;
-    const reason = prompt('Enter lost reason (optional):');
-    if (reason === null) return; // cancelled
+  const [showLostModal, setShowLostModal] = useState(false);
+  const [lostCategory, setLostCategory] = useState('');
+  const [lostNote, setLostNote] = useState('');
+
+  const handleMarkLost = () => {
+    setLostCategory('');
+    setLostNote('');
+    setShowLostModal(true);
+  };
+
+  const handleConfirmLost = async () => {
+    if (!id || !lostCategory) return;
+    const lostReason = lostNote.trim()
+      ? `${lostCategory}: ${lostNote.trim()}`
+      : lostCategory;
     try {
-      await crmService.updateLead(id, { status: 'LOST' as any, lostReason: reason || undefined });
+      await crmService.updateLead(id, { status: 'LOST' as any, lostReason });
+      setShowLostModal(false);
       reload();
     } catch (e) { console.error(e); }
   };
@@ -520,6 +544,22 @@ const CrmLeadDetail = () => {
                               {analyzedNotes[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
                             </ul>
                           )}
+                          {analyzedNotes[a.id]!.suggestedFollowUpDays != null && (
+                            <button
+                              onClick={async () => {
+                                const days = analyzedNotes[a.id]!.suggestedFollowUpDays!;
+                                const date = new Date(Date.now() + days * 86_400_000)
+                                  .toISOString().slice(0, 10);
+                                await crmService.updateLead(lead!.id, { followUpDate: date });
+                                reload();
+                              }}
+                              className="mt-2 flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
+                              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                            >
+                              <span className="material-symbols-outlined text-sm">event_available</span>
+                              Set follow-up in {analyzedNotes[a.id]!.suggestedFollowUpDays} day{analyzedNotes[a.id]!.suggestedFollowUpDays === 1 ? '' : 's'}
+                            </button>
+                          )}
                         </div>
                       </AiInsightCard>
                     )}
@@ -630,6 +670,88 @@ const CrmLeadDetail = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Lost Reason modal */}
+      {showLostModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          onClick={() => setShowLostModal(false)}
+        >
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div
+            className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-black text-text-primary">Mark as Lost</h2>
+              <button
+                onClick={() => setShowLostModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                <span className="material-symbols-outlined text-text-secondary">close</span>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">
+                  Reason *
+                </label>
+                <select
+                  value={lostCategory}
+                  onChange={e => setLostCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200"
+                  style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}
+                >
+                  <option value="">Select a reason…</option>
+                  {[
+                    'Price too high',
+                    'Chose competitor',
+                    'Not ready / timing',
+                    'No budget',
+                    'Lost contact',
+                    'Product not suitable',
+                    'Internal decision not reached',
+                    'Other',
+                  ].map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">
+                  Additional notes (optional)
+                </label>
+                <textarea
+                  rows={3}
+                  value={lostNote}
+                  onChange={e => setLostNote(e.target.value)}
+                  placeholder="Any additional context…"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm resize-none outline-none focus:ring-2 focus:ring-brand-200"
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-5">
+              <button
+                type="button"
+                onClick={() => setShowLostModal(false)}
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-gray-100 transition-colors"
+                style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmLost}
+                disabled={!lostCategory}
+                className="px-4 py-2 text-sm font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              >
+                Mark as Lost
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -824,6 +946,16 @@ const CrmLeadDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Quick Log FAB */}
+      <button
+        onClick={() => { setShowAddActivity(true); setActivityForm({ activityType: 'CALL' }); }}
+        className="fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-brand-700 text-white shadow-lg hover:bg-brand-800 active:scale-95 transition-all flex items-center justify-center"
+        style={{ border: 'none', cursor: 'pointer' }}
+        title="Quick Log Activity"
+      >
+        <span className="material-symbols-outlined text-2xl">add</span>
+      </button>
     </div>
     </>
   );

@@ -78,6 +78,27 @@ const CrmLeads = () => {
   const [form, setForm] = useState<Partial<CrmLead>>({});
   const [saving, setSaving] = useState(false);
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+
+  const checkDuplicateLead = async (field: 'contactEmail' | 'contactPhone', value: string) => {
+    if (!value.trim()) { setDuplicateWarning(null); return; }
+    try {
+      const data = await crmService.listLeads({ search: value.trim(), limit: 5 });
+      const matches = data.leads.filter(l =>
+        field === 'contactEmail'
+          ? l.contactEmail?.toLowerCase() === value.trim().toLowerCase()
+          : l.contactPhone?.replace(/\s/g, '') === value.trim().replace(/\s/g, '')
+      );
+      if (matches.length > 0) {
+        const label = field === 'contactEmail' ? 'email' : 'phone';
+        setDuplicateWarning(
+          `Possible duplicate: "${matches[0].title}" (${matches[0].status}) already has this ${label}.`
+        );
+      } else {
+        setDuplicateWarning(null);
+      }
+    } catch { setDuplicateWarning(null); }
+  };
 
   // Fetch CRM team users for owner dropdown
   useEffect(() => {
@@ -122,7 +143,7 @@ const CrmLeads = () => {
       if (k === 'estimatedValue') { payload[k] = Number(v); if (isNaN(payload[k])) delete payload[k]; }
       else payload[k] = v;
     }
-    try { setSaving(true); await crmService.createLead(payload); setShowCreate(false); setForm({}); fetchLeads(); }
+    try { setSaving(true); await crmService.createLead(payload); setShowCreate(false); setForm({}); setDuplicateWarning(null); fetchLeads(); }
     catch (e) { console.error(e); } finally { setSaving(false); }
   };
 
@@ -308,28 +329,61 @@ const CrmLeads = () => {
 
       {/* Create Modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCreate(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowCreate(false); setDuplicateWarning(null); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-lg font-extrabold text-text-primary">New Lead</h2>
-              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+              <button onClick={() => { setShowCreate(false); setDuplicateWarning(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
-              {[
-                { key: 'title', label: 'Lead Title *', required: true },
-                { key: 'contactName', label: 'Contact Name' },
-                { key: 'contactEmail', label: 'Contact Email', type: 'email' },
-                { key: 'contactPhone', label: 'Contact Phone' },
-                { key: 'companyName', label: 'Company Name' },
-              ].map(f => (
-                <div key={f.key}>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">{f.label}</label>
-                  <input value={(form as any)[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                    required={f.required} type={f.type || 'text'}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                </div>
-              ))}
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Lead Title *</label>
+                <input
+                  required type="text"
+                  value={(form as any).title || ''}
+                  onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Contact Name</label>
+                <input
+                  type="text"
+                  value={(form as any).contactName || ''}
+                  onChange={e => setForm(prev => ({ ...prev, contactName: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Contact Email</label>
+                <input
+                  type="email"
+                  value={(form as any).contactEmail || ''}
+                  onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
+                  onBlur={e => checkDuplicateLead('contactEmail', e.target.value)}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Contact Phone</label>
+                <input
+                  type="text"
+                  value={(form as any).contactPhone || ''}
+                  onChange={e => setForm(prev => ({ ...prev, contactPhone: e.target.value }))}
+                  onBlur={e => checkDuplicateLead('contactPhone', e.target.value)}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Company Name</label>
+                <input
+                  type="text"
+                  value={(form as any).companyName || ''}
+                  onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Owner</label>
                 <select value={(form as any).ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))}
@@ -355,7 +409,21 @@ const CrmLeads = () => {
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreate(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                {duplicateWarning && (
+                  <div className="flex-1 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5">warning</span>
+                    <div className="flex-1">{duplicateWarning}</div>
+                    <button
+                      type="button"
+                      onClick={() => setDuplicateWarning(null)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                      className="text-amber-600 hover:text-amber-800 shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-base">close</span>
+                    </button>
+                  </div>
+                )}
+                <button type="button" onClick={() => { setShowCreate(false); setDuplicateWarning(null); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Creating...' : 'Create Lead'}
                 </button>

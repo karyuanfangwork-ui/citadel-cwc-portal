@@ -30,6 +30,7 @@ export interface CrmContact {
   email: string | null; phone: string | null; mobile: string | null;
   jobTitle: string | null; department: string | null; isPrimary: boolean;
   description: string | null; isActive: boolean; createdAt: string; updatedAt: string;
+  followUpDate: string | null; followUpNote: string | null;
   account?: { id: string; name: string; industry?: string };
   opportunities?: CrmOpportunity[];
 }

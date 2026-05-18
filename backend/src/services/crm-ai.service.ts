@@ -35,6 +35,7 @@ export async function analyzeActivityNote(activityId: string): Promise<{
   nextAction: string;
   suggestedStatusChange: string | null;
   keyFacts: string[];
+  suggestedFollowUpDays: number | null;
 }> {
   const activity = await prisma.crmActivity.findUniqueOrThrow({
     where: { id: activityId },
@@ -65,6 +66,7 @@ export async function analyzeActivityNote(activityId: string): Promise<{
 - nextAction: string (recommended next step for the sales agent, 1 sentence)
 - suggestedStatusChange: string | null (e.g. "QUALIFIED", "CONTACTED" — only if clearly warranted, else null)
 - keyFacts: string[] (up to 3 key facts mentioned: names, amounts, dates, decisions)
+- suggestedFollowUpDays: number | null (days from today to schedule a follow-up — e.g. 3, 5, 7 — only if a concrete follow-up is warranted based on the note content, else null)
 
 Activity type: ${activity.activityType}
 Subject: ${activity.subject}

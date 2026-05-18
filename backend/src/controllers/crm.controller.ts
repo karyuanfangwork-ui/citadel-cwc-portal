@@ -168,14 +168,17 @@ class CrmController {
   });
 
   createContact = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const account = await prisma.crmAccount.findUnique({ where: { id: req.body.accountId } });
-    if (!account) throw new AppError('Account not found', 404);
-    const { dateOfBirth, pdpaConsentDate, ...rest } = req.body;
+    if (req.body.accountId) {
+      const account = await prisma.crmAccount.findUnique({ where: { id: req.body.accountId } });
+      if (!account) throw new AppError('Account not found', 404);
+    }
+    const { dateOfBirth, pdpaConsentDate, followUpDate, ...rest } = req.body;
     const contact = await prisma.crmContact.create({
       data: {
         ...rest,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
         pdpaConsentDate: pdpaConsentDate ? new Date(pdpaConsentDate) : undefined,
+        followUpDate: followUpDate ? new Date(followUpDate) : undefined,
       },
       include: { account: { select: { id: true, name: true } } },
     });
@@ -186,10 +189,11 @@ class CrmController {
   updateContact = asyncHandler(async (req: AuthRequest, res: Response) => {
     const existing = await prisma.crmContact.findUnique({ where: { id: req.params.id as string } });
     if (!existing) throw new AppError('Contact not found', 404);
-    const { dateOfBirth, pdpaConsentDate, ...rest } = req.body;
+    const { dateOfBirth, pdpaConsentDate, followUpDate, ...rest } = req.body;
     const data: any = { ...rest };
     if (dateOfBirth !== undefined) data.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
     if (pdpaConsentDate !== undefined) data.pdpaConsentDate = pdpaConsentDate ? new Date(pdpaConsentDate) : null;
+    if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
     const contact = await prisma.crmContact.update({ where: { id: req.params.id as string }, data, include: { account: { select: { id: true, name: true } } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmContact', resourceId: contact.id, oldValues: existing as any, newValues: req.body } });
     res.json({ status: 'success', data: { contact } });

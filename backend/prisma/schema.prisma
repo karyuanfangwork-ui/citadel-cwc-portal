@@ -1510,6 +1510,8 @@ model CrmContact {
   department  String?   @db.VarChar(100)
   isPrimary   Boolean   @default(false) @map("is_primary")
   description String?   @db.Text
+  followUpDate      DateTime? @map("follow_up_date") @db.Timestamp(6)
+  followUpNote      String?   @map("follow_up_note") @db.Text
   // Phase 2 additions
   nricPassport      String?   @map("nric_passport") @db.VarChar(50)
   dateOfBirth       DateTime? @map("date_of_birth") @db.Date

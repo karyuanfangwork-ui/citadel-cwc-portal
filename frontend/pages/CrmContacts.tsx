@@ -3,6 +3,20 @@ import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmContact, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 
+const isTodayDate = (d: string) => new Date(d).toDateString() === new Date().toDateString();
+const isOverdueDate = (d: string) => new Date(d) < new Date(new Date().toDateString());
+
+type ContactUrgencyBadge = { label: string; bg: string; text: string; icon: string } | null;
+
+const getContactUrgencyBadge = (c: CrmContact): ContactUrgencyBadge => {
+  if (!c.followUpDate) return null;
+  if (isOverdueDate(c.followUpDate) && !isTodayDate(c.followUpDate))
+    return { label: 'Overdue', bg: '#fef2f2', text: '#dc2626', icon: 'error' };
+  if (isTodayDate(c.followUpDate))
+    return { label: 'Due Today', bg: '#fffbeb', text: '#b45309', icon: 'schedule' };
+  return null;
+};
+
 const CrmContacts = () => {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<CrmContact[]>([]);
@@ -13,6 +27,26 @@ const CrmContacts = () => {
   const [form, setForm] = useState<Partial<CrmContact>>({});
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+
+  const checkDuplicateContact = async (field: 'email' | 'phone', value: string) => {
+    if (!value.trim()) { setDuplicateWarning(null); return; }
+    try {
+      const data = await crmService.listContacts({ search: value.trim(), limit: 5 });
+      const matches = data.contacts.filter(c =>
+        field === 'email'
+          ? c.email?.toLowerCase() === value.trim().toLowerCase()
+          : c.phone?.replace(/\s/g, '') === value.trim().replace(/\s/g, '')
+      );
+      if (matches.length > 0) {
+        setDuplicateWarning(
+          `Possible duplicate: "${matches[0].firstName} ${matches[0].lastName}" already has this ${field}.`
+        );
+      } else {
+        setDuplicateWarning(null);
+      }
+    } catch { setDuplicateWarning(null); }
+  };
 
   const fetchContacts = useCallback(async (page = 1) => {
     try { setLoading(true);
@@ -39,8 +73,7 @@ const CrmContacts = () => {
         payload[k] = v;
       }
       await crmService.createContact(payload);
-      setShowCreate(false);
-      setForm({});
+      setShowCreate(false); setForm({}); setDuplicateWarning(null);
       fetchContacts();
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
@@ -114,7 +147,21 @@ const CrmContacts = () => {
                       <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
                         <span className="text-sm font-bold text-indigo-600">{c.firstName?.[0]}{c.lastName?.[0]}</span>
                       </div>
-                      <span className="text-sm font-bold text-text-primary">{c.firstName} {c.lastName}</span>
+                      <div>
+                        <span className="text-sm font-bold text-text-primary">{c.firstName} {c.lastName}</span>
+                        {(() => {
+                          const badge = getContactUrgencyBadge(c);
+                          return badge ? (
+                            <span
+                              className="ml-2 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold"
+                              style={{ background: badge.bg, color: badge.text }}
+                            >
+                              <span className="material-symbols-outlined text-xs">{badge.icon}</span>
+                              {badge.label}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                     </div>
                   </td>
                   <td style={{ padding: 'var(--space-4) var(--space-5)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>{c.email || '\u2014'}</td>
@@ -146,13 +193,13 @@ const CrmContacts = () => {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={() => { setShowCreate(false); setForm({}); }}>
+          onClick={() => { setShowCreate(false); setForm({}); setDuplicateWarning(null); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md mx-4 max-h-[85vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200 shrink-0">
               <h2 className="text-lg font-black text-gray-900">New Contact</h2>
-              <button onClick={() => { setShowCreate(false); setForm({}); }}
+              <button onClick={() => { setShowCreate(false); setForm({}); setDuplicateWarning(null); }}
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
                 style={{ border: 'none', cursor: 'pointer', background: 'none' }}>
                 <span className="material-symbols-outlined text-xl">close</span>
@@ -174,12 +221,14 @@ const CrmContacts = () => {
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
                 <input type="email" value={form.email ?? ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  onBlur={e => checkDuplicateContact('email', e.target.value)}
                   className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-gray-600 mb-1">Phone</label>
                   <input value={form.phone ?? ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                    onBlur={e => checkDuplicateContact('phone', e.target.value)}
                     className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
                 </div>
                 <div>
@@ -214,8 +263,22 @@ const CrmContacts = () => {
                   className="w-4 h-4 rounded border-gray-300 accent-brand-700" />
                 <label htmlFor="isPrimary" className="text-sm text-gray-900">Primary contact</label>
               </div>
+              {duplicateWarning && (
+                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  <span className="material-symbols-outlined text-base shrink-0 mt-0.5">warning</span>
+                  <div className="flex-1">{duplicateWarning}</div>
+                  <button
+                    type="button"
+                    onClick={() => setDuplicateWarning(null)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    className="text-amber-600 hover:text-amber-800 shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-base">close</span>
+                  </button>
+                </div>
+              )}
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowCreate(false); setForm({}); }}
+                <button type="button" onClick={() => { setShowCreate(false); setForm({}); setDuplicateWarning(null); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
                   style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}
