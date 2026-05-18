@@ -69,6 +69,8 @@ import MyApprovals from './pages/MyApprovals';
 import FinancialSpreading from './pages/FinancialSpreading';
 import FinancialAnalysis from './pages/FinancialAnalysis';
 import ScorecardManagement from './pages/ScorecardManagement';
+import CommitteeMeetings from './pages/CommitteeMeetings';
+import CollateralManagement from './pages/CollateralManagement';
 import Announcements from './pages/Announcements';
 import AnnouncementsManage from './pages/AnnouncementsManage';
 import AnnouncementDetail from './pages/AnnouncementDetail';
@@ -529,6 +531,8 @@ const AppShell = () => {
               <Route path="/credit/financials" element={<ProtectedRoute requirePermission="credit:read"><FinancialSpreading /></ProtectedRoute>} />
               <Route path="/credit/analysis" element={<ProtectedRoute requirePermission="credit:read"><FinancialAnalysis /></ProtectedRoute>} />
               <Route path="/credit/scorecards" element={<ProtectedRoute requirePermission="credit:admin"><ScorecardManagement /></ProtectedRoute>} />
+              <Route path="/credit/committee" element={<ProtectedRoute requirePermission="credit:read"><CommitteeMeetings /></ProtectedRoute>} />
+              <Route path="/credit/collateral" element={<ProtectedRoute requirePermission="credit:read"><CollateralManagement /></ProtectedRoute>} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
                 <ProtectedRoute requirePermission="admin:access">

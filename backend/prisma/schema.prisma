@@ -134,6 +134,9 @@ model User {
   financialReviewedBy     FinancialStatement[]         @relation("FinancialReviewedBy")
   scorecardVersionApprovedBy CreditScorecardVersion[]  @relation("ScorecardVersionApprovedBy")
   scoreRunOverrideApprovedBy CreditScoreRun[]          @relation("ScoreRunOverrideApprovedBy")
+  // Committee Relations
+  committeeMemberUser       CommitteeMember[]         @relation("CommitteeMemberUser")
+  committeePresentedBy      CommitteeAgendaItem[]     @relation("AgendaItemPresentedBy")
 
   @@index([email])
   @@index([managerId])
@@ -2375,6 +2378,7 @@ model CreditApplication {
   conditions       Condition[]
   decisions        CreditDecision[]
   scoreRuns        CreditScoreRun[]
+  committeeAgendaItems CommitteeAgendaItem[]
   
   @@index([borrowerProfileId])
   @@index([state])
@@ -2902,4 +2906,115 @@ model CreditScoreRun {
   @@index([applicationId])
   @@index([scorecardVersionId])
   @@map("credit_score_runs")
+}
+
+// ============================================================================
+// Committee — Sprint 4
+// ============================================================================
+
+enum CommitteeMeetingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum CommitteeMeetingType {
+  REGULAR
+  ADHOC
+}
+
+enum CommitteeMemberRole {
+  CHAIR
+  MEMBER
+  SECRETARY
+}
+
+enum CommitteeAttendance {
+  PRESENT
+  ABSENT
+  EXCUSED
+}
+
+enum CommitteeVoteChoice {
+  APPROVE
+  REJECT
+  ABSTAIN
+}
+
+enum AgendaItemDecisionType {
+  APPROVE
+  REJECT
+  DEFER
+}
+
+model CommitteeMeeting {
+  id          String                @id @default(uuid()) @db.Uuid
+  title       String                @db.VarChar(200)
+  scheduledAt DateTime              @map("scheduled_at") @db.Timestamp(6)
+  location    String?               @db.VarChar(200)
+  status      CommitteeMeetingStatus @default(SCHEDULED)
+  quorumMin   Int                   @default(3) @map("quorum_min")
+  meetingType CommitteeMeetingType  @default(REGULAR) @map("meeting_type")
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime              @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  members     CommitteeMember[]
+  agendaItems CommitteeAgendaItem[]
+
+  @@map("committee_meetings")
+}
+
+model CommitteeMember {
+  id          String              @id @default(uuid()) @db.Uuid
+  meetingId   String              @map("meeting_id") @db.Uuid
+  userId      String              @map("user_id") @db.Uuid
+  role        CommitteeMemberRole
+  attendance  CommitteeAttendance @default(ABSENT)
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamp(6)
+
+  meeting     CommitteeMeeting    @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user        User                @relation("CommitteeMemberUser", fields: [userId], references: [id])
+  votes       CommitteeVote[]
+
+  @@unique([meetingId, userId])
+  @@index([meetingId])
+  @@map("committee_members")
+}
+
+model CommitteeAgendaItem {
+  id             String               @id @default(uuid()) @db.Uuid
+  meetingId      String               @map("meeting_id") @db.Uuid
+  applicationId  String               @map("application_id") @db.Uuid
+  displayOrder   Int                  @map("display_order")
+  decisionType   AgendaItemDecisionType @default(APPROVE) @map("decision_type")
+  presentedById  String?              @map("presented_by_id") @db.Uuid
+  decisionResult AgendaItemDecisionType? @map("decision_result")
+  decidedAt      DateTime?            @map("decided_at") @db.Timestamp(6)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamp(6)
+
+  meeting        CommitteeMeeting     @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  application    CreditApplication    @relation(fields: [applicationId], references: [id])
+  presentedBy    User?                @relation("AgendaItemPresentedBy", fields: [presentedById], references: [id])
+  votes          CommitteeVote[]
+
+  @@index([meetingId])
+  @@index([applicationId])
+  @@map("committee_agenda_items")
+}
+
+model CommitteeVote {
+  id           String              @id @default(uuid()) @db.Uuid
+  agendaItemId String              @map("agenda_item_id") @db.Uuid
+  memberId     String              @map("member_id") @db.Uuid
+  vote         CommitteeVoteChoice
+  comments     String?             @db.Text
+  votedAt      DateTime            @default(now()) @map("voted_at") @db.Timestamp(6)
+
+  agendaItem   CommitteeAgendaItem @relation(fields: [agendaItemId], references: [id], onDelete: Cascade)
+  member       CommitteeMember     @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([agendaItemId, memberId])
+  @@index([agendaItemId])
+  @@map("committee_votes")
 }

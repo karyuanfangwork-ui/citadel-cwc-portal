@@ -1,18 +1,23 @@
 import { Router, Request, Response } from 'express';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { requireFeatureFlag } from '../middleware/featureFlag.middleware';
-import { getQueueHealth } from '../queues';
 import prisma from '../../utils/prisma';
+
+// Sprint 1 — Borrower + Documents
 import borrowerProfileRoutes from './borrowerProfile.routes';
 import directorRoutes from './director.routes';
 import shareholderRoutes from './shareholder.routes';
 import uboRoutes from './ubo.routes';
 import relatedPartyGroupRoutes from './relatedPartyGroup.routes';
 import creditDocumentRoutes from './creditDocument.routes';
+
+// Sprint 2 — Applications + Approvals
 import approvalRoutes from './approval.routes';
 import applicationRoutes from './creditApplication.routes';
 import applicationFacilityRoutes from './applicationFacility.routes';
 import applicationPartyRoutes from './applicationParty.routes';
+
+// Sprint 3 — Financials + Scoring
 import financialRoutes from './financial.routes';
 import financialsRoutes from './financials.routes';
 import scorecardRoutes from './scorecard.routes';
@@ -20,81 +25,53 @@ import scorecardVersionRoutes from './scorecardVersion.routes';
 import scoringRoutes from './scoring.routes';
 import scoreRunRoutes from './scoreRun.routes';
 
+// Sprint 4 — Committee + Collateral + Conditions
+import committeeRoutes from './committee.routes';
+import collateralRoutes from './collateral.routes';
+import collateralItemRoutes from './collateralItem.routes';
+import guaranteeRoutes from './guarantee.routes';
+import conditionRoutes from './condition.routes';
+import conditionItemRoutes from './conditionItem.routes';
+
 const router = Router();
 
-// ============================================================================
-// FEATURE FLAGS — admin management (MUST be before the feature flag gate)
-// These routes need to work even when credit:module is OFF so admins can
-// re-enable the module. Only auth + credit:admin permission required.
-// ============================================================================
-router.use(authenticate);
-
-// List all feature flags
+// Feature flag admin routes (outside feature flag gate)
 router.get('/feature-flags', requirePermission('credit:admin'), async (_req: Request, res: Response) => {
-  const flags = await prisma.featureFlag.findMany({
-    orderBy: { category: 'asc' },
-  });
-  res.json({ status: 'success', data: flags });
+  const flags = await prisma.featureFlag.findMany({ orderBy: { key: 'asc' } });
+  res.json({ status: 'success', data: { flags } });
 });
 
-// Toggle a feature flag
 router.patch('/feature-flags/:key', requirePermission('credit:admin'), async (req: Request, res: Response) => {
-  const key = req.params.key as string;
-  const { enabled, rolloutPct, description } = req.body;
-
-  const flag = await prisma.featureFlag.findUnique({ where: { key } });
-  if (!flag) {
-    return res.status(404).json({ status: 'error', message: `Feature flag '${key}' not found` });
-  }
-
-  const updated = await prisma.featureFlag.update({
-    where: { key },
-    data: {
-      ...(enabled !== undefined && { enabled }),
-      ...(rolloutPct !== undefined && { rolloutPct }),
-      ...(description !== undefined && { description }),
-    },
+  const { key } = req.params;
+  const enabled: boolean | undefined = req.body.enabled;
+  const rolloutPct: number | undefined = req.body.rolloutPct;
+  const category: string | undefined = req.body.category;
+  const description: string | undefined = req.body.description;
+  const flag = await prisma.featureFlag.upsert({
+    where: { key: String(key) },
+    update: { enabled, rolloutPct, category, description },
+    create: { key: String(key), enabled: enabled ?? false, rolloutPct: rolloutPct ?? 0, category: category ?? 'credit', description: description ?? '' },
   });
-
-  // Invalidate the in-memory cache so changes take effect immediately
-  const { invalidateFlagCache } = await import('../middleware/featureFlag.middleware');
-  await invalidateFlagCache();
-
-  res.json({ status: 'success', data: updated });
+  res.json({ status: 'success', data: { flag } });
 });
 
-// ============================================================================
-// FEATURE FLAG GATE — all routes below require credit:module to be enabled
-// ============================================================================
+// All routes below require authentication + feature flag
+router.use(authenticate);
 router.use(requireFeatureFlag('credit:module'));
 
-// ============================================================================
-// HEALTH CHECK — verifies credit module is alive and queues are connected
-// ============================================================================
+// Health check
 router.get('/health', requirePermission('credit:read'), async (_req: Request, res: Response) => {
-  try {
-    const queueHealth = await getQueueHealth();
-    res.json({
-      status: 'ok',
+  res.json({
+    status: 'success',
+    data: {
       module: 'credit',
-      queues: queueHealth,
+      version: '1.0.0',
       timestamp: new Date().toISOString(),
-    });
-  } catch (err) {
-    res.status(503).json({
-      status: 'degraded',
-      module: 'credit',
-      error: 'Queue health check failed — Redis may be unavailable',
-      timestamp: new Date().toISOString(),
-    });
-  }
+    },
+  });
 });
 
-// ============================================================================
-// PLACEHOLDER ROUTES — Sprint 1+ will replace with real controllers
-// ============================================================================
-
-// Borrowers — Sprint 1
+// Sprint 1 — Borrower Profile routes
 router.use('/borrowers', borrowerProfileRoutes);
 
 // Directors, Shareholders, UBOs — nested under /borrowers
@@ -102,32 +79,40 @@ router.use('/borrowers', directorRoutes);
 router.use('/borrowers', shareholderRoutes);
 router.use('/borrowers', uboRoutes);
 
-// Related Party Groups — top-level
 router.use('/related-party-groups', relatedPartyGroupRoutes);
 
-// Credit Documents & Requirements
+// Credit Documents
 router.use(creditDocumentRoutes);
 
-// Applications — Sprint 2
+// Sprint 2 — Application routes
 router.use('/applications', applicationRoutes);
 router.use('/applications', applicationFacilityRoutes);
 router.use('/applications', applicationPartyRoutes);
 
-// Approval Matrix & Actions — Sprint 2
+// Approval
 router.use(approvalRoutes);
 
-// Financials — Sprint 3
+// Sprint 3 — Financial routes
 router.use('/borrowers', financialRoutes);
 router.use('/financials', financialsRoutes);
-
-// Scorecards — Sprint 3
 router.use('/scorecards', scorecardRoutes);
 router.use('/scorecard-versions', scorecardVersionRoutes);
 router.use('/applications', scoringRoutes);
 router.use('/score-runs', scoreRunRoutes);
 
-// Committee — Sprint 4
-// router.use('/committee', committeeRoutes);
+// Sprint 4 — Committee
+router.use('/committee', committeeRoutes);
+
+// Sprint 4 — Collateral (app-scoped under /applications, item-scoped at /collateral)
+router.use('/applications', collateralRoutes);
+router.use('/collateral', collateralItemRoutes);
+
+// Sprint 4 — Guarantees (app-scoped under /applications)
+router.use('/applications', guaranteeRoutes);
+
+// Sprint 4 — Conditions (app-scoped under /applications, item-scoped at /conditions)
+router.use('/applications', conditionRoutes);
+router.use('/conditions', conditionItemRoutes);
 
 // Dashboards — Sprint 5
 // router.use('/dashboard', dashboardRoutes);
