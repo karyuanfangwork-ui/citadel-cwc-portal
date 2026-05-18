@@ -116,6 +116,20 @@ const CrmDashboard = () => {
     }
   }, [handleGetBriefing]);
 
+  // ── My Performance (Task 5 — Self-Service Rep Stats) ─────────────────────────────────────
+  const [myStats, setMyStats] = useState<{
+    leads: number; opportunities: number; pipelineValue: number;
+    wonThisMonth: number; staleLeads: number; activitiesThisWeek: number;
+  } | null>(null);
+  const [myStatsLoading, setMyStatsLoading] = useState(true);
+
+  useEffect(() => {
+    crmService.getMyStats()
+      .then(setMyStats)
+      .catch(() => { /* fail silently */ })
+      .finally(() => setMyStatsLoading(false));
+  }, []);
+
   return (
     <>
       <CrmNav />
@@ -363,6 +377,33 @@ const CrmDashboard = () => {
             </div>
             <div className="text-3xl font-black text-red-500">{formatCurrency(Number(stats.lostDeals.value))}</div>
             <div className="text-sm text-text-secondary mt-1">{stats.lostDeals.count} deals lost</div>
+          </div>
+        </div>
+      )}
+
+      {/* My Performance */}
+      {!myStatsLoading && myStats && (
+        <div className="mb-6">
+          <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">My Performance</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+            {[
+              { label: 'My Leads', value: myStats.leads, icon: 'lightbulb', bg: '#fef3c7', color: '#92400e' },
+              { label: 'My Open Deals', value: myStats.opportunities, icon: 'monetization_on', bg: '#eff6ff', color: '#1d4ed8' },
+              { label: 'My Pipeline', value: formatCurrency(myStats.pipelineValue), icon: 'payments', bg: '#ecfdf5', color: '#065f46' },
+              { label: 'Won This Month', value: myStats.wonThisMonth, icon: 'emoji_events', bg: '#f0fdf4', color: '#166534' },
+              { label: 'Stale Leads', value: myStats.staleLeads, icon: 'warning', bg: '#fff1f2', color: '#be123c' },
+              { label: 'Activities This Week', value: myStats.activitiesThisWeek, icon: 'event_note', bg: '#f5f3ff', color: '#6d28d9' },
+            ].map(s => (
+              <div key={s.label} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
+                <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
+                  <span className="material-symbols-outlined text-[22px]" style={{ color: s.color }}>{s.icon}</span>
+                </div>
+                <div>
+                  <div className="text-2xl font-black leading-none" style={{ color: s.color }}>{s.value}</div>
+                  <div className="text-xs font-semibold mt-0.5 text-text-secondary">{s.label}</div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

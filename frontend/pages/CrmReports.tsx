@@ -66,6 +66,37 @@ interface KycComplianceReport {
 
 const myr = new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 });
 
+function downloadCsv(data: Record<string, unknown>[], filename: string) {
+  if (!data || data.length === 0) return;
+  const headers = Object.keys(data[0]);
+  const escapeCell = (v: unknown): string => {
+    const s = v === null || v === undefined ? '' : String(v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+  const csv = [headers.join(','), ...data.map(row => headers.map(h => escapeCell(row[h])).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const CsvBtn = ({ onClick, label }: { onClick: () => void; label?: string }) => (
+  <button
+    onClick={onClick}
+    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-bold border border-border bg-bg-surface text-text-secondary hover:bg-bg-subtle hover:text-text-primary transition-colors"
+    style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+  >
+    <span className="material-symbols-outlined text-sm">download</span>
+    {label || 'Export CSV'}
+  </button>
+);
+
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -177,11 +208,20 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
       .finally(() => setLoading(false));
   }, [key]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.bySource.map(r => ({ Source: r.source, Total: r.total, Converted: r.converted, Lost: r.lost, 'Conv. Rate': r.conversionRate.toFixed(1) + '%' })),
+      'lead-conversion-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <SummaryCard label="Overall Conversion Rate" value={`${data.overallConversionRate.toFixed(1)}%`} />
         <SummaryCard label="Period From" value={data.period.from ? new Date(data.period.from).toLocaleDateString('en-MY') : '—'} />
@@ -234,11 +274,23 @@ function SalesPerformancePanel({ from, to }: { from: string; to: string }) {
       .finally(() => setLoading(false));
   }, [key]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byOwner.map(r => ({
+        Agent: r.ownerName, 'Total Deals': r.totalDeals, Won: r.wonDeals, Lost: r.lostDeals,
+        'Win Rate': r.winRate.toFixed(1) + '%', 'Won Value': r.totalWonValue, 'Lost Value': r.totalLostValue, 'Avg Deal': r.avgDealSize,
+      })),
+      'sales-performance-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4">
         <SummaryCard label="Total Revenue (MYR)" value={myr.format(data.totalRevenue)} />
         <SummaryCard label="Overall Win Rate" value={`${data.overallWinRate.toFixed(1)}%`} />
@@ -302,11 +354,23 @@ function PipelineForecastPanel() {
       .finally(() => setLoading(false));
   }, [selectedPipelineId]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.stages.map(s => ({
+        Stage: s.stageName, Deals: s.dealCount, 'Total Value': s.totalValue,
+        Probability: s.probability + '%', 'Weighted Value': s.weightedValue,
+      })),
+      'pipeline-forecast-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data && pipelines.length === 0) return <p className="text-text-secondary text-sm">No pipelines found. Create a pipeline first.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-text-primary">Pipeline:</label>
         <select
@@ -372,6 +436,14 @@ function ActivitySummaryPanel({ from, to }: { from: string; to: string }) {
       .finally(() => setLoading(false));
   }, [key]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byUser.map(r => ({ Agent: r.userName, Total: r.count, ...r.breakdown })),
+      'activity-summary-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
@@ -380,6 +452,7 @@ function ActivitySummaryPanel({ from, to }: { from: string; to: string }) {
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <SummaryCard label="Total Activities" value={data.totalActivities} />
 
       <div className="bg-bg-surface border border-border rounded-xl p-5">
@@ -441,11 +514,23 @@ function LeadAgingPanel() {
       .finally(() => setLoading(false));
   }, []);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byStatus.map(r => ({
+        Status: r.status, Count: r.count, 'Avg Age Days': r.avgAgeDays.toFixed(1),
+        'Max Age Days': r.maxAgeDays, '>30 Days': r.leadsOver30Days, '>60 Days': r.leadsOver60Days, '>90 Days': r.leadsOver90Days,
+      })),
+      'lead-aging-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4">
         <SummaryCard label="Stale Leads" value={data.staleLeads} />
         <SummaryCard label="Avg Age (days)" value={data.averageAgeAllLeads.toFixed(1)} />
@@ -496,11 +581,22 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
       .finally(() => setLoading(false));
   }, [key]);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byReason.map(r => ({
+        Reason: r.lostReason || '—', Count: r.count, 'Total Value': r.totalValue,
+      })),
+      'win-loss-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <SummaryCard label="Win Rate" value={`${data.winRate.toFixed(1)}%`} />
         <SummaryCard label="Won" value={`${data.totalWon.count} (${myr.format(data.totalWon.value)})`} />
@@ -544,11 +640,20 @@ function KycCompliancePanel() {
       .finally(() => setLoading(false));
   }, []);
 
+  const handleExport = () => {
+    if (!data) return;
+    downloadCsv(
+      data.byStatus.map(r => ({ Status: r.status, Count: r.count })),
+      'kyc-compliance-report.csv',
+    );
+  };
+
   if (loading) return <Skeleton />;
   if (!data) return <p className="text-text-secondary text-sm">No data.</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end"><CsvBtn onClick={handleExport} /></div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
         <SummaryCard label="Compliance Rate" value={`${data.complianceRate.toFixed(1)}%`} />
         <SummaryCard label="Approved" value={data.approvedCount} />

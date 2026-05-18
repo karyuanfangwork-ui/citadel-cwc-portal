@@ -77,6 +77,7 @@ export interface CrmOpportunity {
   contact?: { id: string; firstName: string; lastName: string; email?: string; phone?: string };
   stage?: CrmPipelineStage; pipeline?: CrmPipeline; owner?: UserRef;
   activities?: CrmActivity[]; notes?: CrmNote[];
+  stageHistory?: CrmStageHistory[];
   trustProduct?: any;
 }
 
@@ -89,6 +90,14 @@ export interface CrmActivity {
   user?: UserRef; account?: { id: string; name: string };
   contact?: { id: string; firstName: string; lastName: string };
   opportunity?: { id: string; name: string };
+}
+
+export interface CrmStageHistory {
+  id: string;
+  fromStageName: string | null;
+  toStageName: string;
+  movedByUserId: string;
+  movedAt: string;
 }
 
 export interface CrmNote {
@@ -425,6 +434,19 @@ const crmService = {
     return res.data.data;
   },
 
+  // My Stats (Self-Service Rep Stats)
+  async getMyStats() {
+    const res = await api.get('/crm/my-stats');
+    return res.data.data as {
+      leads: number;
+      opportunities: number;
+      pipelineValue: number;
+      wonThisMonth: number;
+      staleLeads: number;
+      activitiesThisWeek: number;
+    };
+  },
+
   // ── AI Features ───────────────────────────────────────────────────────────────────────────
   async analyzeActivityNote(activityId: string) {
     const { data } = await api.post(`/crm/ai/activities/${activityId}/analyze`);
@@ -453,6 +475,23 @@ const crmService = {
   async getDailyBriefing() {
     const { data } = await api.get(`/crm/ai/dashboard/briefing`);
     return data as { headline: string; bullets: string[]; topPriority: string };
+  },
+  async getManagerBriefing() {
+    return (await api.get('/crm/ai/team/briefing')).data.data as {
+      headline: string;
+      atRiskDeals: string[];
+      repActivityGaps: string[];
+      recommendations: string[];
+    };
+  },
+  async getWinLossDebrief(opportunityId: string) {
+    return (await api.get(`/crm/ai/opportunities/${opportunityId}/win-loss-debrief`)).data.data as {
+      outcome: 'WON' | 'LOST';
+      summary: string;
+      keyFactors: string[];
+      lessonsLearned: string[];
+      followOnActions: string[];
+    };
   },
   async getKycGaps(contactId: string) {
     const { data } = await api.get(`/crm/ai/contacts/${contactId}/kyc-gaps`);

@@ -382,6 +382,16 @@ class CrmController {
         owner: { select: userSelect },
         activities: { include: { user: { select: userSelect } }, orderBy: { createdAt: 'desc' }, take: 15 },
         notes: { include: { author: { select: userSelect } }, orderBy: { isPinned: 'desc' }, take: 20 },
+        stageHistory: {
+          orderBy: { movedAt: 'asc' },
+          select: {
+            id: true,
+            fromStageName: true,
+            toStageName: true,
+            movedByUserId: true,
+            movedAt: true,
+          },
+        },
       },
     });
     if (!opportunity) throw new AppError('Opportunity not found', 404);
@@ -605,6 +615,42 @@ class CrmController {
     }));
 
     res.json({ status: 'success', data: { agents: teamStats } });
+  });
+
+  // ======== MY STATS (Self-Service Rep Stats) ========
+  getMyStats = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.id;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const weekStart = new Date(now.getTime() - now.getDay() * 86_400_000);
+
+    const [leads, opportunities, pipelineValue, wonThisMonth, staleLeads, activitiesThisWeek] = await Promise.all([
+      // Open leads owned by user
+      prisma.crmLead.count({ where: { ownerId: userId, status: { notIn: ['CONVERTED', 'LOST'] }, deletedAt: null } }),
+      // Open opportunities owned by user
+      prisma.crmOpportunity.count({ where: { ownerId: userId, wonAt: null, lostAt: null, deletedAt: null } }),
+      // Pipeline value (sum of open deal values)
+      prisma.crmOpportunity.aggregate({ _sum: { value: true }, where: { ownerId: userId, wonAt: null, lostAt: null, deletedAt: null } }),
+      // Won this month count
+      prisma.crmOpportunity.count({ where: { ownerId: userId, wonAt: { gte: monthStart }, deletedAt: null } }),
+      // Stale leads (no activity in 7+ days)
+      prisma.crmLead.count({ where: { ownerId: userId, status: { notIn: ['CONVERTED', 'LOST'] }, deletedAt: null, activities: { none: { createdAt: { gte: sevenDaysAgo } } } } }),
+      // Activities this week
+      prisma.crmActivity.count({ where: { userId, createdAt: { gte: weekStart } } }),
+    ]);
+
+    res.json({
+      status: 'success',
+      data: {
+        leads,
+        opportunities,
+        pipelineValue: Number(pipelineValue._sum.value || 0),
+        wonThisMonth,
+        staleLeads,
+        activitiesThisWeek,
+      },
+    });
   });
 
   // ======== TRUST PRODUCTS ========

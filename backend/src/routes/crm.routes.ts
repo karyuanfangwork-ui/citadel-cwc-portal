@@ -29,6 +29,9 @@ router.get('/users', requirePermission('crm:read'), crmController.listCrmUsers);
 // ======== TEAM PERFORMANCE ========
 router.get('/team-performance', requirePermission('crm:admin'), crmController.getTeamPerformance);
 
+// ======== MY STATS (Self-Service Rep Stats) ========
+router.get('/my-stats', requirePermission('crm:read'), crmController.getMyStats);
+
 // ======== ACCOUNTS ========
 router.get('/accounts', requirePermission('crm:read'), crmController.listAccounts);
 router.get('/accounts/:id', requirePermission('crm:read'), crmController.getAccount);

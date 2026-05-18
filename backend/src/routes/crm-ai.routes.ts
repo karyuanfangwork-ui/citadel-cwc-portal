@@ -20,4 +20,8 @@ router.get('/contacts/:id/kyc-gaps', requirePermission('crm:read'), crmAiControl
 router.get('/contacts/:id/risk-profile', requirePermission('crm:read'), crmAiController.riskProfile);
 router.get('/trust-products/:id/document-checklist', requirePermission('crm:read'), crmAiController.documentChecklist);
 
+// Phase 3 — Manager Intelligence
+router.get('/team/briefing', requirePermission('crm:admin'), crmAiController.managerBriefing);
+router.get('/opportunities/:id/win-loss-debrief', requirePermission('crm:read'), crmAiController.winLossDebrief);
+
 export default router;

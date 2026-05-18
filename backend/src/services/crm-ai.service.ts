@@ -371,6 +371,70 @@ Return JSON: { "headline": string (1 sentence summary), "bullets": string[] (2-3
   return parseJson(raw);
 }
 
+// ─── Phase 3: Win/Loss Debrief ────────────────────────────────────────────────
+
+export async function generateWinLossDebrief(opportunityId: string): Promise<{
+  outcome: 'WON' | 'LOST';
+  summary: string;
+  keyFactors: string[];
+  lessonsLearned: string[];
+  followOnActions: string[];
+}> {
+  const opp = await prisma.crmOpportunity.findUniqueOrThrow({
+    where: { id: opportunityId },
+    include: {
+      stage: { select: { name: true, isWonStage: true, isLostStage: true } },
+      account: { select: { name: true } },
+      owner: { select: { firstName: true, lastName: true } },
+      activities: { orderBy: { createdAt: 'asc' }, take: 20, select: { activityType: true, subject: true, description: true } },
+      notes: { orderBy: { createdAt: 'asc' }, take: 10, select: { content: true } },
+    },
+  });
+
+  const outcome = opp.wonAt ? 'WON' : 'LOST';
+  const activitySummary = opp.activities
+    .map(a => `${a.activityType}: ${a.subject}${a.description ? ` — ${a.description}` : ''}`)
+    .join('\n') || 'No activities recorded';
+  const notesSummary = opp.notes.map(n => n.content).join('\n') || 'No notes';
+
+  const wlResponse = await getOpenAI().chat.completions.create({
+    model: FAST,
+    max_tokens: 600,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a CRM analyst for a Malaysian trust and estate planning company. Generate a concise win/loss debrief in JSON. Respond with valid JSON only.',
+      },
+      {
+        role: 'user',
+        content: `Generate a win/loss debrief for this opportunity:
+
+Opportunity: ${opp.name}
+Outcome: ${outcome}
+Value: MYR ${Number(opp.value || 0).toLocaleString()}
+Account: ${opp.account?.name || 'N/A'}
+Owner: ${opp.owner.firstName} ${opp.owner.lastName}
+Lost Reason: ${opp.lostReason || 'N/A'}
+
+Activity History:
+${activitySummary}
+
+Notes:
+${notesSummary}
+
+Return JSON with:
+- outcome: "${outcome}"
+- summary: string (2-3 sentence narrative of what happened)
+- keyFactors: string[] (up to 4 factors that determined the outcome)
+- lessonsLearned: string[] (up to 3 lessons for the team)
+- followOnActions: string[] (up to 3 next steps — e.g. re-engage in 6 months, referral ask, etc.)`,
+      },
+    ],
+  });
+
+  return parseJson(wlResponse.choices[0].message.content!);
+}
+
 // ─── Phase 3: Compliance Assist ──────────────────────────────────────────────
 
 export async function detectKycGaps(contactId: string): Promise<{
@@ -505,4 +569,79 @@ Return JSON: { "documents": [{ "name": string, "description": string (what this 
 
   const raw = response.choices[0].message.content!;
   return parseJson(raw);
+}
+
+// ─── Phase 3: Manager Intelligence ───────────────────────────────────────────
+
+export async function generateManagerBriefing(): Promise<{
+  headline: string;
+  atRiskDeals: string[];
+  repActivityGaps: string[];
+  recommendations: string[];
+}> {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const weekStart = new Date(now.getTime() - now.getDay() * 86_400_000);
+
+  // Stale open opportunities (not updated in 7+ days)
+  const staleOpps = await prisma.crmOpportunity.findMany({
+    where: { wonAt: null, lostAt: null, deletedAt: null, updatedAt: { lt: sevenDaysAgo } },
+    include: {
+      stage: { select: { name: true } },
+      owner: { select: { firstName: true, lastName: true } },
+    },
+    orderBy: { updatedAt: 'asc' },
+    take: 10,
+  });
+
+  // Activity count per rep this week
+  const reps = await prisma.user.findMany({
+    where: { isActive: true, roles: { some: { role: { name: 'SALES_REP' } } } },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  const activityCounts = await prisma.crmActivity.groupBy({
+    by: ['userId'],
+    _count: { id: true },
+    where: { userId: { in: reps.map(r => r.id) }, createdAt: { gte: weekStart } },
+  });
+  const actMap = new Map(activityCounts.map(a => [a.userId, a._count.id]));
+
+  const staleLines = staleOpps.map(o => {
+    const days = Math.floor((now.getTime() - o.updatedAt.getTime()) / 86_400_000);
+    return `${o.name} (${o.stage.name}) — ${days}d no update — owner: ${o.owner.firstName} ${o.owner.lastName} — value: MYR ${Number(o.value || 0).toLocaleString()}`;
+  });
+
+  const repLines = reps.map(r => {
+    const count = actMap.get(r.id) || 0;
+    return `${r.firstName} ${r.lastName}: ${count} activities this week`;
+  });
+
+  const response = await getOpenAI().chat.completions.create({
+    model: FAST,
+    max_tokens: 512,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a CRM sales manager assistant for a Malaysian trust and estate planning company. Generate a concise daily pipeline briefing in JSON. Respond with valid JSON only.',
+      },
+      {
+        role: 'user',
+        content: `Generate a manager pipeline briefing based on:
+
+Stale open deals (7+ days no update):
+${staleLines.length > 0 ? staleLines.join('\n') : 'None'}
+
+Rep activity summary (this week):
+${repLines.join('\n')}
+
+Return JSON with:
+- headline: string (1 sentence summary of pipeline health)
+- atRiskDeals: string[] (up to 5 deals needing attention, from the stale list)
+- repActivityGaps: string[] (reps with fewer than 3 activities this week)
+- recommendations: string[] (up to 3 concrete actions for the manager today)`,
+      },
+    ],
+  });
+
+  return parseJson(response.choices[0].message.content!);
 }

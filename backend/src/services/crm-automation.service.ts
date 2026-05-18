@@ -451,3 +451,62 @@ export async function autoAssignLead(leadId: string): Promise<{ id: string; owne
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// 8. Rep Inactivity Detection
+//    Finds sales reps with zero CRM activities today and notifies their managers
+// ---------------------------------------------------------------------------
+
+export async function checkRepInactivity(): Promise<void> {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  // Find all active sales reps
+  const reps = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      roles: { some: { role: { name: 'SALES_REP' } } },
+    },
+    select: { id: true, firstName: true, lastName: true, email: true },
+  });
+
+  if (reps.length === 0) return;
+
+  // Count today's activities per rep
+  const activityCounts = await prisma.crmActivity.groupBy({
+    by: ['userId'],
+    _count: { id: true },
+    where: { userId: { in: reps.map(r => r.id) }, createdAt: { gte: todayStart } },
+  });
+  const actMap = new Map(activityCounts.map(a => [a.userId, a._count.id]));
+
+  // Find managers to notify
+  const managers = await prisma.user.findMany({
+    where: {
+      isActive: true,
+      roles: { some: { role: { name: 'SALES_MANAGER' } } },
+    },
+    select: { id: true },
+  });
+
+  const inactiveReps = reps.filter(r => (actMap.get(r.id) || 0) === 0);
+  if (inactiveReps.length === 0) return;
+
+  const repNames = inactiveReps.map(r => `${r.firstName} ${r.lastName}`).join(', ');
+
+  // Notify each manager via the notification service
+  await Promise.all(
+    managers.map(manager =>
+      notify({
+        userId: manager.id,
+        eventType: 'crm_rep_inactivity',
+        variables: {
+          repNames,
+          count: String(inactiveReps.length),
+        },
+      }).catch(() => {})  // non-fatal
+    )
+  );
+
+  logger.info(`[CRM] Rep inactivity check: ${inactiveReps.length} inactive rep(s) notified to ${managers.length} manager(s)`);
+}

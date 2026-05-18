@@ -56,4 +56,14 @@ export const crmAiController = {
     const result = await aiService.generateDocumentChecklist(req.params.id as string);
     res.json(result);
   }),
+
+  managerBriefing: handle(async (_req, res) => {
+    const result = await aiService.generateManagerBriefing();
+    res.json({ status: 'success', data: result });
+  }),
+
+  winLossDebrief: handle(async (req, res) => {
+    const debrief = await aiService.generateWinLossDebrief(req.params.id as string);
+    res.json({ status: 'success', data: debrief });
+  }),
 };

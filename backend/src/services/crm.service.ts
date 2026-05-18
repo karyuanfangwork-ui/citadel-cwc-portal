@@ -1,4 +1,6 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import { generateWinLossDebrief } from './crm-ai.service';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -237,7 +239,7 @@ export async function moveOpportunityStage(
   userId: string,
   lostReason?: string
 ) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const opportunity = await tx.crmOpportunity.findUniqueOrThrow({
       where: { id: opportunityId },
       include: { stage: true },
@@ -288,8 +290,32 @@ export async function moveOpportunityStage(
       },
     });
 
-    return updated;
+    // Record stage history
+    await tx.crmOpportunityStageHistory.create({
+      data: {
+        opportunityId,
+        fromStageName: opportunity.stage.name,
+        toStageName: newStage.name,
+        movedByUserId: userId,
+      },
+    });
+
+    return { updated, newStage };
   });
+
+  // Fire-and-forget AI debrief when deal closes
+  if (result.newStage.isWonStage || result.newStage.isLostStage) {
+    setImmediate(() => {
+      generateWinLossDebrief(opportunityId)
+        .then(async (debrief) => {
+          const content = `**AI Win/Loss Debrief**\n\n${debrief.summary}\n\n**Key Factors:**\n${debrief.keyFactors.map(f => `• ${f}`).join('\n')}\n\n**Lessons Learned:**\n${debrief.lessonsLearned.map(l => `• ${l}`).join('\n')}\n\n**Follow-On Actions:**\n${debrief.followOnActions.map(a => `• ${a}`).join('\n')}`;
+          await prisma.crmNote.create({ data: { content, opportunityId, authorId: userId } });
+        })
+        .catch(err => logger.warn('[CRM] Win/loss debrief failed', { error: err }));
+    });
+  }
+
+  return result.updated;
 }
 
 // ============================================================================

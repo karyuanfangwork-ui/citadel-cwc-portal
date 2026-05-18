@@ -1665,6 +1665,7 @@ model CrmOpportunity {
   activities CrmActivity[]     @relation("ActivityOpportunity")
   notes      CrmNote[]         @relation("NoteOpportunity")
   trustProduct CrmTrustProduct?
+  stageHistory CrmOpportunityStageHistory[]
 
   @@map("crm_opportunities")
   @@index([accountId])
@@ -1672,6 +1673,20 @@ model CrmOpportunity {
   @@index([stageId])
   @@index([ownerId])
   @@index([expectedCloseDate])
+}
+
+// CRM Opportunity Stage History — records each stage progression
+model CrmOpportunityStageHistory {
+  id              String         @id @default(cuid())
+  opportunityId   String         @map("opportunity_id") @db.Uuid
+  opportunity     CrmOpportunity @relation(fields: [opportunityId], references: [id])
+  fromStageName   String?        @map("from_stage_name") @db.VarChar(100)
+  toStageName     String         @map("to_stage_name") @db.VarChar(100)
+  movedByUserId   String         @map("moved_by_user_id") @db.Uuid
+  movedAt         DateTime       @default(now()) @map("moved_at") @db.Timestamp(6)
+
+  @@map("crm_opportunity_stage_history")
+  @@index([opportunityId])
 }
 
 // CRM Activities — polymorphic activity log

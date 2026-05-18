@@ -7,6 +7,7 @@ import {
   checkStaleDeals,
   checkTrustReviewDates,
   checkKycExpiration,
+  checkRepInactivity,
 } from '../services/crm-automation.service';
 import { logger } from '../utils/logger';
 
@@ -16,6 +17,7 @@ let overdueFollowUpTask: ScheduledTask | null = null;
 let staleDealsTask: ScheduledTask | null = null;
 let trustReviewTask: ScheduledTask | null = null;
 let kycExpirationTask: ScheduledTask | null = null;
+let repInactivityTask: ScheduledTask | null = null;
 
 // Cron expressions — run each check at a different time to spread load
 const ACTIVITY_REMINDER_CRON = '0 */4 * * *';   // Every 4 hours
@@ -24,6 +26,7 @@ const OVERDUE_FOLLOWUP_CRON = '30 8 * * 1-5';    // Mon–Fri 8:30 AM
 const STALE_DEALS_CRON = '0 9 * * 1-5';           // Mon–Fri 9:00 AM
 const TRUST_REVIEW_CRON = '0 10 * * 1-5';          // Mon–Fri 10:00 AM
 const KYC_EXPIRATION_CRON = '0 6 * * 1-5';        // Mon–Fri 6:00 AM
+const REP_INACTIVITY_CRON = '0 16 * * 1-5';       // Mon–Fri 4:00 PM
 
 async function runActivityReminders(): Promise<void> {
   await checkActivityReminders().catch((err) =>
@@ -61,6 +64,12 @@ async function runKycExpiration(): Promise<void> {
   );
 }
 
+async function runRepInactivity(): Promise<void> {
+  await checkRepInactivity().catch((err) =>
+    logger.error('[CRM] Rep inactivity check failed', { error: err }),
+  );
+}
+
 function scheduleTask(
   label: string,
   cronExpr: string,
@@ -95,6 +104,7 @@ export function startCrmChecker(): void {
     staleDealsTask = scheduleTask('Stale Deals', STALE_DEALS_CRON, runStaleDeals);
     trustReviewTask = scheduleTask('Trust Review Dates', TRUST_REVIEW_CRON, runTrustReviewDates);
     kycExpirationTask = scheduleTask('KYC Expiration', KYC_EXPIRATION_CRON, runKycExpiration);
+    repInactivityTask = scheduleTask('Rep Inactivity', REP_INACTIVITY_CRON, runRepInactivity);
   } else {
     // Legacy interval mode — run all checks on a shared interval
     const { intervalMs } = config.crmSchedule;
@@ -108,6 +118,7 @@ export function startCrmChecker(): void {
       runStaleDeals();
       runTrustReviewDates();
       runKycExpiration();
+      runRepInactivity();
     }, intervalMs);
   }
 }
@@ -136,6 +147,10 @@ export function stopCrmChecker(): void {
   if (kycExpirationTask) {
     kycExpirationTask.stop();
     kycExpirationTask = null;
+  }
+  if (repInactivityTask) {
+    repInactivityTask.stop();
+    repInactivityTask = null;
   }
   logger.info('[CRM] CRM checker stopped');
 }

@@ -25,6 +25,21 @@ const CrmTeamDashboard = () => {
   const [agents, setAgents] = useState<TeamPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [briefing, setBriefing] = useState<{
+    headline: string; atRiskDeals: string[]; repActivityGaps: string[]; recommendations: string[];
+  } | null>(null);
+  const [briefingLoading, setBriefingLoading] = useState(false);
+  const [briefingOpen, setBriefingOpen] = useState(false);
+
+  const loadBriefing = async () => {
+    setBriefingLoading(true);
+    try {
+      const data = await crmService.getManagerBriefing();
+      setBriefing(data);
+      setBriefingOpen(true);
+    } catch { /* fail silently */ }
+    finally { setBriefingLoading(false); }
+  };
 
   // Permission guard — crm:admin only
   if (!hasPermission(user, 'crm:admin')) {
@@ -76,6 +91,59 @@ const CrmTeamDashboard = () => {
           <p className="text-sm mt-1">{error}</p>
         </div>
       )}
+
+      {/* Manager AI Briefing */}
+      <div className="bg-surface border border-border rounded-xl shadow-sm mb-6 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-violet-600">auto_awesome</span>
+            <span className="font-extrabold text-text-primary">AI Pipeline Briefing</span>
+            {briefing && (
+              <span className="text-xs text-text-secondary ml-2 truncate max-w-xs hidden sm:inline">
+                {briefing.headline}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={briefingOpen ? () => setBriefingOpen(false) : briefing ? () => setBriefingOpen(true) : loadBriefing}
+            disabled={briefingLoading}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+            style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+          >
+            <span className="material-symbols-outlined text-base">
+              {briefingLoading ? 'hourglass_empty' : briefingOpen ? 'expand_less' : 'expand_more'}
+            </span>
+            {briefingLoading ? 'Loading…' : briefingOpen ? 'Collapse' : briefing ? 'Show' : 'Generate'}
+          </button>
+        </div>
+
+        {briefingOpen && briefing && (
+          <div className="px-5 pb-5 border-t border-border pt-4 grid sm:grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs font-bold text-red-600 uppercase tracking-wide mb-2">At-Risk Deals</p>
+              {briefing.atRiskDeals.length === 0
+                ? <p className="text-sm text-text-secondary">None — pipeline looks healthy</p>
+                : briefing.atRiskDeals.map((d, i) => (
+                  <p key={i} className="text-sm text-text-primary mb-1">• {d}</p>
+                ))}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-2">Activity Gaps</p>
+              {briefing.repActivityGaps.length === 0
+                ? <p className="text-sm text-text-secondary">All reps active this week</p>
+                : briefing.repActivityGaps.map((r, i) => (
+                  <p key={i} className="text-sm text-text-primary mb-1">• {r}</p>
+                ))}
+            </div>
+            <div>
+              <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-2">Recommendations</p>
+              {briefing.recommendations.map((r, i) => (
+                <p key={i} className="text-sm text-text-primary mb-1">• {r}</p>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">

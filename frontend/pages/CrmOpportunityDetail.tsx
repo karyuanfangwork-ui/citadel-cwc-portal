@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmOpportunity, CrmActivity, CrmActivityType } from '../src/services/crm.service';
+import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmStageHistory } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 
@@ -24,7 +24,7 @@ const CrmOpportunityDetail = () => {
   const navigate = useNavigate();
   const [opp, setOpp] = useState<CrmOpportunity | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'history'>('overview');
   const [showMoveStage, setShowMoveStage] = useState(false);
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
@@ -39,6 +39,23 @@ const CrmOpportunityDetail = () => {
   const [winLoading, setWinLoading] = useState(false);
   const [analyzedNotes, setAnalyzedNotes] = useState<Record<string, { sentiment: string; nextAction: string; suggestedStatusChange: string | null; keyFacts: string[] } | null>>({});
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+
+  // ── AI Win/Loss Debrief state ──────────────────────────────────────────
+  const [debrief, setDebrief] = useState<{
+    outcome: 'WON' | 'LOST'; summary: string; keyFactors: string[];
+    lessonsLearned: string[]; followOnActions: string[];
+  } | null>(null);
+  const [debriefLoading, setDebriefLoading] = useState(false);
+
+  const handleGetDebrief = async () => {
+    if (!id) return;
+    setDebriefLoading(true);
+    try {
+      const result = await crmService.getWinLossDebrief(id);
+      setDebrief(result);
+    } catch { /* fail silently */ }
+    finally { setDebriefLoading(false); }
+  };
 
   const handleWinProbability = async () => {
     if (!id) return;
@@ -241,11 +258,11 @@ const CrmOpportunityDetail = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
-        {(['overview', 'activities', 'notes'] as const).map(tab => (
+        {(['overview', 'activities', 'notes', 'history'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
             className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-            {tab}
+            {tab === 'history' ? 'Stage History' : tab}
           </button>
         ))}
       </div>
@@ -274,6 +291,43 @@ const CrmOpportunityDetail = () => {
               <p className="text-sm text-text-primary leading-relaxed">{opp.description}</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* AI Win/Loss Debrief — shown only for won/lost deals */}
+      {activeTab === 'overview' && (isWon || isLost) && (
+        <div className="mt-4 pt-4 border-t border-border">
+          <AiInsightCard
+            title={`AI ${isWon ? 'Win' : 'Loss'} Debrief`}
+            loading={debriefLoading}
+            onRefresh={handleGetDebrief}
+          >
+            {!debrief ? (
+              <button
+                onClick={handleGetDebrief}
+                className="text-sm text-violet-600 hover:underline"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              >
+                Generate debrief
+              </button>
+            ) : (
+              <div className="space-y-3 text-sm">
+                <p className="text-text-primary">{debrief.summary}</p>
+                <div>
+                  <p className="text-xs font-bold text-text-secondary uppercase mb-1">Key Factors</p>
+                  {debrief.keyFactors.map((f, i) => <p key={i} className="text-text-primary">• {f}</p>)}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-text-secondary uppercase mb-1">Lessons Learned</p>
+                  {debrief.lessonsLearned.map((l, i) => <p key={i} className="text-text-primary">• {l}</p>)}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-emerald-700 uppercase mb-1">Follow-On Actions</p>
+                  {debrief.followOnActions.map((a, i) => <p key={i} className="text-emerald-700 font-medium">• {a}</p>)}
+                </div>
+              </div>
+            )}
+          </AiInsightCard>
         </div>
       )}
 
@@ -357,6 +411,29 @@ const CrmOpportunityDetail = () => {
               {n.isPinned && <span className="flex items-center gap-1 text-xs text-yellow-600 mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
               <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{n.content}</p>
               <p className="text-xs text-text-secondary mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="space-y-3">
+          {(opp.stageHistory ?? []).length === 0 && <p className="text-text-secondary text-sm">No stage history yet.</p>}
+          {(opp.stageHistory ?? []).map((h: CrmStageHistory, i: number) => (
+            <div key={h.id} className="flex gap-4 bg-bg-surface border border-border rounded-xl p-4">
+              <div className="flex flex-col items-center">
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
+                  style={{ background: i === (opp.stageHistory?.length ?? 0) - 1 ? '#22c55e' : 'var(--bg-subtle)', color: i === (opp.stageHistory?.length ?? 0) - 1 ? '#fff' : 'var(--text-secondary)' }}>
+                  {i + 1}
+                </div>
+                {i < (opp.stageHistory?.length ?? 0) - 1 && <div className="w-0.5 flex-1 bg-border mt-1" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-text-primary text-sm">
+                  {h.fromStageName ? <>{h.fromStageName} <span className="material-symbols-outlined text-xs align-middle">arrow_forward</span> {h.toStageName}</> : <>Moved to <strong>{h.toStageName}</strong></>}
+                </p>
+                <p className="text-xs text-text-secondary mt-1">{formatDate(h.movedAt)}</p>
+              </div>
             </div>
           ))}
         </div>
