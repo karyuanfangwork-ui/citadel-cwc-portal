@@ -23,11 +23,21 @@ const STATUS_BADGE: Record<BorrowerProfileStatus, { bg: string; text: string }> 
 const APP_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   DRAFT: { bg: '#6366f120', text: '#6366f1' },
   SUBMITTED: { bg: '#f59e0b20', text: '#d97706' },
+  KYC_REVIEW: { bg: '#3b82f620', text: '#2563eb' },
+  KYC_APPROVED: { bg: '#22c55e20', text: '#16a34a' },
+  KYC_REJECTED: { bg: '#ef444420', text: '#dc2626' },
   UNDER_REVIEW: { bg: '#3b82f620', text: '#2563eb' },
+  UNDERWRITING: { bg: '#8b5cf620', text: '#7c3aed' },
+  CREDIT_ASSESSMENT: { bg: '#a78bfa20', text: '#7c3aed' },
+  COMMITTEE_REVIEW: { bg: '#f9731620', text: '#ea580c' },
   APPROVED: { bg: '#22c55e20', text: '#16a34a' },
   REJECTED: { bg: '#ef444420', text: '#dc2626' },
+  OFFER: { bg: '#06b6d420', text: '#0891b2' },
+  ACCEPTED: { bg: '#14b8a620', text: '#0d9488' },
   DISBURSED: { bg: '#06b6d420', text: '#0891b2' },
+  ACTIVE: { bg: '#22c55e20', text: '#16a34a' },
   CLOSED: { bg: '#6b728020', text: '#6b7280' },
+  WITHDRAWN: { bg: '#6b728020', text: '#6b7280' },
 };
 
 type DetailTab = 'overview' | 'documents' | 'applications' | 'financials' | 'notes';
@@ -274,6 +284,16 @@ const BorrowerProfileDetail: React.FC = () => {
         {/* Applications tab */}
         {activeTab === 'applications' && (
           <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Credit Applications</h3>
+              {canWrite && (
+                <button onClick={() => setShowNewApp(true)}
+                  className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  <span className="material-symbols-outlined text-base">add</span> New Credit Application
+                </button>
+              )}
+            </div>
             {(profile.applications ?? []).length === 0 && (
               <div className="text-center py-8 text-text-secondary bg-bg-surface border border-border rounded-xl">
                 <span className="material-symbols-outlined text-4xl block mb-2 opacity-30">description</span>
@@ -283,17 +303,19 @@ const BorrowerProfileDetail: React.FC = () => {
             )}
             <div className="space-y-3">
               {(profile.applications ?? []).map(app => {
-                const appBadge = APP_STATUS_COLORS[app.status] || { bg: '#6366f120', text: '#6366f1' };
+                const state = (app.state || app.status) as string;
+                const appBadge = APP_STATUS_COLORS[state] || { bg: '#6366f120', text: '#6366f1' };
                 return (
-                  <div key={app.id} className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors">
+                  <div key={app.id} className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/credit/applications/${app.id}`)}>
                     <div className="w-10 h-10 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
                       <span className="material-symbols-outlined text-brand-700 text-lg">description</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-semibold text-text-primary text-sm">{app.productName}</p>
+                        <p className="font-semibold text-text-primary text-sm">{app.productName || (app as any).productType?.replace(/_/g, ' ') || 'Application'}</p>
                         <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: appBadge.bg, color: appBadge.text }}>
-                          {app.status.replace(/_/g, ' ')}
+                          {state.replace(/_/g, ' ')}
                         </span>
                       </div>
                       <p className="text-xs text-text-secondary mt-0.5">
@@ -305,6 +327,7 @@ const BorrowerProfileDetail: React.FC = () => {
                       <p className="text-sm font-bold text-text-primary">{formatCurrency(app.approvedAmount ?? app.requestedAmount)}</p>
                       {app.interestRate && <p className="text-xs text-text-secondary">{app.interestRate}% p.a.</p>}
                     </div>
+                    <span className="material-symbols-outlined text-base text-text-secondary">chevron_right</span>
                   </div>
                 );
               })}
@@ -374,9 +397,14 @@ const BorrowerProfileDetail: React.FC = () => {
               <h2 className="text-lg font-black text-text-primary mb-4">New Credit Application</h2>
               <form onSubmit={handleCreateApplication} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Product Name *</label>
-                  <input required value={appForm.productName ?? ''} onChange={e => setAppForm(f => ({ ...f, productName: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Product Type *</label>
+                  <select required value={(appForm as any).productType ?? ''} onChange={e => setAppForm(f => ({ ...f, productType: e.target.value } as any))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                    <option value="">Select product...</option>
+                    {['TERM_LOAN','REVOLVING_CREDIT','TRADE_FINANCE','PROJECT_FINANCE','SYNDICATED','BRIDGE_LOAN','OVERDRAFT','LETTER_OF_CREDIT','BANK_GUARANTEE'].map(p => (
+                      <option key={p} value={p}>{p.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

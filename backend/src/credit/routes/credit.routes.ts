@@ -9,6 +9,10 @@ import shareholderRoutes from './shareholder.routes';
 import uboRoutes from './ubo.routes';
 import relatedPartyGroupRoutes from './relatedPartyGroup.routes';
 import creditDocumentRoutes from './creditDocument.routes';
+import approvalRoutes from './approval.routes';
+import applicationRoutes from './creditApplication.routes';
+import applicationFacilityRoutes from './applicationFacility.routes';
+import applicationPartyRoutes from './applicationParty.routes';
 
 const router = Router();
 
@@ -99,7 +103,12 @@ router.use('/related-party-groups', relatedPartyGroupRoutes);
 router.use(creditDocumentRoutes);
 
 // Applications — Sprint 2
-// router.use('/applications', applicationRoutes);
+router.use('/applications', applicationRoutes);
+router.use('/applications', applicationFacilityRoutes);
+router.use('/applications', applicationPartyRoutes);
+
+// Approval Matrix & Actions — Sprint 2
+router.use(approvalRoutes);
 
 // Financials — Sprint 3
 // router.use('/borrowers/:borrowerId/financials', financialRoutes);

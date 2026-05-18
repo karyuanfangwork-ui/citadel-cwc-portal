@@ -63,6 +63,9 @@ import CrmGuide from './pages/CrmGuide';
 import CreditDashboard from './pages/CreditDashboard';
 import BorrowerProfileList from './pages/BorrowerProfileList';
 import BorrowerProfileDetail from './pages/BorrowerProfileDetail';
+import CreditApplicationList from './pages/CreditApplicationList';
+import CreditApplicationDetail from './pages/CreditApplicationDetail';
+import MyApprovals from './pages/MyApprovals';
 import Announcements from './pages/Announcements';
 import AnnouncementsManage from './pages/AnnouncementsManage';
 import AnnouncementDetail from './pages/AnnouncementDetail';
@@ -517,6 +520,9 @@ const AppShell = () => {
               <Route path="/credit" element={<ProtectedRoute requirePermission="credit:read"><CreditDashboard /></ProtectedRoute>} />
               <Route path="/credit/borrowers" element={<ProtectedRoute requirePermission="credit:read"><BorrowerProfileList /></ProtectedRoute>} />
               <Route path="/credit/borrowers/:id" element={<ProtectedRoute requirePermission="credit:read"><BorrowerProfileDetail /></ProtectedRoute>} />
+              <Route path="/credit/applications" element={<ProtectedRoute requirePermission="credit:read"><CreditApplicationList /></ProtectedRoute>} />
+              <Route path="/credit/applications/:id" element={<ProtectedRoute requirePermission="credit:read"><CreditApplicationDetail /></ProtectedRoute>} />
+              <Route path="/credit/approvals" element={<ProtectedRoute requirePermission="credit:review"><MyApprovals /></ProtectedRoute>} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
                 <ProtectedRoute requirePermission="admin:access">

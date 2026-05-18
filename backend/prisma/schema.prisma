@@ -129,6 +129,7 @@ model User {
   creditApplicationAnalyst CreditApplication[]     @relation("CreditApplicationAnalyst")
   creditDocumentUploads    CreditDocument[]        @relation("CreditDocumentUpload")
   creditDecisions          CreditDecision[]        @relation("CreditDecisionBy")
+  matrixVersionApprovals  CreditApprovalMatrixVersion[] @relation("MatrixVersionApprovedBy")
 
   @@index([email])
   @@index([managerId])
@@ -2658,4 +2659,57 @@ model Condition {
   @@index([applicationId])
   @@index([conditionType])
   @@map("conditions")
+}
+
+// ============================================================================
+// Credit Approval Matrix — defines authority levels by exposure & risk rating
+// ============================================================================
+model CreditApprovalMatrix {
+  id                  String     @id @default(uuid()) @db.Uuid
+  name                String     @db.VarChar(255)
+  description         String?    @db.Text
+  
+  minExposure         Decimal    @map("min_exposure") @db.Decimal(15, 2)
+  maxExposure         Decimal    @map("max_exposure") @db.Decimal(15, 2)
+  minRating           RiskRating @map("min_rating")
+  maxRating           RiskRating @map("max_rating")
+  
+  authorityLevel      String     @map("authority_level") @db.VarChar(50)
+  requiredApproverCount Int      @map("required_approver_count") @default(1)
+  
+  isActive            Boolean    @default(true) @map("is_active")
+  effectiveFrom       DateTime   @map("effective_from") @db.Timestamp(6)
+  effectiveTo         DateTime?  @map("effective_to") @db.Timestamp(6)
+  
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  versions            CreditApprovalMatrixVersion[]
+  
+  @@index([authorityLevel])
+  @@index([isActive])
+  @@index([effectiveFrom])
+  @@map("credit_approval_matrices")
+}
+
+// ============================================================================
+// Credit Approval Matrix Version — snapshot of matrix rules for audit trail
+// ============================================================================
+model CreditApprovalMatrixVersion {
+  id            String   @id @default(uuid()) @db.Uuid
+  matrixId      String   @map("matrix_id") @db.Uuid
+  
+  version       Int
+  snapshot      Json
+  
+  approvedById  String   @map("approved_by_id") @db.Uuid
+  approvedAt    DateTime @map("approved_at") @db.Timestamp(6)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  
+  matrix        CreditApprovalMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+  approvedBy    User                 @relation("MatrixVersionApprovedBy", fields: [approvedById], references: [id])
+  
+  @@index([matrixId])
+  @@unique([matrixId, version])
+  @@map("credit_approval_matrix_versions")
 }

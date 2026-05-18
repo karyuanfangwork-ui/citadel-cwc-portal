@@ -3,9 +3,29 @@ import apiClient from './api';
 // ── Credit Module Types ───────────────────────────────────────
 
 export type BorrowerProfileStatus = 'DRAFT' | 'PENDING_REVIEW' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
-export type CreditApplicationStatus = 'DRAFT' | 'SUBMITTED' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | 'DISBURSED' | 'CLOSED';
 export type DocumentType = 'NRIC' | 'PASSPORT' | 'BUSINESS_REG' | 'TAX_RETURN' | 'BANK_STATEMENT' | 'FINANCIAL_STATEMENT' | 'UTILITY_BILL' | 'OTHER';
 export type DocumentStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+
+export type ApplicationState =
+  | 'DRAFT' | 'SUBMITTED' | 'KYC_REVIEW' | 'KYC_APPROVED' | 'KYC_REJECTED'
+  | 'UNDERWRITING' | 'CREDIT_ASSESSMENT' | 'COMMITTEE_REVIEW'
+  | 'APPROVED' | 'REJECTED' | 'OFFER' | 'ACCEPTED'
+  | 'DISBURSED' | 'ACTIVE' | 'CLOSED' | 'WITHDRAWN';
+
+export type CreditProductType =
+  | 'TERM_LOAN' | 'REVOLVING_CREDIT' | 'TRADE_FINANCE' | 'PROJECT_FINANCE'
+  | 'SYNDICATED' | 'BRIDGE_LOAN' | 'OVERDRAFT' | 'LETTER_OF_CREDIT' | 'BANK_GUARANTEE';
+
+export type FacilityType =
+  | 'TERM_LOAN' | 'REVOLVING_CREDIT' | 'OVERDRAFT' | 'LETTER_OF_CREDIT'
+  | 'BANK_GUARANTEE' | 'TRADE_FINANCE' | 'BRIDGE_LOAN' | 'PROJECT_FINANCE';
+
+export type CurrencyCode = 'MYR' | 'USD' | 'SGD' | 'GBP' | 'EUR' | 'JPY' | 'CNY' | 'THB' | 'IDR' | 'AUD' | 'HKD';
+
+export type ApprovalDecision = 'APPROVED' | 'REJECTED' | 'RETURNED' | 'ESCALATED';
+
+// Keep backward compat alias
+export type CreditApplicationStatus = ApplicationState;
 
 export interface CreditUserRef {
   id: string;
@@ -72,22 +92,116 @@ export interface CreditDocument {
 export interface CreditApplication {
   id: string;
   borrowerProfileId: string;
-  productName: string;
+  productType: CreditProductType;
   requestedAmount: number;
-  currency: string;
+  currency: CurrencyCode;
   tenureMonths: number;
   purpose: string | null;
-  status: CreditApplicationStatus;
+  state: ApplicationState;
   approvedAmount: number | null;
   interestRate: number | null;
-  reviewedAt: string | null;
-  reviewedBy: string | null;
+  riskRating: string | null;
+  rmId: string | null;
+  analystId: string | null;
+  submittedAt: string | null;
+  decidedAt: string | null;
   rejectionReason: string | null;
-  disbursedAt: string | null;
+  withdrawnAt: string | null;
   createdAt: string;
   updatedAt: string;
+  // legacy compat
+  status?: ApplicationState;
+  productName?: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  // relations
   borrowerProfile?: BorrowerProfile;
+  rm?: CreditUserRef;
+  analyst?: CreditUserRef;
   reviewer?: CreditUserRef;
+  facilities?: CreditFacility[];
+  parties?: CreditApplicationParty[];
+  approvals?: CreditApproval[];
+}
+
+export interface CreditFacility {
+  id: string;
+  applicationId: string;
+  facilityType: FacilityType;
+  currency: CurrencyCode;
+  approvedAmount: number;
+  interestRate: number | null;
+  tenureMonths: number;
+  purpose: string | null;
+  conditions: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreditApplicationParty {
+  id: string;
+  applicationId: string;
+  partyType: 'BORROWER' | 'GUARANTOR' | 'COVENANTOR' | 'DIRECTOR' | 'SHAREHOLDER';
+  firstName: string;
+  lastName: string;
+  nricPassport: string | null;
+  email: string | null;
+  phone: string | null;
+  relationship: string | null;
+  createdAt: string;
+}
+
+export interface CreditApproval {
+  id: string;
+  applicationId: string;
+  approverId: string;
+  decision: ApprovalDecision;
+  comment: string | null;
+  isCommitteeVote: boolean;
+  decidedAt: string | null;
+  createdAt: string;
+  approver?: CreditUserRef;
+}
+
+export interface ApprovalMatrix {
+  id: string;
+  name: string;
+  productType: CreditProductType;
+  minExposure: number;
+  maxExposure: number | null;
+  riskRating: string;
+  authorityLevel: string;
+  approverIds: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreditAuditEvent {
+  id: string;
+  applicationId: string;
+  action: string;
+  fromState: ApplicationState | null;
+  toState: ApplicationState | null;
+  performedBy: string | null;
+  comment: string | null;
+  metadata: Record<string, any> | null;
+  createdAt: string;
+  performer?: CreditUserRef;
+}
+
+export interface ApplicationTransition {
+  action: string;
+  label: string;
+  fromState: ApplicationState;
+  toState: ApplicationState;
+  requiresComment: boolean;
+}
+
+export interface ApprovalMatrixLookup {
+  authorityLevel: string;
+  approverIds: string[];
+  matrixId: string;
 }
 
 export interface Pagination {
@@ -173,9 +287,82 @@ const creditService = {
     return res.data.data.application as CreditApplication;
   },
 
-  async submitApplication(id: string) {
-    const res = await apiClient.post(`/credit/applications/${id}/submit`);
+  async deleteApplication(id: string) {
+    await apiClient.delete(`/credit/applications/${id}`);
+  },
+
+  // State Machine Transitions
+  async transitionApplication(id: string, data: { action: string; reason?: string }) {
+    const res = await apiClient.post(`/credit/applications/${id}/transition`, data);
     return res.data.data.application as CreditApplication;
+  },
+
+  async getApplicationTransitions(id: string) {
+    const res = await apiClient.get(`/credit/applications/${id}/transitions`);
+    return res.data.data.transitions as ApplicationTransition[];
+  },
+
+  async getApplicationAudit(id: string) {
+    const res = await apiClient.get(`/credit/applications/${id}/audit`);
+    return res.data.data.audit as CreditAuditEvent[];
+  },
+
+  // Facilities
+  async listFacilities(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/facilities`);
+    return res.data.data.facilities as CreditFacility[];
+  },
+
+  async createFacility(applicationId: string, data: Partial<CreditFacility>) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/facilities`, data);
+    return res.data.data.facility as CreditFacility;
+  },
+
+  async updateFacility(id: string, data: Partial<CreditFacility>) {
+    const res = await apiClient.patch(`/credit/facilities/${id}`, data);
+    return res.data.data.facility as CreditFacility;
+  },
+
+  async deleteFacility(id: string) {
+    await apiClient.delete(`/credit/facilities/${id}`);
+  },
+
+  // Parties
+  async listParties(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/parties`);
+    return res.data.data.parties as CreditApplicationParty[];
+  },
+
+  async createParty(applicationId: string, data: Partial<CreditApplicationParty>) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/parties`, data);
+    return res.data.data.party as CreditApplicationParty;
+  },
+
+  // Approvals
+  async listApprovals(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/approvals`);
+    return res.data.data.approvals as CreditApproval[];
+  },
+
+  async submitApproval(applicationId: string, data: { decision: ApprovalDecision; comment?: string; isCommitteeVote?: boolean }) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/approvals`, data);
+    return res.data.data.approval as CreditApproval;
+  },
+
+  // Approval Matrices
+  async listApprovalMatrices(params: Record<string, any> = {}) {
+    const res = await apiClient.get('/credit/approval-matrices', { params });
+    return res.data.data as { matrices: ApprovalMatrix[]; pagination: Pagination };
+  },
+
+  async lookupApprovalAuthority(data: { exposure: number; riskRating: string }) {
+    const res = await apiClient.post('/credit/approval-matrices/lookup', data);
+    return res.data.data as ApprovalMatrixLookup;
+  },
+
+  // Legacy compat methods
+  async submitApplication(id: string) {
+    return creditService.transitionApplication(id, { action: 'submit' });
   },
 
   async approveApplication(id: string, data: { approvedAmount?: number; interestRate?: number }) {
@@ -186,10 +373,6 @@ const creditService = {
   async rejectApplication(id: string, reason: string) {
     const res = await apiClient.post(`/credit/applications/${id}/reject`, { rejectionReason: reason });
     return res.data.data.application as CreditApplication;
-  },
-
-  async deleteApplication(id: string) {
-    await apiClient.delete(`/credit/applications/${id}`);
   },
 
   // Dashboard stats
