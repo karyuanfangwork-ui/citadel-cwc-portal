@@ -14,9 +14,11 @@ const CREDIT_NAV_ITEMS: CreditNavItem[] = [
   { to: '/credit', label: 'Dashboard', icon: 'dashboard' },
   { to: '/credit/borrowers', label: 'Borrowers', icon: 'person' },
   { to: '/credit/applications', label: 'Applications', icon: 'description' },
+  { to: '/credit/financials', label: 'Financials', icon: 'spreadsheet', permission: 'credit:read' },
   { to: '/credit/approvals', label: 'My Approvals', icon: 'approval', permission: 'credit:review' },
   { to: '/credit/reviews', label: 'Reviews', icon: 'rate_review', permission: 'credit:review' },
   { to: '/credit/disbursements', label: 'Disbursements', icon: 'payments', permission: 'credit:disburse' },
+  { to: '/credit/scorecards', label: 'Scorecards', icon: 'dashboard_customize', permission: 'credit:admin' },
   { to: '/credit/reports', label: 'Reports', icon: 'bar_chart' },
 ];
 

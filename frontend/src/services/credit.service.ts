@@ -27,6 +27,14 @@ export type ApprovalDecision = 'APPROVED' | 'REJECTED' | 'RETURNED' | 'ESCALATED
 // Keep backward compat alias
 export type CreditApplicationStatus = ApplicationState;
 
+// ── Sprint 3 Types ────────────────────────────────────────────
+
+export type FinancialStatementType = 'BS' | 'PL' | 'CF';
+export type FinancialPeriod = 'ANNUAL' | 'QUARTERLY';
+export type FinancialStatus = 'DRAFT' | 'REVIEWED' | 'APPROVED';
+export type RatioCategory = 'PROFITABILITY' | 'LEVERAGE' | 'LIQUIDITY' | 'COVERAGE' | 'ACTIVITY';
+export type RiskRating = 'AAA' | 'AA' | 'A' | 'BBB' | 'BB' | 'B' | 'CCC' | 'CC' | 'C' | 'D' | 'NR';
+
 export interface CreditUserRef {
   id: string;
   firstName: string;
@@ -211,6 +219,129 @@ export interface Pagination {
   totalPages: number;
 }
 
+// ── Sprint 3: Financial Spreading Types ───────────────────────
+
+export interface FinancialStatement {
+  id: string;
+  borrowerProfileId: string;
+  statementType: FinancialStatementType;
+  period: FinancialPeriod;
+  periodDate: string;
+  currency: CurrencyCode;
+  status: FinancialStatus;
+  enteredBy: string | null;
+  reviewedBy: string | null;
+  approvedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lineItems?: FinancialLineItem[];
+  enterer?: CreditUserRef;
+  reviewer?: CreditUserRef;
+  approverRef?: CreditUserRef;
+}
+
+export interface FinancialLineItem {
+  id?: string;
+  financialStatementId: string;
+  lineKey: string;
+  lineLabel: string;
+  amount: number;
+  displayOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface FinancialRatio {
+  id: string;
+  financialStatementId: string;
+  ratioKey: string;
+  ratioLabel: string;
+  category: RatioCategory;
+  value: number;
+  previousValue: number | null;
+  trend: 'UP' | 'DOWN' | 'STABLE' | null;
+  createdAt: string;
+}
+
+export interface TrendAnalysis {
+  borrowerProfileId: string;
+  ratios: FinancialRatio[];
+  periods: string[];
+}
+
+export interface ExposureSummary {
+  borrowerProfileId: string;
+  totalExposure: number;
+  currency: CurrencyCode;
+  breakdown: ExposureBreakdownItem[];
+  utilization: number | null;
+}
+
+export interface ExposureBreakdownItem {
+  facilityType: FacilityType;
+  approvedAmount: number;
+  outstandingAmount: number;
+  availableAmount: number;
+  count: number;
+}
+
+// ── Sprint 3: Scorecard Types ─────────────────────────────────
+
+export interface CreditScorecard {
+  id: string;
+  name: string;
+  description: string | null;
+  productType: CreditProductType | null;
+  activeVersionId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { versions: number };
+  versions?: CreditScorecardVersion[];
+  activeVersion?: CreditScorecardVersion;
+}
+
+export interface CreditScorecardVersion {
+  id: string;
+  scorecardId: string;
+  versionNumber: number;
+  isActive: boolean;
+  factors: ScorecardFactor[];
+  createdAt: string;
+  createdBy: string;
+  creator?: CreditUserRef;
+}
+
+export interface ScorecardFactor {
+  key: string;
+  label: string;
+  weight: number;
+}
+
+export interface CreditScoreRun {
+  id: string;
+  applicationId: string;
+  scorecardVersionId: string;
+  totalScore: number;
+  riskRating: RiskRating;
+  factorBreakdown: ScoreFactorResult[];
+  overriddenRating: RiskRating | null;
+  overrideReason: string | null;
+  overriddenBy: string | null;
+  overriddenAt: string | null;
+  executedAt: string;
+  executedBy: string;
+  executor?: CreditUserRef;
+  overrider?: CreditUserRef;
+}
+
+export interface ScoreFactorResult {
+  factorKey: string;
+  factorLabel: string;
+  score: number;
+  weight: number;
+  weightedScore: number;
+}
+
 // ── Credit API Service ─────────────────────────────────────────
 
 const creditService = {
@@ -385,6 +516,154 @@ const creditService = {
       totalDisbursed: number;
       recentActivities: Array<{ id: string; type: string; description: string; createdAt: string }>;
     };
+  },
+};
+
+// ── Sprint 3: Financial Spreading API ──────────────────────────
+
+export const financialApi = {
+  async listStatements(borrowerProfileId: string) {
+    const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/financials`);
+    return res.data.data.statements as FinancialStatement[];
+  },
+
+  async createStatement(borrowerProfileId: string, data: {
+    statementType: FinancialStatementType;
+    period: FinancialPeriod;
+    periodDate: string;
+    currency?: CurrencyCode;
+  }) {
+    const res = await apiClient.post(`/credit/borrowers/${borrowerProfileId}/financials`, data);
+    return res.data.data.statement as FinancialStatement;
+  },
+
+  async getStatement(id: string) {
+    const res = await apiClient.get(`/credit/financials/${id}`);
+    return res.data.data.statement as FinancialStatement;
+  },
+
+  async updateStatement(id: string, data: Partial<FinancialStatement>) {
+    const res = await apiClient.patch(`/credit/financials/${id}`, data);
+    return res.data.data.statement as FinancialStatement;
+  },
+
+  async deleteStatement(id: string) {
+    await apiClient.delete(`/credit/financials/${id}`);
+  },
+
+  async listLineItems(statementId: string) {
+    const res = await apiClient.get(`/credit/financials/${statementId}/line-items`);
+    return res.data.data.lineItems as FinancialLineItem[];
+  },
+
+  async upsertLineItems(statementId: string, items: Array<{ lineKey: string; lineLabel: string; amount: number; displayOrder: number; id?: string }>) {
+    const res = await apiClient.post(`/credit/financials/${statementId}/line-items`, { items });
+    return res.data.data.lineItems as FinancialLineItem[];
+  },
+
+  async validateBalanceSheet(statementId: string) {
+    const res = await apiClient.post(`/credit/financials/${statementId}/validate`);
+    return res.data.data as { valid: boolean; difference: number; totalAssets: number; totalLiabilitiesEquity: number };
+  },
+
+  async submitForReview(statementId: string) {
+    const res = await apiClient.post(`/credit/financials/${statementId}/submit`);
+    return res.data.data.statement as FinancialStatement;
+  },
+
+  async reviewStatement(statementId: string, data: { decision: 'APPROVED' | 'REJECTED'; comment?: string }) {
+    const res = await apiClient.post(`/credit/financials/${statementId}/review`, data);
+    return res.data.data.statement as FinancialStatement;
+  },
+
+  async computeRatios(statementId: string) {
+    const res = await apiClient.post(`/credit/financials/${statementId}/compute-ratios`);
+    return res.data.data.ratios as FinancialRatio[];
+  },
+
+  async listRatios(statementId: string) {
+    const res = await apiClient.get(`/credit/financials/${statementId}/ratios`);
+    return res.data.data.ratios as FinancialRatio[];
+  },
+};
+
+// ── Sprint 3: Trend API ───────────────────────────────────────
+
+export const trendApi = {
+  async getTrends(borrowerProfileId: string) {
+    const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/trends`);
+    return res.data.data as TrendAnalysis;
+  },
+};
+
+// ── Sprint 3: Exposure API ─────────────────────────────────────
+
+export const exposureApi = {
+  async getExposure(borrowerProfileId: string) {
+    const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/exposure`);
+    return res.data.data as ExposureSummary;
+  },
+};
+
+// ── Sprint 3: Scorecard API ───────────────────────────────────
+
+export const scorecardApi = {
+  async list(params: Record<string, any> = {}) {
+    const res = await apiClient.get('/credit/scorecards', { params });
+    return res.data.data.scorecards as CreditScorecard[];
+  },
+
+  async create(data: { name: string; description?: string; productType?: CreditProductType }) {
+    const res = await apiClient.post('/credit/scorecards', data);
+    return res.data.data.scorecard as CreditScorecard;
+  },
+
+  async get(id: string) {
+    const res = await apiClient.get(`/credit/scorecards/${id}`);
+    return res.data.data.scorecard as CreditScorecard;
+  },
+
+  async update(id: string, data: Partial<CreditScorecard>) {
+    const res = await apiClient.patch(`/credit/scorecards/${id}`, data);
+    return res.data.data.scorecard as CreditScorecard;
+  },
+
+  async delete(id: string) {
+    await apiClient.delete(`/credit/scorecards/${id}`);
+  },
+
+  async listVersions(scorecardId: string) {
+    const res = await apiClient.get(`/credit/scorecards/${scorecardId}/versions`);
+    return res.data.data.versions as CreditScorecardVersion[];
+  },
+
+  async createVersion(scorecardId: string, data: { factors: Array<{ key: string; label: string; weight: number }> }) {
+    const res = await apiClient.post(`/credit/scorecards/${scorecardId}/versions`, data);
+    return res.data.data.version as CreditScorecardVersion;
+  },
+
+  async activateVersion(versionId: string) {
+    const res = await apiClient.post(`/credit/scorecard-versions/${versionId}/activate`);
+    return res.data.data.version as CreditScorecardVersion;
+  },
+};
+
+// ── Sprint 3: Scoring API ─────────────────────────────────────
+
+export const scoringApi = {
+  async executeScore(applicationId: string) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/score`);
+    return res.data.data.scoreRun as CreditScoreRun;
+  },
+
+  async listScores(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/scores`);
+    return res.data.data.scoreRuns as CreditScoreRun[];
+  },
+
+  async overrideScore(scoreRunId: string, data: { rating: RiskRating; reason: string; approverId: string }) {
+    const res = await apiClient.post(`/credit/score-runs/${scoreRunId}/override`, data);
+    return res.data.data.scoreRun as CreditScoreRun;
   },
 };
 

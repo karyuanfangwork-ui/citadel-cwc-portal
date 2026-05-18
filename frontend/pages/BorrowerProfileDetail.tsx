@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import creditService, { BorrowerProfile, CreditDocument, CreditApplication, BorrowerProfileStatus } from '../src/services/credit.service';
+import creditService, { BorrowerProfile, CreditDocument, CreditApplication, BorrowerProfileStatus, exposureApi, ExposureSummary, FacilityType } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import DocumentUpload from '../src/components/credit/DocumentUpload';
 import { useAuth } from '../src/context/AuthContext';
@@ -40,7 +40,13 @@ const APP_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   WITHDRAWN: { bg: '#6b728020', text: '#6b7280' },
 };
 
-type DetailTab = 'overview' | 'documents' | 'applications' | 'financials' | 'notes';
+type DetailTab = 'overview' | 'documents' | 'applications' | 'financials' | 'exposure' | 'notes';
+
+const FACILITY_TYPE_LABELS: Record<string, string> = {
+  TERM_LOAN: 'Term Loan', REVOLVING_CREDIT: 'Revolving Credit', OVERDRAFT: 'Overdraft',
+  LETTER_OF_CREDIT: 'Letter of Credit', BANK_GUARANTEE: 'Bank Guarantee', TRADE_FINANCE: 'Trade Finance',
+  BRIDGE_LOAN: 'Bridge Loan', PROJECT_FINANCE: 'Project Finance',
+};
 
 const BorrowerProfileDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -52,6 +58,8 @@ const BorrowerProfileDetail: React.FC = () => {
   const [showNewApp, setShowNewApp] = useState(false);
   const [appForm, setAppForm] = useState<Partial<CreditApplication>>({ currency: 'MYR' });
   const [saving, setSaving] = useState(false);
+  const [exposure, setExposure] = useState<ExposureSummary | null>(null);
+  const [loadingExposure, setLoadingExposure] = useState(false);
 
   const canWrite = hasPermission(user, 'credit:write');
   const canReview = hasPermission(user, 'credit:review');
@@ -71,6 +79,19 @@ const BorrowerProfileDetail: React.FC = () => {
   }, [id, navigate]);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  useEffect(() => {
+    if (activeTab === 'exposure' && id) {
+      (async () => {
+        try {
+          setLoadingExposure(true);
+          const data = await exposureApi.getExposure(id);
+          setExposure(data);
+        } catch (e) { console.error(e); }
+        finally { setLoadingExposure(false); }
+      })();
+    }
+  }, [activeTab, id]);
 
   const handleCreateApplication = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -201,7 +222,7 @@ const BorrowerProfileDetail: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border mb-6">
-          {(['overview', 'documents', 'applications', 'financials', 'notes'] as DetailTab[]).map(tab => (
+          {(['overview', 'documents', 'applications', 'financials', 'exposure', 'notes'] as DetailTab[]).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
               className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
@@ -374,6 +395,101 @@ const BorrowerProfileDetail: React.FC = () => {
                   : '—'}
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Exposure tab */}
+        {activeTab === 'exposure' && (
+          <div>
+            {loadingExposure ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} style={{ height: 60, borderRadius: 12, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
+                ))}
+              </div>
+            ) : !exposure ? (
+              <div className="bg-bg-surface border border-border rounded-xl p-12 text-center text-text-secondary">
+                <span className="material-symbols-outlined text-5xl block mb-3 opacity-30">account_balance</span>
+                <p className="font-semibold">No exposure data available</p>
+                <p className="text-sm mt-1">Exposure is calculated from approved facilities</p>
+              </div>
+            ) : (
+              <div>
+                {/* Total Exposure Card */}
+                <div className="bg-bg-surface border border-border rounded-xl p-6 mb-6">
+                  <div className="flex items-center gap-4 mb-4">
+                    <div className="w-14 h-14 rounded-full bg-brand-50 flex items-center justify-center text-brand-700">
+                      <span className="material-symbols-outlined text-2xl">account_balance</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Total Exposure</h3>
+                      <p className="text-3xl font-black text-text-primary">{formatCurrency(exposure.totalExposure)}</p>
+                      <p className="text-xs text-text-secondary">{exposure.currency}</p>
+                    </div>
+                  </div>
+                  {exposure.utilization != null && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-text-secondary">Overall Utilization</span>
+                        <span className="text-sm font-bold text-text-primary">{exposure.utilization.toFixed(1)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div className="h-2.5 rounded-full transition-all" style={{
+                          width: `${Math.min(exposure.utilization, 100)}%`,
+                          background: exposure.utilization > 80 ? '#ef4444' : exposure.utilization > 60 ? '#f59e0b' : '#22c55e',
+                        }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Breakdown by Facility Type */}
+                {exposure.breakdown.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Breakdown by Facility Type</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {exposure.breakdown.map(item => {
+                        const pct = item.approvedAmount > 0 ? ((item.outstandingAmount / item.approvedAmount) * 100) : 0;
+                        return (
+                          <div key={item.facilityType} className="bg-bg-surface border border-border rounded-xl p-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-brand-700 text-base">account_balance</span>
+                                <span className="text-sm font-bold text-text-primary">{FACILITY_TYPE_LABELS[item.facilityType] || item.facilityType.replace(/_/g, ' ')}</span>
+                              </div>
+                              <span className="text-[10px] font-bold bg-bg-subtle text-text-secondary px-2 py-0.5 rounded-full">{item.count} facilit{item.count !== 1 ? 'ies' : 'y'}</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-center">
+                              <div>
+                                <p className="text-[10px] text-text-secondary uppercase">Approved</p>
+                                <p className="text-sm font-bold text-text-primary">{formatCurrency(item.approvedAmount)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-text-secondary uppercase">Outstanding</p>
+                                <p className="text-sm font-bold text-amber-700">{formatCurrency(item.outstandingAmount)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-text-secondary uppercase">Available</p>
+                                <p className="text-sm font-bold text-green-700">{formatCurrency(item.availableAmount)}</p>
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                <div className="h-1.5 rounded-full transition-all" style={{
+                                  width: `${Math.min(pct, 100)}%`,
+                                  background: pct > 80 ? '#ef4444' : pct > 60 ? '#f59e0b' : '#22c55e',
+                                }} />
+                              </div>
+                              <p className="text-[10px] text-text-secondary mt-0.5">{pct.toFixed(1)}% utilized</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

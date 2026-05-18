@@ -130,6 +130,10 @@ model User {
   creditDocumentUploads    CreditDocument[]        @relation("CreditDocumentUpload")
   creditDecisions          CreditDecision[]        @relation("CreditDecisionBy")
   matrixVersionApprovals  CreditApprovalMatrixVersion[] @relation("MatrixVersionApprovedBy")
+  financialEnteredBy      FinancialStatement[]         @relation("FinancialEnteredBy")
+  financialReviewedBy     FinancialStatement[]         @relation("FinancialReviewedBy")
+  scorecardVersionApprovedBy CreditScorecardVersion[]  @relation("ScorecardVersionApprovedBy")
+  scoreRunOverrideApprovedBy CreditScoreRun[]          @relation("ScoreRunOverrideApprovedBy")
 
   @@index([email])
   @@index([managerId])
@@ -2126,12 +2130,43 @@ enum CurrencyCode {
   MYR
   USD
   SGD
-  EUR
   GBP
+  EUR
   JPY
   CNY
   THB
   IDR
+  AUD
+  HKD
+}
+
+// Financial statement types
+enum FinancialStatementType {
+  BS
+  PL
+  CF
+}
+
+// Financial reporting period
+enum FinancialPeriod {
+  ANNUAL
+  QUARTERLY
+}
+
+// Financial statement workflow status
+enum FinancialStatus {
+  DRAFT
+  REVIEWED
+  APPROVED
+}
+
+// Financial ratio categories
+enum RatioCategory {
+  PROFITABILITY
+  LEVERAGE
+  LIQUIDITY
+  COVERAGE
+  ACTIVITY
 }
 
 // ============================================================================
@@ -2174,6 +2209,7 @@ model BorrowerProfile {
   relatedPartyMembers RelatedPartyMember[]
   applicationParties ApplicationParty[]
   guarantees        Guarantee[]
+  financialStatements FinancialStatement[]
   
   @@index([accountId])
   @@index([contactId])
@@ -2338,6 +2374,7 @@ model CreditApplication {
   auditEvents      CreditAuditEvent[]
   conditions       Condition[]
   decisions        CreditDecision[]
+  scoreRuns        CreditScoreRun[]
   
   @@index([borrowerProfileId])
   @@index([state])
@@ -2712,4 +2749,157 @@ model CreditApprovalMatrixVersion {
   @@index([matrixId])
   @@unique([matrixId, version])
   @@map("credit_approval_matrix_versions")
+}
+
+// ============================================================================
+// Financial Statement — a borrower's financial statement (BS, PL, or CF)
+// ============================================================================
+model FinancialStatement {
+  id               String               @id @default(uuid()) @db.Uuid
+  borrowerProfileId String               @map("borrower_profile_id") @db.Uuid
+  period           FinancialPeriod
+  fiscalYearEnd    DateTime             @map("fiscal_year_end") @db.Date
+  statementType    FinancialStatementType @map("statement_type")
+  currency        CurrencyCode          @default(MYR)
+  enteredById     String               @map("entered_by_id") @db.Uuid
+  reviewedById    String?              @map("reviewed_by_id") @db.Uuid
+  status          FinancialStatus       @default(DRAFT)
+  
+  deletedAt       DateTime?            @map("deleted_at") @db.Timestamp(6)
+  createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  // Relations
+  borrowerProfile BorrowerProfile      @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
+  enteredBy       User                 @relation("FinancialEnteredBy", fields: [enteredById], references: [id])
+  reviewedBy     User?                @relation("FinancialReviewedBy", fields: [reviewedById], references: [id])
+  lineItems      FinancialLineItem[]
+  ratios         FinancialRatio[]
+  
+  @@index([borrowerProfileId])
+  @@index([statementType])
+  @@index([status])
+  @@map("financial_statements")
+}
+
+// ============================================================================
+// Financial Line Item — individual line items within a financial statement
+// ============================================================================
+model FinancialLineItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  statementId    String   @map("statement_id") @db.Uuid
+  lineKey        String   @map("line_key") @db.VarChar(100)
+  lineLabel      String   @map("line_label") @db.VarChar(200)
+  amount         Decimal  @db.Decimal(15, 2)
+  parentLineKey  String?  @map("parent_line_key") @db.VarChar(100)
+  displayOrder   Int      @map("display_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  // Relations
+  statement      FinancialStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  
+  @@index([statementId])
+  @@index([lineKey])
+  @@unique([statementId, lineKey])
+  @@map("financial_line_items")
+}
+
+// ============================================================================
+// Financial Ratio — computed ratios derived from financial statements
+// ============================================================================
+model FinancialRatio {
+  id          String        @id @default(uuid()) @db.Uuid
+  statementId String        @map("statement_id") @db.Uuid
+  ratioKey    String        @map("ratio_key") @db.VarChar(100)
+  ratioLabel  String        @map("ratio_label") @db.VarChar(200)
+  value       Decimal       @db.Decimal(10, 4)
+  category    RatioCategory
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamp(6)
+  
+  // Relations
+  statement   FinancialStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  
+  @@index([statementId])
+  @@index([ratioKey])
+  @@index([category])
+  @@map("financial_ratios")
+}
+
+// ============================================================================
+// SPRINT 3 — SCORECARD & SCORING
+// ============================================================================
+
+// ============================================================================
+// Credit Scorecard — defines a scoring model with weighted factor groups
+// ============================================================================
+model CreditScorecard {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(200)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  versions    CreditScorecardVersion[]
+
+  @@map("credit_scorecards")
+}
+
+// ============================================================================
+// Credit Scorecard Version — snapshot of factor weights for audit trail
+// ============================================================================
+model CreditScorecardVersion {
+  id            String   @id @default(uuid()) @db.Uuid
+  scorecardId   String   @map("scorecard_id") @db.Uuid
+  version       Int
+  factorWeights Json
+  isActive      Boolean  @default(false) @map("is_active")
+  effectiveFrom DateTime @map("effective_from") @db.Timestamp(6)
+  approvedById  String?  @map("approved_by_id") @db.Uuid
+  approvedAt    DateTime? @map("approved_at") @db.Timestamp(6)
+
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  scorecard     CreditScorecard @relation(fields: [scorecardId], references: [id], onDelete: Cascade)
+  approvedBy    User?           @relation("ScorecardVersionApprovedBy", fields: [approvedById], references: [id])
+  scoreRuns     CreditScoreRun[]
+
+  @@unique([scorecardId, version])
+  @@index([scorecardId])
+  @@map("credit_scorecard_versions")
+}
+
+// ============================================================================
+// Credit Score Run — result of scoring an application with a scorecard version
+// ============================================================================
+model CreditScoreRun {
+  id                   String     @id @default(uuid()) @db.Uuid
+  applicationId         String     @map("application_id") @db.Uuid
+  scorecardVersionId    String     @map("scorecard_version_id") @db.Uuid
+  factorScores         Json
+  totalScore           Decimal    @map("total_score") @db.Decimal(10, 2)
+  riskRating           RiskRating @map("risk_rating")
+  isOverride           Boolean    @default(false) @map("is_override")
+  overrideReason       String?    @map("override_reason") @db.Text
+  overrideApprovedById String?    @map("override_approved_by_id") @db.Uuid
+  overrideApprovedAt   DateTime?  @map("override_approved_at") @db.Timestamp(6)
+  runAt                DateTime   @default(now()) @map("run_at") @db.Timestamp(6)
+
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt            DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  // Relations
+  application          CreditApplication     @relation(fields: [applicationId], references: [id])
+  scorecardVersion     CreditScorecardVersion @relation(fields: [scorecardVersionId], references: [id])
+  overrideApprovedBy   User?                 @relation("ScoreRunOverrideApprovedBy", fields: [overrideApprovedById], references: [id])
+
+  @@index([applicationId])
+  @@index([scorecardVersionId])
+  @@map("credit_score_runs")
 }

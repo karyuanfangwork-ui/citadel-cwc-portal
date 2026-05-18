@@ -13,6 +13,12 @@ import approvalRoutes from './approval.routes';
 import applicationRoutes from './creditApplication.routes';
 import applicationFacilityRoutes from './applicationFacility.routes';
 import applicationPartyRoutes from './applicationParty.routes';
+import financialRoutes from './financial.routes';
+import financialsRoutes from './financials.routes';
+import scorecardRoutes from './scorecard.routes';
+import scorecardVersionRoutes from './scorecardVersion.routes';
+import scoringRoutes from './scoring.routes';
+import scoreRunRoutes from './scoreRun.routes';
 
 const router = Router();
 
@@ -111,10 +117,14 @@ router.use('/applications', applicationPartyRoutes);
 router.use(approvalRoutes);
 
 // Financials — Sprint 3
-// router.use('/borrowers/:borrowerId/financials', financialRoutes);
+router.use('/borrowers', financialRoutes);
+router.use('/financials', financialsRoutes);
 
 // Scorecards — Sprint 3
-// router.use('/scorecards', scorecardRoutes);
+router.use('/scorecards', scorecardRoutes);
+router.use('/scorecard-versions', scorecardVersionRoutes);
+router.use('/applications', scoringRoutes);
+router.use('/score-runs', scoreRunRoutes);
 
 // Committee — Sprint 4
 // router.use('/committee', committeeRoutes);
