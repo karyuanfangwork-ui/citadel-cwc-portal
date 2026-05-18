@@ -33,6 +33,16 @@ import guaranteeRoutes from './guarantee.routes';
 import conditionRoutes from './condition.routes';
 import conditionItemRoutes from './conditionItem.routes';
 
+// Sprint 5 — Dashboard
+import dashboardRoutes from './dashboard.routes';
+
+// Sprint 5 — Monitoring
+import monitoringRoutes from './monitoring.routes';
+import monitoringItemRoutes from './monitoringItem.routes';
+
+// Sprint 5 — Security Hardening
+import securityRoutes from './security.routes';
+
 const router = Router();
 
 // Feature flag admin routes (outside feature flag gate)
@@ -114,7 +124,14 @@ router.use('/applications', guaranteeRoutes);
 router.use('/applications', conditionRoutes);
 router.use('/conditions', conditionItemRoutes);
 
-// Dashboards — Sprint 5
-// router.use('/dashboard', dashboardRoutes);
+// Sprint 5 — Dashboard
+router.use('/dashboard', dashboardRoutes);
+
+// Sprint 5 — Monitoring (app-scoped + item-scoped + watchlist)
+router.use('/applications', monitoringRoutes);
+router.use(monitoringItemRoutes);
+
+// Sprint 5 — Security Hardening
+router.use('/security', securityRoutes);
 
 export default router;

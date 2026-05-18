@@ -1090,4 +1090,13 @@ export const conditionApi = {
   },
 };
 
+// ── Sprint 5: Dashboard API ─────────────────────────────────
+
+export const dashboardApi = {
+  getPipelineDashboard: () => apiClient.get('/credit/dashboard/pipeline'),
+  getApprovalInbox: () => apiClient.get('/credit/dashboard/approval-inbox'),
+  getExposureDashboard: () => apiClient.get('/credit/dashboard/exposure'),
+  getCommitteeCalendar: () => apiClient.get('/credit/dashboard/committee-calendar'),
+};
+
 export default creditService;

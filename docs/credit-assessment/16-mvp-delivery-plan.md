@@ -314,29 +314,29 @@ Estimated total: 28 weeks (~7 months) for solo developer.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 4.1 | CommitteeMeeting Prisma model | ⬜ | Fields: title, scheduledAt, location, status (SCHEDULED/IN_PROGRESS/COMPLETED/CANCELLED), quorumMin, meetingType (REGULAR/ADHOC) |
-| 4.2 | CommitteeMember model | ⬜ | Fields: meetingId, userId, role (CHAIR/MEMBER/SECRETARY), attendance (PRESENT/ABSENT/EXCUSED) |
-| 4.3 | CommitteeAgendaItem model | ⬜ | Fields: meetingId, applicationId, displayOrder, decisionType (APPROVE/REJECT/DEFER), presentedById |
-| 4.4 | CommitteeVote model | ⬜ | Fields: agendaItemId, memberId, vote (APPROVE/REJECT/ABSTAIN), comments, votedAt |
-| 4.5 | Committee CRUD endpoints | ⬜ | POST /credit/committee/meetings, GET, PATCH; agenda/vote sub-endpoints |
-| 4.6 | Quorum enforcement | ⬜ | ≥3 members including ≥1 risk function member; block vote if quorum not met |
-| 4.7 | Committee decision → application state | ⬜ | Vote outcome advances application from COMMITTEE → DECISIONED (or returns to UNDER_DECISION if deferred) |
-| 4.8 | Committee meeting list UI | ⬜ | Calendar-style list, status filters, create meeting |
-| 4.9 | Committee agenda builder UI | ⬜ | Drag-drop applications into agenda, set decision type |
-| 4.10 | Committee one-page memo per application | ⬜ | Auto-generated: borrower summary, facility details, score, risk rating, mitigants, recommendation |
-| 4.11 | Committee vote panel UI | ⬜ | Vote buttons, comment field, vote progress indicator |
-| 4.12 | Collateral Prisma model | ⬜ | Fields: applicationId, borrowerProfileId, type (PROPERTY/VEHICLE/FD/SECURITIES/OTHER), description, ownershipDoc, registeredOwner |
-| 4.13 | CollateralValuation model | ⬜ | Fields: collateralId, valuedAmount, valuationDate, valuerName, valuationReportUrl, valuerAccreditation |
-| 4.14 | CollateralLien model | ⬜ | Fields: collateralId, lienType (FIRST/SECOND), lienHolder, registrationDate, dischargeDate |
-| 4.15 | InsuranceCover model | ⬜ | Fields: collateralId, insurerName, policyNumber, coverageAmount, expiryDate |
-| 4.16 | Guarantee model | ⬜ | Fields: applicationId, guarantorId (CrmContact), guaranteeType (PERSONAL/CORPORATE), guaranteedAmount, guaranteeDocumentUrl |
-| 4.17 | Collateral + guarantee CRUD endpoints | ⬜ | Nested under /credit/applications/:id/collateral and /guarantees |
-| 4.18 | Collateral management UI | ⬜ | Collateral list on application detail, valuation history, lien status |
-| 4.19 | Guarantee management UI | ⬜ | Guarantor picker (CrmContact search), guarantee details |
-| 4.20 | Condition Prisma model | ⬜ | Fields: applicationId, type (PRECEDENT/SUBSEQUENT), description, dueDate, responsibleUserId, status (PENDING/WAIVED/COMPLETED/EXPIRED), completedAt, evidenceDocumentUrl |
-| 4.21 | Condition CRUD endpoints | ⬜ | POST /credit/applications/:id/conditions, PATCH to complete/waive |
-| 4.22 | Condition tracker UI | ⬜ | Checklist with status chips, evidence upload, due date warnings |
-| 4.23 | CP completion → READY_FOR_DRAWDOWN transition | ⬜ | All CPs must be COMPLETED or WAIVED before advancing |
+| 4.1 | CommitteeMeeting Prisma model | ✅ | Fields: title, scheduledAt, location, status (SCHEDULED/IN_PROGRESS/COMPLETED/CANCELLED), quorumMin, meetingType (REGULAR/ADHOC) |
+| 4.2 | CommitteeMember model | ✅ | Fields: meetingId, userId, role (CHAIR/MEMBER/SECRETARY), attendance (PRESENT/ABSENT/EXCUSED) |
+| 4.3 | CommitteeAgendaItem model | ✅ | Fields: meetingId, applicationId, displayOrder, decisionType (APPROVE/REJECT/DEFER), presentedById |
+| 4.4 | CommitteeVote model | ✅ | Fields: agendaItemId, memberId, vote (APPROVE/REJECT/ABSTAIN), comments, votedAt |
+| 4.5 | Committee CRUD endpoints | ✅ | POST /credit/committee/meetings, GET, PATCH; agenda/vote sub-endpoints |
+| 4.6 | Quorum enforcement | ✅ | ≥3 members including ≥1 risk function member; block vote if quorum not met |
+| 4.7 | Committee decision → application state | ✅ | Vote outcome advances application from COMMITTEE → DECISIONED (or returns to UNDER_DECISION if deferred) |
+| 4.8 | Committee meeting list UI | ✅ | Calendar-style list, status filters, create meeting |
+| 4.9 | Committee agenda builder UI | ✅ | Drag-drop applications into agenda, set decision type |
+| 4.10 | Committee one-page memo per application | ✅ | Auto-generated: borrower summary, facility details, score, risk rating, mitigants, recommendation |
+| 4.11 | Committee vote panel UI | ✅ | Vote buttons, comment field, vote progress indicator |
+| 4.12 | Collateral Prisma model | ✅ | Fields: applicationId, borrowerProfileId, type (PROPERTY/VEHICLE/FD/SECURITIES/OTHER), description, ownershipDoc, registeredOwner |
+| 4.13 | CollateralValuation model | ✅ | Fields: collateralId, valuedAmount, valuationDate, valuerName, valuationReportUrl, valuerAccreditation |
+| 4.14 | CollateralLien model | ✅ | Fields: collateralId, lienType (FIRST/SECOND), lienHolder, registrationDate, dischargeDate |
+| 4.15 | InsuranceCover model | ✅ | Fields: collateralId, insurerName, policyNumber, coverageAmount, expiryDate |
+| 4.16 | Guarantee model | ✅ | Fields: applicationId, guarantorId (CrmContact), guaranteeType (PERSONAL/CORPORATE), guaranteedAmount, guaranteeDocumentUrl |
+| 4.17 | Collateral + guarantee CRUD endpoints | ✅ | Nested under /credit/applications/:id/collateral and /guarantees |
+| 4.18 | Collateral management UI | ✅ | Collateral list on application detail, valuation history, lien status |
+| 4.19 | Guarantee management UI | ✅ | Guarantor picker (CrmContact search), guarantee details |
+| 4.20 | Condition Prisma model | ✅ | Fields: applicationId, type (PRECEDENT/SUBSEQUENT), description, dueDate, responsibleUserId, status (PENDING/WAIVED/COMPLETED/EXPIRED), completedAt, evidenceDocumentUrl |
+| 4.21 | Condition CRUD endpoints | ✅ | POST /credit/applications/:id/conditions, PATCH to complete/waive |
+| 4.22 | Condition tracker UI | ✅ | Checklist with status chips, evidence upload, due date warnings |
+| 4.23 | CP completion → READY_FOR_DRAWDOWN transition | ✅ | All CPs must be COMPLETED or WAIVED before advancing |
 
 **Sprint 4 Exit Criteria:**
 - [ ] Can schedule a committee meeting and add applications to agenda

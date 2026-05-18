@@ -60,7 +60,7 @@ import CrmPipelineView from './pages/CrmPipeline';
 import CrmTeamDashboard from './pages/CrmTeamDashboard';
 import CrmReports from './pages/CrmReports';
 import CrmGuide from './pages/CrmGuide';
-import CreditDashboard from './pages/CreditDashboard';
+import CreditDashboard from './pages/credit/CreditDashboard';
 import BorrowerProfileList from './pages/BorrowerProfileList';
 import BorrowerProfileDetail from './pages/BorrowerProfileDetail';
 import CreditApplicationList from './pages/CreditApplicationList';

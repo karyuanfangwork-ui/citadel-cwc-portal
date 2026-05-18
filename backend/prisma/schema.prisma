@@ -137,6 +137,12 @@ model User {
   // Committee Relations
   committeeMemberUser       CommitteeMember[]         @relation("CommitteeMemberUser")
   committeePresentedBy      CommitteeAgendaItem[]     @relation("AgendaItemPresentedBy")
+  // Monitoring Relations
+  facilityHealthUpdates  FacilityHealth[]
+  covenantTests         CovenantTest[]
+  resolvedSignals       EarlyWarningSignal[]
+  // PII Read Log Relations
+  piiReadLogs           PiiReadLog[]
 
   @@index([email])
   @@index([managerId])
@@ -2128,6 +2134,36 @@ enum EarlyWarningSeverity {
   CRITICAL
 }
 
+// Sprint 5 — Monitoring enums
+enum HealthStatus {
+  HEALTHY
+  WATCH
+  AT_RISK
+  DEFAULT
+}
+
+enum PaymentStatus {
+  ON_TIME
+  LATE_30
+  LATE_60
+  LATE_90
+  MISSED
+}
+
+enum SignalType {
+  COVENANT_BREACH
+  PAYMENT_OVERDUE
+  REVIEW_OVERDUE
+  FINANCIAL_DETERIORATION
+  OTHER
+}
+
+enum CovenantFrequency {
+  QUARTERLY
+  SEMI_ANNUALLY
+  ANNUALLY
+}
+
 // Currency
 enum CurrencyCode {
   MYR
@@ -2379,6 +2415,10 @@ model CreditApplication {
   decisions        CreditDecision[]
   scoreRuns        CreditScoreRun[]
   committeeAgendaItems CommitteeAgendaItem[]
+  health          FacilityHealth?
+  covenants       CovenantDefinition[]
+  payments        PaymentEvent[]
+  warningSignals  EarlyWarningSignal[]
   
   @@index([borrowerProfileId])
   @@index([state])
@@ -3017,4 +3057,126 @@ model CommitteeVote {
   @@unique([agendaItemId, memberId])
   @@index([agendaItemId])
   @@map("committee_votes")
+}
+
+// ============================================================================
+// Sprint 5 — Monitoring Models
+// ============================================================================
+
+model FacilityHealth {
+  id              String      @id @default(uuid()) @db.Uuid
+  applicationId   String      @map("application_id") @db.Uuid
+  healthStatus    HealthStatus @default(HEALTHY) @map("health_status")
+  lastReviewDate  DateTime?  @map("last_review_date") @db.Date
+  nextReviewDate  DateTime?  @map("next_review_date") @db.Date
+  reviewFrequency CovenantFrequency @default(QUARTERLY) @map("review_frequency")
+  notes           String?    @db.Text
+  updatedById     String?     @map("updated_by_id") @db.Uuid
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  updatedBy       User?             @relation(fields: [updatedById], references: [id])
+
+  @@unique([applicationId])
+  @@index([healthStatus])
+  @@index([nextReviewDate])
+  @@map("facility_health")
+}
+
+model CovenantDefinition {
+  id            String            @id @default(uuid()) @db.Uuid
+  applicationId String            @map("application_id") @db.Uuid
+  description   String            @db.Text
+  covenantType  CovenantType      @map("covenant_type")
+  metricKey     String?           @map("metric_key") @db.VarChar(100)
+  threshold     Decimal?          @db.Decimal(15, 2)
+  frequency     CovenantFrequency @default(QUARTERLY)
+  isActive      Boolean           @default(true) @map("is_active")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  tests         CovenantTest[]
+
+  @@index([applicationId])
+  @@index([isActive])
+  @@map("covenant_definitions")
+}
+
+model CovenantTest {
+  id            String   @id @default(uuid()) @db.Uuid
+  covenantId    String   @map("covenant_id") @db.Uuid
+  testDate      DateTime @map("test_date") @db.Date
+  reportedValue Decimal? @map("reported_value") @db.Decimal(15, 2)
+  isCompliant   Boolean  @map("is_compliant")
+  testedById     String?  @map("tested_by_id") @db.Uuid
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  covenant      CovenantDefinition @relation(fields: [covenantId], references: [id], onDelete: Cascade)
+  testedBy      User?              @relation(fields: [testedById], references: [id])
+
+  @@index([covenantId])
+  @@index([isCompliant])
+  @@index([testDate])
+  @@map("covenant_tests")
+}
+
+model PaymentEvent {
+  id            String        @id @default(uuid()) @db.Uuid
+  applicationId String        @map("application_id") @db.Uuid
+  dueDate       DateTime      @map("due_date") @db.Date
+  paidDate      DateTime?     @map("paid_date") @db.Date
+  amount        Decimal       @db.Decimal(15, 2)
+  status        PaymentStatus @default(ON_TIME)
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("payment_events")
+}
+
+model EarlyWarningSignal {
+  id            String              @id @default(uuid()) @db.Uuid
+  applicationId String              @map("application_id") @db.Uuid
+  signalType    SignalType           @map("signal_type")
+  severity      EarlyWarningSeverity @default(MEDIUM)
+  description   String              @db.Text
+  openedAt      DateTime            @default(now()) @map("opened_at") @db.Timestamp(6)
+  closedAt      DateTime?           @map("closed_at") @db.Timestamp(6)
+  resolvedById  String?             @map("resolved_by_id") @db.Uuid
+
+  application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  resolvedBy    User?             @relation(fields: [resolvedById], references: [id])
+
+  @@index([applicationId])
+  @@index([severity])
+  @@index([signalType])
+  @@index([openedAt])
+  @@map("early_warning_signals")
+}
+
+// ============================================================================
+// PII Read Log — tracks read access to sensitive PII fields
+// ============================================================================
+model PiiReadLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  resourceType String   @map("resource_type") @db.VarChar(50)
+  resourceId   String   @map("resource_id") @db.Uuid
+  field        String   @db.VarChar(100)
+  reason       String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resourceType, resourceId])
+  @@index([createdAt])
+  @@map("pii_read_logs")
 }
