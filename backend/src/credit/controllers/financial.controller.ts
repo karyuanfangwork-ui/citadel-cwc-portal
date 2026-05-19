@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { financialService } from '../services/financial.service';
+import { requireUser } from '../utils/requireUser';
 
 class FinancialController {
   // ===========================================================================
@@ -56,7 +57,7 @@ class FinancialController {
     const data = {
       ...req.body,
       borrowerProfileId: String(req.params.borrowerProfileId),
-      enteredById: req.user!.id,
+      enteredById: requireUser(req).id,
     };
     const statement = await financialService.createStatement(data);
     res.status(201).json({ status: 'success', data: { statement } });
@@ -152,8 +153,9 @@ class FinancialController {
    */
   submitForReview = asyncHandler(async (req: AuthRequest, res: Response) => {
     const statementId = String(req.params.id);
-    const actorId = req.user!.id;
-    const isAdmin = req.user!.permissions.includes('credit:admin');
+    const actor = requireUser(req);
+    const actorId = actor.id;
+    const isAdmin = actor.permissions.includes('credit:admin');
 
     try {
       const statement = await financialService.submitForReview(statementId, actorId, isAdmin);
@@ -173,8 +175,9 @@ class FinancialController {
    */
   reviewStatement = asyncHandler(async (req: AuthRequest, res: Response) => {
     const statementId = String(req.params.id);
-    const reviewedById = req.user!.id;
-    const isAdmin = req.user!.permissions.includes('credit:admin');
+    const reviewer = requireUser(req);
+    const reviewedById = reviewer.id;
+    const isAdmin = reviewer.permissions.includes('credit:admin');
     const { decision } = req.body;
 
     if (!decision || !['approve', 'reject'].includes(decision)) {

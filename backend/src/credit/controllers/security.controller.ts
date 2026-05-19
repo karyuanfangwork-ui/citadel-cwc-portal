@@ -4,6 +4,7 @@ import { AuthRequest } from '../../middleware/auth.middleware';
 import { AuditChainService } from '../services/auditChain.service';
 import { PiiReadLogService } from '../services/piiReadLog.service';
 import { ExportControlService } from '../services/exportControl.service';
+import { requireUser } from '../utils/requireUser';
 
 class SecurityController {
   /**
@@ -72,7 +73,7 @@ class SecurityController {
    * Requires: credit:export:pii
    */
   requestExport = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.user!.id;
+    const userId = requireUser(req).id;
     const { resourceType, resourceId, format, reason } = req.body;
 
     if (!resourceType || !resourceId || !format || !reason) {

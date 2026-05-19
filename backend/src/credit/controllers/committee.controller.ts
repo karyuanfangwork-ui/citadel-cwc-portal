@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { committeeService } from '../services/committee.service';
+import { requireUser } from '../utils/requireUser';
 
 class CommitteeController {
   // ===========================================================================
@@ -207,7 +208,7 @@ class CommitteeController {
    */
   finalizeDecision = asyncHandler(async (req: AuthRequest, res: Response) => {
     const agendaItemId = String(req.params.itemId);
-    const actorId = req.user?.id;
+    const actorId = requireUser(req).id;
 
     try {
       const result = await committeeService.finalizeDecision(agendaItemId, actorId);

@@ -3,6 +3,7 @@ import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { approvalMatrixService } from '../services/approvalMatrix.service';
 import { approvalActionService } from '../services/approvalAction.service';
+import { requireUser } from '../utils/requireUser';
 
 class ApprovalController {
   // ===========================================================================
@@ -39,7 +40,7 @@ class ApprovalController {
    * POST /approval-matrices — Create a new approval matrix
    */
   createMatrix = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const actorId = req.user?.id;
+    const actorId = requireUser(req).id;
     const matrix = await approvalMatrixService.createMatrix(req.body, actorId);
     res.status(201).json({ status: 'success', data: { matrix } });
   });
@@ -49,7 +50,7 @@ class ApprovalController {
    */
   updateMatrix = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const actorId = req.user?.id;
+    const actorId = requireUser(req).id;
 
     const matrix = await approvalMatrixService.updateMatrix(id, req.body, actorId);
 
@@ -107,13 +108,10 @@ class ApprovalController {
    */
   submitApproval = asyncHandler(async (req: AuthRequest, res: Response) => {
     const applicationId = String(req.params.id);
-    const actorId = req.user?.id;
-    const actorRoles = req.user?.roles ?? [];
+    const actor = requireUser(req);
+    const actorId = actor.id;
+    const actorRoles = actor.roles ?? [];
     const { decision, comment, isCommitteeVote } = req.body;
-
-    if (!actorId) {
-      throw new AppError('Authentication required', 401);
-    }
 
     try {
       const result = await approvalActionService.submitApprovalAction({

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { dashboardService } from '../services/dashboard.service';
+import { requireUser } from '../utils/requireUser';
 
 class DashboardController {
   /**
@@ -21,7 +22,7 @@ class DashboardController {
    * Approval inbox for the current user — grouped by urgency
    */
   getApprovalInbox = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = req.user!.id;
+    const userId = requireUser(req).id;
     const urgency = req.query.urgency as 'HIGH' | 'MEDIUM' | 'LOW' | undefined;
 
     const result = await dashboardService.getApprovalInbox(userId, { urgency });

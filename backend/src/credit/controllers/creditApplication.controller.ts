@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { creditApplicationService } from '../services/creditApplication.service';
+import { requireUser } from '../utils/requireUser';
 
 class CreditApplicationController {
   /**
@@ -49,7 +50,7 @@ class CreditApplicationController {
    * POST /applications — Create a new credit application
    */
   create = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const actorId = req.user?.id;
+    const actorId = requireUser(req).id;
     const application = await creditApplicationService.createApplication(req.body, actorId);
     res.status(201).json({ status: 'success', data: { application } });
   });
@@ -59,7 +60,7 @@ class CreditApplicationController {
    */
   update = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const actorId = req.user?.id;
+    const actorId = requireUser(req).id;
 
     try {
       const application = await creditApplicationService.updateApplication(id, req.body, actorId);
@@ -82,7 +83,7 @@ class CreditApplicationController {
    */
   delete = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const actorId = req.user?.id;
+    const actorId = requireUser(req).id;
 
     try {
       const application = await creditApplicationService.deleteApplication(id, actorId);
@@ -110,7 +111,7 @@ class CreditApplicationController {
   transition = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
     const { action, reason } = req.body;
-    const actorId = req.user?.id;
+    const actorId = requireUser(req).id;
 
     try {
       const application = await creditApplicationService.transitionApplication(

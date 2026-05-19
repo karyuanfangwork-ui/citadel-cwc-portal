@@ -4,6 +4,7 @@ import path from 'path';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { creditDocumentService, computeSha256 } from '../services/creditDocument.service';
+import { requireUser } from '../utils/requireUser';
 
 // ---------------------------------------------------------------------------
 // Multer configuration for document uploads
@@ -112,7 +113,7 @@ class CreditDocumentController {
       }
 
       const { borrowerProfileId, applicationId, classification, description } = req.body;
-      const user = req.user!;
+      const user = requireUser(req);
 
       if (!borrowerProfileId) {
         throw new AppError('borrowerProfileId is required', 400);
@@ -161,7 +162,8 @@ class CreditDocumentController {
    */
   delete = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const doc = await creditDocumentService.deleteDocument(id);
+    const user = requireUser(req);
+    const doc = await creditDocumentService.deleteDocument(id, user.id);
 
     if (!doc) {
       throw new AppError('Document not found', 404);

@@ -355,28 +355,28 @@ Estimated total: 28 weeks (~7 months) for solo developer.
 
 | # | Task | Status | Notes |
 |---|------|--------|-------|
-| 5.1 | FacilityHealth Prisma model | ⬜ | Fields: applicationId, healthStatus (HEALTHY/WATCH/AT_RISK/DEFAULT), lastReviewDate, nextReviewDate, reviewFrequency |
-| 5.2 | CovenantDefinition model | ⬜ | Fields: applicationId, description, type (FINANCIAL/Non-FINANCIAL), metricKey, threshold, frequency (QUARTERLY/SEMI_ANNUALLY/ANNUALLY) |
-| 5.3 | CovenantTest model | ⬜ | Fields: covenantId, testDate, reportedValue, isCompliant, testedById, notes |
-| 5.4 | PaymentEvent model | ⬜ | Fields: applicationId, dueDate, paidDate, amount, status (ON_TIME/LATE_30/LATE_60/LATE_90/MISSED) |
-| 5.5 | EarlyWarningSignal model | ⬜ | Fields: applicationId, signalType, severity (LOW/MEDIUM/HIGH/CRITICAL), description, openedAt, closedAt, resolvedById |
-| 5.6 | Covenant test execution (BullMQ scheduled job) | ⬜ | monitor.daily queue: check overdue covenants, flag breaches |
-| 5.7 | Basic EWS: covenant breach detection | ⬜ | CovenantTest.isCompliant=false → create EarlyWarningSignal |
-| 5.8 | Payment overdue flagging | ⬜ | PaymentEvent LATE_90+ → EarlyWarningSignal severity HIGH |
-| 5.9 | Watchlist UI | ⬜ | List of applications with active EWS signals, filter by severity |
-| 5.10 | Periodic review scheduling | ⬜ | FacilityHealth.nextReviewDate; BullMQ job triggers review reminders |
-| 5.11 | Covenant test entry UI | ⬜ | Entry form for test results, compliance indicator |
-| 5.12 | Credit pipeline dashboard | ⬜ | Applications by status (bar chart), SLA breach count, avg processing time |
-| 5.13 | Approval inbox dashboard | ⬜ | Pending approvals for current user, grouped by urgency |
-| 5.14 | Borrower exposure summary dashboard | ⬜ | Top exposures, sector breakdown, rating distribution |
-| 5.15 | Committee calendar dashboard | ⬜ | Upcoming meetings, agenda item counts |
-| 5.16 | Audit trail hardening: hash-chain on CreditAuditEvent | ⬜ | Each event includes hash of previous event; verify chain integrity endpoint |
-| 5.17 | Read-logging for sensitive PII | ⬜ | Access to borrower NRIC, bank account, financial details logged |
-| 5.18 | App-level encryption for PII fields | ⬜ | AES-256-CBC with env var CREDIT_ENCRYPTION_KEY; encrypt NRIC, bankAccount, financials at rest |
-| 5.19 | Encrypt/decrypt service layer | ⬜ | Encapsulate in CreditEncryptionService; transparent to API consumers |
-| 5.20 | Document AV scanning: ClamAV integration | ⬜ | Scan on upload; block if infected; log result to CreditDocument |
-| 5.21 | Export controls | ⬜ | credit:export:pii permission + reason capture + watermark on exported files |
-| 5.22 | Export audit logging | ⬜ | Every export action logged to AuditLog with reason |
+| 5.1 | FacilityHealth Prisma model | ✅ | Fields: applicationId, healthStatus (HEALTHY/WATCH/AT_RISK/DEFAULT), lastReviewDate, nextReviewDate, reviewFrequency |
+| 5.2 | CovenantDefinition model | ✅ | Fields: applicationId, description, type (FINANCIAL/Non-FINANCIAL), metricKey, threshold, frequency (QUARTERLY/SEMI_ANNUALLY/ANNUALLY) |
+| 5.3 | CovenantTest model | ✅ | Fields: covenantId, testDate, reportedValue, isCompliant, testedById, notes |
+| 5.4 | PaymentEvent model | ✅ | Fields: applicationId, dueDate, paidDate, amount, status (ON_TIME/LATE_30/LATE_60/LATE_90/MISSED) |
+| 5.5 | EarlyWarningSignal model | ✅ | Fields: applicationId, signalType, severity (LOW/MEDIUM/HIGH/CRITICAL), description, openedAt, closedAt, resolvedById |
+| 5.6 | Covenant test execution (BullMQ scheduled job) | ✅ | monitor.daily queue: check overdue covenants, flag breaches |
+| 5.7 | Basic EWS: covenant breach detection | ✅ | CovenantTest.isCompliant=false → create EarlyWarningSignal |
+| 5.8 | Payment overdue flagging | ✅ | PaymentEvent LATE_90+ → EarlyWarningSignal severity HIGH |
+| 5.9 | Watchlist UI | ✅ | List of applications with active EWS signals, filter by severity |
+| 5.10 | Periodic review scheduling | ✅ | FacilityHealth.nextReviewDate; BullMQ job triggers review reminders |
+| 5.11 | Covenant test entry UI | ✅ | Entry form for test results, compliance indicator |
+| 5.12 | Credit pipeline dashboard | ✅ | Applications by status (bar chart), SLA breach count, avg processing time |
+| 5.13 | Approval inbox dashboard | ✅ | Pending approvals for current user, grouped by urgency |
+| 5.14 | Borrower exposure summary dashboard | ✅ | Top exposures, sector breakdown, rating distribution |
+| 5.15 | Committee calendar dashboard | ✅ | Upcoming meetings, agenda item counts |
+| 5.16 | Audit trail hardening: hash-chain on CreditAuditEvent | ✅ | Each event includes hash of previous event; verify chain integrity endpoint |
+| 5.17 | Read-logging for sensitive PII | ✅ | Access to borrower NRIC, bank account, financial details logged |
+| 5.18 | App-level encryption for PII fields | ✅ | AES-256-CBC with env var CREDIT_ENCRYPTION_KEY; encrypt NRIC, bankAccount, financials at rest |
+| 5.19 | Encrypt/decrypt service layer | ✅ | Encapsulate in CreditEncryptionService; transparent to API consumers |
+| 5.20 | Document AV scanning: ClamAV integration | ✅ | Scan on upload; block if infected; log result to CreditDocument |
+| 5.21 | Export controls | ✅ | credit:export:pii permission + reason capture + watermark on exported files |
+| 5.22 | Export audit logging | ✅ | Every export action logged to AuditLog with reason |
 
 **Sprint 5 Exit Criteria:**
 - [ ] Covenant test job runs on schedule and detects breaches

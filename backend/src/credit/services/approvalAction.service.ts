@@ -72,7 +72,11 @@ class ApprovalActionService {
       where: { id: applicationId },
       include: {
         borrowerProfile: { select: { creditRiskRating: true, totalExposure: true } },
-        decisions: { where: { decisionType: ApprovalDecisionType.APPROVE } },
+        decisions: {
+          where: { decisionType: ApprovalDecisionType.APPROVE },
+          take: 20,
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
@@ -134,91 +138,98 @@ class ApprovalActionService {
       }
     }
 
-    // 5. Check for duplicate approval by same user
-    const existingApproval = await prisma.creditDecision.findFirst({
-      where: {
-        applicationId,
-        decisionById: actorId,
-        decisionType: ApprovalDecisionType.APPROVE,
-      },
-    });
-
-    if (existingApproval && decision === 'APPROVE') {
-      throw Object.assign(
-        new Error('You have already submitted an approval for this application.'),
-        { statusCode: 400 },
-      );
-    }
-
-    // 6. Create the decision record
-    const creditDecision = await prisma.creditDecision.create({
-      data: {
-        applicationId,
-        decisionType: decision as ApprovalDecisionType,
-        decisionById: actorId,
-        authorityLevel,
-        comments: comment ?? null,
-      },
-    });
-
-    // 7. Determine the resulting application state
+    // 5–8. Atomic block: check duplicate, record decision, recount, advance state
+    let creditDecision!: Awaited<ReturnType<typeof prisma.creditDecision.create>>;
     let newState = application.state;
     let approvalsCollected = 0;
     let isComplete = false;
 
-    if (decision === 'APPROVE') {
-      // Count total distinct approvers (excluding this one since we just created it)
-      const distinctApproverIds = new Set(
-        application.decisions
-          .filter((d: any) => d.decisionType === ApprovalDecisionType.APPROVE)
-          .map((d: any) => d.decidedById),
-      );
-      distinctApproverIds.add(actorId);
-      approvalsCollected = distinctApproverIds.size;
+    await prisma.$transaction(async (tx) => {
+      // 5. Check for duplicate approval by same user (inside tx for consistency)
+      if (decision === 'APPROVE') {
+        const existingApproval = await tx.creditDecision.findFirst({
+          where: {
+            applicationId,
+            decisionById: actorId,
+            decisionType: ApprovalDecisionType.APPROVE,
+          },
+        });
+        if (existingApproval) {
+          throw Object.assign(
+            new Error('You have already submitted an approval for this application.'),
+            { statusCode: 400 },
+          );
+        }
+      }
 
-      if (approvalsCollected >= requiredApproverCount) {
-        // Final approval — advance state
-        newState = this.getNextApprovedState(application.state as ApplicationState) as ApplicationState;
+      // 6. Create the decision record
+      creditDecision = await tx.creditDecision.create({
+        data: {
+          applicationId,
+          decisionType: decision as ApprovalDecisionType,
+          decisionById: actorId,
+          authorityLevel,
+          comments: comment ?? null,
+        },
+      });
+
+      // 7. Determine the resulting application state
+      if (decision === 'APPROVE') {
+        // Re-count distinct approvers inside the transaction to avoid race conditions
+        const approveDecisions = await tx.creditDecision.findMany({
+          where: {
+            applicationId,
+            decisionType: ApprovalDecisionType.APPROVE,
+          },
+          select: { decisionById: true },
+        });
+        const distinctApproverIds = new Set(approveDecisions.map((d) => d.decisionById));
+        approvalsCollected = distinctApproverIds.size;
+
+        if (approvalsCollected >= requiredApproverCount) {
+          // Final approval — advance state
+          newState = this.getNextApprovedState(application.state as ApplicationState) as ApplicationState;
+          isComplete = true;
+        } else {
+          // More approvals needed
+          isComplete = false;
+        }
+      } else if (decision === 'REJECT') {
+        newState = ApplicationState.COMMITTEE_REVIEW as ApplicationState;
+        // Map to the right "rejected" state from the existing state machine
+        // The state machine uses REJECTED for committee rejection
+        newState = ApplicationState.REJECTED as ApplicationState;
         isComplete = true;
-      } else {
-        // More approvals needed
+      } else if (decision === 'RETURN') {
+        // Send back to ANALYSING
+        newState = ApplicationState.CREDIT_ASSESSMENT as ApplicationState;
+        isComplete = true;
+      } else if (decision === 'ESCALATE') {
+        // Stay in current state but flag for higher authority
+        newState = application.state;
         isComplete = false;
       }
-    } else if (decision === 'REJECT') {
-      newState = ApplicationState.COMMITTEE_REVIEW as ApplicationState;
-      // Map to the right "rejected" state from the existing state machine
-      // The state machine uses REJECTED for committee rejection
-      newState = ApplicationState.REJECTED as ApplicationState;
-      isComplete = true;
-    } else if (decision === 'RETURN') {
-      // Send back to ANALYSING
-      newState = ApplicationState.CREDIT_ASSESSMENT as ApplicationState;
-      isComplete = true;
-    } else if (decision === 'ESCALATE') {
-      // Stay in current state but flag for higher authority
-      newState = application.state;
-      isComplete = false;
-    }
 
-    // 8. Update application state if changed
-    if (newState !== application.state) {
-      const updateData: any = { state: newState };
+      // 8. Update application state if changed
+      if (newState !== application.state) {
+        const updateData: any = { state: newState };
 
-      // Set decisionedAt if reaching a decisioned state
-      if (isComplete && (decision === 'APPROVE' || decision === 'REJECT')) {
-        updateData.decisionedAt = new Date();
+        // Set decisionedAt if reaching a decisioned state
+        if (isComplete && (decision === 'APPROVE' || decision === 'REJECT')) {
+          updateData.decisionedAt = new Date();
+        }
+
+        // Set rejection reason if rejecting
+        if (decision === 'REJECT' && comment) {
+          updateData.rejectionReason = comment;
+        }
+
+        await tx.creditApplication.update({
+          where: { id: applicationId },
+          data: updateData,
+        });
       }
-
-      // Set rejection reason if rejecting
-      if (decision === 'REJECT' && comment) {
-        updateData.rejectionReason = comment;
-      }
-
-      await prisma.creditApplication.update({
-        where: { id: applicationId },
-        data: updateData,
-      });
-    }
+    });
 
     // 9. Create audit event
     await this.createAuditEvent(

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { monitoringService } from '../services/monitoring.service';
+import { requireUser } from '../utils/requireUser';
 
 class MonitoringController {
   // -------------------------------------------------------------------------
@@ -154,7 +155,7 @@ class MonitoringController {
    */
   resolveSignal = asyncHandler(async (req: AuthRequest, res: Response) => {
     const signalId = String(req.params.id);
-    const resolvedById = req.user!.id;
+    const resolvedById = requireUser(req).id;
     const signal = await monitoringService.resolveSignal(signalId, resolvedById);
     if (!signal) {
       throw new AppError('Early warning signal not found', 404);

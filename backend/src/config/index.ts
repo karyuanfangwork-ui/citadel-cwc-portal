@@ -139,6 +139,11 @@ export const config = {
         checkPasswordBreach: process.env.CHECK_PASSWORD_BREACH === 'true',
         passwordMinLength: parseInt(process.env.PASSWORD_MIN_LENGTH || '8', 10),
     },
+
+    // Credit
+    credit: {
+        encryptionKey: process.env.CREDIT_ENCRYPTION_KEY || '',
+    },
 };
 
 // Validate critical config — enforced in ALL environments, not just production

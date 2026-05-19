@@ -3,6 +3,7 @@ import { uboController } from '../controllers/ubo.controller';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createUboSchema, updateUboSchema } from '../validators/ubo.validator';
+import { assertBorrowerAccess } from '../middleware/assertBorrowerAccess.middleware';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.use(authenticate);
 router.get(
   '/:borrowerProfileId/ubos',
   requirePermission('credit:read'),
+  assertBorrowerAccess(),
   uboController.list,
 );
 
@@ -39,6 +41,7 @@ router.get(
 router.post(
   '/:borrowerProfileId/ubos',
   requirePermission('credit:write'),
+  assertBorrowerAccess(),
   validate(createUboSchema),
   uboController.create,
 );

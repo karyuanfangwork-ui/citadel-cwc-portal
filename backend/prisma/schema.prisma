@@ -2510,6 +2510,7 @@ model CreditDocument {
   @@index([borrowerProfileId])
   @@index([classification])
   @@index([sha256Hash])
+  @@index([deletedAt])
   @@map("credit_documents")
 }
 
@@ -2580,6 +2581,7 @@ model CreditAuditEvent {
   @@index([applicationId])
   @@index([eventType])
   @@index([createdAt])
+  @@index([applicationId, eventType, createdAt])
   @@map("credit_audit_events")
 }
 

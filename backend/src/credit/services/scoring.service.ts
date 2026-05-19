@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import { Prisma, RiskRating } from '@prisma/client';
 import { FACTOR_GROUPS, FactorWeights } from './scorecard.service';
+import { AppError } from '../../middleware/error.middleware';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -164,22 +165,30 @@ class ScoringService {
   async executeScore(applicationId: string, scorecardId?: string): Promise<ScoreResult> {
     // Step 1: Find active scorecard version
     let scorecardVersion;
+    const now = new Date();
     if (scorecardId) {
       scorecardVersion = await prisma.creditScorecardVersion.findFirst({
-        where: { scorecardId, isActive: true },
+        where: {
+          scorecardId,
+          isActive: true,
+          effectiveFrom: { lte: now },
+        },
         orderBy: { version: 'desc' },
       });
       if (!scorecardVersion) {
-        throw new Error('No active version found for the specified scorecard');
+        throw new AppError('No active scorecard version is valid for today\'s date. Please activate a scorecard version with the correct effective date range.', 409);
       }
     } else {
       // Find any scorecard with an active version
       scorecardVersion = await prisma.creditScorecardVersion.findFirst({
-        where: { isActive: true },
+        where: {
+          isActive: true,
+          effectiveFrom: { lte: now },
+        },
         orderBy: { version: 'desc' },
       });
       if (!scorecardVersion) {
-        throw new Error('No active scorecard version found in the system');
+        throw new AppError('No active scorecard version is valid for today\'s date. Please activate a scorecard version with the correct effective date range.', 409);
       }
     }
 

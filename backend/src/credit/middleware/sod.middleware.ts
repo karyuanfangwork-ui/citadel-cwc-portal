@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import prisma from '../../utils/prisma';
 import { AppError } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
+import { logger } from '../../utils/logger';
 
 /**
  * SOD (Segregation of Duties) constraints for credit module.
@@ -66,8 +67,8 @@ export function enforceCreditSOD() {
           },
         });
       } catch (dbErr) {
-        console.warn('SOD middleware: application query failed, skipping SOD check.', dbErr);
-        return next();
+        logger.error({ applicationId, userId, err: dbErr }, 'SOD middleware: application query failed — blocking action');
+        return next(new AppError('SoD check unavailable — please try again', 503));
       }
 
       if (!application) {
@@ -103,11 +104,9 @@ export function enforceCreditSOD() {
           );
         }
       } catch (err) {
-        // Re-throw AppError (SOD violation)
         if (err instanceof AppError) throw err;
-        // If DB query fails for audit events, skip maker-checker check
-        // (Rule 1 is the hard constraint; Rule 2 is defense-in-depth)
-        console.warn('SOD middleware: audit event query failed, skipping maker-checker check.', err);
+        logger.error({ applicationId, userId, err }, 'SOD middleware: audit event query failed — blocking maker-checker check');
+        return next(new AppError('SoD check unavailable — please try again', 503));
       }
 
       next();
@@ -160,8 +159,8 @@ export async function checkSodConflict(userId: string, applicationId: string): P
       select: { assignedRmId: true },
     });
   } catch (dbErr) {
-    console.warn('SOD check: query failed, skipping SOD conflict check.', dbErr);
-    return false;
+    logger.error({ applicationId, userId, err: dbErr }, 'SOD checkSodConflict: application query failed — blocking conflict check');
+    throw new AppError('SoD check unavailable — please try again', 503);
   }
 
   return application?.assignedRmId === userId;
