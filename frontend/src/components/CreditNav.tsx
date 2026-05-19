@@ -79,7 +79,7 @@ const CreditNav: React.FC = () => {
         ))}
 
         {visibleSecondary.length > 0 && (
-          <div className="relative ml-auto" ref={dropdownRef}>
+          <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setOpen(v => !v)}
               className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
