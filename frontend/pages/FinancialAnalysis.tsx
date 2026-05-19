@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import creditService, { BorrowerProfile, trendApi, FinancialRatio, RatioCategory } from '../src/services/credit.service';
+import creditService, { BorrowerProfile, trendApi, RatioCategory, TrendItem, TrendDataPoint } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 
 const CATEGORY_ORDER: RatioCategory[] = ['PROFITABILITY', 'LEVERAGE', 'LIQUIDITY', 'COVERAGE', 'ACTIVITY'];
@@ -19,10 +19,10 @@ const CATEGORY_ICONS: Record<RatioCategory, string> = {
   ACTIVITY: 'speed',
 };
 
-const trendIcon = (trend: string | null) => {
-  if (trend === 'UP') return { icon: 'arrow_upward', color: 'text-green-600' };
-  if (trend === 'DOWN') return { icon: 'arrow_downward', color: 'text-red-600' };
-  return { icon: 'arrow_forward', color: 'text-gray-400' };
+const directionDisplay = (dir: string) => {
+  if (dir === 'improving') return { icon: 'arrow_upward', color: 'text-green-600', label: 'UP' };
+  if (dir === 'declining') return { icon: 'arrow_downward', color: 'text-red-600', label: 'DOWN' };
+  return { icon: 'arrow_forward', color: 'text-gray-400', label: 'STABLE' };
 };
 
 const formatValue = (val: number) => {
@@ -30,11 +30,19 @@ const formatValue = (val: number) => {
   return val.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const formatPeriod = (iso: string) => {
+  try {
+    const d = new Date(iso);
+    return d.getFullYear().toString();
+  } catch {
+    return iso;
+  }
+};
+
 const FinancialAnalysis: React.FC = () => {
   const [borrowers, setBorrowers] = useState<BorrowerProfile[]>([]);
   const [selectedBorrowerId, setSelectedBorrowerId] = useState('');
-  const [ratios, setRatios] = useState<FinancialRatio[]>([]);
-  const [periods, setPeriods] = useState<string[]>([]);
+  const [trends, setTrends] = useState<TrendItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<RatioCategory, boolean>>({
     PROFITABILITY: false,
@@ -53,28 +61,29 @@ const FinancialAnalysis: React.FC = () => {
 
   useEffect(() => { fetchBorrowers(); }, [fetchBorrowers]);
 
-  const fetchRatios = useCallback(async () => {
+  const fetchTrends = useCallback(async () => {
     if (!selectedBorrowerId) return;
     try {
       setLoading(true);
       const data = await trendApi.getTrends(selectedBorrowerId);
-      setRatios(data.ratios);
-      setPeriods(data.periods);
+      // API returns { borrowerProfileId, statements, trends: TrendItem[] }
+      const trendsArr: TrendItem[] = (data as any).trends ?? [];
+      setTrends(trendsArr);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }, [selectedBorrowerId]);
 
-  useEffect(() => { fetchRatios(); }, [fetchRatios]);
+  useEffect(() => { fetchTrends(); }, [fetchTrends]);
 
   const toggleCategory = (cat: RatioCategory) => {
     setCollapsed(prev => ({ ...prev, [cat]: !prev[cat] }));
   };
 
-  const ratiosByCategory = CATEGORY_ORDER.map(cat => ({
+  const trendsByCategory = CATEGORY_ORDER.map(cat => ({
     category: cat,
     label: CATEGORY_LABELS[cat],
     icon: CATEGORY_ICONS[cat],
-    ratios: ratios.filter(r => r.category === cat),
+    trends: trends.filter(t => t.category === cat),
   }));
 
   return (
@@ -113,7 +122,7 @@ const FinancialAnalysis: React.FC = () => {
               <div key={i} style={{ height: 80, borderRadius: 12, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
             ))}
           </div>
-        ) : ratios.length === 0 ? (
+        ) : trends.length === 0 ? (
           <div className="bg-bg-surface border border-border rounded-xl p-12 text-center text-text-secondary">
             <span className="material-symbols-outlined text-5xl block mb-3 opacity-30">functions</span>
             <p className="font-semibold">No ratios available</p>
@@ -121,7 +130,7 @@ const FinancialAnalysis: React.FC = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {ratiosByCategory.filter(group => group.ratios.length > 0).map(group => (
+            {trendsByCategory.filter(group => group.trends.length > 0).map(group => (
               <div key={group.category} className="bg-bg-surface border border-border rounded-xl overflow-hidden">
                 {/* Category Header */}
                 <button onClick={() => toggleCategory(group.category)}
@@ -130,60 +139,87 @@ const FinancialAnalysis: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <span className="material-symbols-outlined text-brand-700">{group.icon}</span>
                     <span className="text-sm font-bold text-text-primary uppercase tracking-wider">{group.label}</span>
-                    <span className="text-xs text-text-secondary bg-bg-subtle px-2 py-0.5 rounded-full">{group.ratios.length}</span>
+                    <span className="text-xs text-text-secondary bg-bg-subtle px-2 py-0.5 rounded-full">{group.trends.length}</span>
                   </div>
                   <span className={`material-symbols-outlined text-text-secondary transition-transform ${collapsed[group.category] ? '' : 'rotate-180'}`}>
                     expand_more
                   </span>
                 </button>
 
-                {/* Ratio Rows */}
+                {/* Trend Rows */}
                 {!collapsed[group.category] && (
                   <div className="border-t border-border">
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ background: 'var(--color-surface-muted)' }}>
-                          {['Ratio', 'Current', 'Trend', 'Previous', 'Change'].map(h => (
-                            <th key={h} style={{ padding: 'var(--space-2) var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.ratios.map(ratio => {
-                          const t = trendIcon(ratio.trend);
-                          const prevValue = ratio.previousValue;
-                          const change = prevValue != null ? ratio.value - prevValue : null;
-                          return (
-                            <tr key={ratio.id} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                              <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 500 }}>
-                                {ratio.ratioLabel}
-                              </td>
-                              <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 700 }}>
-                                {formatValue(ratio.value)}
-                              </td>
-                              <td style={{ padding: 'var(--space-2) var(--space-4)' }}>
-                                <span className={`flex items-center gap-1 text-sm font-bold ${t.color}`}>
-                                  <span className="material-symbols-outlined text-base">{t.icon}</span>
-                                  {ratio.trend || 'N/A'}
+                    {group.trends.map(trend => {
+                      const dir = directionDisplay(trend.direction);
+                      const latest = trend.dataPoints[trend.dataPoints.length - 1];
+                      const previous = trend.dataPoints.length >= 2 ? trend.dataPoints[trend.dataPoints.length - 2] : null;
+                      const change = previous != null && latest ? latest.value - previous.value : null;
+
+                      return (
+                        <div key={trend.ratioKey} className="border-b border-border last:border-b-0">
+                          {/* Ratio summary row */}
+                          <div className="flex items-center justify-between px-5 py-3">
+                            <div>
+                              <span className="text-sm font-medium text-text-primary">{trend.ratioLabel}</span>
+                            </div>
+                            <div className="flex items-center gap-6">
+                              <div className="text-right">
+                                <span className="text-xs text-text-secondary block">Current</span>
+                                <span className="text-sm font-bold text-text-primary">{latest ? formatValue(latest.value) : '—'}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs text-text-secondary block">Trend</span>
+                                <span className={`flex items-center gap-1 text-sm font-bold ${dir.color}`}>
+                                  <span className="material-symbols-outlined text-base">{dir.icon}</span>
+                                  {dir.label}
                                 </span>
-                              </td>
-                              <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                                {prevValue != null ? formatValue(prevValue) : '—'}
-                              </td>
-                              <td style={{ padding: 'var(--space-2) var(--space-4)' }}>
-                                {change != null ? (
+                              </div>
+                              {previous != null && (
+                                <div className="text-right">
+                                  <span className="text-xs text-text-secondary block">Previous</span>
+                                  <span className="text-sm text-text-secondary">{formatValue(previous.value)}</span>
+                                </div>
+                              )}
+                              {change != null && (
+                                <div className="text-right">
+                                  <span className="text-xs text-text-secondary block">Change</span>
                                   <span className={`text-sm font-semibold ${change > 0 ? 'text-green-600' : change < 0 ? 'text-red-600' : 'text-gray-500'}`}>
                                     {change > 0 ? '+' : ''}{formatValue(change)}
                                   </span>
-                                ) : (
-                                  <span className="text-text-secondary text-sm">—</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Mini sparkline / period detail */}
+                          {trend.dataPoints.length > 1 && (
+                            <div className="px-5 pb-3">
+                              <div className="flex items-end gap-3">
+                                {trend.dataPoints.map((dp, i) => {
+                                  const maxVal = Math.max(...trend.dataPoints.map(d => Math.abs(d.value)));
+                                  const barH = maxVal > 0 ? (Math.abs(dp.value) / maxVal) * 48 : 0;
+                                  return (
+                                    <div key={dp.statementId + i} className="flex flex-col items-center gap-1">
+                                      <span className="text-xs font-medium text-text-primary">{formatValue(dp.value)}</span>
+                                      <div
+                                        className="w-8 rounded-sm"
+                                        style={{
+                                          height: Math.max(barH, 4),
+                                          background: i === trend.dataPoints.length - 1
+                                            ? 'var(--color-brand-700)'
+                                            : 'var(--color-brand-200)',
+                                        }}
+                                      />
+                                      <span className="text-xs text-text-secondary">{formatPeriod(dp.fiscalYearEnd)}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

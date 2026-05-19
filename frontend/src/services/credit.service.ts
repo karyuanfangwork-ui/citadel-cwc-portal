@@ -307,10 +307,24 @@ export interface FinancialRatio {
   createdAt: string;
 }
 
+export interface TrendDataPoint {
+  fiscalYearEnd: string;
+  statementId: string;
+  value: number;
+}
+
+export interface TrendItem {
+  ratioKey: string;
+  ratioLabel: string;
+  category: RatioCategory;
+  dataPoints: TrendDataPoint[];
+  direction: 'improving' | 'stable' | 'declining';
+}
+
 export interface TrendAnalysis {
   borrowerProfileId: string;
-  ratios: FinancialRatio[];
-  periods: string[];
+  statements: number;
+  trends: TrendItem[];
 }
 
 export interface ExposureSummary {
