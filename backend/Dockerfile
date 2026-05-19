@@ -8,6 +8,7 @@ COPY prisma ./prisma/
 RUN npm ci
 RUN npx prisma generate
 COPY . .
+ENV NODE_OPTIONS="--max-old-space-size=2048"
 RUN npm run build
 
 # Stage 2: Production
