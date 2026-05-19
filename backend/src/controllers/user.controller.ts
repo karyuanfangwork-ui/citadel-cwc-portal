@@ -513,6 +513,167 @@ class UserController {
         res.json({ status: 'success', data: { roleId, permissionIds } });
     });
 
+    /**
+     * Create a new role (Admin only)
+     * Body: { name: string, description?: string }
+     */
+    createRole = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { name: rawName, description } = req.body;
+
+        if (!rawName || typeof rawName !== 'string') {
+            throw new AppError('name is required', 400);
+        }
+
+        // Normalize to UPPERCASE_SNAKE_CASE
+        const name = rawName.trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+
+        if (name.length < 2 || name.length > 50) {
+            throw new AppError('Role name must be 2-50 characters (letters, digits, underscores)', 400);
+        }
+
+        const existing = await prisma.role.findUnique({ where: { name } });
+        if (existing) {
+            throw new AppError(`Role "${name}" already exists`, 409);
+        }
+
+        const role = await prisma.role.create({
+            data: { name, description: description || null },
+        });
+
+        await auditLog(req, 'ROLE_CREATED', 'role', role.id, { name, description });
+
+        res.status(201).json({ status: 'success', data: { role } });
+    });
+
+    /**
+     * Update a role's name/description (Admin only)
+     * Body: { name?: string, description?: string }
+     */
+    updateRole = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const roleId = req.params.roleId as string;
+        const { name: rawName, description } = req.body;
+
+        const role = await prisma.role.findUnique({ where: { id: roleId } });
+        if (!role) throw new AppError('Role not found', 404);
+
+        const updateData: { name?: string; description?: string | null } = {};
+
+        if (rawName !== undefined) {
+            const name = rawName.trim().toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
+            if (name.length < 2 || name.length > 50) {
+                throw new AppError('Role name must be 2-50 characters (letters, digits, underscores)', 400);
+            }
+            if (name !== role.name) {
+                const existing = await prisma.role.findUnique({ where: { name } });
+                if (existing) throw new AppError(`Role "${name}" already exists`, 409);
+            }
+            updateData.name = name;
+        }
+
+        if (description !== undefined) {
+            updateData.description = description || null;
+        }
+
+        const updated = await prisma.role.update({
+            where: { id: roleId },
+            data: updateData,
+        });
+
+        // Invalidate all RBAC cache since role name affects JWT claims
+        await permissionService.invalidateAllPermissionsCache();
+
+        await auditLog(req, 'ROLE_UPDATED', 'role', roleId, { ...updateData, oldName: role.name });
+
+        res.json({ status: 'success', data: { role: updated } });
+    });
+
+    /**
+     * Delete a role (Admin only)
+     * Safeguard: cannot delete if any users are assigned to the role.
+     */
+    deleteRole = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const roleId = req.params.roleId as string;
+
+        const role = await prisma.role.findUnique({
+            where: { id: roleId },
+            include: { users: true },
+        });
+        if (!role) throw new AppError('Role not found', 404);
+
+        if (role.users.length > 0) {
+            throw new AppError(
+                `Cannot delete role "${role.name}" — ${role.users.length} user(s) are assigned. Remove role from users first.`,
+                400
+            );
+        }
+
+        // Delete role permissions first, then the role
+        await prisma.$transaction([
+            prisma.rolePermission.deleteMany({ where: { roleId } }),
+            prisma.role.delete({ where: { id: roleId } }),
+        ]);
+
+        await permissionService.invalidateAllPermissionsCache();
+
+        await auditLog(req, 'ROLE_DELETED', 'role', roleId, { name: role.name });
+
+        res.json({ status: 'success', message: `Role "${role.name}" deleted` });
+    });
+
+    /**
+     * Create a new permission (Admin only)
+     * Body: { name: string, resource: string, action: string, description?: string }
+     */
+    createPermission = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const { name, resource, action, description } = req.body;
+
+        if (!name || !resource || !action) {
+            throw new AppError('name, resource, and action are required', 400);
+        }
+
+        // Auto-normalitize name to resource:action format if not provided
+        const normalizedName = name.includes(':') ? name : `${resource}:${action}`;
+        // Validate format
+        if (!/^[a-z_]+:[a-z_]+$/.test(normalizedName)) {
+            throw new AppError('Permission name must follow format "resource:action" (lowercase, underscores)', 400);
+        }
+
+        const existing = await prisma.permission.findUnique({ where: { name: normalizedName } });
+        if (existing) {
+            throw new AppError(`Permission "${normalizedName}" already exists`, 409);
+        }
+
+        const permission = await prisma.permission.create({
+            data: { name: normalizedName, resource, action, description: description || null },
+        });
+
+        await auditLog(req, 'PERMISSION_CREATED', 'permission', permission.id, { name: normalizedName, resource, action });
+
+        res.status(201).json({ status: 'success', data: { permission } });
+    });
+
+    /**
+     * Delete a permission (Admin only)
+     */
+    deletePermission = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const permissionId = req.params.permissionId as string;
+
+        const permission = await prisma.permission.findUnique({ where: { id: permissionId } });
+        if (!permission) throw new AppError('Permission not found', 404);
+
+        // Delete all role-permission links first, then the permission
+        await prisma.$transaction([
+            prisma.rolePermission.deleteMany({ where: { permissionId } }),
+            prisma.permission.delete({ where: { id: permissionId } }),
+        ]);
+
+        await permissionService.invalidateAllPermissionsCache();
+
+        await auditLog(req, 'PERMISSION_DELETED', 'permission', permissionId, { name: permission.name });
+
+        res.json({ status: 'success', message: `Permission "${permission.name}" deleted` });
+    });
+
     createUser = asyncHandler(async (req: AuthRequest, res: Response) => {
         const { firstName, lastName, email, department, jobTitle, entityId, executiveRole, agentTeam } = req.body;
 

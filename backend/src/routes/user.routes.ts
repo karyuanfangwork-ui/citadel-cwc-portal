@@ -65,11 +65,25 @@ router.put('/me', validate(updateProfileSchema), userController.updateMe);
 router.put('/me/password', validate(changePasswordSchema), userController.changeMyPassword);
 
 /**
- * @route   POST /api/v1/users/:id/roles
- * @desc    Replace a user's roles (force-revokes active tokens)
- * @access  Private (Admin only)
+ * @route   POST /api/v1/users/roles
+ * @desc    Create a new role
+ * @access  Private (admin:settings)
  */
-router.post('/:id/roles', authorize('ADMIN'), userController.assignRoles);
+router.post('/roles', requirePermission('admin:settings'), userController.createRole);
+
+/**
+ * @route   PUT /api/v1/users/roles/:roleId
+ * @desc    Update role name/description
+ * @access  Private (admin:settings)
+ */
+router.put('/roles/:roleId', requirePermission('admin:settings'), userController.updateRole);
+
+/**
+ * @route   DELETE /api/v1/users/roles/:roleId
+ * @desc    Delete a role (fails if users assigned)
+ * @access  Private (admin:settings)
+ */
+router.delete('/roles/:roleId', requirePermission('admin:settings'), userController.deleteRole);
 
 /**
  * @route   GET /api/v1/users/roles/all
@@ -79,18 +93,39 @@ router.post('/:id/roles', authorize('ADMIN'), userController.assignRoles);
 router.get('/roles/all', authorize('ADMIN'), userController.listRoles);
 
 /**
+ * @route   PUT /api/v1/users/roles/:roleId/permissions
+ * @desc    Replace a role's permissions atomically
+ * @access  Private (admin:settings)
+ */
+router.put('/roles/:roleId/permissions', requirePermission('admin:settings'), userController.updateRolePermissions);
+
+/**
  * @route   GET /api/v1/users/permissions/all
  * @desc    List all permissions with role assignments
- * @access  Private — requirePermission enforces RBAC at the permission level
+ * @access  Private (admin:access)
  */
 router.get('/permissions/all', requirePermission('admin:access'), userController.listPermissions);
 
 /**
- * @route   PUT /api/v1/users/roles/:roleId/permissions
- * @desc    Replace a role's permissions atomically
- * @access  Private — requirePermission enforces RBAC at the permission level
+ * @route   POST /api/v1/users/permissions
+ * @desc    Create a new permission
+ * @access  Private (admin:settings)
  */
-router.put('/roles/:roleId/permissions', requirePermission('admin:settings'), userController.updateRolePermissions);
+router.post('/permissions', requirePermission('admin:settings'), userController.createPermission);
+
+/**
+ * @route   DELETE /api/v1/users/permissions/:permissionId
+ * @desc    Delete a permission
+ * @access  Private (admin:settings)
+ */
+router.delete('/permissions/:permissionId', requirePermission('admin:settings'), userController.deletePermission);
+
+/**
+ * @route   POST /api/v1/users/:id/roles
+ * @desc    Replace a user's roles (force-revokes active tokens)
+ * @access  Private (Admin only)
+ */
+router.post('/:id/roles', authorize('ADMIN'), userController.assignRoles);
 
 /**
  * @route   GET /api/v1/users/search

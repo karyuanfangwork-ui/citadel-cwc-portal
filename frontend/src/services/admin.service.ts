@@ -51,6 +51,31 @@ export const adminService = {
         return response.data.data;
     },
 
+    async createRole(data: { name: string; description?: string }) {
+        const response = await apiClient.post('/users/roles', data);
+        return response.data.data.role as { id: string; name: string; description: string | null };
+    },
+
+    async updateRole(roleId: string, data: { name?: string; description?: string }) {
+        const response = await apiClient.put(`/users/roles/${roleId}`, data);
+        return response.data.data.role as { id: string; name: string; description: string | null };
+    },
+
+    async deleteRole(roleId: string) {
+        const response = await apiClient.delete(`/users/roles/${roleId}`);
+        return response.data;
+    },
+
+    async createPermission(data: { name: string; resource: string; action: string; description?: string }) {
+        const response = await apiClient.post('/users/permissions', data);
+        return response.data.data.permission as { id: string; name: string; resource: string; action: string; description: string | null };
+    },
+
+    async deletePermission(permissionId: string) {
+        const response = await apiClient.delete(`/users/permissions/${permissionId}`);
+        return response.data;
+    },
+
     async createUser(data: { firstName: string; lastName: string; email: string; department?: string; jobTitle?: string; entityId?: string; executiveRole?: string; agentTeam?: string }): Promise<{ user: { id: string; firstName: string; lastName: string; email: string; department: string | null; jobTitle: string | null; entityId: string | null; executiveRole: string | null; agentTeam: string | null; roles: string[] }; tempPassword: string }> {
         const response = await apiClient.post('/users', data);
         return response.data.data;

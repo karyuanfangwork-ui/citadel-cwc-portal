@@ -211,6 +211,13 @@ async function main() {
         create: { name: 'CREDIT_ADMIN', description: 'Credit Administrator — full credit module configuration and management' }
     });
 
+    // Group-level executive roles
+    await prisma.role.upsert({
+        where: { name: 'GROUP_DCEO' },
+        update: {},
+        create: { name: 'GROUP_DCEO', description: 'Group Deputy CEO — executive approval authority, second to Group CEO' }
+    });
+
     console.log('✅ Roles created');
 
     console.log('📋 Creating permission list...');
@@ -351,6 +358,7 @@ async function main() {
         CFO: executivePerms,
         CMO: executivePerms,
         GROUP_CEO: executivePerms,
+        GROUP_DCEO: executivePerms,
         HIRING_MANAGER: hiringManagerPerms,
         FINANCE_HEAD: executivePerms,
         SALES_MANAGER: ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'],
