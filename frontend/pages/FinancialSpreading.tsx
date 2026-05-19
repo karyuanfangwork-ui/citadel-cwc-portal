@@ -11,8 +11,10 @@ import { hasPermission } from '../src/utils/permissions';
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
 
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const formatDate = (d: string | null | undefined) => {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
 const STATUS_BADGE: Record<FinancialStatus, { bg: string; text: string }> = {
   DRAFT: { bg: '#6366f120', text: '#6366f1' },
@@ -45,20 +47,20 @@ const FinancialSpreading: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
-  const [reviewDecision, setReviewDecision] = useState<'APPROVED' | 'REJECTED'>('APPROVED');
+  const [reviewDecision, setReviewDecision] = useState<'approve' | 'reject'>('approve');
   const [reviewComment, setReviewComment] = useState('');
   const [computedRatios, setComputedRatios] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newForm, setNewForm] = useState<{
     statementType: FinancialStatementType;
     period: FinancialPeriod;
-    periodDate: string;
+    fiscalYearEnd: string;
     currency: CurrencyCode;
-  }>({ statementType: 'BS', period: 'ANNUAL', periodDate: '', currency: 'MYR' });
+  }>({ statementType: 'BS', period: 'ANNUAL', fiscalYearEnd: '', currency: 'MYR' });
   const [borrowerName, setBorrowerName] = useState('');
 
   const canWrite = hasPermission(user, 'credit:write');
-  const canReview = hasPermission(user, 'credit:review');
+  const canReview = hasPermission(user, 'credit:approve');
 
   const fetchStatements = useCallback(async () => {
     if (!borrowerProfileId) return;
@@ -106,7 +108,7 @@ const FinancialSpreading: React.FC = () => {
       const items = lineItems.map(li => ({
         lineKey: li.lineKey,
         lineLabel: li.lineLabel,
-        amount: li.amount,
+        amount: Number(li.amount),
         displayOrder: li.displayOrder,
         ...(li.id ? { id: li.id } : {}),
       }));
@@ -189,7 +191,7 @@ const FinancialSpreading: React.FC = () => {
       setCreating(true);
       await financialApi.createStatement(borrowerProfileId, newForm);
       setShowCreateDialog(false);
-      setNewForm({ statementType: 'BS', period: 'ANNUAL', periodDate: '', currency: 'MYR' });
+      setNewForm({ statementType: 'BS', period: 'ANNUAL', fiscalYearEnd: '', currency: 'MYR' });
       fetchStatements();
     } catch (e) { console.error(e); }
     finally { setCreating(false); }
@@ -254,14 +256,14 @@ const FinancialSpreading: React.FC = () => {
                 </button>
               )}
             </div>
-            {statements.length === 0 ? (
+            {filteredStatements.length === 0 ? (
               <div className="bg-bg-surface border border-border rounded-xl p-4 text-center text-text-secondary text-sm">
                 <span className="material-symbols-outlined block text-2xl mb-1 opacity-30">description</span>
                 No statements yet
               </div>
             ) : (
               <div className="space-y-2">
-                {statements.map(stmt => {
+                {filteredStatements.map(stmt => {
                   const badge = STATUS_BADGE[stmt.status];
                   const isSelected = stmt.id === selectedId;
                   return (
@@ -278,11 +280,11 @@ const FinancialSpreading: React.FC = () => {
                         <span className="text-xs text-text-secondary">{TYPE_LABELS[stmt.statementType]}</span>
                       </div>
                       <p className="text-sm font-semibold text-text-primary mt-1">
-                        {formatDate(stmt.periodDate)}
+                        {formatDate(stmt.fiscalYearEnd)}
                       </p>
                       <p className="text-xs text-text-secondary">{stmt.period} · {stmt.currency}</p>
                       <div className="flex items-center justify-between mt-1">
-                        {stmt.enterer && <span className="text-[10px] text-text-secondary">Entered: {stmt.enterer.firstName} {stmt.enterer.lastName}</span>}
+                        {stmt.enteredBy && <span className="text-[10px] text-text-secondary">Entered: {stmt.enteredBy.firstName} {stmt.enteredBy.lastName}</span>}
                         {canWrite && stmt.status === 'DRAFT' && (
                           <button onClick={(e) => { e.stopPropagation(); handleDeleteStatement(stmt.id); }}
                             className="text-red-400 hover:text-red-600" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -314,7 +316,7 @@ const FinancialSpreading: React.FC = () => {
                       {selectedStatement.status}
                     </span>
                     <h2 className="text-lg font-bold text-text-primary">
-                      {TYPE_LABELS[selectedStatement.statementType]} — {formatDate(selectedStatement.periodDate)}
+                      {TYPE_LABELS[selectedStatement.statementType]} — {formatDate(selectedStatement.fiscalYearEnd)}
                     </h2>
                   </div>
                   <div className="flex items-center gap-2">
@@ -350,16 +352,16 @@ const FinancialSpreading: React.FC = () => {
                 </div>
 
                 {/* Maker-checker diff: when reviewed */}
-                {selectedStatement.status === 'REVIEWED' && selectedStatement.enterer && (
+                {selectedStatement.status === 'REVIEWED' && selectedStatement.enteredBy && (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="material-symbols-outlined text-amber-600 text-base">info</span>
                       <span className="text-sm font-bold text-amber-800">Pending Review</span>
                     </div>
                     <p className="text-xs text-amber-700">
-                      Entered by <span className="font-semibold">{selectedStatement.enterer.firstName} {selectedStatement.enterer.lastName}</span> ({selectedStatement.enterer.email})
-                      {selectedStatement.reviewer && (
-                        <> · Last reviewed by {selectedStatement.reviewer.firstName} {selectedStatement.reviewer.lastName}</>
+                      Entered by <span className="font-semibold">{selectedStatement.enteredBy.firstName} {selectedStatement.enteredBy.lastName}</span> ({selectedStatement.enteredBy.email})
+                      {selectedStatement.reviewedBy && (
+                        <> · Last reviewed by {selectedStatement.reviewedBy.firstName} {selectedStatement.reviewedBy.lastName}</>
                       )}
                     </p>
                   </div>
@@ -433,13 +435,13 @@ const FinancialSpreading: React.FC = () => {
                                 style={{ fontFamily: 'var(--font-sans)' }} />
                             </td>
                             <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)' }}>
-                              <input type="number" value={li.amount} disabled={selectedStatement.status !== 'DRAFT' || !canWrite}
+                              <input type="number" value={Number(li.amount)} disabled={selectedStatement.status !== 'DRAFT' || !canWrite}
                                 onChange={e => handleLineItemChange(idx, 'amount', Number(e.target.value))}
                                 className="w-32 bg-transparent border border-border rounded px-2 py-1 text-sm text-right outline-none focus:ring-1 focus:ring-brand-200 disabled:bg-gray-50 disabled:opacity-70"
                                 style={{ fontFamily: 'var(--font-sans)' }} />
                             </td>
                             <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)' }}>
-                              <input type="number" value={li.displayOrder} disabled={selectedStatement.status !== 'DRAFT' || !canWrite}
+                              <input type="number" value={Number(li.displayOrder)} disabled={selectedStatement.status !== 'DRAFT' || !canWrite}
                                 onChange={e => handleLineItemChange(idx, 'displayOrder', Number(e.target.value))}
                                 className="w-16 bg-transparent border border-border rounded px-2 py-1 text-sm text-center outline-none focus:ring-1 focus:ring-brand-200 disabled:bg-gray-50 disabled:opacity-70"
                                 style={{ fontFamily: 'var(--font-sans)' }} />
@@ -493,7 +495,7 @@ const FinancialSpreading: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Period Date *</label>
-                  <input required type="date" value={newForm.periodDate} onChange={e => setNewForm(f => ({ ...f, periodDate: e.target.value }))}
+                  <input required type="date" value={newForm.fiscalYearEnd} onChange={e => setNewForm(f => ({ ...f, fiscalYearEnd: e.target.value }))}
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
                 </div>
                 <div>
@@ -524,24 +526,24 @@ const FinancialSpreading: React.FC = () => {
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-4">Review Statement</h2>
-              {selectedStatement?.enterer && (
+              {selectedStatement?.enteredBy && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-sm text-amber-800">
-                  <span className="font-semibold">Entered by:</span> {selectedStatement.enterer.firstName} {selectedStatement.enterer.lastName} ({selectedStatement.enterer.email})
+                  <span className="font-semibold">Entered by:</span> {selectedStatement.enteredBy.firstName} {selectedStatement.enteredBy.lastName} ({selectedStatement.enteredBy.email})
                 </div>
               )}
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-2">Decision *</label>
                   <div className="grid grid-cols-2 gap-2">
-                    <button onClick={() => setReviewDecision('APPROVED')}
+                    <button onClick={() => setReviewDecision('approve')}
                       className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors ${
-                        reviewDecision === 'APPROVED' ? 'ring-2 ring-brand-300 bg-green-50 text-green-700 border-green-200' : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                        reviewDecision === 'approve' ? 'ring-2 ring-brand-300 bg-green-50 text-green-700 border-green-200' : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
                       }`} style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                       Approve
                     </button>
-                    <button onClick={() => setReviewDecision('REJECTED')}
+                    <button onClick={() => setReviewDecision('reject')}
                       className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors ${
-                        reviewDecision === 'REJECTED' ? 'ring-2 ring-brand-300 bg-red-50 text-red-700 border-red-200' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                        reviewDecision === 'reject' ? 'ring-2 ring-brand-300 bg-red-50 text-red-700 border-red-200' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
                       }`} style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                       Reject
                     </button>

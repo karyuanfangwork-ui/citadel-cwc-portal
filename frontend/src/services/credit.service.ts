@@ -269,18 +269,18 @@ export interface FinancialStatement {
   borrowerProfileId: string;
   statementType: FinancialStatementType;
   period: FinancialPeriod;
-  periodDate: string;
+  fiscalYearEnd: string;
   currency: CurrencyCode;
   status: FinancialStatus;
-  enteredBy: string | null;
-  reviewedBy: string | null;
-  approvedBy: string | null;
+  enteredById: string;
+  reviewedById: string | null;
+  enteredBy: CreditUserRef | null;
+  reviewedBy: CreditUserRef | null;
   createdAt: string;
   updatedAt: string;
   lineItems?: FinancialLineItem[];
-  enterer?: CreditUserRef;
-  reviewer?: CreditUserRef;
-  approverRef?: CreditUserRef;
+  ratios?: FinancialRatio[];
+  _count?: { lineItems: number; ratios: number };
 }
 
 export interface FinancialLineItem {
@@ -288,8 +288,9 @@ export interface FinancialLineItem {
   financialStatementId: string;
   lineKey: string;
   lineLabel: string;
-  amount: number;
+  amount: number | string;
   displayOrder: number;
+  parentLineKey?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -573,7 +574,7 @@ export const financialApi = {
   async createStatement(borrowerProfileId: string, data: {
     statementType: FinancialStatementType;
     period: FinancialPeriod;
-    periodDate: string;
+    fiscalYearEnd: string;
     currency?: CurrencyCode;
   }) {
     const res = await apiClient.post(`/credit/borrowers/${borrowerProfileId}/financials`, data);
@@ -614,7 +615,7 @@ export const financialApi = {
     return res.data.data.statement as FinancialStatement;
   },
 
-  async reviewStatement(statementId: string, data: { decision: 'APPROVED' | 'REJECTED'; comment?: string }) {
+  async reviewStatement(statementId: string, data: { decision: 'approve' | 'reject'; comment?: string }) {
     const res = await apiClient.post(`/credit/financials/${statementId}/review`, data);
     return res.data.data.statement as FinancialStatement;
   },

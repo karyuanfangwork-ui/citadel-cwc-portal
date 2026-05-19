@@ -142,7 +142,7 @@ const CreditApplicationDetail: React.FC = () => {
   };
 
   const canWrite = hasPermission(user, 'credit:write');
-  const canApprove = hasPermission(user, 'credit:approve') || hasPermission(user, 'credit:review');
+  const canApprove = hasPermission(user, 'credit:approve');
 
   const fetchApp = useCallback(async () => {
     if (!id) return;

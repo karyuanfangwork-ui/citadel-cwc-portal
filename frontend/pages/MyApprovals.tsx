@@ -54,7 +54,7 @@ const MyApprovals: React.FC = () => {
   const [applications, setApplications] = useState<CreditApplication[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const canApprove = hasPermission(user, 'credit:approve') || hasPermission(user, 'credit:review');
+  const canApprove = hasPermission(user, 'credit:approve');
 
   const fetchPending = useCallback(async () => {
     try {

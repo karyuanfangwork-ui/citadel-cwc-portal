@@ -527,7 +527,7 @@ const AppShell = () => {
               <Route path="/credit/borrowers/:id" element={<ProtectedRoute requirePermission="credit:read"><BorrowerProfileDetail /></ProtectedRoute>} />
               <Route path="/credit/applications" element={<ProtectedRoute requirePermission="credit:read"><CreditApplicationList /></ProtectedRoute>} />
               <Route path="/credit/applications/:id" element={<ProtectedRoute requirePermission="credit:read"><CreditApplicationDetail /></ProtectedRoute>} />
-              <Route path="/credit/approvals" element={<ProtectedRoute requirePermission="credit:review"><MyApprovals /></ProtectedRoute>} />
+              <Route path="/credit/approvals" element={<ProtectedRoute requirePermission="credit:approve"><MyApprovals /></ProtectedRoute>} />
               <Route path="/credit/financials" element={<ProtectedRoute requirePermission="credit:read"><FinancialSpreading /></ProtectedRoute>} />
               <Route path="/credit/analysis" element={<ProtectedRoute requirePermission="credit:read"><FinancialAnalysis /></ProtectedRoute>} />
               <Route path="/credit/scorecards" element={<ProtectedRoute requirePermission="credit:admin"><ScorecardManagement /></ProtectedRoute>} />

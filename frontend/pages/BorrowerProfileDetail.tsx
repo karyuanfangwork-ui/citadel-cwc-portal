@@ -93,7 +93,7 @@ const BorrowerProfileDetail: React.FC = () => {
   const [loadingExposure, setLoadingExposure] = useState(false);
 
   const canWrite = hasPermission(user, 'credit:write');
-  const canReview = hasPermission(user, 'credit:review');
+  const canReview = hasPermission(user, 'credit:approve');
 
   const fetchProfile = useCallback(async () => {
     if (!id) return;
