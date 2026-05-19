@@ -72,7 +72,11 @@ class ApprovalActionService {
       where: { id: applicationId },
       include: {
         borrowerProfile: { select: { creditRiskRating: true, totalExposure: true } },
-        decisions: { where: { decisionType: ApprovalDecisionType.APPROVE } },
+        decisions: {
+          where: { decisionType: ApprovalDecisionType.APPROVE },
+          take: 20,
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 
