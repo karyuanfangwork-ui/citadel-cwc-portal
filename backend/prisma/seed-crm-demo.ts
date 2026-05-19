@@ -29,10 +29,14 @@ const ACCOUNTS = [
     city: 'Kuala Lumpur',
     state: 'Wilayah Persekutuan',
     country: 'Malaysia',
+    postalCode: '50088',
     registrationNumber: '202001012345',
+    taxNumber: 'C25-202001012345',
+    bankAccount: 'MBB-3221-0088-9012',
     description: 'Mid-size trust advisory firm specializing in family trusts and estate planning for HNW individuals',
     annualRevenue: 25000000,
     accountType: 'CORPORATE',
+    purchaseCashTrust: true,
   },
   {
     name: `${DEMO_TAG} Mahani Wealth Management`,
@@ -45,10 +49,14 @@ const ACCOUNTS = [
     city: 'Petaling Jaya',
     state: 'Selangor',
     country: 'Malaysia',
+    postalCode: '46050',
     registrationNumber: '201801018876',
+    taxNumber: 'C25-201801018876',
+    bankAccount: 'CIMB-8002-7799-0055',
     description: 'Wealth management firm offering unit trusts, will writing, and Shariah-compliant estate planning',
     annualRevenue: 80000000,
     accountType: 'CORPORATE',
+    purchaseCashTrust: false,
   },
   {
     name: `${DEMO_TAG} Kwok Family Office`,
@@ -61,10 +69,14 @@ const ACCOUNTS = [
     city: 'Kuala Lumpur',
     state: 'Wilayah Persekutuan',
     country: 'Malaysia',
+    postalCode: '50490',
     registrationNumber: '202201010099',
+    taxNumber: 'IG-202201010099',
+    bankAccount: 'HLB-3014-5567-0023',
     description: 'Single family office managing portfolio of RM150M+ across property, equities, and private equity',
     annualRevenue: 5000000,
     accountType: 'INDIVIDUAL',
+    purchaseCashTrust: true,
   },
   {
     name: `${DEMO_TAG} Syed Corporation Bhd`,
@@ -77,10 +89,14 @@ const ACCOUNTS = [
     city: 'George Town',
     state: 'Pulau Pinang',
     country: 'Malaysia',
+    postalCode: '10000',
     registrationNumber: '199501010077',
+    taxNumber: 'C25-199501010077',
+    bankAccount: 'RHB-4400-1122-8899',
     description: 'Diversified conglomerate with interests in property, hospitality, and manufacturing',
     annualRevenue: 350000000,
     accountType: 'CORPORATE',
+    purchaseCashTrust: false,
   },
   {
     name: `${DEMO_TAG} Azman & Lee Advocates`,
@@ -93,10 +109,14 @@ const ACCOUNTS = [
     city: 'Kuala Lumpur',
     state: 'Wilayah Persekutuan',
     country: 'Malaysia',
+    postalCode: '50050',
     registrationNumber: '201001010233',
+    taxNumber: 'C25-201001010233',
+    bankAccount: 'PBB-3321-0045-7788',
     description: 'Boutique law firm specializing in probate, wills, and trust administration',
     annualRevenue: 12000000,
     accountType: 'CORPORATE',
+    purchaseCashTrust: false,
   },
 ];
 
@@ -104,26 +124,28 @@ const CONTACTS: Record<string, Array<{
   firstName: string; lastName: string; jobTitle: string;
   email: string; phone: string; isPrimary: boolean;
   nricPassport?: string; preferredLanguage?: string;
+  mobile?: string; department?: string; description?: string;
+  riskProfile?: string; marketingOptIn?: boolean;
 }>> = {
   [`${DEMO_TAG} Tan & Partners Trust Advisory`]: [
-    { firstName: 'Datin', lastName: 'Seri Rosnah', jobTitle: 'Managing Director', email: 'rosnah@tanpartners.example.my', phone: '+60 12-330 1001', isPrimary: true, nricPassport: '750101-01-5123', preferredLanguage: 'ms' },
-    { firstName: 'Rajesh', lastName: 'Menon', jobTitle: 'Senior Trust Consultant', email: 'rajesh@tanpartners.example.my', phone: '+60 16-778 2200', isPrimary: false, preferredLanguage: 'en' },
+    { firstName: 'Datin', lastName: 'Seri Rosnah', jobTitle: 'Managing Director', email: 'rosnah@tanpartners.example.my', phone: '+60 12-330 1001', isPrimary: true, nricPassport: '750101-01-5123', preferredLanguage: 'ms', mobile: '+60 12-330 1001', department: 'Management', description: 'Primary decision maker for all trust advisory engagements. PEP — requires enhanced due diligence.', riskProfile: 'HIGH', marketingOptIn: true },
+    { firstName: 'Rajesh', lastName: 'Menon', jobTitle: 'Senior Trust Consultant', email: 'rajesh@tanpartners.example.my', phone: '+60 16-778 2200', isPrimary: false, preferredLanguage: 'en', mobile: '+60 16-778 2201', department: 'Trust Advisory', description: 'Handles trust restructuring and tax optimization projects', riskProfile: 'MEDIUM', marketingOptIn: false },
   ],
   [`${DEMO_TAG} Mahani Wealth Management`]: [
-    { firstName: 'Nurul', lastName: 'Ain Binti Abdullah', jobTitle: 'Head of Private Wealth', email: 'nurul.ain@mahaniwealth.example.my', phone: '+60 13-889 5501', isPrimary: true, nricPassport: '850515-14-5567', preferredLanguage: 'ms' },
-    { firstName: 'Jonathan', lastName: 'Teh', jobTitle: 'Relationship Manager', email: 'jonathan.t@mahaniwealth.example.my', phone: '+60 17-224 3300', isPrimary: false, preferredLanguage: 'en' },
+    { firstName: 'Nurul', lastName: 'Ain Binti Abdullah', jobTitle: 'Head of Private Wealth', email: 'nurul.ain@mahaniwealth.example.my', phone: '+60 13-889 5501', isPrimary: true, nricPassport: '850515-14-5567', preferredLanguage: 'ms', mobile: '+60 13-889 5502', department: 'Private Wealth', description: 'Leads the private wealth division, manages HNW client relationships', riskProfile: 'MEDIUM', marketingOptIn: true },
+    { firstName: 'Jonathan', lastName: 'Teh', jobTitle: 'Relationship Manager', email: 'jonathan.t@mahaniwealth.example.my', phone: '+60 17-224 3300', isPrimary: false, preferredLanguage: 'en', mobile: '+60 17-224 3301', department: 'Client Relations', description: 'Day-to-day relationship manager for 50+ wealth management clients', riskProfile: 'LOW', marketingOptIn: true },
   ],
   [`${DEMO_TAG} Kwok Family Office`]: [
-    { firstName: 'Kwok', lastName: 'Wei Ming', jobTitle: 'Patriarch / Trust Settlor', email: 'weiming@kwokfamily.example.my', phone: '+60 12-555 9900', isPrimary: true, nricPassport: '620830-10-5543', preferredLanguage: 'en' },
-    { firstName: 'Kwok', lastName: 'Mei Ling', jobTitle: 'Trustee Designate', email: 'meiling@kwokfamily.example.my', phone: '+60 12-555 9901', isPrimary: false, preferredLanguage: 'en' },
+    { firstName: 'Kwok', lastName: 'Wei Ming', jobTitle: 'Patriarch / Trust Settlor', email: 'weiming@kwokfamily.example.my', phone: '+60 12-555 9900', isPrimary: true, nricPassport: '620830-10-5543', preferredLanguage: 'en', mobile: '+60 12-555 9901', department: 'Board', description: 'Settlor of the Kwok family trust. Net worth RM150M+. Key decision maker.', riskProfile: 'HIGH', marketingOptIn: false },
+    { firstName: 'Kwok', lastName: 'Mei Ling', jobTitle: 'Trustee Designate', email: 'meiling@kwokfamily.example.my', phone: '+60 12-555 9902', isPrimary: false, preferredLanguage: 'en', mobile: '+60 12-555 9903', department: 'Family Office', description: 'Designated trustee for digital asset trust. Holds MBA from INSEAD.', riskProfile: 'MEDIUM', marketingOptIn: false },
   ],
   [`${DEMO_TAG} Syed Corporation Bhd`]: [
-    { firstName: 'Datuk', lastName: 'Syed Hamid', jobTitle: 'Group CEO', email: 'syed.hamid@syedcorp.example.my', phone: '+60 4-229 9901', isPrimary: true, nricPassport: '680712-07-5234', preferredLanguage: 'ms' },
-    { firstName: 'Farah', lastName: 'Alzahra', jobTitle: 'Group Legal Counsel', email: 'farah@syedcorp.example.my', phone: '+60 4-229 9902', isPrimary: false, preferredLanguage: 'en' },
+    { firstName: 'Datuk', lastName: 'Syed Hamid', jobTitle: 'Group CEO', email: 'syed.hamid@syedcorp.example.my', phone: '+60 4-229 9901', isPrimary: true, nricPassport: '680712-07-5234', preferredLanguage: 'ms', mobile: '+60 12-888 1100', department: 'C-Suite', description: 'PEP — Group CEO of diversified conglomerate. Personal net worth estimated RM200M+', riskProfile: 'HIGH', marketingOptIn: false },
+    { firstName: 'Farah', lastName: 'Alzahra', jobTitle: 'Group Legal Counsel', email: 'farah@syedcorp.example.my', phone: '+60 4-229 9902', isPrimary: false, preferredLanguage: 'en', mobile: '+60 16-997 4421', department: 'Legal', description: 'Handles all corporate legal matters including shareholder succession', riskProfile: 'LOW', marketingOptIn: true },
   ],
   [`${DEMO_TAG} Azman & Lee Advocates`]: [
-    { firstName: 'Azman', lastName: 'Bin Ishak', jobTitle: 'Senior Partner', email: 'azman@azmanlee.example.my', phone: '+60 3-2070 4401', isPrimary: true, nricPassport: '700406-10-5667', preferredLanguage: 'ms' },
-    { firstName: 'Lee', lastName: 'Siew Eng', jobTitle: 'Probate Specialist', email: 'sieweng@azmanlee.example.my', phone: '+60 3-2070 4402', isPrimary: false, nricPassport: '780922-14-5521', preferredLanguage: 'en' },
+    { firstName: 'Azman', lastName: 'Bin Ishak', jobTitle: 'Senior Partner', email: 'azman@azmanlee.example.my', phone: '+60 3-2070 4401', isPrimary: true, nricPassport: '700406-10-5667', preferredLanguage: 'ms', mobile: '+60 12-345 6677', department: 'Probate & Trust', description: '30+ years in probate law. Referral partner for trust administration matters.', riskProfile: 'LOW', marketingOptIn: true },
+    { firstName: 'Lee', lastName: 'Siew Eng', jobTitle: 'Probate Specialist', email: 'sieweng@azmanlee.example.my', phone: '+60 3-2070 4402', isPrimary: false, nricPassport: '780922-14-5521', preferredLanguage: 'en', mobile: '+60 16-890 2233', department: 'Probate & Trust', description: 'Specializes in cross-border probate and Islamic wills (wasiyyah)', riskProfile: 'LOW', marketingOptIn: true },
   ],
 };
 
@@ -214,8 +236,13 @@ async function main() {
           accountId,
           nricPassport: contact.nricPassport || null,
           preferredLanguage: contact.preferredLanguage || 'en',
-          pdpaConsent: contact.isPrimary, // primary contacts have consent
+          pdpaConsent: contact.isPrimary,
           pdpaConsentDate: contact.isPrimary ? new Date() : null,
+          mobile: contact.mobile || null,
+          department: contact.department || null,
+          description: contact.description || null,
+          riskProfile: contact.riskProfile || null,
+          marketingOptIn: contact.marketingOptIn ?? false,
         },
       });
       allContactIds.push(created.id);
@@ -232,17 +259,27 @@ async function main() {
     for (const primary of primaries) {
       const contactId = contactByEmail[primary.email];
       if (!contactId) continue;
+      const isPep = primary.email.includes('syed') || primary.email.includes('rosnah');
+      const riskLvl = primary.riskProfile || 'MEDIUM';
       await prisma.crmKycRecord.create({
         data: {
           contactId,
           status: 'APPROVED',
+          riskLevel: riskLvl,
           nricVerified: true,
           addressVerified: true,
           incomeVerified: true,
           sourceOfFundsVerified: true,
           riskProfileDone: true,
-          isPep: primary.email.includes('syed') || primary.email.includes('rosnah'), // PEP for politicians
-          riskLevel: primary.email.includes('syed') ? 'HIGH' : 'MEDIUM',
+          isPep,
+          amlRiskTier: isPep ? 'ENHANCED' : (riskLvl === 'HIGH' ? 'ENHANCED' : riskLvl === 'MEDIUM' ? 'STANDARD' : 'SIMPLIFIED'),
+          screeningStatus: 'CLEAR',
+          screeningHits: [{ source: 'PEP_SCREENING', result: isPep ? 'MATCH_FOUND' : 'NO_MATCH', checkedAt: new Date().toISOString(), details: isPep ? 'Politically Exposed Person identified' : 'No adverse findings' }],
+          lastScreeningAt: new Date(),
+          nextScreeningDueAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+          approvedBy: owner.id,
+          approvedAt: new Date(),
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
           notes: `${DEMO_TAG} Demo KYC — verified for trust setup`,
         },
       });
@@ -343,10 +380,16 @@ async function main() {
       continue;
     }
 
+    // Find a primary contact for this account
+    const accountContacts = CONTACTS[aName] || Object.values(CONTACTS)[oppsCreated % Object.keys(CONTACTS).length];
+    const primaryContact = accountContacts?.find(c => c.isPrimary);
+    const contactId = primaryContact ? contactByEmail[primaryContact.email] : null;
+
     await prisma.crmOpportunity.create({
       data: {
         name: opp.name,
         accountId,
+        contactId,
         pipelineId: pipeline!.id,
         stageId,
         ownerId: owner.id,
@@ -412,6 +455,165 @@ async function main() {
   }
   console.log(`   ✓ ${notesCreated} notes created`);
 
+  // ── 9. Create Beneficiaries ──
+  console.log('\n👨‍👩‍👧‍👦 Creating Demo Beneficiaries...');
+  let beneficiariesCreated = 0;
+
+  // Kwok family — 3 children + 2 grandchildren as beneficiaries of Kwok Wei Ming's contact
+  const kwokWeiMingContactId = contactByEmail['weiming@kwokfamily.example.my'];
+  if (kwokWeiMingContactId) {
+    const kwokBeneficiaries = [
+      { firstName: 'Kwok', lastName: 'Jia Hao', relationship: 'SON', allocationPct: 30, email: 'jiahao@kwokfamily.example.my', phone: '+60 12-555 9910', nricPassport: '900515-10-5601', dateOfBirth: new Date('1990-05-15'), isMinor: false, notes: 'Eldest son, involved in family business operations' },
+      { firstName: 'Kwok', lastName: 'Su Mei', relationship: 'DAUGHTER', allocationPct: 25, email: 'sumei@kwokfamily.example.my', phone: '+60 12-555 9911', nricPassport: '930822-14-5580', dateOfBirth: new Date('1993-08-22'), isMinor: false, notes: 'Second child, medical doctor in Singapore' },
+      { firstName: 'Kwok', lastName: 'Jun Wei', relationship: 'SON', allocationPct: 25, email: 'junwei@kwokfamily.example.my', phone: '+60 12-555 9912', nricPassport: '960101-10-5623', dateOfBirth: new Date('1996-01-01'), isMinor: false, notes: 'Youngest son, studying in UK' },
+      { firstName: 'Kwok', lastName: 'Yi Xuan', relationship: 'GRANDCHILD', allocationPct: 10, nricPassport: '20180901-10-5544', dateOfBirth: new Date('2018-09-01'), isMinor: true, guardianName: 'Kwok Jia Hao', notes: 'Grandson via Jia Hao' },
+      { firstName: 'Kwok', lastName: 'Xin Er', relationship: 'GRANDCHILD', allocationPct: 10, nricPassport: '20210315-14-5501', dateOfBirth: new Date('2021-03-15'), isMinor: true, guardianName: 'Kwok Su Mei', notes: 'Granddaughter via Su Mei' },
+    ];
+    for (const b of kwokBeneficiaries) {
+      await prisma.crmBeneficiary.create({
+        data: {
+          contactId: kwokWeiMingContactId,
+          firstName: b.firstName,
+          lastName: b.lastName,
+          relationship: b.relationship,
+          allocationPct: b.allocationPct,
+          email: b.email || null,
+          phone: b.phone || null,
+          nricPassport: b.nricPassport || null,
+          dateOfBirth: b.dateOfBirth || null,
+          isMinor: b.isMinor,
+          guardianName: b.guardianName || null,
+          notes: b.notes || null,
+        },
+      });
+      beneficiariesCreated++;
+    }
+  }
+
+  // Syed Corp — Datuk Syed Hamid beneficiaries
+  const syedHamidContactId = contactByEmail['syed.hamid@syedcorp.example.my'];
+  if (syedHamidContactId) {
+    const syedBeneficiaries: Array<{ firstName: string; lastName: string; relationship: string; allocationPct: number; email?: string; phone?: string; nricPassport?: string; dateOfBirth?: Date; isMinor: boolean; guardianName?: string; notes?: string }> = [
+      { firstName: 'Syed', lastName: 'Aiman', relationship: 'SON', allocationPct: 40, email: 'aiman@syedcorp.example.my', phone: '+60 12-888 1110', nricPassport: '920710-07-5201', dateOfBirth: new Date('1992-07-10'), isMinor: false, notes: 'Eldest son, Group COO' },
+      { firstName: 'Syed', lastName: 'Aisyah', relationship: 'DAUGHTER', allocationPct: 35, email: 'aisyah@syedcorp.example.my', nricPassport: '950418-10-5580', dateOfBirth: new Date('1995-04-18'), isMinor: false, notes: 'Daughter, runs family foundation' },
+      { firstName: 'Syed', lastName: 'Zara', relationship: 'SPOUSE', allocationPct: 25, email: 'zara@syedcorp.example.my', nricPassport: '700902-10-5543', dateOfBirth: new Date('1970-09-02'), isMinor: false, notes: 'Wife, holds 15% of Syed Corp directly' },
+    ];
+    for (const b of syedBeneficiaries) {
+      await prisma.crmBeneficiary.create({
+        data: {
+          contactId: syedHamidContactId,
+          firstName: b.firstName,
+          lastName: b.lastName,
+          relationship: b.relationship,
+          allocationPct: b.allocationPct,
+          email: b.email || null,
+          phone: b.phone || null,
+          nricPassport: b.nricPassport || null,
+          dateOfBirth: b.dateOfBirth || null,
+          isMinor: b.isMinor,
+          guardianName: b.guardianName || null,
+          notes: b.notes || null,
+        },
+      });
+      beneficiariesCreated++;
+    }
+  }
+  console.log(`   ✓ ${beneficiariesCreated} beneficiaries created`);
+
+  // ── 10. Create Trust Products ──
+  console.log('\n🏦 Creating Demo Trust Products...');
+  let trustProductsCreated = 0;
+
+  // Trust products for Kwok Family Office account
+  const kwokAccountName = `${DEMO_TAG} Kwok Family Office`;
+  const kwokAccountId = accounts[kwokAccountName]?.id;
+  if (kwokAccountId) {
+    const kwokTrustProducts = [
+      { trustType: 'FAMILY_TRUST', deedRefNumber: 'TD-KWK-2024-001', status: 'ACTIVE', assetValue: 80000000, assetDescription: 'Combined property and equity portfolio — 3 commercial properties (KL Sentral, Bukit Damansara, Penang) + Bursa Malaysia blue chips', trusteeName: 'Citadel Trustee Bhd', trusteeContact: '+60 3-2780 9900', settlementDate: null, maturityDate: null, nextReviewDate: new Date('2026-07-01') },
+      { trustType: 'UNIT_TRUST', deedRefNumber: 'UT-KWK-2025-002', status: 'ACTIVE', assetValue: 40000000, assetDescription: 'Unit trust portfolio — diversified across Shariah-compliant equity funds and bond funds', trusteeName: 'Citadel Trustee Bhd', trusteeContact: '+60 3-2780 9900', settlementDate: new Date('2024-01-15'), maturityDate: new Date('2034-01-15'), nextReviewDate: new Date('2026-04-01') },
+      { trustType: 'DIGITAL_TRUST', deedRefNumber: 'DT-KWK-2026-003', status: 'PENDING', assetValue: 2300000, assetDescription: 'Digital assets — Bitcoin (15 BTC), Ethereum (80 ETH), and NFT portfolio', trusteeName: 'Citadel Digital Custody Sdn Bhd', trusteeContact: '+60 3-2780 9950', settlementDate: null, maturityDate: null, nextReviewDate: new Date('2026-06-01') },
+    ];
+    const kwokWeiMingId = contactByEmail['weiming@kwokfamily.example.my'];
+    for (const tp of kwokTrustProducts) {
+      await prisma.crmTrustProduct.create({
+        data: {
+          accountId: kwokAccountId,
+          contactId: kwokWeiMingId || null,
+          trustType: tp.trustType,
+          deedRefNumber: tp.deedRefNumber,
+          status: tp.status,
+          assetValue: tp.assetValue,
+          currency: 'MYR',
+          assetDescription: tp.assetDescription,
+          trusteeName: tp.trusteeName,
+          trusteeContact: tp.trusteeContact,
+          settlementDate: tp.settlementDate,
+          maturityDate: tp.maturityDate,
+          nextReviewDate: tp.nextReviewDate,
+          ownerId: owner.id,
+        },
+      });
+      trustProductsCreated++;
+    }
+  }
+
+  // Trust product for Syed Corp
+  const syedAccountName = `${DEMO_TAG} Syed Corporation Bhd`;
+  const syedAccountId = accounts[syedAccountName]?.id;
+  if (syedAccountId) {
+    const syedTrustProducts = [
+      { trustType: 'CORPORATE_TRUST', deedRefNumber: 'CT-SYD-2023-010', status: 'ACTIVE', assetValue: 150000000, assetDescription: 'Syed Corp Holdings — property portfolio across 3 holding companies (Syed Land Sdn Bhd, Syed Hospitality Sdn Bhd, Syed Manufacturing Sdn Bhd)', trusteeName: 'Amanah Raya Berhad', trusteeContact: '+60 3-2693 7000', settlementDate: new Date('2023-06-01'), maturityDate: new Date('2043-06-01'), nextReviewDate: new Date('2026-09-01') },
+      { trustType: 'INSURANCE_TRUST', deedRefNumber: 'IT-SYD-2024-011', status: 'ACTIVE', assetValue: 25000000, assetDescription: 'Key-man insurance trust — RM25M coverage for Datuk Syed Hamid (Group CEO) and Farah Alzahra (Group Legal Counsel)', trusteeName: 'Citadel Trustee Bhd', trusteeContact: '+60 3-2780 9900', settlementDate: new Date('2024-03-15'), maturityDate: new Date('2039-03-15'), nextReviewDate: new Date('2026-03-15') },
+    ];
+    for (const tp of syedTrustProducts) {
+      await prisma.crmTrustProduct.create({
+        data: {
+          accountId: syedAccountId,
+          contactId: syedHamidContactId || null,
+          trustType: tp.trustType,
+          deedRefNumber: tp.deedRefNumber,
+          status: tp.status,
+          assetValue: tp.assetValue,
+          currency: 'MYR',
+          assetDescription: tp.assetDescription,
+          trusteeName: tp.trusteeName,
+          trusteeContact: tp.trusteeContact,
+          settlementDate: tp.settlementDate,
+          maturityDate: tp.maturityDate,
+          nextReviewDate: tp.nextReviewDate,
+          ownerId: owner.id,
+        },
+      });
+      trustProductsCreated++;
+    }
+  }
+
+  // Trust product for Mahani Wealth
+  const mahaniAccountName = `${DEMO_TAG} Mahani Wealth Management`;
+  const mahaniAccountId = accounts[mahaniAccountName]?.id;
+  if (mahaniAccountId) {
+    await prisma.crmTrustProduct.create({
+      data: {
+        accountId: mahaniAccountId,
+        contactId: contactByEmail['nurul.ain@mahaniwealth.example.my'] || null,
+        trustType: 'UNIT_TRUST',
+        deedRefNumber: 'UT-MHN-2025-005',
+        status: 'ACTIVE',
+        assetValue: 32000000,
+        currency: 'MYR',
+        assetDescription: 'Shariah-compliant unit trust distribution — 50+ HNW client portfolios under Mahani management',
+        trusteeName: 'Citadel Trustee Bhd',
+        trusteeContact: '+60 3-2780 9900',
+        settlementDate: new Date('2025-01-10'),
+        maturityDate: new Date('2030-01-10'),
+        nextReviewDate: new Date('2026-01-10'),
+        ownerId: owner.id,
+      },
+    });
+    trustProductsCreated++;
+  }
+  console.log(`   ✓ ${trustProductsCreated} trust products created`);
+
   // ── Summary ──
   console.log(`\n✅ CRM ${DEMO_TAG} demo seed completed!`);
   console.log('\n📊 Summary:');
@@ -419,6 +621,8 @@ async function main() {
   console.log(`   • Accounts:  ${ACCOUNTS.length}`);
   console.log(`   • Contacts:  ${Object.values(CONTACTS).flat().length}`);
   console.log(`   • KYC:       ${kycCreated}`);
+  console.log(`   • Beneficiaries: ${beneficiariesCreated}`);
+  console.log(`   • Trust Products: ${trustProductsCreated}`);
   console.log(`   • Pipeline:  1 (${pipeline!.stages.length} stages)`);
   console.log(`   • Leads:     ${leadsCreated} (AI scores pre-filled)`);
   console.log(`   • Opportunities: ${oppsCreated} (AI win probability pre-filled)`);

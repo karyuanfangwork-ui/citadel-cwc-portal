@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { formatCurrency } from '../utils/formatCurrency';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -395,7 +396,7 @@ class FinancialService {
 
     const amountMap: Record<string, number> = {};
     for (const item of lineItems) {
-      amountMap[item.lineKey] = Number(item.amount);
+      amountMap[item.lineKey] = formatCurrency(item.amount) ?? 0;
     }
 
     const totalAssets = amountMap['total_assets'] ?? 0;
@@ -453,7 +454,7 @@ class FinancialService {
    * Review a REVIEWED statement → APPROVED (with auto-compute of ratios).
    * The reviewer must be different from the person who entered the data.
    */
-  async reviewStatement(statementId: string, reviewedById: string, action: 'approve' | 'reject', isAdmin: boolean = false) {
+  async reviewStatement(statementId: string, reviewedById: string, action: 'APPROVE' | 'REJECT', isAdmin: boolean = false) {
     const statement = await prisma.financialStatement.findFirst({
       where: { id: statementId, deletedAt: null },
     });
@@ -471,7 +472,7 @@ class FinancialService {
       throw new Error('The reviewer must be different from the person who entered the statement');
     }
 
-    if (action === 'approve') {
+    if (action === 'APPROVE') {
       const updated = await prisma.$transaction(async (tx) => {
         const stmt = await tx.financialStatement.update({
           where: { id: statementId },
@@ -523,7 +524,7 @@ class FinancialService {
     // Build a map of lineKey → numeric amount
     const vals: Record<string, number> = {};
     for (const item of lineItems) {
-      vals[item.lineKey] = Number(item.amount);
+      vals[item.lineKey] = formatCurrency(item.amount) ?? 0;
     }
 
     const computed: {
@@ -589,7 +590,7 @@ class FinancialService {
 
     const vals: Record<string, number> = {};
     for (const item of lineItems) {
-      vals[item.lineKey] = Number(item.amount);
+      vals[item.lineKey] = formatCurrency(item.amount) ?? 0;
     }
 
     const computed: {
@@ -707,7 +708,7 @@ class FinancialService {
         trendMap[ratio.ratioKey].dataPoints.push({
           statementId: stmt.id,
           fiscalYearEnd: stmt.fiscalYearEnd,
-          value: Number(ratio.value),
+          value: formatCurrency(ratio.value) ?? 0,
         });
       }
     }
@@ -787,8 +788,8 @@ class FinancialService {
         facilities.push({
           applicationId: app.id,
           facilityType: fac.facilityType,
-          amount: Number(fac.amount),
-          approvedAmount: fac.approvedAmount ? Number(fac.approvedAmount) : null,
+          amount: formatCurrency(fac.amount) ?? 0,
+          approvedAmount: formatCurrency(fac.approvedAmount),
           currency: app.currency,
         });
       }
@@ -801,17 +802,17 @@ class FinancialService {
     });
 
     const exposureLimit = borrower?.exposureLimit
-      ? Number(borrower.exposureLimit)
+      ? formatCurrency(borrower.exposureLimit)
       : null;
 
     return {
-      totalExposure: Number(totalExposure),
+      totalExposure: formatCurrency(totalExposure),
       facilities,
       limits: {
         exposureLimit,
         utilizationPct:
           exposureLimit && exposureLimit > 0
-            ? Math.round((Number(totalExposure) / exposureLimit) * 10000) / 100
+            ? Math.round((formatCurrency(totalExposure)! / exposureLimit) * 10000) / 100
             : null,
       },
     };

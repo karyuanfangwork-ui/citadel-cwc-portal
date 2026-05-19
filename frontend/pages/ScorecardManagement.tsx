@@ -271,7 +271,7 @@ const ScorecardManagement: React.FC = () => {
 
         {/* Create Scorecard Dialog */}
         {showCreate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCreate(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowCreate(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-4">Create Scorecard</h2>
@@ -311,7 +311,7 @@ const ScorecardManagement: React.FC = () => {
 
         {/* Create Version Dialog */}
         {showVersionDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowVersionDialog(null)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowVersionDialog(null)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-2">Create Scorecard Version</h2>

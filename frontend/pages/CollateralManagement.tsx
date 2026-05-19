@@ -592,7 +592,7 @@ const CollateralManagement: React.FC = () => {
 
       {/* Add Collateral Dialog */}
       {showCollateralDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCollateralDialog(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowCollateralDialog(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Add Collateral</h2>
@@ -636,7 +636,7 @@ const CollateralManagement: React.FC = () => {
 
       {/* Add Valuation Dialog */}
       {showValuationDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowValuationDialog(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowValuationDialog(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Add Valuation</h2>
@@ -687,7 +687,7 @@ const CollateralManagement: React.FC = () => {
 
       {/* Add Lien Dialog */}
       {showLienDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowLienDialog(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowLienDialog(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Add Lien</h2>
@@ -733,7 +733,7 @@ const CollateralManagement: React.FC = () => {
 
       {/* Add Insurance Dialog */}
       {showInsuranceDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowInsuranceDialog(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowInsuranceDialog(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Add Insurance</h2>
@@ -791,7 +791,7 @@ const CollateralManagement: React.FC = () => {
 
       {/* Add Guarantee Dialog */}
       {showGuaranteeDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowGuaranteeDialog(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowGuaranteeDialog(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Add Guarantee</h2>

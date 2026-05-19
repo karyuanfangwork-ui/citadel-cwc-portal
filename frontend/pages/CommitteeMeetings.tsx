@@ -548,7 +548,7 @@ const CommitteeMeetings: React.FC = () => {
 
       {/* Create Meeting Dialog */}
       {showCreateDialog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCreateDialog(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowCreateDialog(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">New Committee Meeting</h2>
@@ -599,7 +599,7 @@ const CommitteeMeetings: React.FC = () => {
 
       {/* Add Member Dialog */}
       {showAddMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowAddMember(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowAddMember(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Add Member</h2>
@@ -634,7 +634,7 @@ const CommitteeMeetings: React.FC = () => {
 
       {/* Add Agenda Item Dialog */}
       {showAddAgenda && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowAddAgenda(false)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowAddAgenda(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Add Agenda Item</h2>
@@ -669,7 +669,7 @@ const CommitteeMeetings: React.FC = () => {
 
       {/* Memo Viewer Dialog */}
       {viewingMemo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setViewingMemo(null)}>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setViewingMemo(null)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">

@@ -50,7 +50,7 @@ class ApplicationFacilityService {
     const { applicationId, page = 1, limit = 50 } = options;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.ApplicationFacilityWhereInput = { applicationId };
+    const where: Prisma.ApplicationFacilityWhereInput = { applicationId, deletedAt: null };
 
     const [facilities, total] = await Promise.all([
       prisma.applicationFacility.findMany({
@@ -69,10 +69,10 @@ class ApplicationFacilityService {
   }
 
   /**
-   * Get a single facility by ID.
+   * Get a single facility by ID (excludes soft-deleted).
    */
   async getFacility(id: string) {
-    return prisma.applicationFacility.findUnique({ where: { id } });
+    return prisma.applicationFacility.findUnique({ where: { id, deletedAt: null } });
   }
 
   /**
@@ -119,13 +119,16 @@ class ApplicationFacilityService {
   }
 
   /**
-   * Delete a facility.
+   * Soft-delete a facility (sets deletedAt timestamp).
    */
   async deleteFacility(id: string) {
-    const existing = await prisma.applicationFacility.findUnique({ where: { id } });
+    const existing = await prisma.applicationFacility.findUnique({ where: { id, deletedAt: null } });
     if (!existing) return null;
 
-    return prisma.applicationFacility.delete({ where: { id } });
+    return prisma.applicationFacility.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 }
 

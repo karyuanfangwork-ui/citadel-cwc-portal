@@ -3,50 +3,9 @@
 // ============================================================================
 
 // ---- Application Lifecycle ----
-
-export enum ApplicationState {
-  DRAFT = 'DRAFT',
-  SUBMITTED = 'SUBMITTED',
-  ANALYSING = 'ANALYSING',
-  UNDER_DECISION = 'UNDER_DECISION',
-  COMMITTEE = 'COMMITTEE',
-  DECISIONED = 'DECISIONED',
-  CONDITIONS_PRECEDENT = 'CONDITIONS_PRECEDENT',
-  READY_FOR_DRAWDOWN = 'READY_FOR_DRAWDOWN',
-  ACTIVE = 'ACTIVE',
-  CLOSED = 'CLOSED',
-  DECLINED = 'DECLINED',
-  WITHDRAWN = 'WITHDRAWN',
-  LAPSED = 'LAPSED',
-  DEFAULT = 'DEFAULT',
-  WRITTEN_OFF = 'WRITTEN_OFF',
-}
-
-export const APPLICATION_TRANSITIONS: Record<ApplicationState, ApplicationState[]> = {
-  [ApplicationState.DRAFT]: [ApplicationState.SUBMITTED, ApplicationState.WITHDRAWN],
-  [ApplicationState.SUBMITTED]: [ApplicationState.ANALYSING, ApplicationState.WITHDRAWN, ApplicationState.DRAFT],
-  [ApplicationState.ANALYSING]: [ApplicationState.UNDER_DECISION, ApplicationState.DRAFT],
-  [ApplicationState.UNDER_DECISION]: [ApplicationState.COMMITTEE, ApplicationState.ANALYSING, ApplicationState.DECLINED],
-  [ApplicationState.COMMITTEE]: [ApplicationState.DECISIONED, ApplicationState.UNDER_DECISION],
-  [ApplicationState.DECISIONED]: [ApplicationState.CONDITIONS_PRECEDENT, ApplicationState.DECLINED],
-  [ApplicationState.CONDITIONS_PRECEDENT]: [ApplicationState.READY_FOR_DRAWDOWN],
-  [ApplicationState.READY_FOR_DRAWDOWN]: [ApplicationState.ACTIVE],
-  [ApplicationState.ACTIVE]: [ApplicationState.CLOSED, ApplicationState.DEFAULT, ApplicationState.WRITTEN_OFF],
-  [ApplicationState.CLOSED]: [],
-  [ApplicationState.DECLINED]: [],
-  [ApplicationState.WITHDRAWN]: [],
-  [ApplicationState.LAPSED]: [],
-  [ApplicationState.DEFAULT]: [ApplicationState.WRITTEN_OFF, ApplicationState.CLOSED],
-  [ApplicationState.WRITTEN_OFF]: [],
-};
-
-export const TERMINAL_STATES: ApplicationState[] = [
-  ApplicationState.CLOSED,
-  ApplicationState.DECLINED,
-  ApplicationState.WITHDRAWN,
-  ApplicationState.LAPSED,
-  ApplicationState.WRITTEN_OFF,
-];
+// NOTE: ApplicationState is now sourced from @prisma/client to stay in sync
+// with the Prisma schema. The transition machine lives in creditApplication.service.ts.
+// Do not re-create a local enum here — always import from '@prisma/client'.
 
 // ---- Borrower Types ----
 
@@ -86,7 +45,7 @@ export enum RiskRating {
 export function scoreToRating(score: number): RiskRating {
   if (score >= 90) return RiskRating.AAA;
   if (score >= 80) return RiskRating.AA;
-  if (score >= 70) return RiskRating.AA;
+  if (score >= 70) return RiskRating.A;
   if (score >= 60) return RiskRating.BBB;
   if (score >= 50) return RiskRating.BB;
   if (score >= 40) return RiskRating.B;
@@ -193,12 +152,8 @@ export enum ApprovalAuthorityLevel {
 }
 
 // ---- Committee ----
-
-export enum CommitteeVoteChoice {
-  APPROVE = 'APPROVE',
-  REJECT = 'REJECT',
-  ABSTAIN = 'ABSTAIN',
-}
+// Use CommitteeVoteChoice from @prisma/client instead of a local enum
+// (Prisma defines CommitteeVoteChoice with APPROVE, REJECT, ABSTAIN)
 
 export enum CommitteeMemberRole {
   CHAIR = 'CHAIR',

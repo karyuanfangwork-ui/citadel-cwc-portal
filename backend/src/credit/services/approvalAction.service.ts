@@ -2,6 +2,8 @@ import prisma from '../../utils/prisma';
 import { ApprovalDecisionType, ApplicationState } from '@prisma/client';
 import { approvalMatrixService } from './approvalMatrix.service';
 import { checkSodConflict } from '../middleware/sod.middleware';
+import { formatCurrency } from '../utils/formatCurrency';
+import { AuditChainService } from './auditChain.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -117,7 +119,7 @@ class ApprovalActionService {
 
     // 3. Lookup authority from approval matrix
     const borrowerRating = application.borrowerProfile?.creditRiskRating ?? 'NR';
-    const totalExposure = Number(application.borrowerProfile?.totalExposure ?? application.requestedAmount);
+    const totalExposure = formatCurrency(application.borrowerProfile?.totalExposure ?? application.requestedAmount) ?? 0;
 
     const authorityResult = await approvalMatrixService.lookupApprovalAuthority(totalExposure, borrowerRating ?? 'NR');
 
@@ -307,8 +309,9 @@ class ApprovalActionService {
     });
   }
 
-  /**
-   * Create audit event for approval action.
+  /***
+   * Create audit event for approval action — delegates to AuditChainService
+   * for tamper-evident hash-chain creation.
    */
   private async createAuditEvent(
     applicationId: string,
@@ -318,17 +321,15 @@ class ApprovalActionService {
     newState: string,
     metadata: Record<string, unknown>,
   ) {
-    await prisma.creditAuditEvent.create({
-      data: {
-        applicationId,
-        eventType: 'APPROVAL_ACTION',
-        actorId,
-        action,
-        oldState,
-        newState,
-        metadata: metadata as any,
-      },
-    });
+    await AuditChainService.appendEvent(
+      applicationId,
+      'APPROVAL_ACTION',
+      actorId,
+      action,
+      oldState,
+      newState,
+      metadata,
+    );
   }
 }
 

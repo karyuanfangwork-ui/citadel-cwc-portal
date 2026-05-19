@@ -142,16 +142,13 @@ export interface CreditApplication {
   requestedAmount: number;
   requestedTenor: number | null;
   currency: CurrencyCode;
-  tenureMonths: number;
   purpose: string | null;
   state: ApplicationState;
-  approvedAmount: number | null;
-  interestRate: number | null;
   riskRating: string | null;
   rmId: string | null;
   analystId: string | null;
   submittedAt: string | null;
-  decidedAt: string | null;
+  decisionedAt: string | null;
   rejectionReason: string | null;
   withdrawalReason: string | null;
   closedAt: string | null;
@@ -178,12 +175,15 @@ export interface CreditFacility {
   id: string;
   applicationId: string;
   facilityType: FacilityType;
-  currency: CurrencyCode;
-  approvedAmount: number;
-  interestRate: number | null;
-  tenureMonths: number;
+  currency?: CurrencyCode;
+  amount: number | string;
+  tenorMonths: number | null;
+  ratePct: number | string | null;
   purpose: string | null;
-  conditions: string | null;
+  approvedAmount: number | string | null;
+  approvedTenor: number | null;
+  approvedRate: number | string | null;
+  conditions?: string | null;
   createdAt: string;
   updatedAt: string;
 }

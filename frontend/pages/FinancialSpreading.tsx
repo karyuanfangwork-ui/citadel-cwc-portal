@@ -7,6 +7,7 @@ import creditService, {
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
+import { useToast } from '../src/context/ToastContext';
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
@@ -34,6 +35,7 @@ const FinancialSpreading: React.FC = () => {
   const [searchParams] = useSearchParams();
   const borrowerProfileId = searchParams.get('borrowerProfileId') || '';
   const { user } = useAuth();
+  const toast = useToast();
 
   const [statements, setStatements] = useState<FinancialStatement[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -58,12 +60,13 @@ const FinancialSpreading: React.FC = () => {
     currency: CurrencyCode;
   }>({ statementType: 'BS', period: 'ANNUAL', fiscalYearEnd: '', currency: 'MYR' });
   const [borrowerName, setBorrowerName] = useState('');
+  const [borrowerType, setBorrowerType] = useState<string | null>(null);
 
   const canWrite = hasPermission(user, 'credit:write');
   const canReview = hasPermission(user, 'credit:approve');
 
   const fetchStatements = useCallback(async () => {
-    if (!borrowerProfileId) return;
+    if (!borrowerProfileId) { setLoading(false); return; }
     try {
       setLoading(true);
       const data = await financialApi.listStatements(borrowerProfileId);
@@ -80,6 +83,7 @@ const FinancialSpreading: React.FC = () => {
     try {
       const profile = await creditService.getBorrowerProfile(borrowerProfileId);
       setBorrowerName(profile.account?.name || (profile.contact ? `${profile.contact.firstName} ${profile.contact.lastName}` : 'Unnamed Borrower'));
+      setBorrowerType(profile.borrowerType ?? null);
     } catch (e) { console.error(e); }
   }, [borrowerProfileId]);
 
@@ -113,9 +117,12 @@ const FinancialSpreading: React.FC = () => {
         ...(li.id ? { id: li.id } : {}),
       }));
       await financialApi.upsertLineItems(selectedId, items);
-      fetchStatement();
-    } catch (e) { console.error(e); }
-    finally { setSaving(false); }
+      await fetchStatement();
+      toast.success('Saved', 'Line items saved successfully.');
+    } catch (e) {
+      console.error(e);
+      toast.error('Save Failed', 'Could not save line items. Please try again.');
+    } finally { setSaving(false); }
   };
 
   const handleLineItemChange = (idx: number, field: keyof FinancialLineItem, value: any) => {
@@ -146,8 +153,11 @@ const FinancialSpreading: React.FC = () => {
       setValidating(true);
       const result = await financialApi.validateBalanceSheet(selectedId);
       setValidation(result);
-    } catch (e) { console.error(e); }
-    finally { setValidating(false); }
+      toast.success('Validated', 'Balance sheet validation complete.');
+    } catch (e) {
+      console.error(e);
+      toast.error('Validation Failed', 'Could not validate balance sheet. Please try again.');
+    } finally { setValidating(false); }
   };
 
   const handleSubmitForReview = async () => {
@@ -155,10 +165,13 @@ const FinancialSpreading: React.FC = () => {
     try {
       setSubmitting(true);
       await financialApi.submitForReview(selectedId);
-      fetchStatement();
-      fetchStatements();
-    } catch (e) { console.error(e); }
-    finally { setSubmitting(false); }
+      await fetchStatement();
+      await fetchStatements();
+      toast.success('Submitted', 'Statement submitted for review.');
+    } catch (e) {
+      console.error(e);
+      toast.error('Submit Failed', 'Could not submit for review. Please try again.');
+    } finally { setSubmitting(false); }
   };
 
   const handleReview = async () => {
@@ -168,10 +181,13 @@ const FinancialSpreading: React.FC = () => {
       await financialApi.reviewStatement(selectedId, { decision: reviewDecision, comment: reviewComment || undefined });
       setShowReviewDialog(false);
       setReviewComment('');
-      fetchStatement();
-      fetchStatements();
-    } catch (e) { console.error(e); }
-    finally { setSubmitting(false); }
+      await fetchStatement();
+      await fetchStatements();
+      toast.success('Reviewed', `Statement ${reviewDecision === 'approve' ? 'approved' : 'rejected'} successfully.`);
+    } catch (e) {
+      console.error(e);
+      toast.error('Review Failed', 'Could not complete the review. Please try again.');
+    } finally { setSubmitting(false); }
   };
 
   const handleComputeRatios = async () => {
@@ -180,8 +196,11 @@ const FinancialSpreading: React.FC = () => {
       setSubmitting(true);
       await financialApi.computeRatios(selectedId);
       setComputedRatios(true);
-    } catch (e) { console.error(e); }
-    finally { setSubmitting(false); }
+      toast.success('Ratios Computed', 'Financial ratios have been calculated.');
+    } catch (e) {
+      console.error(e);
+      toast.error('Compute Failed', 'Could not compute ratios. Please try again.');
+    } finally { setSubmitting(false); }
   };
 
   const handleCreateStatement = async (e: React.FormEvent) => {
@@ -192,9 +211,12 @@ const FinancialSpreading: React.FC = () => {
       await financialApi.createStatement(borrowerProfileId, newForm);
       setShowCreateDialog(false);
       setNewForm({ statementType: 'BS', period: 'ANNUAL', fiscalYearEnd: '', currency: 'MYR' });
-      fetchStatements();
-    } catch (e) { console.error(e); }
-    finally { setCreating(false); }
+      await fetchStatements();
+      toast.success('Created', 'Financial statement created.');
+    } catch (e) {
+      console.error(e);
+      toast.error('Create Failed', 'Could not create statement. Please try again.');
+    } finally { setCreating(false); }
   };
 
   const handleDeleteStatement = async (id: string) => {
@@ -206,18 +228,50 @@ const FinancialSpreading: React.FC = () => {
         setSelectedStatement(null);
         setLineItems([]);
       }
-      fetchStatements();
-    } catch (e) { console.error(e); }
+      await fetchStatements();
+      toast.success('Deleted', 'Financial statement deleted.');
+    } catch (e) {
+      console.error(e);
+      toast.error('Delete Failed', 'Could not delete statement. Please try again.');
+    }
   };
 
-  if (loading && !borrowerProfileId) {
+  if (borrowerProfileId && borrowerType === 'INDIVIDUAL') {
     return (
       <>
         <CreditNav />
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
-          <div className="text-center py-12 text-text-secondary">
-            <span className="material-symbols-outlined text-5xl block mb-3 opacity-30">error_outline</span>
-            <p className="font-semibold">No borrower selected. Please select a borrower from the <Link to="/credit/borrowers" className="text-brand-700 hover:underline">Borrowers</Link> list.</p>
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '4rem 2rem' }}>
+          <div className="text-center py-16">
+            <span className="material-symbols-outlined text-6xl block mb-4" style={{ color: 'var(--color-brand-300)' }}>person_off</span>
+            <h2 className="text-xl font-black text-text-primary mb-2">Not Applicable</h2>
+            <p className="text-text-secondary mb-6 max-w-sm mx-auto">Financial Spreading is only applicable to corporate borrowers. Individual borrowers do not require formal financial statements.</p>
+            <Link to={`/credit/borrowers/${borrowerProfileId}`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+              style={{ textDecoration: 'none' }}>
+              <span className="material-symbols-outlined text-base">arrow_back</span>
+              Back to Borrower
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  if (!borrowerProfileId) {
+    return (
+      <>
+        <CreditNav />
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '4rem 2rem' }}>
+          <div className="text-center py-16">
+            <span className="material-symbols-outlined text-6xl block mb-4" style={{ color: 'var(--color-brand-300)' }}>table_chart</span>
+            <h2 className="text-xl font-black text-text-primary mb-2">No Borrower Selected</h2>
+            <p className="text-text-secondary mb-6 max-w-sm mx-auto">Financial statements are linked to a borrower profile. Select a borrower to view or enter their financials.</p>
+            <Link to="/credit/borrowers"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+              style={{ textDecoration: 'none' }}>
+              <span className="material-symbols-outlined text-base">person_search</span>
+              Go to Borrowers
+            </Link>
           </div>
         </div>
       </>
@@ -233,15 +287,32 @@ const FinancialSpreading: React.FC = () => {
           <Link to="/credit" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Credit</Link>
           <span>/</span>
           <Link to="/credit/borrowers" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Borrowers</Link>
-          <span>/</span>
           {borrowerProfileId && (
-            <Link to={`/credit/borrowers/${borrowerProfileId}`} style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">{borrowerName || borrowerProfileId.slice(0, 8)}</Link>
+            <>
+              <span>/</span>
+              <Link to={`/credit/borrowers/${borrowerProfileId}`} style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">{borrowerName || borrowerProfileId.slice(0, 8)}</Link>
+            </>
           )}
           <span>/</span>
           <span className="font-semibold text-text-primary">Financial Spreading</span>
         </div>
 
-        <h1 className="text-2xl font-black text-text-primary mb-6">Financial Spreading</h1>
+        <h1 className="text-2xl font-black text-text-primary mb-4">Financial Spreading</h1>
+
+        {/* Statement type tabs */}
+        <div className="flex gap-1 mb-6 border-b border-border">
+          {(['BS', 'PL', 'CF'] as StatementTab[]).map(tab => (
+            <button key={tab} onClick={() => { setActiveTab(tab); setSelectedId(null); setSelectedStatement(null); setLineItems([]); }}
+              className={`px-4 py-2 text-sm font-bold rounded-t-lg transition-colors ${
+                activeTab === tab
+                  ? 'bg-white text-brand-700 border border-b-white border-border -mb-px'
+                  : 'text-text-secondary hover:text-text-primary'
+              }`}
+              style={{ background: activeTab === tab ? '#fff' : 'none', border: activeTab === tab ? '1px solid var(--color-border)' : 'none', borderBottom: activeTab === tab ? '1px solid #fff' : 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              {TYPE_LABELS[tab]}
+            </button>
+          ))}
+        </div>
 
         <div className="flex gap-6">
           {/* Left: Statement List */}
@@ -303,7 +374,7 @@ const FinancialSpreading: React.FC = () => {
           <div className="flex-1 min-w-0">
             {!selectedStatement ? (
               <div className="bg-bg-surface border border-border rounded-xl p-12 text-center text-text-secondary">
-                <span className="material-symbols-outlined text-5xl block mb-3 opacity-30">spreadsheet</span>
+                <span className="material-symbols-outlined text-5xl block mb-3 opacity-30">table_chart</span>
                 <p className="font-semibold">Select a statement to begin</p>
                 <p className="text-sm mt-1">Choose a financial statement from the list or create a new one</p>
               </div>
@@ -471,7 +542,7 @@ const FinancialSpreading: React.FC = () => {
 
         {/* Create Statement Dialog */}
         {showCreateDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCreateDialog(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowCreateDialog(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-4">New Financial Statement</h2>
@@ -522,7 +593,7 @@ const FinancialSpreading: React.FC = () => {
 
         {/* Review Dialog */}
         {showReviewDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowReviewDialog(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowReviewDialog(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-4">Review Statement</h2>

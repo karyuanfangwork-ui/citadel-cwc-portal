@@ -265,53 +265,55 @@ const BorrowerProfileList: React.FC = () => {
         </div>
 
         {showCreate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between p-6 border-b border-gray-100 sticky top-0 bg-white z-10">
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-auto max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0">
                 <h2 className="text-lg font-extrabold text-text-primary">New Borrower Profile</h2>
                 <button onClick={() => setShowCreate(false)} className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                   <span className="material-symbols-outlined">close</span>
                 </button>
               </div>
-              <form onSubmit={handleCreate} className="p-6">
-                <div className="mb-4">
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Borrower Type *</label>
-                  <select value={form.borrowerType || 'CORPORATE'} onChange={e => setForm(prev => ({ ...prev, borrowerType: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200">
-                    <option value="CORPORATE">Corporate</option>
-                    <option value="INDIVIDUAL">Individual</option>
-                    <option value="SOLE_PROPRIETOR">Sole Proprietor</option>
-                  </select>
+              <form onSubmit={handleCreate} className="flex flex-col flex-1 min-h-0">
+                <div className="overflow-y-auto flex-1 p-6">
+                  <div className="mb-4">
+                    <label className="block text-sm font-semibold text-text-primary mb-1">Borrower Type *</label>
+                    <select value={form.borrowerType || 'CORPORATE'} onChange={e => setForm(prev => ({ ...prev, borrowerType: e.target.value }))}
+                      className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200">
+                      <option value="CORPORATE">Corporate</option>
+                      <option value="INDIVIDUAL">Individual</option>
+                      <option value="SOLE_PROPRIETOR">Sole Proprietor</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-4">
+                    {[
+                      { key: 'accountId', label: 'CRM Account ID (corporate)' },
+                      { key: 'contactId', label: 'CRM Contact ID (individual)' },
+                      { key: 'creditRiskRating', label: 'Credit Risk Rating' },
+                      { key: 'amlRiskTier', label: 'AML Risk Tier' },
+                      { key: 'exposureLimit', label: 'Exposure Limit (MYR)', type: 'number' },
+                      { key: 'annualIncome', label: 'Annual Income (MYR)', type: 'number' },
+                      { key: 'netWorth', label: 'Net Worth (MYR)', type: 'number' },
+                      { key: 'occupation', label: 'Occupation' },
+                      { key: 'employer', label: 'Employer' },
+                      { key: 'sourceOfWealth', label: 'Source of Wealth' },
+                    ].map(f => (
+                      <div key={f.key}>
+                        <label className="block text-sm font-semibold text-text-primary mb-1">{f.label}</label>
+                        <input value={form[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                          type={f.type || 'text'}
+                          className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4">
+                    <label className="block text-sm font-semibold text-text-primary mb-1">Purpose of Account</label>
+                    <input value={form.purposeOfAccount || ''} onChange={e => setForm(prev => ({ ...prev, purposeOfAccount: e.target.value }))}
+                      type="text"
+                      className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-                  {[
-                    { key: 'accountId', label: 'CRM Account ID (corporate)' },
-                    { key: 'contactId', label: 'CRM Contact ID (individual)' },
-                    { key: 'creditRiskRating', label: 'Credit Risk Rating' },
-                    { key: 'amlRiskTier', label: 'AML Risk Tier' },
-                    { key: 'exposureLimit', label: 'Exposure Limit (MYR)', type: 'number' },
-                    { key: 'annualIncome', label: 'Annual Income (MYR)', type: 'number' },
-                    { key: 'netWorth', label: 'Net Worth (MYR)', type: 'number' },
-                    { key: 'occupation', label: 'Occupation' },
-                    { key: 'employer', label: 'Employer' },
-                    { key: 'sourceOfWealth', label: 'Source of Wealth' },
-                  ].map(f => (
-                    <div key={f.key}>
-                      <label className="block text-sm font-semibold text-text-primary mb-1">{f.label}</label>
-                      <input value={form[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                        type={f.type || 'text'}
-                        className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4">
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Purpose of Account</label>
-                  <input value={form.purposeOfAccount || ''} onChange={e => setForm(prev => ({ ...prev, purposeOfAccount: e.target.value }))}
-                    type="text"
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
-                </div>
-                <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 mt-4">
+                <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0">
                   <button type="button" onClick={() => setShowCreate(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100 transition-colors" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                   <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                     {saving ? 'Creating...' : 'Create Borrower'}

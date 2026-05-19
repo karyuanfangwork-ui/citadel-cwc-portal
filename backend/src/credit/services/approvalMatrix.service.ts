@@ -68,12 +68,15 @@ class ApprovalMatrixService {
     const now = new Date();
     const ratingOrdinal = ratingToOrdinal(riskRating);
 
-    // Fetch all active, currently-effective matrices
+    // Fetch active, currently-effective matrices filtered by exposure range in DB
+    // (rating range can't be filtered in DB since it uses ordinal comparison)
     const matrices = await prisma.creditApprovalMatrix.findMany({
       where: {
         isActive: true,
         effectiveFrom: { lte: now },
-        ...(true && { OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }),
+        OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }],
+        minExposure: { lte: exposure },
+        maxExposure: { gte: exposure },
       },
       orderBy: { minExposure: 'asc' },
     });

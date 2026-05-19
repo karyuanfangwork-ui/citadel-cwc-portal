@@ -63,7 +63,7 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
   BRIDGE_LOAN: 'Bridge Loan', PROJECT_FINANCE: 'Project Finance',
 };
 
-type DetailTab = 'overview' | 'directors' | 'shareholders' | 'ubos' | 'applications' | 'exposure';
+type DetailTab = 'overview' | 'directors' | 'shareholders' | 'ubos' | 'applications' | 'exposure' | 'financials';
 
 // Derive display name from account/contact
 const displayName = (p: BorrowerProfile) => {
@@ -247,7 +247,7 @@ const BorrowerProfileDetail: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border mb-6 overflow-x-auto">
-          {(['overview', 'directors', 'shareholders', 'ubos', 'applications', 'exposure'] as DetailTab[]).map(tab => (
+          {(['overview', 'directors', 'shareholders', 'ubos', 'applications', 'exposure', ...(profile.borrowerType === 'CORPORATE' ? ['financials'] : [])] as DetailTab[]).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
               className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
@@ -626,6 +626,21 @@ const BorrowerProfileDetail: React.FC = () => {
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Financials tab */}
+        {activeTab === 'financials' && id && (
+          <div className="bg-bg-surface border border-border rounded-xl p-10 text-center">
+            <span className="material-symbols-outlined text-5xl block mb-3 text-brand-300">table_chart</span>
+            <h3 className="text-lg font-bold text-text-primary mb-2">Financial Spreading</h3>
+            <p className="text-text-secondary text-sm mb-5">View and manage balance sheets, profit & loss, and cash flow statements for this borrower.</p>
+            <Link to={`/credit/financials?borrowerProfileId=${id}`}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+              style={{ textDecoration: 'none' }}>
+              <span className="material-symbols-outlined text-base">open_in_new</span>
+              Open Financial Spreading
+            </Link>
           </div>
         )}
       </div>

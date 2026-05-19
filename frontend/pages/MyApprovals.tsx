@@ -7,8 +7,8 @@ import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 
-const formatCurrency = (val: number | null, currency = 'MYR') =>
-  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(val) : '—';
+const formatCurrency = (val: number | string | null, currency = 'MYR') =>
+  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(Number(val)) : '—';
 const formatDate = (d: string) =>
   new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -112,7 +112,7 @@ const MyApprovals: React.FC = () => {
           {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}
         </p>
         <p className="text-xs text-text-secondary">
-          {formatCurrency(app.requestedAmount, app.currency)} · {app.tenureMonths} mo
+          {formatCurrency(app.requestedAmount, app.currency)} · {app.requestedTenor != null ? `${app.requestedTenor} mo` : '—'}
         </p>
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
           <span className="text-xs text-text-secondary">{formatDate(app.createdAt)}</span>

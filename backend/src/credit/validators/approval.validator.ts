@@ -55,7 +55,7 @@ export const updateApprovalMatrixSchema = z.object({
 
 export const submitApprovalActionSchema = z.object({
   body: z.object({
-    decision: z.enum(['APPROVE', 'REJECT', 'RETURN', 'ESCALATE', 'DEFER']),
+    decision: z.enum(['APPROVE', 'REJECT', 'RETURN', 'ESCALATE']),
     comment: z.string().max(5000).optional(),
     isCommitteeVote: z.boolean().default(false),
   }),

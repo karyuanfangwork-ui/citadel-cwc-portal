@@ -7,6 +7,10 @@ import { requireUser } from '../utils/requireUser';
 class CreditApplicationController {
   /**
    * GET /applications — List credit applications with pagination & filters
+   * Applies data-level access control based on user role:
+   * - Admin: sees all applications
+   * - Agent (RM/analyst): sees only applications assigned to them
+   * - End user (borrower): sees only their own applications
    */
   list = asyncHandler(async (req: AuthRequest, res: Response) => {
     const page = parseInt(req.query.page as string, 10) || 1;
@@ -18,14 +22,39 @@ class CreditApplicationController {
     const assignedAnalystId = req.query.assignedAnalystId as string | undefined;
     const search = req.query.search as string | undefined;
 
+    // Data-level access control
+    const user = req.user;
+    const isAdmin = user?.roles?.some(r => ['ADMIN', 'CREDIT_ADMIN'].includes(r));
+    const isAgent = user?.roles?.some(r => ['CREDIT_RM', 'CREDIT_ANALYST', 'IT', 'HR', 'FINANCE'].includes(r));
+
+    let effectiveAssignedRmId = assignedRmId;
+    let effectiveAssignedAnalystId = assignedAnalystId;
+    let effectiveBorrowerProfileId = borrowerProfileId;
+
+    if (!isAdmin) {
+      if (isAgent) {
+        // Agent: can only see applications they're assigned to
+        if (!effectiveAssignedRmId && !effectiveAssignedAnalystId) {
+          effectiveAssignedRmId = user?.id;
+        }
+      } else {
+        // End user / borrower: can only see their own applications
+        // Would need to look up borrower profile by user, for now use
+        // filter on assignedRmId as a broad scoping mechanism
+        if (!effectiveAssignedRmId && !effectiveBorrowerProfileId) {
+          effectiveAssignedRmId = user?.id;
+        }
+      }
+    }
+
     const result = await creditApplicationService.listApplications({
       page,
       limit,
       state,
       productType,
-      borrowerProfileId,
-      assignedRmId,
-      assignedAnalystId,
+      borrowerProfileId: effectiveBorrowerProfileId,
+      assignedRmId: effectiveAssignedRmId,
+      assignedAnalystId: effectiveAssignedAnalystId,
       search,
     });
 

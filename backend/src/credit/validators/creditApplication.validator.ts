@@ -12,7 +12,7 @@ const creditProductTypeEnum = z.enum([
 ]);
 
 const currencyCodeEnum = z.enum([
-  'MYR', 'USD', 'SGD', 'EUR', 'GBP', 'JPY', 'CNY', 'THB', 'IDR',
+  'MYR', 'USD', 'SGD', 'EUR', 'GBP', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD',
 ]);
 
 // ApplicationState values — used at runtime for transition logic, not in zod schemas

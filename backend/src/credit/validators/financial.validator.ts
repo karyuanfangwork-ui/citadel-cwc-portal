@@ -68,7 +68,7 @@ export const deleteLineItemsSchema = z.object({
 
 export const reviewStatementSchema = z.object({
   body: z.object({
-    decision: z.enum(['approve', 'reject']),
+    decision: z.enum(['APPROVE', 'REJECT']),
     comment: z.string().optional(),
   }),
 });

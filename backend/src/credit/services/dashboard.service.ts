@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { ApplicationState, CommitteeMeetingStatus } from '@prisma/client';
+import { formatCurrency } from '../utils/formatCurrency';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -163,8 +164,9 @@ class DashboardService {
       const entry = stateMap.get(st) ?? { count: 0, totalDays: 0, breached: 0 };
       entry.count++;
 
-      // Calculate days in current state: time since last state change approximated by updatedAt
-      const refDate = app.submittedAt ?? app.createdAt;
+      // Calculate days in current state using updatedAt for time in current state
+      // TODO: Track state-change timestamps via audit events for more accuracy
+      const refDate = app.updatedAt ?? app.createdAt;
       const daysInState = daysBetween(refDate, new Date());
       entry.totalDays += Math.max(0, daysInState);
 
@@ -289,7 +291,7 @@ class DashboardService {
         applicationNo: (app as any).applicationNo ?? '',
         borrowerName,
         productType: (app as any).productType ?? '',
-        requestedAmount: Number((app as any).requestedAmount ?? 0),
+        requestedAmount: formatCurrency((app as any).requestedAmount) ?? 0,
         currency: (app as any).currency ?? 'MYR',
         currentState: app.state as string,
         urgency,
@@ -355,6 +357,7 @@ class DashboardService {
     });
 
     // Aggregate exposure per borrower
+    // TODO: Replace with DB-level aggregation (Prisma groupBy + _sum) for production scale
     const borrowerExposures: ExposureByBorrower[] = borrowers.map(bp => {
       const borrowerName =
         bp.account?.name ??

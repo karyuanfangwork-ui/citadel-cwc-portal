@@ -1999,6 +1999,15 @@ model FeatureFlag {
 // CREDIT ASSESSMENT MODULE
 // ============================================================================
 
+// Counter for atomic application number generation (avoids race conditions)
+model CreditAppCounter {
+  id      Int    @id @default(1)
+  prefix  String @unique @db.VarChar(10) // e.g. "CA"
+  lastSeq Int    @default(0)
+
+  @@map("credit_app_counters")
+}
+
 // Credit Application States
 enum ApplicationState {
   DRAFT
@@ -2119,7 +2128,7 @@ enum ApprovalDecisionType {
   DEFER
 }
 
-// Committee vote
+// Committee vote — kept for backward compat; newer code uses CommitteeVoteChoice
 enum CommitteeVoteDecision {
   APPROVE
   REJECT
@@ -2444,6 +2453,7 @@ model ApplicationFacility {
   approvedTenor    Int?         @map("approved_tenor")
   approvedRate    Decimal?     @map("approved_rate") @db.Decimal(5, 4)
   
+  deletedAt       DateTime?    @map("deleted_at") @db.Timestamp(6)
   createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
   

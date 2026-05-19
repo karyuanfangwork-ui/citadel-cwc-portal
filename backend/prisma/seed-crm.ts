@@ -1,4 +1,4 @@
-import { PrismaClient, LeadStatus, LeadSource, OpportunityStage, CrmActivityType } from '@prisma/client';
+import { PrismaClient, LeadStatus, LeadSource, CrmActivityType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -13,10 +13,16 @@ const ACCOUNTS = [
     email: 'info@petronas.com',
     address: 'Menara Petronas, KLCC',
     city: 'Kuala Lumpur',
+    state: 'Wilayah Persekutuan',
     country: 'Malaysia',
+    postalCode: '50088',
     registrationNumber: '197401001131',
+    taxNumber: 'C25-197401001131',
+    bankAccount: 'MBB-1002-3344-5566',
     description: 'National oil and gas company',
     annualRevenue: 500000000,
+    accountType: 'CORPORATE' as const,
+    purchaseCashTrust: false,
   },
   {
     name: 'Maybank Islamic Berhad',
@@ -27,10 +33,16 @@ const ACCOUNTS = [
     email: 'contact@maybank-islamic.com.my',
     address: 'Menara Maybank, 100 Jalan Tun Perak',
     city: 'Kuala Lumpur',
+    state: 'Wilayah Persekutuan',
     country: 'Malaysia',
+    postalCode: '50050',
     registrationNumber: '196001000321',
+    taxNumber: 'C25-196001000321',
+    bankAccount: 'CIMB-2005-6677-8899',
     description: 'Leading Islamic bank in Malaysia',
     annualRevenue: 350000000,
+    accountType: 'CORPORATE' as const,
+    purchaseCashTrust: true,
   },
   {
     name: 'Top Glove Corporation Bhd',
@@ -43,9 +55,14 @@ const ACCOUNTS = [
     city: 'Klang',
     state: 'Selangor',
     country: 'Malaysia',
+    postalCode: '41000',
     registrationNumber: '199101013844',
+    taxNumber: 'C25-199101013844',
+    bankAccount: 'HLB-3001-4455-6677',
     description: 'World largest glove manufacturer',
     annualRevenue: 280000000,
+    accountType: 'CORPORATE' as const,
+    purchaseCashTrust: false,
   },
   {
     name: 'AirAsia Digital Sdn Bhd',
@@ -58,9 +75,14 @@ const ACCOUNTS = [
     city: 'Sepang',
     state: 'Selangor',
     country: 'Malaysia',
+    postalCode: '43900',
     registrationNumber: '202101023456',
+    taxNumber: 'C25-202101023456',
+    bankAccount: 'RHB-4002-7788-9900',
     description: 'Digital travel and lifestyle platform',
     annualRevenue: 120000000,
+    accountType: 'CORPORATE' as const,
+    purchaseCashTrust: false,
   },
   {
     name: 'Grab Malaysia Sdn Bhd',
@@ -71,10 +93,16 @@ const ACCOUNTS = [
     email: 'support@grab.com',
     address: 'Sentral Tower, 10A Jalan Stesen Sentral 5',
     city: 'Kuala Lumpur',
+    state: 'Wilayah Persekutuan',
     country: 'Malaysia',
+    postalCode: '50470',
     registrationNumber: '201201023456',
+    taxNumber: 'C25-201201023456',
+    bankAccount: 'PBB-5003-1122-3344',
     description: 'Leading superapp for transport, food, and payments',
     annualRevenue: 450000000,
+    accountType: 'CORPORATE' as const,
+    purchaseCashTrust: true,
   },
   {
     name: 'Sunway Property Holdings',
@@ -87,37 +115,47 @@ const ACCOUNTS = [
     city: 'Petaling Jaya',
     state: 'Selangor',
     country: 'Malaysia',
+    postalCode: '46200',
     registrationNumber: '198801012345',
+    taxNumber: 'C25-198801012345',
+    bankAccount: 'MBB-6004-5566-7788',
     description: 'Integrated property development group',
     annualRevenue: 200000000,
+    accountType: 'CORPORATE' as const,
+    purchaseCashTrust: false,
   },
 ];
 
 // Contacts per account (2 each)
-const CONTACTS: Record<string, Array<{ firstName: string; lastName: string; jobTitle: string; email: string; phone: string; isPrimary: boolean }>> = {
+const CONTACTS: Record<string, Array<{
+  firstName: string; lastName: string; jobTitle: string;
+  email: string; phone: string; isPrimary: boolean;
+  mobile?: string; department?: string; description?: string;
+  riskProfile?: string; marketingOptIn?: boolean;
+}>> = {
   'Petronas Digital Sdn Bhd': [
-    { firstName: 'Azman', lastName: 'Ibrahim', jobTitle: 'Chief Information Officer', email: 'azman.ibrahim@petronas.com', phone: '+60 12-345 6789', isPrimary: true },
-    { firstName: 'Siti', lastName: 'Nurhaliza', jobTitle: 'IT Director', email: 'siti.n@petronas.com', phone: '+60 12-345 6790', isPrimary: false },
+    { firstName: 'Azman', lastName: 'Ibrahim', jobTitle: 'Chief Information Officer', email: 'azman.ibrahim@petronas.com', phone: '+60 12-345 6789', isPrimary: true, mobile: '+60 12-345 6780', department: 'IT', description: 'Key decision maker for all digital transformation initiatives', riskProfile: 'LOW', marketingOptIn: true },
+    { firstName: 'Siti', lastName: 'Nurhaliza', jobTitle: 'IT Director', email: 'siti.n@petronas.com', phone: '+60 12-345 6790', isPrimary: false, mobile: '+60 12-345 6791', department: 'IT Operations', description: 'Oversees cloud and infrastructure projects', riskProfile: 'LOW', marketingOptIn: false },
   ],
   'Maybank Islamic Berhad': [
-    { firstName: 'Mohd', lastName: 'Faizal', jobTitle: 'Head of Digital Banking', email: 'faizal@maybank-islamic.com.my', phone: '+60 13-456 7890', isPrimary: true },
-    { firstName: 'Aishah', lastName: 'Rahman', jobTitle: 'IT Manager', email: 'aishah.r@maybank-islamic.com.my', phone: '+60 13-456 7891', isPrimary: false },
+    { firstName: 'Mohd', lastName: 'Faizal', jobTitle: 'Head of Digital Banking', email: 'faizal@maybank-islamic.com.my', phone: '+60 13-456 7890', isPrimary: true, mobile: '+60 13-456 7880', department: 'Digital Banking', description: 'Leads digital banking product strategy across 200+ branches', riskProfile: 'LOW', marketingOptIn: true },
+    { firstName: 'Aishah', lastName: 'Rahman', jobTitle: 'IT Manager', email: 'aishah.r@maybank-islamic.com.my', phone: '+60 13-456 7891', isPrimary: false, mobile: '+60 13-456 7881', department: 'Technology', description: 'Manages core banking system integrations', riskProfile: 'LOW', marketingOptIn: true },
   ],
   'Top Glove Corporation Bhd': [
-    { firstName: 'Lim', lastName: 'Wee Chai', jobTitle: 'Managing Director', email: 'lim.wc@topglove.com', phone: '+60 14-567 8901', isPrimary: true },
-    { firstName: 'Tan', lastName: 'Mei Ling', jobTitle: 'Operations Director', email: 'tan.ml@topglove.com', phone: '+60 14-567 8902', isPrimary: false },
+    { firstName: 'Lim', lastName: 'Wee Chai', jobTitle: 'Managing Director', email: 'lim.wc@topglove.com', phone: '+60 14-567 8901', isPrimary: true, mobile: '+60 14-567 8900', department: 'Executive', description: 'Group MD, oversees 50+ manufacturing facilities globally', riskProfile: 'MEDIUM', marketingOptIn: false },
+    { firstName: 'Tan', lastName: 'Mei Ling', jobTitle: 'Operations Director', email: 'tan.ml@topglove.com', phone: '+60 14-567 8902', isPrimary: false, mobile: '+60 14-567 8903', department: 'Operations', description: 'Manages supply chain and quality assurance', riskProfile: 'LOW', marketingOptIn: true },
   ],
   'AirAsia Digital Sdn Bhd': [
-    { firstName: 'Riad', lastName: 'Asmat', jobTitle: 'CEO', email: 'riad@airasiadigital.com', phone: '+60 15-678 9012', isPrimary: true },
-    { firstName: 'Nadia', lastName: 'Khalid', jobTitle: 'CTO', email: 'nadia.k@airasiadigital.com', phone: '+60 15-678 9013', isPrimary: false },
+    { firstName: 'Riad', lastName: 'Asmat', jobTitle: 'CEO', email: 'riad@airasiadigital.com', phone: '+60 15-678 9012', isPrimary: true, mobile: '+60 15-678 9010', department: 'C-Suite', description: 'CEO of AirAsia Digital, driving tech-led transformation', riskProfile: 'MEDIUM', marketingOptIn: false },
+    { firstName: 'Nadia', lastName: 'Khalid', jobTitle: 'CTO', email: 'nadia.k@airasiadigital.com', phone: '+60 15-678 9013', isPrimary: false, mobile: '+60 15-678 9014', department: 'Engineering', description: 'CTO responsible for platform architecture and data strategy', riskProfile: 'LOW', marketingOptIn: true },
   ],
   'Grab Malaysia Sdn Bhd': [
-    { firstName: 'Ooi', lastName: 'Kuang Ping', jobTitle: 'Managing Director', email: 'kuangping@grab.com', phone: '+60 16-789 0123', isPrimary: true },
-    { firstName: 'Sarah', lastName: 'Tan', jobTitle: 'Head of Engineering', email: 'sarah.t@grab.com', phone: '+60 16-789 0124', isPrimary: false },
+    { firstName: 'Ooi', lastName: 'Kuang Ping', jobTitle: 'Managing Director', email: 'kuangping@grab.com', phone: '+60 16-789 0123', isPrimary: true, mobile: '+60 16-789 0120', department: 'Management', description: 'MD for Malaysia operations, 15+ years in tech leadership', riskProfile: 'MEDIUM', marketingOptIn: true },
+    { firstName: 'Sarah', lastName: 'Tan', jobTitle: 'Head of Engineering', email: 'sarah.t@grab.com', phone: '+60 16-789 0124', isPrimary: false, mobile: '+60 16-789 0125', department: 'Engineering', description: 'Leads 300+ engineering team across Southeast Asia', riskProfile: 'LOW', marketingOptIn: true },
   ],
   'Sunway Property Holdings': [
-    { firstName: 'Jeffrey', lastName: 'Cheah', jobTitle: 'Executive Chairman', email: 'jeffrey.cheah@sunwayproperty.com', phone: '+60 17-890 1234', isPrimary: true },
-    { firstName: 'Michelle', lastName: 'Wong', jobTitle: 'Sales Director', email: 'michelle.w@sunwayproperty.com', phone: '+60 17-890 1235', isPrimary: false },
+    { firstName: 'Jeffrey', lastName: 'Cheah', jobTitle: 'Executive Chairman', email: 'jeffrey.cheah@sunwayproperty.com', phone: '+60 17-890 1234', isPrimary: true, mobile: '+60 17-890 1230', department: 'Board', description: 'Founder and Chairman of Sunway Group. Tan Sri title holder.', riskProfile: 'HIGH', marketingOptIn: false },
+    { firstName: 'Michelle', lastName: 'Wong', jobTitle: 'Sales Director', email: 'michelle.w@sunwayproperty.com', phone: '+60 17-890 1235', isPrimary: false, mobile: '+60 17-890 1236', department: 'Sales & Marketing', description: 'Oversees all residential and commercial property sales', riskProfile: 'LOW', marketingOptIn: true },
   ],
 };
 
@@ -181,7 +219,20 @@ async function main() {
     
     for (const contact of contactList) {
       const created = await prisma.crmContact.create({
-        data: { ...contact, accountId },
+        data: {
+          firstName: contact.firstName,
+          lastName: contact.lastName,
+          jobTitle: contact.jobTitle,
+          email: contact.email,
+          phone: contact.phone,
+          isPrimary: contact.isPrimary,
+          accountId,
+          mobile: contact.mobile || null,
+          department: contact.department || null,
+          description: contact.description || null,
+          riskProfile: contact.riskProfile || null,
+          marketingOptIn: contact.marketingOptIn ?? false,
+        },
       });
       contacts[accountName].push(created.id);
     }
@@ -211,6 +262,9 @@ async function main() {
   console.log(`   ✓ Pipeline: ${pipeline.name} with ${pipeline.stages.length} stages`);
 
   const stageMap: Record<string, string> = {};
+  for (const stage of pipeline.stages) {
+    stageMap[stage.name] = stage.id;
+  }
   console.log('\n🎯 Creating CRM Leads...');
   let leadsCreated = 0;
   const accountNames = Object.keys(accounts);
@@ -312,11 +366,136 @@ async function main() {
   }
   console.log(`   ✓ ${notesCreated} notes created`);
 
+  // 8. Create KYC Records for primary contacts
+  console.log('\n🔐 Creating KYC Records for primary contacts...');
+  let kycCreated = 0;
+  
+  for (const [accountName, contactList] of Object.entries(CONTACTS)) {
+    for (const contact of contactList) {
+      if (!contact.isPrimary) continue;
+      const contactId = contacts[accountName]?.[0];
+      if (!contactId) continue;
+      const isPep = contact.riskProfile === 'HIGH';
+      await prisma.crmKycRecord.create({
+        data: {
+          contactId,
+          status: 'APPROVED',
+          riskLevel: contact.riskProfile || 'MEDIUM',
+          nricVerified: true,
+          addressVerified: true,
+          incomeVerified: true,
+          sourceOfFundsVerified: true,
+          riskProfileDone: true,
+          isPep,
+          amlRiskTier: isPep ? 'ENHANCED' : (contact.riskProfile === 'HIGH' ? 'ENHANCED' : contact.riskProfile === 'MEDIUM' ? 'STANDARD' : 'SIMPLIFIED'),
+          screeningStatus: 'CLEAR',
+          screeningHits: [{ source: 'PEP_SCREENING', result: isPep ? 'MATCH_FOUND' : 'NO_MATCH', checkedAt: new Date().toISOString(), details: isPep ? 'Politically Exposed Person identified' : 'No adverse findings' }],
+          lastScreeningAt: new Date(),
+          nextScreeningDueAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          approvedBy: salesRep.id,
+          approvedAt: new Date(),
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          notes: `CRM seed KYC — verified for ${contact.firstName} ${contact.lastName}`,
+        },
+      });
+      kycCreated++;
+    }
+  }
+  console.log(`   ✓ ${kycCreated} KYC records created`);
+
+  // 9. Create Beneficiaries for Sunway Jeffrey Cheah
+  console.log('\n👨‍👩‍👧‍👦 Creating Demo Beneficiaries...');
+  let beneficiariesCreated = 0;
+  
+  const sunwayPrimaryId = contacts['Sunway Property Holdings']?.[0];
+  if (sunwayPrimaryId) {
+    const beneficiaries = [
+      { firstName: 'Cheah', lastName: 'Yu Jin', relationship: 'SON', allocationPct: 40, email: 'yujin@sunwayproperty.com', nricPassport: '870101-10-5543', dateOfBirth: new Date('1987-01-01'), isMinor: false, notes: 'Eldest son, manages Sunway Construction' },
+      { firstName: 'Cheah', lastName: 'Mei Lin', relationship: 'DAUGHTER', allocationPct: 35, email: 'meilin@sunwayproperty.com', nricPassport: '900505-14-5521', dateOfBirth: new Date('1990-05-05'), isMinor: false, notes: 'Daughter, runs Sunway Foundation' },
+      { firstName: 'Cheah', lastName: 'Yu Hao', relationship: 'SON', allocationPct: 25, email: 'yuhao@sunwayproperty.com', nricPassport: '930812-10-5567', dateOfBirth: new Date('1993-08-12'), isMinor: false, notes: 'Youngest son, studying finance in London' },
+    ];
+    for (const b of beneficiaries) {
+      await prisma.crmBeneficiary.create({
+        data: {
+          contactId: sunwayPrimaryId,
+          firstName: b.firstName,
+          lastName: b.lastName,
+          relationship: b.relationship,
+          allocationPct: b.allocationPct,
+          email: b.email,
+          nricPassport: b.nricPassport,
+          dateOfBirth: b.dateOfBirth,
+          isMinor: b.isMinor,
+          notes: b.notes,
+        },
+      });
+      beneficiariesCreated++;
+    }
+  }
+  console.log(`   ✓ ${beneficiariesCreated} beneficiaries created`);
+
+  // 10. Create Trust Products
+  console.log('\n🏦 Creating Demo Trust Products...');
+  let trustProductsCreated = 0;
+  
+  // Family trust for Sunway
+  const sunwayAccountId = accounts['Sunway Property Holdings']?.id;
+  if (sunwayAccountId && sunwayPrimaryId) {
+    await prisma.crmTrustProduct.create({
+      data: {
+        accountId: sunwayAccountId,
+        contactId: sunwayPrimaryId,
+        trustType: 'FAMILY_TRUST',
+        deedRefNumber: 'FT-SNW-2024-001',
+        status: 'ACTIVE',
+        assetValue: 120000000,
+        currency: 'MYR',
+        assetDescription: 'Sunway Group family trust — property portfolio across 15 developments',
+        trusteeName: 'Citadel Trustee Bhd',
+        trusteeContact: '+60 3-2780 9900',
+        settlementDate: new Date('2024-01-15'),
+        maturityDate: new Date('2044-01-15'),
+        nextReviewDate: new Date('2026-01-15'),
+        ownerId: salesManager.id,
+      },
+    });
+    trustProductsCreated++;
+  }
+  
+  // Corporate trust for Maybank
+  const maybankAccountId = accounts['Maybank Islamic Berhad']?.id;
+  const maybankPrimaryId = contacts['Maybank Islamic Berhad']?.[0];
+  if (maybankAccountId && maybankPrimaryId) {
+    await prisma.crmTrustProduct.create({
+      data: {
+        accountId: maybankAccountId,
+        contactId: maybankPrimaryId,
+        trustType: 'CORPORATE_TRUST',
+        deedRefNumber: 'CT-MYB-2023-005',
+        status: 'ACTIVE',
+        assetValue: 50000000,
+        currency: 'MYR',
+        assetDescription: 'Islamic corporate trust — sukuk portfolio management',
+        trusteeName: 'Amanah Raya Berhad',
+        trusteeContact: '+60 3-2693 7000',
+        settlementDate: new Date('2023-06-01'),
+        maturityDate: new Date('2038-06-01'),
+        nextReviewDate: new Date('2026-06-01'),
+        ownerId: salesManager.id,
+      },
+    });
+    trustProductsCreated++;
+  }
+  console.log(`   ✓ ${trustProductsCreated} trust products created`);
+
   // Summary
   console.log('\n✅ CRM sample data seed completed!');
   console.log('\n📊 Summary:');
   console.log(`   • Accounts: ${ACCOUNTS.length}`);
   console.log(`   • Contacts: ${Object.values(CONTACTS).flat().length}`);
+  console.log(`   • KYC: ${kycCreated}`);
+  console.log(`   • Beneficiaries: ${beneficiariesCreated}`);
+  console.log(`   • Trust Products: ${trustProductsCreated}`);
   console.log(`   • Pipelines: 1 (Sales: ${pipeline.stages.length} stages)`);
   console.log(`   • Leads: ${leadsCreated}`);
   console.log(`   • Opportunities: ${oppsCreated}`);

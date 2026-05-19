@@ -7,8 +7,8 @@ import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 
-const formatCurrency = (val: number | null, currency = 'MYR') =>
-  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(val) : '—';
+const formatCurrency = (val: number | string | null, currency = 'MYR') =>
+  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(Number(val)) : '—';
 
 const formatDate = (d: string) =>
   new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -112,8 +112,8 @@ const CreditApplicationList: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload: Record<string, any> = { ...form };
-    if (['requestedAmount', 'approvedAmount', 'interestRate', 'tenureMonths'].some(k => k in payload)) {
-      for (const k of ['requestedAmount', 'approvedAmount', 'interestRate', 'tenureMonths']) {
+    if (['requestedAmount', 'requestedTenor'].some(k => k in payload)) {
+      for (const k of ['requestedAmount', 'requestedTenor']) {
         if (payload[k] !== undefined && payload[k] !== null && payload[k] !== '') {
           payload[k] = Number(payload[k]);
           if (isNaN(payload[k])) delete payload[k];
@@ -251,56 +251,58 @@ const CreditApplicationList: React.FC = () => {
 
         {/* Create Modal */}
         {showCreate && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCreate(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowCreate(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between p-6 border-b border-gray-100">
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0">
                 <h2 className="text-lg font-extrabold text-text-primary">New Credit Application</h2>
                 <button onClick={() => setShowCreate(false)} className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                   <span className="material-symbols-outlined">close</span>
                 </button>
               </div>
-              <form onSubmit={handleCreate} className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Product Type *</label>
-                  <select required value={form.productType || ''} onChange={e => setForm(f => ({ ...f, productType: e.target.value as CreditProductType }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)' }}>
-                    {PRODUCT_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
+              <form onSubmit={handleCreate} className="flex flex-col flex-1 min-h-0">
+                <div className="overflow-y-auto flex-1 p-6 space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-text-primary mb-1">Requested Amount *</label>
-                    <input required type="number" min="0" value={form.requestedAmount ?? ''} onChange={e => setForm(f => ({ ...f, requestedAmount: Number(e.target.value) }))}
-                      className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-text-primary mb-1">Currency *</label>
-                    <select required value={form.currency || 'MYR'} onChange={e => setForm(f => ({ ...f, currency: e.target.value as any }))}
+                    <label className="block text-sm font-semibold text-text-primary mb-1">Product Type *</label>
+                    <select required value={form.productType || ''} onChange={e => setForm(f => ({ ...f, productType: e.target.value as CreditProductType }))}
                       className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)' }}>
-                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      {PRODUCT_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                     </select>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-semibold text-text-primary mb-1">Tenure (months) *</label>
-                    <input required type="number" min="1" value={form.tenureMonths ?? ''} onChange={e => setForm(f => ({ ...f, tenureMonths: Number(e.target.value) }))}
-                      className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-text-primary mb-1">Requested Amount *</label>
+                      <input required type="number" min="0" value={form.requestedAmount ?? ''} onChange={e => setForm(f => ({ ...f, requestedAmount: Number(e.target.value) }))}
+                        className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-text-primary mb-1">Currency *</label>
+                      <select required value={form.currency || 'MYR'} onChange={e => setForm(f => ({ ...f, currency: e.target.value as any }))}
+                        className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)' }}>
+                        {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-text-primary mb-1">Tenure (months) *</label>
+                      <input required type="number" min="1" value={form.requestedTenor ?? ''} onChange={e => setForm(f => ({ ...f, requestedTenor: Number(e.target.value) }))}
+                        className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-text-primary mb-1">Borrower Profile ID</label>
+                      <input value={form.borrowerProfileId || borrowerFilter || ''} onChange={e => setForm(f => ({ ...f, borrowerProfileId: e.target.value }))}
+                        placeholder={borrowerFilter || 'Auto from borrower page'}
+                        className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" />
+                    </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-text-primary mb-1">Borrower Profile ID</label>
-                    <input value={form.borrowerProfileId || borrowerFilter || ''} onChange={e => setForm(f => ({ ...f, borrowerProfileId: e.target.value }))}
-                      placeholder={borrowerFilter || 'Auto from borrower page'}
-                      className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" />
+                    <label className="block text-sm font-semibold text-text-primary mb-1">Purpose</label>
+                    <textarea rows={3} value={form.purpose ?? ''} onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))}
+                      className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 resize-none" style={{ fontFamily: 'var(--font-sans)' }} />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Purpose</label>
-                  <textarea rows={3} value={form.purpose ?? ''} onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 resize-none" style={{ fontFamily: 'var(--font-sans)' }} />
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
+                <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 flex-shrink-0">
                   <button type="button" onClick={() => setShowCreate(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100 transition-colors" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                   <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                     {saving ? 'Creating...' : 'Create Application'}

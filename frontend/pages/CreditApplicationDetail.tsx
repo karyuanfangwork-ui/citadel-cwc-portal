@@ -12,8 +12,8 @@ import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 
-const formatCurrency = (val: number | null, currency = 'MYR') =>
-  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(val) : '—';
+const formatCurrency = (val: number | string | null, currency = 'MYR') =>
+  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(Number(val)) : '—';
 const formatDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 const formatDateTime = (d: string | null) =>
@@ -99,7 +99,7 @@ const CreditApplicationDetail: React.FC = () => {
   const [transitioning, setTransitioning] = useState(false);
   const [showFacilityForm, setShowFacilityForm] = useState(false);
   const [showPartyForm, setShowPartyForm] = useState(false);
-  const [facilityForm, setFacilityForm] = useState<Partial<CreditFacility>>({ currency: 'MYR' as any, facilityType: 'TERM_LOAN' });
+  const [facilityForm, setFacilityForm] = useState<Partial<CreditFacility>>({ currency: 'MYR' as any, facilityType: 'TERM_LOAN', amount: 0 });
   const [partyForm, setPartyForm] = useState<Partial<CreditApplicationParty>>({ partyType: 'GUARANTOR' });
   const [approvalDecision, setApprovalDecision] = useState<ApprovalDecision | ''>('');
   const [approvalComment, setApprovalComment] = useState('');
@@ -292,7 +292,7 @@ const CreditApplicationDetail: React.FC = () => {
       setSavingFacility(true);
       await creditService.createFacility(id, facilityForm);
       setShowFacilityForm(false);
-      setFacilityForm({ currency: 'MYR' as any, facilityType: 'TERM_LOAN' });
+      setFacilityForm({ currency: 'MYR' as any, facilityType: 'TERM_LOAN', amount: 0 });
       fetchFacilities();
     } catch (e) { console.error(e); }
     finally { setSavingFacility(false); }
@@ -468,8 +468,8 @@ const CreditApplicationDetail: React.FC = () => {
         <div className="flex flex-wrap gap-3 mb-6">
           {[
             { label: 'Amount', value: formatCurrency(app.requestedAmount, app.currency), icon: 'payments' },
-            { label: 'Approved', value: formatCurrency(app.approvedAmount, app.currency), icon: 'check_circle' },
-            { label: 'Tenor', value: `${app.tenureMonths} mo`, icon: 'schedule' },
+            { label: 'Approved', value: facilities.length > 0 && facilities.some(f => f.approvedAmount != null) ? formatCurrency(Number(facilities.reduce((s, f) => s + Number(f.approvedAmount || 0), 0)), app.currency) : '—', icon: 'check_circle' },
+            { label: 'Tenor', value: app.requestedTenor != null ? `${app.requestedTenor} mo` : '—', icon: 'schedule' },
             { label: 'Currency', value: app.currency, icon: 'currency_exchange' },
             { label: 'RM', value: app.rm ? `${app.rm.firstName} ${app.rm.lastName}` : '—', icon: 'person' },
             { label: 'Analyst', value: app.analyst ? `${app.analyst.firstName} ${app.analyst.lastName}` : '—', icon: 'analytics' },
@@ -529,14 +529,14 @@ const CreditApplicationDetail: React.FC = () => {
               {[
                 { label: 'Product Type', value: PRODUCT_LABELS[app.productType || app.productName || ''] || app.productName, icon: 'category' },
                 { label: 'Requested Amount', value: formatCurrency(app.requestedAmount, app.currency), icon: 'payments' },
-                { label: 'Approved Amount', value: formatCurrency(app.approvedAmount, app.currency), icon: 'check_circle' },
-                { label: 'Interest Rate', value: app.interestRate ? `${app.interestRate}% p.a.` : '—', icon: 'percent' },
-                { label: 'Tenure', value: `${app.tenureMonths} months`, icon: 'schedule' },
+                { label: 'Approved Amount', value: facilities.length > 0 && facilities.some(f => f.approvedAmount != null) ? formatCurrency(Number(facilities.reduce((s, f) => s + Number(f.approvedAmount || 0), 0)), app.currency) : '—', icon: 'check_circle' },
+                { label: 'Interest Rate', value: facilities.length > 0 && facilities[0].ratePct != null ? `${Number(facilities[0].ratePct)}% p.a.` : '—', icon: 'percent' },
+                { label: 'Tenure', value: app.requestedTenor != null ? `${app.requestedTenor} months` : '—', icon: 'schedule' },
                 { label: 'Currency', value: app.currency, icon: 'currency_exchange' },
                 { label: 'Risk Rating', value: app.riskRating || '—', icon: 'speed' },
                 { label: 'Purpose', value: app.purpose || '—', icon: 'topic' },
                 { label: 'Submitted', value: formatDate(app.submittedAt ?? null), icon: 'send' },
-                { label: 'Decided', value: formatDate(app.decidedAt ?? null), icon: 'gavel' },
+                { label: 'Decided', value: formatDate(app.decisionedAt ?? null), icon: 'gavel' },
               ].map(f => (
                 <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
                   <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
@@ -664,7 +664,7 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* Override Score Dialog */}
         {showOverrideDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowOverrideDialog(null)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowOverrideDialog(null)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-4">Override Risk Rating</h2>
@@ -744,10 +744,10 @@ const CreditApplicationDetail: React.FC = () => {
                     {facilities.map(f => (
                       <tr key={f.id} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
                         <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.facilityType.replace(/_/g, ' ')}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>{formatCurrency(f.approvedAmount, f.currency)}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.currency}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.interestRate ? `${f.interestRate}%` : '—'}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.tenureMonths} mo</td>
+                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>{formatCurrency(f.approvedAmount ?? f.amount, f.currency || app.currency)}</td>
+                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.currency || app.currency}</td>
+                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.ratePct != null ? `${Number(f.ratePct)}%` : '—'}</td>
+                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.tenorMonths != null ? `${f.tenorMonths} mo` : '—'}</td>
                         <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)', maxWidth: 200 }} className="truncate">{f.purpose || '—'}</td>
                         <td style={{ padding: 'var(--space-3) var(--space-5)' }}>
                           {canWrite && (
@@ -1112,7 +1112,7 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* Waive Condition Dialog */}
         {waiveDialogId && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setWaiveDialogId(null)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setWaiveDialogId(null)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-4">Waive Condition</h2>
@@ -1138,7 +1138,7 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* Add Condition Dialog */}
         {showAddConditionDialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowAddConditionDialog(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowAddConditionDialog(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-4">Add Condition</h2>
@@ -1234,7 +1234,7 @@ const CreditApplicationDetail: React.FC = () => {
           const isReject = t?.toState === 'REJECTED' || t?.toState === 'KYC_REJECTED' || t?.toState === 'WITHDRAWN';
           const label = t?.label || showTransitionDialog.replace(/_/g, ' ');
           return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowTransitionDialog(null)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowTransitionDialog(null)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-2">Confirm Action</h2>
@@ -1269,7 +1269,7 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* Facility Form Modal */}
         {showFacilityForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowFacilityForm(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowFacilityForm(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-4">Add Facility</h2>
@@ -1283,8 +1283,8 @@ const CreditApplicationDetail: React.FC = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Approved Amount *</label>
-                    <input required type="number" min="0" value={facilityForm.approvedAmount ?? ''} onChange={e => setFacilityForm(f => ({ ...f, approvedAmount: Number(e.target.value) }))}
+                    <label className="block text-xs font-semibold text-text-secondary mb-1">Amount *</label>
+                    <input required type="number" min="0" value={facilityForm.amount ?? ''} onChange={e => setFacilityForm(f => ({ ...f, amount: Number(e.target.value) }))}
                       className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
                   </div>
                   <div>
@@ -1298,12 +1298,12 @@ const CreditApplicationDetail: React.FC = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-text-secondary mb-1">Interest Rate (%)</label>
-                    <input type="number" step="0.01" value={facilityForm.interestRate ?? ''} onChange={e => setFacilityForm(f => ({ ...f, interestRate: Number(e.target.value) }))}
+                    <input type="number" step="0.01" value={facilityForm.ratePct ?? ''} onChange={e => setFacilityForm(f => ({ ...f, ratePct: Number(e.target.value) }))}
                       className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-text-secondary mb-1">Tenure (months) *</label>
-                    <input required type="number" min="1" value={facilityForm.tenureMonths ?? ''} onChange={e => setFacilityForm(f => ({ ...f, tenureMonths: Number(e.target.value) }))}
+                    <input required type="number" min="1" value={facilityForm.tenorMonths ?? ''} onChange={e => setFacilityForm(f => ({ ...f, tenorMonths: Number(e.target.value) }))}
                       className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
                   </div>
                 </div>
@@ -1334,7 +1334,7 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* Party Form Modal */}
         {showPartyForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowPartyForm(false)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowPartyForm(false)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-4">Add Party</h2>

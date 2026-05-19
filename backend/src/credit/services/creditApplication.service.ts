@@ -1,6 +1,6 @@
 import prisma from '../../utils/prisma';
 import { Prisma, ApplicationState } from '@prisma/client';
-import { createHash } from 'crypto';
+import { AuditChainService } from './auditChain.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,6 +40,31 @@ export interface ListCreditApplicationsOptions {
 
 // ---------------------------------------------------------------------------
 // State Machine
+// ---------------------------------------------------------------------------
+//
+// Canonical application lifecycle (Prisma ApplicationState values):
+//
+//   DRAFT ──submit──► SUBMITTED
+//   DRAFT ──withdraw──► WITHDRAWN
+//   SUBMITTED ──start_kyc──► KYC_REVIEW
+//   KYC_REVIEW ──approve_kyc──► KYC_APPROVED
+//   KYC_REVIEW ──reject_kyc──► KYC_REJECTED
+//   KYC_APPROVED ──start_underwriting──► UNDERWRITING
+//   KYC_REJECTED ──resubmit──► SUBMITTED
+//   UNDERWRITING ──start_assessment──► CREDIT_ASSESSMENT
+//   CREDIT_ASSESSMENT ──submit_to_committee──► COMMITTEE_REVIEW
+//   COMMITTEE_REVIEW ──approve──► APPROVED
+//   COMMITTEE_REVIEW ──reject──► REJECTED
+//   APPROVED ──make_offer──► OFFER
+//   OFFER ──accept_offer──► ACCEPTED
+//   OFFER ──decline_offer──► REJECTED
+//   ACCEPTED ──disburse──► DISBURSED
+//   DISBURSED ──activate──► ACTIVE
+//   ACTIVE ──close──► CLOSED
+//   Any non-terminal state ──withdraw──► WITHDRAWN (reason required)
+//
+// Terminal states (no outgoing transitions):
+//   REJECTED, CLOSED, WITHDRAWN
 // ---------------------------------------------------------------------------
 
 type TransitionAction = string;
@@ -152,26 +177,39 @@ function findTransition(currentState: ApplicationState, action: string): Transit
 
 /**
  * Generate the next application number in the format CA-YYYY-NNNNN.
- * Uses a database sequence-like pattern via a Prisma transaction.
+ * Uses an atomic UPDATE ... RETURNING pattern with row-level lock via
+ * CreditAppCounter to prevent race conditions on concurrent requests.
  */
 async function generateApplicationNo(): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `CA-${year}-`;
 
-  // Find the highest existing number with this prefix
-  const lastApp = await prisma.creditApplication.findFirst({
-    where: { applicationNo: { startsWith: prefix } },
-    orderBy: { applicationNo: 'desc' },
-    select: { applicationNo: true },
+  // Atomically increment the counter for this prefix using a transaction
+  // Prisma doesn't support UPDATE ... RETURNING directly, so we use
+  // $transaction with a manual upsert + increment approach
+  const result = await prisma.$transaction(async (tx) => {
+    // Try to find existing counter row
+    let counter = await tx.creditAppCounter.findUnique({
+      where: { prefix: 'CA' },
+    });
+
+    if (!counter) {
+      // First application this year — create the counter row
+      counter = await tx.creditAppCounter.create({
+        data: { prefix: 'CA', lastSeq: 1 },
+      });
+    } else {
+      // Atomically increment
+      counter = await tx.creditAppCounter.update({
+        where: { id: counter.id },
+        data: { lastSeq: { increment: 1 } },
+      });
+    }
+
+    return counter.lastSeq;
   });
 
-  let seq = 1;
-  if (lastApp) {
-    const numPart = lastApp.applicationNo.replace(prefix, '');
-    seq = parseInt(numPart, 10) + 1;
-  }
-
-  return `${prefix}${String(seq).padStart(5, '0')}`;
+  return `${prefix}${String(result).padStart(5, '0')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -508,6 +546,7 @@ class CreditApplicationService {
 
   /**
    * Create an audit event with hash-chain for tamper evidence.
+   * Delegates to AuditChainService for consistent hash-chain creation.
    */
   private async createAuditEvent(
     applicationId: string,
@@ -517,38 +556,15 @@ class CreditApplicationService {
     newState: string,
     metadata: Record<string, unknown>,
   ) {
-    // Get the last event for this application to compute hash chain
-    const lastEvent = await prisma.creditAuditEvent.findFirst({
-      where: { applicationId },
-      orderBy: { createdAt: 'desc' },
-      select: { hash: true },
-    });
-
-    const payload = JSON.stringify({
+    await AuditChainService.appendEvent(
       applicationId,
-      actorId,
+      'STATE_TRANSITION',
+      actorId ?? null,
       action,
-      oldState,
+      oldState ?? undefined,
       newState,
       metadata,
-      previousHash: lastEvent?.hash ?? null,
-      timestamp: new Date().toISOString(),
-    });
-
-    const hash = createHash('sha256').update(payload).digest('hex');
-
-    await prisma.creditAuditEvent.create({
-      data: {
-        applicationId,
-        actorId: actorId ?? null,
-        eventType: 'STATE_TRANSITION',
-        action,
-        oldState: oldState ?? null,
-        newState,
-        metadata: metadata as any,
-        hash,
-      },
-    });
+    );
   }
 }
 

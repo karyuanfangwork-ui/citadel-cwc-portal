@@ -1,8 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
-
-const prisma = new PrismaClient();
+import prisma from '../../utils/prisma';
 
 // In-memory cache for feature flags (refreshed every 60 seconds)
 interface FlagCache {

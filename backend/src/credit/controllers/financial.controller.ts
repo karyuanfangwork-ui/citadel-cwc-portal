@@ -180,8 +180,8 @@ class FinancialController {
     const isAdmin = reviewer.permissions.includes('credit:admin');
     const { decision } = req.body;
 
-    if (!decision || !['approve', 'reject'].includes(decision)) {
-      throw new AppError('Decision must be "approve" or "reject"', 400);
+    if (!decision || !['APPROVE', 'REJECT'].includes(decision)) {
+      throw new AppError('Decision must be "APPROVE" or "REJECT"', 400);
     }
 
     try {
