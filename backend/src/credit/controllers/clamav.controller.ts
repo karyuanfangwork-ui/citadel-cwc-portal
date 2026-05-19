@@ -1,8 +1,11 @@
+import path from 'path';
 import { Response } from 'express';
-import { asyncHandler } from '../../middleware/error.middleware';
+import { asyncHandler, AppError } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import prisma from '../../utils/prisma';
 import { execFileSync } from 'child_process';
+
+const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 
 /**
  * Check if ClamAV daemon (clamdscan) is available on the system.
@@ -81,6 +84,15 @@ class ClamAvController {
       avClean = null; // null = not scanned
       avScanResult = 'SKIPPED: ClamAV not available';
     } else {
+      // Validate filePath is within the upload directory (path-traversal guard)
+      if (document.filePath.includes('..')) {
+        throw new AppError('Invalid file path', 400);
+      }
+      const resolvedPath = path.resolve(document.filePath);
+      if (!resolvedPath.startsWith(UPLOAD_DIR + path.sep) && resolvedPath !== UPLOAD_DIR) {
+        throw new AppError('Invalid file path', 400);
+      }
+
       // Run actual ClamAV scan
       const scanResult = runClamScan(document.filePath);
       avClean = scanResult.clean;
