@@ -50,6 +50,38 @@ function request(method: string, path: string, body?: any): Promise<{ status: nu
   });
 }
 
+/**
+ * Like request() but accepts an explicit token override instead of the global authToken.
+ */
+function apiRequest(method: string, path: string, body?: any, token?: string): Promise<{ status: number; data: any }> {
+  return new Promise((resolve, reject) => {
+    const url = new URL(BASE_URL + path);
+    const bearerToken = token ?? authToken;
+    const options: http.RequestOptions = {
+      hostname: url.hostname,
+      port: url.port || 80,
+      path: url.pathname + url.search,
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
+      },
+    };
+    const req = http.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        let parsed: any;
+        try { parsed = JSON.parse(data); } catch { parsed = { raw: data }; }
+        resolve({ status: res.statusCode || 0, data: parsed });
+      });
+    });
+    req.on('error', (err) => reject(err));
+    if (body) req.write(JSON.stringify(body));
+    req.end();
+  });
+}
+
 function v(obj: any, path: string): any {
   for (const k of path.split('.')) { if (obj == null) return null; obj = obj[k]; }
   return obj;
@@ -63,6 +95,28 @@ let passed = 0, failed = 0;
 function check(label: string, cond: boolean, detail?: string) {
   if (cond) { passed++; console.log(`  ✅ ${label}`); }
   else { failed++; console.log(`  ❌ ${label}${detail ? ' — ' + detail : ''}`); }
+}
+
+/**
+ * Assert that a response has a specific HTTP status code.
+ */
+function assertStatus(resp: { status: number; data: any }, expectedStatus: number, label: string) {
+  check(label, resp.status === expectedStatus, `expected ${expectedStatus}, got ${resp.status}`);
+}
+
+/**
+ * Assert that a response body field (dot-path on resp.data) exists and matches
+ * the expected JS typeof type string (e.g. 'string', 'number', 'object').
+ */
+function assertField(
+  resp: { status: number; data: any },
+  dotPath: string,
+  expectedType: string,
+  message?: string,
+) {
+  const value = v(resp.data, dotPath);
+  const label = message ?? `${dotPath} should be a ${expectedType}`;
+  check(label, value !== null && value !== undefined && typeof value === expectedType, `got ${JSON.stringify(value)}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -119,6 +173,9 @@ async function main() {
   });
   borrowerId = v(r.data, 'data.profile.id') || '';
   check('Step 2b: Create borrower profile', !!borrowerId);
+  // Shape assertions: verify the response body has expected fields
+  assertField(r, 'data.profile.id', 'string', 'borrower profile.id should be a string');
+  assertField(r, 'data.profile.legalName', 'string', 'borrower profile.legalName should be a string');
 
   // Step 3: Create Credit Application
   r = await request('POST', `${API_PREFIX}/applications`, {
@@ -131,6 +188,10 @@ async function main() {
   });
   applicationId = v(r.data, 'data.application.id') || '';
   check('Step 3: Create application', !!applicationId);
+  // Shape assertions: verify application response body
+  assertField(r, 'data.application.id', 'string', 'application.id should be a string');
+  assertField(r, 'data.application.state', 'string', 'application.state should be a string');
+  assertField(r, 'data.application.requestedAmount', 'number', 'application.requestedAmount should be a number');
 
   // ---------------------------------------------------------------
   // Phase 2: KYC & Underwriting
@@ -412,6 +473,103 @@ async function main() {
 
   r = await request('GET', `${API_PREFIX}/dashboard/committee-calendar`);
   check('Step 28d: Committee calendar dashboard', r.status === 200, `status=${r.status}`);
+
+  // ---------------------------------------------------------------
+  // Phase 8: Security / SoD / Export Token Tests
+  // ---------------------------------------------------------------
+  console.log('\n--- Phase 8: Security & SoD Checks ---');
+
+  // ---------------------------------------------------------------
+  // Section A: SoD violation — a non-approver user cannot call the
+  // approval endpoint.  We log in as hr@test.local (no credit:approve
+  // permission) and attempt to approve the application created above.
+  // The expected result is 403 from the permission check.
+  //
+  // NOTE: To test the SoD maker-checker rule specifically (assignedRmId
+  // === actorId → 403), seed a user with CREDIT_RM role, assign them
+  // as the RM on an application, then attempt self-approval with their
+  // token.  The current seed does not include a standalone CREDIT_RM
+  // user, so the permission-layer 403 is tested here as a proxy.
+  // ---------------------------------------------------------------
+  let rmToken = '';
+  {
+    const loginResp = await apiRequest('POST', `${AUTH_PREFIX}/login`, {
+      email: 'hr@test.local',
+      password: 'abc@123',
+    });
+    rmToken = v(loginResp.data, 'data.accessToken') || '';
+    check('Step 29a: Login as non-approver user (hr)', !!rmToken, `status=${loginResp.status}`);
+  }
+
+  if (rmToken && applicationId) {
+    // Attempt to approve the application as a user without credit:approve permission.
+    // SoD middleware sits behind requirePermission('credit:approve'), so the 403
+    // originates from the permission check (the first gate).
+    const sodResp = await apiRequest(
+      'POST',
+      `${API_PREFIX}/applications/${applicationId}/approvals`,
+      { decision: 'APPROVE', comment: 'Self-approval attempt' },
+      rmToken,
+    );
+    assertStatus(sodResp, 403, 'Step 29b: Non-approver cannot submit approval (403 expected)');
+    check('Step 29b: SoD/permission guard correctly rejected request', sodResp.status === 403, `got status=${sodResp.status}`);
+  } else {
+    check('Step 29b: SoD test (skipped — no rmToken or applicationId)', false, 'prerequisite missing');
+  }
+
+  // ---------------------------------------------------------------
+  // Section B: Export token lifecycle
+  // Admin has credit:export permission, so this tests the full flow:
+  //   1. Request an export → expect token in response
+  //   2. Verify an invalid/fabricated token is rejected
+  // ---------------------------------------------------------------
+  let exportToken = '';
+  if (applicationId) {
+    const exportResp = await apiRequest(
+      'POST',
+      `${API_PREFIX}/security/export`,
+      {
+        resourceType: 'CreditApplication',
+        resourceId: applicationId,
+        format: 'JSON',
+        reason: 'Smoke test export lifecycle verification',
+      },
+      authToken,
+    );
+    check('Step 30a: Export request accepted (200)', exportResp.status === 200, `status=${exportResp.status}`);
+    exportToken = v(exportResp.data, 'data.token') || '';
+    check('Step 30b: Export response contains token', !!exportToken, `token=${exportToken}`);
+    assertField(exportResp, 'data.token', 'string', 'export token should be a string');
+    assertField(exportResp, 'data.expiresAt', 'string', 'export expiresAt should be a string');
+  } else {
+    check('Step 30a: Export request (skipped — no applicationId)', false, 'prerequisite missing');
+    check('Step 30b: Export token present (skipped)', false, 'prerequisite missing');
+  }
+
+  // Verify an invalid (fabricated) token is rejected.
+  // The verifyExportToken endpoint is internal, so we test by re-requesting
+  // an export with a tampered/bogus token header — any endpoint protected
+  // by export-token verification should refuse it.  Here we call the export
+  // endpoint itself with a fake Bearer token to confirm auth is enforced.
+  {
+    const fakeToken = 'INVALID_EXPORT_TOKEN_' + Math.random().toString(36).slice(2);
+    const invalidResp = await apiRequest(
+      'POST',
+      `${API_PREFIX}/security/export`,
+      {
+        resourceType: 'CreditApplication',
+        resourceId: applicationId || 'nonexistent-id',
+        format: 'JSON',
+        reason: 'Invalid token test',
+      },
+      fakeToken,
+    );
+    check(
+      'Step 30c: Invalid bearer token is rejected (401)',
+      invalidResp.status === 401,
+      `status=${invalidResp.status}`,
+    );
+  }
 
   // ---------------------------------------------------------------
   // Summary
