@@ -1,10 +1,11 @@
 import * as crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-cbc';
-const KEY = Buffer.from(
-  process.env.CREDIT_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef',
-  'hex',
-); // 32 bytes
+const rawKey = process.env.CREDIT_ENCRYPTION_KEY;
+if (!rawKey) {
+  throw new Error('CREDIT_ENCRYPTION_KEY environment variable is required');
+}
+const KEY = Buffer.from(rawKey, 'hex'); // 32 bytes
 const IV_LENGTH = 16;
 
 export class CreditEncryptionService {
