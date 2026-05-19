@@ -24,7 +24,13 @@ export const createApprovalMatrixSchema = z.object({
     requiredApproverCount: z.number().int().min(1).default(1),
     effectiveFrom: z.coerce.date(),
     effectiveTo: z.coerce.date().optional().nullable(),
-  }),
+  }).refine(
+    (data) => Number(data.minExposure) < Number(data.maxExposure),
+    {
+      message: 'minExposure must be less than maxExposure',
+      path: ['maxExposure'],
+    },
+  ),
 });
 
 export const updateApprovalMatrixSchema = z.object({
@@ -49,7 +55,7 @@ export const updateApprovalMatrixSchema = z.object({
 
 export const submitApprovalActionSchema = z.object({
   body: z.object({
-    decision: z.enum(['APPROVE', 'REJECT', 'RETURN', 'ESCALATE']),
+    decision: z.enum(['APPROVE', 'REJECT', 'RETURN', 'ESCALATE', 'DEFER']),
     comment: z.string().max(5000).optional(),
     isCommitteeVote: z.boolean().default(false),
   }),
