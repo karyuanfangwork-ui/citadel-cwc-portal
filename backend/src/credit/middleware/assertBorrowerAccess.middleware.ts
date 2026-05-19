@@ -25,9 +25,9 @@ const ADMIN_ROLES = ['ADMIN', 'CREDIT_ADMIN', 'CREDIT_MANAGER', 'CREDIT_SENIOR',
 export function assertBorrowerAccess() {
   return async (req: AuthRequest, _res: Response, next: NextFunction) => {
     try {
-      const userId = req.user?.id;
-      const userRoles: string[] = req.user?.roles ?? [];
-      const borrowerProfileId = req.params.borrowerProfileId;
+      const userId = req.user?.id as string | undefined;
+      const userRoles: string[] = Array.isArray(req.user?.roles) ? (req.user!.roles as string[]) : [];
+      const borrowerProfileId = String(req.params.borrowerProfileId);
 
       // If either userId or borrowerProfileId is missing, let downstream handle it
       if (!userId || !borrowerProfileId) return next();
@@ -38,14 +38,7 @@ export function assertBorrowerAccess() {
       // Verify the borrower exists
       const borrower = await prisma.borrowerProfile.findUnique({
         where: { id: borrowerProfileId },
-        select: {
-          id: true,
-          applications: {
-            where: { assignedRmId: userId },
-            select: { id: true },
-            take: 1,
-          },
-        },
+        select: { id: true },
       });
 
       if (!borrower) {
@@ -53,7 +46,11 @@ export function assertBorrowerAccess() {
       }
 
       // The user is the assigned RM on at least one application for this borrower
-      const isAssignedRm = borrower.applications.length > 0;
+      const assignedApp = await prisma.creditApplication.findFirst({
+        where: { borrowerProfileId, assignedRmId: userId },
+        select: { id: true },
+      });
+      const isAssignedRm = assignedApp !== null;
 
       if (!isAssignedRm) {
         throw new AppError(

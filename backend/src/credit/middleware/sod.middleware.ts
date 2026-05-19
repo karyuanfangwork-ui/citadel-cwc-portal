@@ -67,7 +67,7 @@ export function enforceCreditSOD() {
           },
         });
       } catch (dbErr) {
-        logger.error({ applicationId, userId, err: dbErr }, 'SOD middleware: application query failed — blocking action');
+        logger.error('SOD middleware: application query failed — blocking action', { applicationId, userId, err: dbErr });
         return next(new AppError('SoD check unavailable — please try again', 503));
       }
 
@@ -105,7 +105,7 @@ export function enforceCreditSOD() {
         }
       } catch (err) {
         if (err instanceof AppError) throw err;
-        logger.error({ applicationId, userId, err }, 'SOD middleware: audit event query failed — blocking maker-checker check');
+        logger.error('SOD middleware: audit event query failed — blocking maker-checker check', { applicationId, userId, err });
         return next(new AppError('SoD check unavailable — please try again', 503));
       }
 
@@ -159,7 +159,7 @@ export async function checkSodConflict(userId: string, applicationId: string): P
       select: { assignedRmId: true },
     });
   } catch (dbErr) {
-    logger.error({ applicationId, userId, err: dbErr }, 'SOD checkSodConflict: application query failed — blocking conflict check');
+    logger.error('SOD checkSodConflict: application query failed — blocking conflict check', { applicationId, userId, err: dbErr });
     throw new AppError('SoD check unavailable — please try again', 503);
   }
 
