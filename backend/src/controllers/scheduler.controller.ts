@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as schedulerService from '../services/scheduler.service';
 
-export async function listJobs(req: Request, res: Response, next: NextFunction) {
+export async function listJobs(_req: Request, res: Response, next: NextFunction) {
   try {
     const configs = await schedulerService.listConfigs();
     res.json({ jobs: configs });

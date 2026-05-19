@@ -26,14 +26,18 @@ export type CrmJobKey =
   | 'crm.kyc_expiration'
   | 'crm.rep_inactivity';
 
+function safeRun(key: string, fn: () => Promise<void>): Promise<void> {
+  return fn().catch((e) => { logger.error(`[CRM] ${key} failed`, { error: e }); });
+}
+
 export const CRM_JOB_FNS: Record<CrmJobKey, () => Promise<void>> = {
-  'crm.activity_reminders': () => checkActivityReminders().catch((e) => logger.error('[CRM] Activity reminders failed', { error: e })),
-  'crm.lead_aging':         () => checkLeadAging().catch((e) => logger.error('[CRM] Lead aging failed', { error: e })),
-  'crm.overdue_followups':  () => checkOverdueFollowUps().catch((e) => logger.error('[CRM] Overdue follow-ups failed', { error: e })),
-  'crm.stale_deals':        () => checkStaleDeals().catch((e) => logger.error('[CRM] Stale deals failed', { error: e })),
-  'crm.trust_reviews':      () => checkTrustReviewDates().catch((e) => logger.error('[CRM] Trust reviews failed', { error: e })),
-  'crm.kyc_expiration':     () => checkKycExpiration().catch((e) => logger.error('[CRM] KYC expiration failed', { error: e })),
-  'crm.rep_inactivity':     () => checkRepInactivity().catch((e) => logger.error('[CRM] Rep inactivity failed', { error: e })),
+  'crm.activity_reminders': () => safeRun('Activity reminders', checkActivityReminders),
+  'crm.lead_aging':         () => safeRun('Lead aging', checkLeadAging),
+  'crm.overdue_followups':  () => safeRun('Overdue follow-ups', checkOverdueFollowUps),
+  'crm.stale_deals':        () => safeRun('Stale deals', checkStaleDeals),
+  'crm.trust_reviews':      () => safeRun('Trust reviews', checkTrustReviewDates),
+  'crm.kyc_expiration':     () => safeRun('KYC expiration', checkKycExpiration),
+  'crm.rep_inactivity':     () => safeRun('Rep inactivity', checkRepInactivity),
 };
 
 const tasks = new Map<CrmJobKey, ScheduledTask | ReturnType<typeof setInterval>>();
