@@ -514,7 +514,7 @@ const creditService = {
   // Approvals
   async listApprovals(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/approvals`);
-    return res.data.data.approvals as CreditApproval[];
+    return (res.data.data.decisions || res.data.data.approvals || []) as CreditApproval[];
   },
 
   async submitApproval(applicationId: string, data: { decision: ApprovalDecision; comment?: string; isCommitteeVote?: boolean }) {
