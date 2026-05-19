@@ -3,6 +3,7 @@ import { directorController } from '../controllers/director.controller';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createDirectorSchema, updateDirectorSchema } from '../validators/director.validator';
+import { assertBorrowerAccess } from '../middleware/assertBorrowerAccess.middleware';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.use(authenticate);
 router.get(
   '/:borrowerProfileId/directors',
   requirePermission('credit:read'),
+  assertBorrowerAccess(),
   directorController.list,
 );
 
@@ -39,6 +41,7 @@ router.get(
 router.post(
   '/:borrowerProfileId/directors',
   requirePermission('credit:write'),
+  assertBorrowerAccess(),
   validate(createDirectorSchema),
   directorController.create,
 );

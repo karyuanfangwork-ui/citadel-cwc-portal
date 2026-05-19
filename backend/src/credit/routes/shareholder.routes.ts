@@ -3,6 +3,7 @@ import { shareholderController } from '../controllers/shareholder.controller';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createShareholderSchema, updateShareholderSchema } from '../validators/shareholder.validator';
+import { assertBorrowerAccess } from '../middleware/assertBorrowerAccess.middleware';
 
 const router = Router();
 
@@ -17,6 +18,7 @@ router.use(authenticate);
 router.get(
   '/:borrowerProfileId/shareholders',
   requirePermission('credit:read'),
+  assertBorrowerAccess(),
   shareholderController.list,
 );
 
@@ -39,6 +41,7 @@ router.get(
 router.post(
   '/:borrowerProfileId/shareholders',
   requirePermission('credit:write'),
+  assertBorrowerAccess(),
   validate(createShareholderSchema),
   shareholderController.create,
 );

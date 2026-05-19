@@ -7,6 +7,7 @@ import {
   listStatementsQuerySchema,
   trendAnalysisQuerySchema,
 } from '../validators/financial.validator';
+import { assertBorrowerAccess } from '../middleware/assertBorrowerAccess.middleware';
 
 const router = Router();
 
@@ -25,6 +26,7 @@ router.use(authenticate);
 router.get(
   '/:borrowerProfileId/financials',
   requirePermission('credit:read'),
+  assertBorrowerAccess(),
   validate(listStatementsQuerySchema),
   financialController.listStatements,
 );
@@ -37,6 +39,7 @@ router.get(
 router.post(
   '/:borrowerProfileId/financials',
   requirePermission('credit:write'),
+  assertBorrowerAccess(),
   validate(createStatementSchema),
   financialController.createStatement,
 );
@@ -49,6 +52,7 @@ router.post(
 router.get(
   '/:borrowerProfileId/trends',
   requirePermission('credit:read'),
+  assertBorrowerAccess(),
   validate(trendAnalysisQuerySchema),
   financialController.getTrendAnalysis,
 );
@@ -61,6 +65,7 @@ router.get(
 router.get(
   '/:borrowerProfileId/exposure',
   requirePermission('credit:read'),
+  assertBorrowerAccess(),
   financialController.getExposure,
 );
 
