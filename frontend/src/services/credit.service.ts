@@ -351,6 +351,7 @@ export interface CreditScorecard {
   description: string | null;
   productType: CreditProductType | null;
   activeVersionId: string | null;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
   _count?: { versions: number };
@@ -364,9 +365,12 @@ export interface CreditScorecardVersion {
   versionNumber: number;
   isActive: boolean;
   factors: ScorecardFactor[];
+  effectiveFrom: string | null;
+  approvedById: string | null;
+  approvedAt: string | null;
+  approvedBy?: CreditUserRef | null;
   createdAt: string;
-  createdBy: string;
-  creator?: CreditUserRef;
+  updatedAt: string;
 }
 
 export interface ScorecardFactor {
@@ -668,7 +672,15 @@ export const exposureApi = {
 export const scorecardApi = {
   async list(params: Record<string, any> = {}) {
     const res = await apiClient.get('/credit/scorecards', { params });
-    return res.data.data.scorecards as CreditScorecard[];
+    const raw = res.data.data;
+    // API may return { scorecards, pagination } or direct array
+    const list: any[] = raw.scorecards ?? raw;
+    return list.map((sc: any) => ({
+      ...sc,
+      productType: sc.productType ?? null,
+      activeVersionId: sc.activeVersionId ?? null,
+      isActive: sc.isActive ?? true,
+    })) as CreditScorecard[];
   },
 
   async create(data: { name: string; description?: string; productType?: CreditProductType }) {
@@ -692,7 +704,22 @@ export const scorecardApi = {
 
   async listVersions(scorecardId: string) {
     const res = await apiClient.get(`/credit/scorecards/${scorecardId}/versions`);
-    return res.data.data.versions as CreditScorecardVersion[];
+    // API returns factorWeights.factors — normalize to flat factors + version→versionNumber
+    const raw: any[] = res.data.data.versions;
+    const mapped: CreditScorecardVersion[] = raw.map((v: any) => ({
+      id: v.id,
+      scorecardId: v.scorecardId,
+      versionNumber: v.version ?? v.versionNumber ?? 0,
+      isActive: v.isActive,
+      factors: v.factorWeights?.factors ?? v.factors ?? [],
+      effectiveFrom: v.effectiveFrom ?? null,
+      approvedById: v.approvedById ?? v.createdBy ?? null,
+      approvedAt: v.approvedAt ?? null,
+      approvedBy: v.approvedBy ?? v.creator ?? null,
+      createdAt: v.createdAt,
+      updatedAt: v.updatedAt ?? v.createdAt,
+    }));
+    return mapped;
   },
 
   async createVersion(scorecardId: string, data: { factors: Array<{ key: string; label: string; weight: number }> }) {

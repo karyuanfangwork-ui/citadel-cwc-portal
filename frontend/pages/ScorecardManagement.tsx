@@ -241,7 +241,7 @@ const ScorecardManagement: React.FC = () => {
                                   </div>
                                 </td>
                                 <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
-                                  {v.creator ? `${v.creator.firstName} ${v.creator.lastName}` : '—'}
+                                  {v.approvedBy ? `${v.approvedBy.firstName} ${v.approvedBy.lastName}` : '—'}
                                 </td>
                                 <td style={{ padding: 'var(--space-2) var(--space-4)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
                                   {new Date(v.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
