@@ -1,6 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 import prisma from '../../utils/prisma';
 import { logger } from '../../utils/logger';
+import { JobConfig } from '../../jobs/sla-checker';
 // @ts-ignore - Prisma client models may not be reflected until regenerated
 
 const REDIS_CONFIG = {
@@ -164,7 +165,11 @@ async function processDailyCheck() {
  * Start the BullMQ monitoring job.
  * Gracefully handles Redis unavailability — logs warning and skips.
  */
-export function startMonitorJob() {
+export function startMonitorJob(cfg: JobConfig = { enabled: true, mode: 'interval', intervalMs: 86400000 }) {
+  if (!cfg.enabled) {
+    logger.info('[MonitorJob] Credit monitor disabled — skipping');
+    return;
+  }
   try {
     monitorQueue = new Queue(QUEUE_NAME, { connection: REDIS_CONFIG });
 
@@ -172,12 +177,12 @@ export function startMonitorJob() {
       await processDailyCheck();
     }, { connection: REDIS_CONFIG });
 
-    // Add repeatable job — runs every 24 hours
+    const repeatMs = cfg.intervalMs || 86400000;
     monitorQueue.add('daily-check', {}, {
-      repeat: { every: 86400000 }, // 24h in ms
+      repeat: { every: repeatMs },
     });
 
-    logger.info(`[MonitorJob] Started monitoring queue: ${QUEUE_NAME}`);
+    logger.info(`[MonitorJob] Started monitoring queue: ${QUEUE_NAME} (interval: ${repeatMs / 1000}s)`);
   } catch (error) {
     logger.warn(`[MonitorJob] Could not start monitoring job (Redis may not be available): ${error}`);
   }

@@ -45,6 +45,7 @@ export const ADMIN_TABS = [
     { id: 'status-definitions',label:'Request Statuses',  icon: 'fact_check',     group: 'Workflows' },
     { id: 'sla-escalation',  label: 'SLA Escalation',    icon: 'timer',          group: 'Workflows' },
     { id: 'audit-logs',      label: 'Audit Logs',        icon: 'visibility',    group: 'Configuration' },
+    { id: 'scheduler',       label: 'Scheduler',         icon: 'schedule',       group: 'Configuration' },
     { id: 'banner-config',    label: 'Banner & Branding', icon: 'campaign',       group: 'Appearance' },
 ] as const;
 

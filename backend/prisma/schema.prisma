@@ -3192,3 +3192,22 @@ model PiiReadLog {
   @@index([createdAt])
   @@map("pii_read_logs")
 }
+
+// === SchedulerConfig ===
+
+model SchedulerConfig {
+  id         String    @id @default(cuid())
+  jobKey     String    @unique @map("job_key") @db.VarChar(80)
+  label      String    @db.VarChar(120)
+  enabled    Boolean   @default(true)
+  mode       String    @default("cron") @db.VarChar(20)
+  cronExpr   String?   @map("cron_expr") @db.VarChar(60)
+  intervalMs Int?     @map("interval_ms")
+  lastRunAt  DateTime? @map("last_run_at") @db.Timestamp(6)
+  lastStatus String?  @map("last_status") @db.VarChar(20)
+  lastError  String?  @map("last_error") @db.Text
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  updatedBy  String?  @map("updated_by") @db.VarChar(100)
+
+  @@map("scheduler_configs")
+}

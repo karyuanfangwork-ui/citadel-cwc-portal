@@ -18,6 +18,7 @@ export { WorkflowTransitionTab } from './WorkflowTransitionTab';
 export { BannerConfigTab } from './BannerConfigTab';
 export { StatusDefinitionsTab } from './StatusDefinitionsTab';
 export { PermissionsTab } from './PermissionsTab';
+export { default as SchedulerSettings } from './SchedulerSettings';
 
 // Modal Components
 export { CategoryModal } from './CategoryModal';
