@@ -1,5 +1,7 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { CreditEncryptionService } from './encryption.service';
+import { PiiReadLogService } from './piiReadLog.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -28,6 +30,19 @@ export interface ListShareholdersOptions {
   borrowerProfileId: string;
   page?: number;
   limit?: number;
+}
+
+// ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+
+function decryptNric(record: any) {
+  return {
+    ...record,
+    nricPassport: record.nricPassportEncrypted
+      ? CreditEncryptionService.decrypt(record.nricPassportEncrypted)
+      : null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -60,7 +75,7 @@ class ShareholderService {
     ]);
 
     return {
-      shareholders,
+      shareholders: shareholders.map(decryptNric),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -68,13 +83,26 @@ class ShareholderService {
   /**
    * Get a single shareholder by ID.
    */
-  async getShareholder(id: string) {
-    return prisma.shareholder.findUnique({
+  async getShareholder(id: string, requestingUserId?: string) {
+    const shareholder = await prisma.shareholder.findUnique({
       where: { id },
       include: {
         contact: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+
+    if (!shareholder) return null;
+
+    if (shareholder.nricPassportEncrypted && requestingUserId) {
+      await PiiReadLogService.logPiiAccess(
+        requestingUserId,
+        'Shareholder',
+        id,
+        'nricPassport',
+      ).catch(() => {/* non-blocking */});
+    }
+
+    return decryptNric(shareholder);
   }
 
   /**
@@ -83,7 +111,9 @@ class ShareholderService {
   async createShareholder(data: CreateShareholderData) {
     const createData: Prisma.ShareholderCreateInput = {
       name: data.name,
-      nricPassport: data.nricPassport ?? undefined,
+      nricPassportEncrypted: data.nricPassport?.trim()
+        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
+        : null,
       shareholdingPct: data.shareholdingPct != null ? new Prisma.Decimal(data.shareholdingPct as string | number) : undefined,
       shareClass: data.shareClass ?? undefined,
       numberOfShares: data.numberOfShares ?? undefined,
@@ -91,12 +121,14 @@ class ShareholderService {
       ...(data.contactId && { contact: { connect: { id: data.contactId } } }),
     };
 
-    return prisma.shareholder.create({
+    const shareholder = await prisma.shareholder.create({
       data: createData,
       include: {
         contact: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+
+    return decryptNric(shareholder);
   }
 
   /**
@@ -109,7 +141,11 @@ class ShareholderService {
     const updateData: Prisma.ShareholderUpdateInput = {};
 
     if (data.name !== undefined) updateData.name = data.name;
-    if (data.nricPassport !== undefined) updateData.nricPassport = data.nricPassport;
+    if (data.nricPassport !== undefined) {
+      updateData.nricPassportEncrypted = data.nricPassport?.trim()
+        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
+        : null;
+    }
     if (data.shareholdingPct !== undefined) updateData.shareholdingPct = data.shareholdingPct != null ? new Prisma.Decimal(data.shareholdingPct as string | number) : null;
     if (data.shareClass !== undefined) updateData.shareClass = data.shareClass;
     if (data.numberOfShares !== undefined) updateData.numberOfShares = data.numberOfShares;
@@ -117,13 +153,15 @@ class ShareholderService {
       updateData.contact = data.contactId ? { connect: { id: data.contactId } } : { disconnect: true };
     }
 
-    return prisma.shareholder.update({
+    const shareholder = await prisma.shareholder.update({
       where: { id },
       data: updateData,
       include: {
         contact: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+
+    return decryptNric(shareholder);
   }
 
   /**

@@ -1,5 +1,7 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { CreditEncryptionService } from './encryption.service';
+import { PiiReadLogService } from './piiReadLog.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,6 +36,19 @@ export interface ListDirectorsOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+
+function decryptNric(record: any) {
+  return {
+    ...record,
+    nricPassport: record.nricPassportEncrypted
+      ? CreditEncryptionService.decrypt(record.nricPassportEncrypted)
+      : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
@@ -64,7 +79,7 @@ class DirectorService {
     ]);
 
     return {
-      directors,
+      directors: directors.map(decryptNric),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -72,13 +87,27 @@ class DirectorService {
   /**
    * Get a single director by ID.
    */
-  async getDirector(id: string) {
-    return prisma.director.findUnique({
+  async getDirector(id: string, requestingUserId?: string) {
+    const director = await prisma.director.findUnique({
       where: { id },
       include: {
         contact: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+
+    if (!director) return null;
+
+    // Log PII access when nricPassportEncrypted is present
+    if (director.nricPassportEncrypted && requestingUserId) {
+      await PiiReadLogService.logPiiAccess(
+        requestingUserId,
+        'Director',
+        id,
+        'nricPassport',
+      ).catch(() => {/* non-blocking */});
+    }
+
+    return decryptNric(director);
   }
 
   /**
@@ -87,7 +116,9 @@ class DirectorService {
   async createDirector(data: CreateDirectorData) {
     const createData: Prisma.DirectorCreateInput = {
       name: data.name,
-      nricPassport: data.nricPassport ?? undefined,
+      nricPassportEncrypted: data.nricPassport?.trim()
+        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
+        : null,
       position: data.position ?? undefined,
       appointmentDate: data.appointmentDate ? new Date(data.appointmentDate) : undefined,
       resignationDate: data.resignationDate ? new Date(data.resignationDate) : undefined,
@@ -96,12 +127,14 @@ class DirectorService {
       ...(data.contactId && { contact: { connect: { id: data.contactId } } }),
     };
 
-    return prisma.director.create({
+    const director = await prisma.director.create({
       data: createData,
       include: {
         contact: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+
+    return decryptNric(director);
   }
 
   /**
@@ -114,7 +147,11 @@ class DirectorService {
     const updateData: Prisma.DirectorUpdateInput = {};
 
     if (data.name !== undefined) updateData.name = data.name;
-    if (data.nricPassport !== undefined) updateData.nricPassport = data.nricPassport;
+    if (data.nricPassport !== undefined) {
+      updateData.nricPassportEncrypted = data.nricPassport?.trim()
+        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
+        : null;
+    }
     if (data.position !== undefined) updateData.position = data.position;
     if (data.appointmentDate !== undefined) updateData.appointmentDate = data.appointmentDate ? new Date(data.appointmentDate) : null;
     if (data.resignationDate !== undefined) updateData.resignationDate = data.resignationDate ? new Date(data.resignationDate) : null;
@@ -123,13 +160,15 @@ class DirectorService {
       updateData.contact = data.contactId ? { connect: { id: data.contactId } } : { disconnect: true };
     }
 
-    return prisma.director.update({
+    const director = await prisma.director.update({
       where: { id },
       data: updateData,
       include: {
         contact: { select: { id: true, firstName: true, lastName: true, email: true } },
       },
     });
+
+    return decryptNric(director);
   }
 
   /**

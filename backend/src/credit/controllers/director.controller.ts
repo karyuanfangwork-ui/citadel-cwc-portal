@@ -28,7 +28,7 @@ class DirectorController {
    */
   getOne = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const director = await directorService.getDirector(id);
+    const director = await directorService.getDirector(id, req.user?.id);
 
     if (!director) {
       throw new AppError('Director not found', 404);

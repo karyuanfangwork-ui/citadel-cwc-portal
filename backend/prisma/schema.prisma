@@ -2267,7 +2267,7 @@ model Director {
   contactId         String?  @map("contact_id") @db.Uuid
   
   name             String   @db.VarChar(255)
-  nricPassport     String?  @map("nric_passport") @db.VarChar(50)
+  nricPassportEncrypted  String?  @map("nric_passport_encrypted") @db.Text
   position        String?   @db.VarChar(100)
   appointmentDate DateTime? @map("appointment_date") @db.Date
   resignationDate DateTime? @map("resignation_date") @db.Date
@@ -2292,7 +2292,7 @@ model Shareholder {
   contactId         String?  @map("contact_id") @db.Uuid
   
   name             String    @db.VarChar(255)
-  nricPassport     String?   @map("nric_passport") @db.VarChar(50)
+  nricPassportEncrypted  String?  @map("nric_passport_encrypted") @db.Text
   shareholdingPct  Decimal?  @map("shareholding_pct") @db.Decimal(5, 2)
   shareClass       String?   @map("share_class") @db.VarChar(50)
   numberOfShares   Int?      @map("number_of_shares")
@@ -2315,7 +2315,7 @@ model UltimateBeneficialOwner {
   borrowerProfileId String   @map("borrower_profile_id") @db.Uuid
   
   name             String   @db.VarChar(255)
-  nricPassport     String?  @map("nric_passport") @db.VarChar(50)
+  nricPassportEncrypted  String?  @map("nric_passport_encrypted") @db.Text
   ownershipPct     Decimal  @map("ownership_pct") @db.Decimal(5, 2)
   isPep            Boolean  @default(false) @map("is_pep")
   sourceOfWealth   String?  @map("source_of_wealth") @db.VarChar(255)

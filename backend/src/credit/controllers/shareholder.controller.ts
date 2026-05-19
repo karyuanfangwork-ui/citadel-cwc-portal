@@ -26,7 +26,7 @@ class ShareholderController {
    */
   getOne = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const shareholder = await shareholderService.getShareholder(id);
+    const shareholder = await shareholderService.getShareholder(id, req.user?.id);
 
     if (!shareholder) {
       throw new AppError('Shareholder not found', 404);

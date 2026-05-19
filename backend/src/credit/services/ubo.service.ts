@@ -1,5 +1,7 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { CreditEncryptionService } from './encryption.service';
+import { PiiReadLogService } from './piiReadLog.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +33,19 @@ export interface ListUbosOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Helper
+// ---------------------------------------------------------------------------
+
+function decryptNric(record: any) {
+  return {
+    ...record,
+    nricPassport: record.nricPassportEncrypted
+      ? CreditEncryptionService.decrypt(record.nricPassportEncrypted)
+      : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
 
@@ -57,7 +72,7 @@ class UboService {
     ]);
 
     return {
-      beneficialOwners,
+      beneficialOwners: beneficialOwners.map(decryptNric),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -65,10 +80,23 @@ class UboService {
   /**
    * Get a single UBO by ID.
    */
-  async getUbo(id: string) {
-    return prisma.ultimateBeneficialOwner.findUnique({
+  async getUbo(id: string, requestingUserId?: string) {
+    const ubo = await prisma.ultimateBeneficialOwner.findUnique({
       where: { id },
     });
+
+    if (!ubo) return null;
+
+    if (ubo.nricPassportEncrypted && requestingUserId) {
+      await PiiReadLogService.logPiiAccess(
+        requestingUserId,
+        'UltimateBeneficialOwner',
+        id,
+        'nricPassport',
+      ).catch(() => {/* non-blocking */});
+    }
+
+    return decryptNric(ubo);
   }
 
   /**
@@ -77,7 +105,9 @@ class UboService {
   async createUbo(data: CreateUboData) {
     const createData: Prisma.UltimateBeneficialOwnerCreateInput = {
       name: data.name,
-      nricPassport: data.nricPassport ?? undefined,
+      nricPassportEncrypted: data.nricPassport?.trim()
+        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
+        : null,
       ownershipPct: new Prisma.Decimal(data.ownershipPct as string | number),
       isPep: data.isPep ?? false,
       sourceOfWealth: data.sourceOfWealth ?? undefined,
@@ -85,9 +115,11 @@ class UboService {
       borrowerProfile: { connect: { id: data.borrowerProfileId } },
     };
 
-    return prisma.ultimateBeneficialOwner.create({
+    const ubo = await prisma.ultimateBeneficialOwner.create({
       data: createData,
     });
+
+    return decryptNric(ubo);
   }
 
   /**
@@ -100,16 +132,22 @@ class UboService {
     const updateData: Prisma.UltimateBeneficialOwnerUpdateInput = {};
 
     if (data.name !== undefined) updateData.name = data.name;
-    if (data.nricPassport !== undefined) updateData.nricPassport = data.nricPassport;
+    if (data.nricPassport !== undefined) {
+      updateData.nricPassportEncrypted = data.nricPassport?.trim()
+        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
+        : null;
+    }
     if (data.ownershipPct !== undefined) updateData.ownershipPct = new Prisma.Decimal(data.ownershipPct as string | number);
     if (data.isPep !== undefined) updateData.isPep = data.isPep;
     if (data.sourceOfWealth !== undefined) updateData.sourceOfWealth = data.sourceOfWealth;
     if (data.countryOfResidence !== undefined) updateData.countryOfResidence = data.countryOfResidence;
 
-    return prisma.ultimateBeneficialOwner.update({
+    const ubo = await prisma.ultimateBeneficialOwner.update({
       where: { id },
       data: updateData,
     });
+
+    return decryptNric(ubo);
   }
 
   /**

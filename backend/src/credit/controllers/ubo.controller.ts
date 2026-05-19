@@ -26,7 +26,7 @@ class UboController {
    */
   getOne = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const ubo = await uboService.getUbo(id);
+    const ubo = await uboService.getUbo(id, req.user?.id);
 
     if (!ubo) {
       throw new AppError('UBO not found', 404);
