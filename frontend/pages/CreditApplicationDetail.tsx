@@ -1193,7 +1193,7 @@ const CreditApplicationDetail: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {audit.map(a => {
-                  const isStateChange = a.fromState && a.toState;
+                  const isStateChange = a.oldState && a.newState;
                   return (
                     <div key={a.id} className="flex gap-3">
                       <div className="flex flex-col items-center">
@@ -1207,17 +1207,18 @@ const CreditApplicationDetail: React.FC = () => {
                           <span className="text-sm font-bold text-text-primary">{a.action.replace(/_/g, ' ')}</span>
                           {isStateChange && (
                             <span className="text-xs">
-                              <span className="font-medium" style={{ color: (STATE_COLORS[a.fromState!]?.text) || '#6366f1' }}>{a.fromState!.replace(/_/g, ' ')}</span>
+                              <span className="font-medium" style={{ color: (STATE_COLORS[a.oldState!]?.text) || '#6366f1' }}>{a.oldState!.replace(/_/g, ' ')}</span>
                               <span className="text-text-secondary mx-1">→</span>
-                              <span className="font-medium" style={{ color: (STATE_COLORS[a.toState!]?.text) || '#6366f1' }}>{a.toState!.replace(/_/g, ' ')}</span>
+                              <span className="font-medium" style={{ color: (STATE_COLORS[a.newState!]?.text) || '#6366f1' }}>{a.newState!.replace(/_/g, ' ')}</span>
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
-                          {a.performer && <span className="text-xs text-text-secondary">by {a.performer.firstName} {a.performer.lastName}</span>}
+                          {a.actor && <span className="text-xs text-text-secondary">by {a.actor.firstName} {a.actor.lastName}</span>}
+                          {!a.actor && a.actorId && <span className="text-xs text-text-secondary font-mono">actor: {a.actorId.substring(0, 8)}…</span>}
                           <span className="text-xs text-text-secondary">{formatDateTime(a.createdAt)}</span>
                         </div>
-                        {a.comment && <p className="text-xs text-text-secondary mt-1 bg-bg-subtle border border-border rounded-lg px-3 py-1.5">{a.comment}</p>}
+                        {a.metadata?.reason && <p className="text-xs text-text-secondary mt-1 bg-bg-subtle border border-border rounded-lg px-3 py-1.5">{a.metadata.reason}</p>}
                       </div>
                     </div>
                   );

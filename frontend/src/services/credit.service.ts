@@ -230,14 +230,15 @@ export interface ApprovalMatrix {
 export interface CreditAuditEvent {
   id: string;
   applicationId: string;
+  eventType: string;
   action: string;
-  fromState: ApplicationState | null;
-  toState: ApplicationState | null;
-  performedBy: string | null;
-  comment: string | null;
+  actorId: string | null;
+  oldState: string | null;
+  newState: string | null;
   metadata: Record<string, any> | null;
+  hash: string | null;
   createdAt: string;
-  performer?: CreditUserRef;
+  actor?: { firstName: string; lastName: string; email: string };
 }
 
 export interface ApplicationTransition {
@@ -477,7 +478,7 @@ const creditService = {
 
   async getApplicationAudit(id: string) {
     const res = await apiClient.get(`/credit/applications/${id}/audit`);
-    return res.data.data.audit as CreditAuditEvent[];
+    return (res.data.data.events || res.data.data.audit || []) as CreditAuditEvent[];
   },
 
   // Facilities
