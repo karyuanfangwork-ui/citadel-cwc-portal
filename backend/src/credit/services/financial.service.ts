@@ -472,20 +472,24 @@ class FinancialService {
     }
 
     if (action === 'approve') {
-      const updated = await prisma.financialStatement.update({
-        where: { id: statementId },
-        data: {
-          status: 'APPROVED',
-          reviewedById,
-        },
-        include: {
-          enteredBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-          reviewedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
-        },
-      });
+      const updated = await prisma.$transaction(async (tx) => {
+        const stmt = await tx.financialStatement.update({
+          where: { id: statementId },
+          data: {
+            status: 'APPROVED',
+            reviewedById,
+          },
+          include: {
+            enteredBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+            reviewedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+          },
+        });
 
-      // Auto-compute ratios when approved
-      await this.computeRatios(statementId);
+        // Auto-compute ratios atomically within the same transaction
+        await this.computeRatiosInTx(tx, statementId);
+
+        return stmt;
+      });
 
       return updated;
     } else {
@@ -569,6 +573,60 @@ class FinancialService {
     });
 
     return computed;
+  }
+
+  /**
+   * Compute and persist financial ratios within an existing Prisma transaction.
+   * Used by reviewStatement's approve path to ensure atomicity.
+   */
+  private async computeRatiosInTx(
+    tx: Omit<typeof prisma, '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'>,
+    statementId: string,
+  ): Promise<void> {
+    const lineItems = await tx.financialLineItem.findMany({
+      where: { statementId },
+    });
+
+    const vals: Record<string, number> = {};
+    for (const item of lineItems) {
+      vals[item.lineKey] = Number(item.amount);
+    }
+
+    const computed: {
+      ratioKey: string;
+      ratioLabel: string;
+      value: Prisma.Decimal;
+      category: string;
+    }[] = [];
+
+    for (const def of RATIO_DEFINITIONS) {
+      const allPresent = def.requiredKeys.every((key) => key in vals);
+      if (!allPresent) continue;
+
+      const result = def.compute(vals);
+      if (result === null || !isFinite(result)) continue;
+
+      computed.push({
+        ratioKey: def.key,
+        ratioLabel: def.label,
+        value: new Prisma.Decimal(Math.round(result * 10000) / 10000),
+        category: def.category,
+      });
+    }
+
+    await tx.financialRatio.deleteMany({ where: { statementId } });
+
+    if (computed.length > 0) {
+      await tx.financialRatio.createMany({
+        data: computed.map((r) => ({
+          statementId,
+          ratioKey: r.ratioKey,
+          ratioLabel: r.ratioLabel,
+          value: r.value,
+          category: r.category as any,
+        })),
+      });
+    }
   }
 
   /**

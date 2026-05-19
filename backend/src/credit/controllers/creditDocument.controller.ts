@@ -162,7 +162,8 @@ class CreditDocumentController {
    */
   delete = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const doc = await creditDocumentService.deleteDocument(id);
+    const user = requireUser(req);
+    const doc = await creditDocumentService.deleteDocument(id, user.id);
 
     if (!doc) {
       throw new AppError('Document not found', 404);

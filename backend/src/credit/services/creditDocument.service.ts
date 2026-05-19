@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import prisma from '../../utils/prisma';
 import { Prisma, DocumentClass } from '@prisma/client';
 import { s3Service } from '../../services/s3.service';
+import { AuditChainService } from './auditChain.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -235,8 +236,9 @@ class CreditDocumentService {
 
   /**
    * Soft-delete a credit document.
+   * Emits a DOCUMENT_DELETED audit event when the document is linked to an application.
    */
-  async deleteDocument(id: string) {
+  async deleteDocument(id: string, actorId?: string) {
     const existing = await prisma.creditDocument.findFirst({
       where: { id, deletedAt: null },
     });
@@ -245,10 +247,25 @@ class CreditDocumentService {
       return null;
     }
 
-    return prisma.creditDocument.update({
+    const deleted = await prisma.creditDocument.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+
+    // Emit audit event if the document is linked to a credit application
+    if (existing.applicationId) {
+      await AuditChainService.appendEvent(
+        existing.applicationId,
+        'DOCUMENT_DELETED',
+        actorId ?? null,
+        'delete',
+        undefined,
+        undefined,
+        { documentId: existing.id, fileName: existing.fileName },
+      );
+    }
+
+    return deleted;
   }
 
   // ===========================================================================
