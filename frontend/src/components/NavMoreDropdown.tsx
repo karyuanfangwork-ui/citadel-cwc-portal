@@ -69,7 +69,7 @@ const NavMoreDropdown: React.FC<NavMoreDropdownProps> = ({ items, adminItems = [
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-50 animate-fade-in">
+        <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[70]">
           {items.map(item => (
             <Link
               key={item.to}
