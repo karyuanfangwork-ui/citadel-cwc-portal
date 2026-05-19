@@ -13,6 +13,7 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "tsx prisma/seed.ts",
     "prisma:seed:crm": "tsx prisma/seed-crm.ts",
+    "prisma:seed:credit": "tsx prisma/creditDemoSeed.ts",
     "prisma:reset": "prisma migrate reset",
     "test": "jest",
     "test:watch": "jest --watch",

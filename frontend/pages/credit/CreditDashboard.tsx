@@ -146,10 +146,11 @@ const CreditDashboard: React.FC = () => {
 
     fetcher()
       .then((res: any) => {
-        if (activeTab === 'pipeline') setPipeline(res.data ?? res);
-        else if (activeTab === 'approval') setApprovalInbox(res.data ?? res);
-        else if (activeTab === 'exposure') setExposure(res.data ?? res);
-        else setCalendar(res.data ?? res);
+        const payload = res.data?.data ?? res.data ?? res;
+        if (activeTab === 'pipeline') setPipeline(payload);
+        else if (activeTab === 'approval') setApprovalInbox(payload);
+        else if (activeTab === 'exposure') setExposure(payload);
+        else setCalendar(payload);
       })
       .catch((err: any) => setError(err.message ?? 'Failed to load dashboard data'))
       .finally(() => setLoading(false));

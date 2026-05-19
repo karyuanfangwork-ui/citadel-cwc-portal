@@ -233,7 +233,7 @@ const CreditApplicationList: React.FC = () => {
                           <span className="text-[10px] font-semibold ml-auto" style={{ color: sla.color }}>{sla.text}</span>
                         </div>
                         <p className="text-sm font-bold text-text-primary truncate mb-0.5">
-                          {app.borrowerProfile ? `${app.borrowerProfile.firstName} ${app.borrowerProfile.lastName}` : PRODUCT_LABELS[app.productType || app.productName || ''] || '—'}
+                          {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : PRODUCT_LABELS[app.productType || app.productName || ''] || '—'}
                         </p>
                         <p className="text-xs text-text-secondary truncate">{PRODUCT_LABELS[app.productType || app.productName || ''] || app.productName || '—'}</p>
                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">

@@ -109,7 +109,7 @@ const MyApprovals: React.FC = () => {
           <span className="text-[10px] font-bold ml-auto" style={{ color: urgency.color }}>{urgency.text}</span>
         </div>
         <p className="text-sm font-bold text-text-primary mb-0.5">
-          {app.borrowerProfile ? `${app.borrowerProfile.firstName} ${app.borrowerProfile.lastName}` : app.id.slice(0, 8)}
+          {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}
         </p>
         <p className="text-xs text-text-secondary">
           {formatCurrency(app.requestedAmount, app.currency)} · {app.tenureMonths} mo

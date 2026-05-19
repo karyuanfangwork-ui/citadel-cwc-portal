@@ -112,6 +112,27 @@ const TERMINAL_STATES: ApplicationState[] = [
 /**
  * Get the valid transitions for a given current state.
  */
+/** Human-readable labels for transition actions */
+const ACTION_LABELS: Record<string, string> = {
+  submit: 'Submit Application',
+  withdraw: 'Withdraw',
+  start_kyc: 'Start KYC Review',
+  approve_kyc: 'Approve KYC',
+  reject_kyc: 'Reject KYC',
+  resubmit: 'Resubmit',
+  start_underwriting: 'Start Underwriting',
+  start_assessment: 'Start Credit Assessment',
+  submit_to_committee: 'Submit to Committee',
+  approve: 'Approve',
+  reject: 'Reject',
+  make_offer: 'Make Offer',
+  accept_offer: 'Accept Offer',
+  decline_offer: 'Decline Offer',
+  disburse: 'Disburse',
+  activate: 'Activate',
+  close: 'Close',
+};
+
 function getValidTransitions(currentState: ApplicationState): TransitionDef[] {
   if (TERMINAL_STATES.includes(currentState)) return [];
   return TRANSITIONS.filter((t) => t.from === currentState);
@@ -451,8 +472,10 @@ class CreditApplicationService {
       currentState: existing.state,
       transitions: transitions.map((t) => ({
         action: t.action,
-        to: t.to,
-        reasonRequired: t.reasonRequired ?? false,
+        label: ACTION_LABELS[t.action] || t.action.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        fromState: t.from,
+        toState: t.to,
+        requiresComment: t.reasonRequired ?? false,
       })),
     };
   }

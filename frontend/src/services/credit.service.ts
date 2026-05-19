@@ -43,37 +43,74 @@ export interface CreditUserRef {
   avatarUrl?: string | null;
 }
 
-export interface BorrowerProfile {
+export interface Director {
   id: string;
-  accountId: string;
+  borrowerProfileId: string;
   contactId: string | null;
-  status: BorrowerProfileStatus;
-  firstName: string;
-  lastName: string;
-  email: string | null;
-  phone: string | null;
-  nricPassport: string | null;
-  dateOfBirth: string | null;
-  nationality: string | null;
-  occupation: string | null;
-  employerName: string | null;
-  monthlyIncome: number | null;
-  totalAssets: number | null;
-  totalLiabilities: number | null;
-  creditScore: number | null;
-  riskRating: string | null;
-  address: string | null;
-  city: string | null;
-  state: string | null;
-  postalCode: string | null;
-  country: string | null;
-  notes: string | null;
-  ownerId: string;
+  name: string;
+  nricPassportEncrypted: string | null;
+  position: string | null;
+  appointmentDate: string | null;
+  resignationDate: string | null;
+  isExecutive: boolean;
   createdAt: string;
   updatedAt: string;
-  account?: { id: string; name: string; industry: string | null };
   contact?: { id: string; firstName: string; lastName: string; email: string | null };
-  owner?: CreditUserRef;
+}
+
+export interface Shareholder {
+  id: string;
+  borrowerProfileId: string;
+  contactId: string | null;
+  name: string;
+  nricPassportEncrypted: string | null;
+  shareholdingPct: number | null;
+  shareClass: string | null;
+  numberOfShares: number | null;
+  createdAt: string;
+  updatedAt: string;
+  contact?: { id: string; firstName: string; lastName: string; email: string | null };
+}
+
+export interface UltimateBeneficialOwner {
+  id: string;
+  borrowerProfileId: string;
+  name: string;
+  nricPassportEncrypted: string | null;
+  ownershipPct: number;
+  isPep: boolean;
+  sourceOfWealth: string | null;
+  countryOfResidence: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BorrowerProfile {
+  id: string;
+  borrowerType: string;
+  accountId: string | null;
+  contactId: string | null;
+  creditRiskRating: string | null;
+  amlRiskTier: string | null;
+  exposureLimit: number | string | null;
+  totalExposure: number | string | null;
+  isSanctionedEntity: boolean;
+  sourceOfWealth: string | null;
+  purposeOfAccount: string | null;
+  occupation: string | null;
+  employer: string | null;
+  annualIncome: number | string | null;
+  netWorth: number | string | null;
+  isActive: boolean;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  account?: { id: string; name: string } | null;
+  contact?: { id: string; firstName: string; lastName: string; email: string | null } | null;
+  directors?: Director[];
+  shareholders?: Shareholder[];
+  beneficialOwners?: UltimateBeneficialOwner[];
+  // Legacy compat — may be populated by list endpoints
   documents?: CreditDocument[];
   applications?: CreditApplication[];
   _count?: { documents: number; applications: number };
@@ -99,9 +136,11 @@ export interface CreditDocument {
 
 export interface CreditApplication {
   id: string;
+  applicationNo: string;
   borrowerProfileId: string;
   productType: CreditProductType;
   requestedAmount: number;
+  requestedTenor: number | null;
   currency: CurrencyCode;
   tenureMonths: number;
   purpose: string | null;
@@ -114,7 +153,10 @@ export interface CreditApplication {
   submittedAt: string | null;
   decidedAt: string | null;
   rejectionReason: string | null;
+  withdrawalReason: string | null;
+  closedAt: string | null;
   withdrawnAt: string | null;
+  deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
   // legacy compat
@@ -347,37 +389,37 @@ export interface ScoreFactorResult {
 const creditService = {
   // Borrower Profiles
   async listBorrowerProfiles(params: Record<string, any> = {}) {
-    const res = await apiClient.get('/credit/borrower-profiles', { params });
+    const res = await apiClient.get('/credit/borrowers', { params });
     return res.data.data as { profiles: BorrowerProfile[]; pagination: Pagination };
   },
 
   async getBorrowerProfile(id: string) {
-    const res = await apiClient.get(`/credit/borrower-profiles/${id}`);
+    const res = await apiClient.get(`/credit/borrowers/${id}`);
     return res.data.data.profile as BorrowerProfile;
   },
 
   async createBorrowerProfile(data: Partial<BorrowerProfile>) {
-    const res = await apiClient.post('/credit/borrower-profiles', data);
+    const res = await apiClient.post('/credit/borrowers', data);
     return res.data.data.profile as BorrowerProfile;
   },
 
   async updateBorrowerProfile(id: string, data: Partial<BorrowerProfile>) {
-    const res = await apiClient.patch(`/credit/borrower-profiles/${id}`, data);
+    const res = await apiClient.patch(`/credit/borrowers/${id}`, data);
     return res.data.data.profile as BorrowerProfile;
   },
 
   async deleteBorrowerProfile(id: string) {
-    await apiClient.delete(`/credit/borrower-profiles/${id}`);
+    await apiClient.delete(`/credit/borrowers/${id}`);
   },
 
   // Documents
   async listDocuments(borrowerProfileId: string) {
-    const res = await apiClient.get(`/credit/borrower-profiles/${borrowerProfileId}/documents`);
+    const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/documents`);
     return res.data.data.documents as CreditDocument[];
   },
 
   async uploadDocument(borrowerProfileId: string, formData: FormData) {
-    const res = await apiClient.post(`/credit/borrower-profiles/${borrowerProfileId}/documents`, formData, {
+    const res = await apiClient.post(`/credit/borrowers/${borrowerProfileId}/documents`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data.document as CreditDocument;

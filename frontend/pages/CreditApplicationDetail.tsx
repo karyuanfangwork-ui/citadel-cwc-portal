@@ -38,6 +38,25 @@ const STATE_COLORS: Record<string, { bg: string; text: string }> = {
   WITHDRAWN: { bg: '#6b728020', text: '#6b7280' },
 };
 
+const STATE_LABELS: Record<string, string> = {
+  DRAFT: 'Draft',
+  SUBMITTED: 'Submitted',
+  KYC_REVIEW: 'KYC Review',
+  KYC_APPROVED: 'KYC Approved',
+  KYC_REJECTED: 'KYC Rejected',
+  UNDERWRITING: 'Underwriting',
+  CREDIT_ASSESSMENT: 'Credit Assessment',
+  COMMITTEE_REVIEW: 'Committee Review',
+  APPROVED: 'Approved',
+  REJECTED: 'Rejected',
+  OFFER: 'Offer',
+  ACCEPTED: 'Accepted',
+  DISBURSED: 'Disbursed',
+  ACTIVE: 'Active',
+  CLOSED: 'Closed',
+  WITHDRAWN: 'Withdrawn',
+};
+
 const STEPPER_STAGES: { key: string; label: string; states: ApplicationState[] }[] = [
   { key: 'draft', label: 'Draft', states: ['DRAFT'] },
   { key: 'kyc', label: 'KYC Review', states: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED'] },
@@ -388,7 +407,7 @@ const CreditApplicationDetail: React.FC = () => {
           <span>/</span>
           <Link to="/credit/applications" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Applications</Link>
           <span>/</span>
-          <span className="font-semibold text-text-primary">{app.borrowerProfile ? `${app.borrowerProfile.firstName} ${app.borrowerProfile.lastName}` : app.id.slice(0, 8)}</span>
+          <span className="font-semibold text-text-primary">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}</span>
         </div>
 
         {/* Header */}
@@ -399,7 +418,7 @@ const CreditApplicationDetail: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-black text-text-primary">
-                {app.borrowerProfile ? `${app.borrowerProfile.firstName} ${app.borrowerProfile.lastName}` : 'Application'}
+                {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : 'Application'}
               </h1>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
@@ -479,8 +498,11 @@ const CreditApplicationDetail: React.FC = () => {
                       isApprove ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100' :
                       'bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100'
                     }`} style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    <span className="material-symbols-outlined text-base">{isReject ? 'block' : isApprove ? 'check_circle' : 'arrow_forward'}</span>
-                    {t.label}
+                    <span className="material-symbols-outlined text-base">{
+                      isReject ? 'block' : isApprove ? 'check_circle' : 'arrow_forward'
+                    }</span>
+                    {t.label || t.action.replace(/_/g, ' ')}
+                    <span className="text-xs opacity-70 ml-1">→ {STATE_LABELS[t.toState] || t.toState}</span>
                   </button>
                 );
               })}
@@ -528,7 +550,7 @@ const CreditApplicationDetail: React.FC = () => {
               {[
                 { label: 'Relationship Manager', value: app.rm ? `${app.rm.firstName} ${app.rm.lastName}` : '—', icon: 'person', sub: app.rm?.email },
                 { label: 'Credit Analyst', value: app.analyst ? `${app.analyst.firstName} ${app.analyst.lastName}` : '—', icon: 'analytics', sub: app.analyst?.email },
-                { label: 'Borrower', value: app.borrowerProfile ? `${app.borrowerProfile.firstName} ${app.borrowerProfile.lastName}` : '—', icon: 'account_circle', sub: app.borrowerProfile?.email },
+                { label: 'Borrower', value: app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : '—', icon: 'account_circle', sub: app.borrowerProfile?.contact?.email },
               ].map(f => (
                 <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
                   <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
@@ -1206,33 +1228,43 @@ const CreditApplicationDetail: React.FC = () => {
         )}
 
         {/* Transition Dialog */}
-        {showTransitionDialog && (
+        {showTransitionDialog && (() => {
+          const t = transitions.find(tr => tr.action === showTransitionDialog);
+          const isReject = t?.toState === 'REJECTED' || t?.toState === 'KYC_REJECTED' || t?.toState === 'WITHDRAWN';
+          const label = t?.label || showTransitionDialog.replace(/_/g, ' ');
+          return (
           <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowTransitionDialog(null)}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
               <h2 className="text-lg font-black text-text-primary mb-2">Confirm Action</h2>
               <p className="text-sm text-text-secondary mb-4">
-                Are you sure you want to perform "<span className="font-bold text-text-primary">{showTransitionDialog.replace(/_/g, ' ')}</span>"?
+                Are you sure you want to <span className="font-bold text-text-primary">{label}</span>?
+                {t && <span className="block mt-1 text-xs text-text-secondary">This will change the application status to <span className="font-semibold">{STATE_LABELS[t.toState] || t.toState}</span>.</span>}
               </p>
               <div className="mb-4">
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Reason (optional)</label>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">
+                  Reason {t?.requiresComment ? <span className="text-red-500">(required)</span> : <span className="text-text-tertiary">(optional)</span>}
+                </label>
                 <textarea rows={2} value={transitionReason} onChange={e => setTransitionReason(e.target.value)}
-                  placeholder="Add a reason or note..."
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  placeholder={t?.requiresComment ? 'A reason is required for this action...' : 'Add a reason or note...'}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm resize-none ${t?.requiresComment && !transitionReason.trim() ? 'border-red-300' : 'border-border'}`} style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="flex justify-end gap-3">
-                <button onClick={() => setShowTransitionDialog(null)}
+                <button onClick={() => { setShowTransitionDialog(null); setTransitionReason(''); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
                   style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button onClick={() => handleTransition(showTransitionDialog)} disabled={transitioning}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
+                <button onClick={() => handleTransition(showTransitionDialog)} disabled={transitioning || (t?.requiresComment && !transitionReason.trim())}
+                  className={`px-4 py-2 text-sm font-bold rounded-lg text-white transition-colors disabled:opacity-50 ${
+                    isReject ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-700 hover:bg-brand-800'
+                  }`}
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {transitioning ? 'Processing...' : 'Confirm'}
+                  {transitioning ? 'Processing...' : label}
                 </button>
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Facility Form Modal */}
         {showFacilityForm && (
