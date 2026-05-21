@@ -15,6 +15,48 @@ const currencyCodeEnum = z.enum([
   'MYR', 'USD', 'SGD', 'EUR', 'GBP', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD',
 ]);
 
+// CA Memo Phase 1 enums
+const applicationTypeEnum = z.enum(['NEW', 'ADDITIONAL', 'RENEWAL', 'VARIATION']);
+const accountClassificationEnum = z.enum([
+  'PERFORMING', 'EARLY_CARE', 'WATCHLIST', 'NON_CCRIS_RR', 'CCRIS_RR', 'IMPAIRED',
+]);
+const accountStrategyEnum = z.enum(['GROW', 'MAINTAIN', 'EXIT']);
+
+// Optional ISO date string (YYYY-MM-DD or full ISO). Accepts null/empty for clearing.
+const optionalDate = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => (v === '' || v === null || v === undefined ? null : v));
+
+// CA Memo Phase 1 — header + narrative fields (all optional)
+const caMemoHeaderFields = {
+  customerGroupName: z.string().max(255).optional().nullable(),
+  cifNo: z.string().max(50).optional().nullable(),
+  applicationType: applicationTypeEnum.optional().nullable(),
+  originatingDepartment: z.string().max(150).optional().nullable(),
+  teamLeadName: z.string().max(150).optional().nullable(),
+  referredBy: z.string().max(255).optional().nullable(),
+  accountClassification: accountClassificationEnum.optional().nullable(),
+  connectedPartyFlag: z.boolean().optional(),
+  connectedPartyStaffName: z.string().max(255).optional().nullable(),
+  completeDocsDate: optionalDate,
+  lastReviewDate: optionalDate,
+  nextReviewDate: optionalDate,
+  relationshipSince: optionalDate,
+  lastSiteVisitDate: optionalDate,
+  preambleText: z.string().max(20000).optional().nullable(),
+  mattersToHighlight: z.string().max(20000).optional().nullable(),
+  transactionDetailsText: z.string().max(20000).optional().nullable(),
+  accountStrategy: accountStrategyEnum.optional().nullable(),
+  crossSellingInitiatives: z.string().max(20000).optional().nullable(),
+  // CA Memo Phase 3 — Section 7 Way Out narratives
+  firstWayOut: z.string().max(20000).optional().nullable(),
+  secondWayOut: z.string().max(20000).optional().nullable(),
+  otherWayOut: z.string().max(20000).optional().nullable(),
+};
+
+export const CA_MEMO_HEADER_FIELD_NAMES = Object.keys(caMemoHeaderFields) as Array<keyof typeof caMemoHeaderFields>;
+
 // ApplicationState values — used at runtime for transition logic, not in zod schemas
 // (kept for reference; the service imports ApplicationState directly from @prisma/client)
 
@@ -31,6 +73,7 @@ export const createCreditApplicationSchema = z.object({
     currency: currencyCodeEnum.default('MYR'),
     assignedRmId: z.string().uuid().optional().nullable(),
     assignedAnalystId: z.string().uuid().optional().nullable(),
+    ...caMemoHeaderFields,
   }),
 });
 
@@ -43,6 +86,7 @@ export const updateCreditApplicationSchema = z.object({
     currency: currencyCodeEnum.optional(),
     assignedRmId: z.string().uuid().optional().nullable(),
     assignedAnalystId: z.string().uuid().optional().nullable(),
+    ...caMemoHeaderFields,
   }),
 });
 

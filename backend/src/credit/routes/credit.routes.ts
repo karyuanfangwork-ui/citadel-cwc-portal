@@ -16,6 +16,14 @@ import approvalRoutes from './approval.routes';
 import applicationRoutes from './creditApplication.routes';
 import applicationFacilityRoutes from './applicationFacility.routes';
 import applicationPartyRoutes from './applicationParty.routes';
+// CA Memo Phase 2
+import requestItemRoutes from './requestItem.routes';
+import exposureSummaryRoutes from './exposureSummary.routes';
+// CA Memo Phase 3
+import externalRatingRoutes from './externalRating.routes';
+import eclRoutes from './ecl.routes';
+import projectionRoutes from './projection.routes';
+import sensitivityScenarioRoutes from './sensitivityScenario.routes';
 
 // Sprint 3 — Financials + Scoring
 import financialRoutes from './financial.routes';
@@ -42,6 +50,22 @@ import monitoringItemRoutes from './monitoringItem.routes';
 
 // Sprint 5 — Security Hardening
 import securityRoutes from './security.routes';
+
+// CA Memo Phase 5
+import { generateCaMemo } from '../controllers/caMemoPdf.controller';
+import bureauCheckRoutes from './bureauCheck.routes';
+import industryAssessmentRoutes from './industryAssessment.routes';
+import riskAssessmentRoutes from './riskAssessment.routes';
+import rmdIssueRoutes from './rmdIssue.routes';
+import esgRoutes from './esg.routes';
+import sicrRoutes from './sicr.routes';
+import signoffRoutes from './signoff.routes';
+
+// CA Memo Phase 4
+import profitabilityRoutes from './profitability.routes';
+import walletShareRoutes from './walletShare.routes';
+import keyCounterpartyRoutes from './keyCounterparty.routes';
+import accountUtilisationRoutes from './accountUtilisation.routes';
 
 const router = Router();
 
@@ -98,6 +122,12 @@ router.use(creditDocumentRoutes);
 router.use('/applications', applicationRoutes);
 router.use('/applications', applicationFacilityRoutes);
 router.use('/applications', applicationPartyRoutes);
+router.use('/applications', requestItemRoutes);
+router.use('/applications', exposureSummaryRoutes);
+router.use('/applications', externalRatingRoutes);
+router.use('/applications', eclRoutes);
+router.use('/applications', projectionRoutes);
+router.use('/applications', sensitivityScenarioRoutes);
 
 // Approval
 router.use(approvalRoutes);
@@ -133,5 +163,21 @@ router.use(monitoringItemRoutes);
 
 // Sprint 5 — Security Hardening
 router.use('/security', securityRoutes);
+
+// CA Memo Phase 5
+router.get('/applications/:appId/ca-memo', authenticate, requirePermission('credit:read'), generateCaMemo);
+router.use('/applications', bureauCheckRoutes);
+router.use('/applications', industryAssessmentRoutes);
+router.use('/applications', riskAssessmentRoutes);
+router.use('/applications', rmdIssueRoutes);
+router.use('/applications', esgRoutes);
+router.use('/applications', sicrRoutes);
+router.use('/applications', signoffRoutes);
+
+// CA Memo Phase 4
+router.use('/applications', profitabilityRoutes);
+router.use('/applications', walletShareRoutes);
+router.use(keyCounterpartyRoutes);
+router.use('/applications', accountUtilisationRoutes);
 
 export default router;

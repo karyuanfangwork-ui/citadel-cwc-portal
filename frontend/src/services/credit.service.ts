@@ -18,7 +18,13 @@ export type CreditProductType =
 
 export type FacilityType =
   | 'TERM_LOAN' | 'REVOLVING_CREDIT' | 'OVERDRAFT' | 'LETTER_OF_CREDIT'
-  | 'BANK_GUARANTEE' | 'TRADE_FINANCE' | 'BRIDGE_LOAN' | 'PROJECT_FINANCE';
+  | 'BANK_GUARANTEE' | 'TRADE_FINANCE' | 'BRIDGE_LOAN' | 'PROJECT_FINANCE'
+  // CA Memo Phase 2 — Islamic variants (match Prisma enum)
+  | 'REVOLVING' | 'LC' | 'BG' | 'TRUST_RECEIPT' | 'BRIDGING'
+  | 'CASHLINE' | 'RWC_I' | 'LC_I' | 'BG_I' | 'ICMTD_I';
+
+export type CaRequestType =
+  | 'FACILITY_RENEWAL' | 'VARIATION' | 'POLICY_BREACH_RATIFICATION' | 'SICR_IMPAIRMENT';
 
 export type CurrencyCode = 'MYR' | 'USD' | 'SGD' | 'GBP' | 'EUR' | 'JPY' | 'CNY' | 'THB' | 'IDR' | 'AUD' | 'HKD';
 
@@ -26,6 +32,12 @@ export type ApprovalDecision = 'APPROVED' | 'REJECTED' | 'RETURNED' | 'ESCALATED
 
 // Keep backward compat alias
 export type CreditApplicationStatus = ApplicationState;
+
+// CA Memo Phase 1 — header classification enums
+export type ApplicationType = 'NEW' | 'ADDITIONAL' | 'RENEWAL' | 'VARIATION';
+export type AccountClassification =
+  | 'PERFORMING' | 'EARLY_CARE' | 'WATCHLIST' | 'NON_CCRIS_RR' | 'CCRIS_RR' | 'IMPAIRED';
+export type AccountStrategy = 'GROW' | 'MAINTAIN' | 'EXIT';
 
 // ── Sprint 3 Types ────────────────────────────────────────────
 
@@ -53,6 +65,11 @@ export interface Director {
   appointmentDate: string | null;
   resignationDate: string | null;
   isExecutive: boolean;
+  // Phase 4
+  dateOfBirth: string | null;
+  nationality: string | null;
+  experienceQualification: string | null;
+  isKeyManagement: boolean;
   createdAt: string;
   updatedAt: string;
   contact?: { id: string; firstName: string; lastName: string; email: string | null };
@@ -67,6 +84,10 @@ export interface Shareholder {
   shareholdingPct: number | null;
   shareClass: string | null;
   numberOfShares: number | null;
+  // Phase 4
+  dateOfBirthOrIncorporation: string | null;
+  nationality: string | null;
+  businessRegNo: string | null;
   createdAt: string;
   updatedAt: string;
   contact?: { id: string; firstName: string; lastName: string; email: string | null };
@@ -156,10 +177,39 @@ export interface CreditApplication {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  // CA Memo Phase 1 — header
+  customerGroupName?: string | null;
+  cifNo?: string | null;
+  applicationType?: ApplicationType | null;
+  originatingDepartment?: string | null;
+  teamLeadName?: string | null;
+  referredBy?: string | null;
+  accountClassification?: AccountClassification | null;
+  connectedPartyFlag?: boolean;
+  connectedPartyStaffName?: string | null;
+  completeDocsDate?: string | null;
+  lastReviewDate?: string | null;
+  nextReviewDate?: string | null;
+  relationshipSince?: string | null;
+  lastSiteVisitDate?: string | null;
+  // CA Memo Phase 1 — narratives
+  preambleText?: string | null;
+  mattersToHighlight?: string | null;
+  transactionDetailsText?: string | null;
+  // CA Memo Phase 1 — Section 9 hook
+  accountStrategy?: AccountStrategy | null;
+  crossSellingInitiatives?: string | null;
+  // CA Memo Phase 3 — Section 7 Way Out narratives
+  firstWayOut?: string | null;
+  secondWayOut?: string | null;
+  otherWayOut?: string | null;
+  // Phase 5 sign-off timestamps
+  preparedAt?: string | null;
+  reviewedAt?: string | null;
+  concurredAt?: string | null;
   // legacy compat
   status?: ApplicationState;
   productName?: string;
-  reviewedAt?: string | null;
   reviewedBy?: string | null;
   // relations
   borrowerProfile?: BorrowerProfile;
@@ -184,6 +234,132 @@ export interface CreditFacility {
   approvedTenor: number | null;
   approvedRate: number | string | null;
   conditions?: string | null;
+  // CA Memo Phase 2
+  pricingLabel?: string | null;
+  existingLimit?: number | string | null;
+  proposedChange?: number | string | null;
+  newLimit?: number | string | null;
+  outstandingBalance?: number | string | null;
+  undisbursedLimit?: number | string | null;
+  approvingLevel?: string | null;
+  requestItemId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RequestItem {
+  id: string;
+  applicationId: string;
+  requestType: CaRequestType;
+  sortOrder: number;
+  approvingLevel: string | null;
+  rationale: string | null;
+  createdAt: string;
+  updatedAt: string;
+  facilities?: Pick<CreditFacility, 'id' | 'facilityType' | 'amount'>[];
+}
+
+export interface ExposureSummary {
+  id: string;
+  applicationId: string;
+  thisAppSecured: number | string | null;
+  thisAppUnsecured: number | string | null;
+  otherAppSecured: number | string | null;
+  otherAppUnsecured: number | string | null;
+  customerTotalSecured: number | string | null;
+  customerTotalUnsecured: number | string | null;
+  relatedCounterpartySecured: number | string | null;
+  relatedCounterpartyUnsecured: number | string | null;
+  groupTotalSecured: number | string | null;
+  groupTotalUnsecured: number | string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// CA Memo Phase 3 types
+export type MfrsStage = 'STAGE_1' | 'STAGE_2' | 'STAGE_3';
+export type RatingAgency = 'RAM' | 'MARC' | 'SP' | 'MOODYS' | 'FITCH';
+export type ProjectionScenario = 'BASE' | 'SCENARIO_1' | 'SCENARIO_2' | 'SCENARIO_3';
+
+export interface ExternalRating {
+  id: string;
+  applicationId: string;
+  subjectType: string;
+  subjectName: string | null;
+  agency: RatingAgency;
+  rating: string;
+  ratingDate: string | null;
+  outlook: string | null;
+  fiscalYear: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EclSnapshot {
+  id: string;
+  applicationId: string;
+  subjectType: string;
+  subjectName: string | null;
+  snapshotDate: string;
+  miaCount: number | null;
+  mfrsStage: MfrsStage | null;
+  totalOutstanding: number | string | null;
+  pdPct: number | string | null;
+  lgdPct: number | string | null;
+  lossRatePct: number | string | null;
+  eclAmount: number | string | null;
+  potentialEclWriteback: number | string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EclForecast {
+  id: string;
+  applicationId: string;
+  forecastYear: number;
+  mfrsStage: MfrsStage | null;
+  eclAmount: number | string | null;
+  pdPct: number | string | null;
+  lgdPct: number | string | null;
+  assumptions: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProjectionLineItem {
+  id: string;
+  projectionId: string;
+  lineKey: string;
+  lineLabel: string;
+  projectionYear: number;
+  amount: number | string;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CashflowProjection {
+  id: string;
+  applicationId: string;
+  assumptions: string | null;
+  lineItems: ProjectionLineItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SensitivityScenario {
+  id: string;
+  applicationId: string;
+  scenario: ProjectionScenario;
+  label: string | null;
+  assumptions: string | null;
+  revenueAmount: number | string | null;
+  opCashflow: number | string | null;
+  ebitda: number | string | null;
+  financingCosts: number | string | null;
+  gearingRatio: number | string | null;
+  dscr: number | string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -191,14 +367,17 @@ export interface CreditFacility {
 export interface CreditApplicationParty {
   id: string;
   applicationId: string;
-  partyType: 'BORROWER' | 'GUARANTOR' | 'COVENANTOR' | 'DIRECTOR' | 'SHAREHOLDER';
-  firstName: string;
-  lastName: string;
-  nricPassport: string | null;
-  email: string | null;
-  phone: string | null;
-  relationship: string | null;
+  borrowerProfileId: string;
+  role: string;
+  liabilityPct: string | number | null;
   createdAt: string;
+  updatedAt: string;
+  borrowerProfile: {
+    id: string;
+    borrowerType: string;
+    account: { id: string; name: string } | null;
+    contact: { id: string; firstName: string; lastName: string } | null;
+  } | null;
 }
 
 export interface CreditApproval {
@@ -281,6 +460,16 @@ export interface FinancialStatement {
   lineItems?: FinancialLineItem[];
   ratios?: FinancialRatio[];
   _count?: { lineItems: number; ratios: number };
+  // CA Memo Phase 3 — Section 12 audit + commentary
+  auditorName?: string | null;
+  isQualified?: boolean | null;
+  qualificationNotes?: string | null;
+  isDraftAccounts?: boolean;
+  commentarySalesProfitability?: string | null;
+  commentaryAssetMgmt?: string | null;
+  commentaryDebtMgmt?: string | null;
+  commentaryCashflow?: string | null;
+  commentaryConclusion?: string | null;
 }
 
 export interface FinancialLineItem {
@@ -327,20 +516,21 @@ export interface TrendAnalysis {
   trends: TrendItem[];
 }
 
-export interface ExposureSummary {
-  borrowerProfileId: string;
+export interface ExposureDashboardSummary {
   totalExposure: number;
-  currency: CurrencyCode;
-  breakdown: ExposureBreakdownItem[];
-  utilization: number | null;
+  facilities: ExposureFacility[];
+  limits: {
+    exposureLimit: number | null;
+    utilizationPct: number | null;
+  };
 }
 
-export interface ExposureBreakdownItem {
-  facilityType: FacilityType;
-  approvedAmount: number;
-  outstandingAmount: number;
-  availableAmount: number;
-  count: number;
+export interface ExposureFacility {
+  applicationId: string;
+  facilityType: string;
+  amount: number;
+  approvedAmount: number | null;
+  currency: string;
 }
 
 // ── Sprint 3: Scorecard Types ─────────────────────────────────
@@ -520,13 +710,110 @@ const creditService = {
     await apiClient.delete(`/credit/facilities/${id}`);
   },
 
+  // Request Items (CA Memo Phase 2)
+  async listRequestItems(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/request-items`);
+    return res.data.data.requestItems as RequestItem[];
+  },
+
+  async createRequestItem(applicationId: string, data: Partial<RequestItem>) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/request-items`, data);
+    return res.data.data.requestItem as RequestItem;
+  },
+
+  async updateRequestItem(applicationId: string, itemId: string, data: Partial<RequestItem>) {
+    const res = await apiClient.patch(`/credit/applications/${applicationId}/request-items/${itemId}`, data);
+    return res.data.data.requestItem as RequestItem;
+  },
+
+  async deleteRequestItem(applicationId: string, itemId: string) {
+    await apiClient.delete(`/credit/applications/${applicationId}/request-items/${itemId}`);
+  },
+
+  // Exposure Summary (CA Memo Phase 2)
+  async getExposureSummary(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/exposure-summary`);
+    return res.data.data.exposureSummary as ExposureSummary | null;
+  },
+
+  async upsertExposureSummary(applicationId: string, data: Partial<ExposureSummary>) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/exposure-summary`, data);
+    return res.data.data.exposureSummary as ExposureSummary;
+  },
+
+  // External Ratings (Phase 3)
+  async listExternalRatings(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/external-ratings`);
+    return res.data.data.externalRatings as ExternalRating[];
+  },
+  async createExternalRating(applicationId: string, data: Partial<ExternalRating>) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/external-ratings`, data);
+    return res.data.data.externalRating as ExternalRating;
+  },
+  async updateExternalRating(applicationId: string, ratingId: string, data: Partial<ExternalRating>) {
+    const res = await apiClient.patch(`/credit/applications/${applicationId}/external-ratings/${ratingId}`, data);
+    return res.data.data.externalRating as ExternalRating;
+  },
+  async deleteExternalRating(applicationId: string, ratingId: string) {
+    await apiClient.delete(`/credit/applications/${applicationId}/external-ratings/${ratingId}`);
+  },
+
+  // ECL (Phase 3)
+  async listEclSnapshots(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/ecl-snapshots`);
+    return res.data.data.eclSnapshots as EclSnapshot[];
+  },
+  async createEclSnapshot(applicationId: string, data: Partial<EclSnapshot>) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/ecl-snapshots`, data);
+    return res.data.data.eclSnapshot as EclSnapshot;
+  },
+  async updateEclSnapshot(applicationId: string, snapshotId: string, data: Partial<EclSnapshot>) {
+    const res = await apiClient.patch(`/credit/applications/${applicationId}/ecl-snapshots/${snapshotId}`, data);
+    return res.data.data.eclSnapshot as EclSnapshot;
+  },
+  async deleteEclSnapshot(applicationId: string, snapshotId: string) {
+    await apiClient.delete(`/credit/applications/${applicationId}/ecl-snapshots/${snapshotId}`);
+  },
+  async listEclForecasts(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/ecl-forecasts`);
+    return res.data.data.eclForecasts as EclForecast[];
+  },
+  async upsertEclForecast(applicationId: string, year: number, data: Partial<EclForecast>) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/ecl-forecasts/${year}`, data);
+    return res.data.data.eclForecast as EclForecast;
+  },
+
+  // Cashflow Projection (Phase 3)
+  async getCashflowProjection(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/cashflow-projection`);
+    return res.data.data.cashflowProjection as CashflowProjection | null;
+  },
+  async upsertCashflowProjection(applicationId: string, assumptions: string | null) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/cashflow-projection`, { assumptions });
+    return res.data.data.cashflowProjection as CashflowProjection;
+  },
+  async upsertProjectionLines(applicationId: string, lines: Partial<ProjectionLineItem>[]) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/cashflow-projection/lines`, { lines });
+    return res.data.data.cashflowProjection as CashflowProjection;
+  },
+
+  // Sensitivity Scenarios (Phase 3)
+  async listSensitivityScenarios(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/sensitivity-scenarios`);
+    return res.data.data.sensitivityScenarios as SensitivityScenario[];
+  },
+  async upsertSensitivityScenario(applicationId: string, scenario: ProjectionScenario, data: Partial<SensitivityScenario>) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/sensitivity-scenarios/${scenario}`, data);
+    return res.data.data.sensitivityScenario as SensitivityScenario;
+  },
+
   // Parties
   async listParties(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/parties`);
     return res.data.data.parties as CreditApplicationParty[];
   },
 
-  async createParty(applicationId: string, data: Partial<CreditApplicationParty>) {
+  async createParty(applicationId: string, data: { borrowerProfileId: string; role: string; liabilityPct?: string | number | null }) {
     const res = await apiClient.post(`/credit/applications/${applicationId}/parties`, data);
     return res.data.data.party as CreditApplicationParty;
   },
@@ -663,7 +950,7 @@ export const trendApi = {
 export const exposureApi = {
   async getExposure(borrowerProfileId: string) {
     const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/exposure`);
-    return res.data.data as ExposureSummary;
+    return res.data.data as ExposureDashboardSummary;
   },
 };
 
@@ -803,6 +1090,8 @@ export interface CommitteeVote {
 export type CollateralType = 'PROPERTY' | 'VEHICLE' | 'FIXED_DEPOSIT' | 'SHARES' | 'INSURANCE' | 'MACHINERY' | 'INVENTORY' | 'RECEIVABLES' | 'OTHER';
 export type LienStatus = 'ACTIVE' | 'DISCHARGED';
 
+export type SecurityCategory = 'TANGIBLE' | 'SUPPORTING';
+
 export interface Collateral {
   id: string;
   applicationId: string;
@@ -810,6 +1099,15 @@ export interface Collateral {
   description: string;
   ownershipDoc: string | null;
   registeredOwner: string | null;
+  // Phase 4 — dual valuation + classification
+  securityCategory: SecurityCategory | null;
+  securitySubType: string | null;
+  isExisting: boolean;
+  isNewToBeObtained: boolean;
+  pmmdMarketValue: number | null;
+  pmmdForcedSaleValue: number | null;
+  panelValuerName: string | null;
+  securityCoverageRatio: number | null;
   createdAt: string;
   updatedAt: string;
   valuations?: CollateralValuation[];
@@ -866,6 +1164,11 @@ export interface Guarantee {
   amount: number;
   currency: CurrencyCode;
   documentRef: string | null;
+  // Phase 4 — guarantor financial profile
+  contingentLiabilities: number | null;
+  estimatedNetWorth: number | null;
+  guarantorRiskRatingSnapshot: string | null;
+  remarks: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1182,6 +1485,340 @@ export const dashboardApi = {
   getApprovalInbox: () => apiClient.get('/credit/dashboard/approval-inbox'),
   getExposureDashboard: () => apiClient.get('/credit/dashboard/exposure'),
   getCommitteeCalendar: () => apiClient.get('/credit/dashboard/committee-calendar'),
+};
+
+// ── Phase 4: Types ─────────────────────────────────────────
+
+export type CounterpartyRole = 'SUPPLIER' | 'BUYER' | 'COMPETITOR';
+
+export interface ProfitabilityLine {
+  id: string;
+  profitabilityId: string;
+  productCategory: string;
+  netProfitYtd: number | null;
+  netProfitProjected: number | null;
+  feeIncomeYtd: number | null;
+  feeIncomeProjected: number | null;
+  displayOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccountProfitability {
+  id: string;
+  applicationId: string;
+  reportingPeriod: string | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lines: ProfitabilityLine[];
+}
+
+export interface WalletShare {
+  id: string;
+  applicationId: string;
+  facilityType: string;
+  ourLimitAmount: number | null;
+  totalMarketAmount: number | null;
+  ourSharePct: number | null;
+  yoyChangePct: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KeyCounterparty {
+  id: string;
+  borrowerProfileId: string;
+  role: CounterpartyRole;
+  name: string;
+  address: string | null;
+  telephone: string | null;
+  yearsOfRelationship: number | null;
+  creditTermsDays: number | null;
+  salesOrPurchasePct: number | null;
+  modeOfPayment: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccountUtilisationSnapshot {
+  id: string;
+  applicationId: string;
+  accountNo: string;
+  facilityType: string;
+  snapshotMonth: string;
+  withdrawalAmount: number | null;
+  depositAmount: number | null;
+  monthEndBalance: number | null;
+  returnedChequesCount: number | null;
+  approvedLimit: number | null;
+  outstandingAmount: number | null;
+  overdueAmount: number | null;
+  instalmentsInArrears: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ── Phase 4: API ─────────────────────────────────────────
+
+export const profitabilityApi = {
+  async get(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/profitability`);
+    return res.data as AccountProfitability | null;
+  },
+  async upsert(applicationId: string, data: { reportingPeriod?: string | null; notes?: string | null; lines?: any[] }) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/profitability`, data);
+    return res.data as AccountProfitability;
+  },
+};
+
+export const walletShareApi = {
+  async list(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/wallet-shares`);
+    return res.data as WalletShare[];
+  },
+  async bulkUpsert(applicationId: string, shares: Partial<WalletShare>[]) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/wallet-shares`, shares);
+    return res.data as WalletShare[];
+  },
+  async remove(applicationId: string, shareId: string) {
+    await apiClient.delete(`/credit/applications/${applicationId}/wallet-shares/${shareId}`);
+  },
+};
+
+export const keyCounterpartyApi = {
+  async list(borrowerProfileId: string) {
+    const res = await apiClient.get(`/credit/borrower-profiles/${borrowerProfileId}/counterparties`);
+    return res.data as KeyCounterparty[];
+  },
+  async create(borrowerProfileId: string, data: Partial<KeyCounterparty>) {
+    const res = await apiClient.post(`/credit/borrower-profiles/${borrowerProfileId}/counterparties`, data);
+    return res.data as KeyCounterparty;
+  },
+  async update(id: string, data: Partial<KeyCounterparty>) {
+    const res = await apiClient.patch(`/credit/borrower-profiles/counterparties/${id}`, data);
+    return res.data as KeyCounterparty;
+  },
+  async remove(id: string) {
+    await apiClient.delete(`/credit/borrower-profiles/counterparties/${id}`);
+  },
+};
+
+// ── Phase 5: Types ─────────────────────────────────────────
+
+export type BureauProvider = 'CCRIS' | 'CTOS' | 'EXPERIAN' | 'PEP_WATCHLIST' | 'IF_ACTIVA' | 'PUBLIC_DOMAIN';
+export type RiskCategory = 'PROJECT' | 'PERFORMANCE' | 'PACKAGING' | 'PAYMENT' | 'OTHER';
+export type EsgGuidingPrinciple = 'GP1' | 'GP2' | 'GP3' | 'GP4' | 'GP5';
+export type EsgCategory = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6';
+export type SicrTriggerType = 'OBLIGATORY_WATCHLIST' | 'OBLIGATORY_IMPAIRED' | 'OBJECTIVE_JUDGMENTAL' | 'SUBJECTIVE_JUDGMENTAL';
+export type SignoffRole = 'PREPARED_BY' | 'REVIEWED_BY' | 'CONCURRED_BY';
+
+export interface CreditBureauCheck {
+  id: string;
+  applicationId: string;
+  provider: BureauProvider;
+  subjectName: string | null;
+  runDate: string | null;
+  runById: string | null;
+  hasHits: boolean | null;
+  findings: string | null;
+  attachedDocId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  runBy?: { id: string; firstName: string; lastName: string } | null;
+}
+
+export interface IndustryAssessment {
+  id: string;
+  applicationId: string;
+  sectorName: string | null;
+  subsectorName: string | null;
+  sectorOutlook: string | null;
+  subsectorOutlook: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RiskAssessment {
+  id: string;
+  applicationId: string;
+  riskCategory: RiskCategory;
+  description: string | null;
+  mitigation: string | null;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RmdIssue {
+  id: string;
+  applicationId: string;
+  sortOrder: number;
+  issueDescription: string;
+  businessUnitResponse: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EsgAssessment {
+  id: string;
+  applicationId: string;
+  assignedGp: EsgGuidingPrinciple | null;
+  assignedCategory: EsgCategory | null;
+  justification: string | null;
+  mitigatingFactors: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SicrAssessment {
+  id: string;
+  applicationId: string;
+  triggerType: SicrTriggerType;
+  triggeringEvent: string | null;
+  hasHit: boolean | null;
+  rationale: string | null;
+  resultingClassification: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApplicationSignoff {
+  id: string;
+  applicationId: string;
+  role: SignoffRole;
+  signedById: string;
+  designationSnapshot: string;
+  signedAt: string;
+  ipAddress: string | null;
+  createdAt: string;
+  signedBy?: { id: string; firstName: string; lastName: string; email: string };
+}
+
+// ── Phase 5: API ─────────────────────────────────────────
+
+export const bureauCheckApi = {
+  async list(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/bureau-checks`);
+    return res.data as CreditBureauCheck[];
+  },
+  async create(applicationId: string, data: Partial<CreditBureauCheck>) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/bureau-checks`, data);
+    return res.data as CreditBureauCheck;
+  },
+  async update(applicationId: string, id: string, data: Partial<CreditBureauCheck>) {
+    const res = await apiClient.patch(`/credit/applications/${applicationId}/bureau-checks/${id}`, data);
+    return res.data as CreditBureauCheck;
+  },
+  async remove(applicationId: string, id: string) {
+    await apiClient.delete(`/credit/applications/${applicationId}/bureau-checks/${id}`);
+  },
+};
+
+export const industryAssessmentApi = {
+  async get(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/industry-assessment`);
+    return res.data as IndustryAssessment | null;
+  },
+  async upsert(applicationId: string, data: Partial<IndustryAssessment>) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/industry-assessment`, data);
+    return res.data as IndustryAssessment;
+  },
+};
+
+export const riskAssessmentApi = {
+  async list(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/risk-assessments`);
+    return res.data as RiskAssessment[];
+  },
+  async bulkUpsert(applicationId: string, items: Partial<RiskAssessment>[]) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/risk-assessments`, items);
+    return res.data as RiskAssessment[];
+  },
+};
+
+export const rmdIssueApi = {
+  async list(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/rmd-issues`);
+    return res.data as RmdIssue[];
+  },
+  async create(applicationId: string, data: Partial<RmdIssue>) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/rmd-issues`, data);
+    return res.data as RmdIssue;
+  },
+  async update(applicationId: string, id: string, data: Partial<RmdIssue>) {
+    const res = await apiClient.patch(`/credit/applications/${applicationId}/rmd-issues/${id}`, data);
+    return res.data as RmdIssue;
+  },
+  async remove(applicationId: string, id: string) {
+    await apiClient.delete(`/credit/applications/${applicationId}/rmd-issues/${id}`);
+  },
+};
+
+export const esgApi = {
+  async get(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/esg-assessment`);
+    return res.data as EsgAssessment | null;
+  },
+  async upsert(applicationId: string, data: Partial<EsgAssessment>) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/esg-assessment`, data);
+    return res.data as EsgAssessment;
+  },
+};
+
+export const sicrApi = {
+  async list(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/sicr-assessments`);
+    return res.data as SicrAssessment[];
+  },
+  async bulkUpsert(applicationId: string, items: Partial<SicrAssessment>[]) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/sicr-assessments`, items);
+    return res.data as SicrAssessment[];
+  },
+};
+
+export const signoffApi = {
+  async list(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/signoffs`);
+    return res.data as ApplicationSignoff[];
+  },
+  async create(applicationId: string, data: { role: SignoffRole; designationSnapshot: string }) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/signoffs`, data);
+    return res.data as ApplicationSignoff;
+  },
+  async revoke(applicationId: string, role: SignoffRole) {
+    await apiClient.delete(`/credit/applications/${applicationId}/signoffs/${role}`);
+  },
+};
+
+export interface AccountUtilisationInput {
+  accountNo: string;
+  facilityType: string;
+  snapshotMonth: string;
+  withdrawalAmount?: string | number | null;
+  depositAmount?: string | number | null;
+  monthEndBalance?: string | number | null;
+  returnedChequesCount?: number | null;
+  approvedLimit?: string | number | null;
+  outstandingAmount?: string | number | null;
+  overdueAmount?: string | number | null;
+  instalmentsInArrears?: number | null;
+}
+
+export const utilisationApi = {
+  async list(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/account-utilisation`);
+    return res.data as AccountUtilisationSnapshot[];
+  },
+  async upsert(applicationId: string, data: AccountUtilisationInput) {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/account-utilisation`, data);
+    return res.data as AccountUtilisationSnapshot;
+  },
+  async remove(applicationId: string, id: string) {
+    await apiClient.delete(`/credit/applications/${applicationId}/account-utilisation/${id}`);
+  },
 };
 
 export default creditService;

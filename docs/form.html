@@ -1,0 +1,2492 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Credit Application - Credit Assessment</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="form.css">
+</head>
+
+<body>
+    <form>
+        <div>
+            <table class="form-table form-1">
+                <colgroup>
+                    <col style="width: 30px;">
+                    <col style="width: 15%;">
+                    <col style="width: 35%;">
+                    <col style="width: 15%;">
+                    <col style="width: 35%;">
+                </colgroup>
+                <tr>
+                    <td rowspan="10" class="section-number">1</td>
+                    <td colspan="4" class="section-header">CREDIT APPLICATION</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td class="form-label">Customer Name</td>
+                    <td><input type="text" id="customerName" /></td>
+                    <td class="form-label">CA Date</td>
+                    <td><input type="text" id="caDate" /></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td class="form-label">Customer Group</td>
+                    <td><input type="text" id="customerGroup" /></td>
+                    <td class="form-label">CIF No</td>
+                    <td><input type="text" id="cifNo" /></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td class="form-label">Nature of Business</td>
+                    <td><input type="text" id="natureOfBusiness" /></td>
+                    <td class="form-label">Date Application Received</td>
+                    <td><input type="text" id="applicationDate" /></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td class="form-label">Application Type</td>
+                    <td><input type="text" id="applicationType" placeholder="New / Additional" /></td>
+                    <td class="form-label">Date of Complete <br /> Documents Received</td>
+                    <td><input type="text" id="completeDate" /></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td rowspan="2" class="form-label">Originating Department</td>
+                    <td><input type="text" id="departmentName" placeholder="Name of Department" /></td>
+                    <td rowspan="2" class="form-label">Last Review Date</td>
+                    <td rowspan="2"><input type="text" id="lastReviewDate" /></td>
+                </tr>
+
+                <tr>
+                    <td><input type="text" id="teamLeadName" placeholder="Name of Team Lead / RM" /></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td class="form-label">Referred By</td>
+                    <td><input type="text" id="referredBy" /></td>
+                    <td class="form-label">Next Review Date</td>
+                    <td><input type="text" id="nextReviewedDate" /></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td class="form-label">Account Classification</td>
+                    <td><input type="text" id="accountClassification"
+                            placeholder="Performing/ Early Care/ Watchlist/ Non-CCRIS R&R/ CCRIS R&R/ Impaired" /></td>
+                    <td class="form-label">Relationship Since</td>
+                    <td><input type="text" id="relationshipSince" /></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td class="form-label">Connected Party</td>
+                    <td><input type="text" id="connectedParty" placeholder="Yes/ No" /></td>
+                    <td class="form-label">Last Site Visit Date</td>
+                    <td><input type="text" id="lastSiteVisitDate" /></td>
+                </tr>
+            </table>
+
+            <table class="form-table form-2">
+                <colgroup>
+                    <col style="width: 30px;">
+                    <col>
+                </colgroup>
+                <tr>
+                    <td rowspan="2" class="section-number">2</td>
+                    <td class="section-header">PREAMBLE / BACKGROUND</td>
+                </tr>
+
+                <tr class="facility-header facility-total">
+                    <td><textarea id="preamble" rows="4"></textarea></td>
+                </tr>
+            </table>
+
+            <table class="form-table form-3">
+                <colgroup>
+                    <col style="width: 30px;"> <!-- Vertical Number '3' -->
+                    <col style="width: 12.5%;"> <!-- Row Number -->
+                    <col style="width: 12.5%;"> <!-- Facility Name -->
+                    <col style="width: 12.5%;"> <!-- Pricing -->
+                    <col style="width: 12.5%;"> <!-- Existing Limit -->
+                    <col style="width: 12.5%;"> <!-- Proposed Change -->
+                    <col style="width: 12.5%;"> <!-- New Limit -->
+                    <col style="width: 12.5%;"> <!-- Outstanding Balance -->
+                    <col style="width: 12.5%;"> <!-- Undisbursed Limit -->
+                </colgroup>
+
+                <tr>
+                    <td rowspan="45" class="section-number">3</td>
+                    <td colspan="8" class="section-header">REQUESTS, RATIONALE AND JUSTIFICATION</td>
+                </tr>
+
+                <tr>
+                    <td colspan="8">
+                        <p class="bold-underline">REQUESTS:</p>
+                        <ol class="req-list">
+                            <li>Request for facility and/or renewal of existing facilities.</li>
+                            <li>Requests for variation to the terms and conditions.</li>
+                            <li>Ratification / Notification of policy breaches and/or non‑compliance to covenants /
+                                terms and conditions.</li>
+                            <li>SICR – impairment assessment (not applicable for new application)</li>
+                        </ol>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="8" class="sub-header">RATIONALE / JUSTIFICATION FOR REQUESTS</td>
+                </tr>
+                <tr>
+                    <td colspan="8" class="sub-header">REQUEST 1 : REQUESTS FOR FACILITY AND/OR RENEWAL OF EXISTING
+                        FACILITY</td>
+                </tr>
+
+                <tr class="center bold facility-header">
+                    <td>No</td>
+                    <td>Facility</td>
+                    <td>Pricing</td>
+                    <td>Existing Limit<br>(RM '000)</td>
+                    <td>Proposed Change<br>+/(-)</td>
+                    <td>New<br>Limit<br>(RM '000)</td>
+                    <td>Outstanding Balance @ DD/MM/YY<br>(RM '000)</td>
+                    <td>Undisbursed Limit<br>(RM '000)</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td class="center">1</td>
+                    <td>Term Financing</td>
+                    <td><input type="number" id="pricing1"></td>
+                    <td><input type="number" id="existing1"></td>
+                    <td><input type="number" id="change1"></td>
+                    <td><input type="number" id="new1"></td>
+                    <td><input type="number" id="balance1"></td>
+                    <td><input type="number" id="undisbursed1"></td>
+                </tr>
+                <tr class="facility-row">
+                    <td class="center">2</td>
+                    <td>Letter of Credit-i (LC-i) (Foreign/ Local/ Sight/ Usance)</td>
+                    <td><input type="number" id="pricing2"></td>
+                    <td><input type="number" id="existing2"></td>
+                    <td><input type="number" id="change2"></td>
+                    <td><input type="number" id="new2"></td>
+                    <td><input type="number" id="balance2"></td>
+                    <td><input type="number" id="undisbursed2"></td>
+                </tr>
+                <tr class="facility-row">
+                    <td class="center">3</td>
+                    <td>Revolving Working Capital (RWC-i)</td>
+                    <td><input type="number" id="pricing3"></td>
+                    <td><input type="number" id="existing3"></td>
+                    <td><input type="number" id="change3"></td>
+                    <td><input type="number" id="new3"></td>
+                    <td><input type="number" id="balance3"></td>
+                    <td><input type="number" id="undisbursed3"></td>
+                </tr>
+                <tr class="facility-row">
+                    <td class="center">4</td>
+                    <td>Bank Guarantee-i (BG-i)</td>
+                    <td><input type="number" id="pricing4"></td>
+                    <td><input type="number" id="existing4"></td>
+                    <td><input type="number" id="change4"></td>
+                    <td><input type="number" id="new4"></td>
+                    <td><input type="number" id="balance4"></td>
+                    <td><input type="number" id="undisbursed4"></td>
+                </tr>
+                <tr class="facility-row">
+                    <td class="center">5</td>
+                    <td>Cashline</td>
+                    <td><input type="number" id="pricing5"></td>
+                    <td><input type="number" id="existing5"></td>
+                    <td><input type="number" id="change5"></td>
+                    <td><input type="number" id="new5"></td>
+                    <td><input type="number" id="balance5"></td>
+                    <td><input type="number" id="undisbursed5"></td>
+                </tr>
+                <tr class="facility-row bold facility-total">
+                    <td colspan="2" class="center">TOTAL</td>
+                    <td><input type="number" id="totalPricing"></td>
+                    <td><input type="number" id="totalExisting"></td>
+                    <td><input type="number" id="totalChange"></td>
+                    <td><input type="number" id="totalNew"></td>
+                    <td><input type="number" id="totalBalance"></td>
+                    <td><input type="number" id="totalUndisbursed"></td>
+                </tr>
+
+                <tr>
+                    <td colspan="8" class="instruction-text">
+                        <p>Refer to CA – Part II for Summary of Facilities and Main Terms and Conditions.</p>
+                        <p>a. There should be a clear relationship between the purpose, type and amount of facilities
+                            requested and the Customer's nature and volume of business.</p>
+                        <p>b. Working capital line must be justified and backed by working capital requirement
+                            computation and amount requested is not excessive compared to other banking facilities
+                            available.</p>
+                        <p>c. To assess the reasonableness of the assumption used in the computation and the proposed
+                            tenor as compared to actual asset conversion cycles.</p>
+                        <p><i>Refer to CA – Section 6 of Part I for the Details of transactions and Updates and Detailed
+                                Cashflow Projection / Detailed Financial Projection & Assessment</i></p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="8" style="height: 10px; "></td>
+                </tr>
+
+                <tr class="center bold facility-header">
+                    <td></td>
+                    <td>Secured Financing (RM)</td>
+                    <td>Unsecured Financing (RM)</td>
+                    <td>Total Exposure (RM)</td>
+                    <td colspan="4" rowspan="6" class="exposure-empty"></td>
+                </tr>
+                <tr class="facility-row">
+                    <td class="exposure-label">Customer - this application</td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                </tr>
+                <tr class="facility-row">
+                    <td class="exposure-label">Customer - other application</td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                </tr>
+                <tr class="facility-row">
+                    <td class="exposure-label bold">Customer - Total</td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                </tr>
+                <tr class="facility-row">
+                    <td class="exposure-label">Related Counterparties</td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                </tr>
+                <tr class="facility-total">
+                    <td class=" exposure-label bold">Total Group Exposure</td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                    <td><input type="number"></td>
+                </tr>
+
+                <tr>
+                    <td colspan="8" class="instruction-text">
+                        Refer to Approving Authority Manual on the computation of secured/unsecured financing, Credit
+                        Policy – Appendix 4 – Guidelines on Collateral and Section 3 of this CA on the Final Customer
+                        Risk Rating
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="8">
+                        <div class="approving-level">APPROVING LEVEL:</div>
+                        <br><br>
+                        <p class="bold-underline">REQUEST 2: REQUESTS FOR VARIATION TO THE TERMS AND CONDITIONS</p>
+                        <p>Rationale/Justification/Remarks</p>
+                        <br><br>
+                        <div class="approving-level">APPROVING LEVEL:</div>
+                        <br><br>
+                        <p class="bold-underline">REQUEST 3: RATIFICATION/NOTIFICATION FOR POLICY BREACHES AND/OR
+                            NON-COMPLIANCE TO COVENANTS / TERMS AND CONDITIONS</p>
+                        <p>Rationale / Remarks</p>
+                        <br><br>
+                        <div class="approving-level">APPROVING LEVEL:</div>
+                        <br><br>
+                        <p class="bold-underline">REQUEST 4: SICR – IMPAIRMENT ASSESSMENT (not applicable for new
+                            application)</p>
+                        <br><br>
+                        <div class="approving-level">APPROVING LEVEL:</div>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="form-table form-4">
+                <colgroup>
+                    <col style="width: 30px;">
+                    <col>
+                </colgroup>
+                <tr>
+                    <td rowspan="2" class="section-number">4</td>
+                    <td class="section-header">MATTER TO HIGHLIGHT</td>
+                </tr>
+
+                <tr class="facility-header facility-total">
+                    <td><textarea id="preamble" rows="4"></textarea></td>
+                </tr>
+            </table>
+
+            <table class="form-table form-5">
+                <colgroup>
+                    <col style="width: 30px;">
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="100" class="section-number">5</td>
+                    <td colspan="8" class="section-header">RISK RATING & EXPECTED CREDIT LOSS</td>
+                </tr>
+
+                <tr>
+                    <td colspan="8">INTERNAL RATING</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Date Rated</td>
+                    <td>Customer Risk Rating</td>
+                    <td>CG Risk Rating</td>
+                    <td>Overriding Upgrade/ Downgrade</td>
+                    <td>Justification</td>
+                    <td>Final Customer Risk Rating</td>
+                    <td colspan="2" rowspan="2" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="8">
+                        <p>a. To comment on CRR...</p><!--not complete description-->
+                        <p>b. To highlight any...</p>
+                    </td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td></td>
+                    <td>TYPE OF SCORECARD</td>
+                    <td>RATING</td>
+                    <td>SCORE</td>
+                    <td>RISK LEVEL</td>
+                    <td>DATE RATED</td>
+                    <td colspan="2" rowspan="11" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td colspan="6">Customer</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Current</td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 1</td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 2</td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 3</td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td colspan="6">Corporate Guarantor</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Current</td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 1</td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 2</td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Previous Year - 3</td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id="" placeholder="[Choose an Item]"></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr>
+                    <td colspan="8">EXTERNAL RATING</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td></td>
+                    <td>RATING AGENCY <br> (RAM/ MARC/ S&P/ MOODY'S ETC)</td>
+                    <td>RATING</td>
+                    <td>DATE RATED</td>
+                    <td colspan="4" rowspan="11" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td colspan="4">Customer</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Current</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 1</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 2</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 3</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td colspan="4">Corporate Guarantor</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Current</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 1</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Previous Year - 2</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Previous Year - 3</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="date" id="" placeholder="[Enter a date]"></td>
+                </tr>
+
+                <tr>
+                    <td colspan="8" style="border-top:none">
+                        <p>Note: To maintain history of the original rating</p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="8">Expected Credit Loss as at [DD/MM/YY]</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>MIA</td>
+                    <td>MFRS 9 - Stage</td>
+                    <td>Total O/S <br> (RM)</td>
+                    <td>Average PD %</td>
+                    <td>LGD <br> %</td>
+                    <td>Loss Rate % </td>
+                    <td>Total ECL <br> (RM)</td>
+                    <td>Potentak ECL Writeback (RM)</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>0</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td colspan="8">ECL Forecasts</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>1</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+                <tr class="facility-row">
+                    <td>2</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+                <tr class="facility-total">
+                    <td>3</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="8">
+                        <p>Note: <br> ECL forecasts from Finance</p>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="form-table form-6">
+                <colgroup>
+                    <col style="width: 30px;">
+                    <col>
+                </colgroup>
+                <tr>
+                    <td rowspan="2" class="section-number">6</td>
+                    <td class="section-header">DETAILS OF TRANSACTION(S) AND/OR UPDATES</td>
+                </tr>
+
+                <tr class="facility-header facility-total">
+                    <td><textarea id="preamble" rows="4"></textarea></td>
+                </tr>
+            </table>
+
+            <table class="form-table form-7">
+                <colgroup>
+                    <col style="width: 30px;">
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="34" class="section-number">7</td>
+                    <td colspan="7" class="section-header">ANALYSIS OF PAYMENT CAPABILITY</td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">
+                        <p>a. The sources of payment must be clearly identified.</p>
+                        <p>b. To analyse the reliability and sustainability of the primary source (and secondary
+                            sources, if available).</p>
+                        <p>c. Analyse the adequacy of the payment source using qualitative (e.g. Management, Industry,
+                            Demand/ Supply, conduct of accounts etc) and quantitative methods (including financing other
+                            financial institutions).</p>
+                        <p>d. The Debt Service Coverage Ratio computation is to take into account the facilities with
+                            Demo Bank and other Bankers (profits and principal payments and Term Financing / IHPs etc)
+                            including facilities which has just been approved/ pending approval as shown by CCRIS. Debt
+                            Service Coverage Ratio computation is based on conservative assumptions on the full
+                            utilization of the banking limits with us as well as with other financial institutions.
+                            Assumptions
+                            on the profit rate and monthly installment and computation to derive the financing
+                            obligations should be shown.</p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">First Way Out</td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">Second Way Out</td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">Other Way Out</td>
+                </tr>
+
+                <tr>
+
+                    <td colspan="7"> <br><br> Summary of Cashflow Projection or Profit & Loss Projection & Sensitivity
+                        Analysis
+                    </td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Year</td>
+                    <td>Year 1</td>
+                    <td>Year 2</td>
+                    <td>Year 3</td>
+                    <td>Year 4</td>
+                    <td>Year 5</td>
+                    <td rowspan="14" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td colspan="6">Cash Inflow</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Sales</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Total Cash Inflow</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Cash Outflow</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Costs</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Total Cash Outflow</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Net Cashflow Surplus/ (Shortfall)</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Financings</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Disbursement</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Payment</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Balance outstanding at end of year</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Projected Gearing (times)</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Projected DSCR (times)</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+
+                <tr>
+                    <td colspan="7"> <br><br> Sensitivity Analysis</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Sensitivity Assumptions</td>
+                    <td>Scenario 1</td>
+                    <td>Scenario 2</td>
+                    <td>Scenario 3</td>
+                    <td colspan="3" rowspan="4" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7"><br><br><br></td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Scenario</td>
+                    <td>Revenue (RM)</td>
+                    <td>Operating Cashflow (RM)</td>
+                    <td>Net Cash Flow/ EBITDA <br> (RM'000)</td>
+                    <td>Financing Costs (RM)</td>
+                    <td>Projected Gearing (Times)</td>
+                    <td>Projected DSCR (Times)</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Base Case</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Scenario 1</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Scenario 2</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Scenario 3</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+            </table>
+
+            <table class="form-table form-8">
+                <colgroup>
+                    <col style="width: 30px;">
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="34" class="section-number">8</td>
+                    <td colspan="6" class="section-header">ANALYSIS ON SECURITY</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td rowspan="2">Description<br>(Type, Location, Size, Owner's Name)</span></td>
+                    <td colspan="2">PMMD @</td>
+                    <td colspan="2">Panel Valuer @</td>
+                    <td rowspan="2">Value<br>(RM’mil)</td>
+                </tr>
+
+                <tr>
+                    <td>OMV <br> (RM’mil) </td>
+                    <td>FSV <br> (RM’mil) </td>
+                    <td>OMV <br> (RM’mil) </td>
+                    <td>FSV <br> (RM’mil) </td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Tangible Security<br>Existing<br>Properties<br>FSRA<br>SFA</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>New/ Additional<br>(To be Obtained)</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Total</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Security Coverage (Times)</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Supporting Security<br>Existing<br>Debenture<br>Assignment of Contract Proceeds</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>New/ Additional<br>(To be Obtained)</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="6"><br><br>Corporate/ Personal Guarantees</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Name</td>
+                    <td>Customer Risk Rating</td>
+                    <td>Contingent Liabilities (RM)</td>
+                    <td>Estimated Networth (RM)</td>
+                    <td>Remarks</td>
+                    <td rowspan="3" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="6">
+                        <p>To evaluate and comment on:</p>
+                        <p>a. Location and condition.</p>
+                        <p>b. Quality of security – value and stability of value.</p>
+                        <p>c. Liquidity of security – ease and speed of disposability.</p>
+                        <p>d. Adequacy of security cover – margin of advance against security value. Security cover is
+                            computed as security value against financing limit.</p>
+                        <p>e. Enforceability of security arrangement – highlight e.g. restriction-in-interest, express
+                            conditions, caveat, third party charge, Power of Attorney, foreign guarantee, compliance
+                            with
+                            Companies Act etc.</p>
+                        <p>f. Any change in the security facility limit – to comment on the impact on the security
+                            coverage
+                            before and after the changes.</p>
+                        <p>g. Takaful coverage and status – payments have been made (e.g. quit rent and
+                            assessment).</p>
+                        <p>h. Compliance to the collection of Revenue Reserve Account, build-up of FSRA, SFA etc., and
+                            any
+                            other condition related to security.</p>
+                        <p>i. Guarantors – background/reputation, financial strength of corporate/individual
+                            guarantors/contingent liabilities theworth.</p>
+                        <p>j. To add existing banking facilities – May add additional information if necessary.</p>
+                    </td>
+                </tr>
+
+            </table>
+
+            <table class="form-table form-9">
+                <colgroup>
+                    <col style="width:30px;">
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="40" class="section-number">9</td>
+                    <td colspan="7" class="section-header">ACCOUNT PROFITABILITY & WALLET SHARE</td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">
+                        <p>Account Profitability (on Group Basis)</p>
+                        <p>To compute the imcome earned or projected income from the relationship from the
+                            facilities and other ancillary business or projected income.</p>
+                    </td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td rowspan="2">Product/ Services</td>
+                    <td colspan="2">Net Profit Income*<br>(RM)</td>
+                    <td colspan="2">Fee Income<br>(RM)</td>
+                    <td colspan="2">Total Revenue<br>(RM)</td>
+                </tr>
+
+                <tr style="border-right: 2px solid #000 !important;">
+                    <td>YTD</td>
+                    <td>Projected/ Annualised</td>
+                    <td>YTD</td>
+                    <td>Projected/ Annualised</td>
+                    <td>YTD</td>
+                    <td>Projected/ Annualised</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Financings</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Trades - Funded</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Trades - Non Funded</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Forex Business</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Wholesale Funding</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Deposits</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Remittance</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Fees & Charges/ Others</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>TOTAL</td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                    <td><input type="number" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">
+                        <p>Notes:</p>
+                        <p>* To define net profit income</p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="7"><br><br>Source from CAD, Treasury Ops dated
+                        [DD/MM/YYYY]
+                    </td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Other Ancillary Business</td>
+                    <td>Remarks**</td>
+                    <td colspan="5" rowspan="3" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>
+                        <p>Wholesale Deposits</p>
+                        <p>- CASA</p>
+                        <p>- FSRA</p>
+                        <p>- Sinking Fund ICMTD-i</p>
+                    </td>
+                    <td><textarea name="" id=""></textarea></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Wealth Products - Takaful</td>
+                    <td><textarea name="" id=""></textarea></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">** Account balances and/any remarks.</td>
+                </tr>
+
+                <tr>
+                    <td colspan="7"><br><br>Wallet Share</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td rowspan="2">Facility</td>
+                    <td colspan="3">Other FIs</td>
+                    <td colspan="3" rowspan="10" class="exposure-empty"></td>
+                </tr>
+
+                <tr>
+                    <td>Total</td>
+                    <td>%</td>
+                    <td style="border-right: 2px solid #000 !important;">+/-<br>(on previous year)</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Short Term</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Trade-Funded</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Trade-Non Funded</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>LT-Funded</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>LT - Non Funded</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>FEC</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Others</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Grand Total</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7"><br><br></td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Account Strategy</td>
+                    <td>Grow / Maintain/ Exit*</td>
+                    <td colspan="5" rowspan="2" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Cross-Selling in Itiatives</td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">*Delete whichever not applicable</td>
+                </tr>
+            </table>
+
+            <table class="form-table form-10">
+                <colgroup>
+                    <col style="width: 30px;">
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="30" class="section-number">10</td>
+                    <td colspan="7" class="section-header">COMPANY/GROUP BACKGROUND & DESCRIPTION OF BUSINESS</td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">Major shareholders @ DD/MM/YY</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>No</td>
+                    <td>Name</td>
+                    <td>IC/ Passport/ Business Reg No.</td>
+                    <td>Date of Birth/ Incorporate</td>
+                    <td>No of Shares</td>
+                    <td>% of Shareholding</td>
+                    <td>Nationality</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">
+                        <p>- To include illustration of Group structure inclusive of individual sponsors</p>
+                        <p>a. General background of the major shareholders / sponsors and corporate structure.</p>
+                        <p>b. Brief description of the customer's business model, core and non-core business.</p>
+                        <p>c. Types of products/business lines and uses of products.</p>
+                        <p>d. Proportion of local sales/export and purchases/import.</p>
+                        <p>e. Geographical span / scope of business.</p>
+                        <p>f. For public listed company, to state latest market value of the company, corporate
+                            guarantor and/or group.</p>
+                        <p>g. If the business is newly established (including joint ventures) with no past track record,
+                            background information on the key shareholders / joint venture partners such as core
+                            activities, number of years in business and past financial information should be provided.
+                        </p>
+                        <p>h. Site visit observation such as date of site visit, size of factory, production capacity,
+                            actual production level, production cost structure and factors that production costs are
+                            vulnerable to stock turnover and obsolescence, staff turnover, punctuality of salary payment
+                            to staff (if information is available).</p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">
+                        <p class="bold-underline">Customer's Key Supplier(s)</p>
+                        <p class="bold">(Top 3 in terms of volume)</p>
+                    </td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Details <br> (Name/ Address/ Telephone No.)</td>
+                    <td>Year Relationship</td>
+                    <td>Credit Terms</td>
+                    <td>Sales %</td>
+                    <td>Mode of Payment</td>
+                    <td colspan="2" rowspan="4" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">
+                        <p class="bold-underline">Customer's Key Buyer(s)</p>
+                        <p class="bold">(Top 3 in terms of volume)</p>
+                    </td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Details <br> (Name/ Address/ Telephone No.)</td>
+                    <td>Year Relationship</td>
+                    <td>Credit Terms</td>
+                    <td>Sales %</td>
+                    <td>Mode of Payment</td>
+                    <td colspan="2" rowspan="4" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7"><br><br></td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Main Competitors</td>
+                    <td>Type of Products/ Services</td>
+                    <td colspan="5" rowspan="2" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">Peers Comparison (on key financial metrics) (If information is available)<br><br>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="form-table form-11">
+                <colgroup>
+                    <col style="width:30px">
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="10" class=" section-number">11</td>
+                    <td colspan="7" class="section-header">DIRECTORS AND KEY MANAGEMENT</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>No</td>
+                    <td>Name</td>
+                    <td>IC/ Passport</td>
+                    <td>Date of Birth (Age)</td>
+                    <td>Nationality</td>
+                    <td>Position</td>
+                    <td>Experience/ Qualification</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="7">
+                        <p>a. General background of the directors and key management</p>
+                        <p>b. To analyse the strength of management</p>
+                        <p>c. Succession Plan for key management</p>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="form-table form-12">
+                <colgroup>
+                    <col style="width:30px">
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td class="section-number" rowspan="300">12</td>
+                    <td class="section-header" colspan="5">FINANCIAL ANALYSIS</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td colspan="5" class="facility-header">Name of Customer / Corporate Guarantor</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td colspan="5" class="facility-row">Company/ Group Level</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Type of Account</td>
+                    <td>Audited</td>
+                    <td>Audited</td>
+                    <td>Audited</td>
+                    <td>Draft</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Auditor</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Qualified</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>FYE</td>
+                    <td>DD/MM/Y1<br>(RM'000)</td>
+                    <td>DD/MM/Y2<br>(RM'000)</td>
+                    <td>DD/MM/Y3<br>(RM'000)</td>
+                    <td>DD/MM/Y4<br>(RM'000)</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Sales/ Profitability</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Turnover</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Operating Profit</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Pretax Profit/ (Loss)</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Gross Profit MArgin (OP/Sales)(%)</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Pretax Profit Margin (Pretax/Sales)(%)</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>EBITDA</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Asset Management</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Total Assets</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>total Liabilities</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Current Ratio</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Net Working Capital</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Day's Receivables</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Day's Payables</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Day's Inventories</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Debt Management/ Capital Structure</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <!--Maybe something missing because upper not clear-->
+                <tr class="facility-row">
+                    <td>Tangible Networth</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Total Liabilities to TNW</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Bank Facilities To TNW</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Profit Coverage Ratio</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>DSCR</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Other Balance Sheet Items</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Amount Due From Directors/Shareholders/Related Companies</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Amount Due To Directors/Shareholders/Related Companies</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Contingent Liabilities</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Cashflow Items</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Cashflow After Operations</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Net Cashflow Generated</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Cash Balance after Overdraft/Cashline Offset</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">
+                        <p>[Extracted from Spreadsheets attached]</p>
+                        <p>a. Obtain financial statements for the Customer and corporate guarantor, if any, for
+                            analysis. Group accounts must be obtained if company has subsidiaries or the company is a
+                            subsidiary
+                            of a Group. </p>
+                        <p>b. Financial analysis shall cover the last 3 years financial performance based on the
+                            audited financial statements.</p>
+                        <p>c. If the audited financial statements of the latest financial year end (FYE) is not
+                            available, RMs are to provide explanation for why the audited financial statements are not
+                            available and what measures were taken to follow up with customer.</p>
+
+                        <p>d. Analysis can be based on the latest Management Accounts or the unaudited/draft
+                            accounts provided that the latest FYE is less than 6 months of the review date.
+                            To comment on the reliability of such accounts.</p>
+
+                        <p>e. To ensure that all the figures of the Customer and the Corporate Guarantor’s accounts are
+                            accurately transcribed on the spreadsheet.</p>
+
+                        <p>f. To highlight and address any qualification and emphasis of matter of accounts by auditors
+                            and also any changes in auditors.</p>
+
+                        <p>g. To highlight any change in accounting policies.</p>
+
+                        <p>h. Analyse balance sheet, P&L and historical cashflow statements and any “exceptional”
+                            items, detailing the major variances.</p>
+
+                        <p>i. To conduct trend analysis for at least 3financial years and reasons for major changes.
+                            Where there are adverse trends or adverse financial indicators, to find out what action
+                            steps have been taken/ to be taken to improve the position.</p>
+
+                        <p>j. Events subsequent to balance sheet in 'Notes to Accounts' which affect credit risks to be
+                            highlighted.</p>
+
+                        <p>k. Material contingent liabilities need to be disclosed and assessed.</p>
+
+                        <p>l. To ensure information disclosed in the Credit Application is consistent with the figures
+                            given per the financial statements such as total banking facilities/ type of facilities/
+                            security arrangement etc.</p>
+
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">SALES/ PROFITABILITY</td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">
+                        <p>a. Trend analysis on the turnover and proft margins on the core business. Do not perform
+                            elevated analysis but to provide underlying reasons for the</p>
+                        <p>b. For Customers engaged in contract business, income recognition methods (i.e. percentage
+                            completion or full completion basis) should be stated.</p>
+                        <p>To distinguish between recurring and non-recurring items in the P&L account, to explain any
+                            items with significant variations and to comment any exceptional income/gain</p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">ASSET MANAGEMENT</td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">
+                        <p>a. To analyse whether the assets purchase is consistent with its nature of business.</p>
+                        <p>b. To analyse whether the current ratio indicate liquidity concern, mismatch in funding (ST
+                            financing to finance LT assets).</p>
+                        <p>c. To highlight significant inter-company transactions and advances and analyse on the
+                            possibility of transfer pricing and funds diversion risks.</p>
+                        <p>d. Where Days Receivables and Days Payables are long and/or deterioration in financing gap,
+                            analysis of debtors and creditors ageing need to be carried out and supported by latest
+                            debtors/creditors ageing report.</p>
+                        <p>e. To comment if the inventory days indicating slow sales or change in the purchasing policy.
+                        </p>
+                        <p>f. Detailed breakdown analysis on the large other debtors and creditors.</p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">DEBT MANAGEMENT/ CAPITAL STRUCTURE</td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">
+                        <p>a. To highlight low TNW/negative TNW, the trend in networth and whether any high dividends
+                            payments.</p>
+                        <p>b. Trend analysis on Gearing/Leeverage and analyse whether it is in line with the industry.
+                        </p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">CASH FLOW</td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">
+                        <p>a. Analyse the cashflow to check if business is deteriorating or strengthening.</p>
+                        <p>b. To highlight large deficit in the net operating cashflow, the reasons for the deficit and
+                            how the deficit was financed.</p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">CONCLUSION</td>
+                </tr>
+
+                <tr>
+                    <td colspan="5"><br></td>
+                </tr>
+
+            </table>
+
+            <table class="form-table form-13">
+                <colgroup>
+                    <col style="width: 30px;">
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="30">13</td>
+                    <td class="section-header" colspan="5">CONDUCT OF FACILITIES ACCOUNT & UTILISATION</td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">
+                        <p>General comments on conduct of facilities with Demo Bank & other FIs</p>
+                        <p>a. Years of banking relationship with the Customer and/or the Group.</p>
+                        <p>b. To comment on track record and utilization of all existing facilities with Demo Bank as
+                            below.</p>
+                        <p>c. To comment on the reasons for any inward/ outward returned cheques.</p>
+                        <p>d. Whether the Customer and/or the Group has any R&R previously.</p>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">TERM FINANCING</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Account No</td>
+                    <td>Original Approved Limit</td>
+                    <td>Outstanding<br>(RM)</td>
+                    <td>Aount Overdue<br>(RM)</td>
+                    <td>No of Instalment-In-Arrears</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">TRADE FINANCE/FOREX LINE</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Facility Type</td>
+                    <td>Volume</td>
+                    <td>Profits<br>(RM)</td>
+                    <td>Commision<br>(RM)</td>
+                    <td>Total Item</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">CASHLINE ACCOUNT - WITH DEMO BANK</td>
+                </tr>
+
+                <tr>
+                    <td colspan="5">Account No: <input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Month</td>
+                    <td>Withdrawal<br>(RM)</td>
+                    <td>Deposit<br>(RM)</td>
+                    <td>Month-End Balance<br>(RM)</td>
+                    <td>No of Returned Cheques</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Month-1</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Month-2</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Month-3</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Month-4</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Month-5</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Month-6</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Average</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+            </table>
+
+            <table class="form-table form-14">
+
+                <colgroup>
+                    <col style="width:30px">
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+                <tr>
+                    <td rowspan="15">14</td>
+                    <td class="section-header" colspan="3">CREDIT CHECKINGS/ SEARCH</td>
+                </tr>
+
+                <tr>
+                    <td colspan="3">CUSTOMER / DIRECTORS / SHAREHOLDERS / CORPORATE GUARANTOR / SECURITY PARTY</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td> </td>
+                    <td>Date</td>
+                    <td>Findings/Comments</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>CCRIS/EXPERIAN</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>CCRIS/EXPERIAN</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>CTOS/EXPERIAN</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>CONNETED PARTY</td>
+                    <td><input type="text" id=""></td>
+                    <td>If Yes, to specify name of staff (and Staff No) and relationship</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>PEP/WATCHLIST/IF ACTIVA</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>PUBLIC DOMAIN</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="3">
+                        <p>a. to summarise material adverse records and other information revealed such as Special
+                            Attention, Legal Action taken, R&R tagging and impact on policy requirements.</p>
+                        <p>
+                            b. To update stage of the case's negotiation / settlement and legal opinion/ solicitor's
+                            confirmation on the case.
+                        </p>
+                        <p>c. The findings are to be taken into consideration when assessing the character / payment
+                            risks of the customer / guarantors and the provide relevant mitigations.</p>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="form-table form-15">
+                <colgroup>
+                    <col style="width:30px">
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="6">15</td>
+                    <td class="section-header" colspan="2">INDUSTRY / MARKET OUTLOOK</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Sector</td>
+                    <td>Subsector</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Sector Outlook</td>
+                    <td><input type="text" id="" placeholder="[Point from only]"></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Subsector Outlook</td>
+                    <td><input type="text" id="" placeholder="[Point from only]"></td>
+                </tr>
+
+                <tr>
+                    <td colspan="2">
+                        <p>a. Industry prospects, ...</p>
+                        <p>b. Major players and their market share and analyse the strength and weaknesses of the
+                            company against its major competitions.</p>
+                        <p>c. To state industry /sector strategy to be adopted.</p>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="form-table form-16">
+                <colgroup>
+                    <col style="width:30px">
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="30">16</td>
+                    <td class="section-header" colspan="3">RISK ASSESSMENT AND MITIGATORS</td>
+                </tr>
+
+                <tr>
+                    <td colspan="3">
+                        <p>a. To identify the material credit risks and mitigating factors (if any).</p>
+                        <p> To structure the facilities and to propose conditions / covenants depending on the overall
+                            understanding of the credit risks and the mitigating factors.</p>
+                    </td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Key Risks</td>
+                    <td>Proposed Mitigations /Remarks</td>
+                    <td rowspan="6" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Project Risk</td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Performance Risk</td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Packaging Risk</td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Payment Risk</td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Other Risk</td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr>
+                    <td colspan="3">Business Unit response to Issues Raised by RMD</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>No</td>
+                    <td>Issues Raised by RMD</td>
+                    <td>Response by Business Unit</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>1</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>2</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>3</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+            </table>
+
+            <table class="form-table form-17">
+                <colgroup>
+                    <col style="width:30px">
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="20">17</td>
+                    <td class="section-header" colspan="2">ENVIRONMENTAL, SOCIAL & GOVERNANCE (ESG) RISK ASSESSMENT</td>
+                </tr>
+
+                <tr>
+                    <td colspan="2">To summarise the findings on the following:</td>
+                </tr>
+
+                <tr>
+                    <td colspan="2">
+                        <p>1. ESG risk identification process through the conduct of categorizing the Customer into 5
+                            Guiding Principles (GP1 to GP5) based on the questions in the ESG assessment checklist and
+                            the classification of Customer's economic activity into C1 to C6 as follows:</p>
+                    </td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Guiding Principles</td>
+                    <td>Category</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>GP1 (Climate Change Mitigation)</td>
+                    <td>C1 (Climate Supporting)</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>GP2 (Climate Change Adaptation)</td>
+                    <td>C2 (Transitoning)</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>GP3 (No Significant Harm to the Environment)</td>
+                    <td>C3 (Transitoning)</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>GP4 (Remedial Efforts to Promote Transtion)</td>
+                    <td>C4 (Watchlist)</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td rowspan="2" style="border-bottom:2px solid black">GP5 (Prohibited Activities)</td>
+                    <td>C5 (Watchlist)</td>
+                </tr>
+
+                <tr>
+                    <td style="border-right:2px solid black; border-bottom:2px solid black">C6 (Prohibited)</td>
+                </tr>
+
+                <tr>
+                    <td colspan="2">2. Mitigating factors and explanation to justify the classification of Customer's
+                        activities
+                        into the respective GPs and Categories reflected above.</td>
+                </tr>
+            </table>
+
+            <table class="form-table form-18">
+                <colgroup>
+                    <col style="width:30px">
+                    <col>
+                    <col>
+                    <col>
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="10">18</td>
+                    <td class="section-header" colspan="4">SICR ASSESSMENT</td>
+                </tr>
+
+                <tr>
+                    <td colspan="4">To summarise list of triggers and justification/rationale whether the triggers are a
+                        hit/adverse
+                        or otherwise and impact on account classification.</td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td>Type of Triggers</td>
+                    <td>Triggering Events</td>
+                    <td>Hits (Y/N)</td>
+                    <td>If Yes, to provide simplified mitigation & rationale / <br> If No, to provide justification</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Obligatory Watchlist</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Obligatory Impaired</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Objective Judgmental</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Subjective Judgmental</td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Account Classification</td>
+                    <td colspan="3"><input type="text" id=""></td>
+                </tr>
+            </table>
+
+            <table class="form-table form-19">
+
+                <colgroup>
+                    <col style="width:30px">
+                    <col style="width:100px">
+                    <col>
+                    <col style="width:100px">
+                    <col>
+                </colgroup>
+
+                <tr>
+                    <td rowspan="15">19</td>
+                    <td class="section-header" colspan="4">RECOMMENDATION</td>
+                </tr>
+                <tr>
+                    <td colspan="4">
+                        <p>After weighing the positive and negative risk factors, to make the necessary recommendation
+                            as to whether the credit is to be approved including proposing mitigating conditions based
+                            on
+                            this risk analysis.</p>
+                        <p>We hereby confirm that the information represented herein is accurate and the application is
+                            within the Bank’s credit policies / guidelines with all exceptions duly highlighted.</p>
+                    </td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td colspan="2">PREPARED BY:</td>
+                    <td colspan="2">REVIEWED BY:</td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Name: </td>
+                    <td><input type="text" id=""></td>
+                    <td>Name: </td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Designation: </td>
+                    <td><input type="text" id=""></td>
+                    <td>Designation: </td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Date: </td>
+                    <td><input type="date" id=""></td>
+                    <td>Date: </td>
+                    <td><input type="date" id=""></td>
+                </tr>
+
+                <tr class="facility-header">
+                    <td colspan="2">CONCURRED BY:</td>
+                    <td colspan="2" rowspan="4" class="exposure-empty"></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Name: </td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-row">
+                    <td>Designation: </td>
+                    <td><input type="text" id=""></td>
+                </tr>
+
+                <tr class="facility-total">
+                    <td>Date: </td>
+                    <td><input type="date" id=""></td>
+                </tr>
+
+
+            </table>
+
+
+        </div>
+    </form>
+</body>
+
+</html>

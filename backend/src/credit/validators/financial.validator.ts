@@ -35,6 +35,16 @@ export const updateStatementSchema = z.object({
     currency: currencyCodeEnum.optional(),
     reviewedById: z.string().uuid().optional().nullable(),
     status: financialStatusEnum.optional(),
+    // CA Memo Phase 3 — Section 12 audit + commentary
+    auditorName: z.string().max(255).optional().nullable(),
+    isQualified: z.boolean().optional().nullable(),
+    qualificationNotes: z.string().max(10000).optional().nullable(),
+    isDraftAccounts: z.boolean().optional(),
+    commentarySalesProfitability: z.string().max(20000).optional().nullable(),
+    commentaryAssetMgmt: z.string().max(20000).optional().nullable(),
+    commentaryDebtMgmt: z.string().max(20000).optional().nullable(),
+    commentaryCashflow: z.string().max(20000).optional().nullable(),
+    commentaryConclusion: z.string().max(20000).optional().nullable(),
   }),
 });
 

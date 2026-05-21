@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import creditService, { BorrowerProfile, CreditApplication, exposureApi, ExposureSummary, FacilityType } from '../src/services/credit.service';
+import creditService, { BorrowerProfile, CreditApplication, exposureApi, ExposureDashboardSummary } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
@@ -89,7 +89,7 @@ const BorrowerProfileDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
   const [applications, setApplications] = useState<CreditApplication[]>([]);
   const [loadingApps, setLoadingApps] = useState(false);
-  const [exposure, setExposure] = useState<ExposureSummary | null>(null);
+  const [exposure, setExposure] = useState<ExposureDashboardSummary | null>(null);
   const [loadingExposure, setLoadingExposure] = useState(false);
 
   const canWrite = hasPermission(user, 'credit:write');
@@ -373,12 +373,24 @@ const BorrowerProfileDetail: React.FC = () => {
                       <span className="material-symbols-outlined text-indigo-600 text-lg">person</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-text-primary text-sm">{d.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-semibold text-text-primary text-sm">{d.name}</p>
+                        {d.isKeyManagement && <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded-full font-bold">Key Mgmt</span>}
+                      </div>
                       <p className="text-xs text-text-secondary mt-0.5">
                         {d.position && <span>{d.position} · </span>}
                         {d.appointmentDate && <span>Appointed {formatDate(d.appointmentDate)}</span>}
                         {d.isExecutive && <span className="ml-1 text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-bold">Executive</span>}
                       </p>
+                      {(d.dateOfBirth || d.nationality) && (
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          {d.dateOfBirth && <span>DOB: {formatDate(d.dateOfBirth)} · </span>}
+                          {d.nationality && <span>{d.nationality}</span>}
+                        </p>
+                      )}
+                      {d.experienceQualification && (
+                        <p className="text-xs text-text-secondary mt-0.5 truncate">{d.experienceQualification}</p>
+                      )}
                     </div>
                     {d.resignationDate && (
                       <span className="text-[10px] font-bold bg-red-50 text-red-600 px-2 py-0.5 rounded-full">Resigned {formatDate(d.resignationDate)}</span>
@@ -421,6 +433,13 @@ const BorrowerProfileDetail: React.FC = () => {
                         {s.shareClass && <span> · Class {s.shareClass}</span>}
                         {s.numberOfShares && <span> · {s.numberOfShares.toLocaleString()} shares</span>}
                       </p>
+                      {(s.dateOfBirthOrIncorporation || s.nationality || s.businessRegNo) && (
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          {s.dateOfBirthOrIncorporation && <span>DOB/Incorp: {formatDate(s.dateOfBirthOrIncorporation)} · </span>}
+                          {s.nationality && <span>{s.nationality}</span>}
+                          {s.businessRegNo && <span> · Reg: {s.businessRegNo}</span>}
+                        </p>
+                      )}
                     </div>
                     {s.shareholdingPct != null && (
                       <div className="w-16 text-right">
@@ -560,68 +579,69 @@ const BorrowerProfileDetail: React.FC = () => {
                     <div>
                       <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Total Exposure</h3>
                       <p className="text-3xl font-black text-text-primary">{formatCurrency(exposure.totalExposure)}</p>
-                      <p className="text-xs text-text-secondary">{exposure.currency}</p>
+                      <p className="text-xs text-text-secondary">MYR</p>
                     </div>
                   </div>
-                  {exposure.utilization != null && (
+                  {exposure.limits.utilizationPct != null && (
                     <div className="mt-4">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-text-secondary">Overall Utilization</span>
-                        <span className="text-sm font-bold text-text-primary">{exposure.utilization.toFixed(1)}%</span>
+                        <span className="text-sm font-bold text-text-primary">{exposure.limits.utilizationPct.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2.5">
                         <div className="h-2.5 rounded-full transition-all" style={{
-                          width: `${Math.min(exposure.utilization, 100)}%`,
-                          background: exposure.utilization > 80 ? '#ef4444' : exposure.utilization > 60 ? '#f59e0b' : '#22c55e',
+                          width: `${Math.min(exposure.limits.utilizationPct, 100)}%`,
+                          background: exposure.limits.utilizationPct > 80 ? '#ef4444' : exposure.limits.utilizationPct > 60 ? '#f59e0b' : '#22c55e',
                         }} />
                       </div>
                     </div>
                   )}
+                  {exposure.limits.exposureLimit != null && (
+                    <div className="mt-3 flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Exposure Limit</span>
+                      <span className="font-bold text-text-primary">{formatCurrency(exposure.limits.exposureLimit)}</span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Breakdown by Facility Type */}
-                {exposure.breakdown.length > 0 && (
+                {/* Facilities List */}
+                {exposure.facilities.length > 0 && (
                   <div>
-                    <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Breakdown by Facility Type</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {exposure.breakdown.map(item => {
-                        const pct = item.approvedAmount > 0 ? ((item.outstandingAmount / item.approvedAmount) * 100) : 0;
+                    <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Facilities</h3>
+                    <div className="space-y-3">
+                      {exposure.facilities.map((fac, i) => {
+                        const effectiveAmount = fac.approvedAmount ?? fac.amount;
                         return (
-                          <div key={item.facilityType} className="bg-bg-surface border border-border rounded-xl p-4">
+                          <div key={i} className="bg-bg-surface border border-border rounded-xl p-4">
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
                                 <span className="material-symbols-outlined text-brand-700 text-base">account_balance</span>
-                                <span className="text-sm font-bold text-text-primary">{FACILITY_TYPE_LABELS[item.facilityType] || item.facilityType.replace(/_/g, ' ')}</span>
+                                <span className="text-sm font-bold text-text-primary">{FACILITY_TYPE_LABELS[fac.facilityType] || fac.facilityType.replace(/_/g, ' ')}</span>
                               </div>
-                              <span className="text-[10px] font-bold bg-bg-subtle text-text-secondary px-2 py-0.5 rounded-full">{item.count} facilit{item.count !== 1 ? 'ies' : 'y'}</span>
+                              <span className="text-[10px] font-bold bg-bg-subtle text-text-secondary px-2 py-0.5 rounded-full">{fac.currency}</span>
                             </div>
-                            <div className="grid grid-cols-3 gap-2 text-center">
+                            <div className="grid grid-cols-2 gap-2 text-center">
                               <div>
-                                <p className="text-[10px] text-text-secondary uppercase">Approved</p>
-                                <p className="text-sm font-bold text-text-primary">{formatCurrency(item.approvedAmount)}</p>
-                              </div>
-                              <div>
-                                <p className="text-[10px] text-text-secondary uppercase">Outstanding</p>
-                                <p className="text-sm font-bold text-amber-700">{formatCurrency(item.outstandingAmount)}</p>
+                                <p className="text-[10px] text-text-secondary uppercase">Approved Amount</p>
+                                <p className="text-sm font-bold text-text-primary">{formatCurrency(effectiveAmount)}</p>
                               </div>
                               <div>
-                                <p className="text-[10px] text-text-secondary uppercase">Available</p>
-                                <p className="text-sm font-bold text-green-700">{formatCurrency(item.availableAmount)}</p>
+                                <p className="text-[10px] text-text-secondary uppercase">Applied Amount</p>
+                                <p className="text-sm font-bold text-text-secondary">{formatCurrency(fac.amount)}</p>
                               </div>
-                            </div>
-                            <div className="mt-2">
-                              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                                <div className="h-1.5 rounded-full transition-all" style={{
-                                  width: `${Math.min(pct, 100)}%`,
-                                  background: pct > 80 ? '#ef4444' : pct > 60 ? '#f59e0b' : '#22c55e',
-                                }} />
-                              </div>
-                              <p className="text-[10px] text-text-secondary mt-0.5">{pct.toFixed(1)}% utilized</p>
                             </div>
                           </div>
                         );
                       })}
                     </div>
+                  </div>
+                )}
+
+                {exposure.facilities.length === 0 && exposure.totalExposure === 0 && (
+                  <div className="bg-bg-surface border border-border rounded-xl p-8 text-center text-text-secondary">
+                    <span className="material-symbols-outlined text-3xl block mb-2 opacity-30">info</span>
+                    <p className="font-semibold text-sm">No active or disbursed facilities</p>
+                    <p className="text-xs mt-1">Exposure is calculated from approved and active facilities</p>
                   </div>
                 )}
               </div>

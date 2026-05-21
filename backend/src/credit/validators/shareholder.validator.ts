@@ -1,6 +1,14 @@
 import { z } from 'zod';
 
 const decimalField = z.union([z.string(), z.number()]).optional().nullable();
+const dateField = z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional().nullable()
+  .transform(v => v ?? undefined);
+
+const phase4ShareholderFields = {
+  dateOfBirthOrIncorporation: dateField,
+  nationality: z.string().max(100).optional().nullable(),
+  businessRegNo: z.string().max(100).optional().nullable(),
+};
 
 export const createShareholderSchema = z.object({
   body: z.object({
@@ -10,6 +18,7 @@ export const createShareholderSchema = z.object({
     shareholdingPct: decimalField,
     shareClass: z.string().max(50).optional().nullable(),
     numberOfShares: z.number().int().optional().nullable(),
+    ...phase4ShareholderFields,
   }),
 });
 
@@ -21,6 +30,7 @@ export const updateShareholderSchema = z.object({
     shareholdingPct: decimalField,
     shareClass: z.string().max(50).optional().nullable(),
     numberOfShares: z.number().int().optional().nullable(),
+    ...phase4ShareholderFields,
   }),
 });
 

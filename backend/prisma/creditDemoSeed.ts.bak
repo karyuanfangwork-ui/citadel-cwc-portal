@@ -1,0 +1,462 @@
+import {
+  PrismaClient,
+  ApplicationState,
+  BorrowerType,
+  CreditProductType,
+  FacilityType,
+  CurrencyCode,
+  RiskRating,
+  AmlRiskTier,
+  CommitteeMeetingStatus,
+  CommitteeMemberRole,
+  CommitteeAttendance,
+  CommitteeVoteChoice,
+  AgendaItemDecisionType,
+  CommitteeMeetingType,
+  FinancialStatementType,
+  FinancialPeriod,
+  FinancialStatus,
+  RatioCategory,
+  CovenantType,
+  CovenantFrequency,
+  ConditionType,
+  HealthStatus,
+  PaymentStatus,
+  SignalType,
+  EarlyWarningSeverity,
+  DocumentClass,
+  ApprovalDecisionType,
+} from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+async function findExisting(model: any, where: any) {
+  return model.findFirst({ where });
+}
+
+// ---------------------------------------------------------------------------
+// 1. CRM Accounts (3 corporate + 2 individual)
+// ---------------------------------------------------------------------------
+async function seedCrmAccounts(adminId: string) {
+  const accounts = [
+    { name: 'SME Manufacturing Sdn Bhd', industry: 'Manufacturing', accountType: 'CORPORATE', registrationNumber: 'SM-2020010', annualRevenue: 25000000, phone: '+603-8888-1001', email: 'info@smemanufacturing.my', city: 'Shah Alam', state: 'Selangor', country: 'Malaysia' },
+    { name: 'Tech Startup Sdn Bhd', industry: 'Technology', accountType: 'CORPORATE', registrationNumber: 'TS-2021035', annualRevenue: 5000000, phone: '+603-8888-1002', email: 'hello@techstartup.my', city: 'Cyberjaya', state: 'Selangor', country: 'Malaysia' },
+    { name: 'Property Developer Sdn Bhd', industry: 'Real Estate', accountType: 'CORPORATE', registrationNumber: 'PD-2018007', annualRevenue: 80000000, phone: '+603-8888-1003', email: 'info@propertydev.my', city: 'Kuala Lumpur', state: 'Wilayah Persekutuan', country: 'Malaysia' },
+    { name: 'High Net Worth Individual', industry: 'Finance', accountType: 'INDIVIDUAL', phone: '+6012-345-6789', email: 'hnwi@example.com', city: 'Kuala Lumpur', state: 'Wilayah Persekutuan', country: 'Malaysia' },
+    { name: 'Retail Borrower', industry: 'Services', accountType: 'INDIVIDUAL', phone: '+6017-123-4567', email: 'retail@example.com', city: 'Penang', state: 'Pulau Pinang', country: 'Malaysia' },
+  ];
+
+  const created = [];
+  for (const a of accounts) {
+    let existing = await findExisting(prisma.crmAccount, { name: a.name });
+    if (!existing) {
+      existing = await prisma.crmAccount.create({
+        data: { ...a, ownerId: adminId },
+      });
+    }
+    created.push(existing);
+  }
+  console.log(`  ✅ ${created.length} CRM accounts`);
+  return created;
+}
+
+// ---------------------------------------------------------------------------
+// 2. Borrower Profiles (5) with Directors, Shareholders, UBOs — ALL fields
+// ---------------------------------------------------------------------------
+async function seedBorrowerProfiles(accounts: any[]) {
+  const corporateAccounts = accounts.filter((a: any) => a.accountType === 'CORPORATE');
+  const individualAccounts = accounts.filter((a: any) => a.accountType === 'INDIVIDUAL');
+  const profiles: any[] = [];
+
+  // --- Corporate borrowers ---
+  for (const acct of corporateAccounts) {
+    let bp = await findExisting(prisma.borrowerProfile, { accountId: acct.id });
+    if (!bp) {
+      const riskRating = acct.name.includes('SME') ? RiskRating.BBB : acct.name.includes('Tech') ? RiskRating.BB : RiskRating.A;
+      const amlTier = acct.name.includes('Tech') ? AmlRiskTier.MEDIUM : AmlRiskTier.LOW;
+      const exposure = acct.name.includes('Property') ? 50000000 : acct.name.includes('SME') ? 10000000 : 5000000;
+      bp = await prisma.borrowerProfile.create({
+        data: {
+          borrowerType: BorrowerType.CORPORATE,
+          accountId: acct.id,
+          creditRiskRating: riskRating,
+          amlRiskTier: amlTier,
+          exposureLimit: exposure,
+          totalExposure: acct.name.includes('Property') ? 30000000 : acct.name.includes('SME') ? 6000000 : 2000000,
+          isSanctionedEntity: false,
+          sourceOfWealth: 'Business operations and investments',
+          purposeOfAccount: 'Credit facility application',
+        },
+      });
+    }
+    profiles.push(bp);
+
+    // Directors (2-3) — with ALL fields populated
+    const dirData = acct.name.includes('SME')
+      ? [
+          { name: 'Ahmad bin Ali', position: 'Managing Director', isExecutive: true, appointmentDate: '2018-03-15', nricPassport: 'encrypt:800101-10-5123' },
+          { name: 'Lim Wei Chong', position: 'Director', isExecutive: false, appointmentDate: '2019-06-01', nricPassport: 'encrypt:750505-14-5231' },
+          { name: 'Siti binti Hassan', position: 'Director', isExecutive: false, appointmentDate: '2020-09-20', nricPassport: 'encrypt:850812-06-5028' },
+        ]
+      : acct.name.includes('Tech')
+        ? [
+            { name: 'Raj Kumar a/l Muthu', position: 'Managing Director', isExecutive: true, appointmentDate: '2021-01-10', nricPassport: 'encrypt:900211-14-5781' },
+            { name: 'Nurul Aisyah binti Yusof', position: 'Director', isExecutive: false, appointmentDate: '2022-04-01', nricPassport: 'encrypt:920530-06-5442' },
+          ]
+        : [
+            { name: 'Michael Tan Wei Ming', position: 'Managing Director', isExecutive: true, appointmentDate: '2016-08-20', nricPassport: 'encrypt:780915-10-5901' },
+            { name: 'Sarah Lee Mei Ling', position: 'Director', isExecutive: true, appointmentDate: '2017-01-15', nricPassport: 'encrypt:810322-06-5156' },
+            { name: 'Chen Wei Ming', position: 'Non-Executive Director', isExecutive: false, appointmentDate: '2019-07-01', resignationDate: '2025-12-31', nricPassport: 'encrypt:700610-14-5367' },
+          ];
+
+    for (const d of dirData) {
+      const existingDir = await findExisting(prisma.director, { borrowerProfileId: bp.id, name: d.name });
+      if (!existingDir) {
+        await prisma.director.create({
+          data: {
+            borrowerProfileId: bp.id,
+            name: d.name,
+            nricPassportEncrypted: d.nricPassport,
+            position: d.position,
+            isExecutive: d.isExecutive,
+            appointmentDate: new Date(d.appointmentDate),
+            resignationDate: (d as any).resignationDate ? new Date((d as any).resignationDate) : null,
+          },
+        });
+      }
+    }
+
+    // Shareholders (1-2) — with numberOfShares
+    const shData = acct.name.includes('SME')
+      ? [{ name: 'Ahmad Holdings Sdn Bhd', pct: 60, shares: 600000, shareClass: 'Ordinary' }, { name: 'Lim Capital Sdn Bhd', pct: 40, shares: 400000, shareClass: 'Ordinary' }]
+      : acct.name.includes('Tech')
+        ? [{ name: 'Raj Ventures Sdn Bhd', pct: 70, shares: 700000, shareClass: 'Ordinary' }, { name: 'Nurul Investments Sdn Bhd', pct: 30, shares: 300000, shareClass: 'Preference' }]
+        : [{ name: 'Tan Properties Sdn Bhd', pct: 80, shares: 8000000, shareClass: 'Ordinary' }, { name: 'Minority Holdings Sdn Bhd', pct: 20, shares: 2000000, shareClass: 'Ordinary' }];
+
+    for (const sh of shData) {
+      const existingSh = await findExisting(prisma.shareholder, { borrowerProfileId: bp.id, name: sh.name });
+      if (!existingSh) {
+        await prisma.shareholder.create({
+          data: {
+            borrowerProfileId: bp.id,
+            name: sh.name,
+            nricPassportEncrypted: sh.shares > 1000000 ? 'encrypt:corporate-ssm' : null,
+            shareholdingPct: sh.pct,
+            shareClass: sh.shareClass,
+            numberOfShares: sh.shares,
+          },
+        });
+      }
+    }
+
+    // UBO (1-2) — with ALL fields
+    const uboData = acct.name.includes('SME')
+      ? [{ name: 'Ahmad bin Ali', pct: 60, isPep: false, source: 'Business operations', country: 'Malaysia', nric: 'encrypt:800101-10-5123' }]
+      : acct.name.includes('Tech')
+        ? [{ name: 'Raj Kumar a/l Muthu', pct: 70, isPep: false, source: 'Technology startup equity', country: 'Malaysia', nric: 'encrypt:900211-14-5781' }]
+        : [
+            { name: 'Michael Tan Wei Ming', pct: 55, isPep: true, source: 'Property development & investments', country: 'Malaysia', nric: 'encrypt:780915-10-5901' },
+            { name: 'Sarah Lee Mei Ling', pct: 25, isPep: false, source: 'Property investments', country: 'Malaysia', nric: 'encrypt:810322-06-5156' },
+          ];
+
+    for (const ubo of uboData) {
+      const existingUbo = await findExisting(prisma.ultimateBeneficialOwner, { borrowerProfileId: bp.id, name: ubo.name });
+      if (!existingUbo) {
+        await prisma.ultimateBeneficialOwner.create({
+          data: {
+            borrowerProfileId: bp.id,
+            name: ubo.name,
+            nricPassportEncrypted: ubo.nric,
+            ownershipPct: ubo.pct,
+            isPep: ubo.isPep,
+            sourceOfWealth: ubo.source,
+            countryOfResidence: ubo.country,
+          },
+        });
+      }
+    }
+  }
+
+  // --- Individual borrowers (linked via CrmContact) ---
+  for (const acct of individualAccounts) {
+    const firstName = acct.name.includes('High') ? 'Dato' : 'Aminah';
+    const lastName = acct.name.includes('High') ? 'Lee @ Dato Lee' : 'binti Yusof';
+    let contact = await findExisting(prisma.crmContact, { accountId: acct.id, firstName, lastName });
+    if (!contact) {
+      contact = await prisma.crmContact.create({
+        data: { accountId: acct.id, firstName, lastName, isPrimary: true },
+      });
+    }
+
+    let bp = await findExisting(prisma.borrowerProfile, { contactId: contact.id });
+    if (!bp) {
+      bp = await prisma.borrowerProfile.create({
+        data: {
+          borrowerType: BorrowerType.INDIVIDUAL,
+          contactId: contact.id,
+          creditRiskRating: acct.name.includes('High') ? RiskRating.A : RiskRating.BBB,
+          amlRiskTier: acct.name.includes('High') ? AmlRiskTier.MEDIUM : AmlRiskTier.LOW,
+          exposureLimit: acct.name.includes('High') ? 5000000 : 500000,
+          totalExposure: acct.name.includes('High') ? 2500000 : 0,
+          annualIncome: acct.name.includes('High') ? 2000000 : 120000,
+          netWorth: acct.name.includes('High') ? 15000000 : 500000,
+          occupation: acct.name.includes('High') ? 'Investor & Business Director' : 'Senior Engineer',
+          employer: acct.name.includes('High') ? 'Self-employed' : 'Citadel Group Technologies Sdn Bhd',
+          sourceOfWealth: acct.name.includes('High') ? 'Investments, property portfolio & business dividends' : 'Employment income',
+          purposeOfAccount: acct.name.includes('High') ? 'Investment loan & personal credit facility' : 'Home renovation loan',
+          isSanctionedEntity: false,
+        },
+      });
+    }
+    profiles.push(bp);
+  }
+
+  console.log(`  ✅ ${profiles.length} borrower profiles (with all fields)`);
+  return profiles;
+}
+
+// ---------------------------------------------------------------------------
+// 2b. Related Party Groups — connects borrower profiles
+// ---------------------------------------------------------------------------
+async function seedRelatedPartyGroups(profiles: any[]) {
+  if (profiles.length < 3) return;
+
+  // Group 1: Corporate cross-holding — SME Manufacturing ↔ Property Developer
+  let grp1 = await findExisting(prisma.relatedPartyGroup, { name: 'SME-PD Cross Holding Group' });
+  if (!grp1) {
+    grp1 = await prisma.relatedPartyGroup.create({
+      data: {
+        name: 'SME-PD Cross Holding Group',
+        description: 'Cross-shareholding and common director relationship between SME Manufacturing and Property Developer',
+        relationshipType: 'CROSS_SHAREHOLDING',
+      },
+    });
+
+    await prisma.relatedPartyMember.create({ data: { groupId: grp1.id, borrowerProfileId: profiles[0].id, role: 'Majority Shareholder' } });
+    await prisma.relatedPartyMember.create({ data: { groupId: grp1.id, borrowerProfileId: profiles[2].id, role: 'Subsidiary' } });
+  }
+
+  // Group 2: Family — HNWI ↔ Retail Borrower
+  let grp2 = await findExisting(prisma.relatedPartyGroup, { name: 'Lee-Yusof Family Group' });
+  if (!grp2) {
+    grp2 = await prisma.relatedPartyGroup.create({
+      data: {
+        name: 'Lee-Yusof Family Group',
+        description: 'Family connection between HNWI and retail borrower — spousal relationship',
+        relationshipType: 'FAMILY',
+      },
+    });
+
+    await prisma.relatedPartyMember.create({ data: { groupId: grp2.id, borrowerProfileId: profiles[3].id, role: 'Spouse' } });
+    await prisma.relatedPartyMember.create({ data: { groupId: grp2.id, borrowerProfileId: profiles[4].id, role: 'Spouse' } });
+  }
+
+  console.log('  ✅ 2 related party groups with members');
+}
+
+// ---------------------------------------------------------------------------
+// 3. Credit Applications (17 across all states) + Facilities — ALL fields
+// ---------------------------------------------------------------------------
+async function seedCreditApplications(profiles: any[], adminId: string, analystId: string) {
+  const appDefs: Array<{
+    state: ApplicationState; productType: CreditProductType; borrowerIdx: number;
+    amount: number; purpose: string; tenor?: number; currency?: CurrencyCode;
+  }> = [
+    { state: ApplicationState.DRAFT, productType: CreditProductType.TERM_LOAN, borrowerIdx: 0, amount: 2000000, purpose: 'Working capital expansion for new production line', tenor: 60 },
+    { state: ApplicationState.SUBMITTED, productType: CreditProductType.REVOLVING_FACILITY, borrowerIdx: 1, amount: 1000000, purpose: 'Revolving credit line for daily operations and payroll', tenor: 36 },
+    { state: ApplicationState.KYC_REVIEW, productType: CreditProductType.TRADE_FINANCE, borrowerIdx: 2, amount: 5000000, purpose: 'Letter of credit for raw material import from China', tenor: 12 },
+    { state: ApplicationState.CREDIT_ASSESSMENT, productType: CreditProductType.PROJECT_FINANCE, borrowerIdx: 0, amount: 8000000, purpose: 'Factory expansion project — Phase 2', tenor: 84 },
+    { state: ApplicationState.COMMITTEE_REVIEW, productType: CreditProductType.TERM_LOAN, borrowerIdx: 2, amount: 10000000, purpose: 'Property development phase 2 — mixed-use tower', tenor: 120 },
+    { state: ApplicationState.APPROVED, productType: CreditProductType.TERM_LOAN, borrowerIdx: 0, amount: 3000000, purpose: 'Industrial machinery purchase — CNC & press equipment', tenor: 48 },
+    { state: ApplicationState.REJECTED, productType: CreditProductType.OVERDRAFT, borrowerIdx: 3, amount: 500000, purpose: 'Personal overdraft facility for investment liquidity', tenor: 24 },
+    { state: ApplicationState.WITHDRAWN, productType: CreditProductType.BRIDGING, borrowerIdx: 4, amount: 750000, purpose: 'Bridge loan pending property sale completion', tenor: 6 },
+    { state: ApplicationState.DISBURSED, productType: CreditProductType.TERM_LOAN, borrowerIdx: 0, amount: 5000000, purpose: 'Factory renovation and equipment upgrade', tenor: 72 },
+    { state: ApplicationState.ACTIVE, productType: CreditProductType.TERM_LOAN, borrowerIdx: 2, amount: 6000000, purpose: 'Condominium development — Phase 1 infrastructure', tenor: 96 },
+    { state: ApplicationState.CLOSED, productType: CreditProductType.TRADE_FINANCE, borrowerIdx: 1, amount: 800000, purpose: 'Completed trade finance — import of semiconductor equipment', tenor: 12 },
+    { state: ApplicationState.KYC_APPROVED, productType: CreditProductType.TERM_LOAN, borrowerIdx: 3, amount: 3000000, purpose: 'HNWI investment loan — diversified portfolio', tenor: 36 },
+    { state: ApplicationState.UNDERWRITING, productType: CreditProductType.REVOLVING_FACILITY, borrowerIdx: 4, amount: 500000, purpose: 'Personal credit line for home renovation', tenor: 24 },
+    { state: ApplicationState.OFFER, productType: CreditProductType.PROJECT_FINANCE, borrowerIdx: 2, amount: 4000000, purpose: 'Mixed development project — retail & residential', tenor: 84 },
+    { state: ApplicationState.ACCEPTED, productType: CreditProductType.HIRE_PURCHASE, borrowerIdx: 0, amount: 600000, purpose: 'Vehicle fleet purchase — 12 units for logistics', tenor: 48 },
+    { state: ApplicationState.DRAFT, productType: CreditProductType.SYNDICATED, borrowerIdx: 2, amount: 7000000, purpose: 'Syndicated construction loan for township project', tenor: 180 },
+    { state: ApplicationState.SUBMITTED, productType: CreditProductType.TERM_LOAN, borrowerIdx: 3, amount: 2000000, purpose: 'HNWI property loan — luxury condominium acquisition', tenor: 48 },
+  ];
+
+  const facilityTypeMap: Record<string, FacilityType> = {
+    TERM_LOAN: FacilityType.TERM_LOAN,
+    REVOLVING_FACILITY: FacilityType.REVOLVING,
+    TRADE_FINANCE: FacilityType.LC,
+    PROJECT_FINANCE: FacilityType.BRIDGING,
+    OVERDRAFT: FacilityType.OVERDRAFT,
+    BRIDGING: FacilityType.BRIDGING,
+    HIRE_PURCHASE: FacilityType.TERM_LOAN,
+    SYNDICATED: FacilityType.TERM_LOAN,
+  };
+
+  const approvedStates: Set<string> = new Set([
+    ApplicationState.APPROVED, ApplicationState.OFFER, ApplicationState.ACCEPTED,
+    ApplicationState.DISBURSED, ApplicationState.ACTIVE, ApplicationState.CLOSED,
+  ]);
+
+  let appCounter = 0;
+  const createdApps: any[] = [];
+
+  for (const def of appDefs) {
+    const borrower = profiles[def.borrowerIdx];
+    const appNo = `CA-2026-${String(++appCounter).padStart(5, '0')}`;
+    let app = await findExisting(prisma.creditApplication, { applicationNo: appNo });
+    if (!app) {
+      try {
+        app = await prisma.creditApplication.create({
+          data: {
+            applicationNo: appNo,
+            state: def.state,
+            borrowerProfileId: borrower.id,
+            productType: def.productType,
+            requestedAmount: def.amount,
+            requestedTenor: def.tenor || 60,
+            currency: def.currency || CurrencyCode.MYR,
+            purpose: def.purpose,
+            assignedRmId: adminId,
+            assignedAnalystId: analystId,
+            submittedAt: def.state !== ApplicationState.DRAFT ? new Date('2026-05-01') : undefined,
+            decisionedAt: (def.state === ApplicationState.APPROVED || def.state === ApplicationState.REJECTED) ? new Date('2026-05-15') : undefined,
+            closedAt: (def.state === ApplicationState.WITHDRAWN || def.state === ApplicationState.CLOSED) ? new Date('2026-06-01') : undefined,
+            rejectionReason: def.state === ApplicationState.REJECTED ? 'Insufficient income documentation — debt service ratio exceeds policy threshold of 60%. Average monthly income RM8,500 vs. proposed monthly commitment RM5,200 (DSR 61.2%).' : undefined,
+            withdrawalReason: def.state === ApplicationState.WITHDRAWN ? 'Borrower requested withdrawal — property sale fell through, bridge loan no longer required.' : undefined,
+          },
+        });
+      } catch (e: any) {
+        if (e.code === 'P2002') { app = await findExisting(prisma.creditApplication, { applicationNo: appNo }); }
+        else throw e;
+      }
+
+      // One facility per app — with ALL fields
+      await prisma.applicationFacility.create({
+        data: {
+          applicationId: app.id,
+          facilityType: facilityTypeMap[def.productType] || FacilityType.TERM_LOAN,
+          amount: def.amount,
+          tenorMonths: def.tenor || 60,
+          ratePct: def.amount > 5000000 ? 4.75 : 4.25,
+          purpose: def.purpose,
+          approvedAmount: approvedStates.has(def.state) ? Math.round(def.amount * 0.9 * 100) / 100 : undefined,
+          approvedTenor: approvedStates.has(def.state) ? (def.tenor || 60) : undefined,
+          approvedRate: approvedStates.has(def.state) ? (def.amount > 5000000 ? 4.50 : 4.00) : undefined,
+        },
+      });
+
+      // Application parties — borrower + guarantor for approved/post-disbursement apps
+      await prisma.applicationParty.create({
+        data: { applicationId: app.id, borrowerProfileId: borrower.id, role: 'borrower', liabilityPct: 100 },
+      });
+      if (approvedStates.has(def.state) && profiles.length > 3) {
+        const guarantorIdx = def.borrowerIdx === 0 ? 3 : 0;
+        await prisma.applicationParty.create({
+          data: { applicationId: app.id, borrowerProfileId: profiles[guarantorIdx].id, role: 'guarantor', liabilityPct: 20 },
+        });
+      }
+    }
+    createdApps.push(app);
+  }
+
+  console.log(`  ✅ ${createdApps.length} credit applications (with facilities & parties)`);
+  return createdApps;
+}
+
+// ---------------------------------------------------------------------------
+// 3b. Credit Documents + Document Requirements + Document Versions
+// ---------------------------------------------------------------------------
+async function seedDocuments(apps: any[], profiles: any[], adminId: string) {
+  const docDefs = [
+    { appIdx: 0, borrowerIdx: 0, classification: DocumentClass.AUDITED_FINANCIALS, fileName: 'SME_Audited_FS_2025.pdf', desc: 'Audited financial statements FY2025 for SME Manufacturing' },
+    { appIdx: 0, borrowerIdx: 0, classification: DocumentClass.MEMORANDUM_ARTICLES, fileName: 'SME_M_A.pdf', desc: 'Memorandum & Articles of Association' },
+    { appIdx: 4, borrowerIdx: 2, classification: DocumentClass.VAUATION_REPORT, fileName: 'PD_Property_Valuation_2026.pdf', desc: 'Property valuation report by Knight Frank Malaysia' },
+    { appIdx: 5, borrowerIdx: 0, classification: DocumentClass.BOARD_RESOLUTION, fileName: 'SME_Board_Resolution_Borrowing.pdf', desc: 'Board resolution authorising borrowing up to RM3M' },
+    { appIdx: 5, borrowerIdx: 0, classification: DocumentClass.AUDITED_FINANCIALS, fileName: 'SME_Audited_FS_2024.pdf', desc: 'Audited financial statements FY2024' },
+    { appIdx: 8, borrowerIdx: 0, classification: DocumentClass.INSURANCE_CERT, fileName: 'SME_Insurance_Certificate_2026.pdf', desc: 'Fire & machinery insurance certificate' },
+    { appIdx: 9, borrowerIdx: 2, classification: DocumentClass.SECURITY_DOCUMENT, fileName: 'PD_Charge_Document.pdf', desc: 'First charge over property — H.S.(D) 12345' },
+  ];
+
+  let docCount = 0;
+  for (const dd of docDefs) {
+    if (dd.appIdx >= apps.length) continue;
+    const app = apps[dd.appIdx];
+    const bp = profiles[dd.borrowerIdx];
+
+    const existingDoc = await findExisting(prisma.creditDocument, { borrowerProfileId: bp.id, fileName: dd.fileName });
+    if (!existingDoc) {
+      const doc = await prisma.creditDocument.create({
+        data: {
+          applicationId: app.id,
+          borrowerProfileId: bp.id,
+          classification: dd.classification,
+          fileName: dd.fileName,
+          filePath: `/credit-docs/${dd.fileName}`,
+          fileSize: Math.floor(Math.random() * 5000000) + 500000,
+          mimeType: 'application/pdf',
+          sha256Hash: `e3b0c44298fc1c149afb${String(docCount).padStart(24, '0')}`,
+          isAvClean: dd.classification === DocumentClass.INSURANCE_CERT ? true : true,
+          uploadedById: adminId,
+          description: dd.desc,
+        },
+      });
+
+      // Create a document version for each doc
+      await prisma.creditDocumentVersion.create({
+        data: {
+          documentId: doc.id,
+          version: 1,
+          filePath: doc.filePath,
+          fileName: doc.fileName,
+          fileSize: doc.fileSize,
+          sha256Hash: doc.sha256Hash,
+          changeSummary: 'Initial upload',
+        },
+      });
+
+      docCount++;
+    }
+  }
+
+  // Document requirements for each non-DRAFT application
+  let reqCount = 0;
+  const reqStates = new Set([
+    ApplicationState SUBMITTED, ApplicationState.KYC_REVIEW, ApplicationState.KYC_APPROVED,
+    ApplicationState.UNDERWRITING, ApplicationState.CREDIT_ASSESSMENT, ApplicationState.COMMITTEE_REVIEW,
+    ApplicationState.APPROVED, ApplicationState.OFFER, ApplicationState.ACCEPTED,
+    ApplicationState.DISBURSED, ApplicationState.ACTIVE,
+  ]);
+
+  for (let i = 0; i < apps.length; i++) {
+    const app = apps[i];
+    if (!reqStates.has(app.state)) continue;
+
+    const reqClasses = app.productType === 'TRADE_FINANCE'
+      ? [DocumentClass.AUDITED_FINANCIALS, DocumentClass.BANK_STATEMENT, DocumentClass.BOARD_RESOLUTION, DocumentClass.CREDIT_BUREAU_REPORT]
+      : app.productType === 'PROJECT_FINANCE'
+        ? [DocumentClass.AUDITED_FINANCIALS, DocumentClass.VAUATION_REPORT, DocumentClass.BOARD_RESOLUTION, DocumentClass.SECURITY_DOCUMENT, DocumentClass.BUSINESS_PLAN]
+        : [DocumentClass.AUDITED_FINANCIALS, DocumentClass.BANK_STATEMENT, DocumentClass.BOARD_RESOLUTION, DocumentClass.CREDIT_BUREAU_REPORT];
+
+    for (let j = 0; j < reqClasses.length; j++) {
+      const cls = reqClasses[j];
+      const existingReq = await findExisting(prisma.documentRequirement, { applicationId: app.id, documentClass: cls });
+      if (!existingReq) {
+        await prisma.documentRequirement.create({
+          data: {
+            applicationId: app.id,
+            documentClass: cls,
+            label: cls.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            isMandatory: j < 2,
+            isCollected: j === 0 && approvedStates.has(app.state),
+            sortOrder: j + 1,
+          },
+        });
+        reqCount++;
+      }
+    }
+  }
+
+  console.log(`  ✅ ${docCount} credit documents (with versions), ${reqCount} document requirements`);
+}
+
+// ... this got too big, let me break it up

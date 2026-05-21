@@ -6,7 +6,64 @@ import { AuditChainService } from './auditChain.service';
 // Types
 // ---------------------------------------------------------------------------
 
-export interface CreateCreditApplicationData {
+// CA Memo Phase 1 — header & narrative fields
+export interface CaMemoHeaderFields {
+  customerGroupName?: string | null;
+  cifNo?: string | null;
+  applicationType?: 'NEW' | 'ADDITIONAL' | 'RENEWAL' | 'VARIATION' | null;
+  originatingDepartment?: string | null;
+  teamLeadName?: string | null;
+  referredBy?: string | null;
+  accountClassification?:
+    | 'PERFORMING' | 'EARLY_CARE' | 'WATCHLIST' | 'NON_CCRIS_RR' | 'CCRIS_RR' | 'IMPAIRED'
+    | null;
+  connectedPartyFlag?: boolean;
+  connectedPartyStaffName?: string | null;
+  completeDocsDate?: string | Date | null;
+  lastReviewDate?: string | Date | null;
+  nextReviewDate?: string | Date | null;
+  relationshipSince?: string | Date | null;
+  lastSiteVisitDate?: string | Date | null;
+  preambleText?: string | null;
+  mattersToHighlight?: string | null;
+  transactionDetailsText?: string | null;
+  accountStrategy?: 'GROW' | 'MAINTAIN' | 'EXIT' | null;
+  crossSellingInitiatives?: string | null;
+  // Phase 3 — Way Out narratives
+  firstWayOut?: string | null;
+  secondWayOut?: string | null;
+  otherWayOut?: string | null;
+}
+
+const CA_MEMO_DATE_FIELDS = [
+  'completeDocsDate', 'lastReviewDate', 'nextReviewDate', 'relationshipSince', 'lastSiteVisitDate',
+] as const;
+
+const CA_MEMO_HEADER_FIELDS = [
+  'customerGroupName', 'cifNo', 'applicationType', 'originatingDepartment', 'teamLeadName',
+  'referredBy', 'accountClassification', 'connectedPartyFlag', 'connectedPartyStaffName',
+  'completeDocsDate', 'lastReviewDate', 'nextReviewDate', 'relationshipSince', 'lastSiteVisitDate',
+  'preambleText', 'mattersToHighlight', 'transactionDetailsText',
+  'accountStrategy', 'crossSellingInitiatives',
+  'firstWayOut', 'secondWayOut', 'otherWayOut',
+] as const;
+
+function applyCaMemoFields(
+  target: Record<string, unknown>,
+  data: CaMemoHeaderFields,
+): void {
+  for (const key of CA_MEMO_HEADER_FIELDS) {
+    if (data[key] === undefined) continue;
+    const value = data[key];
+    if (value !== null && (CA_MEMO_DATE_FIELDS as readonly string[]).includes(key)) {
+      target[key] = new Date(value as string | Date);
+    } else {
+      target[key] = value;
+    }
+  }
+}
+
+export interface CreateCreditApplicationData extends CaMemoHeaderFields {
   borrowerProfileId: string;
   productType: string;
   purpose?: string | null;
@@ -17,7 +74,7 @@ export interface CreateCreditApplicationData {
   assignedAnalystId?: string | null;
 }
 
-export interface UpdateCreditApplicationData {
+export interface UpdateCreditApplicationData extends CaMemoHeaderFields {
   productType?: string;
   purpose?: string | null;
   requestedAmount?: string | number;
@@ -184,32 +241,79 @@ async function generateApplicationNo(): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `CA-${year}-`;
 
-  // Atomically increment the counter for this prefix using a transaction
-  // Prisma doesn't support UPDATE ... RETURNING directly, so we use
-  // $transaction with a manual upsert + increment approach
-  const result = await prisma.$transaction(async (tx) => {
-    // Try to find existing counter row
-    let counter = await tx.creditAppCounter.findUnique({
-      where: { prefix: 'CA' },
+  // Retry up to 3 times in case the counter is out of sync with existing rows
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const result = await prisma.$transaction(async (tx) => {
+      // Try to find existing counter row
+      let counter = await tx.creditAppCounter.findUnique({
+        where: { prefix: 'CA' },
+      });
+
+      if (!counter) {
+        // No counter yet — find the max sequence from existing applications
+        const maxApp = await tx.creditApplication.findFirst({
+          where: { applicationNo: { startsWith: prefix } },
+          orderBy: { applicationNo: 'desc' },
+          select: { applicationNo: true },
+        });
+        const maxSeq = maxApp?.applicationNo
+          ? parseInt(maxApp.applicationNo.replace(prefix, ''), 10) || 0
+          : 0;
+
+        counter = await tx.creditAppCounter.create({
+          data: { prefix: 'CA', lastSeq: maxSeq + 1 },
+        });
+      } else {
+        // Before incrementing, verify the next seq won't collide with an existing app
+        const candidateNo = `${prefix}${String(counter.lastSeq + 1).padStart(5, '0')}`;
+        const existing = await tx.creditApplication.findUnique({
+          where: { applicationNo: candidateNo },
+          select: { id: true },
+        });
+
+        if (existing) {
+          // Counter is stale — find actual max and rebase
+          const maxApp = await tx.creditApplication.findFirst({
+            where: { applicationNo: { startsWith: prefix } },
+            orderBy: { applicationNo: 'desc' },
+            select: { applicationNo: true },
+          });
+          const actualMax = maxApp?.applicationNo
+            ? parseInt(maxApp.applicationNo.replace(prefix, ''), 10) || 0
+            : 0;
+
+          counter = await tx.creditAppCounter.update({
+            where: { id: counter.id },
+            data: { lastSeq: actualMax + 1 },
+          });
+          return counter.lastSeq;
+        }
+
+        // Safe to increment
+        counter = await tx.creditAppCounter.update({
+          where: { id: counter.id },
+          data: { lastSeq: { increment: 1 } },
+        });
+      }
+
+      return counter.lastSeq;
     });
 
-    if (!counter) {
-      // First application this year — create the counter row
-      counter = await tx.creditAppCounter.create({
-        data: { prefix: 'CA', lastSeq: 1 },
-      });
-    } else {
-      // Atomically increment
-      counter = await tx.creditAppCounter.update({
-        where: { id: counter.id },
-        data: { lastSeq: { increment: 1 } },
-      });
-    }
+    const candidateNo = `${prefix}${String(result).padStart(5, '0')}`;
+    // Double-check outside transaction for safety
+    const exists = await prisma.creditApplication.findUnique({
+      where: { applicationNo: candidateNo },
+      select: { id: true },
+    });
+    if (!exists) return candidateNo;
 
-    return counter.lastSeq;
-  });
+    // Collision — retry (counter will be rebased on next iteration)
+    console.warn(`Application number collision on attempt ${attempt}: ${candidateNo}, retrying...`);
+  }
 
-  return `${prefix}${String(result).padStart(5, '0')}`;
+  // Fallback: generate a timestamp-based unique number
+  const ts = Date.now().toString(36).toUpperCase();
+  return `${prefix}${ts}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -335,6 +439,7 @@ class CreditApplicationService {
       ...(data.assignedRmId && { assignedRm: { connect: { id: data.assignedRmId } } }),
       ...(data.assignedAnalystId && { assignedAnalyst: { connect: { id: data.assignedAnalystId } } }),
     };
+    applyCaMemoFields(createData as Record<string, unknown>, data);
 
     const application = await prisma.creditApplication.create({
       data: createData,
@@ -381,6 +486,7 @@ class CreditApplicationService {
     if (data.assignedAnalystId !== undefined) {
       (updateData as any).assignedAnalystId = data.assignedAnalystId;
     }
+    applyCaMemoFields(updateData as Record<string, unknown>, data);
 
     const application = await prisma.creditApplication.update({
       where: { id },

@@ -22,6 +22,16 @@ export interface UpdateStatementData {
   currency?: string;
   reviewedById?: string | null;
   status?: string;
+  // CA Memo Phase 3 — Section 12
+  auditorName?: string | null;
+  isQualified?: boolean | null;
+  qualificationNotes?: string | null;
+  isDraftAccounts?: boolean;
+  commentarySalesProfitability?: string | null;
+  commentaryAssetMgmt?: string | null;
+  commentaryDebtMgmt?: string | null;
+  commentaryCashflow?: string | null;
+  commentaryConclusion?: string | null;
 }
 
 export interface LineItemInput {
@@ -288,6 +298,15 @@ class FinancialService {
         ? { connect: { id: data.reviewedById } }
         : { disconnect: true };
     }
+    if (data.auditorName !== undefined) updateData.auditorName = data.auditorName;
+    if (data.isQualified !== undefined) updateData.isQualified = data.isQualified;
+    if (data.qualificationNotes !== undefined) updateData.qualificationNotes = data.qualificationNotes;
+    if (data.isDraftAccounts !== undefined) updateData.isDraftAccounts = data.isDraftAccounts;
+    if (data.commentarySalesProfitability !== undefined) updateData.commentarySalesProfitability = data.commentarySalesProfitability;
+    if (data.commentaryAssetMgmt !== undefined) updateData.commentaryAssetMgmt = data.commentaryAssetMgmt;
+    if (data.commentaryDebtMgmt !== undefined) updateData.commentaryDebtMgmt = data.commentaryDebtMgmt;
+    if (data.commentaryCashflow !== undefined) updateData.commentaryCashflow = data.commentaryCashflow;
+    if (data.commentaryConclusion !== undefined) updateData.commentaryConclusion = data.commentaryConclusion;
 
     return prisma.financialStatement.update({
       where: { id },

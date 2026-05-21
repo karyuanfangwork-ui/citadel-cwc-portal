@@ -75,7 +75,7 @@ Access the Credit module via the CRM navigation bar ("Credit" tab, requires `cre
 ### 3.1 Create a Borrower Profile
 
 1. Navigate to **Borrowers** tab → Click **Create** button
-2. Select borrower type: **Individual**, **Corporate**, or **Joint**
+2. Select borrower type: **Individual**, **Corporate**, or **Sole Proprietor**
 3. Fill in profile details:
 
    | Field (Individual) | Field (Corporate) |
@@ -91,7 +91,7 @@ Access the Credit module via the CRM navigation bar ("Credit" tab, requires `cre
 
 4. System assigns: **Credit Risk Rating** (default), **AML Risk Tier** (default), flags for **Sanctioned Entity** check (screened against BNM AMLA 2001, MOHA sanctions list, and UNSC consolidated list)
 5. For corporate borrowers, optionally capture **Bumiputera status** (relevant for SME Bank, MIDF, BNM Fund for SMEs, TEKUN financing eligibility) and **MSIC 2008 sector code** (DOSM standard)
-6. Click **Save** → Profile created in `Active` status
+6. Click **Save** → Profile created in **`DRAFT`** status
 
 > **External bureau checks:** During KYC/Underwriting, the system is designed to pull **CCRIS (Central Credit Reference Information System, BNM)** and **CTOS / Experian RAMCI** reports via the bureau adapter. The integration is currently a placeholder (`bureau.placeholder.ts`) — production deployment requires live adapter wiring.
 
@@ -118,7 +118,9 @@ On the Borrower detail page, add related entities:
 
 ### 3.3 Upload & Verify Documents
 
-On the Borrower detail page → **Documents** section:
+> **Note:** The Documents section is backend-ready (API and storage fully implemented) but is not yet surfaced as a tab in the Borrower detail UI. Document management is currently accessible via the API directly; the frontend tab is pending implementation.
+
+On the Borrower detail page → **Documents** section (when available):
 
 1. Click **Upload** or drag-and-drop files into the upload area
 2. Select document type from 8 categories:
@@ -159,7 +161,7 @@ On the Borrower detail page → **Documents** section:
    | Field | Description |
    |-------|-------------|
    | Borrower | Select from existing borrower profiles |
-   | Product Type | Term Loan, Overdraft, Trade Finance, Revolving Credit, Syndicated Loan, Project Finance, Bridging Loan, Guarantor Facility |
+   | Product Type | Term Loan, Revolving Credit, Trade Finance, Overdraft, Project Finance, Syndicated, Bridge Loan, Letter of Credit, Bank Guarantee |
    | Requested Amount | In currency (e.g., RM5,000,000.00) |
    | Requested Tenor | In months |
    | Currency | MYR, USD, etc. (foreign-currency facilities must comply with BNM **Foreign Exchange Administration (FEA)** rules) |
@@ -341,23 +343,26 @@ Navigate to **Analysis** tab:
 
 1. Navigate to **Scorecards** tab (requires `credit:admin`)
 2. Click **Create Scorecard** → define name and description
-3. Add **Scoring Factors** with weights (must total 100%):
+3. Add **Scoring Factors** with weights (must total 100%). The system provides **9 preset factors**:
 
-   | Factor | Weight | Example |
-   |--------|--------|---------|
-   | Financial Strength | 30% | Leverage, Liquidity, Profitability |
-   | Management Quality | 15% | Governance, Track Record |
-   | Industry Risk | 20% | Sector outlook, cyclicality |
-   | Collateral Coverage | 15% | LTV ratio |
-   | Business Vintage | 10% | Years of operation |
-   | Repayment Capacity | 10% | DSCR, Cash flow adequacy |
+   | Factor | Example |
+   |--------|---------|
+   | Financial Leverage | Debt-to-equity, gearing ratio |
+   | Debt Service Coverage | DSCR, interest coverage |
+   | Profitability | Net margin, ROE, ROA |
+   | Liquidity | Current ratio, quick ratio |
+   | Cash Flow Stability | Operating cash flow consistency |
+   | Management Quality | Governance, track record |
+   | Industry Risk | Sector outlook, cyclicality |
+   | Collateral Coverage | LTV ratio |
+   | Relationship History | Existing banking relationship |
 
 4. **Version management**: Create new versions, activate a specific version for use
 5. Only one version can be **active** at a time per scorecard
 
 ### 6.2 Execute Scoring
 
-1. On application detail page → Click **Run Scorecard**
+1. On application detail page → Click **Run Score**
 2. System evaluates active scorecard factors against application/borrower data
 3. Score run produces:
    - **Total Score** (numeric)
@@ -367,9 +372,12 @@ Navigate to **Analysis** tab:
 ### 6.3 Score Override (Admin)
 
 1. If the auto-assigned risk rating needs manual adjustment:
-2. Admin clicks **Override Rating** on the score run
-3. Selects new risk rating and enters **Override Reason**
-4. System records: overriding admin, original rating, new rating, reason, timestamp
+2. Click **Override** on the score run
+3. Fill in the override dialog:
+   - **New Risk Rating** — select the revised rating
+   - **Override Reason** — mandatory justification text
+   - **Approver** — select the approving user
+4. System records: override flag, original rating, new rating, reason, approver, and timestamp
 5. Override is audit-logged
 
 ### Walkthrough Demo Script

@@ -31,6 +31,115 @@ const TYPE_LABELS: Record<FinancialStatementType, string> = {
 
 type StatementTab = 'BS' | 'PL' | 'CF';
 
+// CA Memo Phase 3 — Section 12: Auditor info + narrative commentary panel
+const AuditorCommentaryPanel: React.FC<{
+  statement: FinancialStatement;
+  readOnly: boolean;
+  onUpdated: (s: FinancialStatement) => void;
+}> = ({ statement, readOnly, onUpdated }) => {
+  const [form, setForm] = useState({
+    auditorName: statement.auditorName ?? '',
+    isQualified: statement.isQualified ?? false,
+    qualificationNotes: statement.qualificationNotes ?? '',
+    isDraftAccounts: statement.isDraftAccounts ?? false,
+    commentarySalesProfitability: statement.commentarySalesProfitability ?? '',
+    commentaryAssetMgmt: statement.commentaryAssetMgmt ?? '',
+    commentaryDebtMgmt: statement.commentaryDebtMgmt ?? '',
+    commentaryCashflow: statement.commentaryCashflow ?? '',
+    commentaryConclusion: statement.commentaryConclusion ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const dirty = React.useRef<Set<string>>(new Set());
+
+  React.useEffect(() => {
+    setForm({
+      auditorName: statement.auditorName ?? '',
+      isQualified: statement.isQualified ?? false,
+      qualificationNotes: statement.qualificationNotes ?? '',
+      isDraftAccounts: statement.isDraftAccounts ?? false,
+      commentarySalesProfitability: statement.commentarySalesProfitability ?? '',
+      commentaryAssetMgmt: statement.commentaryAssetMgmt ?? '',
+      commentaryDebtMgmt: statement.commentaryDebtMgmt ?? '',
+      commentaryCashflow: statement.commentaryCashflow ?? '',
+      commentaryConclusion: statement.commentaryConclusion ?? '',
+    });
+  }, [statement.id, statement.updatedAt]);
+
+  const update = (key: string, value: any) => {
+    setForm(f => ({ ...f, [key]: value }));
+    dirty.current.add(key);
+  };
+
+  const flush = async () => {
+    if (readOnly || dirty.current.size === 0) return;
+    setSaving(true);
+    const payload: any = {};
+    dirty.current.forEach(k => { payload[k] = (form as any)[k] ?? null; });
+    try {
+      const updated = await financialApi.updateStatement(statement.id, payload);
+      onUpdated(updated);
+      dirty.current.clear();
+    } finally { setSaving(false); }
+  };
+
+  const COMMENTARY_FIELDS = [
+    { key: 'commentarySalesProfitability', label: 'Sales & Profitability' },
+    { key: 'commentaryAssetMgmt',          label: 'Asset Management' },
+    { key: 'commentaryDebtMgmt',           label: 'Debt Management' },
+    { key: 'commentaryCashflow',           label: 'Cashflow' },
+    { key: 'commentaryConclusion',         label: 'Conclusion' },
+  ];
+
+  return (
+    <div className="border border-border rounded-xl p-4 mb-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Section 12 — Auditor & Commentary</h3>
+        {saving && <span className="text-xs text-gray-400">Saving…</span>}
+      </div>
+
+      {/* Auditor info */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Auditor Name</label>
+          {readOnly
+            ? <span className="text-sm">{form.auditorName || '—'}</span>
+            : <input className="border rounded px-2 py-1 text-sm w-full" value={form.auditorName} onChange={e => update('auditorName', e.target.value)} onBlur={flush} placeholder="e.g. Deloitte PLT" />}
+        </div>
+        <div className="flex gap-6 items-end">
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={form.isQualified} disabled={readOnly} onChange={e => { update('isQualified', e.target.checked); flush(); }} />
+            Qualified Opinion
+          </label>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={form.isDraftAccounts} disabled={readOnly} onChange={e => { update('isDraftAccounts', e.target.checked); flush(); }} />
+            Draft Accounts
+          </label>
+        </div>
+      </div>
+      {(form.isQualified || form.qualificationNotes) && (
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Qualification Notes</label>
+          {readOnly
+            ? <p className="text-sm whitespace-pre-wrap">{form.qualificationNotes || '—'}</p>
+            : <textarea className="w-full border rounded px-2 py-1 text-sm resize-none h-16" value={form.qualificationNotes} onChange={e => update('qualificationNotes', e.target.value)} onBlur={flush} />}
+        </div>
+      )}
+
+      {/* Commentary */}
+      <div className="space-y-3">
+        {COMMENTARY_FIELDS.map(({ key, label }) => (
+          <div key={key}>
+            <label className="block text-xs text-gray-500 mb-1">{label}</label>
+            {readOnly
+              ? <p className="text-sm whitespace-pre-wrap text-gray-700">{(form as any)[key] || '—'}</p>
+              : <textarea className="w-full border rounded px-2 py-1 text-sm resize-none h-20" value={(form as any)[key]} onChange={e => update(key, e.target.value)} onBlur={flush} placeholder={`${label} commentary…`} />}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const FinancialSpreading: React.FC = () => {
   const [searchParams] = useSearchParams();
   const borrowerProfileId = searchParams.get('borrowerProfileId') || '';
@@ -460,6 +569,16 @@ const FinancialSpreading: React.FC = () => {
                     )}
                   </div>
                 )}
+
+                {/* CA Memo Phase 3 — Section 12: Auditor & Commentary */}
+                <AuditorCommentaryPanel
+                  statement={selectedStatement}
+                  readOnly={selectedStatement.status !== 'DRAFT' || !canWrite}
+                  onUpdated={(updated) => {
+                    setSelectedStatement(updated);
+                    setStatements(ss => ss.map(s => s.id === updated.id ? { ...s, ...updated } : s));
+                  }}
+                />
 
                 {/* Line Items Table */}
                 <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">

@@ -1,0 +1,129 @@
+import React, { useEffect, useState } from 'react';
+import {
+  CreditApplication,
+  CreditBureauCheck,
+  BureauProvider,
+  bureauCheckApi,
+} from '../../../src/services/credit.service';
+
+type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
+
+const PROVIDERS: BureauProvider[] = ['CCRIS', 'CTOS', 'EXPERIAN', 'PEP_WATCHLIST', 'IF_ACTIVA', 'PUBLIC_DOMAIN'];
+const PROVIDER_LABELS: Record<BureauProvider, string> = {
+  CCRIS: 'CCRIS',
+  CTOS: 'CTOS',
+  EXPERIAN: 'Experian',
+  PEP_WATCHLIST: 'PEP / Watchlist',
+  IF_ACTIVA: 'IF Activa',
+  PUBLIC_DOMAIN: 'Public Domain',
+};
+
+const AddCheckForm: React.FC<{ appId: string; onAdded: (c: CreditBureauCheck) => void }> = ({ appId, onAdded }) => {
+  const [form, setForm] = useState({ provider: 'CCRIS' as BureauProvider, subjectName: '', runDate: '', hasHits: '', findings: '' });
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const saved = await bureauCheckApi.create(appId, {
+        ...form,
+        hasHits: form.hasHits === 'true' ? true : form.hasHits === 'false' ? false : null,
+        subjectName: form.subjectName || null,
+        runDate: form.runDate || null,
+        findings: form.findings || null,
+      });
+      onAdded(saved);
+      setForm({ provider: 'CCRIS', subjectName: '', runDate: '', hasHits: '', findings: '' });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="border rounded-lg p-4 bg-gray-50 space-y-3">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Add Bureau Check</p>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Provider</label>
+          <select className="border rounded px-2 py-1 text-sm w-full" value={form.provider} onChange={e => setForm(f => ({ ...f, provider: e.target.value as BureauProvider }))}>
+            {PROVIDERS.map(p => <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Subject Name</label>
+          <input className="border rounded px-2 py-1 text-sm w-full" value={form.subjectName} onChange={e => setForm(f => ({ ...f, subjectName: e.target.value }))} placeholder="Entity or person name" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Run Date</label>
+          <input type="date" className="border rounded px-2 py-1 text-sm w-full" value={form.runDate} onChange={e => setForm(f => ({ ...f, runDate: e.target.value }))} />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Has Hits?</label>
+          <select className="border rounded px-2 py-1 text-sm w-full" value={form.hasHits} onChange={e => setForm(f => ({ ...f, hasHits: e.target.value }))}>
+            <option value="">— Unknown —</option>
+            <option value="false">No</option>
+            <option value="true">Yes</option>
+          </select>
+        </div>
+        <div className="col-span-2">
+          <label className="block text-xs text-gray-500 mb-1">Findings</label>
+          <textarea className="border rounded px-2 py-1 text-sm w-full resize-none h-20" value={form.findings} onChange={e => setForm(f => ({ ...f, findings: e.target.value }))} placeholder="Summary of findings…" />
+        </div>
+      </div>
+      <button onClick={submit} disabled={saving} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+        {saving ? 'Saving…' : 'Add Check'}
+      </button>
+    </div>
+  );
+};
+
+const CheckCard: React.FC<{ check: CreditBureauCheck; appId: string; readOnly: boolean; onRemoved: () => void }> = ({ check, appId, readOnly, onRemoved }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  const handleRemove = async () => {
+    await bureauCheckApi.remove(appId, check.id);
+    onRemoved();
+  };
+
+  return (
+    <div className={`border rounded-lg p-4 ${check.hasHits === true ? 'border-red-300 bg-red-50' : check.hasHits === false ? 'border-green-300 bg-green-50' : ''}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-semibold">{PROVIDER_LABELS[check.provider]}</span>
+          {check.hasHits === true && <span className="text-[10px] font-bold bg-red-600 text-white px-2 py-0.5 rounded-full">HITS FOUND</span>}
+          {check.hasHits === false && <span className="text-[10px] font-bold bg-green-600 text-white px-2 py-0.5 rounded-full">CLEAR</span>}
+          {check.hasHits == null && <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">PENDING</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          {check.subjectName && <span className="text-xs text-gray-500">{check.subjectName}</span>}
+          {check.runDate && <span className="text-xs text-gray-400">{new Date(check.runDate).toLocaleDateString('en-GB')}</span>}
+          <button onClick={() => setExpanded(e => !e)} className="text-xs text-gray-400 hover:text-gray-600">{expanded ? '▲' : '▼'}</button>
+          {!readOnly && <button onClick={handleRemove} className="text-red-400 hover:text-red-600 text-xs">✕</button>}
+        </div>
+      </div>
+      {expanded && check.findings && (
+        <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap">{check.findings}</p>
+      )}
+    </div>
+  );
+};
+
+const CreditChecksTab: React.FC<Props> = ({ application }) => {
+  const readOnly = application.state !== 'DRAFT';
+  const [checks, setChecks] = useState<CreditBureauCheck[]>([]);
+
+  useEffect(() => {
+    bureauCheckApi.list(application.id).then(setChecks).catch(() => {});
+  }, [application.id]);
+
+  return (
+    <div className="p-6 space-y-4">
+      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Credit Bureau Checks — Section 14</h3>
+      {checks.map(c => (
+        <CheckCard key={c.id} check={c} appId={application.id} readOnly={readOnly} onRemoved={() => setChecks(cs => cs.filter(x => x.id !== c.id))} />
+      ))}
+      {checks.length === 0 && <p className="text-sm text-gray-400 italic">No bureau checks recorded.</p>}
+      {!readOnly && <AddCheckForm appId={application.id} onAdded={c => setChecks(cs => [c, ...cs])} />}
+    </div>
+  );
+};
+
+export default CreditChecksTab;

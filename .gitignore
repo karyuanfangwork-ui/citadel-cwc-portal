@@ -60,3 +60,5 @@ backend/remove-*.js
 
 .claude/.worktrees/
 .worktrees/
+
+docs/credit-training.claude/worktrees/

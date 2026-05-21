@@ -2,6 +2,17 @@ import { z } from 'zod';
 
 const decimalString = z.string().regex(/^\d+(\.\d+)?$/).or(z.number());
 
+const phase4CollateralFields = {
+  securityCategory: z.enum(['TANGIBLE', 'SUPPORTING']).optional().nullable(),
+  securitySubType: z.string().max(100).optional().nullable(),
+  isExisting: z.boolean().optional(),
+  isNewToBeObtained: z.boolean().optional(),
+  pmmdMarketValue: decimalString.optional().nullable(),
+  pmmdForcedSaleValue: decimalString.optional().nullable(),
+  panelValuerName: z.string().max(255).optional().nullable(),
+  securityCoverageRatio: decimalString.optional().nullable(),
+};
+
 export const createCollateralSchema = z.object({
   body: z.object({
     facilityId: z.string().uuid(),
@@ -14,6 +25,7 @@ export const createCollateralSchema = z.object({
     valuationDate: z.coerce.date().optional().nullable(),
     valuer: z.string().max(255).optional().nullable(),
     insuranceCoverRequired: z.boolean().optional(),
+    ...phase4CollateralFields,
   }),
 });
 
@@ -28,6 +40,7 @@ export const updateCollateralSchema = z.object({
     valuationDate: z.coerce.date().optional().nullable(),
     valuer: z.string().max(255).optional().nullable(),
     insuranceCoverRequired: z.boolean().optional(),
+    ...phase4CollateralFields,
   }),
 });
 

@@ -7,10 +7,25 @@ import creditService, {
   scoringApi, CreditScoreRun, RiskRating,
   collateralApi, Collateral, Guarantee, guaranteeApi,
   conditionApi, ConditionPrecedent, CpCompletionStatus, ConditionStatus, ConditionCategory,
+  BorrowerProfile,
 } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
+import HeaderBackgroundTab from './credit/tabs/HeaderBackgroundTab';
+import RequestsFacilitiesTab from './credit/tabs/RequestsFacilitiesTab';
+import RiskRatingEclTab from './credit/tabs/RiskRatingEclTab';
+import PaymentCapabilityTab from './credit/tabs/PaymentCapabilityTab';
+import SecurityGuaranteesTab from './credit/tabs/SecurityGuaranteesTab';
+import ProfitabilityWalletTab from './credit/tabs/ProfitabilityWalletTab';
+import CounterpartiesTab from './credit/tabs/CounterpartiesTab';
+import AccountConductTab from './credit/tabs/AccountConductTab';
+import CreditChecksTab from './credit/tabs/CreditChecksTab';
+import IndustryOutlookTab from './credit/tabs/IndustryOutlookTab';
+import RiskMitigatorsTab from './credit/tabs/RiskMitigatorsTab';
+import EsgTab from './credit/tabs/EsgTab';
+import SicrTab from './credit/tabs/SicrTab';
+import SignoffTab from './credit/tabs/SignoffTab';
 
 const formatCurrency = (val: number | string | null, currency = 'MYR') =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(Number(val)) : '—';
@@ -81,7 +96,7 @@ const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
 
 const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD'] as const;
 
-type DetailTab = 'summary' | 'facilities' | 'parties' | 'documents' | 'approvals' | 'audit' | 'collateral' | 'conditions';
+type DetailTab = 'header' | 'summary' | 'facilities' | 'risk-rating' | 'payment-capability' | 'security' | 'profitability' | 'counterparties' | 'conduct' | 'credit-checks' | 'industry' | 'risk' | 'esg' | 'sicr' | 'signoff' | 'parties' | 'documents' | 'approvals' | 'audit' | 'collateral' | 'conditions';
 
 const CreditApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -90,7 +105,7 @@ const CreditApplicationDetail: React.FC = () => {
 
   const [app, setApp] = useState<CreditApplication | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<DetailTab>('summary');
+  const [activeTab, setActiveTab] = useState<DetailTab>('header');
   const [transitions, setTransitions] = useState<ApplicationTransition[]>([]);
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
   const [parties, setParties] = useState<CreditApplicationParty[]>([]);
@@ -100,7 +115,8 @@ const CreditApplicationDetail: React.FC = () => {
   const [showFacilityForm, setShowFacilityForm] = useState(false);
   const [showPartyForm, setShowPartyForm] = useState(false);
   const [facilityForm, setFacilityForm] = useState<Partial<CreditFacility>>({ currency: 'MYR' as any, facilityType: 'TERM_LOAN', amount: 0 });
-  const [partyForm, setPartyForm] = useState<Partial<CreditApplicationParty>>({ partyType: 'GUARANTOR' });
+  const [partyForm, setPartyForm] = useState<{ borrowerProfileId: string; role: string; liabilityPct: string }>({ borrowerProfileId: '', role: 'guarantor', liabilityPct: '' });
+  const [borrowerProfiles, setBorrowerProfiles] = useState<BorrowerProfile[]>([]);
   const [approvalDecision, setApprovalDecision] = useState<ApprovalDecision | ''>('');
   const [approvalComment, setApprovalComment] = useState('');
   const [submittingApproval, setSubmittingApproval] = useState(false);
@@ -182,6 +198,13 @@ const CreditApplicationDetail: React.FC = () => {
     } catch (e) { console.error(e); }
   }, [id]);
 
+  const fetchBorrowerProfiles = useCallback(async () => {
+    try {
+      const result = await creditService.listBorrowerProfiles({ limit: 200 });
+      setBorrowerProfiles(result.profiles);
+    } catch (e) { console.error(e); }
+  }, []);
+
   const fetchApprovals = useCallback(async () => {
     if (!id) return;
     try {
@@ -204,6 +227,7 @@ const CreditApplicationDetail: React.FC = () => {
   useEffect(() => { if (activeTab === 'parties') fetchParties(); }, [activeTab, fetchParties]);
   useEffect(() => { if (activeTab === 'approvals') fetchApprovals(); }, [activeTab, fetchApprovals]);
   useEffect(() => { if (activeTab === 'audit') fetchAudit(); }, [activeTab, fetchAudit]);
+  useEffect(() => { if (showPartyForm) fetchBorrowerProfiles(); }, [showPartyForm, fetchBorrowerProfiles]);
 
   // Sprint 4: Collateral & Conditions fetch
   const fetchCollateral = useCallback(async () => {
@@ -308,12 +332,16 @@ const CreditApplicationDetail: React.FC = () => {
 
   const handleCreateParty = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id) return;
+    if (!id || !partyForm.borrowerProfileId) return;
     try {
       setSavingParty(true);
-      await creditService.createParty(id, partyForm);
+      await creditService.createParty(id, {
+        borrowerProfileId: partyForm.borrowerProfileId,
+        role: partyForm.role,
+        liabilityPct: partyForm.liabilityPct || null,
+      });
       setShowPartyForm(false);
-      setPartyForm({ partyType: 'GUARANTOR' });
+      setPartyForm({ borrowerProfileId: '', role: 'guarantor', liabilityPct: '' });
       fetchParties();
     } catch (e) { console.error(e); }
     finally { setSavingParty(false); }
@@ -483,6 +511,19 @@ const CreditApplicationDetail: React.FC = () => {
           ))}
         </div>
 
+        {/* CA Memo Export */}
+        <div className="flex justify-end mb-2">
+          <a
+            href={`${import.meta.env.VITE_API_URL ?? ''}/api/v1/credit/applications/${app.id}/ca-memo`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+          >
+            <span className="material-symbols-outlined text-base">description</span>
+            Export CA Memo
+          </a>
+        </div>
+
         {/* Transition Action Buttons */}
         {transitions.length > 0 && canWrite && (
           <div className="bg-bg-surface border border-border rounded-xl p-4 mb-6">
@@ -512,14 +553,29 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* Tabs */}
         <div className="flex gap-1 border-b border-border mb-6">
-          {(['summary', 'facilities', 'parties', 'documents', 'approvals', 'collateral', 'conditions', 'audit'] as DetailTab[]).map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
-              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-              {tab}
-            </button>
-          ))}
+          {(['header', 'summary', 'facilities', 'risk-rating', 'payment-capability', 'security', 'profitability', 'counterparties', 'conduct', 'credit-checks', 'industry', 'risk', 'esg', 'sicr', 'signoff', 'parties', 'documents', 'approvals', 'collateral', 'conditions', 'audit'] as DetailTab[]).map(tab => {
+            const isHeaderComplete = tab === 'header' && app && app.applicationType && app.accountClassification;
+            const tabLabels: Record<string, string> = { header: 'Header', summary: 'Summary', facilities: 'Facilities', 'risk-rating': 'Risk & ECL', 'payment-capability': 'Payment', security: 'Security', profitability: 'Profitability', counterparties: 'Counterparties', conduct: 'Conduct', 'credit-checks': 'Bureau Checks', industry: 'Industry', risk: 'Risk', esg: 'ESG', sicr: 'SICR', signoff: 'Sign-off', parties: 'Parties', documents: 'Documents', approvals: 'Approvals', collateral: 'Collateral', conditions: 'Conditions', audit: 'Audit' };
+            return (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
+                className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
+                {tabLabels[tab] || tab}
+                {tab === 'header' && (
+                  <span className={`inline-block w-2 h-2 rounded-full ${isHeaderComplete ? 'bg-green-500' : 'bg-gray-300'}`} title={isHeaderComplete ? 'Header fields complete' : 'Application Type & Classification required'} />
+                )}
+              </button>
+            );
+          })}
         </div>
+
+        {/* Header Tab (CA Memo Phase 1) */}
+        {activeTab === 'header' && (
+          <HeaderBackgroundTab
+            application={app}
+            onUpdated={(updated) => setApp(updated)}
+          />
+        )}
 
         {/* Summary Tab */}
         {activeTab === 'summary' && (
@@ -714,55 +770,69 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
         )}
 
-        {/* Facilities Tab */}
+        {/* Facilities Tab — CA Memo Phase 2 */}
         {activeTab === 'facilities' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Facilities</h3>
-              {canWrite && (
-                <button onClick={() => setShowFacilityForm(true)} className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  <span className="material-symbols-outlined text-base">add</span> Add Facility
-                </button>
-              )}
-            </div>
-            {facilities.length === 0 ? (
-              <div className="text-center py-8 text-text-secondary bg-bg-surface border border-border rounded-xl">
-                <span className="material-symbols-outlined text-4xl block mb-2 opacity-30">account_balance</span>
-                <p className="font-semibold text-sm">No facilities yet</p>
-              </div>
-            ) : (
-              <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--color-surface-muted)' }}>
-                      {['Type', 'Amount', 'Currency', 'Rate', 'Tenure', 'Purpose', 'Actions'].map(h => (
-                        <th key={h} style={{ padding: 'var(--space-3) var(--space-5)', textAlign: 'left', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {facilities.map(f => (
-                      <tr key={f.id} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.facilityType.replace(/_/g, ' ')}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)', fontWeight: 600 }}>{formatCurrency(f.approvedAmount ?? f.amount, f.currency || app.currency)}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.currency || app.currency}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.ratePct != null ? `${Number(f.ratePct)}%` : '—'}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)' }}>{f.tenorMonths != null ? `${f.tenorMonths} mo` : '—'}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)', fontSize: 'var(--text-sm)', maxWidth: 200 }} className="truncate">{f.purpose || '—'}</td>
-                        <td style={{ padding: 'var(--space-3) var(--space-5)' }}>
-                          {canWrite && (
-                            <button onClick={() => handleDeleteFacility(f.id)} className="text-red-500 hover:text-red-700 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                              <span className="material-symbols-outlined text-base">delete</span>
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          <RequestsFacilitiesTab application={app} />
+        )}
+
+        {/* Risk Rating & ECL Tab — CA Memo Phase 3 */}
+        {activeTab === 'risk-rating' && (
+          <RiskRatingEclTab application={app} />
+        )}
+
+        {/* Payment Capability Tab — CA Memo Phase 3 */}
+        {activeTab === 'payment-capability' && (
+          <PaymentCapabilityTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* Security & Guarantees Tab — CA Memo Phase 4 */}
+        {activeTab === 'security' && (
+          <SecurityGuaranteesTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* Profitability & Wallet Share Tab — CA Memo Phase 4 */}
+        {activeTab === 'profitability' && (
+          <ProfitabilityWalletTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* Counterparties Tab — CA Memo Phase 4 */}
+        {activeTab === 'counterparties' && (
+          <CounterpartiesTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* Account Conduct Tab — CA Memo Phase 4 */}
+        {activeTab === 'conduct' && (
+          <AccountConductTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* Credit Bureau Checks Tab — CA Memo Phase 5 */}
+        {activeTab === 'credit-checks' && (
+          <CreditChecksTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* Industry Outlook Tab — CA Memo Phase 5 */}
+        {activeTab === 'industry' && (
+          <IndustryOutlookTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* Risk & Mitigators Tab — CA Memo Phase 5 */}
+        {activeTab === 'risk' && (
+          <RiskMitigatorsTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* ESG Tab — CA Memo Phase 5 */}
+        {activeTab === 'esg' && (
+          <EsgTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* SICR Tab — CA Memo Phase 5 */}
+        {activeTab === 'sicr' && (
+          <SicrTab application={app} onUpdated={setApp} />
+        )}
+
+        {/* Sign-off Tab — CA Memo Phase 5 */}
+        {activeTab === 'signoff' && (
+          <SignoffTab application={app} onUpdated={setApp} />
         )}
 
         {/* Parties Tab */}
@@ -783,22 +853,33 @@ const CreditApplicationDetail: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {parties.map(p => (
-                  <div key={p.id} className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4">
-                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-sm shrink-0">
-                      {p.firstName[0]}{p.lastName[0]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-text-primary text-sm">{p.firstName} {p.lastName}</p>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700">{p.partyType}</span>
+                {parties.map(p => {
+                  const contact = p.borrowerProfile?.contact;
+                  const account = p.borrowerProfile?.account;
+                  const displayName = contact ? `${contact.firstName} ${contact.lastName}` : account?.name ?? 'Unknown';
+                  const initials = contact ? `${contact.firstName?.[0] ?? ''}${contact.lastName?.[0] ?? ''}` : (account?.name?.[0] ?? '?');
+                  const roleLabel = p.role?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) ?? 'Party';
+                  return (
+                    <div key={p.id} className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4">
+                      <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-sm shrink-0">
+                        {initials}
                       </div>
-                      <p className="text-xs text-text-secondary mt-0.5">
-                        {p.nricPassport && `NRIC: ${p.nricPassport} · `}{p.email && `${p.email} · `}{p.phone && `${p.phone}`}
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-text-primary text-sm">{displayName}</p>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700">{roleLabel}</span>
+                        </div>
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          {p.borrowerProfile?.borrowerType && `${p.borrowerProfile.borrowerType} · `}
+                          {p.liabilityPct != null && `Liability: ${p.liabilityPct}%`}
+                        </p>
+                      </div>
+                      <Link to={`/credit/borrowers/${p.borrowerProfileId}`} className="text-brand-700 hover:underline text-sm font-semibold" style={{ textDecoration: 'none' }}>
+                        View Profile
+                      </Link>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1340,45 +1421,27 @@ const CreditApplicationDetail: React.FC = () => {
               <h2 className="text-lg font-black text-text-primary mb-4">Add Party</h2>
               <form onSubmit={handleCreateParty} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Party Type *</label>
-                  <select required value={partyForm.partyType || ''} onChange={e => setPartyForm(f => ({ ...f, partyType: e.target.value as any }))}
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Role *</label>
+                  <select required value={partyForm.role} onChange={e => setPartyForm(f => ({ ...f, role: e.target.value }))}
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)' }}>
-                    {['BORROWER', 'GUARANTOR', 'COVENANTOR', 'DIRECTOR', 'SHAREHOLDER'].map(t => <option key={t} value={t}>{t.charAt(0) + t.slice(1).toLowerCase()}</option>)}
+                    {['borrower', 'guarantor', 'co_borrower', 'sponsor'].map(r => <option key={r} value={r}>{r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
                   </select>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
-                    <input required value={partyForm.firstName || ''} onChange={e => setPartyForm(f => ({ ...f, firstName: e.target.value }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
-                    <input required value={partyForm.lastName || ''} onChange={e => setPartyForm(f => ({ ...f, lastName: e.target.value }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Borrower Profile *</label>
+                  <select required value={partyForm.borrowerProfileId} onChange={e => setPartyForm(f => ({ ...f, borrowerProfileId: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)' }}>
+                    <option value="">Select a borrower...</option>
+                    {borrowerProfiles.map(bp => {
+                      const name = bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : (bp.account?.name ?? bp.id);
+                      return <option key={bp.id} value={bp.id}>{name} ({bp.borrowerType})</option>;
+                    })}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">NRIC/Passport</label>
-                  <input value={partyForm.nricPassport || ''} onChange={e => setPartyForm(f => ({ ...f, nricPassport: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Email</label>
-                    <input type="email" value={partyForm.email || ''} onChange={e => setPartyForm(f => ({ ...f, email: e.target.value }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Phone</label>
-                    <input value={partyForm.phone || ''} onChange={e => setPartyForm(f => ({ ...f, phone: e.target.value }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Relationship</label>
-                  <input value={partyForm.relationship || ''} onChange={e => setPartyForm(f => ({ ...f, relationship: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Liability %</label>
+                  <input type="number" min="0" max="100" step="0.01" value={partyForm.liabilityPct} onChange={e => setPartyForm(f => ({ ...f, liabilityPct: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} placeholder="e.g. 100" />
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <button type="button" onClick={() => setShowPartyForm(false)}

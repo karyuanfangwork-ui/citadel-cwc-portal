@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, {
   CreditApplication, ApplicationState, CreditProductType, Pagination,
+  BorrowerProfile,
 } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
@@ -85,6 +86,7 @@ const CreditApplicationList: React.FC = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<Partial<CreditApplication>>({ currency: 'MYR' as any, productType: 'TERM_LOAN' });
   const [saving, setSaving] = useState(false);
+  const [borrowerProfiles, setBorrowerProfiles] = useState<BorrowerProfile[]>([]);
 
   const canWrite = hasPermission(user, 'credit:write');
 
@@ -109,6 +111,13 @@ const CreditApplicationList: React.FC = () => {
 
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
+  // Fetch borrower profiles when create modal opens
+  useEffect(() => {
+    if (showCreate && borrowerProfiles.length === 0) {
+      creditService.listBorrowerProfiles({ limit: 200 }).then(res => setBorrowerProfiles(res.profiles)).catch(() => {});
+    }
+  }, [showCreate]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload: Record<string, any> = { ...form };
@@ -123,10 +132,11 @@ const CreditApplicationList: React.FC = () => {
     if (borrowerFilter) payload.borrowerProfileId = borrowerFilter;
     try {
       setSaving(true);
-      await creditService.createApplication(payload);
+      const newApp = await creditService.createApplication(payload);
       setShowCreate(false);
       setForm({ currency: 'MYR' as any, productType: 'TERM_LOAN' });
-      fetchApplications();
+      // Navigate to the new application's Header tab for CA Memo entry
+      navigate(`/credit/applications/${newApp.id}`);
     } catch (e) {
       console.error(e);
     } finally {
@@ -289,12 +299,21 @@ const CreditApplicationList: React.FC = () => {
                       <input required type="number" min="1" value={form.requestedTenor ?? ''} onChange={e => setForm(f => ({ ...f, requestedTenor: Number(e.target.value) }))}
                         className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" />
                     </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-text-primary mb-1">Borrower Profile ID</label>
-                      <input value={form.borrowerProfileId || borrowerFilter || ''} onChange={e => setForm(f => ({ ...f, borrowerProfileId: e.target.value }))}
-                        placeholder={borrowerFilter || 'Auto from borrower page'}
-                        className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" />
-                    </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-text-primary mb-1">Borrower *</label>
+                    <select required value={form.borrowerProfileId || borrowerFilter || ''}
+                      onChange={e => setForm(f => ({ ...f, borrowerProfileId: e.target.value }))}
+                      disabled={!!borrowerFilter}
+                      className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 disabled:bg-gray-50 disabled:text-text-secondary"
+                      style={{ fontFamily: 'var(--font-sans)' }}>
+                      <option value="">— Select borrower —</option>
+                      {borrowerProfiles.map(bp => (
+                        <option key={bp.id} value={bp.id}>
+                          {bp.account?.name || (bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : 'Unknown')} {bp.borrowerType === 'INDIVIDUAL' ? '(Individual)' : '(Corporate)'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-text-primary mb-1">Purpose</label>

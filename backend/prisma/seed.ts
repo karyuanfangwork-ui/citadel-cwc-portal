@@ -1652,7 +1652,7 @@ async function main() {
     // Sprint 6 — Credit demo data
     try {
         const { seedCreditDemo } = await import('./creditDemoSeed');
-        await seedCreditDemo();
+        await seedCreditDemo(adminUser.id, adminUser.id);
     } catch (e: any) {
         console.warn('⚠️  Credit demo seed skipped:', e.message || e);
     }

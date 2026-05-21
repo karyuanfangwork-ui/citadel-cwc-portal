@@ -129,6 +129,8 @@ model User {
   creditApplicationAnalyst CreditApplication[]     @relation("CreditApplicationAnalyst")
   creditDocumentUploads    CreditDocument[]        @relation("CreditDocumentUpload")
   creditDecisions          CreditDecision[]        @relation("CreditDecisionBy")
+  bureauChecksRun          CreditBureauCheck[]     @relation("BureauCheckRunBy")
+  applicationSignoffs      ApplicationSignoff[]    @relation("ApplicationSignoffBy")
   matrixVersionApprovals  CreditApprovalMatrixVersion[] @relation("MatrixVersionApprovedBy")
   financialEnteredBy      FinancialStatement[]         @relation("FinancialEnteredBy")
   financialReviewedBy     FinancialStatement[]         @relation("FinancialReviewedBy")
@@ -2059,6 +2061,29 @@ enum AmlRiskTier {
 }
 
 // Product types for credit
+// CA Memo Phase 1 — application classification enums
+enum ApplicationType {
+  NEW
+  ADDITIONAL
+  RENEWAL
+  VARIATION
+}
+
+enum AccountClassification {
+  PERFORMING
+  EARLY_CARE
+  WATCHLIST
+  NON_CCRIS_RR
+  CCRIS_RR
+  IMPAIRED
+}
+
+enum AccountStrategy {
+  GROW
+  MAINTAIN
+  EXIT
+}
+
 enum CreditProductType {
   TERM_LOAN
   REVOLVING_FACILITY
@@ -2079,6 +2104,54 @@ enum FacilityType {
   BG
   TRUST_RECEIPT
   BRIDGING
+  // CA Memo Phase 2 — Islamic variants
+  CASHLINE
+  RWC_I
+  LC_I
+  BG_I
+  ICMTD_I
+}
+
+// CA Memo Phase 4 enums
+enum SecurityCategory {
+  TANGIBLE
+  SUPPORTING
+}
+
+enum CounterpartyRole {
+  SUPPLIER
+  BUYER
+  COMPETITOR
+}
+
+// CA Memo Phase 3 enums
+enum MfrsStage {
+  STAGE_1
+  STAGE_2
+  STAGE_3
+}
+
+enum RatingAgency {
+  RAM
+  MARC
+  SP
+  MOODYS
+  FITCH
+}
+
+enum ProjectionScenario {
+  BASE
+  SCENARIO_1
+  SCENARIO_2
+  SCENARIO_3
+}
+
+// CA Memo Phase 2 — Request sub-types (prefixed to avoid conflict with service-desk RequestType model)
+enum CaRequestType {
+  FACILITY_RENEWAL
+  VARIATION
+  POLICY_BREACH_RATIFICATION
+  SICR_IMPAIRMENT
 }
 
 // Document classification
@@ -2258,7 +2331,8 @@ model BorrowerProfile {
   applicationParties ApplicationParty[]
   guarantees        Guarantee[]
   financialStatements FinancialStatement[]
-  
+  keyCounterparties KeyCounterparty[]
+
   @@index([accountId])
   @@index([contactId])
   @@index([borrowerType])
@@ -2281,13 +2355,19 @@ model Director {
   appointmentDate DateTime? @map("appointment_date") @db.Date
   resignationDate DateTime? @map("resignation_date") @db.Date
   isExecutive     Boolean  @default(false) @map("is_executive")
-  
+
+  // CA Memo Phase 4 — Section 11
+  dateOfBirth             DateTime? @map("date_of_birth") @db.Date
+  nationality             String?   @db.VarChar(100)
+  experienceQualification String?   @map("experience_qualification") @db.Text
+  isKeyManagement         Boolean   @default(false) @map("is_key_management")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+
   borrowerProfile BorrowerProfile @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
   contact         CrmContact?    @relation(fields: [contactId], references: [id])
-  
+
   @@index([borrowerProfileId])
   @@map("directors")
 }
@@ -2305,13 +2385,18 @@ model Shareholder {
   shareholdingPct  Decimal?  @map("shareholding_pct") @db.Decimal(5, 2)
   shareClass       String?   @map("share_class") @db.VarChar(50)
   numberOfShares   Int?      @map("number_of_shares")
-  
+
+  // CA Memo Phase 4 — Section 10
+  dateOfBirthOrIncorporation DateTime? @map("dob_or_incorp_date") @db.Date
+  nationality                String?   @db.VarChar(100)
+  businessRegNo              String?   @map("business_reg_no") @db.VarChar(100)
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+
   borrowerProfile BorrowerProfile @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
   contact         CrmContact?    @relation(fields: [contactId], references: [id])
-  
+
   @@index([borrowerProfileId])
   @@map("shareholders")
 }
@@ -2406,17 +2491,59 @@ model CreditApplication {
   rejectionReason String?          @map("rejection_reason") @db.Text
   withdrawalReason String?         @map("withdrawal_reason") @db.Text
   
+  // CA Memo Phase 1 — Section 1 (Header)
+  customerGroupName        String?               @map("customer_group_name") @db.VarChar(255)
+  cifNo                    String?               @map("cif_no") @db.VarChar(50)
+  applicationType          ApplicationType?      @map("application_type")
+  originatingDepartment    String?               @map("originating_department") @db.VarChar(150)
+  teamLeadName             String?               @map("team_lead_name") @db.VarChar(150)
+  referredBy               String?               @map("referred_by") @db.VarChar(255)
+  accountClassification    AccountClassification? @map("account_classification")
+  connectedPartyFlag       Boolean               @default(false) @map("connected_party_flag")
+  connectedPartyStaffName  String?               @map("connected_party_staff_name") @db.VarChar(255)
+  completeDocsDate         DateTime?             @map("complete_docs_date") @db.Date
+  lastReviewDate           DateTime?             @map("last_review_date") @db.Date
+  nextReviewDate           DateTime?             @map("next_review_date") @db.Date
+  relationshipSince        DateTime?             @map("relationship_since") @db.Date
+  lastSiteVisitDate        DateTime?             @map("last_site_visit_date") @db.Date
+
+  // CA Memo Phase 1 — Section 2 / 4 / 6 narratives
+  preambleText             String?               @map("preamble_text") @db.Text
+  mattersToHighlight       String?               @map("matters_to_highlight") @db.Text
+  transactionDetailsText   String?               @map("transaction_details_text") @db.Text
+
+  // CA Memo Phase 1 — Section 9 hook (populated in Phase 4)
+  accountStrategy          AccountStrategy?      @map("account_strategy")
+  crossSellingInitiatives  String?               @map("cross_selling_initiatives") @db.Text
+
+  // CA Memo Phase 3 — Section 7 Way Out narratives
+  firstWayOut   String? @map("first_way_out") @db.Text
+  secondWayOut  String? @map("second_way_out") @db.Text
+  otherWayOut   String? @map("other_way_out") @db.Text
+
+  // CA Memo Phase 5 — Section 19 sign-off timestamps
+  preparedAt  DateTime? @map("prepared_at") @db.Timestamp(6)
+  reviewedAt  DateTime? @map("reviewed_at") @db.Timestamp(6)
+  concurredAt DateTime? @map("concurred_at") @db.Timestamp(6)
+
   // Internal
   deletedAt       DateTime?        @map("deleted_at") @db.Timestamp(6)
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+
   // Relations
   borrowerProfile  BorrowerProfile     @relation(fields: [borrowerProfileId], references: [id])
   assignedRm       User?               @relation("CreditApplicationRm", fields: [assignedRmId], references: [id])
   assignedAnalyst  User?               @relation("CreditApplicationAnalyst", fields: [assignedAnalystId], references: [id])
-  facilities       ApplicationFacility[]
-  parties          ApplicationParty[]
+  facilities           ApplicationFacility[]
+  requestItems         RequestItem[]
+  exposureSummary      ExposureSummary?
+  externalRatings      ExternalRating[]
+  eclSnapshots         EclSnapshot[]
+  eclForecasts         EclForecast[]
+  cashflowProjection   CashflowProjection?
+  sensitivityScenarios SensitivityScenario[]
+  parties              ApplicationParty[]
   documents        CreditDocument[]
   documentRequirements DocumentRequirement[]
   auditEvents      CreditAuditEvent[]
@@ -2427,8 +2554,18 @@ model CreditApplication {
   health          FacilityHealth?
   covenants       CovenantDefinition[]
   payments        PaymentEvent[]
-  warningSignals  EarlyWarningSignal[]
-  
+  warningSignals          EarlyWarningSignal[]
+  accountProfitability    AccountProfitability?
+  walletShares            WalletShare[]
+  accountUtilisationSnapshots AccountUtilisationSnapshot[]
+  bureauChecks            CreditBureauCheck[]
+  industryAssessment      IndustryAssessment?
+  riskAssessments         RiskAssessment[]
+  rmdIssues               RmdIssue[]
+  esgAssessment           EsgAssessment?
+  sicrAssessments         SicrAssessment[]
+  signoffs                ApplicationSignoff[]
+
   @@index([borrowerProfileId])
   @@index([state])
   @@index([assignedRmId])
@@ -2452,20 +2589,196 @@ model ApplicationFacility {
   approvedAmount  Decimal?     @map("approved_amount") @db.Decimal(15, 2)
   approvedTenor    Int?         @map("approved_tenor")
   approvedRate    Decimal?     @map("approved_rate") @db.Decimal(5, 4)
-  
+
+  // CA Memo Phase 2 — Section 3 limit tracking
+  pricingLabel       String?  @map("pricing_label") @db.VarChar(100)
+  existingLimit      Decimal? @map("existing_limit") @db.Decimal(15, 2)
+  proposedChange     Decimal? @map("proposed_change") @db.Decimal(15, 2)
+  newLimit           Decimal? @map("new_limit") @db.Decimal(15, 2)
+  outstandingBalance Decimal? @map("outstanding_balance") @db.Decimal(15, 2)
+  undisbursedLimit   Decimal? @map("undisbursed_limit") @db.Decimal(15, 2)
+  approvingLevel     String?  @map("approving_level") @db.VarChar(100)
+  requestItemId      String?  @map("request_item_id") @db.Uuid
+
   deletedAt       DateTime?    @map("deleted_at") @db.Timestamp(6)
   createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+
   application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  requestItem RequestItem?       @relation(fields: [requestItemId], references: [id])
   collaterals Collateral[]
   guarantees  Guarantee[]
-  
+
   @@index([applicationId])
   @@map("application_facilities")
 }
 
 // ============================================================================
+// CA Memo Phase 2 — Request Items (Requests 1–4 in Section 3)
+// ============================================================================
+model RequestItem {
+  id             String      @id @default(uuid()) @db.Uuid
+  applicationId  String      @map("application_id") @db.Uuid
+  requestType    CaRequestType @map("request_type")
+  sortOrder      Int         @default(1) @map("sort_order")
+  approvingLevel String?     @map("approving_level") @db.VarChar(100)
+  rationale      String?     @db.Text
+
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application    CreditApplication    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  facilities     ApplicationFacility[]
+
+  @@index([applicationId])
+  @@map("request_items")
+}
+
+// ============================================================================
+// CA Memo Phase 2 — Exposure Summary (Section 3b)
+// ============================================================================
+model ExposureSummary {
+  id            String  @id @default(uuid()) @db.Uuid
+  applicationId String  @unique @map("application_id") @db.Uuid
+
+  thisAppSecured           Decimal? @map("this_app_secured") @db.Decimal(15, 2)
+  thisAppUnsecured         Decimal? @map("this_app_unsecured") @db.Decimal(15, 2)
+  otherAppSecured          Decimal? @map("other_app_secured") @db.Decimal(15, 2)
+  otherAppUnsecured        Decimal? @map("other_app_unsecured") @db.Decimal(15, 2)
+  customerTotalSecured     Decimal? @map("customer_total_secured") @db.Decimal(15, 2)
+  customerTotalUnsecured   Decimal? @map("customer_total_unsecured") @db.Decimal(15, 2)
+  relatedCounterpartySecured   Decimal? @map("related_counterparty_secured") @db.Decimal(15, 2)
+  relatedCounterpartyUnsecured Decimal? @map("related_counterparty_unsecured") @db.Decimal(15, 2)
+  groupTotalSecured        Decimal? @map("group_total_secured") @db.Decimal(15, 2)
+  groupTotalUnsecured      Decimal? @map("group_total_unsecured") @db.Decimal(15, 2)
+
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("exposure_summaries")
+}
+
+// ============================================================================
+// ============================================================================
+// CA Memo Phase 3 — External Ratings (Section 5)
+// ============================================================================
+model ExternalRating {
+  id            String       @id @default(uuid()) @db.Uuid
+  applicationId String       @map("application_id") @db.Uuid
+  subjectType   String       @map("subject_type") @db.VarChar(50)
+  subjectName   String?      @map("subject_name") @db.VarChar(255)
+  agency        RatingAgency
+  rating        String       @db.VarChar(20)
+  ratingDate    DateTime?    @map("rating_date") @db.Date
+  outlook       String?      @db.VarChar(50)
+  fiscalYear    Int?         @map("fiscal_year")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
+  application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@index([applicationId])
+  @@map("external_ratings")
+}
+
+// ============================================================================
+// CA Memo Phase 3 — ECL Snapshot (Section 5)
+// ============================================================================
+model EclSnapshot {
+  id                    String     @id @default(uuid()) @db.Uuid
+  applicationId         String     @map("application_id") @db.Uuid
+  subjectType           String     @map("subject_type") @db.VarChar(50)
+  subjectName           String?    @map("subject_name") @db.VarChar(255)
+  snapshotDate          DateTime   @map("snapshot_date") @db.Date
+  miaCount              Int?       @map("mia_count")
+  mfrsStage             MfrsStage? @map("mfrs_stage")
+  totalOutstanding      Decimal?   @map("total_outstanding") @db.Decimal(15, 2)
+  pdPct                 Decimal?   @map("pd_pct") @db.Decimal(8, 6)
+  lgdPct                Decimal?   @map("lgd_pct") @db.Decimal(8, 6)
+  lossRatePct           Decimal?   @map("loss_rate_pct") @db.Decimal(8, 6)
+  eclAmount             Decimal?   @map("ecl_amount") @db.Decimal(15, 2)
+  potentialEclWriteback Decimal?   @map("potential_ecl_writeback") @db.Decimal(15, 2)
+  notes                 String?    @db.Text
+  createdAt             DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
+  application           CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@index([applicationId])
+  @@map("ecl_snapshots")
+}
+
+// ============================================================================
+// CA Memo Phase 3 — ECL Forecast Y1/Y2/Y3 (Section 5)
+// ============================================================================
+model EclForecast {
+  id             String     @id @default(uuid()) @db.Uuid
+  applicationId  String     @map("application_id") @db.Uuid
+  forecastYear   Int        @map("forecast_year")
+  mfrsStage      MfrsStage? @map("mfrs_stage")
+  eclAmount      Decimal?   @map("ecl_amount") @db.Decimal(15, 2)
+  pdPct          Decimal?   @map("pd_pct") @db.Decimal(8, 6)
+  lgdPct         Decimal?   @map("lgd_pct") @db.Decimal(8, 6)
+  assumptions    String?    @db.Text
+  createdAt      DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime   @updatedAt @map("updated_at") @db.Timestamp(6)
+  application    CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@unique([applicationId, forecastYear])
+  @@index([applicationId])
+  @@map("ecl_forecasts")
+}
+
+// ============================================================================
+// CA Memo Phase 3 — Cashflow Projection (Section 7)
+// ============================================================================
+model CashflowProjection {
+  id            String   @id @default(uuid()) @db.Uuid
+  applicationId String   @unique @map("application_id") @db.Uuid
+  assumptions   String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  application   CreditApplication    @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  lineItems     ProjectionLineItem[]
+  @@map("cashflow_projections")
+}
+
+model ProjectionLineItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  projectionId   String   @map("projection_id") @db.Uuid
+  lineKey        String   @map("line_key") @db.VarChar(100)
+  lineLabel      String   @map("line_label") @db.VarChar(200)
+  projectionYear Int      @map("projection_year")
+  amount         Decimal  @db.Decimal(15, 2)
+  displayOrder   Int      @default(0) @map("display_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  projection     CashflowProjection @relation(fields: [projectionId], references: [id], onDelete: Cascade)
+  @@unique([projectionId, lineKey, projectionYear])
+  @@index([projectionId])
+  @@map("projection_line_items")
+}
+
+// ============================================================================
+// CA Memo Phase 3 — Sensitivity Scenarios (Section 7)
+// ============================================================================
+model SensitivityScenario {
+  id             String             @id @default(uuid()) @db.Uuid
+  applicationId  String             @map("application_id") @db.Uuid
+  scenario       ProjectionScenario
+  label          String?            @db.VarChar(100)
+  assumptions    String?            @db.Text
+  revenueAmount  Decimal?           @map("revenue_amount") @db.Decimal(15, 2)
+  opCashflow     Decimal?           @map("op_cashflow") @db.Decimal(15, 2)
+  ebitda         Decimal?           @db.Decimal(15, 2)
+  financingCosts Decimal?           @map("financing_costs") @db.Decimal(15, 2)
+  gearingRatio   Decimal?           @map("gearing_ratio") @db.Decimal(8, 4)
+  dscr           Decimal?           @db.Decimal(8, 4)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamp(6)
+  application    CreditApplication  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@unique([applicationId, scenario])
+  @@index([applicationId])
+  @@map("sensitivity_scenarios")
+}
+
 // Application Party — borrower, guarantor, co-borrower, sponsor
 // ============================================================================
 model ApplicationParty {
@@ -2613,15 +2926,25 @@ model Collateral {
   valuer         String?      @db.VarChar(255)
   
   insuranceCoverRequired Boolean @default(false) @map("insurance_cover_required")
-  
+
+  // CA Memo Phase 4 — Section 8 dual valuation + classification
+  securityCategory      SecurityCategory? @map("security_category")
+  securitySubType       String?           @map("security_sub_type") @db.VarChar(100)
+  isExisting            Boolean           @default(true) @map("is_existing")
+  isNewToBeObtained     Boolean           @default(false) @map("is_new_to_be_obtained")
+  pmmdMarketValue       Decimal?          @map("pmmd_market_value") @db.Decimal(15, 2)
+  pmmdForcedSaleValue   Decimal?          @map("pmmd_forced_sale_value") @db.Decimal(15, 2)
+  panelValuerName       String?           @map("panel_valuer_name") @db.VarChar(255)
+  securityCoverageRatio Decimal?          @map("security_coverage_ratio") @db.Decimal(8, 4)
+
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+
   facility       ApplicationFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
   valuations     CollateralValuation[]
   liens          CollateralLien[]
   insuranceCovers InsuranceCover[]
-  
+
   @@index([facilityId])
   @@map("collaterals")
 }
@@ -2693,16 +3016,138 @@ model Guarantee {
   guaranteeType  String  @map("guarantee_type") @db.VarChar(50)
   amount         Decimal  @db.Decimal(15, 2)
   isLimited      Boolean  @default(true) @map("is_limited")
-  
+
+  // CA Memo Phase 4 — Section 8 guarantor financial profile
+  contingentLiabilities       Decimal? @map("contingent_liabilities") @db.Decimal(15, 2)
+  estimatedNetWorth           Decimal? @map("estimated_net_worth") @db.Decimal(15, 2)
+  guarantorRiskRatingSnapshot String?  @map("guarantor_risk_rating_snapshot") @db.VarChar(20)
+  remarks                     String?  @db.Text
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+
   facility       ApplicationFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
   guarantorProfile BorrowerProfile  @relation(fields: [guarantorProfileId], references: [id])
   
   @@index([facilityId])
   @@index([guarantorProfileId])
   @@map("guarantees")
+}
+
+// ============================================================================
+// Account Profitability (Phase 4 — Section 9)
+// ============================================================================
+model AccountProfitability {
+  id              String   @id @default(uuid()) @db.Uuid
+  applicationId   String   @unique @map("application_id") @db.Uuid
+  reportingPeriod String?  @map("reporting_period") @db.VarChar(50)
+  notes           String?  @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  lines       ProfitabilityLine[]
+
+  @@map("account_profitabilities")
+}
+
+model ProfitabilityLine {
+  id                  String   @id @default(uuid()) @db.Uuid
+  profitabilityId     String   @map("profitability_id") @db.Uuid
+  productCategory     String   @map("product_category") @db.VarChar(100)
+  netProfitYtd        Decimal? @map("net_profit_ytd") @db.Decimal(15, 2)
+  netProfitProjected  Decimal? @map("net_profit_projected") @db.Decimal(15, 2)
+  feeIncomeYtd        Decimal? @map("fee_income_ytd") @db.Decimal(15, 2)
+  feeIncomeProjected  Decimal? @map("fee_income_projected") @db.Decimal(15, 2)
+  displayOrder        Int      @default(0) @map("display_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  profitability AccountProfitability @relation(fields: [profitabilityId], references: [id], onDelete: Cascade)
+
+  @@unique([profitabilityId, productCategory])
+  @@index([profitabilityId])
+  @@map("profitability_lines")
+}
+
+// ============================================================================
+// Wallet Share (Phase 4 — Section 9)
+// ============================================================================
+model WalletShare {
+  id                String   @id @default(uuid()) @db.Uuid
+  applicationId     String   @map("application_id") @db.Uuid
+  facilityType      String   @map("facility_type") @db.VarChar(100)
+  ourLimitAmount    Decimal? @map("our_limit_amount") @db.Decimal(15, 2)
+  totalMarketAmount Decimal? @map("total_market_amount") @db.Decimal(15, 2)
+  ourSharePct       Decimal? @map("our_share_pct") @db.Decimal(5, 2)
+  yoyChangePct      Decimal? @map("yoy_change_pct") @db.Decimal(5, 2)
+  notes             String?  @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, facilityType])
+  @@index([applicationId])
+  @@map("wallet_shares")
+}
+
+// ============================================================================
+// Key Counterparty (Phase 4 — Section 10)
+// ============================================================================
+model KeyCounterparty {
+  id                  String           @id @default(uuid()) @db.Uuid
+  borrowerProfileId   String           @map("borrower_profile_id") @db.Uuid
+  role                CounterpartyRole
+  name                String           @db.VarChar(255)
+  address             String?          @db.Text
+  telephone           String?          @db.VarChar(50)
+  yearsOfRelationship Int?             @map("years_of_relationship")
+  creditTermsDays     Int?             @map("credit_terms_days")
+  salesOrPurchasePct  Decimal?         @map("sales_or_purchase_pct") @db.Decimal(5, 2)
+  modeOfPayment       String?          @map("mode_of_payment") @db.VarChar(100)
+  sortOrder           Int              @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  borrowerProfile BorrowerProfile @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([borrowerProfileId, role])
+  @@map("key_counterparties")
+}
+
+// ============================================================================
+// Account Utilisation Snapshot (Phase 4 — Section 13)
+// ============================================================================
+model AccountUtilisationSnapshot {
+  id               String   @id @default(uuid()) @db.Uuid
+  applicationId    String   @map("application_id") @db.Uuid
+  accountNo        String   @map("account_no") @db.VarChar(50)
+  facilityType     String   @map("facility_type") @db.VarChar(100)
+  snapshotMonth    DateTime @map("snapshot_month") @db.Date
+
+  withdrawalAmount      Decimal? @map("withdrawal_amount") @db.Decimal(15, 2)
+  depositAmount         Decimal? @map("deposit_amount") @db.Decimal(15, 2)
+  monthEndBalance       Decimal? @map("month_end_balance") @db.Decimal(15, 2)
+  returnedChequesCount  Int?     @map("returned_cheques_count")
+
+  approvedLimit        Decimal? @map("approved_limit") @db.Decimal(15, 2)
+  outstandingAmount    Decimal? @map("outstanding_amount") @db.Decimal(15, 2)
+  overdueAmount        Decimal? @map("overdue_amount") @db.Decimal(15, 2)
+  instalmentsInArrears Int?     @map("instalments_in_arrears")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, accountNo, snapshotMonth])
+  @@index([applicationId])
+  @@map("account_utilisation_snapshots")
 }
 
 // ============================================================================
@@ -2821,10 +3266,21 @@ model FinancialStatement {
   reviewedById    String?              @map("reviewed_by_id") @db.Uuid
   status          FinancialStatus       @default(DRAFT)
   
+  // CA Memo Phase 3 — Section 12 audit + commentary
+  auditorName                  String?  @map("auditor_name") @db.VarChar(255)
+  isQualified                  Boolean? @map("is_qualified")
+  qualificationNotes           String?  @map("qualification_notes") @db.Text
+  isDraftAccounts              Boolean  @default(false) @map("is_draft_accounts")
+  commentarySalesProfitability String?  @map("commentary_sales_profitability") @db.Text
+  commentaryAssetMgmt          String?  @map("commentary_asset_mgmt") @db.Text
+  commentaryDebtMgmt           String?  @map("commentary_debt_mgmt") @db.Text
+  commentaryCashflow           String?  @map("commentary_cashflow") @db.Text
+  commentaryConclusion         String?  @map("commentary_conclusion") @db.Text
+
   deletedAt       DateTime?            @map("deleted_at") @db.Timestamp(6)
   createdAt       DateTime             @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime             @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+
   // Relations
   borrowerProfile BorrowerProfile      @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
   enteredBy       User                 @relation("FinancialEnteredBy", fields: [enteredById], references: [id])
@@ -3191,6 +3647,203 @@ model PiiReadLog {
   @@index([resourceType, resourceId])
   @@index([createdAt])
   @@map("pii_read_logs")
+}
+
+// ============================================================================
+// CA Memo Phase 5 enums
+// ============================================================================
+
+enum BureauProvider {
+  CCRIS
+  CTOS
+  EXPERIAN
+  PEP_WATCHLIST
+  IF_ACTIVA
+  PUBLIC_DOMAIN
+}
+
+enum RiskCategory {
+  PROJECT
+  PERFORMANCE
+  PACKAGING
+  PAYMENT
+  OTHER
+}
+
+enum EsgGuidingPrinciple {
+  GP1
+  GP2
+  GP3
+  GP4
+  GP5
+}
+
+enum EsgCategory {
+  C1
+  C2
+  C3
+  C4
+  C5
+  C6
+}
+
+enum SicrTriggerType {
+  OBLIGATORY_WATCHLIST
+  OBLIGATORY_IMPAIRED
+  OBJECTIVE_JUDGMENTAL
+  SUBJECTIVE_JUDGMENTAL
+}
+
+enum SignoffRole {
+  PREPARED_BY
+  REVIEWED_BY
+  CONCURRED_BY
+}
+
+// ============================================================================
+// Credit Bureau Check (Phase 5 — Section 14)
+// ============================================================================
+model CreditBureauCheck {
+  id            String         @id @default(uuid()) @db.Uuid
+  applicationId String         @map("application_id") @db.Uuid
+  provider      BureauProvider
+  subjectName   String?        @map("subject_name") @db.VarChar(255)
+  runDate       DateTime?      @map("run_date") @db.Date
+  runById       String?        @map("run_by_id") @db.Uuid
+  hasHits       Boolean?       @map("has_hits")
+  findings      String?        @db.Text
+  attachedDocId String?        @map("attached_doc_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  runBy       User?             @relation("BureauCheckRunBy", fields: [runById], references: [id])
+
+  @@index([applicationId])
+  @@map("credit_bureau_checks")
+}
+
+// ============================================================================
+// Industry Assessment (Phase 5 — Section 15)
+// ============================================================================
+model IndustryAssessment {
+  id               String  @id @default(uuid()) @db.Uuid
+  applicationId    String  @unique @map("application_id") @db.Uuid
+  sectorName       String? @map("sector_name") @db.VarChar(255)
+  subsectorName    String? @map("subsector_name") @db.VarChar(255)
+  sectorOutlook    String? @map("sector_outlook") @db.Text
+  subsectorOutlook String? @map("subsector_outlook") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("industry_assessments")
+}
+
+// ============================================================================
+// Risk Assessment (Phase 5 — Section 16)
+// ============================================================================
+model RiskAssessment {
+  id            String       @id @default(uuid()) @db.Uuid
+  applicationId String       @map("application_id") @db.Uuid
+  riskCategory  RiskCategory @map("risk_category")
+  description   String?      @db.Text
+  mitigation    String?      @db.Text
+  sortOrder     Int          @default(0) @map("sort_order")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, riskCategory])
+  @@index([applicationId])
+  @@map("risk_assessments")
+}
+
+// ============================================================================
+// RMD Issue (Phase 5 — Section 16)
+// ============================================================================
+model RmdIssue {
+  id                   String  @id @default(uuid()) @db.Uuid
+  applicationId        String  @map("application_id") @db.Uuid
+  sortOrder            Int     @default(1) @map("sort_order")
+  issueDescription     String  @map("issue_description") @db.Text
+  businessUnitResponse String? @map("business_unit_response") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@map("rmd_issues")
+}
+
+// ============================================================================
+// ESG Assessment (Phase 5 — Section 17)
+// ============================================================================
+model EsgAssessment {
+  id                String               @id @default(uuid()) @db.Uuid
+  applicationId     String               @unique @map("application_id") @db.Uuid
+  assignedGp        EsgGuidingPrinciple? @map("assigned_gp")
+  assignedCategory  EsgCategory?         @map("assigned_category")
+  justification     String?              @db.Text
+  mitigatingFactors String?              @map("mitigating_factors") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("esg_assessments")
+}
+
+// ============================================================================
+// SICR Assessment (Phase 5 — Section 18)
+// ============================================================================
+model SicrAssessment {
+  id                      String                 @id @default(uuid()) @db.Uuid
+  applicationId           String                 @map("application_id") @db.Uuid
+  triggerType             SicrTriggerType        @map("trigger_type")
+  triggeringEvent         String?                @map("triggering_event") @db.Text
+  hasHit                  Boolean?               @map("has_hit")
+  rationale               String?                @db.Text
+  resultingClassification AccountClassification? @map("resulting_classification")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, triggerType])
+  @@index([applicationId])
+  @@map("sicr_assessments")
+}
+
+// ============================================================================
+// Application Sign-off (Phase 5 — Section 19)
+// ============================================================================
+model ApplicationSignoff {
+  id                  String     @id @default(uuid()) @db.Uuid
+  applicationId       String     @map("application_id") @db.Uuid
+  role                SignoffRole
+  signedById          String     @map("signed_by_id") @db.Uuid
+  designationSnapshot String     @map("designation_snapshot") @db.VarChar(255)
+  signedAt            DateTime   @default(now()) @map("signed_at") @db.Timestamp(6)
+  ipAddress           String?    @map("ip_address") @db.VarChar(45)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  signedBy    User              @relation("ApplicationSignoffBy", fields: [signedById], references: [id])
+
+  @@unique([applicationId, role])
+  @@index([applicationId])
+  @@map("application_signoffs")
 }
 
 // === SchedulerConfig ===
