@@ -44,6 +44,9 @@ import conditionItemRoutes from './conditionItem.routes';
 // Sprint 5 — Dashboard
 import dashboardRoutes from './dashboard.routes';
 
+// Sprint 5 — Reports
+import reportsRoutes from './reports.routes';
+
 // Sprint 5 — Monitoring
 import monitoringRoutes from './monitoring.routes';
 import monitoringItemRoutes from './monitoringItem.routes';
@@ -156,6 +159,9 @@ router.use('/conditions', conditionItemRoutes);
 
 // Sprint 5 — Dashboard
 router.use('/dashboard', dashboardRoutes);
+
+// Sprint 5 — Reports
+router.use('/reports', reportsRoutes);
 
 // Sprint 5 — Monitoring (app-scoped + item-scoped + watchlist)
 router.use('/applications', monitoringRoutes);

@@ -142,6 +142,11 @@ router.get(
  * PATCH /credit-documents/:id/av-status
  * Update AV scan status of a document
  * Requires: credit:admin
+ *
+ * TODO(security): This endpoint should be protected by an API key or service-to-service
+ * auth mechanism (e.g. X-API-Key header) rather than a user-facing permission, since
+ * it is intended to be called only by the AV scan service / webhook. The current
+ * credit:admin permission still allows any admin user to bypass AV scanning.
  */
 router.patch(
   '/credit-documents/:id/av-status',

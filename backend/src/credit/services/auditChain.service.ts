@@ -1,5 +1,8 @@
 import * as crypto from 'crypto';
 import prisma from '../../utils/prisma';
+import { PrismaClient } from '@prisma/client';
+
+type TransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$use' | '$transaction' | '$extends'>;
 
 export class AuditChainService {
   static async computeHash(event: {
@@ -22,8 +25,10 @@ export class AuditChainService {
     oldState?: string,
     newState?: string,
     metadata?: any,
+    tx?: TransactionClient,
   ): Promise<void> {
-    const lastEvent = await prisma.creditAuditEvent.findFirst({
+    const client = tx ?? prisma;
+    const lastEvent = await client.creditAuditEvent.findFirst({
       where: { applicationId },
       orderBy: { createdAt: 'desc' },
     });
@@ -37,7 +42,7 @@ export class AuditChainService {
       createdAt: new Date(),
       previousHash,
     });
-    await prisma.creditAuditEvent.create({
+    await client.creditAuditEvent.create({
       data: {
         id: tempId,
         applicationId,

@@ -5,6 +5,8 @@ import {
   BureauProvider,
   bureauCheckApi,
 } from '../../../src/services/credit.service';
+import toast from 'react-hot-toast';
+import { friendlyMessage } from '../../../src/utils/errorMessages';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
 
@@ -32,8 +34,12 @@ const AddCheckForm: React.FC<{ appId: string; onAdded: (c: CreditBureauCheck) =>
         runDate: form.runDate || null,
         findings: form.findings || null,
       });
+      toast.success('Bureau check added');
       onAdded(saved);
       setForm({ provider: 'CCRIS', subjectName: '', runDate: '', hasHits: '', findings: '' });
+    } catch (e) {
+      console.error(e);
+      toast.error(friendlyMessage(e, 'Failed to add bureau check'));
     } finally { setSaving(false); }
   };
 
@@ -79,8 +85,14 @@ const CheckCard: React.FC<{ check: CreditBureauCheck; appId: string; readOnly: b
   const [expanded, setExpanded] = useState(false);
 
   const handleRemove = async () => {
-    await bureauCheckApi.remove(appId, check.id);
-    onRemoved();
+    try {
+      await bureauCheckApi.remove(appId, check.id);
+      toast.success('Bureau check removed');
+      onRemoved();
+    } catch (e) {
+      console.error(e);
+      toast.error(friendlyMessage(e, 'Failed to remove bureau check'));
+    }
   };
 
   return (
@@ -111,7 +123,7 @@ const CreditChecksTab: React.FC<Props> = ({ application }) => {
   const [checks, setChecks] = useState<CreditBureauCheck[]>([]);
 
   useEffect(() => {
-    bureauCheckApi.list(application.id).then(setChecks).catch(() => {});
+    bureauCheckApi.list(application.id).then(setChecks).catch((e) => { console.error(e); toast.error(friendlyMessage(e, 'Failed to load bureau checks')); });
   }, [application.id]);
 
   return (

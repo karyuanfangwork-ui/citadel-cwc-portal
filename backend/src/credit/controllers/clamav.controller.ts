@@ -56,11 +56,7 @@ class ClamAvController {
     const { documentId } = req.body;
 
     if (!documentId) {
-      return res.status(400).json({
-        status: 'error',
-        statusCode: 400,
-        message: 'documentId is required',
-      });
+      throw new AppError('documentId is required', 400);
     }
 
     const document = await prisma.creditDocument.findUnique({
@@ -68,11 +64,7 @@ class ClamAvController {
     });
 
     if (!document) {
-      return res.status(404).json({
-        status: 'error',
-        statusCode: 404,
-        message: 'Document not found',
-      });
+      throw new AppError('Document not found', 404);
     }
 
     let avClean: boolean | null = null;

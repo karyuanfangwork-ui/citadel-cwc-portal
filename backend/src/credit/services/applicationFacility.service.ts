@@ -1,5 +1,7 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { requireEditableState } from './stateGuard.util';
+import { AuditChainService } from './auditChain.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -7,8 +9,9 @@ import { Prisma } from '@prisma/client';
 
 // FacilityType enum values — keep in sync with Prisma schema
 export const FACILITY_TYPES = [
+  // Phase 1 — Conventional banking
   'TERM_LOAN', 'REVOLVING', 'OVERDRAFT', 'LC', 'BG', 'TRUST_RECEIPT', 'BRIDGING',
-  // CA Memo Phase 2 — Islamic variants
+  // Phase 2 — Islamic banking variants (hidden behind feature flag; do not expose in Phase 1 UI)
   'CASHLINE', 'RWC_I', 'LC_I', 'BG_I', 'ICMTD_I',
 ] as const;
 export type FacilityType = (typeof FACILITY_TYPES)[number];
@@ -100,7 +103,16 @@ class ApplicationFacilityService {
   /**
    * Create a new application facility.
    */
-  async createFacility(data: CreateApplicationFacilityData) {
+  async createFacility(data: CreateApplicationFacilityData, actorId?: string) {
+    const app = await prisma.creditApplication.findUnique({
+      where: { id: data.applicationId },
+      select: { state: true },
+    });
+    if (!app) {
+      throw new Error(`Application not found: ${data.applicationId}`);
+    }
+    requireEditableState(app.state, 'create facility');
+
     const createData: Prisma.ApplicationFacilityCreateInput = {
       facilityType: data.facilityType,
       amount: new Prisma.Decimal(data.amount),
@@ -121,15 +133,41 @@ class ApplicationFacilityService {
       application: { connect: { id: data.applicationId } },
     };
 
-    return prisma.applicationFacility.create({ data: createData });
+    const facility = await prisma.$transaction(async (tx) => {
+      const created = await tx.applicationFacility.create({ data: createData });
+
+      await AuditChainService.appendEvent(
+        data.applicationId,
+        'FACILITY_CREATED',
+        actorId ?? null,
+        'create',
+        undefined,
+        'FACILITY_CREATED',
+        { facilityId: created.id, facilityType: created.facilityType },
+        tx,
+      );
+
+      return created;
+    });
+
+    return facility;
   }
 
   /**
    * Update an existing application facility.
    */
-  async updateFacility(id: string, data: UpdateApplicationFacilityData) {
+  async updateFacility(id: string, data: UpdateApplicationFacilityData, actorId?: string) {
     const existing = await prisma.applicationFacility.findUnique({ where: { id } });
     if (!existing) return null;
+
+    const app = await prisma.creditApplication.findUnique({
+      where: { id: existing.applicationId },
+      select: { state: true },
+    });
+    if (!app) {
+      throw new Error(`Application not found: ${existing.applicationId}`);
+    }
+    requireEditableState(app.state, 'update facility');
 
     const updateData: Prisma.ApplicationFacilityUpdateInput = {};
 
@@ -152,23 +190,66 @@ class ApplicationFacilityService {
       updateData.requestItem = data.requestItemId ? { connect: { id: data.requestItemId } } : { disconnect: true };
     }
 
-    return prisma.applicationFacility.update({
-      where: { id },
-      data: updateData,
+    const facility = await prisma.$transaction(async (tx) => {
+      const updated = await tx.applicationFacility.update({
+        where: { id },
+        data: updateData,
+      });
+
+      await AuditChainService.appendEvent(
+        existing.applicationId,
+        'FACILITY_UPDATED',
+        actorId ?? null,
+        'update',
+        undefined,
+        'FACILITY_UPDATED',
+        { facilityId: id, facilityType: existing.facilityType },
+        tx,
+      );
+
+      return updated;
     });
+
+    return facility;
   }
 
   /**
    * Soft-delete a facility (sets deletedAt timestamp).
    */
-  async deleteFacility(id: string) {
+  async deleteFacility(id: string, actorId?: string) {
     const existing = await prisma.applicationFacility.findUnique({ where: { id, deletedAt: null } });
     if (!existing) return null;
 
-    return prisma.applicationFacility.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+    const app = await prisma.creditApplication.findUnique({
+      where: { id: existing.applicationId },
+      select: { state: true },
     });
+    if (!app) {
+      throw new Error(`Application not found: ${existing.applicationId}`);
+    }
+    requireEditableState(app.state, 'delete facility');
+
+    const deleted = await prisma.$transaction(async (tx) => {
+      const result = await tx.applicationFacility.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
+
+      await AuditChainService.appendEvent(
+        existing.applicationId,
+        'FACILITY_DELETED',
+        actorId ?? null,
+        'delete',
+        undefined,
+        'FACILITY_DELETED',
+        { facilityId: id, facilityType: existing.facilityType },
+        tx,
+      );
+
+      return result;
+    });
+
+    return deleted;
   }
 }
 

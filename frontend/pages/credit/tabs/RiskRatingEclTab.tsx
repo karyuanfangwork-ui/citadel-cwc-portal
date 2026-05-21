@@ -1,12 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import creditService, {
   CreditApplication,
+  CreditScoreRun,
   ExternalRating,
   EclSnapshot,
   EclForecast,
   RatingAgency,
   MfrsStage,
+  RiskRating,
 } from '../../../src/services/credit.service';
+import { useAuth } from '../../../src/context/AuthContext';
+import { hasPermission } from '../../../src/utils/permissions';
+import { useToast } from '../../../src/context/ToastContext';
+import { friendlyMessage } from '../../../src/utils/errorMessages';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -16,6 +22,26 @@ const SUBJECT_TYPES = ['CUSTOMER', 'CORPORATE_GUARANTOR'];
 const MFRS_STAGES: MfrsStage[] = ['STAGE_1', 'STAGE_2', 'STAGE_3'];
 const MFRS_LABELS: Record<MfrsStage, string> = { STAGE_1: 'Stage 1', STAGE_2: 'Stage 2', STAGE_3: 'Stage 3' };
 const OUTLOOKS = ['Stable', 'Positive', 'Negative', 'Watch Negative', 'Watch Positive'];
+
+const RISK_RATINGS: RiskRating[] = ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D', 'NR'];
+
+const getRatingColor = (rating: string | null): string => {
+  const map: Record<string, string> = {
+    AAA: 'bg-emerald-100 text-emerald-700', AA: 'bg-emerald-50 text-emerald-600', A: 'bg-green-50 text-green-600',
+    BBB: 'bg-yellow-50 text-yellow-700', BB: 'bg-orange-50 text-orange-600', B: 'bg-orange-100 text-orange-700',
+    CCC: 'bg-red-50 text-red-600', CC: 'bg-red-100 text-red-700', C: 'bg-red-200 text-red-800', D: 'bg-red-300 text-red-900', NR: 'bg-gray-100 text-gray-500'
+  };
+  return map[rating || 'NR'] || 'bg-gray-100 text-gray-500';
+};
+
+const getRatingTextColor = (rating: string | null): string => {
+  const map: Record<string, string> = {
+    AAA: 'text-emerald-700', AA: 'text-emerald-600', A: 'text-green-600',
+    BBB: 'text-yellow-700', BB: 'text-orange-600', B: 'text-orange-700',
+    CCC: 'text-red-600', CC: 'text-red-700', C: 'text-red-800', D: 'text-red-900', NR: 'text-gray-500'
+  };
+  return map[rating || 'NR'] || 'text-gray-500';
+};
 
 const pct = (v: number | string | null | undefined) =>
   v != null && v !== '' ? `${(Number(v) * 100).toFixed(4)}%` : '—';
@@ -330,12 +356,151 @@ const EclForecastsSection: React.FC<{ appId: string; readOnly: boolean }> = ({ a
 const RiskRatingEclTab: React.FC<Props> = ({ application }) => {
   const readOnly = application.state !== 'DRAFT';
   const appId = application.id;
+  const { user } = useAuth();
+  const canApprove = hasPermission(user, 'credit:approve');
+  const toast = useToast();
+  const [scoreRuns, setScoreRuns] = useState<CreditScoreRun[]>([]);
+  const [runningScore, setRunningScore] = useState(false);
+  const [overrideTarget, setOverrideTarget] = useState<CreditScoreRun | null>(null);
+  const [overriding, setOverriding] = useState(false);
+  const [overrideForm, setOverrideForm] = useState<{ rating: RiskRating; reason: string }>({ rating: 'BBB', reason: '' });
+
+  useEffect(() => {
+    creditService.listScoreRuns(application.id).then(setScoreRuns).catch(() => {});
+  }, [application.id]);
+
+  const handleRunScore = async () => {
+    setRunningScore(true);
+    try {
+      const sr = await creditService.executeScore(application.id);
+      setScoreRuns(prev => [sr, ...prev]);
+      toast.success('Score Run', 'Score run completed');
+    } catch (e) { toast.error('Score Error', friendlyMessage(e, 'Failed to run score')); }
+    finally { setRunningScore(false); }
+  };
+
+  const handleOverride = async () => {
+    if (!overrideTarget || !overrideForm.rating || !overrideForm.reason.trim()) return;
+    setOverriding(true);
+    try {
+      const sr = await creditService.overrideScore(overrideTarget.id, {
+        rating: overrideForm.rating,
+        reason: overrideForm.reason,
+        approverId: user!.id,
+      });
+      setScoreRuns(prev => prev.map(s => s.id === sr.id ? sr : s));
+      setOverrideTarget(null);
+      setOverrideForm({ rating: 'BBB', reason: '' });
+      toast.success('Override', 'Rating overridden successfully');
+    } catch (e) { toast.error('Override Error', friendlyMessage(e, 'Failed to override rating')); }
+    finally { setOverriding(false); }
+  };
 
   return (
     <div className="p-6 space-y-8">
       <ExternalRatingsSection appId={appId} readOnly={readOnly} />
       <EclSnapshotsSection appId={appId} readOnly={readOnly} />
       <EclForecastsSection appId={appId} readOnly={readOnly} />
+
+      {/* Score Override Section */}
+      {canApprove && (
+        <section className="mt-6 pt-6 border-t border-border">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Credit Scoring</h3>
+            <button
+              onClick={handleRunScore}
+              disabled={runningScore}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50"
+              style={{ cursor: runningScore ? 'wait' : 'pointer', border: '1px solid var(--indigo-200, #c7d2fe)', fontFamily: 'var(--font-sans)' }}
+            >
+              <span className="material-symbols-outlined text-base">play_arrow</span>
+              {runningScore ? 'Running...' : 'Run Score'}
+            </button>
+          </div>
+          {scoreRuns.length === 0 && !runningScore && (
+            <div className="text-center py-6 text-text-secondary bg-bg-surface border border-dashed border-border rounded-xl">
+              <span className="material-symbols-outlined text-3xl block opacity-20 mb-1">analytics</span>
+              <p className="text-sm">No score runs yet. Click "Run Score" to generate a credit score.</p>
+            </div>
+          )}
+          {scoreRuns.length > 0 && (
+            <div className="border border-border rounded-xl overflow-hidden">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                  <tr>
+                    {['#', 'Score', 'Rating', 'Date', 'Override', 'Actions'].map(h => (
+                      <th key={h} className="p-2 text-left">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {scoreRuns.map((sr, idx) => (
+                    <tr key={sr.id} className={`border-t ${sr.overriddenBy ? 'bg-amber-50' : ''}`}>
+                      <td className="p-2 text-gray-500">{idx + 1}</td>
+                      <td className="p-2 font-semibold">{sr.totalScore ?? '—'}</td>
+                      <td className="p-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getRatingColor(sr.riskRating)}`}>
+                          {sr.riskRating}
+                        </span>
+                      </td>
+                      <td className="p-2 text-gray-500">{new Date(sr.executedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                      <td className="p-2">
+                        {sr.overriddenBy ? (
+                          <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                            Override by {sr.overrider ? `${sr.overrider.firstName} ${sr.overrider.lastName}` : 'N/A'}
+                          </span>
+                        ) : <span className="text-xs text-gray-400">Original</span>}
+                      </td>
+                      <td className="p-2">
+                        {canApprove && !sr.overriddenBy && (
+                          <button onClick={() => setOverrideTarget(sr)} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                            Override
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Override Dialog */}
+      {overrideTarget && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setOverrideTarget(null)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-text-primary mb-4">Override Risk Rating</h2>
+            <p className="text-sm text-text-secondary mb-4">
+              Current rating: <span className={`font-bold ${getRatingTextColor(overrideTarget.riskRating)}`}>{overrideTarget.riskRating}</span> (Score: {overrideTarget.totalScore ?? '—'})
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">New Rating *</label>
+                <select value={overrideForm.rating} onChange={e => setOverrideForm(f => ({ ...f, rating: e.target.value as RiskRating }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)' }}>
+                  {RISK_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Reason * <span className="text-xs text-text-tertiary">(required)</span></label>
+                <textarea rows={3} value={overrideForm.reason} onChange={e => setOverrideForm(f => ({ ...f, reason: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}
+                  placeholder="Justification for overriding the risk rating..." />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button onClick={() => setOverrideTarget(null)} className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-gray-50 transition-colors" style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+              <button onClick={handleOverride} disabled={!overrideForm.rating || !overrideForm.reason.trim() || overriding}
+                className="px-4 py-2 text-sm font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                {overriding ? 'Overriding...' : 'Override Rating'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { applicationPartyService } from '../services/applicationParty.service';
+import { requireUser } from '../utils/requireUser';
 
 class ApplicationPartyController {
   /**
@@ -39,8 +40,9 @@ class ApplicationPartyController {
    * POST /applications/:applicationId/parties
    */
   create = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const user = requireUser(req);
     const applicationId = String(req.params.applicationId);
-    const party = await applicationPartyService.createParty({ ...req.body, applicationId });
+    const party = await applicationPartyService.createParty({ ...req.body, applicationId }, user.id);
     res.status(201).json({ status: 'success', data: { party } });
   });
 
@@ -48,8 +50,9 @@ class ApplicationPartyController {
    * PATCH /parties/:id
    */
   update = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const user = requireUser(req);
     const id = String(req.params.id);
-    const party = await applicationPartyService.updateParty(id, req.body);
+    const party = await applicationPartyService.updateParty(id, req.body, user.id);
 
     if (!party) {
       throw new AppError('Application party not found', 404);
@@ -62,8 +65,9 @@ class ApplicationPartyController {
    * DELETE /parties/:id
    */
   delete = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const user = requireUser(req);
     const id = String(req.params.id);
-    const party = await applicationPartyService.deleteParty(id);
+    const party = await applicationPartyService.deleteParty(id, user.id);
 
     if (!party) {
       throw new AppError('Application party not found', 404);

@@ -132,15 +132,50 @@ export enum ApplicationPartyRole {
 }
 
 // ---- Facility Types ----
+// Sourced from Prisma schema `FacilityType` enum — single source of truth.
+// Phase 1: conventional banking types only.
+// Phase 2: Islamic banking variants (hidden behind feature flag).
 
 export enum FacilityType {
+  // Phase 1 — Conventional
   TERM_LOAN = 'TERM_LOAN',
-  REVOLVING_CREDIT = 'REVOLVING_CREDIT',
-  TRADE_FINANCE = 'TRADE_FINANCE',
+  REVOLVING = 'REVOLVING',
   OVERDRAFT = 'OVERDRAFT',
-  BRIDGING_LOAN = 'BRIDGING_LOAN',
-  OTHER = 'OTHER',
+  LC = 'LC',
+  BG = 'BG',
+  TRUST_RECEIPT = 'TRUST_RECEIPT',
+  BRIDGING = 'BRIDGING',
+  // Phase 2 — Islamic banking variants (enable via feature flag)
+  CASHLINE = 'CASHLINE',
+  RWC_I = 'RWC_I',
+  LC_I = 'LC_I',
+  BG_I = 'BG_I',
+  ICMTD_I = 'ICMTD_I',
 }
+
+/** Phase 1 facility types — use this array for dropdowns / validation in Phase 1 */
+export const PHASE1_FACILITY_TYPES: FacilityType[] = [
+  FacilityType.TERM_LOAN,
+  FacilityType.REVOLVING,
+  FacilityType.OVERDRAFT,
+  FacilityType.LC,
+  FacilityType.BG,
+  FacilityType.TRUST_RECEIPT,
+  FacilityType.BRIDGING,
+];
+
+/** Phase 2 facility types — Islamic banking variants, hidden until feature flag is enabled */
+export const PHASE2_FACILITY_TYPES: FacilityType[] = [
+  FacilityType.CASHLINE,
+  FacilityType.RWC_I,
+  FacilityType.LC_I,
+  FacilityType.BG_I,
+  FacilityType.ICMTD_I,
+];
+
+// ---- Credit Product Types ----
+// Sourced from Prisma schema `CreditProductType` enum — do not duplicate;
+// import CreditProductType from '@prisma/client' instead.
 
 // ---- Approval Authority Levels ----
 

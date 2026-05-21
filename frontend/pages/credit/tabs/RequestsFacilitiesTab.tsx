@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import creditService, {
   CreditApplication,
   CreditFacility,
@@ -7,10 +7,13 @@ import creditService, {
   CaRequestType,
   FacilityType,
 } from '../../../src/services/credit.service';
+import apiClient from '../../../src/services/api';
+import { getFacilityTypes } from '../creditUtils';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const FACILITY_TYPE_LABELS: Record<string, string> = {
+// Base labels for conventional facility types (always available)
+const BASE_FACILITY_TYPE_LABELS: Record<string, string> = {
   TERM_LOAN: 'Term Loan',
   REVOLVING: 'Revolving Credit',
   REVOLVING_CREDIT: 'Revolving Credit',
@@ -22,17 +25,16 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
   TRUST_RECEIPT: 'Trust Receipt',
   BRIDGING: 'Bridging Loan',
   BRIDGE_LOAN: 'Bridging Loan',
-  CASHLINE: 'Cashline',
-  RWC_I: 'RWC-i (Islamic)',
-  LC_I: 'LC-i (Islamic)',
-  BG_I: 'BG-i (Islamic)',
-  ICMTD_I: 'ICMTD-i (Islamic)',
 };
 
-const FACILITY_TYPE_OPTIONS: FacilityType[] = [
-  'TERM_LOAN', 'REVOLVING', 'OVERDRAFT', 'LC', 'BG', 'TRUST_RECEIPT', 'BRIDGING',
-  'CASHLINE', 'RWC_I', 'LC_I', 'BG_I', 'ICMTD_I',
-];
+// Phase 2 labels for Islamic facility types (gated by feature flag)
+const ISLAMIC_FACILITY_TYPE_LABELS: Record<string, string> = {
+  CASHLINE: 'Cashline (Islamic)',
+  RWC_I: 'Revolving Credit (Islamic)',
+  LC_I: 'Letter of Credit (Islamic)',
+  BG_I: 'Bank Guarantee (Islamic)',
+  ICMTD_I: 'Istisna Credit (Islamic)',
+};
 
 const CA_REQUEST_TYPE_LABELS: Record<CaRequestType, string> = {
   FACILITY_RENEWAL: 'Facility Renewal',
@@ -74,16 +76,29 @@ type Props = {
 type FacilityRowProps = {
   facility: CreditFacility;
   readOnly: boolean;
+  facilityTypeOptions: { value: FacilityType; label: string }[];
+  facilityTypeLabels: Record<string, string>;
   onSave: (id: string, patch: Partial<CreditFacility>) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
 };
 
-const FacilityRow: React.FC<FacilityRowProps> = ({ facility, readOnly, onSave, onDelete }) => {
+const FacilityRow: React.FC<FacilityRowProps> = ({ facility, readOnly, facilityTypeOptions, facilityTypeLabels, onSave, onDelete }) => {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<CreditFacility>>(facility);
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validate = (): boolean => {
+    const errs: Record<string, string> = {};
+    if (!form.facilityType) errs.facilityType = 'Facility type is required';
+    if (form.amount != null && Number(form.amount) <= 0) errs.amount = 'Amount must be greater than 0';
+    if (form.tenorMonths != null && String(form.tenorMonths) !== '' && Number(form.tenorMonths) <= 0) errs.tenorMonths = 'Tenor must be positive';
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
 
   const handleSave = async () => {
+    if (!validate()) return;
     setSaving(true);
     await onSave(facility.id, form);
     setSaving(false);
@@ -95,14 +110,15 @@ const FacilityRow: React.FC<FacilityRowProps> = ({ facility, readOnly, onSave, o
       <tr className="bg-blue-50">
         <td className="p-2">
           <select
-            className="border rounded px-2 py-1 text-sm w-full"
+            className={`border rounded px-2 py-1 text-sm w-full ${errors.facilityType ? 'border-red-400' : ''}`}
             value={form.facilityType ?? ''}
-            onChange={e => setForm(f => ({ ...f, facilityType: e.target.value as FacilityType }))}
+            onChange={e => { setForm(f => ({ ...f, facilityType: e.target.value as FacilityType })); setErrors(errs => { const { facilityType, ...rest } = errs; return rest; }); }}
           >
-            {FACILITY_TYPE_OPTIONS.map(t => (
-              <option key={t} value={t}>{FACILITY_TYPE_LABELS[t] ?? t}</option>
+            {facilityTypeOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{facilityTypeLabels[opt.value] ?? opt.label}</option>
             ))}
           </select>
+          {errors.facilityType && <p className="text-[10px] text-red-600 mt-0.5">{errors.facilityType}</p>}
         </td>
         <td className="p-2">
           <input className="border rounded px-2 py-1 text-sm w-24" value={form.pricingLabel ?? ''} onChange={e => setForm(f => ({ ...f, pricingLabel: e.target.value }))} placeholder="e.g. BFR+1%" />
@@ -114,7 +130,8 @@ const FacilityRow: React.FC<FacilityRowProps> = ({ facility, readOnly, onSave, o
           <input className="border rounded px-2 py-1 text-sm w-28" type="number" value={form.proposedChange ?? ''} onChange={e => setForm(f => ({ ...f, proposedChange: e.target.value }))} placeholder="0.00" />
         </td>
         <td className="p-2">
-          <input className="border rounded px-2 py-1 text-sm w-28" type="number" value={form.newLimit ?? ''} onChange={e => setForm(f => ({ ...f, newLimit: e.target.value }))} placeholder="0.00" />
+          <input className={`border rounded px-2 py-1 text-sm w-28 ${errors.amount ? 'border-red-400' : ''}`} type="number" value={form.newLimit ?? ''} onChange={e => { setForm(f => ({ ...f, newLimit: e.target.value })); setErrors(errs => { const { amount, ...rest } = errs; return rest; }); }} placeholder="0.00" />
+          {errors.amount && <p className="text-[10px] text-red-600 mt-0.5">{errors.amount}</p>}
         </td>
         <td className="p-2">
           <input className="border rounded px-2 py-1 text-sm w-28" type="number" value={form.outstandingBalance ?? ''} onChange={e => setForm(f => ({ ...f, outstandingBalance: e.target.value }))} placeholder="0.00" />
@@ -137,7 +154,7 @@ const FacilityRow: React.FC<FacilityRowProps> = ({ facility, readOnly, onSave, o
 
   return (
     <tr className="border-t hover:bg-gray-50">
-      <td className="p-2 text-sm">{FACILITY_TYPE_LABELS[facility.facilityType] ?? facility.facilityType}</td>
+      <td className="p-2 text-sm">{facilityTypeLabels[facility.facilityType] ?? facility.facilityType}</td>
       <td className="p-2 text-sm text-gray-500">{facility.pricingLabel ?? '—'}</td>
       <td className="p-2 text-sm text-right">{fmt(facility.existingLimit)}</td>
       <td className="p-2 text-sm text-right">{fmt(facility.proposedChange)}</td>
@@ -161,23 +178,30 @@ const FacilityRow: React.FC<FacilityRowProps> = ({ facility, readOnly, onSave, o
 
 type AddFacilityFormProps = {
   applicationId: string;
+  facilityTypeOptions: { value: FacilityType; label: string }[];
+  facilityTypeLabels: Record<string, string>;
   onAdded: (f: CreditFacility) => void;
   onCancel: () => void;
 };
 
-const AddFacilityForm: React.FC<AddFacilityFormProps> = ({ applicationId, onAdded, onCancel }) => {
+const AddFacilityForm: React.FC<AddFacilityFormProps> = ({ applicationId, facilityTypeOptions, facilityTypeLabels, onAdded, onCancel }) => {
   const [form, setForm] = useState<Partial<CreditFacility>>({ facilityType: 'TERM_LOAN', amount: '' });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleAdd = async () => {
-    if (!form.amount) { setError('Amount is required'); return; }
+    const errs: Record<string, string> = {};
+    if (!form.facilityType) errs.facilityType = 'Facility type is required';
+    if (!form.amount || Number(form.amount) <= 0) errs.amount = 'Amount must be greater than 0';
+    if (form.tenorMonths != null && String(form.tenorMonths) !== '' && Number(form.tenorMonths) <= 0) errs.tenorMonths = 'Tenor must be positive';
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) return;
     setSaving(true);
     try {
       const created = await creditService.createFacility(applicationId, form);
       onAdded(created);
     } catch {
-      setError('Failed to add facility');
+      setErrors({ general: 'Failed to add facility' });
     } finally {
       setSaving(false);
     }
@@ -187,14 +211,15 @@ const AddFacilityForm: React.FC<AddFacilityFormProps> = ({ applicationId, onAdde
     <tr className="bg-green-50">
       <td className="p-2">
         <select
-          className="border rounded px-2 py-1 text-sm w-full"
+          className={`border rounded px-2 py-1 text-sm w-full ${errors.facilityType ? 'border-red-400' : ''}`}
           value={form.facilityType ?? 'TERM_LOAN'}
-          onChange={e => setForm(f => ({ ...f, facilityType: e.target.value as FacilityType }))}
+          onChange={e => { setForm(f => ({ ...f, facilityType: e.target.value as FacilityType })); setErrors(errs => { const { facilityType, ...rest } = errs; return rest; }); }}
         >
-          {FACILITY_TYPE_OPTIONS.map(t => (
-            <option key={t} value={t}>{FACILITY_TYPE_LABELS[t] ?? t}</option>
+          {facilityTypeOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>{facilityTypeLabels[opt.value] ?? opt.label}</option>
           ))}
         </select>
+        {errors.facilityType && <p className="text-[10px] text-red-600 mt-0.5">{errors.facilityType}</p>}
       </td>
       <td className="p-2">
         <input className="border rounded px-2 py-1 text-sm w-24" value={form.pricingLabel ?? ''} onChange={e => setForm(f => ({ ...f, pricingLabel: e.target.value }))} placeholder="Pricing" />
@@ -218,7 +243,7 @@ const AddFacilityForm: React.FC<AddFacilityFormProps> = ({ applicationId, onAdde
         <input className="border rounded px-2 py-1 text-sm w-28" value={form.approvingLevel ?? ''} onChange={e => setForm(f => ({ ...f, approvingLevel: e.target.value }))} placeholder="Approving Lvl" />
       </td>
       <td className="p-2">
-        {error && <p className="text-xs text-red-500 mb-1">{error}</p>}
+        {errors.general && <p className="text-xs text-red-500 mb-1">{errors.general}</p>}
         <button onClick={handleAdd} disabled={saving} className="text-xs bg-green-600 text-white px-2 py-1 rounded">
           {saving ? 'Adding…' : 'Add'}
         </button>
@@ -234,6 +259,7 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
   const readOnly = application.state !== 'DRAFT';
   const appId = application.id;
 
+  const [islamicEnabled, setIslamicEnabled] = useState(false);
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
   const [requestItems, setRequestItems] = useState<RequestItem[]>([]);
   const [exposure, setExposure] = useState<Partial<ExposureSummary>>({});
@@ -242,6 +268,19 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
   const [exposureSaving, setExposureSaving] = useState(false);
   const [exposureSavedAt, setExposureSavedAt] = useState<Date | null>(null);
   const exposureDirty = useRef<Set<keyof ExposureSummary>>(new Set());
+
+  useEffect(() => {
+    apiClient.get('/credit/feature-flags/credit:islamic_facilities').then(res => {
+      setIslamicEnabled(res.data?.data?.flag?.enabled ?? false);
+    }).catch(() => setIslamicEnabled(false));
+  }, []);
+
+  const facilityTypeOptions = useMemo(() => getFacilityTypes(islamicEnabled), [islamicEnabled]);
+  const facilityTypeLabels = useMemo(() => {
+    const base: Record<string, string> = { ...BASE_FACILITY_TYPE_LABELS };
+    if (islamicEnabled) Object.assign(base, ISLAMIC_FACILITY_TYPE_LABELS);
+    return base;
+  }, [islamicEnabled]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -357,6 +396,8 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
                   key={f.id}
                   facility={f}
                   readOnly={readOnly}
+                  facilityTypeOptions={facilityTypeOptions}
+                  facilityTypeLabels={facilityTypeLabels}
                   onSave={handleFacilitySave}
                   onDelete={handleFacilityDelete}
                 />
@@ -364,6 +405,8 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
               {showAddFacility && (
                 <AddFacilityForm
                   applicationId={appId}
+                  facilityTypeOptions={facilityTypeOptions}
+                  facilityTypeLabels={facilityTypeLabels}
                   onAdded={handleFacilityAdded}
                   onCancel={() => setShowAddFacility(false)}
                 />

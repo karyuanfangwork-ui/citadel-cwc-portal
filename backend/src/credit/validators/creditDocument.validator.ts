@@ -38,7 +38,6 @@ export const updateCreditDocumentSchema = z.object({
   body: z.object({
     classification: z.enum(documentClassValues).optional(),
     description: z.string().max(1000).optional().nullable(),
-    isAvClean: z.boolean().optional().nullable(),
   }),
 });
 

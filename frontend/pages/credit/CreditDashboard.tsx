@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { dashboardApi } from '../../src/services/credit.service';
 import CreditNav from '../../src/components/CreditNav';
+import toast from 'react-hot-toast';
+import { friendlyMessage } from '../../src/utils/errorMessages';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -152,7 +154,11 @@ const CreditDashboard: React.FC = () => {
         else if (activeTab === 'exposure') setExposure(payload);
         else setCalendar(payload);
       })
-      .catch((err: any) => setError(err.message ?? 'Failed to load dashboard data'))
+      .catch((err: any) => {
+        console.error(err);
+        toast.error(friendlyMessage(err, 'Failed to load dashboard data'));
+        setError(err.message ?? 'Failed to load dashboard data');
+      })
       .finally(() => setLoading(false));
   }, [activeTab]);
 

@@ -94,6 +94,17 @@ export const transitionApplicationSchema = z.object({
   body: z.object({
     action: z.string().min(1),
     reason: z.string().max(5000).optional().nullable(),
+  }).superRefine((data, ctx) => {
+    const reasonRequiredActions = ['reject', 'reject_kyc', 'decline_offer', 'withdraw'];
+    if (reasonRequiredActions.includes(data.action)) {
+      if (typeof data.reason !== 'string' || data.reason.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Reason is required for this action',
+          path: ['reason'],
+        });
+      }
+    }
   }),
 });
 

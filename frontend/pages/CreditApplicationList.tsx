@@ -2,36 +2,14 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, {
   CreditApplication, ApplicationState, CreditProductType, Pagination,
-  BorrowerProfile,
+  BorrowerProfile, dashboardApi,
 } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
-
-const formatCurrency = (val: number | string | null, currency = 'MYR') =>
-  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(Number(val)) : '—';
-
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-const STATE_COLORS: Record<string, { bg: string; text: string }> = {
-  DRAFT: { bg: '#6366f120', text: '#6366f1' },
-  SUBMITTED: { bg: '#f59e0b20', text: '#d97706' },
-  KYC_REVIEW: { bg: '#3b82f620', text: '#2563eb' },
-  KYC_APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-  KYC_REJECTED: { bg: '#ef444420', text: '#dc2626' },
-  UNDERWRITING: { bg: '#8b5cf620', text: '#7c3aed' },
-  CREDIT_ASSESSMENT: { bg: '#a78bfa20', text: '#7c3aed' },
-  COMMITTEE_REVIEW: { bg: '#f9731620', text: '#ea580c' },
-  APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-  REJECTED: { bg: '#ef444420', text: '#dc2626' },
-  OFFER: { bg: '#06b6d420', text: '#0891b2' },
-  ACCEPTED: { bg: '#14b8a620', text: '#0d9488' },
-  DISBURSED: { bg: '#06b6d420', text: '#0891b2' },
-  ACTIVE: { bg: '#22c55e20', text: '#16a34a' },
-  CLOSED: { bg: '#6b728020', text: '#6b7280' },
-  WITHDRAWN: { bg: '#6b728020', text: '#6b7280' },
-};
+import toast from 'react-hot-toast';
+import { friendlyMessage } from '../src/utils/errorMessages';
+import { formatCurrency, formatDate, STATE_COLORS } from './credit/creditUtils';
 
 const KANBAN_COLUMNS: { key: string; label: string; states: ApplicationState[]; color: string }[] = [
   { key: 'pre-submission', label: 'Pre-Submission', states: ['DRAFT'], color: '#6366f1' },
@@ -80,13 +58,24 @@ const CreditApplicationList: React.FC = () => {
 
   const [applications, setApplications] = useState<CreditApplication[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [productFilter, setProductFilter] = useState<string>('');
   const [stateFilter, setStateFilter] = useState<string>('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<Partial<CreditApplication>>({ currency: 'MYR' as any, productType: 'TERM_LOAN' });
   const [saving, setSaving] = useState(false);
   const [borrowerProfiles, setBorrowerProfiles] = useState<BorrowerProfile[]>([]);
+  const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   const canWrite = hasPermission(user, 'credit:write');
 
@@ -94,29 +83,44 @@ const CreditApplicationList: React.FC = () => {
     try {
       setLoading(true);
       const data = await creditService.listApplications({
-        page: 1,
-        limit: 200,
-        search: search || undefined,
+        page,
+        limit: pageSize,
+        search: debouncedSearch || undefined,
         productType: productFilter || undefined,
         state: stateFilter || undefined,
         borrowerProfileId: borrowerFilter || undefined,
       });
       setApplications(data.applications);
+      setPagination(data.pagination);
     } catch (e) {
       console.error(e);
+      toast.error(friendlyMessage(e, 'Failed to load applications'));
     } finally {
       setLoading(false);
     }
-  }, [search, productFilter, stateFilter, borrowerFilter]);
+  }, [page, pageSize, debouncedSearch, productFilter, stateFilter, borrowerFilter]);
+
+  // Reset to page 1 when filters change (not page itself)
+  useEffect(() => { setPage(1); }, [debouncedSearch, productFilter, stateFilter, borrowerFilter]);
 
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
 
   // Fetch borrower profiles when create modal opens
   useEffect(() => {
     if (showCreate && borrowerProfiles.length === 0) {
-      creditService.listBorrowerProfiles({ limit: 200 }).then(res => setBorrowerProfiles(res.profiles)).catch(() => {});
+      creditService.listBorrowerProfiles({ limit: 200 }).then(res => setBorrowerProfiles(res.profiles)).catch((e) => { console.error(e); toast.error(friendlyMessage(e, 'Failed to load borrower profiles')); });
     }
   }, [showCreate]);
+
+  // Fetch pending approval count
+  useEffect(() => {
+    dashboardApi.getApprovalInbox()
+      .then((res: any) => {
+        const items = res.data?.data ?? res.data ?? [];
+        setPendingApprovalCount(Array.isArray(items) ? items.length : 0);
+      })
+      .catch(() => { /* silently ignore — non-critical */ });
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,12 +137,14 @@ const CreditApplicationList: React.FC = () => {
     try {
       setSaving(true);
       const newApp = await creditService.createApplication(payload);
+      toast.success('Application submitted successfully');
       setShowCreate(false);
       setForm({ currency: 'MYR' as any, productType: 'TERM_LOAN' });
       // Navigate to the new application's Header tab for CA Memo entry
       navigate(`/credit/applications/${newApp.id}`);
     } catch (e) {
       console.error(e);
+      toast.error(friendlyMessage(e, 'Failed to create application'));
     } finally {
       setSaving(false);
     }
@@ -161,7 +167,11 @@ const CreditApplicationList: React.FC = () => {
               <Link to="/credit" className="hover:text-brand-700 transition-colors" style={{ textDecoration: 'none', color: 'inherit' }}>Credit</Link>
               <span>/</span><span className="font-semibold text-text-primary">Applications</span>
             </div>
-            <h1 className="text-2xl font-black text-text-primary">Credit Applications</h1>
+            <h1 className="text-2xl font-black text-text-primary">Credit Applications{pendingApprovalCount > 0 && (
+              <span className="text-xs font-bold bg-red-500 text-white px-2 py-0.5 rounded-full ml-2">
+                {pendingApprovalCount} pending
+              </span>
+            )}</h1>
           </div>
           {canWrite && (
             <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
@@ -183,15 +193,18 @@ const CreditApplicationList: React.FC = () => {
         <div className="flex items-center gap-3 mb-5 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-lg">search</span>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search applications..."
+            <input value={searchInput} onChange={e => setSearchInput(e.target.value)} placeholder="Search applications..."
+              aria-label="Search credit applications"
               className="w-full pl-10 pr-4 py-2 bg-surface-muted border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
           </div>
           <select value={productFilter} onChange={e => setProductFilter(e.target.value)}
+            aria-label="Filter by product type"
             className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
             <option value="">All Products</option>
             {PRODUCT_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
           </select>
           <select value={stateFilter} onChange={e => setStateFilter(e.target.value)}
+            aria-label="Filter by application state"
             className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
             <option value="">All States</option>
             {Object.entries(STATE_COLORS).map(([key]) => <option key={key} value={key}>{key.replace(/_/g, ' ')}</option>)}
@@ -200,7 +213,7 @@ const CreditApplicationList: React.FC = () => {
 
         {/* Kanban Board */}
         {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div aria-busy="true" aria-label="Loading applications" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {KANBAN_COLUMNS.map(col => (
               <div key={col.key}>
                 <div className="text-sm font-bold text-text-secondary mb-3 uppercase tracking-wider" style={{ color: col.color }}>{col.label}</div>
@@ -214,9 +227,9 @@ const CreditApplicationList: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4" style={{ alignItems: 'flex-start' }}>
+          <div aria-busy="false" className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory" style={{ alignItems: 'flex-start' }}>
             {grouped.map(col => (
-              <div key={col.key}>
+              <div key={col.key} className="min-w-[260px] md:min-w-[280px] flex-1 snap-start">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-2 h-2 rounded-full" style={{ background: col.color }} />
                   <span className="text-sm font-bold text-text-secondary uppercase tracking-wider" style={{ color: col.color }}>{col.label}</span>
@@ -224,8 +237,9 @@ const CreditApplicationList: React.FC = () => {
                 </div>
                 <div className="space-y-3">
                   {col.items.length === 0 && (
-                    <div className="text-center py-6 text-text-secondary bg-bg-surface border border-border rounded-xl border-dashed">
-                      <span className="material-symbols-outlined text-2xl block opacity-20">inbox</span>
+                    <div className="text-center py-4 text-text-secondary">
+                      <span className="material-symbols-outlined text-xl block opacity-20">playlist_add</span>
+                      <p className="text-xs mt-1">Drag or create applications</p>
                     </div>
                   )}
                   {col.items.map(app => {
@@ -256,6 +270,69 @@ const CreditApplicationList: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && pagination.total > 0 && (
+          <div className="flex items-center justify-between mt-6 pt-4 border-t border-border flex-wrap gap-3">
+            <div className="text-sm text-text-secondary">
+              Showing {((pagination.page - 1) * pagination.limit) + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold text-text-primary border border-border hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                style={{ background: 'none', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}
+              >
+                Previous
+              </button>
+              {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
+                .filter(p => p === 1 || p === pagination.totalPages || Math.abs(p - page) <= 1)
+                .reduce<(number | string)[]>((acc, p, i, arr) => {
+                  if (i > 0) {
+                    const prev = arr[i - 1];
+                    if (typeof prev === 'number' && p - prev > 1) acc.push('...');
+                  }
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  typeof p === 'string' ? (
+                    <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-sm text-text-secondary">…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${p === page ? 'bg-brand-700 text-white' : 'text-text-primary border border-border hover:bg-gray-50'}`}
+                      style={p === page ? { border: 'none', cursor: 'default' } : { background: 'none', cursor: 'pointer' }}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+              <button
+                onClick={() => setPage(p => Math.min(pagination.totalPages, p + 1))}
+                disabled={page >= pagination.totalPages}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold text-text-primary border border-border hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                style={{ background: 'none', cursor: page >= pagination.totalPages ? 'not-allowed' : 'pointer' }}
+              >
+                Next
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-text-secondary">Per page:</span>
+              <select
+                value={pageSize}
+                onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+                aria-label="Results per page"
+                className="px-2 py-1 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer"
+                style={{ fontFamily: 'var(--font-sans)' }}
+              >
+                {[10, 20, 50, 100].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
         )}
 

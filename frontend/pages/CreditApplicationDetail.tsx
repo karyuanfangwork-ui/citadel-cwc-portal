@@ -1,19 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import creditService, {
-  CreditApplication, CreditFacility, CreditApplicationParty, CreditApproval,
-  CreditAuditEvent, ApplicationTransition, ApplicationState, CreditProductType,
-  FacilityType, CurrencyCode, ApprovalDecision,
-  scoringApi, CreditScoreRun, RiskRating,
-  collateralApi, Collateral, Guarantee, guaranteeApi,
-  conditionApi, ConditionPrecedent, CpCompletionStatus, ConditionStatus, ConditionCategory,
-  BorrowerProfile,
+  CreditApplication, CreditFacility, ApplicationTransition, ApplicationState, dashboardApi,
 } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
+import toast from 'react-hot-toast';
+import { friendlyMessage } from '../src/utils/errorMessages';
 import HeaderBackgroundTab from './credit/tabs/HeaderBackgroundTab';
-import RequestsFacilitiesTab from './credit/tabs/RequestsFacilitiesTab';
+import FacilitiesTab from './credit/tabs/FacilitiesTab';
 import RiskRatingEclTab from './credit/tabs/RiskRatingEclTab';
 import PaymentCapabilityTab from './credit/tabs/PaymentCapabilityTab';
 import SecurityGuaranteesTab from './credit/tabs/SecurityGuaranteesTab';
@@ -26,77 +22,27 @@ import RiskMitigatorsTab from './credit/tabs/RiskMitigatorsTab';
 import EsgTab from './credit/tabs/EsgTab';
 import SicrTab from './credit/tabs/SicrTab';
 import SignoffTab from './credit/tabs/SignoffTab';
+import SummaryTab from './credit/tabs/SummaryTab';
+import PartiesTab from './credit/tabs/PartiesTab';
+import DocumentsTab from './credit/tabs/DocumentsTab';
+import ApprovalsTab from './credit/tabs/ApprovalsTab';
+import CollateralTab from './credit/tabs/CollateralTab';
+import ConditionsTab from './credit/tabs/ConditionsTab';
+import AuditTab from './credit/tabs/AuditTab';
 
-const formatCurrency = (val: number | string | null, currency = 'MYR') =>
-  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(Number(val)) : '—';
-const formatDate = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-const formatDateTime = (d: string | null) =>
-  d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-
-const STATE_COLORS: Record<string, { bg: string; text: string }> = {
-  DRAFT: { bg: '#6366f120', text: '#6366f1' },
-  SUBMITTED: { bg: '#f59e0b20', text: '#d97706' },
-  KYC_REVIEW: { bg: '#3b82f620', text: '#2563eb' },
-  KYC_APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-  KYC_REJECTED: { bg: '#ef444420', text: '#dc2626' },
-  UNDERWRITING: { bg: '#8b5cf620', text: '#7c3aed' },
-  CREDIT_ASSESSMENT: { bg: '#a78bfa20', text: '#7c3aed' },
-  COMMITTEE_REVIEW: { bg: '#f9731620', text: '#ea580c' },
-  APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-  REJECTED: { bg: '#ef444420', text: '#dc2626' },
-  OFFER: { bg: '#06b6d420', text: '#0891b2' },
-  ACCEPTED: { bg: '#14b8a620', text: '#0d9488' },
-  DISBURSED: { bg: '#06b6d420', text: '#0891b2' },
-  ACTIVE: { bg: '#22c55e20', text: '#16a34a' },
-  CLOSED: { bg: '#6b728020', text: '#6b7280' },
-  WITHDRAWN: { bg: '#6b728020', text: '#6b7280' },
-};
-
-const STATE_LABELS: Record<string, string> = {
-  DRAFT: 'Draft',
-  SUBMITTED: 'Submitted',
-  KYC_REVIEW: 'KYC Review',
-  KYC_APPROVED: 'KYC Approved',
-  KYC_REJECTED: 'KYC Rejected',
-  UNDERWRITING: 'Underwriting',
-  CREDIT_ASSESSMENT: 'Credit Assessment',
-  COMMITTEE_REVIEW: 'Committee Review',
-  APPROVED: 'Approved',
-  REJECTED: 'Rejected',
-  OFFER: 'Offer',
-  ACCEPTED: 'Accepted',
-  DISBURSED: 'Disbursed',
-  ACTIVE: 'Active',
-  CLOSED: 'Closed',
-  WITHDRAWN: 'Withdrawn',
-};
-
-const STEPPER_STAGES: { key: string; label: string; states: ApplicationState[] }[] = [
-  { key: 'draft', label: 'Draft', states: ['DRAFT'] },
-  { key: 'kyc', label: 'KYC Review', states: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED'] },
-  { key: 'assessment', label: 'Assessment', states: ['UNDERWRITING', 'CREDIT_ASSESSMENT'] },
-  { key: 'decision', label: 'Decision', states: ['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED'] },
-  { key: 'offer', label: 'Offer', states: ['OFFER', 'ACCEPTED'] },
-  { key: 'active', label: 'Active', states: ['DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN'] },
-];
-
-const PRODUCT_LABELS: Record<string, string> = {
-  TERM_LOAN: 'Term Loan', REVOLVING_CREDIT: 'Revolving Credit', TRADE_FINANCE: 'Trade Finance',
-  PROJECT_FINANCE: 'Project Finance', SYNDICATED: 'Syndicated', BRIDGE_LOAN: 'Bridge Loan',
-  OVERDRAFT: 'Overdraft', LETTER_OF_CREDIT: 'Letter of Credit', BANK_GUARANTEE: 'Bank Guarantee',
-};
-
-const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
-  { value: 'TERM_LOAN', label: 'Term Loan' }, { value: 'REVOLVING_CREDIT', label: 'Revolving Credit' },
-  { value: 'OVERDRAFT', label: 'Overdraft' }, { value: 'LETTER_OF_CREDIT', label: 'Letter of Credit' },
-  { value: 'BANK_GUARANTEE', label: 'Bank Guarantee' }, { value: 'TRADE_FINANCE', label: 'Trade Finance' },
-  { value: 'BRIDGE_LOAN', label: 'Bridge Loan' }, { value: 'PROJECT_FINANCE', label: 'Project Finance' },
-];
-
-const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD'] as const;
-
-type DetailTab = 'header' | 'summary' | 'facilities' | 'risk-rating' | 'payment-capability' | 'security' | 'profitability' | 'counterparties' | 'conduct' | 'credit-checks' | 'industry' | 'risk' | 'esg' | 'sicr' | 'signoff' | 'parties' | 'documents' | 'approvals' | 'audit' | 'collateral' | 'conditions';
+import {
+  formatCurrency,
+  STATE_COLORS,
+  STATE_LABELS,
+  STEPPER_STAGES,
+  PRODUCT_LABELS,
+  DetailTab,
+  TAB_GROUPS,
+  ALL_TABS,
+  getPhaseCompletion,
+  getIncompletePhaseCount,
+  getNextIncompleteTab,
+} from './credit/creditUtils';
 
 const CreditApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -108,54 +54,14 @@ const CreditApplicationDetail: React.FC = () => {
   const [activeTab, setActiveTab] = useState<DetailTab>('header');
   const [transitions, setTransitions] = useState<ApplicationTransition[]>([]);
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
-  const [parties, setParties] = useState<CreditApplicationParty[]>([]);
-  const [approvals, setApprovals] = useState<CreditApproval[]>([]);
-  const [audit, setAudit] = useState<CreditAuditEvent[]>([]);
   const [transitioning, setTransitioning] = useState(false);
-  const [showFacilityForm, setShowFacilityForm] = useState(false);
-  const [showPartyForm, setShowPartyForm] = useState(false);
-  const [facilityForm, setFacilityForm] = useState<Partial<CreditFacility>>({ currency: 'MYR' as any, facilityType: 'TERM_LOAN', amount: 0 });
-  const [partyForm, setPartyForm] = useState<{ borrowerProfileId: string; role: string; liabilityPct: string }>({ borrowerProfileId: '', role: 'guarantor', liabilityPct: '' });
-  const [borrowerProfiles, setBorrowerProfiles] = useState<BorrowerProfile[]>([]);
-  const [approvalDecision, setApprovalDecision] = useState<ApprovalDecision | ''>('');
-  const [approvalComment, setApprovalComment] = useState('');
-  const [submittingApproval, setSubmittingApproval] = useState(false);
   const [transitionReason, setTransitionReason] = useState('');
   const [showTransitionDialog, setShowTransitionDialog] = useState<string | null>(null);
-  const [savingFacility, setSavingFacility] = useState(false);
-  const [savingParty, setSavingParty] = useState(false);
+  const [reasonError, setReasonError] = useState(false);
+  const transitionDialogCancelRef = useRef<HTMLButtonElement>(null);
+  const transitionTriggerRef = useRef<HTMLButtonElement | null>(null);
 
-  // Score Run state
-  const [scoreRuns, setScoreRuns] = useState<CreditScoreRun[]>([]);
-  const [runningScore, setRunningScore] = useState(false);
-  const [showOverrideDialog, setShowOverrideDialog] = useState<string | null>(null);
-  const [overrideRating, setOverrideRating] = useState<RiskRating>('NR');
-  const [overrideReason, setOverrideReason] = useState('');
-  const [overrideApproverId, setOverrideApproverId] = useState('');
-  const [overriding, setOverriding] = useState(false);
-
-  // Sprint 4: Collateral & Conditions state
-  const [collaterals, setCollaterals] = useState<Collateral[]>([]);
-  const [guarantees, setGuarantees] = useState<Guarantee[]>([]);
-  const [conditions, setConditions] = useState<ConditionPrecedent[]>([]);
-  const [cpCompletion, setCpCompletion] = useState<CpCompletionStatus | null>(null);
-  const [completingCondition, setCompletingCondition] = useState<string | null>(null);
-  const [waiveDialogId, setWaiveDialogId] = useState<string | null>(null);
-  const [waiveReason, setWaiveReason] = useState('');
-  const [waivingCondition, setWaivingCondition] = useState(false);
-  const [showAddConditionDialog, setShowAddConditionDialog] = useState(false);
-  const [conditionForm, setConditionForm] = useState({ title: '', description: '', category: 'PRE_DISBURSEMENT' as ConditionCategory, dueDate: '' });
-  const [savingCondition, setSavingCondition] = useState(false);
-
-  const RISK_RATINGS: RiskRating[] = ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D', 'NR'];
-  const RISK_COLORS: Record<string, { bg: string; text: string }> = {
-    AAA: { bg: '#22c55e20', text: '#16a34a' }, AA: { bg: '#22c55e20', text: '#16a34a' },
-    A: { bg: '#22c55e20', text: '#16a34a' }, BBB: { bg: '#3b82f620', text: '#2563eb' },
-    BB: { bg: '#f59e0b20', text: '#d97706' }, B: { bg: '#f59e0b20', text: '#d97706' },
-    CCC: { bg: '#ef444420', text: '#dc2626' }, CC: { bg: '#ef444420', text: '#dc2626' },
-    C: { bg: '#ef444420', text: '#dc2626' }, D: { bg: '#ef444420', text: '#dc2626' },
-    NR: { bg: '#6b728020', text: '#6b7280' },
-  };
+  const [showMobileNav, setShowMobileNav] = useState(false);
 
   const canWrite = hasPermission(user, 'credit:write');
   const canApprove = hasPermission(user, 'credit:approve');
@@ -168,6 +74,7 @@ const CreditApplicationDetail: React.FC = () => {
       setApp(data);
     } catch (e) {
       console.error(e);
+      toast.error(friendlyMessage(e, 'Failed to load application'));
       navigate('/credit/applications');
     } finally {
       setLoading(false);
@@ -179,7 +86,7 @@ const CreditApplicationDetail: React.FC = () => {
     try {
       const data = await creditService.getApplicationTransitions(id);
       setTransitions(data);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to load available actions')); }
   }, [id]);
 
   const fetchFacilities = useCallback(async () => {
@@ -187,227 +94,87 @@ const CreditApplicationDetail: React.FC = () => {
     try {
       const data = await creditService.listFacilities(id);
       setFacilities(data);
-    } catch (e) { console.error(e); }
-  }, [id]);
-
-  const fetchParties = useCallback(async () => {
-    if (!id) return;
-    try {
-      const data = await creditService.listParties(id);
-      setParties(data);
-    } catch (e) { console.error(e); }
-  }, [id]);
-
-  const fetchBorrowerProfiles = useCallback(async () => {
-    try {
-      const result = await creditService.listBorrowerProfiles({ limit: 200 });
-      setBorrowerProfiles(result.profiles);
-    } catch (e) { console.error(e); }
-  }, []);
-
-  const fetchApprovals = useCallback(async () => {
-    if (!id) return;
-    try {
-      const data = await creditService.listApprovals(id);
-      setApprovals(data);
-    } catch (e) { console.error(e); }
-  }, [id]);
-
-  const fetchAudit = useCallback(async () => {
-    if (!id) return;
-    try {
-      const data = await creditService.getApplicationAudit(id);
-      setAudit(data);
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to load facilities')); }
   }, [id]);
 
   useEffect(() => { fetchApp(); }, [fetchApp]);
   useEffect(() => { if (id) fetchTransitions(); }, [fetchTransitions]);
   useEffect(() => { if (activeTab === 'facilities') fetchFacilities(); }, [activeTab, fetchFacilities]);
-  useEffect(() => { if (activeTab === 'parties') fetchParties(); }, [activeTab, fetchParties]);
-  useEffect(() => { if (activeTab === 'approvals') fetchApprovals(); }, [activeTab, fetchApprovals]);
-  useEffect(() => { if (activeTab === 'audit') fetchAudit(); }, [activeTab, fetchAudit]);
-  useEffect(() => { if (showPartyForm) fetchBorrowerProfiles(); }, [showPartyForm, fetchBorrowerProfiles]);
 
-  // Sprint 4: Collateral & Conditions fetch
-  const fetchCollateral = useCallback(async () => {
-    if (!id) return;
-    try {
-      const [cols, guars] = await Promise.all([
-        collateralApi.list(id),
-        guaranteeApi.list(id),
-      ]);
-      setCollaterals(cols);
-      setGuarantees(guars);
-    } catch (e) { console.error(e); }
-  }, [id]);
-
-  const fetchConditions = useCallback(async () => {
-    if (!id) return;
-    try {
-      const [conds, cp] = await Promise.all([
-        conditionApi.list(id),
-        conditionApi.checkCpCompletion(id),
-      ]);
-      setConditions(conds);
-      setCpCompletion(cp);
-    } catch (e) { console.error(e); }
-  }, [id]);
-
-  useEffect(() => { if (activeTab === 'collateral') fetchCollateral(); }, [activeTab, fetchCollateral]);
-  useEffect(() => { if (activeTab === 'conditions') fetchConditions(); }, [activeTab, fetchConditions]);
-
-  const handleCompleteCondition = async (conditionId: string) => {
-    try {
-      setCompletingCondition(conditionId);
-      await conditionApi.completeCondition(conditionId);
-      fetchConditions();
-    } catch (e) { console.error(e); }
-    finally { setCompletingCondition(null); }
-  };
-
-  const handleWaiveCondition = async () => {
-    if (!waiveDialogId || !waiveReason) return;
-    try {
-      setWaivingCondition(true);
-      await conditionApi.waiveCondition(waiveDialogId, { reason: waiveReason });
-      setWaiveDialogId(null);
-      setWaiveReason('');
-      fetchConditions();
-    } catch (e) { console.error(e); }
-    finally { setWaivingCondition(false); }
-  };
-
-  const handleCreateCondition = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!id) return;
-    try {
-      setSavingCondition(true);
-      await conditionApi.create(id, {
-        title: conditionForm.title,
-        description: conditionForm.description || undefined,
-        category: conditionForm.category,
-        dueDate: conditionForm.dueDate ? new Date(conditionForm.dueDate).toISOString() : undefined,
-      });
-      setShowAddConditionDialog(false);
-      setConditionForm({ title: '', description: '', category: 'PRE_DISBURSEMENT', dueDate: '' });
-      fetchConditions();
-    } catch (e) { console.error(e); }
-    finally { setSavingCondition(false); }
-  };
+  // Auto-focus cancel button when dialog opens
+  useEffect(() => {
+    if (showTransitionDialog && transitionDialogCancelRef.current) {
+      transitionDialogCancelRef.current.focus();
+    }
+  }, [showTransitionDialog]);
 
   const handleTransition = async (action: string) => {
     if (!id) return;
+    const t = transitions.find(tr => tr.action === showTransitionDialog);
+    if (t?.requiresComment && !transitionReason.trim()) {
+      setReasonError(true);
+      return;
+    }
     try {
       setTransitioning(true);
       await creditService.transitionApplication(id, { action, reason: transitionReason || undefined });
+      toast.success('Application transitioned successfully');
       setTransitionReason('');
+      setReasonError(false);
       setShowTransitionDialog(null);
+      // Return focus to trigger button
+      transitionTriggerRef.current?.focus();
       fetchApp();
       fetchTransitions();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to transition application')); }
     finally { setTransitioning(false); }
   };
 
-  const handleCreateFacility = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!id) return;
+  const handleDownloadCaMemo = async () => {
+    if (!app) return;
     try {
-      setSavingFacility(true);
-      await creditService.createFacility(id, facilityForm);
-      setShowFacilityForm(false);
-      setFacilityForm({ currency: 'MYR' as any, facilityType: 'TERM_LOAN', amount: 0 });
-      fetchFacilities();
-    } catch (e) { console.error(e); }
-    finally { setSavingFacility(false); }
+      const response = await creditService.downloadCaMemo(app.id);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `CA-Memo-${app.applicationNo || app.id}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('CA Memo downloaded');
+    } catch (e) {
+      toast.error(friendlyMessage(e, 'Failed to download CA Memo'));
+    }
   };
 
-  const handleDeleteFacility = async (facilityId: string) => {
-    if (!confirm('Delete this facility?')) return;
-    try {
-      await creditService.deleteFacility(facilityId);
-      fetchFacilities();
-    } catch (e) { console.error(e); }
-  };
-
-  const handleCreateParty = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!id || !partyForm.borrowerProfileId) return;
-    try {
-      setSavingParty(true);
-      await creditService.createParty(id, {
-        borrowerProfileId: partyForm.borrowerProfileId,
-        role: partyForm.role,
-        liabilityPct: partyForm.liabilityPct || null,
-      });
-      setShowPartyForm(false);
-      setPartyForm({ borrowerProfileId: '', role: 'guarantor', liabilityPct: '' });
-      fetchParties();
-    } catch (e) { console.error(e); }
-    finally { setSavingParty(false); }
-  };
-
-  const handleSubmitApproval = async () => {
-    if (!id || !approvalDecision) return;
-    try {
-      setSubmittingApproval(true);
-      await creditService.submitApproval(id, {
-        decision: approvalDecision,
-        comment: approvalComment || undefined,
-      });
-      setApprovalDecision('');
-      setApprovalComment('');
-      fetchApprovals();
-      fetchApp();
-    } catch (e) { console.error(e); }
-    finally { setSubmittingApproval(false); }
-  };
-
-  // Score Runs
-  const fetchScoreRuns = useCallback(async () => {
-    if (!id) return;
-    try {
-      const data = await scoringApi.listScores(id);
-      setScoreRuns(data);
-    } catch (e) { console.error(e); }
-  }, [id]);
-
-  useEffect(() => { if (activeTab === 'summary') fetchScoreRuns(); }, [activeTab, fetchScoreRuns]);
-
-  const handleRunScore = async () => {
-    if (!id) return;
-    try {
-      setRunningScore(true);
-      await scoringApi.executeScore(id);
-      fetchScoreRuns();
-      fetchApp();
-    } catch (e) { console.error(e); }
-    finally { setRunningScore(false); }
-  };
-
-  const handleOverrideScore = async () => {
-    if (!showOverrideDialog) return;
-    try {
-      setOverriding(true);
-      await scoringApi.overrideScore(showOverrideDialog, {
-        rating: overrideRating,
-        reason: overrideReason,
-        approverId: overrideApproverId || user?.id || '',
-      });
-      setShowOverrideDialog(null);
-      setOverrideRating('NR');
-      setOverrideReason('');
-      setOverrideApproverId('');
-      fetchScoreRuns();
-      fetchApp();
-    } catch (e) { console.error(e); }
-    finally { setOverriding(false); }
+  const handleTabKeyDown = (e: React.KeyboardEvent, tab: DetailTab) => {
+    const idx = ALL_TABS.indexOf(tab);
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const next = ALL_TABS[(idx + 1) % ALL_TABS.length];
+      setActiveTab(next);
+      document.getElementById(`tab-${next}`)?.focus();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const prev = ALL_TABS[(idx - 1 + ALL_TABS.length) % ALL_TABS.length];
+      setActiveTab(prev);
+      document.getElementById(`tab-${prev}`)?.focus();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setActiveTab(ALL_TABS[0]);
+      document.getElementById(`tab-${ALL_TABS[0]}`)?.focus();
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setActiveTab(ALL_TABS[ALL_TABS.length - 1]);
+      document.getElementById(`tab-${ALL_TABS[ALL_TABS.length - 1]}`)?.focus();
+    }
   };
 
   if (loading) return (
     <>
       <CreditNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
+      <div aria-busy="true" style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
         {[...Array(6)].map((_, i) => (
           <div key={i} style={{ height: 20, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
         ))}
@@ -419,6 +186,19 @@ const CreditApplicationDetail: React.FC = () => {
 
   const currentState = (app.state || app.status) as ApplicationState;
   const badge = STATE_COLORS[currentState] || STATE_COLORS.DRAFT;
+
+  const phaseCompletion = getPhaseCompletion({
+    applicationType: app.applicationType,
+    accountClassification: app.accountClassification,
+    preambleText: app.preambleText,
+    riskRating: app.riskRating,
+    firstWayOut: app.firstWayOut,
+    purpose: app.purpose,
+    preparedAt: app.preparedAt,
+    facilities: facilities,
+    parties: app.parties,
+  });
+  const incompleteCount = getIncompletePhaseCount(phaseCompletion);
 
   // Stepper logic
   const currentStageIdx = STEPPER_STAGES.findIndex(s => s.states.includes(currentState));
@@ -452,7 +232,24 @@ const CreditApplicationDetail: React.FC = () => {
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
                   {currentState.replace(/_/g, ' ')}
                 </span>
+                {['SUBMITTED','KYC_REVIEW','UNDERWRITING','CREDIT_ASSESSMENT','COMMITTEE_REVIEW'].includes(currentState) && (
+                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
+                    Pending approval
+                  </span>
+                )}
                 <span className="text-sm text-text-secondary">{PRODUCT_LABELS[app.productType || app.productName || ''] || app.productName}</span>
+                {incompleteCount > 0 && (
+                  <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">warning</span>
+                    {incompleteCount} phase{incompleteCount !== 1 ? 's' : ''} incomplete
+                  </span>
+                )}
+                {incompleteCount === 0 && (
+                  <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                    All phases complete
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -513,15 +310,13 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* CA Memo Export */}
         <div className="flex justify-end mb-2">
-          <a
-            href={`${import.meta.env.VITE_API_URL ?? ''}/api/v1/credit/applications/${app.id}/ca-memo`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+          <button
+            onClick={handleDownloadCaMemo}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 cursor-pointer"
           >
             <span className="material-symbols-outlined text-base">description</span>
             Export CA Memo
-          </a>
+          </button>
         </div>
 
         {/* Transition Action Buttons */}
@@ -533,7 +328,7 @@ const CreditApplicationDetail: React.FC = () => {
                 const isReject = t.toState === 'REJECTED' || t.toState === 'KYC_REJECTED' || t.toState === 'WITHDRAWN';
                 const isApprove = t.toState === 'APPROVED' || t.toState === 'KYC_APPROVED' || t.toState === 'ACCEPTED';
                 return (
-                  <button key={t.action} onClick={() => setShowTransitionDialog(t.action)}
+                  <button key={t.action} ref={el => { if (t.action === showTransitionDialog) transitionTriggerRef.current = el; }} onClick={() => setShowTransitionDialog(t.action)}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
                       isReject ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100' :
                       isApprove ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100' :
@@ -551,763 +346,295 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex gap-1 border-b border-border mb-6">
-          {(['header', 'summary', 'facilities', 'risk-rating', 'payment-capability', 'security', 'profitability', 'counterparties', 'conduct', 'credit-checks', 'industry', 'risk', 'esg', 'sicr', 'signoff', 'parties', 'documents', 'approvals', 'collateral', 'conditions', 'audit'] as DetailTab[]).map(tab => {
-            const isHeaderComplete = tab === 'header' && app && app.applicationType && app.accountClassification;
-            const tabLabels: Record<string, string> = { header: 'Header', summary: 'Summary', facilities: 'Facilities', 'risk-rating': 'Risk & ECL', 'payment-capability': 'Payment', security: 'Security', profitability: 'Profitability', counterparties: 'Counterparties', conduct: 'Conduct', 'credit-checks': 'Bureau Checks', industry: 'Industry', risk: 'Risk', esg: 'ESG', sicr: 'SICR', signoff: 'Sign-off', parties: 'Parties', documents: 'Documents', approvals: 'Approvals', collateral: 'Collateral', conditions: 'Conditions', audit: 'Audit' };
-            return (
-              <button key={tab} onClick={() => setActiveTab(tab)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
-                className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-                {tabLabels[tab] || tab}
-                {tab === 'header' && (
-                  <span className={`inline-block w-2 h-2 rounded-full ${isHeaderComplete ? 'bg-green-500' : 'bg-gray-300'}`} title={isHeaderComplete ? 'Header fields complete' : 'Application Type & Classification required'} />
-                )}
+        {/* Mobile sticky nav bar — visible only on small screens */}
+        {(() => {
+          const activeGroup = TAB_GROUPS.find(g => g.tabs.some(t => t.id === activeTab));
+          const activeTabDef = activeGroup?.tabs.find(t => t.id === activeTab);
+          const groupStatus = activeGroup ? phaseCompletion[activeGroup.id] : 'optional';
+          return (
+            <div className="md:hidden sticky top-0 z-40 bg-white border border-border rounded-xl shadow-sm mb-4 overflow-hidden">
+              <button
+                onClick={() => setShowMobileNav(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 text-left"
+                aria-expanded={showMobileNav}
+                aria-controls="mobile-nav-drawer"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`material-symbols-outlined text-[18px] shrink-0 ${groupStatus === 'complete' ? 'text-green-500' : groupStatus === 'optional' ? 'text-gray-400' : 'text-amber-500'}`}>
+                    {groupStatus === 'complete' ? 'check_circle' : groupStatus === 'optional' ? 'radio_button_unchecked' : 'error'}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-black text-text-secondary uppercase tracking-wider truncate">{activeGroup?.label}</div>
+                    <div className="text-sm font-bold text-text-primary truncate">{activeTabDef?.label}</div>
+                  </div>
+                </div>
+                <span className={`material-symbols-outlined text-xl text-text-secondary transition-transform ${showMobileNav ? 'rotate-180' : ''}`}>expand_more</span>
               </button>
-            );
-          })}
-        </div>
 
-        {/* Header Tab (CA Memo Phase 1) */}
-        {activeTab === 'header' && (
-          <HeaderBackgroundTab
-            application={app}
-            onUpdated={(updated) => setApp(updated)}
-          />
-        )}
-
-        {/* Summary Tab */}
-        {activeTab === 'summary' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-bg-surface border border-border rounded-xl p-5">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Application Details</h3>
-              {[
-                { label: 'Product Type', value: PRODUCT_LABELS[app.productType || app.productName || ''] || app.productName, icon: 'category' },
-                { label: 'Requested Amount', value: formatCurrency(app.requestedAmount, app.currency), icon: 'payments' },
-                { label: 'Approved Amount', value: facilities.length > 0 && facilities.some(f => f.approvedAmount != null) ? formatCurrency(Number(facilities.reduce((s, f) => s + Number(f.approvedAmount || 0), 0)), app.currency) : '—', icon: 'check_circle' },
-                { label: 'Interest Rate', value: facilities.length > 0 && facilities[0].ratePct != null ? `${Number(facilities[0].ratePct)}% p.a.` : '—', icon: 'percent' },
-                { label: 'Tenure', value: app.requestedTenor != null ? `${app.requestedTenor} months` : '—', icon: 'schedule' },
-                { label: 'Currency', value: app.currency, icon: 'currency_exchange' },
-                { label: 'Risk Rating', value: app.riskRating || '—', icon: 'speed' },
-                { label: 'Purpose', value: app.purpose || '—', icon: 'topic' },
-                { label: 'Submitted', value: formatDate(app.submittedAt ?? null), icon: 'send' },
-                { label: 'Decided', value: formatDate(app.decisionedAt ?? null), icon: 'gavel' },
-              ].map(f => (
-                <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                  <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
-                  <span className="text-xs text-text-secondary w-28 shrink-0">{f.label}</span>
-                  <span className="text-sm text-text-primary">{f.value}</span>
-                </div>
-              ))}
-            </div>
-            <div className="bg-bg-surface border border-border rounded-xl p-5">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">People</h3>
-              {[
-                { label: 'Relationship Manager', value: app.rm ? `${app.rm.firstName} ${app.rm.lastName}` : '—', icon: 'person', sub: app.rm?.email },
-                { label: 'Credit Analyst', value: app.analyst ? `${app.analyst.firstName} ${app.analyst.lastName}` : '—', icon: 'analytics', sub: app.analyst?.email },
-                { label: 'Borrower', value: app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : '—', icon: 'account_circle', sub: app.borrowerProfile?.contact?.email },
-              ].map(f => (
-                <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                  <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-xs text-text-secondary block">{f.label}</span>
-                    <span className="text-sm text-text-primary font-medium">{f.value}</span>
-                    {f.sub && <span className="text-xs text-text-secondary block truncate">{f.sub}</span>}
-                  </div>
-                </div>
-              ))}
-              {app.rejectionReason && (
-                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <span className="text-xs font-bold text-red-700">Rejection Reason</span>
-                  <p className="text-sm text-red-800 mt-0.5">{app.rejectionReason}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Score Run Section in Summary Tab */}
-        {activeTab === 'summary' && (
-          <div className="mt-6 bg-bg-surface border border-border rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Credit Scoring</h3>
-              {canWrite && (
-                <button onClick={handleRunScore} disabled={runningScore}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100 transition-colors"
-                  style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  <span className="material-symbols-outlined text-base">speed</span>
-                  {runningScore ? 'Running...' : 'Run Score'}
-                </button>
-              )}
-            </div>
-
-            {scoreRuns.length === 0 ? (
-              <p className="text-sm text-text-secondary text-center py-4">No score runs yet. Click "Run Score" to execute credit scoring.</p>
-            ) : (
-              <div>
-                {/* Latest Score Run */}
-                {(() => {
-                  const latest = scoreRuns[0];
-                  const rating = latest.overriddenRating || latest.riskRating;
-                  const ratingColor = RISK_COLORS[rating] || RISK_COLORS.NR;
-                  return (
-                    <div className="bg-bg-subtle border border-border rounded-xl p-5 mb-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-black" style={{ background: ratingColor.bg, color: ratingColor.text }}>
-                            {rating}
-                          </div>
-                          <div>
-                            <p className="text-2xl font-black text-text-primary">{latest.totalScore}</p>
-                            <p className="text-xs text-text-secondary">Total Score</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {latest.overriddenRating && (
-                            <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
-                              Overridden (was {latest.riskRating})
-                            </span>
-                          )}
-                          <button onClick={() => setShowOverrideDialog(latest.id)}
-                            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
-                            style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                            <span className="material-symbols-outlined text-sm">edit</span> Override
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Factor Breakdown */}
-                      <div className="grid grid-cols-3 gap-2">
-                        {latest.factorBreakdown?.map(fb => (
-                          <div key={fb.factorKey} className="bg-bg-surface border border-border rounded-lg p-2.5">
-                            <p className="text-xs text-text-secondary truncate">{fb.factorLabel}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-sm font-bold text-text-primary">{fb.weightedScore.toFixed(1)}</span>
-                              <span className="text-[10px] text-text-secondary">w:{fb.weight}% s:{fb.score.toFixed(0)}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Score History */}
-                {scoreRuns.length > 1 && (
-                  <div>
-                    <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Score History</h4>
-                    <div className="space-y-2">
-                      {scoreRuns.slice(1).map(sr => {
-                        const r = sr.overriddenRating || sr.riskRating;
-                        const rc = RISK_COLORS[r] || RISK_COLORS.NR;
-                        return (
-                          <div key={sr.id} className="flex items-center gap-3 px-3 py-2 bg-bg-subtle border border-border rounded-lg text-sm">
-                            <span className="text-xs font-bold px-1.5 py-0.5 rounded-full" style={{ background: rc.bg, color: rc.text }}>{r}</span>
-                            <span className="font-semibold text-text-primary">{sr.totalScore}</span>
-                            <span className="text-xs text-text-secondary">{formatDateTime(sr.executedAt)}</span>
-                            {sr.overriddenRating && <span className="text-xs text-amber-600 font-bold">Overridden</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Override Score Dialog */}
-        {showOverrideDialog && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowOverrideDialog(null)}>
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-              <h2 className="text-lg font-black text-text-primary mb-4">Override Risk Rating</h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-2">New Rating *</label>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {RISK_RATINGS.map(r => (
-                      <button key={r} onClick={() => setOverrideRating(r)}
-                        className={`px-2 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
-                          overrideRating === r ? 'ring-2 ring-brand-300 ' : ''
-                        }`} style={{
-                          cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                          background: (RISK_COLORS[r]?.bg || '#6b728020'),
-                          color: (RISK_COLORS[r]?.text || '#6b7280'),
-                          borderColor: (RISK_COLORS[r]?.text || '#6b7280') + '40',
-                        }}>
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Override Reason *</label>
-                  <textarea rows={3} value={overrideReason} onChange={e => setOverrideReason(e.target.value)}
-                    placeholder="Provide reason for overriding the risk rating..."
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Approver ID</label>
-                  <input type="text" value={overrideApproverId} onChange={e => setOverrideApproverId(e.target.value)}
-                    placeholder="Approver user ID (defaults to current user)"
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button onClick={() => setShowOverrideDialog(null)}
-                    className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                    style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                  <button onClick={handleOverrideScore} disabled={!overrideReason || overriding}
-                    className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
-                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    {overriding ? 'Overriding...' : 'Override'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Facilities Tab — CA Memo Phase 2 */}
-        {activeTab === 'facilities' && (
-          <RequestsFacilitiesTab application={app} />
-        )}
-
-        {/* Risk Rating & ECL Tab — CA Memo Phase 3 */}
-        {activeTab === 'risk-rating' && (
-          <RiskRatingEclTab application={app} />
-        )}
-
-        {/* Payment Capability Tab — CA Memo Phase 3 */}
-        {activeTab === 'payment-capability' && (
-          <PaymentCapabilityTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* Security & Guarantees Tab — CA Memo Phase 4 */}
-        {activeTab === 'security' && (
-          <SecurityGuaranteesTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* Profitability & Wallet Share Tab — CA Memo Phase 4 */}
-        {activeTab === 'profitability' && (
-          <ProfitabilityWalletTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* Counterparties Tab — CA Memo Phase 4 */}
-        {activeTab === 'counterparties' && (
-          <CounterpartiesTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* Account Conduct Tab — CA Memo Phase 4 */}
-        {activeTab === 'conduct' && (
-          <AccountConductTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* Credit Bureau Checks Tab — CA Memo Phase 5 */}
-        {activeTab === 'credit-checks' && (
-          <CreditChecksTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* Industry Outlook Tab — CA Memo Phase 5 */}
-        {activeTab === 'industry' && (
-          <IndustryOutlookTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* Risk & Mitigators Tab — CA Memo Phase 5 */}
-        {activeTab === 'risk' && (
-          <RiskMitigatorsTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* ESG Tab — CA Memo Phase 5 */}
-        {activeTab === 'esg' && (
-          <EsgTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* SICR Tab — CA Memo Phase 5 */}
-        {activeTab === 'sicr' && (
-          <SicrTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* Sign-off Tab — CA Memo Phase 5 */}
-        {activeTab === 'signoff' && (
-          <SignoffTab application={app} onUpdated={setApp} />
-        )}
-
-        {/* Parties Tab */}
-        {activeTab === 'parties' && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Parties</h3>
-              {canWrite && (
-                <button onClick={() => setShowPartyForm(true)} className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  <span className="material-symbols-outlined text-base">person_add</span> Add Party
-                </button>
-              )}
-            </div>
-            {parties.length === 0 ? (
-              <div className="text-center py-8 text-text-secondary bg-bg-surface border border-border rounded-xl">
-                <span className="material-symbols-outlined text-4xl block mb-2 opacity-30">group</span>
-                <p className="font-semibold text-sm">No parties linked</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {parties.map(p => {
-                  const contact = p.borrowerProfile?.contact;
-                  const account = p.borrowerProfile?.account;
-                  const displayName = contact ? `${contact.firstName} ${contact.lastName}` : account?.name ?? 'Unknown';
-                  const initials = contact ? `${contact.firstName?.[0] ?? ''}${contact.lastName?.[0] ?? ''}` : (account?.name?.[0] ?? '?');
-                  const roleLabel = p.role?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) ?? 'Party';
-                  return (
-                    <div key={p.id} className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4">
-                      <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-sm shrink-0">
-                        {initials}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-text-primary text-sm">{displayName}</p>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700">{roleLabel}</span>
-                        </div>
-                        <p className="text-xs text-text-secondary mt-0.5">
-                          {p.borrowerProfile?.borrowerType && `${p.borrowerProfile.borrowerType} · `}
-                          {p.liabilityPct != null && `Liability: ${p.liabilityPct}%`}
-                        </p>
-                      </div>
-                      <Link to={`/credit/borrowers/${p.borrowerProfileId}`} className="text-brand-700 hover:underline text-sm font-semibold" style={{ textDecoration: 'none' }}>
-                        View Profile
-                      </Link>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Documents Tab */}
-        {activeTab === 'documents' && (
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Documents</h3>
-            <p className="text-sm text-text-secondary">Documents are managed on the <Link to={`/credit/borrowers/${app.borrowerProfileId}`} className="text-brand-700 hover:underline" style={{ textDecoration: 'none' }}>Borrower Profile</Link> page.</p>
-          </div>
-        )}
-
-        {/* Approvals Tab */}
-        {activeTab === 'approvals' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Approval Timeline */}
-            <div className="bg-bg-surface border border-border rounded-xl p-5">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Approval History</h3>
-              {approvals.length === 0 ? (
-                <p className="text-sm text-text-secondary">No approvals yet.</p>
-              ) : (
-                <div className="space-y-4">
-                  {approvals.map(a => {
-                    const decColors: Record<string, { bg: string; text: string }> = {
-                      APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-                      REJECTED: { bg: '#ef444420', text: '#dc2626' },
-                      RETURNED: { bg: '#f59e0b20', text: '#d97706' },
-                      ESCALATED: { bg: '#8b5cf620', text: '#7c3aed' },
-                    };
-                    const c = decColors[a.decision] || { bg: '#6366f120', text: '#6366f1' };
+              {showMobileNav && (
+                <div id="mobile-nav-drawer" className="border-t border-border max-h-[60vh] overflow-y-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
+                  {TAB_GROUPS.map((group) => {
+                    const gStatus = phaseCompletion[group.id];
                     return (
-                      <div key={a.id} className="flex gap-3">
-                        <div className="flex flex-col items-center">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: c.bg, color: c.text }}>
-                            {a.decision === 'APPROVED' ? '✓' : a.decision === 'REJECTED' ? '✗' : a.decision === 'RETURNED' ? '↩' : '↑'}
-                          </div>
-                          {a !== approvals[approvals.length - 1] && <div className="w-0.5 flex-1 bg-border mt-1" />}
+                      <div key={group.id}>
+                        <div className="px-4 py-2 bg-gray-50 flex items-center justify-between text-[10px] font-black text-text-secondary uppercase tracking-wider border-b border-border">
+                          {group.label}
+                          <span className={`material-symbols-outlined text-[14px] ${gStatus === 'complete' ? 'text-green-500' : gStatus === 'optional' ? 'text-gray-400' : 'text-amber-500'}`}>
+                            {gStatus === 'complete' ? 'check_circle' : gStatus === 'optional' ? 'radio_button_unchecked' : 'error'}
+                          </span>
                         </div>
-                        <div className="flex-1 pb-4">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-text-primary">{a.approver ? `${a.approver.firstName} ${a.approver.lastName}` : 'Unknown'}</span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: c.bg, color: c.text }}>{a.decision}</span>
-                            {a.isCommitteeVote && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700">Committee</span>}
-                          </div>
-                          {a.comment && <p className="text-xs text-text-secondary mt-0.5">{a.comment}</p>}
-                          <p className="text-xs text-text-secondary mt-0.5">{formatDateTime(a.decidedAt ?? a.createdAt)}</p>
-                        </div>
+                        {group.tabs.map((tab) => {
+                          const isActive = activeTab === tab.id;
+                          return (
+                            <button key={tab.id}
+                              onClick={() => { setActiveTab(tab.id); setShowMobileNav(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                              className={`w-full text-left px-6 py-2.5 text-sm font-semibold flex items-center justify-between ${isActive ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50 hover:text-text-primary'}`}
+                              style={{ background: isActive ? 'var(--brand-50)' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', borderLeft: isActive ? '3px solid var(--brand-700)' : '3px solid transparent' }}
+                            >
+                              {tab.label}
+                              {isActive && <span className="material-symbols-outlined text-[16px]">chevron_right</span>}
+                            </button>
+                          );
+                        })}
                       </div>
                     );
                   })}
                 </div>
               )}
             </div>
+          );
+        })()}
 
-            {/* Approval Action Panel */}
-            {canApprove && (
-              <div className="bg-bg-surface border border-border rounded-xl p-5">
-                <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Submit Decision</h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-text-primary mb-2">Decision *</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {(['APPROVED', 'REJECTED', 'RETURNED', 'ESCALATED'] as ApprovalDecision[]).map(d => {
-                        const colors: Record<string, string> = {
-                          APPROVED: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
-                          REJECTED: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100',
-                          RETURNED: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100',
-                          ESCALATED: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100',
-                        };
-                        return (
-                          <button key={d} onClick={() => setApprovalDecision(d)}
-                            className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors ${
-                              approvalDecision === d ? 'ring-2 ring-brand-300 ' + colors[d] : colors[d]
-                            }`} style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                            {d.charAt(0) + d.slice(1).toLowerCase()}
-                          </button>
-                        );
-                      })}
-                    </div>
+        {/* Layout Wrapper */}
+        <div className="flex flex-col md:flex-row gap-6 mb-6 relative">
+          {/* Sidebar Tabs — desktop only */}
+          <div className="hidden md:flex md:w-64 shrink-0 flex-col gap-3 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden pr-1 pb-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
+            {TAB_GROUPS.map((group) => {
+              const groupStatus = phaseCompletion[group.id];
+              const isGroupComplete = groupStatus === 'complete';
+              const isOptional = groupStatus === 'optional';
+              return (
+                <div key={group.id} className="bg-bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
+                  <div className="px-4 py-2.5 bg-gray-50/80 border-b border-border flex items-center justify-between text-xs font-black text-text-secondary uppercase tracking-wider">
+                    {group.label}
+                    <span className={`material-symbols-outlined text-[16px] ${isGroupComplete ? 'text-green-500' : isOptional ? 'text-gray-400' : 'text-amber-500'}`}>
+                      {isGroupComplete ? 'check_circle' : isOptional ? 'radio_button_unchecked' : 'error'}
+                    </span>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-text-primary mb-1">Comment</label>
-                    <textarea rows={3} value={approvalComment} onChange={e => setApprovalComment(e.target.value)}
-                      placeholder="Add comments for this decision..."
-                      className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 resize-none" style={{ fontFamily: 'var(--font-sans)' }} />
+                  <div className="flex flex-col py-1" role="tablist" aria-label={group.label}>
+                    {group.tabs.map((tab) => {
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                          role="tab"
+                          aria-selected={isActive}
+                          aria-controls={`panel-${tab.id}`}
+                          id={`tab-${tab.id}`}
+                          tabIndex={isActive ? 0 : -1}
+                          onKeyDown={(e) => handleTabKeyDown(e, tab.id)}
+                          className={`text-left px-4 py-2 text-sm font-semibold transition-all flex items-center justify-between group ${
+                            isActive ? 'bg-brand-50 text-brand-700 border-l-4 border-brand-700' : 'text-text-secondary hover:bg-gray-50 hover:text-text-primary border-l-4 border-transparent'
+                          }`}
+                          style={{ cursor: 'pointer', outline: 'none', background: isActive ? 'var(--brand-50)' : 'transparent', borderTop: 'none', borderRight: 'none', borderBottom: 'none' }}>
+                          {tab.label}
+                          {isActive && <span className="material-symbols-outlined text-[18px]">chevron_right</span>}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <button onClick={handleSubmitApproval} disabled={!approvalDecision || submittingApproval}
-                    className="w-full px-4 py-2.5 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50"
-                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    {submittingApproval ? 'Submitting...' : 'Submit Decision'}
-                  </button>
                 </div>
-              </div>
-            )}
+              );
+            })}
+          </div>
+
+          {/* Main Content Area */}
+          <div className="flex-1 min-w-0 bg-white border border-border rounded-xl shadow-sm overflow-hidden flex flex-col">
+            <div className="p-6 flex-1">
+
+        {/* Header Tab (CA Memo Phase 1) */}
+        {activeTab === 'header' && (
+          <div role="tabpanel" id="panel-header" aria-labelledby="tab-header" tabIndex={0}>
+            <HeaderBackgroundTab
+              application={app}
+              onUpdated={(updated) => setApp(updated)}
+            />
+          </div>
+        )}
+
+        {/* Summary Tab */}
+        {activeTab === 'summary' && (
+          <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary" tabIndex={0}>
+            <SummaryTab
+              app={app}
+              facilities={facilities}
+              transitions={transitions}
+              canWrite={canWrite}
+              canApprove={canApprove}
+              onTransition={handleTransition}
+              onRefresh={fetchApp}
+            />
+          </div>
+        )}
+
+        {/* Facilities Tab — CA Memo Phase 2 */}
+        {activeTab === 'facilities' && (
+          <div role="tabpanel" id="panel-facilities" aria-labelledby="tab-facilities" tabIndex={0}>
+            <FacilitiesTab application={app} />
+          </div>
+        )}
+
+        {/* Risk Rating & ECL Tab — CA Memo Phase 3 */}
+        {activeTab === 'risk-rating' && (
+          <div role="tabpanel" id="panel-risk-rating" aria-labelledby="tab-risk-rating" tabIndex={0}>
+            <RiskRatingEclTab application={app} />
+          </div>
+        )}
+
+        {/* Payment Capability Tab — CA Memo Phase 3 */}
+        {activeTab === 'payment-capability' && (
+          <div role="tabpanel" id="panel-payment-capability" aria-labelledby="tab-payment-capability" tabIndex={0}>
+            <PaymentCapabilityTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* Security & Guarantees Tab — CA Memo Phase 4 */}
+        {activeTab === 'security' && (
+          <div role="tabpanel" id="panel-security" aria-labelledby="tab-security" tabIndex={0}>
+            <SecurityGuaranteesTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* Profitability & Wallet Share Tab — CA Memo Phase 4 */}
+        {activeTab === 'profitability' && (
+          <div role="tabpanel" id="panel-profitability" aria-labelledby="tab-profitability" tabIndex={0}>
+            <ProfitabilityWalletTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* Counterparties Tab — CA Memo Phase 4 */}
+        {activeTab === 'counterparties' && (
+          <div role="tabpanel" id="panel-counterparties" aria-labelledby="tab-counterparties" tabIndex={0}>
+            <CounterpartiesTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* Account Conduct Tab — CA Memo Phase 4 */}
+        {activeTab === 'conduct' && (
+          <div role="tabpanel" id="panel-conduct" aria-labelledby="tab-conduct" tabIndex={0}>
+            <AccountConductTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* Credit Bureau Checks Tab — CA Memo Phase 5 */}
+        {activeTab === 'credit-checks' && (
+          <div role="tabpanel" id="panel-credit-checks" aria-labelledby="tab-credit-checks" tabIndex={0}>
+            <CreditChecksTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* Industry Outlook Tab — CA Memo Phase 5 */}
+        {activeTab === 'industry' && (
+          <div role="tabpanel" id="panel-industry" aria-labelledby="tab-industry" tabIndex={0}>
+            <IndustryOutlookTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* Risk & Mitigators Tab — CA Memo Phase 5 */}
+        {activeTab === 'risk' && (
+          <div role="tabpanel" id="panel-risk" aria-labelledby="tab-risk" tabIndex={0}>
+            <RiskMitigatorsTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* ESG Tab — CA Memo Phase 5 */}
+        {activeTab === 'esg' && (
+          <div role="tabpanel" id="panel-esg" aria-labelledby="tab-esg" tabIndex={0}>
+            <EsgTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* SICR Tab — CA Memo Phase 5 */}
+        {activeTab === 'sicr' && (
+          <div role="tabpanel" id="panel-sicr" aria-labelledby="tab-sicr" tabIndex={0}>
+            <SicrTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* Sign-off Tab — CA Memo Phase 5 */}
+        {activeTab === 'signoff' && (
+          <div role="tabpanel" id="panel-signoff" aria-labelledby="tab-signoff" tabIndex={0}>
+            <SignoffTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* Parties Tab */}
+        {activeTab === 'parties' && (
+          <div role="tabpanel" id="panel-parties" aria-labelledby="tab-parties" tabIndex={0}>
+            <PartiesTab app={app} />
+          </div>
+        )}
+
+        {/* Documents Tab */}
+        {activeTab === 'documents' && (
+          <div role="tabpanel" id="panel-documents" aria-labelledby="tab-documents" tabIndex={0}>
+            <DocumentsTab app={app} />
+          </div>
+        )}
+
+        {/* Approvals Tab */}
+        {activeTab === 'approvals' && (
+          <div role="tabpanel" id="panel-approvals" aria-labelledby="tab-approvals" tabIndex={0}>
+            <ApprovalsTab app={app} onRefresh={fetchApp} />
           </div>
         )}
 
         {/* Collateral Tab */}
         {activeTab === 'collateral' && (
-          <div>
-            {/* Collateral Summary */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Collateral</h3>
-                <Link to={`/credit/collateral?applicationId=${id}`}
-                  className="flex items-center gap-1.5 text-sm font-bold text-brand-700 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-100 transition-colors"
-                  style={{ textDecoration: 'none' }}>
-                  <span className="material-symbols-outlined text-base">open_in_new</span> Manage Collateral
-                </Link>
-              </div>
-              {collaterals.length === 0 ? (
-                <div className="text-center py-8 text-text-secondary bg-bg-surface border border-border rounded-xl">
-                  <span className="material-symbols-outlined text-4xl block mb-2 opacity-30">real_estate_agent</span>
-                  <p className="font-semibold text-sm">No collateral recorded</p>
-                  <Link to={`/credit/collateral?applicationId=${id}`} className="text-sm text-brand-700 hover:underline mt-1 inline-block"
-                    style={{ textDecoration: 'none' }}>Add collateral</Link>
-                </div>
-              ) : (
-                <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: 'var(--color-surface-muted)' }}>
-                        {['Type', 'Description', 'Registered Owner', 'Ownership Doc'].map(h => (
-                          <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {collaterals.map(c => (
-                        <tr key={c.id} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                          <td style={{ padding: '8px 12px', fontSize: 13 }}>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
-                              {c.collateralType.replace(/_/g, ' ')}
-                            </span>
-                          </td>
-                          <td style={{ padding: '8px 12px', fontSize: 13 }} className="truncate max-w-[300px]">{c.description}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13 }}>{c.registeredOwner || '—'}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13 }}>{c.ownershipDoc || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Guarantees Summary */}
-            <div>
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Guarantees</h3>
-              {guarantees.length === 0 ? (
-                <div className="text-center py-8 text-text-secondary bg-bg-surface border border-border rounded-xl">
-                  <span className="material-symbols-outlined text-4xl block mb-2 opacity-30">verified_user</span>
-                  <p className="font-semibold text-sm">No guarantees recorded</p>
-                  <Link to={`/credit/collateral?applicationId=${id}`} className="text-sm text-brand-700 hover:underline mt-1 inline-block"
-                    style={{ textDecoration: 'none' }}>Add guarantees</Link>
-                </div>
-              ) : (
-                <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr style={{ background: 'var(--color-surface-muted)' }}>
-                        {['Guarantor', 'Type', 'Amount', 'Currency', 'Doc Ref'].map(h => (
-                          <th key={h} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {guarantees.map(g => (
-                        <tr key={g.id} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                          <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 500 }}>{g.guarantorName}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13 }}>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700">{g.guaranteeType}</span>
-                          </td>
-                          <td style={{ padding: '8px 12px', fontSize: 13, fontWeight: 600 }}>{formatCurrency(g.amount, g.currency)}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13 }}>{g.currency}</td>
-                          <td style={{ padding: '8px 12px', fontSize: 13 }}>{g.documentRef || '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+          <div role="tabpanel" id="panel-collateral" aria-labelledby="tab-collateral" tabIndex={0}>
+            <CollateralTab />
           </div>
         )}
 
         {/* Conditions Tab */}
         {activeTab === 'conditions' && (
-          <div>
-            {/* CP Completion Gate */}
-            {cpCompletion && (
-              <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-6 ${cpCompletion.isComplete ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-black ${cpCompletion.isComplete ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                  <span className="material-symbols-outlined text-2xl">{cpCompletion.isComplete ? 'check_circle' : 'pending'}</span>
-                </div>
-                <div className="flex-1">
-                  <p className={`text-sm font-bold ${cpCompletion.isComplete ? 'text-green-700' : 'text-amber-700'}`}>
-                    {cpCompletion.isComplete ? 'All Conditions Precedent Satisfied' : 'Conditions Precedent Pending'}
-                  </p>
-                  <div className="flex gap-3 mt-1 text-xs">
-                    <span className={cpCompletion.completedCount > 0 ? 'text-green-700 font-bold' : 'text-text-secondary'}>
-                      Completed: {cpCompletion.completedCount}
-                    </span>
-                    <span className={cpCompletion.waivedCount > 0 ? 'text-amber-700 font-bold' : 'text-text-secondary'}>
-                      Waived: {cpCompletion.waivedCount}
-                    </span>
-                    <span className={cpCompletion.pendingCount > 0 ? 'text-red-700 font-bold' : 'text-text-secondary'}>
-                      Pending: {cpCompletion.pendingCount}
-                    </span>
-                    <span className="text-text-secondary">Total: {cpCompletion.totalConditions}</span>
-                  </div>
-                </div>
-                {/* Progress Bar */}
-                <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${cpCompletion.isComplete ? 'bg-green-500' : 'bg-amber-500'}`}
-                    style={{ width: `${cpCompletion.totalConditions > 0 ? ((cpCompletion.completedCount + cpCompletion.waivedCount) / cpCompletion.totalConditions * 100) : 0}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Conditions Checklist</h3>
-              {canWrite && (
-                <button onClick={() => setShowAddConditionDialog(true)}
-                  className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  <span className="material-symbols-outlined text-base">add</span> Add Condition
-                </button>
-              )}
-            </div>
-
-            {conditions.length === 0 ? (
-              <div className="text-center py-8 text-text-secondary bg-bg-surface border border-border rounded-xl">
-                <span className="material-symbols-outlined text-4xl block mb-2 opacity-30">checklist</span>
-                <p className="font-semibold text-sm">No conditions defined</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {conditions.map(cond => {
-                  const isOverdue = cond.status === 'PENDING' && cond.dueDate && new Date(cond.dueDate) < new Date();
-                  const STATUS_CHIPS: Record<ConditionStatus, { bg: string; text: string }> = {
-                    PENDING: { bg: '#f59e0b20', text: '#d97706' },
-                    WAIVED: { bg: '#8b5cf620', text: '#7c3aed' },
-                    COMPLETED: { bg: '#22c55e20', text: '#16a34a' },
-                    EXPIRED: { bg: '#ef444420', text: '#dc2626' },
-                  };
-                  const chip = STATUS_CHIPS[cond.status] || STATUS_CHIPS.PENDING;
-                  return (
-                    <div key={cond.id} className={`bg-bg-surface border rounded-xl p-4 ${isOverdue ? 'border-red-300' : 'border-border'}`}>
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                          cond.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                          cond.status === 'WAIVED' ? 'bg-purple-100 text-purple-700' :
-                          isOverdue ? 'bg-red-100 text-red-700' :
-                          'bg-amber-100 text-amber-700'
-                        }`}>
-                          <span className="material-symbols-outlined text-base">
-                            {cond.status === 'COMPLETED' ? 'check_circle' :
-                             cond.status === 'WAIVED' ? 'verified' :
-                             isOverdue ? 'warning' :
-                             'radio_button_unchecked'}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold text-text-primary text-sm">{cond.title}</p>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.text }}>
-                              {cond.status}
-                            </span>
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-bg-subtle text-text-secondary">
-                              {cond.category.replace(/_/g, ' ')}
-                            </span>
-                          </div>
-                          {cond.description && <p className="text-xs text-text-secondary mt-0.5">{cond.description}</p>}
-                          <div className="flex items-center gap-3 mt-1 text-xs text-text-secondary">
-                            {cond.dueDate && (
-                              <span className={isOverdue ? 'text-red-600 font-bold' : ''}>
-                                Due: {formatDate(cond.dueDate)}{isOverdue ? ' (Overdue!)' : ''}
-                              </span>
-                            )}
-                            {cond.completedAt && <span>Completed: {formatDate(cond.completedAt)}</span>}
-                            {cond.waivedAt && <span>Waived: {formatDate(cond.waivedAt)}</span>}
-                          </div>
-                        </div>
-                        {canWrite && cond.status === 'PENDING' && (
-                          <div className="flex gap-2 shrink-0">
-                            <button onClick={() => handleCompleteCondition(cond.id)} disabled={completingCondition === cond.id}
-                              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
-                              style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                              <span className="material-symbols-outlined text-sm">check</span>
-                              {completingCondition === cond.id ? '...' : 'Complete'}
-                            </button>
-                            <button onClick={() => { setWaiveDialogId(cond.id); setWaiveReason(''); }}
-                              className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors"
-                              style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                              <span className="material-symbols-outlined text-sm">block</span> Waive
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Waive Condition Dialog */}
-        {waiveDialogId && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setWaiveDialogId(null)}>
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
-              <h2 className="text-lg font-black text-text-primary mb-4">Waive Condition</h2>
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Waiver Reason *</label>
-                <textarea rows={3} value={waiveReason} onChange={e => setWaiveReason(e.target.value)}
-                  placeholder="Provide reason for waiving this condition..."
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
-              </div>
-              <div className="flex justify-end gap-3 mt-4">
-                <button onClick={() => setWaiveDialogId(null)}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button onClick={handleWaiveCondition} disabled={!waiveReason || waivingCondition}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {waivingCondition ? 'Waiving...' : 'Waive Condition'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Add Condition Dialog */}
-        {showAddConditionDialog && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowAddConditionDialog(false)}>
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-              <h2 className="text-lg font-black text-text-primary mb-4">Add Condition</h2>
-              <form onSubmit={handleCreateCondition} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Title *</label>
-                  <input required value={conditionForm.title} onChange={e => setConditionForm(f => ({ ...f, title: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
-                  <textarea rows={2} value={conditionForm.description} onChange={e => setConditionForm(f => ({ ...f, description: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Category *</label>
-                    <select required value={conditionForm.category} onChange={e => setConditionForm(f => ({ ...f, category: e.target.value as ConditionCategory }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)' }}>
-                      {['PRE_DISBURSEMENT', 'POST_DISBURSEMENT', 'FINANCIAL_COVENANT', 'REPORTING', 'OTHER'].map(c => (
-                        <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Due Date</label>
-                    <input type="date" value={conditionForm.dueDate} onChange={e => setConditionForm(f => ({ ...f, dueDate: e.target.value }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={() => setShowAddConditionDialog(false)}
-                    className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                    style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                  <button type="submit" disabled={savingCondition}
-                    className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
-                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    {savingCondition ? 'Saving...' : 'Add Condition'}
-                  </button>
-                </div>
-              </form>
-            </div>
+          <div role="tabpanel" id="panel-conditions" aria-labelledby="tab-conditions" tabIndex={0}>
+            <ConditionsTab />
           </div>
         )}
 
         {/* Audit Tab */}
         {activeTab === 'audit' && (
-          <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Audit Trail</h3>
-            {audit.length === 0 ? (
-              <p className="text-sm text-text-secondary">No audit events recorded.</p>
-            ) : (
-              <div className="space-y-4">
-                {audit.map(a => {
-                  const isStateChange = a.oldState && a.newState;
-                  return (
-                    <div key={a.id} className="flex gap-3">
-                      <div className="flex flex-col items-center">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${isStateChange ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-500'}`}>
-                          <span className="material-symbols-outlined text-base">{isStateChange ? 'swap_horiz' : 'edit_note'}</span>
-                        </div>
-                        {a !== audit[audit.length - 1] && <div className="w-0.5 flex-1 bg-border mt-1" />}
-                      </div>
-                      <div className="flex-1 pb-4">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-text-primary">{a.action.replace(/_/g, ' ')}</span>
-                          {isStateChange && (
-                            <span className="text-xs">
-                              <span className="font-medium" style={{ color: (STATE_COLORS[a.oldState!]?.text) || '#6366f1' }}>{a.oldState!.replace(/_/g, ' ')}</span>
-                              <span className="text-text-secondary mx-1">→</span>
-                              <span className="font-medium" style={{ color: (STATE_COLORS[a.newState!]?.text) || '#6366f1' }}>{a.newState!.replace(/_/g, ' ')}</span>
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {a.actor && <span className="text-xs text-text-secondary">by {a.actor.firstName} {a.actor.lastName}</span>}
-                          {!a.actor && a.actorId && <span className="text-xs text-text-secondary font-mono">actor: {a.actorId.substring(0, 8)}…</span>}
-                          <span className="text-xs text-text-secondary">{formatDateTime(a.createdAt)}</span>
-                        </div>
-                        {a.metadata?.reason && <p className="text-xs text-text-secondary mt-1 bg-bg-subtle border border-border rounded-lg px-3 py-1.5">{a.metadata.reason}</p>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+          <div role="tabpanel" id="panel-audit" aria-labelledby="tab-audit" tabIndex={0}>
+            <AuditTab />
           </div>
         )}
+            </div>
+          </div>
+        </div>
+
+        {/* Floating Action Button — jump to next incomplete phase */}
+        {(() => {
+          const nextTab = getNextIncompleteTab(phaseCompletion);
+          if (!nextTab || nextTab === activeTab) return null;
+          const nextGroup = TAB_GROUPS.find(g => g.tabs.some(t => t.id === nextTab));
+          return (
+            <div className="fixed bottom-8 right-8 z-50">
+              <button
+                onClick={() => {
+                  setActiveTab(nextTab);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="flex items-center gap-2 bg-brand-700 hover:bg-brand-800 text-white px-5 py-3 rounded-full shadow-lg transition-transform hover:scale-105"
+                style={{ cursor: 'pointer', border: 'none', fontFamily: 'var(--font-sans)' }}
+                aria-label={`Go to next incomplete section: ${nextGroup?.label}`}
+              >
+                <span className="font-bold text-sm hidden sm:inline">Next Incomplete Section</span>
+                <span className="material-symbols-outlined text-xl">arrow_forward</span>
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Transition Dialog */}
         {showTransitionDialog && (() => {
@@ -1315,24 +642,32 @@ const CreditApplicationDetail: React.FC = () => {
           const isReject = t?.toState === 'REJECTED' || t?.toState === 'KYC_REJECTED' || t?.toState === 'WITHDRAWN';
           const label = t?.label || showTransitionDialog.replace(/_/g, ' ');
           return (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowTransitionDialog(null)}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => { setShowTransitionDialog(null); transitionTriggerRef.current?.focus(); }}>
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-              <h2 className="text-lg font-black text-text-primary mb-2">Confirm Action</h2>
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="transition-dialog-title"
+              onClick={e => e.stopPropagation()}
+              onKeyDown={e => { if (e.key === 'Escape') { setShowTransitionDialog(null); setTransitionReason(''); setReasonError(false); transitionTriggerRef.current?.focus(); } }}>
+              <h2 id="transition-dialog-title" className="text-lg font-black text-text-primary mb-2">Confirm Action</h2>
               <p className="text-sm text-text-secondary mb-4">
                 Are you sure you want to <span className="font-bold text-text-primary">{label}</span>?
                 {t && <span className="block mt-1 text-xs text-text-secondary">This will change the application status to <span className="font-semibold">{STATE_LABELS[t.toState] || t.toState}</span>.</span>}
               </p>
               <div className="mb-4">
                 <label className="block text-xs font-semibold text-text-secondary mb-1">
-                  Reason {t?.requiresComment ? <span className="text-red-500">(required)</span> : <span className="text-text-tertiary">(optional)</span>}
+                  Reason {t?.requiresComment ? <span className="text-red-500">* (required)</span> : <span className="text-text-tertiary">(optional)</span>}
                 </label>
-                <textarea rows={2} value={transitionReason} onChange={e => setTransitionReason(e.target.value)}
+                <textarea rows={2} value={transitionReason} onChange={e => { setTransitionReason(e.target.value); setReasonError(false); }}
                   placeholder={t?.requiresComment ? 'A reason is required for this action...' : 'Add a reason or note...'}
                   className={`w-full border rounded-lg px-3 py-2 text-sm resize-none ${t?.requiresComment && !transitionReason.trim() ? 'border-red-300' : 'border-border'}`} style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                {t?.requiresComment && reasonError && !transitionReason.trim() && (
+                  <p className="text-xs text-red-600 mt-1 font-medium">Reason is required for this action</p>
+                )}
               </div>
               <div className="flex justify-end gap-3">
-                <button onClick={() => { setShowTransitionDialog(null); setTransitionReason(''); }}
+                <button ref={transitionDialogCancelRef} onClick={() => { setShowTransitionDialog(null); setTransitionReason(''); setReasonError(false); transitionTriggerRef.current?.focus(); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
                   style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button onClick={() => handleTransition(showTransitionDialog)} disabled={transitioning || (t?.requiresComment && !transitionReason.trim())}
@@ -1347,116 +682,6 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
           );
         })()}
-
-        {/* Facility Form Modal */}
-        {showFacilityForm && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowFacilityForm(false)}>
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-              <h2 className="text-lg font-black text-text-primary mb-4">Add Facility</h2>
-              <form onSubmit={handleCreateFacility} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Facility Type *</label>
-                  <select required value={facilityForm.facilityType || ''} onChange={e => setFacilityForm(f => ({ ...f, facilityType: e.target.value as FacilityType }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)' }}>
-                    {FACILITY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Amount *</label>
-                    <input required type="number" min="0" value={facilityForm.amount ?? ''} onChange={e => setFacilityForm(f => ({ ...f, amount: Number(e.target.value) }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Currency *</label>
-                    <select required value={facilityForm.currency || 'MYR'} onChange={e => setFacilityForm(f => ({ ...f, currency: e.target.value as CurrencyCode }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)' }}>
-                      {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Interest Rate (%)</label>
-                    <input type="number" step="0.01" value={facilityForm.ratePct ?? ''} onChange={e => setFacilityForm(f => ({ ...f, ratePct: Number(e.target.value) }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary mb-1">Tenure (months) *</label>
-                    <input required type="number" min="1" value={facilityForm.tenorMonths ?? ''} onChange={e => setFacilityForm(f => ({ ...f, tenorMonths: Number(e.target.value) }))}
-                      className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Purpose</label>
-                  <textarea rows={2} value={facilityForm.purpose ?? ''} onChange={e => setFacilityForm(f => ({ ...f, purpose: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Conditions</label>
-                  <textarea rows={2} value={facilityForm.conditions ?? ''} onChange={e => setFacilityForm(f => ({ ...f, conditions: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={() => setShowFacilityForm(false)}
-                    className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                    style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                  <button type="submit" disabled={savingFacility}
-                    className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
-                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    {savingFacility ? 'Saving...' : 'Add Facility'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Party Form Modal */}
-        {showPartyForm && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowPartyForm(false)}>
-            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-              <h2 className="text-lg font-black text-text-primary mb-4">Add Party</h2>
-              <form onSubmit={handleCreateParty} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Role *</label>
-                  <select required value={partyForm.role} onChange={e => setPartyForm(f => ({ ...f, role: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)' }}>
-                    {['borrower', 'guarantor', 'co_borrower', 'sponsor'].map(r => <option key={r} value={r}>{r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Borrower Profile *</label>
-                  <select required value={partyForm.borrowerProfileId} onChange={e => setPartyForm(f => ({ ...f, borrowerProfileId: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)' }}>
-                    <option value="">Select a borrower...</option>
-                    {borrowerProfiles.map(bp => {
-                      const name = bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : (bp.account?.name ?? bp.id);
-                      return <option key={bp.id} value={bp.id}>{name} ({bp.borrowerType})</option>;
-                    })}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-text-secondary mb-1">Liability %</label>
-                  <input type="number" min="0" max="100" step="0.01" value={partyForm.liabilityPct} onChange={e => setPartyForm(f => ({ ...f, liabilityPct: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} placeholder="e.g. 100" />
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <button type="button" onClick={() => setShowPartyForm(false)}
-                    className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                    style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                  <button type="submit" disabled={savingParty}
-                    className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
-                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    {savingParty ? 'Saving...' : 'Add Party'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </>
   );

@@ -3,6 +3,7 @@ import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { creditApplicationService } from '../services/creditApplication.service';
 import { requireUser } from '../utils/requireUser';
+import prisma from '../../utils/prisma';
 
 class CreditApplicationController {
   /**
@@ -38,11 +39,25 @@ class CreditApplicationController {
           effectiveAssignedRmId = user?.id;
         }
       } else {
-        // End user / borrower: can only see their own applications
-        // Would need to look up borrower profile by user, for now use
-        // filter on assignedRmId as a broad scoping mechanism
-        if (!effectiveAssignedRmId && !effectiveBorrowerProfileId) {
-          effectiveAssignedRmId = user?.id;
+        // End user / borrower: look up their borrower profile(s) via CRM link
+        const borrowerProfiles = await prisma.borrowerProfile.findMany({
+          where: {
+            isActive: true,
+            OR: [
+              // Individual borrower: contact → account → owner
+              { contact: { account: { ownerId: user?.id } } },
+              // Corporate borrower: account → owner
+              { account: { ownerId: user?.id } },
+            ],
+          },
+          select: { id: true },
+        });
+        const borrowerProfileIds = borrowerProfiles.map(bp => bp.id);
+
+        if (borrowerProfileIds.length > 0) {
+          effectiveBorrowerProfileId = borrowerProfileIds[0]; // use first match
+          // If multiple profiles, could use OR filter but current service only supports single borrowerProfileId
+          // For now use the first — most users have one profile
         }
       }
     }

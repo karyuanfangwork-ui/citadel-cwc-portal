@@ -3,6 +3,7 @@ import prisma from '../../utils/prisma';
 import { Prisma, DocumentClass } from '@prisma/client';
 import { s3Service } from '../../services/s3.service';
 import { AuditChainService } from './auditChain.service';
+import { requireEditableState, requireDeletableState } from './stateGuard.util';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,6 +26,7 @@ export interface UploadCreditDocumentData {
 export interface UpdateCreditDocumentData {
   classification?: DocumentClass;
   description?: string | null;
+  /** @deprecated isAvClean must NOT be set via updateDocument — use updateAvStatus() instead */
   isAvClean?: boolean | null;
 }
 
@@ -174,6 +176,17 @@ class CreditDocumentService {
    * Upload a new credit document and create its first version record.
    */
   async uploadDocument(data: UploadCreditDocumentData) {
+    if (data.applicationId) {
+      const app = await prisma.creditApplication.findUnique({
+        where: { id: data.applicationId },
+        select: { state: true },
+      });
+      if (!app) {
+        throw new Error(`Application not found: ${data.applicationId}`);
+      }
+      requireEditableState(app.state, 'upload document');
+    }
+
     const doc = await prisma.creditDocument.create({
       data: {
         applicationId: data.applicationId ?? undefined,
@@ -203,13 +216,28 @@ class CreditDocumentService {
       },
     });
 
+    // Emit audit event if document is linked to a credit application
+    if (data.applicationId) {
+      await AuditChainService.appendEvent(
+        data.applicationId,
+        'DOCUMENT_UPLOADED',
+        data.uploadedById,
+        'upload',
+        undefined,
+        'DOCUMENT_UPLOADED',
+        { documentId: doc.id, fileName: data.fileName, classification: data.classification },
+      );
+    }
+
     return doc;
   }
 
   /**
-   * Update metadata on a credit document (classification, description, AV status).
+   * Update metadata on a credit document (classification, description).
+   * NOTE: isAvClean is intentionally excluded here — it must only be set
+   * via the dedicated updateAvStatus() method called by the AV scan service.
    */
-  async updateDocument(id: string, data: UpdateCreditDocumentData) {
+  async updateDocument(id: string, data: UpdateCreditDocumentData, actorId?: string) {
     const existing = await prisma.creditDocument.findFirst({
       where: { id, deletedAt: null },
     });
@@ -218,20 +246,48 @@ class CreditDocumentService {
       return null;
     }
 
-    const updateData: Prisma.CreditDocumentUpdateInput = {};
+    if (existing.applicationId) {
+      const app = await prisma.creditApplication.findUnique({
+        where: { id: existing.applicationId },
+        select: { state: true },
+      });
+      if (!app) {
+        throw new Error(`Application not found: ${existing.applicationId}`);
+      }
+      requireEditableState(app.state, 'update document');
+    }
 
-    if (data.classification !== undefined) updateData.classification = data.classification;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.isAvClean !== undefined) updateData.isAvClean = data.isAvClean;
+    // Strip isAvClean — defense in depth: must not be settable via PATCH
+    const { isAvClean, ...updateData } = data as any;
 
-    return prisma.creditDocument.update({
+    const prismaData: Prisma.CreditDocumentUpdateInput = {};
+
+    if (updateData.classification !== undefined) prismaData.classification = updateData.classification;
+    if (updateData.description !== undefined) prismaData.description = updateData.description;
+
+    const doc = await prisma.creditDocument.update({
       where: { id },
-      data: updateData,
+      data: prismaData,
       include: {
         uploadedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
         _count: { select: { versions: true } },
       },
     });
+
+    // Emit audit event if document is linked to a credit application
+    if (existing.applicationId) {
+      await AuditChainService.appendEvent(
+        existing.applicationId,
+        'DOCUMENT_UPDATED',
+        actorId ?? null,
+        'update',
+        undefined,
+        'DOCUMENT_UPDATED',
+        { documentId: id, fileName: existing.fileName },
+      );
+    }
+
+    return doc;
   }
 
   /**
@@ -245,6 +301,17 @@ class CreditDocumentService {
 
     if (!existing) {
       return null;
+    }
+
+    if (existing.applicationId) {
+      const app = await prisma.creditApplication.findUnique({
+        where: { id: existing.applicationId },
+        select: { state: true },
+      });
+      if (!app) {
+        throw new Error(`Application not found: ${existing.applicationId}`);
+      }
+      requireDeletableState(app.state, 'delete document');
     }
 
     const deleted = await prisma.creditDocument.update({

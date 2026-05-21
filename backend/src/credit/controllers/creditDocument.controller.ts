@@ -1,54 +1,9 @@
 import { Response } from 'express';
-import multer from 'multer';
-import path from 'path';
 import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { creditDocumentService, computeSha256 } from '../services/creditDocument.service';
 import { requireUser } from '../utils/requireUser';
-
-// ---------------------------------------------------------------------------
-// Multer configuration for document uploads
-// ---------------------------------------------------------------------------
-const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, UPLOAD_DIR);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-    const ext = path.extname(file.originalname);
-    cb(null, `${uniqueSuffix}${ext}`);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50 MB
-  },
-  fileFilter: (_req, file, cb) => {
-    // Allow common document types
-    const allowedMimes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/tiff',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'text/csv',
-      'application/zip',
-    ];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new AppError(`Unsupported file type: ${file.mimetype}`, 400));
-    }
-  },
-});
+import { uploadSingleFile } from '../../middleware/upload.middleware';
 
 // ---------------------------------------------------------------------------
 // Controller
@@ -106,7 +61,7 @@ class CreditDocumentController {
    * Upload a new credit document (multipart/form-data).
    */
   upload = [
-    upload.single('file'),
+    uploadSingleFile('file'),
     asyncHandler(async (req: AuthRequest, res: Response) => {
       if (!req.file) {
         throw new AppError('No file uploaded', 400);
@@ -122,14 +77,14 @@ class CreditDocumentController {
         throw new AppError('classification is required', 400);
       }
 
-      const sha256Hash = computeSha256(req.file.buffer);
+      const sha256Hash = req.file.buffer ? computeSha256(req.file.buffer) : null;
 
       const doc = await creditDocumentService.uploadDocument({
         borrowerProfileId,
         applicationId: applicationId || null,
         classification,
         fileName: req.file.originalname,
-        filePath: req.file.path,
+        filePath: (req.file as any).key || req.file.filename,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         sha256Hash,
@@ -143,11 +98,16 @@ class CreditDocumentController {
 
   /**
    * PATCH /credit-documents/:id
-   * Update document metadata (classification, description, AV status).
+   * Update document metadata (classification, description).
+   * isAvClean is stripped from the body — AV status must go through /av-status.
    */
   update = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const doc = await creditDocumentService.updateDocument(id, req.body);
+    const user = requireUser(req);
+    // Defense in depth: strip isAvClean so it cannot be set via this endpoint
+    delete req.body.isAvClean;
+
+    const doc = await creditDocumentService.updateDocument(id, req.body, user.id);
 
     if (!doc) {
       throw new AppError('Document not found', 404);
@@ -181,7 +141,7 @@ class CreditDocumentController {
    * Replace a document (creates a new version).
    */
   replace = [
-    upload.single('file'),
+    uploadSingleFile('file'),
     asyncHandler(async (req: AuthRequest, res: Response) => {
       const id = String(req.params.id);
 
@@ -190,11 +150,11 @@ class CreditDocumentController {
       }
 
       const { changeSummary } = req.body;
-      const sha256Hash = computeSha256(req.file.buffer);
+      const sha256Hash = req.file.buffer ? computeSha256(req.file.buffer) : null;
 
       const doc = await creditDocumentService.replaceDocument(id, {
         fileName: req.file.originalname,
-        filePath: req.file.path,
+        filePath: (req.file as any).key || req.file.filename,
         fileSize: req.file.size,
         mimeType: req.file.mimetype,
         sha256Hash,

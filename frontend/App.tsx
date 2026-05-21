@@ -29,6 +29,7 @@ import { useFocusTrap } from './src/hooks/useFocusTrap';
 import NavMoreDropdown from './src/components/NavMoreDropdown';
 import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
+import { Toaster } from 'react-hot-toast';
 import Login from './src/pages/Login';
 
 import Dashboard from './pages/Dashboard';
@@ -561,6 +562,7 @@ export default function App() {
             <ToastProvider>
               <AppShell />
               <ToastContainer />
+              <Toaster position="top-right" gutter={8} toastOptions={{ duration: 4000, style: { background: '#1a1a2e', color: '#fff' } }} />
             </ToastProvider>
           </AuthProvider>
         </ThemeProvider>

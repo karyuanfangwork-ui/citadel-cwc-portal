@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import { Prisma, ApplicationState } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
+import { creditNotificationService, CreditEventType } from './creditNotification.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -194,6 +195,27 @@ const TERMINAL_STATES: ApplicationState[] = [
 /**
  * Get the valid transitions for a given current state.
  */
+/** Action → required permission mapping (tiered RBAC) */
+const TRANSITION_PERMISSIONS: Record<string, string> = {
+  submit: 'credit:write',
+  start_kyc: 'credit:write',
+  approve_kyc: 'credit:write',
+  reject_kyc: 'credit:approve',
+  resubmit: 'credit:write',
+  start_underwriting: 'credit:write',
+  start_assessment: 'credit:write',
+  submit_to_committee: 'credit:write',
+  approve: 'credit:approve',
+  reject: 'credit:approve',
+  make_offer: 'credit:approve',
+  accept_offer: 'credit:write',
+  decline_offer: 'credit:approve',
+  disburse: 'credit:admin',
+  activate: 'credit:admin',
+  close: 'credit:admin',
+  withdraw: 'credit:write',
+};
+
 /** Human-readable labels for transition actions */
 const ACTION_LABELS: Record<string, string> = {
   submit: 'Submit Application',
@@ -586,7 +608,14 @@ class CreditApplicationService {
       where: { id },
       data: updateData,
       include: {
-        borrowerProfile: { select: { id: true, borrowerType: true } },
+        borrowerProfile: {
+          select: {
+            id: true,
+            borrowerType: true,
+            account: { select: { id: true, name: true } },
+            contact: { select: { id: true, firstName: true, lastName: true } },
+          },
+        },
         assignedRm: { select: { id: true, firstName: true, lastName: true } },
         assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
       },
@@ -596,6 +625,34 @@ class CreditApplicationService {
     await this.createAuditEvent(id, actorId, action, existing.state, transition.to, {
       reason: reason ?? null,
     });
+
+    // Dispatch notification based on the action — failures must never block the transition
+    try {
+      const notificationEventType = this.resolveNotificationEventType(action);
+      if (notificationEventType) {
+        const borrowerName =
+          application.borrowerProfile?.account?.name ||
+          (application.borrowerProfile?.contact
+            ? `${application.borrowerProfile.contact.firstName} ${application.borrowerProfile.contact.lastName}`
+            : undefined);
+
+        await creditNotificationService.onApplicationEvent(
+          id,
+          notificationEventType,
+          actorId ?? '',
+          {
+            applicationNo: application.applicationNo,
+            borrowerName,
+            applicationState: transition.to,
+            ...(action === 'withdraw' && reason ? { withdrawnBy: actorId ?? undefined } : {}),
+            ...(reason ? { rejectionReason: reason } : {}),
+          },
+        );
+      }
+    } catch (err) {
+      // Notification failures must never block the business flow
+      console.error(`[CreditApplication] Notification dispatch failed for ${action} on ${id}:`, err);
+    }
 
     return application;
   }
@@ -620,6 +677,7 @@ class CreditApplicationService {
         fromState: t.from,
         toState: t.to,
         requiresComment: t.reasonRequired ?? false,
+        requiredPermission: TRANSITION_PERMISSIONS[t.action] || 'credit:approve',
       })),
     };
   }
@@ -649,6 +707,29 @@ class CreditApplicationService {
   // -------------------------------------------------------------------------
   // Internal helpers
   // -------------------------------------------------------------------------
+
+  /**
+   * Map a transition action to a CreditEventType for notifications.
+   * Returns undefined for actions that do not trigger notifications.
+   */
+  private resolveNotificationEventType(action: string): CreditEventType | undefined {
+    switch (action) {
+      case 'submit':
+        return 'credit_application_submitted';
+      case 'approve':
+        return 'credit_application_approved';
+      case 'reject':
+      case 'reject_kyc':
+      case 'decline_offer':
+        return 'credit_application_rejected';
+      case 'submit_to_committee':
+        return 'credit_approval_requested';
+      case 'withdraw':
+        return 'credit_application_withdrawn';
+      default:
+        return undefined;
+    }
+  }
 
   /**
    * Create an audit event with hash-chain for tamper evidence.

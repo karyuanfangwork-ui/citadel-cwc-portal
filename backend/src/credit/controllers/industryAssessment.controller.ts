@@ -1,10 +1,14 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response } from 'express';
 import * as svc from '../services/industryAssessment.service';
+import { AuthRequest } from '../../middleware/auth.middleware';
+import { requireUser } from '../utils/requireUser';
+import { asyncHandler } from '../../middleware/error.middleware';
 
-export async function get(req: Request, res: Response, next: NextFunction) {
-  try { res.json(await svc.getByApplication(String(req.params.appId)) ?? null); } catch (e) { next(e); }
-}
+export const get = asyncHandler(async (req: AuthRequest, res: Response) => {
+  res.json(await svc.getByApplication(String(req.params.appId)) ?? null);
+});
 
-export async function upsert(req: Request, res: Response, next: NextFunction) {
-  try { res.json(await svc.upsert(String(req.params.appId), req.body)); } catch (e) { next(e); }
-}
+export const upsert = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const user = requireUser(req);
+  res.json(await svc.upsert(String(req.params.appId), req.body, user.id));
+});

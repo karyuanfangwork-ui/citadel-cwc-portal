@@ -1,12 +1,50 @@
-import { Router } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import { creditApplicationController } from '../controllers/creditApplication.controller';
-import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { authenticate, requirePermission, AuthRequest } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
   createCreditApplicationSchema,
   updateCreditApplicationSchema,
   transitionApplicationSchema,
 } from '../validators/creditApplication.validator';
+
+// ---------------------------------------------------------------------------
+// Tiered RBAC — action → required permission mapping
+// ---------------------------------------------------------------------------
+const TRANSITION_PERMISSIONS: Record<string, string> = {
+  submit: 'credit:write',
+  start_kyc: 'credit:write',
+  approve_kyc: 'credit:write',
+  reject_kyc: 'credit:approve',
+  resubmit: 'credit:write',
+  start_underwriting: 'credit:write',
+  start_assessment: 'credit:write',
+  submit_to_committee: 'credit:write',
+  approve: 'credit:approve',
+  reject: 'credit:approve',
+  make_offer: 'credit:approve',
+  accept_offer: 'credit:write',
+  decline_offer: 'credit:approve',
+  disburse: 'credit:admin',
+  activate: 'credit:admin',
+  close: 'credit:admin',
+  withdraw: 'credit:write',
+};
+
+/**
+ * Middleware that checks the user's permission based on the transition action
+ * in the request body. Each action maps to a specific permission tier:
+ *   - credit:write  → RM/operator actions (submit, start_kyc, etc.)
+ *   - credit:approve → approval/decision actions (approve, reject, etc.)
+ *   - credit:admin   → operational/admin actions (disburse, activate, close)
+ *
+ * Unknown actions default to the stricter credit:approve tier.
+ */
+function requireTransitionPermission(req: AuthRequest, _res: Response, next: NextFunction) {
+  const action = (req.body as Record<string, unknown>)?.action as string | undefined;
+  const requiredPermission = TRANSITION_PERMISSIONS[action ?? ''] || 'credit:approve';
+  return requirePermission(requiredPermission)(req, _res, next);
+}
 
 const router = Router();
 
@@ -77,11 +115,15 @@ router.delete(
 /**
  * POST /applications/:id/transition
  * Transition application state (action in body)
- * Requires: credit:write
+ * Permission tier depends on the action:
+ *   credit:write   — submit, start_kyc, approve_kyc, resubmit, start_underwriting,
+ *                    start_assessment, submit_to_committee, accept_offer, withdraw
+ *   credit:approve — approve, reject, reject_kyc, decline_offer, make_offer
+ *   credit:admin   — disburse, activate, close
  */
 router.post(
   '/:id/transition',
-  requirePermission('credit:write'),
+  requireTransitionPermission,
   validate(transitionApplicationSchema),
   creditApplicationController.transition,
 );

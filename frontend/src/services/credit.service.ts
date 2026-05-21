@@ -30,8 +30,6 @@ export type CurrencyCode = 'MYR' | 'USD' | 'SGD' | 'GBP' | 'EUR' | 'JPY' | 'CNY'
 
 export type ApprovalDecision = 'APPROVED' | 'REJECTED' | 'RETURNED' | 'ESCALATED';
 
-// Keep backward compat alias
-export type CreditApplicationStatus = ApplicationState;
 
 // CA Memo Phase 1 — header classification enums
 export type ApplicationType = 'NEW' | 'ADDITIONAL' | 'RENEWAL' | 'VARIATION';
@@ -840,21 +838,6 @@ const creditService = {
     return res.data.data as ApprovalMatrixLookup;
   },
 
-  // Legacy compat methods
-  async submitApplication(id: string) {
-    return creditService.transitionApplication(id, { action: 'submit' });
-  },
-
-  async approveApplication(id: string, data: { approvedAmount?: number; interestRate?: number }) {
-    const res = await apiClient.post(`/credit/applications/${id}/approve`, data);
-    return res.data.data.application as CreditApplication;
-  },
-
-  async rejectApplication(id: string, reason: string) {
-    const res = await apiClient.post(`/credit/applications/${id}/reject`, { rejectionReason: reason });
-    return res.data.data.application as CreditApplication;
-  },
-
   // Dashboard stats
   async getDashboard() {
     const res = await apiClient.get('/credit/dashboard');
@@ -865,6 +848,30 @@ const creditService = {
       totalDisbursed: number;
       recentActivities: Array<{ id: string; type: string; description: string; createdAt: string }>;
     };
+  },
+
+  // CA Memo PDF download (authenticated blob)
+  async downloadCaMemo(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/ca-memo`, {
+      responseType: 'blob',
+    });
+    return res;
+  },
+
+  // Credit Scoring (Phase 4C)
+  async listScoreRuns(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/scores`);
+    return res.data.data.scoreRuns as CreditScoreRun[];
+  },
+
+  async executeScore(applicationId: string) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/score`);
+    return res.data.data.scoreRun as CreditScoreRun;
+  },
+
+  async overrideScore(scoreRunId: string, data: { rating: RiskRating; reason: string; approverId: string }) {
+    const res = await apiClient.post(`/credit/score-runs/${scoreRunId}/override`, data);
+    return res.data.data.scoreRun as CreditScoreRun;
   },
 };
 

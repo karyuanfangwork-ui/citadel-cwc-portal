@@ -6,30 +6,7 @@ import creditService, {
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
-
-const formatCurrency = (val: number | string | null, currency = 'MYR') =>
-  val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: currency as any, maximumFractionDigits: 0 }).format(Number(val)) : '—';
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-
-const STATE_COLORS: Record<string, { bg: string; text: string }> = {
-  DRAFT: { bg: '#6366f120', text: '#6366f1' },
-  SUBMITTED: { bg: '#f59e0b20', text: '#d97706' },
-  KYC_REVIEW: { bg: '#3b82f620', text: '#2563eb' },
-  KYC_APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-  KYC_REJECTED: { bg: '#ef444420', text: '#dc2626' },
-  UNDERWRITING: { bg: '#8b5cf620', text: '#7c3aed' },
-  CREDIT_ASSESSMENT: { bg: '#a78bfa20', text: '#7c3aed' },
-  COMMITTEE_REVIEW: { bg: '#f9731620', text: '#ea580c' },
-  APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-  REJECTED: { bg: '#ef444420', text: '#dc2626' },
-  OFFER: { bg: '#06b6d420', text: '#0891b2' },
-  ACCEPTED: { bg: '#14b8a620', text: '#0d9488' },
-  DISBURSED: { bg: '#06b6d420', text: '#0891b2' },
-  ACTIVE: { bg: '#22c55e20', text: '#16a34a' },
-  CLOSED: { bg: '#6b728020', text: '#6b7280' },
-  WITHDRAWN: { bg: '#6b728020', text: '#6b7280' },
-};
+import { formatCurrency, formatDate, STATE_COLORS } from './credit/creditUtils';
 
 function getUrgency(createdAt: string, state: ApplicationState): { level: 'overdue' | 'urgent' | 'normal'; text: string; color: string } {
   const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
