@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmPipeline, CrmPipelineStage, CrmOpportunity } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
 const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
@@ -25,6 +26,7 @@ const CrmPipelineView = () => {
   const [oppForm, setOppForm] = useState<Partial<CrmOpportunity & { accountName?: string }>>({});
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
+  const { isCollapsed, toggle: toggleCollapse } = useCollapsedColumns('crm-pipeline');
 
   useEffect(() => {
     const init = async () => {
@@ -186,11 +188,25 @@ const CrmPipelineView = () => {
             ))}
           </div>
         ) : (
-          <div className="flex gap-4 h-full min-w-max">
+          <div className="flex gap-4 h-full min-w-max items-stretch">
             {stages.map(stage => {
               const opps = stage.opportunities || [];
               const stageValue = opps.reduce((s, o) => s + Number(o.value), 0);
               const isOver = dragOverStage === stage.id;
+              const collapsed = isCollapsed(stage.id);
+
+              if (collapsed) {
+                return (
+                  <CollapsedColumnPill
+                    key={stage.id}
+                    label={stage.name}
+                    color={stage.color || '#6b7280'}
+                    count={opps.length}
+                    onClick={() => toggleCollapse(stage.id)}
+                  />
+                );
+              }
+
               return (
                 <div
                   key={stage.id}
@@ -200,13 +216,16 @@ const CrmPipelineView = () => {
                   onDrop={e => handleDrop(e, stage.id)}
                 >
                   {/* Stage Header */}
-                  <div className="p-4 border-b border-border shrink-0">
+                  <div className="p-4 border-b border-border shrink-0 group">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ background: stage.color }} />
                         <span className="text-sm font-extrabold text-text-primary">{stage.name}</span>
                       </div>
-                      <span className="text-xs font-bold bg-surface-muted text-text-secondary px-2 py-0.5 rounded-full">{opps.length}</span>
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs font-bold bg-surface-muted text-text-secondary px-2 py-0.5 rounded-full">{opps.length}</span>
+                        <ColumnCollapseToggle onClick={() => toggleCollapse(stage.id)} />
+                      </div>
                     </div>
                     <div className="text-xs font-semibold text-text-tertiary">{formatCurrency(stageValue)} · {stage.probability}% prob</div>
                   </div>

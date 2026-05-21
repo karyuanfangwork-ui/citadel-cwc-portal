@@ -10,6 +10,7 @@ import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
 import { formatCurrency, formatDate, STATE_COLORS } from './credit/creditUtils';
+import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
 
 const KANBAN_COLUMNS: { key: string; label: string; states: ApplicationState[]; color: string }[] = [
   { key: 'pre-submission', label: 'Pre-Submission', states: ['DRAFT'], color: '#6366f1' },
@@ -70,6 +71,7 @@ const CreditApplicationList: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [borrowerProfiles, setBorrowerProfiles] = useState<BorrowerProfile[]>([]);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
+  const { isCollapsed, toggle: toggleCollapse } = useCollapsedColumns('credit-applications');
 
   // Debounce search input
   useEffect(() => {
@@ -228,13 +230,29 @@ const CreditApplicationList: React.FC = () => {
           </div>
         ) : (
           <div aria-busy="false" className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory" style={{ alignItems: 'flex-start' }}>
-            {grouped.map(col => (
-              <div key={col.key} className="min-w-[260px] md:min-w-[280px] flex-1 snap-start">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="w-2 h-2 rounded-full" style={{ background: col.color }} />
-                  <span className="text-sm font-bold text-text-secondary uppercase tracking-wider" style={{ color: col.color }}>{col.label}</span>
-                  <span className="text-xs font-bold text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded-full ml-auto">{col.items.length}</span>
-                </div>
+            {grouped.map(col => {
+              const collapsed = isCollapsed(col.key);
+
+              if (collapsed) {
+                return (
+                  <CollapsedColumnPill
+                    key={col.key}
+                    label={col.label}
+                    color={col.color}
+                    count={col.items.length}
+                    onClick={() => toggleCollapse(col.key)}
+                  />
+                );
+              }
+
+              return (
+                <div key={col.key} className="min-w-[260px] md:min-w-[280px] flex-1 snap-start">
+                  <div className="flex items-center gap-2 mb-3 group">
+                    <div className="w-2 h-2 rounded-full" style={{ background: col.color }} />
+                    <span className="text-sm font-bold text-text-secondary uppercase tracking-wider" style={{ color: col.color }}>{col.label}</span>
+                    <span className="text-xs font-bold text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded-full ml-auto">{col.items.length}</span>
+                    <ColumnCollapseToggle onClick={() => toggleCollapse(col.key)} />
+                  </div>
                 <div className="space-y-3">
                   {col.items.length === 0 && (
                     <div className="text-center py-4 text-text-secondary">
@@ -269,7 +287,8 @@ const CreditApplicationList: React.FC = () => {
                   })}
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
 
