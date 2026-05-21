@@ -1,5 +1,5 @@
 import React from 'react';
-import { FormData, URGENCY_OPTIONS } from './useCreateRequestWizard';
+import { FormData, URGENCY_OPTIONS, WorkflowInfo } from './useCreateRequestWizard';
 
 interface StepReviewProps {
   formData: FormData;
@@ -9,7 +9,100 @@ interface StepReviewProps {
   isRoleBlocked: boolean;
   autoSummary?: string;
   isAutoConfidential?: boolean;
+  workflow?: WorkflowInfo | null;
 }
+
+const ProcessOverview: React.FC<{ workflow: WorkflowInfo; slaHours?: number | null; requiresApproval: boolean }> = ({ workflow, slaHours, requiresApproval }) => {
+  const { steps } = workflow;
+
+  if (!steps || steps.length === 0) return null;
+
+  return (
+    <div className="pb-6 border-b border-cwc-border">
+      <h3 className="text-sm font-bold text-text-tertiary uppercase tracking-wider mb-3 flex items-center gap-2">
+        <span className="material-symbols-outlined text-base">route</span>
+        Process Overview
+      </h3>
+
+      {/* Quick stats */}
+      {(requiresApproval || slaHours) && (
+        <div className="flex items-center gap-3 mb-4">
+          {requiresApproval && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded-cwc-md">
+              <span className="material-symbols-outlined text-amber-600 text-sm">approval</span>
+              <span className="text-xs font-semibold text-amber-800">Approval required</span>
+            </div>
+          )}
+          {slaHours && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-cwc-md">
+              <span className="material-symbols-outlined text-blue-600 text-sm">schedule</span>
+              <span className="text-xs font-semibold text-blue-800">~{slaHours}h target SLA</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-muted border border-cwc-border rounded-cwc-md">
+            <span className="material-symbols-outlined text-text-secondary text-sm">steps</span>
+            <span className="text-xs font-semibold text-text-secondary">{steps.length} steps</span>
+          </div>
+        </div>
+      )}
+
+      {/* Vertical timeline */}
+      <div className="ml-1">
+        {steps.map((step, idx) => {
+          const isFirst = idx === 0;
+          const isLast = idx === steps.length - 1;
+          const hasConnection = !isLast;
+
+          return (
+            <div key={step.id} className="flex gap-3">
+              {/* Left rail: icon + connector */}
+              <div className="flex flex-col items-center">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 border-2 ${
+                  step.isInitial
+                    ? 'bg-brand-700 border-brand-700 text-white'
+                    : step.isFinal
+                      ? 'bg-green-600 border-green-600 text-white'
+                      : 'bg-white border-brand-300 text-brand-600'
+                }`}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{step.icon || 'radio_button_checked'}</span>
+                </div>
+                {hasConnection && (
+                  <div className="w-0.5 flex-1 min-h-[20px] bg-brand-200" />
+                )}
+              </div>
+              {/* Right: label + badges */}
+              <div className={`pb-4 ${isLast ? '' : ''}`}>
+                <p className={`text-sm font-semibold ${
+                  step.isInitial ? 'text-brand-700' : step.isFinal ? 'text-green-700' : 'text-text-primary'
+                }`}>
+                  {step.label}
+                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {step.isInitial && (
+                    <span className="text-[10px] font-medium text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded-full">Starting step</span>
+                  )}
+                  {step.isFinal && (
+                    <span className="text-[10px] font-medium text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">Completion</span>
+                  )}
+                  {step.slaPause && (
+                    <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                      <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>pause</span>
+                      SLA paused
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="mt-1 text-xs text-text-tertiary leading-relaxed">
+        You can track your request's progress through these stages on the request detail page.
+      </p>
+    </div>
+  );
+};
 
 const StepReview: React.FC<StepReviewProps> = ({
   formData,
@@ -19,6 +112,7 @@ const StepReview: React.FC<StepReviewProps> = ({
   isRoleBlocked,
   autoSummary,
   isAutoConfidential,
+  workflow,
 }) => {
   const getUrgencyLabel = (value: string) => {
     const opt = URGENCY_OPTIONS.find(o => o.value === value);
@@ -77,6 +171,15 @@ const StepReview: React.FC<StepReviewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Process Overview — workflow timeline */}
+      {workflow && workflow.steps.length > 0 && (
+        <ProcessOverview
+          workflow={workflow}
+          slaHours={selectedRequestType?.slaHours}
+          requiresApproval={!!selectedRequestType?.requiresApproval}
+        />
+      )}
 
       {/* Summary */}
       <div className="pb-6 border-b border-cwc-border">

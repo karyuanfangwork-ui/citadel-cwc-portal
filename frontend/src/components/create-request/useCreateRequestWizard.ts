@@ -14,6 +14,24 @@ export interface FormData {
   customFields: Record<string, any>;
 }
 
+export interface WorkflowStepInfo {
+  id: string;
+  label: string;
+  status: string;
+  icon: string;
+  displayOrder: number;
+  isInitial: boolean;
+  isFinal: boolean;
+  slaPause: boolean;
+}
+
+export interface WorkflowInfo {
+  id: string;
+  code: string;
+  name: string;
+  steps: WorkflowStepInfo[];
+}
+
 export const URGENCY_OPTIONS = [
   { value: 'LOW', label: 'Low - General inquiry or minor issue' },
   { value: 'MEDIUM', label: 'Medium - Significant issue for a single user' },
@@ -37,6 +55,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const [uploadingFields, setUploadingFields] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [entityOptions, setEntityOptions] = useState<{ code: string; name: string }[]>([]);
+  const [workflow, setWorkflow] = useState<WorkflowInfo | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     summary: '',
@@ -184,6 +203,29 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const handleRequestTypeChange = (type: any) => {
     setSelectedRequestType(type);
 
+    // Extract workflow if it comes embedded from the API
+    if (type.workflow && type.workflow.steps && type.workflow.steps.length > 0) {
+      setWorkflow({
+        id: type.workflow.id,
+        code: type.workflow.code,
+        name: type.workflow.name,
+        steps: type.workflow.steps
+          .sort((a: any, b: any) => a.displayOrder - b.displayOrder)
+          .map((s: any) => ({
+            id: s.id,
+            label: s.label,
+            status: s.status,
+            icon: s.icon || 'radio_button_checked',
+            displayOrder: s.displayOrder,
+            isInitial: s.isInitial,
+            isFinal: s.isFinal,
+            slaPause: s.slaPause ?? false,
+          })),
+      });
+    } else {
+      setWorkflow(null);
+    }
+
     // Initialize custom fields for the selected type
     const initialCustom: any = {};
     if (type.formConfig) {
@@ -267,5 +309,6 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
     autoSummary,
     isAutoSummary,
     isAutoConfidential,
+    workflow,
   };
 }

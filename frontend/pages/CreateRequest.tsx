@@ -100,6 +100,7 @@ const CreateRequest = () => {
                                     onSelectType={wizard.setSelectedRequestType}
                                     loading={false}
                                     error={wizard.error}
+                                    workflow={wizard.workflow}
                                 />
                             )}
 
@@ -132,6 +133,7 @@ const CreateRequest = () => {
                                     isRoleBlocked={wizard.isRoleBlocked}
                                     autoSummary={wizard.autoSummary}
                                     isAutoConfidential={wizard.isAutoConfidential}
+                                    workflow={wizard.workflow}
                                 />
                             )}
 
