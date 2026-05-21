@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import creditService, {
   CreditApplication,
   CashflowProjection,
   SensitivityScenario,
   ProjectionScenario,
 } from '../../../src/services/credit.service';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -40,14 +41,12 @@ type Props = {
 
 // ─── Way Out section ──────────────────────────────────────────────────────────
 
-const WayOutSection: React.FC<{ application: CreditApplication; readOnly: boolean; onUpdated: (next: CreditApplication) => void }> = ({ application, readOnly, onUpdated }) => {
+const WayOutSection: React.FC<{ application: CreditApplication; readOnly: boolean; onUpdated: (next: CreditApplication) => void; onSaving?: (saving: boolean) => void; onSaved?: () => void }> = ({ application, readOnly, onUpdated, onSaving, onSaved }) => {
   const [form, setForm] = useState({
     firstWayOut: application.firstWayOut ?? '',
     secondWayOut: application.secondWayOut ?? '',
     otherWayOut: application.otherWayOut ?? '',
   });
-  const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const dirty = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -65,15 +64,15 @@ const WayOutSection: React.FC<{ application: CreditApplication; readOnly: boolea
 
   const flush = async () => {
     if (readOnly || dirty.current.size === 0) return;
-    setSaving(true);
+    onSaving?.(true);
     const payload: any = {};
     dirty.current.forEach(k => { payload[k] = (form as any)[k] || null; });
     try {
       const updated = await creditService.updateApplication(application.id, payload);
       onUpdated(updated);
-      setSavedAt(new Date());
+      onSaved?.();
       dirty.current.clear();
-    } finally { setSaving(false); }
+    } finally { onSaving?.(false); }
   };
 
   const textareaProps = (key: string) => ({
@@ -86,11 +85,6 @@ const WayOutSection: React.FC<{ application: CreditApplication; readOnly: boolea
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Way Out Narratives</h3>
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
-        {!saving && savedAt && <span className="text-xs text-green-600">Saved {savedAt.toLocaleTimeString()}</span>}
-      </div>
       <div className="space-y-4">
         {[
           { key: 'firstWayOut',  label: 'First Way Out' },
@@ -112,11 +106,10 @@ const WayOutSection: React.FC<{ application: CreditApplication; readOnly: boolea
 type CellKey = `${string}_${number}`;
 type CellMap = Record<CellKey, string>;
 
-const ProjectionSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
+const ProjectionSection: React.FC<{ appId: string; readOnly: boolean; onSaving?: (saving: boolean) => void; onSaved?: () => void }> = ({ appId, readOnly, onSaving, onSaved }) => {
   const [projection, setProjection] = useState<CashflowProjection | null>(null);
   const [cells, setCells] = useState<CellMap>({});
   const [assumptions, setAssumptions] = useState('');
-  const [saving, setSaving] = useState(false);
   const dirty = useRef(false);
 
   useEffect(() => {
@@ -138,7 +131,7 @@ const ProjectionSection: React.FC<{ appId: string; readOnly: boolean }> = ({ app
 
   const flush = async () => {
     if (!dirty.current) return;
-    setSaving(true);
+    onSaving?.(true);
     const lines = PROJECTION_LINES.flatMap(line =>
       [1, 2, 3, 4, 5].map(y => ({
         lineKey: line.key,
@@ -152,7 +145,8 @@ const ProjectionSection: React.FC<{ appId: string; readOnly: boolean }> = ({ app
       const saved = await creditService.upsertProjectionLines(appId, lines);
       setProjection(saved);
       dirty.current = false;
-    } finally { setSaving(false); }
+      onSaved?.();
+    } finally { onSaving?.(false); }
   };
 
   const flushAssumptions = async () => {
@@ -161,10 +155,6 @@ const ProjectionSection: React.FC<{ appId: string; readOnly: boolean }> = ({ app
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">5-Year Cashflow Projection</h3>
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
-      </div>
       <div className="border rounded-lg overflow-x-auto mb-4">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -211,11 +201,11 @@ const ProjectionSection: React.FC<{ appId: string; readOnly: boolean }> = ({ app
 
 // ─── Sensitivity Scenarios section ───────────────────────────────────────────
 
-const SensitivitySection: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
+const SensitivitySection: React.FC<{ appId: string; readOnly: boolean; onSaving?: (saving: boolean) => void; onSaved?: () => void }> = ({ appId, readOnly, onSaving, onSaved }) => {
   const [local, setLocal] = useState<Record<ProjectionScenario, Partial<SensitivityScenario>>>({
     BASE: {}, SCENARIO_1: {}, SCENARIO_2: {}, SCENARIO_3: {},
   });
-  const [saving, setSaving] = useState<ProjectionScenario | null>(null);
+  const [savingScenario, setSavingScenario] = useState<ProjectionScenario | null>(null);
 
   useEffect(() => {
     creditService.listSensitivityScenarios(appId).then(scenarios => {
@@ -232,16 +222,20 @@ const SensitivitySection: React.FC<{ appId: string; readOnly: boolean }> = ({ ap
   };
 
   const flush = async (scenario: ProjectionScenario) => {
-    setSaving(scenario);
+    setSavingScenario(scenario);
+    onSaving?.(true);
     try {
       const saved = await creditService.upsertSensitivityScenario(appId, scenario, local[scenario]);
       setLocal(l => ({ ...l, [scenario]: saved }));
-    } finally { setSaving(null); }
+      onSaved?.();
+    } finally {
+      setSavingScenario(null);
+      onSaving?.(false);
+    }
   };
 
   return (
     <section>
-      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Sensitivity Analysis</h3>
       <div className="space-y-4">
         {SCENARIOS.map(({ scenario, label }) => {
           const row = local[scenario];
@@ -254,7 +248,7 @@ const SensitivitySection: React.FC<{ appId: string; readOnly: boolean }> = ({ ap
                     ? <span className="text-sm text-gray-500">{row.label ?? ''}</span>
                     : <input className="border rounded px-2 py-1 text-sm w-48" placeholder="e.g. -20% Revenue" value={row.label ?? ''} onChange={e => update(scenario, 'label', e.target.value)} onBlur={() => flush(scenario)} />}
                 </div>
-                {saving === scenario && <span className="text-xs text-gray-400">Saving…</span>}
+                {savingScenario === scenario && <span className="text-xs text-gray-400">Saving…</span>}
               </div>
               <div className="grid grid-cols-3 gap-3 mb-3">
                 {SCENARIO_COLS.map(({ key, label: colLabel }) => (
@@ -284,13 +278,26 @@ const SensitivitySection: React.FC<{ appId: string; readOnly: boolean }> = ({ ap
 
 const PaymentCapabilityTab: React.FC<Props> = ({ application, onUpdated }) => {
   const readOnly = application.state !== 'DRAFT';
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+
+  const handleSaving = (s: boolean) => setSaving(s);
+  const handleSaved = () => setSavedAt(new Date());
 
   return (
-    <div className="p-6 space-y-8">
-      <WayOutSection application={application} readOnly={readOnly} onUpdated={onUpdated} />
-      <ProjectionSection appId={application.id} readOnly={readOnly} />
-      <SensitivitySection appId={application.id} readOnly={readOnly} />
-    </div>
+    <CaMemoSection
+      title="Payment Capability — Section 8"
+      phase="Phase 3"
+      readOnly={readOnly}
+      saving={saving}
+      savedAt={savedAt}
+    >
+      <div className="space-y-8">
+        <WayOutSection application={application} readOnly={readOnly} onUpdated={onUpdated} onSaving={handleSaving} onSaved={handleSaved} />
+        <ProjectionSection appId={application.id} readOnly={readOnly} onSaving={handleSaving} onSaved={handleSaved} />
+        <SensitivitySection appId={application.id} readOnly={readOnly} onSaving={handleSaving} onSaved={handleSaved} />
+      </div>
+    </CaMemoSection>
   );
 };
 

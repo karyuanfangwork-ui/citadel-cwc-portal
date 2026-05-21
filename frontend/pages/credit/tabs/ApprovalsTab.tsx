@@ -10,6 +10,7 @@ import { hasPermission } from '../../../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import { formatDateTime } from '../creditUtils';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 interface ApprovalsTabProps {
   app: CreditApplication;
@@ -54,10 +55,8 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* Approval Timeline */}
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Approval History</h3>
+    <div className="space-y-6">
+      <CaMemoSection title="Approval History" phase="Phase 3" readOnly>
         {approvals.length === 0 ? (
           <p className="text-sm text-text-secondary">No approvals yet.</p>
         ) : (
@@ -92,12 +91,10 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
             })}
           </div>
         )}
-      </div>
+      </CaMemoSection>
 
-      {/* Approval Action Panel */}
       {canApprove && (
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Submit Decision</h3>
+        <CaMemoSection title="Submit Decision" phase="Phase 3" readOnly={false}>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-text-primary mb-2">Decision *</label>
@@ -132,7 +129,7 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
               {submittingApproval ? 'Submitting...' : 'Submit Decision'}
             </button>
           </div>
-        </div>
+        </CaMemoSection>
       )}
     </div>
   );

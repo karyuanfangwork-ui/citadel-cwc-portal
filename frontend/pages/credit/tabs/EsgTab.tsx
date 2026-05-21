@@ -6,6 +6,7 @@ import {
   EsgCategory,
   esgApi,
 } from '../../../src/services/credit.service';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
 
@@ -59,14 +60,8 @@ const EsgTab: React.FC<Props> = ({ application }) => {
   const catOpt = CAT_OPTIONS.find(o => o.value === form.assignedCategory);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">ESG Assessment — Section 17 (BNM CCPT)</h3>
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
-        {!saving && savedAt && <span className="text-xs text-green-600">Saved {savedAt.toLocaleTimeString()}</span>}
-      </div>
-
-      <div className="grid grid-cols-2 gap-6">
+    <CaMemoSection title="ESG Assessment — Section 17 (BNM CCPT)" phase="Phase 5" readOnly={readOnly} saving={saving} savedAt={savedAt}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Guiding Principle (GP)</label>
           {readOnly
@@ -87,20 +82,20 @@ const EsgTab: React.FC<Props> = ({ application }) => {
         </div>
       </div>
 
-      <div>
+      <div className="mt-4">
         <label className="block text-xs text-gray-500 mb-1">Justification</label>
         {readOnly
           ? <p className="text-sm whitespace-pre-wrap">{form.justification || '—'}</p>
           : <textarea className="w-full border rounded px-3 py-2 text-sm resize-none h-28" value={form.justification ?? ''} onChange={e => update('justification', e.target.value)} onBlur={flush} placeholder="Justify the GP and category assignment…" />}
       </div>
 
-      <div>
+      <div className="mt-4">
         <label className="block text-xs text-gray-500 mb-1">Mitigating Factors</label>
         {readOnly
           ? <p className="text-sm whitespace-pre-wrap">{form.mitigatingFactors || '—'}</p>
           : <textarea className="w-full border rounded px-3 py-2 text-sm resize-none h-24" value={form.mitigatingFactors ?? ''} onChange={e => update('mitigatingFactors', e.target.value)} onBlur={flush} placeholder="Any mitigating factors that reduce ESG risk…" />}
       </div>
-    </div>
+    </CaMemoSection>
   );
 };
 

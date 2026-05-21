@@ -13,6 +13,7 @@ import { useAuth } from '../../../src/context/AuthContext';
 import { hasPermission } from '../../../src/utils/permissions';
 import { useToast } from '../../../src/context/ToastContext';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -364,6 +365,8 @@ const RiskRatingEclTab: React.FC<Props> = ({ application }) => {
   const [overrideTarget, setOverrideTarget] = useState<CreditScoreRun | null>(null);
   const [overriding, setOverriding] = useState(false);
   const [overrideForm, setOverrideForm] = useState<{ rating: RiskRating; reason: string }>({ rating: 'BBB', reason: '' });
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     creditService.listScoreRuns(application.id).then(setScoreRuns).catch(() => {});
@@ -397,7 +400,14 @@ const RiskRatingEclTab: React.FC<Props> = ({ application }) => {
   };
 
   return (
-    <div className="p-6 space-y-8">
+    <CaMemoSection
+      title="Risk Rating & ECL — Section 7"
+      phase="Phase 3"
+      readOnly={readOnly}
+      saving={saving}
+      savedAt={savedAt}
+    >
+      <div className="space-y-8">
       <ExternalRatingsSection appId={appId} readOnly={readOnly} />
       <EclSnapshotsSection appId={appId} readOnly={readOnly} />
       <EclForecastsSection appId={appId} readOnly={readOnly} />
@@ -501,7 +511,8 @@ const RiskRatingEclTab: React.FC<Props> = ({ application }) => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </CaMemoSection>
   );
 };
 

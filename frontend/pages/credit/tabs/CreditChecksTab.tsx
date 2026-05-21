@@ -7,6 +7,7 @@ import {
 } from '../../../src/services/credit.service';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
 
@@ -127,14 +128,13 @@ const CreditChecksTab: React.FC<Props> = ({ application }) => {
   }, [application.id]);
 
   return (
-    <div className="p-6 space-y-4">
-      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Credit Bureau Checks — Section 14</h3>
+    <CaMemoSection title="Credit Bureau Checks — Section 14" readOnly={readOnly}>
       {checks.map(c => (
         <CheckCard key={c.id} check={c} appId={application.id} readOnly={readOnly} onRemoved={() => setChecks(cs => cs.filter(x => x.id !== c.id))} />
       ))}
       {checks.length === 0 && <p className="text-sm text-gray-400 italic">No bureau checks recorded.</p>}
       {!readOnly && <AddCheckForm appId={application.id} onAdded={c => setChecks(cs => [c, ...cs])} />}
-    </div>
+    </CaMemoSection>
   );
 };
 

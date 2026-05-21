@@ -7,6 +7,7 @@ import {
   riskAssessmentApi,
   rmdIssueApi,
 } from '../../../src/services/credit.service';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
 
@@ -157,9 +158,13 @@ const RmdIssuesSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appI
 const RiskMitigatorsTab: React.FC<Props> = ({ application }) => {
   const readOnly = application.state !== 'DRAFT';
   return (
-    <div className="p-6 space-y-8">
-      <RiskRegisterSection appId={application.id} readOnly={readOnly} />
-      <RmdIssuesSection appId={application.id} readOnly={readOnly} />
+    <div className="space-y-6">
+      <CaMemoSection title="Risk Register" phase="Phase 5" readOnly={readOnly}>
+        <RiskRegisterSection appId={application.id} readOnly={readOnly} />
+      </CaMemoSection>
+      <CaMemoSection title="RMD Issues" phase="Phase 5" readOnly={readOnly}>
+        <RmdIssuesSection appId={application.id} readOnly={readOnly} />
+      </CaMemoSection>
     </div>
   );
 };

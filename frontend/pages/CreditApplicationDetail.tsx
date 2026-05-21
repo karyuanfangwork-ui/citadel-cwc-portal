@@ -8,6 +8,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
+import { useDirtyFormGuard } from '../src/hooks/useDirtyFormGuard';
 import HeaderBackgroundTab from './credit/tabs/HeaderBackgroundTab';
 import FacilitiesTab from './credit/tabs/FacilitiesTab';
 import RiskRatingEclTab from './credit/tabs/RiskRatingEclTab';
@@ -49,9 +50,18 @@ const CreditApplicationDetail: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  // Dirty form guard — warns on tab change / navigation if any tab has unsaved changes
+  const { isDirty, setDirty, confirmTabSwitch, DirtyGuardDialog } = useDirtyFormGuard();
+
   const [app, setApp] = useState<CreditApplication | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<DetailTab>('header');
+
+  // Guarded tab switch — prompts if there are unsaved changes
+  const handleTabChange = useCallback((tab: DetailTab) => {
+    if (isDirty && !confirmTabSwitch()) return;
+    setActiveTab(tab);
+  }, [isDirty, confirmTabSwitch]);
   const [transitions, setTransitions] = useState<ApplicationTransition[]>([]);
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
   const [transitioning, setTransitioning] = useState(false);
@@ -153,20 +163,20 @@ const CreditApplicationDetail: React.FC = () => {
     if (e.key === 'ArrowRight') {
       e.preventDefault();
       const next = ALL_TABS[(idx + 1) % ALL_TABS.length];
-      setActiveTab(next);
+      handleTabChange(next);
       document.getElementById(`tab-${next}`)?.focus();
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
       const prev = ALL_TABS[(idx - 1 + ALL_TABS.length) % ALL_TABS.length];
-      setActiveTab(prev);
+      handleTabChange(prev);
       document.getElementById(`tab-${prev}`)?.focus();
     } else if (e.key === 'Home') {
       e.preventDefault();
-      setActiveTab(ALL_TABS[0]);
+      handleTabChange(ALL_TABS[0]);
       document.getElementById(`tab-${ALL_TABS[0]}`)?.focus();
     } else if (e.key === 'End') {
       e.preventDefault();
-      setActiveTab(ALL_TABS[ALL_TABS.length - 1]);
+      handleTabChange(ALL_TABS[ALL_TABS.length - 1]);
       document.getElementById(`tab-${ALL_TABS[ALL_TABS.length - 1]}`)?.focus();
     }
   };
@@ -388,7 +398,7 @@ const CreditApplicationDetail: React.FC = () => {
                           const isActive = activeTab === tab.id;
                           return (
                             <button key={tab.id}
-                              onClick={() => { setActiveTab(tab.id); setShowMobileNav(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                              onClick={() => { handleTabChange(tab.id); setShowMobileNav(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                               className={`w-full text-left px-6 py-2.5 text-sm font-semibold flex items-center justify-between ${isActive ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50 hover:text-text-primary'}`}
                               style={{ background: isActive ? 'var(--brand-50)' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', borderLeft: isActive ? '3px solid var(--brand-700)' : '3px solid transparent' }}
                             >
@@ -426,7 +436,7 @@ const CreditApplicationDetail: React.FC = () => {
                     {group.tabs.map((tab) => {
                       const isActive = activeTab === tab.id;
                       return (
-                        <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                        <button key={tab.id} onClick={() => handleTabChange(tab.id)}
                           role="tab"
                           aria-selected={isActive}
                           aria-controls={`panel-${tab.id}`}
@@ -622,7 +632,7 @@ const CreditApplicationDetail: React.FC = () => {
             <div className="fixed bottom-8 right-8 z-50">
               <button
                 onClick={() => {
-                  setActiveTab(nextTab);
+                  handleTabChange(nextTab);
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
                 className="flex items-center gap-2 bg-brand-700 hover:bg-brand-800 text-white px-5 py-3 rounded-full shadow-lg transition-transform hover:scale-105"
@@ -683,6 +693,7 @@ const CreditApplicationDetail: React.FC = () => {
           );
         })()}
       </div>
+      {DirtyGuardDialog}
     </>
   );
 };

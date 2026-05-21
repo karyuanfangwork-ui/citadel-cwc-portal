@@ -4,6 +4,7 @@ import {
   IndustryAssessment,
   industryAssessmentApi,
 } from '../../../src/services/credit.service';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
 
@@ -46,13 +47,7 @@ const IndustryOutlookTab: React.FC<Props> = ({ application }) => {
   });
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Industry Outlook — Section 15</h3>
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
-        {!saving && savedAt && <span className="text-xs text-green-600">Saved {savedAt.toLocaleTimeString()}</span>}
-      </div>
-
+    <CaMemoSection title="Industry Outlook — Section 15" phase="Phase 5" readOnly={readOnly} saving={saving} savedAt={savedAt}>
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Sector</label>
@@ -81,7 +76,7 @@ const IndustryOutlookTab: React.FC<Props> = ({ application }) => {
           ? <p className="text-sm whitespace-pre-wrap">{form.subsectorOutlook || '—'}</p>
           : <textarea {...textareaProps('subsectorOutlook', 'Describe the sub-sector outlook and competitive dynamics…')} />}
       </div>
-    </div>
+    </CaMemoSection>
   );
 };
 

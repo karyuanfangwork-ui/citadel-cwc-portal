@@ -7,6 +7,7 @@ import creditService, {
   profitabilityApi,
   walletShareApi,
 } from '../../../src/services/credit.service';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 const PRODUCT_CATEGORIES = [
   { key: 'FINANCINGS',         label: 'Financings' },
@@ -32,12 +33,16 @@ type Props = {
 
 type LineMap = Record<string, Partial<ProfitabilityLine>>;
 
-const ProfitabilitySection: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
+const ProfitabilitySection: React.FC<{
+  appId: string;
+  readOnly: boolean;
+  setSaving: (v: boolean) => void;
+  setSavedAt: (d: Date) => void;
+}> = ({ appId, readOnly, setSaving, setSavedAt }) => {
   const [profitability, setProfitability] = useState<AccountProfitability | null>(null);
   const [lines, setLines] = useState<LineMap>({});
   const [notes, setNotes] = useState('');
   const [period, setPeriod] = useState('');
-  const [saving, setSaving] = useState(false);
   const dirty = useRef(false);
 
   useEffect(() => {
@@ -76,6 +81,7 @@ const ProfitabilitySection: React.FC<{ appId: string; readOnly: boolean }> = ({ 
       });
       setProfitability(saved);
       dirty.current = false;
+      setSavedAt(new Date());
     } finally { setSaving(false); }
   };
 
@@ -92,14 +98,11 @@ const ProfitabilitySection: React.FC<{ appId: string; readOnly: boolean }> = ({ 
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Account Profitability</h3>
-        <div className="flex items-center gap-3">
-          {readOnly
-            ? <span className="text-xs text-gray-500">{period || ''}</span>
-            : <input className="border rounded px-2 py-1 text-xs w-32" placeholder="Period (e.g. YTD 2026)" value={period} onChange={e => { setPeriod(e.target.value); dirty.current = true; }} onBlur={flush} />}
-          {saving && <span className="text-xs text-gray-400">Saving…</span>}
-        </div>
+      <div className="mb-3">
+        <label className="block text-xs text-gray-500 mb-1">Reporting Period</label>
+        {readOnly
+          ? <span className="text-sm">{period || '—'}</span>
+          : <input className="border rounded px-2 py-1 text-xs w-32" placeholder="Period (e.g. YTD 2026)" value={period} onChange={e => { setPeriod(e.target.value); dirty.current = true; }} onBlur={flush} />}
       </div>
       <div className="border rounded-lg overflow-x-auto mb-4">
         <table className="min-w-full text-sm">
@@ -148,9 +151,13 @@ const ProfitabilitySection: React.FC<{ appId: string; readOnly: boolean }> = ({ 
 
 type WalletRow = Partial<WalletShare> & { facilityType: string };
 
-const WalletShareSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
+const WalletShareSection: React.FC<{
+  appId: string;
+  readOnly: boolean;
+  setSaving: (v: boolean) => void;
+  setSavedAt: (d: Date) => void;
+}> = ({ appId, readOnly, setSaving, setSavedAt }) => {
   const [rows, setRows] = useState<WalletRow[]>([]);
-  const [saving, setSaving] = useState(false);
   const [newType, setNewType] = useState('');
 
   useEffect(() => {
@@ -168,6 +175,7 @@ const WalletShareSection: React.FC<{ appId: string; readOnly: boolean }> = ({ ap
       await walletShareApi.bulkUpsert(appId, [row]);
       const updated = await walletShareApi.list(appId);
       setRows(updated);
+      setSavedAt(new Date());
     } finally { setSaving(false); }
   };
 
@@ -185,10 +193,6 @@ const WalletShareSection: React.FC<{ appId: string; readOnly: boolean }> = ({ ap
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Wallet Share by Facility</h3>
-        {saving && <span className="text-xs text-gray-400">Saving…</span>}
-      </div>
       <div className="border rounded-lg overflow-x-auto mb-3">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -239,23 +243,32 @@ const WalletShareSection: React.FC<{ appId: string; readOnly: boolean }> = ({ ap
 
 // ─── Account Strategy Section ─────────────────────────────────────────────────
 
-const StrategySection: React.FC<{ application: CreditApplication; readOnly: boolean; onUpdated: (a: CreditApplication) => void }> = ({ application, readOnly, onUpdated }) => {
+const StrategySection: React.FC<{
+  application: CreditApplication;
+  readOnly: boolean;
+  onUpdated: (a: CreditApplication) => void;
+  setSaving: (v: boolean) => void;
+  setSavedAt: (d: Date) => void;
+}> = ({ application, readOnly, onUpdated, setSaving, setSavedAt }) => {
   const [strategy, setStrategy] = useState(application.accountStrategy ?? '');
   const [cross, setCross] = useState(application.crossSellingInitiatives ?? '');
   const dirty = useRef<Set<string>>(new Set());
 
   const flush = async () => {
     if (dirty.current.size === 0) return;
-    const payload: any = {};
-    dirty.current.forEach(k => { payload[k] = k === 'accountStrategy' ? strategy || null : cross || null; });
-    const updated = await creditService.updateApplication(application.id, payload);
-    onUpdated(updated);
-    dirty.current.clear();
+    setSaving(true);
+    try {
+      const payload: any = {};
+      dirty.current.forEach(k => { payload[k] = k === 'accountStrategy' ? strategy || null : cross || null; });
+      const updated = await creditService.updateApplication(application.id, payload);
+      onUpdated(updated);
+      dirty.current.clear();
+      setSavedAt(new Date());
+    } finally { setSaving(false); }
   };
 
   return (
     <section>
-      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Account Strategy & Cross-Selling</h3>
       <div className="space-y-4">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Account Strategy</label>
@@ -281,12 +294,17 @@ const StrategySection: React.FC<{ application: CreditApplication; readOnly: bool
 
 const ProfitabilityWalletTab: React.FC<Props> = ({ application, onUpdated }) => {
   const readOnly = application.state !== 'DRAFT';
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+
   return (
-    <div className="p-6 space-y-8">
-      <ProfitabilitySection appId={application.id} readOnly={readOnly} />
-      <WalletShareSection appId={application.id} readOnly={readOnly} />
-      <StrategySection application={application} readOnly={readOnly} onUpdated={onUpdated} />
-    </div>
+    <CaMemoSection title="Profitability & Wallet — Section 9" phase="Phase 4" readOnly={readOnly} saving={saving} savedAt={savedAt}>
+      <div className="space-y-8">
+        <ProfitabilitySection appId={application.id} readOnly={readOnly} setSaving={setSaving} setSavedAt={setSavedAt} />
+        <WalletShareSection appId={application.id} readOnly={readOnly} setSaving={setSaving} setSavedAt={setSavedAt} />
+        <StrategySection application={application} readOnly={readOnly} onUpdated={onUpdated} setSaving={setSaving} setSavedAt={setSavedAt} />
+      </div>
+    </CaMemoSection>
   );
 };
 

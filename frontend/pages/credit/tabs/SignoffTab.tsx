@@ -6,6 +6,7 @@ import {
   signoffApi,
 } from '../../../src/services/credit.service';
 import { useAuth } from '../../../src/context/AuthContext';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
 
@@ -115,6 +116,7 @@ const SignoffTab: React.FC<Props> = ({ application, onUpdated }) => {
   }, [application.id]);
 
   const isConcurred = !!application.concurredAt;
+  const readOnly = application.state !== 'DRAFT';
 
   const byRole = (role: SignoffRole) => signoffs.find(s => s.role === role);
 
@@ -138,51 +140,52 @@ const SignoffTab: React.FC<Props> = ({ application, onUpdated }) => {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Sign-off — Section 19</h3>
-        {isConcurred && (
-          <span className="text-xs font-bold bg-green-600 text-white px-3 py-1 rounded-full">
-            CA Memo Fully Signed — {new Date(application.concurredAt!).toLocaleDateString('en-GB')}
-          </span>
-        )}
-      </div>
-
-      {isConcurred && (
-        <div className="bg-green-50 border border-green-300 rounded-lg p-4 text-sm text-green-800">
-          All sections are now read-only. The CA Memo has been signed off and locked.
+    <CaMemoSection title="Sign-off" phase="Phase 5" readOnly={readOnly}>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          {isConcurred && (
+            <span className="text-xs font-bold bg-green-600 text-white px-3 py-1 rounded-full">
+              CA Memo Fully Signed — {new Date(application.concurredAt!).toLocaleDateString('en-GB')}
+            </span>
+          )}
         </div>
-      )}
 
-      <div className="grid grid-cols-3 gap-4">
-        {ROLES.map(({ role, label, requires }) => {
-          const existing = byRole(role);
-          const prevSigned = role === 'PREPARED_BY' ? true
-            : role === 'REVIEWED_BY' ? !!byRole('PREPARED_BY')
-            : !!byRole('REVIEWED_BY');
+        {isConcurred && (
+          <div className="bg-green-50 border border-green-300 rounded-lg p-4 text-sm text-green-800">
+            All sections are now read-only. The CA Memo has been signed off and locked.
+          </div>
+        )}
 
-          const isCurrentUser = existing?.signedById === user?.id;
-          const nextSigned = role === 'PREPARED_BY' ? !!byRole('REVIEWED_BY')
-            : role === 'REVIEWED_BY' ? !!byRole('CONCURRED_BY')
-            : false;
+        <div className="grid grid-cols-3 gap-4">
+          {ROLES.map(({ role, label, requires }) => {
+            const existing = byRole(role);
+            const prevSigned = role === 'PREPARED_BY' ? true
+              : role === 'REVIEWED_BY' ? !!byRole('PREPARED_BY')
+              : !!byRole('REVIEWED_BY');
 
-          return (
-            <SignoffCard
-              key={role}
-              role={role}
-              label={label}
-              requires={requires}
-              existing={existing}
-              isLocked={!prevSigned && !existing}
-              canSign={!existing && prevSigned && !isConcurred}
-              canRevoke={!!existing && isCurrentUser && !nextSigned && !isConcurred}
-              onSign={designation => handleSign(role, designation)}
-              onRevoke={() => handleRevoke(role)}
-            />
-          );
-        })}
+            const isCurrentUser = existing?.signedById === user?.id;
+            const nextSigned = role === 'PREPARED_BY' ? !!byRole('REVIEWED_BY')
+              : role === 'REVIEWED_BY' ? !!byRole('CONCURRED_BY')
+              : false;
+
+            return (
+              <SignoffCard
+                key={role}
+                role={role}
+                label={label}
+                requires={requires}
+                existing={existing}
+                isLocked={!prevSigned && !existing}
+                canSign={!existing && prevSigned && !isConcurred}
+                canRevoke={!!existing && isCurrentUser && !nextSigned && !isConcurred}
+                onSign={designation => handleSign(role, designation)}
+                onRevoke={() => handleRevoke(role)}
+              />
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </CaMemoSection>
   );
 };
 

@@ -5,6 +5,7 @@ import {
   AccountUtilisationInput,
   utilisationApi,
 } from '../../../src/services/credit.service';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = {
   application: CreditApplication;
@@ -175,7 +176,8 @@ const AccountConductTab: React.FC<Props> = ({ application }) => {
   const handleAdded = (item: AccountUtilisationSnapshot) => setSnapshots(s => [...s, item]);
 
   return (
-    <div className="p-6 space-y-8">
+    <CaMemoSection title="Account Conduct" readOnly={readOnly}>
+      <div className="space-y-8">
       <SnapshotTable
         title="Term Financings"
         facilityType="TERM"
@@ -205,7 +207,8 @@ const AccountConductTab: React.FC<Props> = ({ application }) => {
           onAdded={handleAdded}
         />
       )}
-    </div>
+      </div>
+    </CaMemoSection>
   );
 };
 

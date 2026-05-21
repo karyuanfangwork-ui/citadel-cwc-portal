@@ -1,13 +1,6 @@
-import React from 'react';
-import { CreditApplication } from '../../../src/services/credit.service';
-import RequestsFacilitiesTab from './RequestsFacilitiesTab';
+// FacilitiesTab is now a thin redirect to the canonical RequestsFacilitiesTab.
+// The canonical implementation is in RequestsFacilitiesTab.tsx which this re-exports.
+// This avoids a breaking import change in CreditApplicationDetail.tsx.
+// Phase 2 (Sprint 2) will add CaMemoSection envelope + autosave wrapper here.
 
-interface FacilitiesTabProps {
-  application: CreditApplication;
-}
-
-const FacilitiesTab: React.FC<FacilitiesTabProps> = ({ application }) => {
-  return <RequestsFacilitiesTab application={application} />;
-};
-
-export default FacilitiesTab;
+export { default } from './RequestsFacilitiesTab';

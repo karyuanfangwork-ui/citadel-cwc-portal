@@ -4,6 +4,7 @@ import creditService, { CreditAuditEvent } from '../../../src/services/credit.se
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import { formatDateTime, STATE_COLORS } from '../creditUtils';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 interface AuditTabProps {
   // No props needed — fetches its own data based on URL param
@@ -24,8 +25,7 @@ const AuditTab: React.FC<AuditTabProps> = () => {
   useEffect(() => { fetchAudit(); }, [fetchAudit]);
 
   return (
-    <div className="bg-bg-surface border border-border rounded-xl p-5">
-      <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Audit Trail</h3>
+    <CaMemoSection title="Audit Trail" phase="Meta" readOnly>
       {audit.length === 0 ? (
         <p className="text-sm text-text-secondary">No audit events recorded.</p>
       ) : (
@@ -63,7 +63,7 @@ const AuditTab: React.FC<AuditTabProps> = () => {
           })}
         </div>
       )}
-    </div>
+    </CaMemoSection>
   );
 };
 

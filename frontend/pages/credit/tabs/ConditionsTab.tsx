@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import { formatDate } from '../creditUtils';
 import EmptyState from '../../../src/components/EmptyState';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 interface ConditionsTabProps {
   // No props needed — fetches its own data based on URL param
@@ -89,9 +90,17 @@ const ConditionsTab: React.FC<ConditionsTabProps> = () => {
     finally { setSavingCondition(false); }
   };
 
+  const addConditionAction = canWrite ? (
+    <button onClick={() => setShowAddConditionDialog(true)}
+      className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+      style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+      <span className="material-symbols-outlined text-base">add</span> Add Condition
+    </button>
+  ) : undefined;
+
   return (
     <>
-      <div>
+      <CaMemoSection title="Conditions" phase="Phase 4" actions={addConditionAction}>
         {/* CP Completion Gate */}
         {cpCompletion && (
           <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-6 ${cpCompletion.isComplete ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
@@ -124,17 +133,6 @@ const ConditionsTab: React.FC<ConditionsTabProps> = () => {
             </div>
           </div>
         )}
-
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Conditions Checklist</h3>
-          {canWrite && (
-            <button onClick={() => setShowAddConditionDialog(true)}
-              className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">add</span> Add Condition
-            </button>
-          )}
-        </div>
 
         {conditions.length === 0 ? (
           <EmptyState icon="checklist" title="No Conditions" description="Conditions precedent and subsequent will appear here." />
@@ -207,7 +205,7 @@ const ConditionsTab: React.FC<ConditionsTabProps> = () => {
             })}
           </div>
         )}
-      </div>
+      </CaMemoSection>
 
       {/* Waive Condition Dialog */}
       {waiveDialogId && (

@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import { formatCurrency } from '../creditUtils';
 import EmptyState from '../../../src/components/EmptyState';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 interface CollateralTabProps {
   // No props needed — fetches its own data based on URL param
@@ -34,18 +35,17 @@ const CollateralTab: React.FC<CollateralTabProps> = () => {
 
   useEffect(() => { fetchCollateral(); }, [fetchCollateral]);
 
+  const collateralActions = (
+    <Link to={`/credit/collateral?applicationId=${id}`}
+      className="flex items-center gap-1.5 text-sm font-bold text-brand-700 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-100 transition-colors"
+      style={{ textDecoration: 'none' }}>
+      <span className="material-symbols-outlined text-base">open_in_new</span> Manage Collateral
+    </Link>
+  );
+
   return (
-    <div>
-      {/* Collateral Summary */}
-      <div className="mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Collateral</h3>
-          <Link to={`/credit/collateral?applicationId=${id}`}
-            className="flex items-center gap-1.5 text-sm font-bold text-brand-700 bg-brand-50 border border-brand-200 px-3 py-1.5 rounded-lg hover:bg-brand-100 transition-colors"
-            style={{ textDecoration: 'none' }}>
-            <span className="material-symbols-outlined text-base">open_in_new</span> Manage Collateral
-          </Link>
-        </div>
+    <div className="space-y-6">
+      <CaMemoSection title="Collateral" phase="Phase 4" actions={collateralActions}>
         {collaterals.length === 0 ? (
           <EmptyState
             icon="shield"
@@ -81,11 +81,10 @@ const CollateralTab: React.FC<CollateralTabProps> = () => {
             </table>
           </div>
         )}
-      </div>
+      </CaMemoSection>
 
       {/* Guarantees Summary */}
-      <div>
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Guarantees</h3>
+      <CaMemoSection title="Guarantees" phase="Phase 4">
         {guarantees.length === 0 ? (
           <EmptyState
             icon="verified_user"
@@ -120,7 +119,7 @@ const CollateralTab: React.FC<CollateralTabProps> = () => {
             </table>
           </div>
         )}
-      </div>
+      </CaMemoSection>
     </div>
   );
 };

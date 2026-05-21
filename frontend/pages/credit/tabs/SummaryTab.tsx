@@ -12,6 +12,7 @@ import { hasPermission } from '../../../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import { formatCurrency, formatDate, formatDateTime, PRODUCT_LABELS } from '../creditUtils';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 interface SummaryTabProps {
   app: CreditApplication;
@@ -89,7 +90,7 @@ const SummaryTab: React.FC<SummaryTabProps> = ({ app, facilities, transitions, c
   };
 
   return (
-    <>
+    <CaMemoSection title="Summary" phase="Phase 6" readOnly={true}>
       {/* Application Details + People */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-bg-surface border border-border rounded-xl p-5">
@@ -278,7 +279,7 @@ const SummaryTab: React.FC<SummaryTabProps> = ({ app, facilities, transitions, c
           </div>
         </div>
       )}
-    </>
+    </CaMemoSection>
   );
 };
 

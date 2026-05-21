@@ -9,6 +9,7 @@ import creditService, {
 } from '../../../src/services/credit.service';
 import apiClient from '../../../src/services/api';
 import { getFacilityTypes } from '../creditUtils';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -361,20 +362,20 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
   }
 
   return (
-    <div className="p-6 space-y-8">
+    <CaMemoSection title="Facilities" phase="Phase 1" readOnly={readOnly} saving={exposureSaving} savedAt={exposureSavedAt}>
+      <div className="space-y-8">
       {/* Section 3a — Facilities Table */}
       <section>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Facilities</h3>
-          {!readOnly && !showAddFacility && (
+        {!readOnly && !showAddFacility && (
+          <div className="mb-3">
             <button
               onClick={() => setShowAddFacility(true)}
               className="text-xs text-blue-600 border border-blue-300 px-3 py-1 rounded hover:bg-blue-50"
             >
               + Add Facility
             </button>
-          )}
-        </div>
+          </div>
+        )}
         <div className="overflow-x-auto border rounded-lg">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -495,7 +496,8 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
           </div>
         )}
       </section>
-    </div>
+      </div>
+    </CaMemoSection>
   );
 };
 

@@ -5,6 +5,7 @@ import {
   CounterpartyRole,
   keyCounterpartyApi,
 } from '../../../src/services/credit.service';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = {
   application: CreditApplication;
@@ -128,31 +129,33 @@ const CounterpartiesTab: React.FC<Props> = ({ application }) => {
   const handleRemoved = (id: string) => setAll(a => a.filter(c => c.id !== id));
 
   return (
-    <div className="p-6 space-y-8">
-      {ROLE_SECTIONS.map(({ role, label, max }) => (
-        <section key={role}>
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">{label}</h3>
-          <div className="space-y-3">
-            {byRole(role).map(item => (
-              <CounterpartyRow
-                key={item.id}
-                profileId={profileId}
-                item={item}
-                readOnly={readOnly}
-                onSaved={handleSaved}
-                onRemoved={() => handleRemoved(item.id)}
-              />
-            ))}
-          </div>
-          {!readOnly && byRole(role).length < max && (
-            <AddForm profileId={profileId} role={role} onAdded={item => setAll(a => [...a, item])} />
-          )}
-          {byRole(role).length === 0 && readOnly && (
-            <p className="text-sm text-gray-400 italic">None recorded.</p>
-          )}
-        </section>
-      ))}
-    </div>
+    <CaMemoSection title="Key Counterparties" readOnly={readOnly}>
+      <div className="space-y-8">
+        {ROLE_SECTIONS.map(({ role, label, max }) => (
+          <section key={role}>
+            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">{label}</h3>
+            <div className="space-y-3">
+              {byRole(role).map(item => (
+                <CounterpartyRow
+                  key={item.id}
+                  profileId={profileId}
+                  item={item}
+                  readOnly={readOnly}
+                  onSaved={handleSaved}
+                  onRemoved={() => handleRemoved(item.id)}
+                />
+              ))}
+            </div>
+            {!readOnly && byRole(role).length < max && (
+              <AddForm profileId={profileId} role={role} onAdded={item => setAll(a => [...a, item])} />
+            )}
+            {byRole(role).length === 0 && readOnly && (
+              <p className="text-sm text-gray-400 italic">None recorded.</p>
+            )}
+          </section>
+        ))}
+      </div>
+    </CaMemoSection>
   );
 };
 

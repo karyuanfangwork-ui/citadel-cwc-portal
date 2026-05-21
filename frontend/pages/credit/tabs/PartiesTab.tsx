@@ -10,6 +10,7 @@ import { hasPermission } from '../../../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import EmptyState from '../../../src/components/EmptyState';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 interface PartiesTabProps {
   app: CreditApplication;
@@ -85,15 +86,11 @@ const PartiesTab: React.FC<PartiesTabProps> = ({ app }) => {
 
   return (
     <>
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Parties</h3>
-          {canWrite && (
-            <button onClick={() => setShowPartyForm(true)} className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">person_add</span> Add Party
-            </button>
-          )}
-        </div>
+      <CaMemoSection title="Parties" phase="Phase 2" readOnly={!canWrite} actions={canWrite ? (
+        <button onClick={() => setShowPartyForm(true)} className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+          <span className="material-symbols-outlined text-base">person_add</span> Add Party
+        </button>
+      ) : undefined}>
         {parties.length === 0 ? (
           <EmptyState
             icon="group"
@@ -133,7 +130,7 @@ const PartiesTab: React.FC<PartiesTabProps> = ({ app }) => {
             })}
           </div>
         )}
-      </div>
+      </CaMemoSection>
 
       {/* Party Form Modal */}
       {showPartyForm && (

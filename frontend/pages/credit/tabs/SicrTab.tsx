@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import {
   CreditApplication,
   SicrAssessment,
@@ -48,8 +49,7 @@ const SicrTab: React.FC<Props> = ({ application }) => {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">SICR Assessment — Section 18 (MFRS 9)</h3>
+    <CaMemoSection title="SICR Assessment — Section 16" phase="Phase 5" readOnly={readOnly}>
       <div className="space-y-4">
         {TRIGGER_TYPES.map(({ key, label, description }) => {
           const row = rows[key];
@@ -100,7 +100,7 @@ const SicrTab: React.FC<Props> = ({ application }) => {
           );
         })}
       </div>
-    </div>
+    </CaMemoSection>
   );
 };
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { CreditApplication } from '../../../src/services/credit.service';
 import EmptyState from '../../../src/components/EmptyState';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 interface DocumentsTabProps {
   app: CreditApplication;
@@ -9,10 +10,7 @@ interface DocumentsTabProps {
 
 const DocumentsTab: React.FC<DocumentsTabProps> = ({ app }) => {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Documents</h3>
-      </div>
+    <CaMemoSection title="Documents" phase="Meta" readOnly>
       <EmptyState
         icon="folder_open"
         title="No Documents"
@@ -20,7 +18,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app }) => {
         actionLabel="Go to Borrower Profile"
         onAction={() => { window.location.href = `/credit/borrowers/${app.borrowerProfileId}`; }}
       />
-    </div>
+    </CaMemoSection>
   );
 };
 

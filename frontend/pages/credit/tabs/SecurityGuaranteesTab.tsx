@@ -7,6 +7,7 @@ import {
   collateralApi,
   guaranteeApi,
 } from '../../../src/services/credit.service';
+import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = {
   application: CreditApplication;
@@ -144,9 +145,13 @@ const GuaranteeSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appI
 const SecurityGuaranteesTab: React.FC<Props> = ({ application }) => {
   const readOnly = application.state !== 'DRAFT';
   return (
-    <div className="p-6 space-y-8">
-      <CollateralSection appId={application.id} readOnly={readOnly} />
-      <GuaranteeSection appId={application.id} readOnly={readOnly} />
+    <div className="space-y-6">
+      <CaMemoSection title="Security / Collateral" phase="Phase 4" readOnly>
+        <CollateralSection appId={application.id} readOnly={readOnly} />
+      </CaMemoSection>
+      <CaMemoSection title="Corporate / Personal Guarantees" phase="Phase 4" readOnly>
+        <GuaranteeSection appId={application.id} readOnly={readOnly} />
+      </CaMemoSection>
     </div>
   );
 };
