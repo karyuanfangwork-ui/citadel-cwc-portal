@@ -2351,6 +2351,7 @@ model Director {
   
   name             String   @db.VarChar(255)
   nricPassportEncrypted  String?  @map("nric_passport_encrypted") @db.Text
+  nricPassportHmac       String?  @map("nric_passport_hmac") @db.VarChar(64)
   position        String?   @db.VarChar(100)
   appointmentDate DateTime? @map("appointment_date") @db.Date
   resignationDate DateTime? @map("resignation_date") @db.Date
@@ -2382,6 +2383,7 @@ model Shareholder {
   
   name             String    @db.VarChar(255)
   nricPassportEncrypted  String?  @map("nric_passport_encrypted") @db.Text
+  nricPassportHmac       String?  @map("nric_passport_hmac") @db.VarChar(64)
   shareholdingPct  Decimal?  @map("shareholding_pct") @db.Decimal(5, 2)
   shareClass       String?   @map("share_class") @db.VarChar(50)
   numberOfShares   Int?      @map("number_of_shares")
@@ -2410,6 +2412,7 @@ model UltimateBeneficialOwner {
   
   name             String   @db.VarChar(255)
   nricPassportEncrypted  String?  @map("nric_passport_encrypted") @db.Text
+  nricPassportHmac       String?  @map("nric_passport_hmac") @db.VarChar(64)
   ownershipPct     Decimal  @map("ownership_pct") @db.Decimal(5, 2)
   isPep            Boolean  @default(false) @map("is_pep")
   sourceOfWealth   String?  @map("source_of_wealth") @db.VarChar(255)

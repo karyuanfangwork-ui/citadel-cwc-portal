@@ -1821,4 +1821,21 @@ export const utilisationApi = {
   },
 };
 
+// ─── PII Reveal ──────────────────────────────────────────────────────────────
+
+export const piiRevealApi = {
+  director: async (id: string): Promise<string> => {
+    const res = await apiClient.get(`/credit/directors/${id}/nric-reveal`);
+    return res.data.data.nric as string;
+  },
+  shareholder: async (id: string): Promise<string> => {
+    const res = await apiClient.get(`/credit/shareholders/${id}/nric-reveal`);
+    return res.data.data.nric as string;
+  },
+  ubo: async (id: string): Promise<string> => {
+    const res = await apiClient.get(`/credit/ubos/${id}/nric-reveal`);
+    return res.data.data.nric as string;
+  },
+};
+
 export default creditService;

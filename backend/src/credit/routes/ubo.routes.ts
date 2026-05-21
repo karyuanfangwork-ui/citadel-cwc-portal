@@ -47,6 +47,16 @@ router.post(
 );
 
 /**
+ * GET /ubos/:id/nric-reveal
+ * Reveal decrypted NRIC — PII-logged
+ */
+router.get(
+  '/ubos/:id/nric-reveal',
+  requirePermission('credit:read'),
+  uboController.revealNric,
+);
+
+/**
  * PATCH /ubos/:id
  * Update a UBO
  * Requires: credit:write

@@ -45,6 +45,16 @@ function decryptNric(record: any) {
   };
 }
 
+function maskNric(record: any) {
+  const plain = record.nricPassportEncrypted
+    ? CreditEncryptionService.decrypt(record.nricPassportEncrypted)
+    : null;
+  return {
+    ...record,
+    nricPassport: plain ? CreditEncryptionService.maskNric(plain) : null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -72,7 +82,7 @@ class UboService {
     ]);
 
     return {
-      beneficialOwners: beneficialOwners.map(decryptNric),
+      beneficialOwners: beneficialOwners.map(maskNric),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -103,11 +113,11 @@ class UboService {
    * Create a new UBO.
    */
   async createUbo(data: CreateUboData) {
+    const nricTrimmed = data.nricPassport?.trim() || null;
     const createData: Prisma.UltimateBeneficialOwnerCreateInput = {
       name: data.name,
-      nricPassportEncrypted: data.nricPassport?.trim()
-        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
-        : null,
+      nricPassportEncrypted: nricTrimmed ? CreditEncryptionService.encrypt(nricTrimmed) : null,
+      nricPassportHmac: nricTrimmed ? CreditEncryptionService.hmacNric(nricTrimmed) : null,
       ownershipPct: new Prisma.Decimal(data.ownershipPct as string | number),
       isPep: data.isPep ?? false,
       sourceOfWealth: data.sourceOfWealth ?? undefined,
@@ -133,9 +143,9 @@ class UboService {
 
     if (data.name !== undefined) updateData.name = data.name;
     if (data.nricPassport !== undefined) {
-      updateData.nricPassportEncrypted = data.nricPassport?.trim()
-        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
-        : null;
+      const nricTrimmed = data.nricPassport?.trim() || null;
+      updateData.nricPassportEncrypted = nricTrimmed ? CreditEncryptionService.encrypt(nricTrimmed) : null;
+      updateData.nricPassportHmac = nricTrimmed ? CreditEncryptionService.hmacNric(nricTrimmed) : null;
     }
     if (data.ownershipPct !== undefined) updateData.ownershipPct = new Prisma.Decimal(data.ownershipPct as string | number);
     if (data.isPep !== undefined) updateData.isPep = data.isPep;
@@ -148,6 +158,16 @@ class UboService {
     });
 
     return decryptNric(ubo);
+  }
+
+  /**
+   * Reveal the decrypted NRIC for a UBO (PII-logged).
+   */
+  async revealNric(id: string, requestingUserId: string) {
+    const ubo = await prisma.ultimateBeneficialOwner.findUnique({ where: { id }, select: { nricPassportEncrypted: true } });
+    if (!ubo || !ubo.nricPassportEncrypted) return null;
+    await PiiReadLogService.logPiiAccess(requestingUserId, 'UltimateBeneficialOwner', id, 'nricPassport').catch(() => {});
+    return CreditEncryptionService.decrypt(ubo.nricPassportEncrypted);
   }
 
   /**

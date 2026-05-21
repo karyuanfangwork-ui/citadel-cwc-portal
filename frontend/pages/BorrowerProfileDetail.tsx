@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import creditService, { BorrowerProfile, CreditApplication, exposureApi, ExposureDashboardSummary } from '../src/services/credit.service';
+import creditService, { BorrowerProfile, CreditApplication, exposureApi, ExposureDashboardSummary, piiRevealApi } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
@@ -35,6 +35,37 @@ const AML_BADGE: Record<string, { bg: string; text: string }> = {
   MEDIUM: { bg: '#f59e0b20', text: '#d97706' },
   HIGH: { bg: '#ef444420', text: '#dc2626' },
   PROHIBITED: { bg: '#7f1d1d40', text: '#991b1b' },
+};
+
+// ── NricReveal — shows masked NRIC with a "Reveal" button ────────────────────
+const NricReveal: React.FC<{ maskedNric: string | null; revealFn: () => Promise<string> }> = ({ maskedNric, revealFn }) => {
+  const [revealed, setRevealed] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  if (!maskedNric) return null;
+
+  const handleReveal = async () => {
+    setLoading(true);
+    try {
+      const full = await revealFn();
+      setRevealed(full);
+    } catch { /* ignore */ } finally { setLoading(false); }
+  };
+
+  return (
+    <span className="text-xs text-text-secondary">
+      NRIC/Passport: <span className="font-mono">{revealed ?? maskedNric}</span>
+      {!revealed && (
+        <button
+          onClick={handleReveal}
+          disabled={loading}
+          className="ml-1 text-[10px] text-blue-500 hover:text-blue-700 underline disabled:opacity-50"
+        >
+          {loading ? '…' : 'Reveal'}
+        </button>
+      )}
+    </span>
+  );
 };
 
 const APP_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -388,6 +419,9 @@ const BorrowerProfileDetail: React.FC = () => {
                           {d.nationality && <span>{d.nationality}</span>}
                         </p>
                       )}
+                      {d.nricPassport && (
+                        <p className="mt-0.5"><NricReveal maskedNric={d.nricPassport} revealFn={() => piiRevealApi.director(d.id)} /></p>
+                      )}
                       {d.experienceQualification && (
                         <p className="text-xs text-text-secondary mt-0.5 truncate">{d.experienceQualification}</p>
                       )}
@@ -440,6 +474,9 @@ const BorrowerProfileDetail: React.FC = () => {
                           {s.businessRegNo && <span> · Reg: {s.businessRegNo}</span>}
                         </p>
                       )}
+                      {s.nricPassport && (
+                        <p className="mt-0.5"><NricReveal maskedNric={s.nricPassport} revealFn={() => piiRevealApi.shareholder(s.id)} /></p>
+                      )}
                     </div>
                     {s.shareholdingPct != null && (
                       <div className="w-16 text-right">
@@ -483,6 +520,9 @@ const BorrowerProfileDetail: React.FC = () => {
                         {ubo.ownershipPct != null && <span>{ubo.ownershipPct}% ownership</span>}
                         {ubo.countryOfResidence && <span> · {ubo.countryOfResidence}</span>}
                       </p>
+                      {ubo.nricPassport && (
+                        <p className="mt-0.5"><NricReveal maskedNric={ubo.nricPassport} revealFn={() => piiRevealApi.ubo(ubo.id)} /></p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {ubo.isPep && (

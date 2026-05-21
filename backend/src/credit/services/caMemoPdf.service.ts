@@ -6,7 +6,7 @@ export async function getCaMemoData(applicationId: string) {
     include: {
       borrowerProfile: {
         include: {
-          account: { select: { id: true, name: true, registrationNo: true, industry: true } },
+          account: { select: { id: true, name: true, registrationNumber: true, industry: true } },
           contact: { select: { id: true, firstName: true, lastName: true, email: true } },
           directors: { orderBy: { createdAt: 'asc' } },
           shareholders: { orderBy: { shareholdingPct: 'desc' } },
@@ -18,7 +18,7 @@ export async function getCaMemoData(applicationId: string) {
       },
       requestItems: { orderBy: { createdAt: 'asc' } },
       exposureSummary: true,
-      externalRatings: { orderBy: { financialYear: 'desc' } },
+      externalRatings: { orderBy: { fiscalYear: 'desc' } },
       eclSnapshots: { orderBy: { createdAt: 'desc' } },
       cashflowProjection: { include: { lineItems: { orderBy: [{ lineKey: 'asc' }, { projectionYear: 'asc' }] } } },
       sensitivityScenarios: { orderBy: { scenario: 'asc' } },
@@ -31,7 +31,6 @@ export async function getCaMemoData(applicationId: string) {
       esgAssessment: true,
       sicrAssessments: { orderBy: { triggerType: 'asc' } },
       signoffs: { include: { signedBy: { select: { firstName: true, lastName: true } } }, orderBy: { signedAt: 'asc' } },
-      financialStatements: { orderBy: [{ financialYear: 'desc' }], take: 3 },
     },
   });
 

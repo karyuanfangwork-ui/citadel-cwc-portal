@@ -59,6 +59,17 @@ class ShareholderController {
   });
 
   /**
+   * GET /shareholders/:id/nric-reveal
+   */
+  revealNric = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    if (!req.user?.id) throw new AppError('Unauthenticated', 401);
+    const nric = await shareholderService.revealNric(id, req.user.id);
+    if (nric === null) throw new AppError('Shareholder not found or no NRIC on record', 404);
+    res.json({ status: 'success', data: { nric } });
+  });
+
+  /**
    * DELETE /shareholders/:id
    */
   delete = asyncHandler(async (req: AuthRequest, res: Response) => {

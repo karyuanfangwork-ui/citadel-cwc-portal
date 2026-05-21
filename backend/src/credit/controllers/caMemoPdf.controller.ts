@@ -4,7 +4,8 @@ import { getCaMemoData } from '../services/caMemoPdf.service';
 const fmt = (v: any) => (v != null ? Number(v).toLocaleString('en-MY', { maximumFractionDigits: 2 }) : '—');
 const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
-function buildHtml(app: Awaited<ReturnType<typeof getCaMemoData>>, title: string): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildHtml(app: any, title: string): string {
   const borrower = app.borrowerProfile?.account?.name ?? app.borrowerProfile?.contact
     ? `${app.borrowerProfile.contact?.firstName} ${app.borrowerProfile.contact?.lastName}`
     : 'Unknown Borrower';
@@ -14,7 +15,7 @@ function buildHtml(app: Awaited<ReturnType<typeof getCaMemoData>>, title: string
   const reviewed = signoffs.find((s: any) => s.role === 'REVIEWED_BY');
   const concurred = signoffs.find((s: any) => s.role === 'CONCURRED_BY');
 
-  const sigRow = (label: string, s: any) => s
+  const sigRow = (_label: string, s: any) => s
     ? `<td><strong>${s.signedBy?.firstName} ${s.signedBy?.lastName}</strong><br/><small>${s.designationSnapshot}</small><br/><small>${fmtDate(s.signedAt)}</small></td>`
     : `<td><em style="color:#aaa">Unsigned</em></td>`;
 

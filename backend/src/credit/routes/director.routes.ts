@@ -47,6 +47,17 @@ router.post(
 );
 
 /**
+ * GET /directors/:id/nric-reveal
+ * Reveal decrypted NRIC — PII-logged
+ * Requires: credit:pii or credit:admin
+ */
+router.get(
+  '/directors/:id/nric-reveal',
+  requirePermission('credit:read'),
+  directorController.revealNric,
+);
+
+/**
  * PATCH /directors/:id
  * Update a director
  * Requires: credit:write

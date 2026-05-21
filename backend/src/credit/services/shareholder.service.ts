@@ -45,6 +45,16 @@ function decryptNric(record: any) {
   };
 }
 
+function maskNric(record: any) {
+  const plain = record.nricPassportEncrypted
+    ? CreditEncryptionService.decrypt(record.nricPassportEncrypted)
+    : null;
+  return {
+    ...record,
+    nricPassport: plain ? CreditEncryptionService.maskNric(plain) : null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -75,7 +85,7 @@ class ShareholderService {
     ]);
 
     return {
-      shareholders: shareholders.map(decryptNric),
+      shareholders: shareholders.map(maskNric),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -109,11 +119,11 @@ class ShareholderService {
    * Create a new shareholder.
    */
   async createShareholder(data: CreateShareholderData) {
+    const nricTrimmed = data.nricPassport?.trim() || null;
     const createData: Prisma.ShareholderCreateInput = {
       name: data.name,
-      nricPassportEncrypted: data.nricPassport?.trim()
-        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
-        : null,
+      nricPassportEncrypted: nricTrimmed ? CreditEncryptionService.encrypt(nricTrimmed) : null,
+      nricPassportHmac: nricTrimmed ? CreditEncryptionService.hmacNric(nricTrimmed) : null,
       shareholdingPct: data.shareholdingPct != null ? new Prisma.Decimal(data.shareholdingPct as string | number) : undefined,
       shareClass: data.shareClass ?? undefined,
       numberOfShares: data.numberOfShares ?? undefined,
@@ -142,9 +152,9 @@ class ShareholderService {
 
     if (data.name !== undefined) updateData.name = data.name;
     if (data.nricPassport !== undefined) {
-      updateData.nricPassportEncrypted = data.nricPassport?.trim()
-        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
-        : null;
+      const nricTrimmed = data.nricPassport?.trim() || null;
+      updateData.nricPassportEncrypted = nricTrimmed ? CreditEncryptionService.encrypt(nricTrimmed) : null;
+      updateData.nricPassportHmac = nricTrimmed ? CreditEncryptionService.hmacNric(nricTrimmed) : null;
     }
     if (data.shareholdingPct !== undefined) updateData.shareholdingPct = data.shareholdingPct != null ? new Prisma.Decimal(data.shareholdingPct as string | number) : null;
     if (data.shareClass !== undefined) updateData.shareClass = data.shareClass;
@@ -162,6 +172,16 @@ class ShareholderService {
     });
 
     return decryptNric(shareholder);
+  }
+
+  /**
+   * Reveal the decrypted NRIC for a shareholder (PII-logged).
+   */
+  async revealNric(id: string, requestingUserId: string) {
+    const shareholder = await prisma.shareholder.findUnique({ where: { id }, select: { nricPassportEncrypted: true } });
+    if (!shareholder || !shareholder.nricPassportEncrypted) return null;
+    await PiiReadLogService.logPiiAccess(requestingUserId, 'Shareholder', id, 'nricPassport').catch(() => {});
+    return CreditEncryptionService.decrypt(shareholder.nricPassportEncrypted);
   }
 
   /**

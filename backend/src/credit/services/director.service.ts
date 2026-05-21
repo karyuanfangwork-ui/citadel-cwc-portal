@@ -48,6 +48,16 @@ function decryptNric(record: any) {
   };
 }
 
+function maskNric(record: any) {
+  const plain = record.nricPassportEncrypted
+    ? CreditEncryptionService.decrypt(record.nricPassportEncrypted)
+    : null;
+  return {
+    ...record,
+    nricPassport: plain ? CreditEncryptionService.maskNric(plain) : null,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -79,7 +89,7 @@ class DirectorService {
     ]);
 
     return {
-      directors: directors.map(decryptNric),
+      directors: directors.map(maskNric),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   }
@@ -114,11 +124,11 @@ class DirectorService {
    * Create a new director.
    */
   async createDirector(data: CreateDirectorData) {
+    const nricTrimmed = data.nricPassport?.trim() || null;
     const createData: Prisma.DirectorCreateInput = {
       name: data.name,
-      nricPassportEncrypted: data.nricPassport?.trim()
-        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
-        : null,
+      nricPassportEncrypted: nricTrimmed ? CreditEncryptionService.encrypt(nricTrimmed) : null,
+      nricPassportHmac: nricTrimmed ? CreditEncryptionService.hmacNric(nricTrimmed) : null,
       position: data.position ?? undefined,
       appointmentDate: data.appointmentDate ? new Date(data.appointmentDate) : undefined,
       resignationDate: data.resignationDate ? new Date(data.resignationDate) : undefined,
@@ -148,9 +158,9 @@ class DirectorService {
 
     if (data.name !== undefined) updateData.name = data.name;
     if (data.nricPassport !== undefined) {
-      updateData.nricPassportEncrypted = data.nricPassport?.trim()
-        ? CreditEncryptionService.encrypt(data.nricPassport.trim())
-        : null;
+      const nricTrimmed = data.nricPassport?.trim() || null;
+      updateData.nricPassportEncrypted = nricTrimmed ? CreditEncryptionService.encrypt(nricTrimmed) : null;
+      updateData.nricPassportHmac = nricTrimmed ? CreditEncryptionService.hmacNric(nricTrimmed) : null;
     }
     if (data.position !== undefined) updateData.position = data.position;
     if (data.appointmentDate !== undefined) updateData.appointmentDate = data.appointmentDate ? new Date(data.appointmentDate) : null;
@@ -169,6 +179,16 @@ class DirectorService {
     });
 
     return decryptNric(director);
+  }
+
+  /**
+   * Reveal the decrypted NRIC for a director (PII-logged).
+   */
+  async revealNric(id: string, requestingUserId: string) {
+    const director = await prisma.director.findUnique({ where: { id }, select: { nricPassportEncrypted: true } });
+    if (!director || !director.nricPassportEncrypted) return null;
+    await PiiReadLogService.logPiiAccess(requestingUserId, 'Director', id, 'nricPassport').catch(() => {});
+    return CreditEncryptionService.decrypt(director.nricPassportEncrypted);
   }
 
   /**
