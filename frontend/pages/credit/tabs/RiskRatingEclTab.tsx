@@ -14,6 +14,7 @@ import { hasPermission } from '../../../src/utils/permissions';
 import { useToast } from '../../../src/context/ToastContext';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import { RiskRatingKpiCards, RatingScaleBar } from '../../../src/components/credit/FinancialCharts';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ type Props = { application: CreditApplication };
 
 // ─── External Ratings section ─────────────────────────────────────────────────
 
-const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
+const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean; onDataChange?: (ratings: ExternalRating[]) => void }> = ({ appId, readOnly, onDataChange }) => {
   const [ratings, setRatings] = useState<ExternalRating[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -63,7 +64,10 @@ const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean }> = (
   const [editForm, setEditForm] = useState<Partial<ExternalRating>>({});
 
   useEffect(() => {
-    creditService.listExternalRatings(appId).then(setRatings).finally(() => setLoading(false));
+    creditService.listExternalRatings(appId).then(r => {
+      setRatings(r);
+      onDataChange?.(r);
+    }).finally(() => setLoading(false));
   }, [appId]);
 
   const handleAdd = async () => {
@@ -71,7 +75,7 @@ const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean }> = (
     setSaving(true);
     try {
       const r = await creditService.createExternalRating(appId, form);
-      setRatings(rs => [...rs, r]);
+      setRatings(rs => { const next = [...rs, r]; onDataChange?.(next); return next; });
       setAdding(false);
       setForm({ agency: 'RAM', subjectType: 'CUSTOMER', rating: '' });
     } finally { setSaving(false); }
@@ -79,14 +83,14 @@ const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean }> = (
 
   const handleSaveEdit = async (id: string) => {
     const r = await creditService.updateExternalRating(appId, id, editForm);
-    setRatings(rs => rs.map(x => x.id === id ? { ...x, ...r } : x));
+    setRatings(rs => { const next = rs.map(x => x.id === id ? { ...x, ...r } : x); onDataChange?.(next); return next; });
     setEditingId(null);
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this rating?')) return;
     await creditService.deleteExternalRating(appId, id);
-    setRatings(rs => rs.filter(x => x.id !== id));
+    setRatings(rs => { const next = rs.filter(x => x.id !== id); onDataChange?.(next); return next; });
   };
 
   if (loading) return <div className="text-xs text-gray-400">Loading…</div>;
@@ -167,7 +171,7 @@ const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean }> = (
 
 // ─── ECL Snapshots section ────────────────────────────────────────────────────
 
-const EclSnapshotsSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
+const EclSnapshotsSection: React.FC<{ appId: string; readOnly: boolean; onDataChange?: (snapshots: EclSnapshot[]) => void }> = ({ appId, readOnly, onDataChange }) => {
   const [snapshots, setSnapshots] = useState<EclSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -175,7 +179,10 @@ const EclSnapshotsSection: React.FC<{ appId: string; readOnly: boolean }> = ({ a
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    creditService.listEclSnapshots(appId).then(setSnapshots).finally(() => setLoading(false));
+    creditService.listEclSnapshots(appId).then(s => {
+      setSnapshots(s);
+      onDataChange?.(s);
+    }).finally(() => setLoading(false));
   }, [appId]);
 
   const handleAdd = async () => {
@@ -183,7 +190,7 @@ const EclSnapshotsSection: React.FC<{ appId: string; readOnly: boolean }> = ({ a
     setSaving(true);
     try {
       const s = await creditService.createEclSnapshot(appId, form);
-      setSnapshots(ss => [...ss, s]);
+      setSnapshots(ss => { const next = [...ss, s]; onDataChange?.(next); return next; });
       setAdding(false);
       setForm({ subjectType: 'CUSTOMER', snapshotDate: new Date().toISOString().slice(0, 10) });
     } finally { setSaving(false); }
@@ -192,7 +199,7 @@ const EclSnapshotsSection: React.FC<{ appId: string; readOnly: boolean }> = ({ a
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this ECL snapshot?')) return;
     await creditService.deleteEclSnapshot(appId, id);
-    setSnapshots(ss => ss.filter(x => x.id !== id));
+    setSnapshots(ss => { const next = ss.filter(x => x.id !== id); onDataChange?.(next); return next; });
   };
 
   if (loading) return <div className="text-xs text-gray-400">Loading…</div>;
@@ -368,6 +375,10 @@ const RiskRatingEclTab: React.FC<Props> = ({ application }) => {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
 
+  // Lifted state for KPI cards + rating scale visualization
+  const [externalRatings, setExternalRatings] = useState<ExternalRating[]>([]);
+  const [eclSnapshots, setEclSnapshots] = useState<EclSnapshot[]>([]);
+
   useEffect(() => {
     creditService.listScoreRuns(application.id).then(setScoreRuns).catch(() => {});
   }, [application.id]);
@@ -408,8 +419,20 @@ const RiskRatingEclTab: React.FC<Props> = ({ application }) => {
       savedAt={savedAt}
     >
       <div className="space-y-8">
-      <ExternalRatingsSection appId={appId} readOnly={readOnly} />
-      <EclSnapshotsSection appId={appId} readOnly={readOnly} />
+      {/* Risk Overview KPI Cards + Rating Scale */}
+      <RiskRatingKpiCards
+        ratings={externalRatings}
+        snapshots={eclSnapshots}
+        internalScore={scoreRuns.length > 0 ? scoreRuns[0].totalScore : null}
+        internalRating={scoreRuns.length > 0 ? scoreRuns[0].riskRating : null}
+      />
+      <RatingScaleBar
+        currentRating={scoreRuns.length > 0 ? scoreRuns[0].riskRating : null}
+        ratings={externalRatings}
+      />
+
+      <ExternalRatingsSection appId={appId} readOnly={readOnly} onDataChange={setExternalRatings} />
+      <EclSnapshotsSection appId={appId} readOnly={readOnly} onDataChange={setEclSnapshots} />
       <EclForecastsSection appId={appId} readOnly={readOnly} />
 
       {/* Score Override Section */}

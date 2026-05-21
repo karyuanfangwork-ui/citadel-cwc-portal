@@ -8,6 +8,7 @@ import creditService, {
   walletShareApi,
 } from '../../../src/services/credit.service';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import { ProfitabilityBarChart, WalletShareChart } from '../../../src/components/credit/FinancialCharts';
 
 const PRODUCT_CATEGORIES = [
   { key: 'FINANCINGS',         label: 'Financings' },
@@ -96,8 +97,16 @@ const ProfitabilitySection: React.FC<{
     />
   );
 
+  // Chart data derived from lines
+  const chartLines = PRODUCT_CATEGORIES.map(c => ({
+    productCategory: c.key,
+    netProfitYtd: lines[c.key]?.netProfitYtd ?? null,
+    netProfitProjected: lines[c.key]?.netProfitProjected ?? null,
+  })).filter(l => Number(l.netProfitYtd) || Number(l.netProfitProjected));
+
   return (
     <section>
+      <ProfitabilityBarChart lines={chartLines} />
       <div className="mb-3">
         <label className="block text-xs text-gray-500 mb-1">Reporting Period</label>
         {readOnly
@@ -193,6 +202,7 @@ const WalletShareSection: React.FC<{
 
   return (
     <section>
+      <WalletShareChart rows={rows} />
       <div className="border rounded-lg overflow-x-auto mb-3">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase">

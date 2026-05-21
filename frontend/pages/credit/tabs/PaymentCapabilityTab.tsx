@@ -6,6 +6,7 @@ import creditService, {
   ProjectionScenario,
 } from '../../../src/services/credit.service';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import { CashflowProjectionChart, SensitivityScenarioChart } from '../../../src/components/credit/FinancialCharts';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -153,8 +154,18 @@ const ProjectionSection: React.FC<{ appId: string; readOnly: boolean; onSaving?:
     await creditService.upsertCashflowProjection(appId, assumptions || null);
   };
 
+  // Chart data: derive ProjectionLine[] from cells
+  const chartLines = PROJECTION_LINES.map(line => ({
+    lineKey: line.key,
+    label: line.label,
+    values: Object.fromEntries(
+      [1, 2, 3, 4, 5].map(y => [y, Number(cells[`${line.key}_${y}` as CellKey]) || 0])
+    ),
+  }));
+
   return (
     <section>
+      <CashflowProjectionChart lines={chartLines} />
       <div className="border rounded-lg overflow-x-auto mb-4">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
@@ -234,8 +245,21 @@ const SensitivitySection: React.FC<{ appId: string; readOnly: boolean; onSaving?
     }
   };
 
+  // Chart data: derive ScenarioData[] from local
+  const scenarioChartData = SCENARIOS.map(({ scenario, label }) => ({
+    scenario,
+    label: (local[scenario]?.label as string) || label,
+    revenueAmount: local[scenario]?.revenueAmount ?? null,
+    opCashflow: local[scenario]?.opCashflow ?? null,
+    ebitda: local[scenario]?.ebitda ?? null,
+    financingCosts: local[scenario]?.financingCosts ?? null,
+    gearingRatio: local[scenario]?.gearingRatio ?? null,
+    dscr: local[scenario]?.dscr ?? null,
+  }));
+
   return (
     <section>
+      <SensitivityScenarioChart scenarios={scenarioChartData} />
       <div className="space-y-4">
         {SCENARIOS.map(({ scenario, label }) => {
           const row = local[scenario];
