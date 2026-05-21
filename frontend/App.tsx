@@ -62,6 +62,7 @@ import CrmTeamDashboard from './pages/CrmTeamDashboard';
 import CrmReports from './pages/CrmReports';
 import CrmGuide from './pages/CrmGuide';
 import CreditDashboard from './pages/credit/CreditDashboard';
+import CreditReports from './pages/credit/CreditReports';
 import BorrowerProfileList from './pages/BorrowerProfileList';
 import BorrowerProfileDetail from './pages/BorrowerProfileDetail';
 import CreditApplicationList from './pages/CreditApplicationList';
@@ -534,6 +535,7 @@ const AppShell = () => {
               <Route path="/credit/scorecards" element={<ProtectedRoute requirePermission="credit:admin"><ScorecardManagement /></ProtectedRoute>} />
               <Route path="/credit/committee" element={<ProtectedRoute requirePermission="credit:read"><CommitteeMeetings /></ProtectedRoute>} />
               <Route path="/credit/collateral" element={<ProtectedRoute requirePermission="credit:read"><CollateralManagement /></ProtectedRoute>} />
+              <Route path="/credit/reports" element={<ProtectedRoute requirePermission="credit:read"><CreditReports /></ProtectedRoute>} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={
                 <ProtectedRoute requirePermission="admin:access">

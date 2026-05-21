@@ -21,6 +21,7 @@ const ALL_ITEMS: CreditNavItem[] = [
   { to: '/credit/collateral', label: 'Collateral', icon: 'home_work', permission: 'credit:read' },
   { to: '/credit/scorecards', label: 'Scorecards', icon: 'dashboard_customize', permission: 'credit:admin' },
   { to: '/credit/analysis', label: 'Analysis', icon: 'query_stats', permission: 'credit:read' },
+  { to: '/credit/reports', label: 'Reports', icon: 'assessment', permission: 'credit:read' },
 ];
 
 const CreditNav: React.FC = () => {

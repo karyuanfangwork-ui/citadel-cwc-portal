@@ -379,7 +379,7 @@ const CreditApplicationDetail: React.FC = () => {
                     return (
                       <div key={group.id}>
                         <div className="px-4 py-2 bg-gray-50 flex items-center justify-between text-[10px] font-black text-text-secondary uppercase tracking-wider border-b border-border">
-                          <span className="min-w-0 truncate mr-2">{group.label}</span>
+                          <span className="min-w-0 mr-2 leading-tight">{group.label}</span>
                           <span className={`material-symbols-outlined text-[14px] shrink-0 ${gStatus === 'complete' ? 'text-green-500' : gStatus === 'optional' ? 'text-gray-400' : 'text-amber-500'}`}>
                             {gStatus === 'complete' ? 'check_circle' : gStatus === 'optional' ? 'radio_button_unchecked' : 'error'}
                           </span>
@@ -417,7 +417,7 @@ const CreditApplicationDetail: React.FC = () => {
               return (
                 <div key={group.id} className="bg-bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
                   <div className="px-4 py-2.5 bg-gray-50/80 border-b border-border flex items-center justify-between text-xs font-black text-text-secondary uppercase tracking-wider">
-                    <span className="min-w-0 truncate mr-2">{group.label}</span>
+                    <span className="min-w-0 mr-2 leading-tight">{group.label}</span>
                     <span className={`material-symbols-outlined text-[16px] shrink-0 ${isGroupComplete ? 'text-green-500' : isOptional ? 'text-gray-400' : 'text-amber-500'}`}>
                       {isGroupComplete ? 'check_circle' : isOptional ? 'radio_button_unchecked' : 'error'}
                     </span>

@@ -1494,6 +1494,65 @@ export const dashboardApi = {
   getCommitteeCalendar: () => apiClient.get('/credit/dashboard/committee-calendar'),
 };
 
+// ── Reports API ─────────────────────────────────────────────
+
+export interface PipelineStateCount {
+  state: string;
+  count: number;
+  avgDaysInState: number;
+}
+
+export interface PipelineReport {
+  states: PipelineStateCount[];
+  totalApplications: number;
+  slaBreachCount: number;
+}
+
+export interface ExposureByBorrower {
+  borrowerProfileId: string;
+  borrowerName: string;
+  industry: string | null;
+  totalExposure: number;
+  rating: string | null;
+}
+
+export interface SectorBreakdown {
+  sector: string;
+  totalExposure: number;
+  count: number;
+}
+
+export interface RatingDistribution {
+  rating: string;
+  count: number;
+  totalExposure: number;
+}
+
+export interface ExposureReport {
+  topBorrowers: ExposureByBorrower[];
+  sectorBreakdown: SectorBreakdown[];
+  ratingDistribution: RatingDistribution[];
+  totalPortfolio: number;
+}
+
+export const reportsApi = {
+  getPipelineReport: (params?: { dateFrom?: string; dateTo?: string; format?: 'json' | 'csv' }) => {
+    const q = new URLSearchParams();
+    if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) q.set('dateTo', params.dateTo);
+    if (params?.format === 'csv') q.set('format', 'csv');
+    const qs = q.toString();
+    return apiClient.get(`/credit/reports/pipeline${qs ? '?' + qs : ''}`, params?.format === 'csv' ? { responseType: 'blob' } : undefined);
+  },
+  getExposureReport: (params?: { topN?: number; format?: 'json' | 'csv' }) => {
+    const q = new URLSearchParams();
+    if (params?.topN) q.set('topN', String(params.topN));
+    if (params?.format === 'csv') q.set('format', 'csv');
+    const qs = q.toString();
+    return apiClient.get(`/credit/reports/exposure${qs ? '?' + qs : ''}`, params?.format === 'csv' ? { responseType: 'blob' } : undefined);
+  },
+};
+
 // ── Phase 4: Types ─────────────────────────────────────────
 
 export type CounterpartyRole = 'SUPPLIER' | 'BUYER' | 'COMPETITOR';
