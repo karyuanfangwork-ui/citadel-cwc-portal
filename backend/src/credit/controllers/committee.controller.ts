@@ -168,6 +168,21 @@ class CommitteeController {
     }
   });
 
+  /**
+   * PUT /committee/meetings/:id/agenda/reorder — Reorder agenda items
+   */
+  reorderAgenda = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const meetingId = String(req.params.id);
+    const { itemIds } = req.body;
+
+    if (!Array.isArray(itemIds) || itemIds.length === 0) {
+      throw new AppError('itemIds must be a non-empty array', 400);
+    }
+
+    const items = await committeeService.reorderAgenda(meetingId, itemIds);
+    res.json({ status: 'success', data: { agendaItems: items } });
+  });
+
   // ===========================================================================
   // Voting
   // ===========================================================================

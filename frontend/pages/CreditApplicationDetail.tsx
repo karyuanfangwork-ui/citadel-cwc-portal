@@ -409,7 +409,7 @@ const CreditApplicationDetail: React.FC = () => {
         {/* Layout Wrapper */}
         <div className="flex flex-col md:flex-row gap-6 mb-6 relative">
           {/* Sidebar Tabs — desktop only */}
-          <div className="hidden md:flex md:w-64 shrink-0 flex-col gap-3 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden pr-1 pb-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
+          <div className="hidden md:flex md:w-72 shrink-0 flex-col gap-3 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden pr-1 pb-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
             {TAB_GROUPS.map((group) => {
               const groupStatus = phaseCompletion[group.id];
               const isGroupComplete = groupStatus === 'complete';

@@ -160,6 +160,17 @@ router.delete(
   committeeController.removeAgendaItem,
 );
 
+/**
+ * PUT /committee/meetings/:id/agenda/reorder
+ * Reorder agenda items
+ * Requires: credit:admin
+ */
+router.put(
+  '/meetings/:id/agenda/reorder',
+  requirePermission('credit:admin'),
+  committeeController.reorderAgenda,
+);
+
 // ============================================================================
 // Voting
 // ============================================================================

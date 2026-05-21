@@ -1030,10 +1030,10 @@ export const scorecardApi = {
 // ── Sprint 4: Committee Types ─────────────────────────────────
 
 export type MeetingStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
-export type MeetingType = 'CREDIT_COMMITTEE' | 'RISK_COMMITTEE' | 'MANAGEMENT' | 'ADHOC';
+export type MeetingType = 'REGULAR' | 'ADHOC';
 export type MemberRole = 'CHAIR' | 'SECRETARY' | 'MEMBER';
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE' | 'EXCUSED';
-export type DecisionType = 'APPROVE' | 'REJECT' | 'DEFER' | 'ESCALATE';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'EXCUSED';
+export type DecisionType = 'APPROVE' | 'REJECT' | 'DEFER';
 export type VoteChoice = 'APPROVE' | 'REJECT' | 'ABSTAIN';
 
 export interface CommitteeMeeting {
@@ -1044,8 +1044,6 @@ export interface CommitteeMeeting {
   quorumMin: number;
   meetingType: MeetingType;
   status: MeetingStatus;
-  startedAt: string | null;
-  endedAt: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -1072,14 +1070,11 @@ export interface CommitteeAgendaItem {
   applicationId: string;
   decisionType: DecisionType;
   displayOrder: number;
-  memoGenerated: boolean;
-  finalizedAt: string | null;
-  finalizedBy: string | null;
-  finalDecision: DecisionType | null;
+  decisionResult: DecisionType | null;
+  decidedAt: string | null;
   createdAt: string;
   application?: CreditApplication;
   votes?: CommitteeVote[];
-  finalizer?: CreditUserRef;
 }
 
 export interface CommitteeVote {
@@ -1314,9 +1309,14 @@ export const committeeApi = {
     return res.data.data.agendaItem as CommitteeAgendaItem;
   },
 
+  async reorderAgenda(meetingId: string, itemIds: string[]) {
+    const res = await apiClient.put(`/credit/committee/meetings/${meetingId}/agenda/reorder`, { itemIds });
+    return res.data.data.agendaItems as CommitteeAgendaItem[];
+  },
+
   async generateMemo(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/memo`);
-    return res.data.data as { memo: string; generatedAt: string };
+    return res.data.data as any;
   },
 };
 
