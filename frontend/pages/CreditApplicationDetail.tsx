@@ -378,9 +378,9 @@ const CreditApplicationDetail: React.FC = () => {
                     const gStatus = phaseCompletion[group.id];
                     return (
                       <div key={group.id}>
-                        <div className="relative px-4 py-2 bg-gray-50 text-[10px] font-black text-text-secondary uppercase tracking-wide border-b border-border">
-                          <span className="leading-snug pr-5">{group.label}</span>
-                          <span className={`material-symbols-outlined text-[14px] absolute right-3 top-1/2 -translate-y-1/2 ${gStatus === 'complete' ? 'text-green-500' : gStatus === 'optional' ? 'text-gray-400' : 'text-amber-500'}`}>
+                        <div className="relative px-3 py-2 bg-gray-50 border-b border-border">
+                          <span className="block text-[10px] font-bold text-text-secondary uppercase tracking-wide pr-6 leading-normal">{group.label}</span>
+                          <span className={`material-symbols-outlined text-[14px] absolute right-2.5 top-1/2 -translate-y-1/2 ${gStatus === 'complete' ? 'text-green-500' : gStatus === 'optional' ? 'text-gray-400' : 'text-amber-500'}`}>
                             {gStatus === 'complete' ? 'check_circle' : gStatus === 'optional' ? 'radio_button_unchecked' : 'error'}
                           </span>
                         </div>
@@ -416,9 +416,9 @@ const CreditApplicationDetail: React.FC = () => {
               const isOptional = groupStatus === 'optional';
               return (
                 <div key={group.id} className="bg-bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
-                  <div className="relative px-4 py-2.5 bg-gray-50/80 border-b border-border text-[10px] font-black text-text-secondary uppercase tracking-wide">
-                    <span className="leading-snug pr-6">{group.label}</span>
-                    <span className={`material-symbols-outlined text-[16px] absolute right-3 top-1/2 -translate-y-1/2 ${isGroupComplete ? 'text-green-500' : isOptional ? 'text-gray-400' : 'text-amber-500'}`}>
+                  <div className="relative px-3 py-2 bg-gray-50/80 border-b border-border">
+                    <span className="block text-[11px] font-bold text-text-secondary uppercase tracking-wide pr-7 leading-normal">{group.label}</span>
+                    <span className={`material-symbols-outlined text-[16px] absolute right-2.5 top-1/2 -translate-y-1/2 ${isGroupComplete ? 'text-green-500' : isOptional ? 'text-gray-400' : 'text-amber-500'}`}>
                       {isGroupComplete ? 'check_circle' : isOptional ? 'radio_button_unchecked' : 'error'}
                     </span>
                   </div>
