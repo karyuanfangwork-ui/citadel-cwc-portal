@@ -31,6 +31,7 @@ import NavMoreDropdown from './src/components/NavMoreDropdown';
 import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
 import SessionExpiryBanner from './src/components/SessionExpiryBanner';
+import EnvironmentBanner from './src/components/ui/EnvironmentBanner';
 import { Toaster } from 'react-hot-toast';
 import Login from './src/pages/Login';
 
@@ -482,6 +483,7 @@ const AppShell = () => {
         >
           Skip to main content
         </a>
+        <EnvironmentBanner />
         <Header />
         <main id="main-content" className="flex-grow">
           <Routes>
