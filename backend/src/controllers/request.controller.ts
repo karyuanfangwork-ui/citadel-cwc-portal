@@ -14,6 +14,18 @@ import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } f
 
 const prisma = new PrismaClient();
 
+/** Extract a display-safe string from a custom field value, handling file objects gracefully. */
+function cfStr(val: any): string {
+    if (val === null || val === undefined || val === '') return '';
+    if (typeof val === 'object' && val !== null) {
+        // File upload objects — return the original filename for display
+        if (val.s3Key && val.fileName) return val.fileName;
+        // Nested structures like candidateDocuments — skip
+        return '';
+    }
+    return String(val);
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Resolve an id param that may be a UUID or a referenceNumber (e.g. "IT-1") to an actual DB record id (UUID). */
@@ -683,18 +695,18 @@ class RequestController {
         let finalDescription = description;
         if (isManualOnboarding && !description) {
             const cf = (customFields || {}) as Record<string, any>;
-            const name = cf.employeeName || 'Unknown';
-            const jobTitle = cf.jobTitle || 'Not specified';
-            const dept = cf.department || 'Not specified';
-            const email = cf.employeeEmail || 'Not provided';
+            const name = cfStr(cf.employeeName) || 'Unknown';
+            const jobTitle = cfStr(cf.jobTitle) || 'Not specified';
+            const dept = cfStr(cf.department) || 'Not specified';
+            const email = cfStr(cf.employeeEmail) || 'Not provided';
             finalDescription = `New employee onboarding request for ${name} (${jobTitle}) in ${dept}. Contact: ${email}.`;
         }
         if (isManualOffboarding && !description) {
             const cf = (customFields || {}) as Record<string, any>;
-            const name = cf.employeeName || 'Unknown';
-            const lastDay = cf.lastDay || 'TBD';
-            const email = cf.employeeEmail || 'Not provided';
-            const reason = cf.reason || 'Not specified';
+            const name = cfStr(cf.employeeName) || 'Unknown';
+            const lastDay = cfStr(cf.lastDay) || 'TBD';
+            const email = cfStr(cf.employeeEmail) || 'Not provided';
+            const reason = cfStr(cf.reason) || 'Not specified';
             finalDescription = `Employee offboarding request for ${name}. Last working day: ${lastDay}. Contact: ${email}. Reason: ${reason}.`;
         }
 
@@ -728,7 +740,7 @@ class RequestController {
                     continue;
                 }
 
-                parts.push(`${label}: ${value}`);
+                parts.push(`${label}: ${cfStr(value)}`);
             }
 
             if (parts.length > 0) {
@@ -754,7 +766,7 @@ class RequestController {
                     if (field?.label) label = field.label;
                 }
 
-                parts.push(`${label}: ${value}`);
+                parts.push(`${label}: ${cfStr(value)}`);
             }
 
             if (parts.length > 0) {
@@ -800,7 +812,7 @@ class RequestController {
                     }
                 }
                 
-                parts.push(`${label}: ${value}`);
+                parts.push(`${label}: ${cfStr(value)}`);
             }
             
             if (parts.length > 0) {
@@ -813,22 +825,22 @@ class RequestController {
         // Auto-generate description for Inter-Company Chargeback (finance)
         if (requestType?.code === 'INTERCOMPANY_CHARGEBACK' && !description) {
             const cf = (customFields || {}) as Record<string, any>;
-            const fromEntity = cf.chargeFromEntity || cf.chargeFromEntity || 'Unknown entity';
-            const toEntity = cf.chargeToEntity || 'Unknown entity';
-            const amount = cf.amount ? `RM ${cf.amount}` : 'Amount TBD';
-            const costCenter = cf.costCenter || 'Not specified';
-            const desc = cf.description || 'No description provided';
+            const fromEntity = cfStr(cf.chargeFromEntity) || cfStr(cf.chargeFromEntity) || 'Unknown entity';
+            const toEntity = cfStr(cf.chargeToEntity) || 'Unknown entity';
+            const amount = cf.amount ? `RM ${cfStr(cf.amount)}` : 'Amount TBD';
+            const costCenter = cfStr(cf.costCenter) || 'Not specified';
+            const desc = cfStr(cf.description) || 'No description provided';
             finalDescription = `Inter-company chargeback from ${fromEntity} to ${toEntity}. Amount: ${amount}. Cost center: ${costCenter}. Details: ${desc}.`;
         }
 
         // Auto-generate description for Budget Proposal (finance)
         if (requestType?.code === 'BUDGET_PROPOSAL' && !description) {
             const cf = (customFields || {}) as Record<string, any>;
-            const department = cf.department || 'Unknown department';
-            const period = cf.budgetPeriod || 'Unspecified period';
-            const totalAmount = cf.totalAmount ? `RM ${cf.totalAmount}` : 'Amount TBD';
-            const breakdown = cf.breakdown || 'No breakdown provided';
-            const justification = cf.justification || 'No justification provided';
+            const department = cfStr(cf.department) || 'Unknown department';
+            const period = cfStr(cf.budgetPeriod) || 'Unspecified period';
+            const totalAmount = cf.totalAmount ? `RM ${cfStr(cf.totalAmount)}` : 'Amount TBD';
+            const breakdown = cfStr(cf.breakdown) || 'No breakdown provided';
+            const justification = cfStr(cf.justification) || 'No justification provided';
             finalDescription = `Budget proposal for ${department} - ${period}. Total requested: ${totalAmount}. Breakdown: ${breakdown}. Justification: ${justification}.`;
         }
 

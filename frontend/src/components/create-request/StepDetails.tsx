@@ -54,6 +54,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             onChange={e => handleCustomFieldChange(field.id, e.target.value)}
             disabled={submitting}
             aria-invalid={field.required && !formData.customFields[field.id]?.toString().trim()}
+            aria-describedby={error ? "step-details-error" : undefined}
           />
         );
       case 'date':
@@ -67,6 +68,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             onChange={e => handleCustomFieldChange(field.id, e.target.value)}
             disabled={submitting}
             aria-invalid={field.required && !formData.customFields[field.id]}
+            aria-describedby={error ? "step-details-error" : undefined}
           />
         );
       case 'number':
@@ -81,6 +83,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             onChange={e => handleCustomFieldChange(field.id, e.target.value)}
             disabled={submitting}
             aria-invalid={field.required && !formData.customFields[field.id]}
+            aria-describedby={error ? "step-details-error" : undefined}
           />
         );
       case 'currency':
@@ -327,6 +330,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
               onChange={e => handleCustomFieldChange(field.id, e.target.value)}
               disabled={submitting}
               aria-invalid={field.required && !formData.customFields[field.id]}
+              aria-describedby={error ? "step-details-error" : undefined}
             >
               <option value="" disabled>Select an option...</option>
               {field.options?.map((option: string, i: number) => (
@@ -348,6 +352,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
               onChange={e => handleCustomFieldChange(field.id, e.target.value)}
               disabled={submitting}
               aria-invalid={field.required && !selected}
+              aria-describedby={error ? "step-details-error" : undefined}
             >
               <option value="" disabled>Select an entity...</option>
               {entityOptions.map(e => (
@@ -370,6 +375,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             onChange={e => handleCustomFieldChange(field.id, e.target.value)}
             disabled={submitting}
             aria-invalid={field.required && !formData.customFields[field.id]?.toString().trim()}
+            aria-describedby={error ? "step-details-error" : undefined}
           />
         );
     }
@@ -378,7 +384,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
   return (
     <div className="space-y-6">
       {error && (
-        <div role="alert" aria-live="assertive" className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-cwc-xl text-sm font-medium">
+        <div id="step-details-error" role="alert" aria-live="assertive" className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-cwc-xl text-sm font-medium">
           {error}
         </div>
       )}
@@ -429,6 +435,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             onChange={e => setFormData(prev => ({ ...prev, summary: e.target.value }))}
             disabled={submitting}
             aria-invalid={!formData.summary.trim()}
+            aria-describedby={error ? "step-details-error" : undefined}
           />
         </div>
       )}

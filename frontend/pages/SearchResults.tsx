@@ -90,7 +90,7 @@ const SearchResults: React.FC = () => {
 
   const handleCardClick = (result: SearchResult) => {
     if (result.type === 'request') {
-      navigate(`/request/${result.id}`);
+      navigate(`/request/${result.meta?.ref || result.id}`);
     } else if (result.type === 'article') {
       navigate(`/kb/${result.id}`);
     }

@@ -125,28 +125,83 @@ const DATE_KEYS = new Set([
   'receiptDate', 'approvalDate', 'acceptedDate', 'lastDay',
 ]);
 
+function formatFileLink(value: { s3Key: string; fileName: string; mimeType?: string; fileSize?: number }): React.ReactNode {
+  const href = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}`;
+  const sizeStr = value.fileSize
+    ? value.fileSize > 1024 * 1024
+      ? ` (${(value.fileSize / (1024 * 1024)).toFixed(1)} MB)`
+      : ` (${(value.fileSize / 1024).toFixed(0)} KB)`
+    : '';
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1.5 text-[#0052cc] hover:underline font-medium"
+    >
+      <span className="material-symbols-outlined text-base">download</span>
+      {value.fileName}{sizeStr}
+    </a>
+  );
+}
+
+function formatCandidateDocuments(value: Record<string, Record<string, any>>): React.ReactNode {
+  const entries = Object.entries(value);
+  if (entries.length === 0) return '\u2014';
+  return (
+    <div className="space-y-2">
+      {entries.map(([candidateKey, docs]) => {
+        const docEntries = Object.entries(docs);
+        if (docEntries.length === 0) return null;
+        const candidateLabel = candidateKey.replace(/_/g, ' ').replace(/^./, s => s.toUpperCase());
+        return (
+          <div key={candidateKey}>
+            <span className="text-xs font-semibold text-[#44546f] uppercase tracking-wide">{candidateLabel}</span>
+            <div className="ml-3 mt-0.5 space-y-1">
+              {docEntries.map(([docType, docValue]) => {
+                if (docValue && typeof docValue === 'object' && docValue.s3Key && docValue.fileName) {
+                  return (
+                    <div key={docType} className="flex items-center gap-1.5 text-sm">
+                      <span className="text-[#44546f]">{docType}:</span>
+                      {formatFileLink(docValue as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number })}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={docType} className="text-sm">
+                    <span className="text-[#44546f]">{docType}:</span> {String(docValue)}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function formatValue(key: string, value: any, fieldType?: string, entityMap?: Record<string, string>): React.ReactNode {
   if (value === null || value === undefined || value === '') return '\u2014';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'object') {
     if (key === 'payment') return formatPayment(value);
+    // Nested candidate documents structure
+    if (typeof value === 'object' && !value.s3Key && !value.fileName && !value.mimeType) {
+      // Heuristic: if all values are objects (candidate documents pattern), render as structured docs
+      const vals = Object.values(value);
+      if (vals.length > 0 && vals.every(v => typeof v === 'object' && v !== null)) {
+        return formatCandidateDocuments(value as Record<string, Record<string, any>>);
+      }
+    }
     if (value.s3Key && value.fileName) {
-      const href = `${API_BASE}/files/download/${encodeURIComponent(value.s3Key)}`;
-      return (
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-[#0052cc] hover:underline font-medium"
-        >
-          <span className="material-symbols-outlined text-base">download</span>
-          {value.fileName}
-        </a>
-      );
+      return formatFileLink(value as { s3Key: string; fileName: string; mimeType?: string; fileSize?: number });
     }
     return JSON.stringify(value);
   }
+  // If fieldType is 'file' but the value is a plain string (legacy data), display it as-is
+  if (fieldType === 'file') return String(value);
   // Detect and format ISO date strings or plain date strings (YYYY-MM-DD)
   if (typeof value === 'string' && DATE_KEYS.has(key) && /^\d{4}-\d{2}-\d{2}/.test(value)) {
     const d = value.includes('T') ? new Date(value) : new Date(value + 'T00:00:00Z');
@@ -238,6 +293,8 @@ const CustomFieldsPanel: React.FC<CustomFieldsPanelProps> = ({
     const val = customFields[key];
     // For objects (files etc) don't allow inline edit
     if (typeof val === 'object' && val !== null) return;
+    // For file-type fields, don't allow inline edit (even if value is a plain string)
+    if (getFieldType(key) === 'file') return;
     setEditingKey(key);
     setEditValue(String(val ?? ''));
   };

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmPipeline, CrmPipelineStage, CrmOpportunity } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
+import StateBadge from '../src/components/ui/StateBadge';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
 const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
@@ -219,8 +220,7 @@ const CrmPipelineView = () => {
                   <div className="p-4 border-b border-border shrink-0 group">
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ background: stage.color }} />
-                        <span className="text-sm font-extrabold text-text-primary">{stage.name}</span>
+                        <StateBadge state={stage.name} size="sm" />
                       </div>
                       <div className="flex items-center gap-1">
                         <span className="text-xs font-bold bg-surface-muted text-text-secondary px-2 py-0.5 rounded-full">{opps.length}</span>

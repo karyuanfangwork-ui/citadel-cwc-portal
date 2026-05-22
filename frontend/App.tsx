@@ -32,6 +32,7 @@ import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
 import SessionExpiryBanner from './src/components/SessionExpiryBanner';
 import EnvironmentBanner from './src/components/ui/EnvironmentBanner';
+import OutOfOfficeModal from './src/components/ui/OutOfOfficeModal';
 import { Toaster } from 'react-hot-toast';
 import Login from './src/pages/Login';
 
@@ -90,6 +91,7 @@ const Header = () => {
   const { user, logout, isAuthenticated, updateOutOfOffice } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
+  const [oooModalOpen, setOooModalOpen] = React.useState(false);
   const drawerRef = useFocusTrap(mobileMenuOpen);
 
   // Escape closes the drawer
@@ -252,15 +254,11 @@ const Header = () => {
                     )}
                   </div>
                   <button
-                    onClick={async () => {
-                      try {
-                        await updateOutOfOffice({ outOfOffice: !user.outOfOffice });
-                      } catch { /* ignore */ }
-                    }}
+                    onClick={() => { setOooModalOpen(true); setUserMenuOpen(false); }}
                     className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors w-full text-left"
                   >
-                    <span className="material-symbols-outlined text-lg text-gray-400">{user.outOfOffice ? 'outbox' : 'outbox'}</span>
-                    {user.outOfOffice ? 'Mark as Available' : 'Set Out of Office'}
+                    <span className="material-symbols-outlined text-lg text-gray-400">outbox</span>
+                    {user.outOfOffice ? 'Out of Office Settings' : 'Set Out of Office'}
                   </button>
                   <Link
                     to="/change-password"
@@ -417,13 +415,11 @@ const Header = () => {
                   </span>
                 )}
                 <button
-                  onClick={async () => {
-                    try { await updateOutOfOffice({ outOfOffice: !user.outOfOffice }); } catch { /* ignore */ }
-                  }}
+                  onClick={() => { setOooModalOpen(true); setMobileMenuOpen(false); }}
                   className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors text-sm font-semibold justify-center mb-2"
                 >
                   <span className="material-symbols-outlined text-base">outbox</span>
-                  {user.outOfOffice ? 'Mark as Available' : 'Set Out of Office'}
+                  {user.outOfOffice ? 'Out of Office Settings' : 'Set Out of Office'}
                 </button>
                 <Link
                   to="/change-password"
@@ -445,6 +441,14 @@ const Header = () => {
           </div>
         </div>
       )}
+      <OutOfOfficeModal
+        isOpen={oooModalOpen}
+        onClose={() => setOooModalOpen(false)}
+        isCurrentlyOOO={!!user?.outOfOffice}
+        currentUntil={user?.outOfOfficeUntil ?? null}
+        currentMessage={user?.outOfOfficeMessage ?? null}
+        onSubmit={updateOutOfOffice}
+      />
     </>
   );
 };

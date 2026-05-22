@@ -176,20 +176,28 @@ const MyRequests = () => {
               All requests
             </button>
             <div className="h-px bg-gray-200 my-2"></div>
-            <a
-              href="#"
+            <button
+              type="button"
+              onClick={() => { /* TODO: expand filter type to include 'mine' | 'shared' */
+                setFilter('all');
+                setPage(1);
+              }}
               className="flex items-center gap-3 px-4 py-2.5 rounded text-sm text-[#44546f] hover:bg-gray-100 transition-all"
             >
               <span className="material-symbols-outlined text-[20px]">person</span>
               Created by me
-            </a>
-            <a
-              href="#"
+            </button>
+            <button
+              type="button"
+              onClick={() => { /* TODO: expand filter type to include 'mine' | 'shared' */
+                setFilter('all');
+                setPage(1);
+              }}
               className="flex items-center gap-3 px-4 py-2.5 rounded text-sm text-[#44546f] hover:bg-gray-100 transition-all"
             >
               <span className="material-symbols-outlined text-[20px]">share</span>
               Shared with me
-            </a>
+            </button>
           </nav>
         </aside>
 
