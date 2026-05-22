@@ -10,16 +10,10 @@ import { adminService } from '../src/services/admin.service';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
+import StateBadge from '../src/components/ui/StateBadge';
 
 const formatDateTime = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
-
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  SCHEDULED: { bg: '#3b82f620', text: '#2563eb' },
-  IN_PROGRESS: { bg: '#f59e0b20', text: '#d97706' },
-  COMPLETED: { bg: '#22c55e20', text: '#16a34a' },
-  CANCELLED: { bg: '#6b728020', text: '#6b7280' },
-};
 
 // Bug fix: align with backend Prisma enum CommitteeMeetingType
 const MEETING_TYPE_LABELS: Record<string, string> = {
@@ -429,13 +423,8 @@ const CommitteeMeetings: React.FC = () => {
             {MEETING_STATUSES.map(s => (
               <button key={s} onClick={() => { setStatusFilter(s); setCurrentPage(1); }}
                 className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${statusFilter === s ? 'ring-2 ring-brand-300' : ''}`}
-                style={{
-                  cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                  background: STATUS_COLORS[s]?.bg || '#f3f4f6',
-                  color: STATUS_COLORS[s]?.text || '#6b7280',
-                  borderColor: (STATUS_COLORS[s]?.text || '#6b7280') + '40',
-                }}>
-                {s.replace(/_/g, ' ')}
+                style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                <StateBadge state={s} size="sm" />
               </button>
             ))}
           </div>
@@ -466,7 +455,6 @@ const CommitteeMeetings: React.FC = () => {
           <div className="space-y-3">
             {meetings.map(m => {
               const isExpanded = expandedId === m.id;
-              const badge = STATUS_COLORS[m.status] || STATUS_COLORS.SCHEDULED;
               return (
                 <div key={m.id} className="bg-bg-surface border border-border rounded-xl overflow-hidden">
                   {/* Meeting Row */}
@@ -479,9 +467,7 @@ const CommitteeMeetings: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-bold text-text-primary text-sm truncate">{m.title}</p>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
-                          {m.status.replace(/_/g, ' ')}
-                        </span>
+                        <StateBadge state={m.status} size="sm" />
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700">
                           {MEETING_TYPE_LABELS[m.meetingType] || m.meetingType}
                         </span>

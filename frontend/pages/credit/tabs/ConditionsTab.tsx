@@ -4,7 +4,6 @@ import {
   conditionApi,
   ConditionPrecedent,
   CpCompletionStatus,
-  ConditionStatus,
   ConditionCategory,
 } from '../../../src/services/credit.service';
 import { useAuth } from '../../../src/context/AuthContext';
@@ -14,6 +13,7 @@ import { friendlyMessage } from '../../../src/utils/errorMessages';
 import { formatDate } from '../creditUtils';
 import EmptyState from '../../../src/components/EmptyState';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import StateBadge from '../../../src/components/ui/StateBadge';
 
 interface ConditionsTabProps {
   // No props needed — fetches its own data based on URL param
@@ -140,13 +140,6 @@ const ConditionsTab: React.FC<ConditionsTabProps> = () => {
           <div className="space-y-2">
             {conditions.map(cond => {
               const isOverdue = cond.status === 'PENDING' && cond.dueDate && new Date(cond.dueDate) < new Date();
-              const STATUS_CHIPS: Record<ConditionStatus, { bg: string; text: string }> = {
-                PENDING: { bg: '#f59e0b20', text: '#d97706' },
-                WAIVED: { bg: '#8b5cf620', text: '#7c3aed' },
-                COMPLETED: { bg: '#22c55e20', text: '#16a34a' },
-                EXPIRED: { bg: '#ef444420', text: '#dc2626' },
-              };
-              const chip = STATUS_CHIPS[cond.status] || STATUS_CHIPS.PENDING;
               return (
                 <div key={cond.id} className={`bg-bg-surface border rounded-xl p-4 ${isOverdue ? 'border-red-300' : 'border-border'}`}>
                   <div className="flex items-center gap-3">
@@ -166,9 +159,7 @@ const ConditionsTab: React.FC<ConditionsTabProps> = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="font-semibold text-text-primary text-sm">{cond.title}</p>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: chip.bg, color: chip.text }}>
-                          {cond.status}
-                        </span>
+                        <StateBadge state={cond.status} size="sm" />
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-bg-subtle text-text-secondary">
                           {cond.category.replace(/_/g, ' ')}
                         </span>

@@ -3,20 +3,12 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmLead, CrmUser, CrmPipeline, CrmActivity, CrmNote, CrmActivityType } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
+import StateBadge from '../src/components/ui/StateBadge';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 const formatDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  NEW: { bg: '#eff6ff', text: '#2563eb' },
-  CONTACTED: { bg: '#fefce8', text: '#ca8a04' },
-  QUALIFIED: { bg: '#f0fdf4', text: '#16a34a' },
-  UNQUALIFIED: { bg: '#f5f5f5', text: '#737373' },
-  CONVERTED: { bg: '#faf5ff', text: '#7c3aed' },
-  LOST: { bg: '#fef2f2', text: '#dc2626' },
-};
 
 const ACTIVITY_ICONS: Record<CrmActivityType, string> = {
   CALL: 'call', EMAIL: 'mail', MEETING: 'groups', NOTE: 'sticky_note_2', TASK: 'task_alt', FOLLOW_UP: 'notifications',
@@ -290,7 +282,7 @@ const CrmLeadDetail = () => {
 
   if (!lead) return null;
 
-  const statusStyle = STATUS_COLORS[lead.status] ?? { bg: '#f5f5f5', text: '#737373' };
+
   const isConverted = lead.status === 'CONVERTED';
   const isLost = lead.status === 'LOST';
 
@@ -312,7 +304,7 @@ const CrmLeadDetail = () => {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-black text-text-primary">{lead.title}</h1>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: statusStyle.bg, color: statusStyle.text }}>{lead.status}</span>
+            <StateBadge state={lead.status} size="sm" />
             {/* AI Score Badge (Task 8) */}
             {(scoreData || lead.aiScore != null) ? (
               <span

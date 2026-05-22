@@ -3,6 +3,8 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmStageHistory } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
+import StateBadge from '../src/components/ui/StateBadge';
+import { STATUS_COLORS } from '../src/components/ui/StateBadge';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -12,11 +14,6 @@ const formatDate = (d: string | null) =>
 const ACTIVITY_ICONS: Record<CrmActivityType, string> = {
   CALL: 'call', EMAIL: 'mail', MEETING: 'groups', NOTE: 'sticky_note_2', TASK: 'task_alt', FOLLOW_UP: 'notifications',
   WHATSAPP: 'chat', SITE_VISIT: 'location_on',
-};
-
-const STAGE_COLORS: Record<string, string> = {
-  PROSPECTING: '#6366f1', QUALIFICATION: '#f59e0b', PROPOSAL: '#3b82f6',
-  NEGOTIATION: '#8b5cf6', CLOSED_WON: '#22c55e', CLOSED_LOST: '#ef4444',
 };
 
 const CrmOpportunityDetail = () => {
@@ -184,7 +181,7 @@ const CrmOpportunityDetail = () => {
             {stages.map((s, i) => {
               const isPast = s.displayOrder < currentStageOrder;
               const isCurrent = s.id === opp.stageId;
-              const color = STAGE_COLORS[s.name] ?? '#6366f1';
+              const color = STATUS_COLORS[s.name.toUpperCase()]?.text || '#6366f1';
               return (
                 <React.Fragment key={s.id}>
                   <div className="flex flex-col items-center min-w-[80px]">

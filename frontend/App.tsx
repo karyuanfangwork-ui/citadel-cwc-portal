@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NotificationProvider, useNotifications } from './src/context/NotificationContext';
 
@@ -20,14 +19,12 @@ function stripHtml(html: string): string {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
+
 import { ToastProvider } from './src/context/ToastContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
-import { hasPermission, hasAnyPermission, hasAnyRole } from './src/utils/permissions';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
-import { useFocusTrap } from './src/hooks/useFocusTrap';
 import { isFeatureEnabled } from './src/lib/featureFlags';
-import NavMoreDropdown from './src/components/NavMoreDropdown';
 import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
 import SessionExpiryBanner from './src/components/SessionExpiryBanner';
@@ -44,7 +41,6 @@ import MyRequests from './pages/MyRequests';
 import RequestDetail from './pages/RequestDetail';
 import AdminSettings from './pages/AdminSettings';
 import CreateRequest from './pages/CreateRequest';
-import NotificationDropdown from './src/components/NotificationDropdown';
 import AgentDashboard from './pages/AgentDashboard';
 import Reports from './pages/Reports';
 import SearchResults from './pages/SearchResults';
@@ -85,373 +81,10 @@ import ForgotPassword from './src/pages/ForgotPassword';
 import ResetPassword from './src/pages/ResetPassword';
 import NotFound from './pages/NotFound';
 
-const Header = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { user, logout, isAuthenticated, updateOutOfOffice } = useAuth();
-  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
-  const [userMenuOpen, setUserMenuOpen] = React.useState(false);
-  const [oooModalOpen, setOooModalOpen] = React.useState(false);
-  const drawerRef = useFocusTrap(mobileMenuOpen);
-
-  // Escape closes the drawer
-  React.useEffect(() => {
-    if (!mobileMenuOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileMenuOpen(false);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [mobileMenuOpen]);
-
-  // Lock body scroll while drawer is open
-  React.useEffect(() => {
-    if (!mobileMenuOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, [mobileMenuOpen]);
-  const isActive = (path: string) => {
-    if (path === '/') return location.pathname === '/';
-    return location.pathname === path || location.pathname.startsWith(path + '/');
-  };
-
-  // Close user menu on click outside
-  React.useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const container = document.getElementById('user-menu-container');
-      if (container && !container.contains(e.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
-
-  // Close mobile menu on navigation
-  React.useEffect(() => {
-    setMobileMenuOpen(false);
-    setUserMenuOpen(false);
-  }, [location.pathname]);
-
-  // Don't show header on auth pages (login, forgot-password, reset-password)
-  if (['/login', '/forgot-password', '/reset-password'].includes(location.pathname)) {
-    return null;
-  }
-
-  // Nav links grouped by display priority
-  // primary: always inline at md+; secondary: behind "More" dropdown; admin: dropdown with divider
-  const allNavLinks = [
-    { to: '/', label: 'Dashboard', icon: 'space_dashboard', group: 'primary' as const, show: true },
-    { to: '/my-requests', label: 'My Requests', icon: 'assignment', group: 'primary' as const, show: true },
-    { to: '/announcements', label: 'Announcements', icon: 'campaign', group: 'primary' as const, show: true },
-    { to: '/agent', label: 'Agent Dashboard', icon: 'support_agent', group: 'primary' as const, show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
-    { to: '/approvals', label: 'Approvals', icon: 'approval', group: 'primary' as const, show: hasPermission(user, 'request:approve') },
-    { to: '/assets', label: 'IT Assets', icon: 'devices', group: 'secondary' as const, show: hasAnyPermission(user, ['asset:read']) },
-    { to: '/crm', label: 'CRM', icon: 'group', group: 'secondary' as const, show: hasAnyPermission(user, ['crm:read']) },
-    { to: '/credit', label: 'Credit', icon: 'account_balance', group: 'secondary' as const, show: hasAnyPermission(user, ['credit:read']) },
-    { to: '/kb', label: 'Knowledge Base', icon: 'menu_book', group: 'secondary' as const, show: isFeatureEnabled('kb') },
-    { to: '/reports', label: 'Reports', icon: 'assessment', group: 'secondary' as const, show: hasPermission(user, 'report:read') },
-    { to: '/admin/announcements', label: 'Announcements Mgmt', icon: 'campaign', group: 'admin' as const, show: hasPermission(user, 'announcement:write') },
-    { to: '/admin/settings', label: 'Admin Settings', icon: 'settings', group: 'admin' as const, show: hasPermission(user, 'admin:access') },
-  ].filter(l => l.show);
-
-  const primaryLinks = allNavLinks.filter(l => l.group === 'primary');
-  const secondaryLinks = allNavLinks.filter(l => l.group === 'secondary');
-  const adminLinks = allNavLinks.filter(l => l.group === 'admin');
-  const hasMoreMenu = secondaryLinks.length > 0 || adminLinks.length > 0;
-
-  return (
-    <>
-      <header className="sticky top-0 z-50 w-full border-b border-cwc-border bg-surface/80 backdrop-blur-md">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4 sm:gap-8">
-            <Link to="/" className="flex items-center gap-3 text-[#0052cc]">
-              <div className="bg-[#0052cc] p-1.5 rounded-lg text-white">
-                <span className="material-symbols-outlined block">corporate_fare</span>
-              </div>
-              <h2 className="text-text-primary text-lg font-bold leading-tight tracking-tight">Citadel Workplace Connect</h2>
-            </Link>
-            <nav className="hidden md:flex items-center gap-6">
-              {primaryLinks.map(link => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className={`text-sm font-semibold hover:text-[#0052cc] transition-colors pb-1 border-b-2 whitespace-nowrap ${
-                    isActive(link.to) ? 'text-[#0052cc] border-[#0052cc]' : 'text-text-secondary border-transparent'
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              ))}
-              {hasMoreMenu && (
-                <NavMoreDropdown
-                  items={secondaryLinks}
-                  adminItems={adminLinks}
-                  isActive={isActive}
-                />
-              )}
-            </nav>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-6">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const q = (formData.get('q') as string) ?? '';
-                if (q.trim()) {
-                  navigate(`/search?q=${encodeURIComponent(q.trim())}`);
-                }
-              }}
-              className="relative hidden sm:block"
-            >
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xl">search</span>
-              <input
-                name="q"
-                type="text"
-                placeholder="Search requests and articles..."
-                className="w-64 pl-10 pr-4 py-1.5 bg-[#f0f2f5] border-none rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none transition-all"
-              />
-            </form>
-            <div className="flex gap-2">
-              <NotificationDropdown />
-              <button aria-label="Help" className="hidden sm:flex items-center justify-center rounded-lg h-10 w-10 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors">
-                <span className="material-symbols-outlined">help</span>
-              </button>
-            </div>
-            {isAuthenticated && user && (
-              <div className="relative hidden sm:block" id="user-menu-container">
-                <button
-                  onClick={(e) => { e.stopPropagation(); setUserMenuOpen(!userMenuOpen); }}
-                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-gray-100 transition-colors"
-                >
-                  <div className="h-8 w-8 rounded-full bg-[#0052cc] flex items-center justify-center text-white text-sm font-bold">
-                    {user.firstName?.[0]}{user.lastName?.[0]}
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-gray-900 leading-tight">{user.firstName} {user.lastName}</p>
-                    <p className="text-xs text-gray-500 leading-tight">{user.email}</p>
-                  </div>
-                  <span className={`material-symbols-outlined text-gray-400 text-lg transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}>expand_more</span>
-                </button>
-                {userMenuOpen && (
-                <div
-                  className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-[70]"
-                >
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
-                    <p className="text-xs text-gray-500">{user.email}</p>
-                    {user.outOfOffice && (
-                      <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-medium rounded">
-                        <span className="material-symbols-outlined text-xs">outbox</span>
-                        Out of Office
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => { setOooModalOpen(true); setUserMenuOpen(false); }}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors w-full text-left"
-                  >
-                    <span className="material-symbols-outlined text-lg text-gray-400">outbox</span>
-                    {user.outOfOffice ? 'Out of Office Settings' : 'Set Out of Office'}
-                  </button>
-                  <Link
-                    to="/change-password"
-                    onClick={() => setUserMenuOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    <span className="material-symbols-outlined text-lg text-gray-400">lock</span>
-                    Change Password
-                  </Link>
-                  <div className="border-t border-gray-100" />
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors w-full text-left"
-                  >
-                    <span className="material-symbols-outlined text-lg">logout</span>
-                    Sign Out
-                  </button>
-                </div>
-                )}
-              </div>
-            )}
-            {/* Mobile hamburger */}
-            <button
-              className="md:hidden flex items-center justify-center rounded-lg h-10 w-10 bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors"
-              onClick={() => setMobileMenuOpen(o => !o)}
-              aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-              aria-expanded={mobileMenuOpen}
-              aria-controls="mobile-nav-drawer"
-            >
-              <span className="material-symbols-outlined">{mobileMenuOpen ? 'close' : 'menu'}</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Mobile slide-out drawer */}
-      {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-40" onClick={() => setMobileMenuOpen(false)}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
-          <div
-            ref={drawerRef}
-            id="mobile-nav-drawer"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Main navigation"
-            className="absolute top-0 left-0 w-72 h-full bg-surface shadow-2xl flex flex-col"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Drawer header */}
-            <div className="flex items-center justify-between px-4 h-16 border-b border-gray-100">
-              <Link to="/" className="flex items-center gap-2 text-[#0052cc]" onClick={() => setMobileMenuOpen(false)}>
-                <div className="bg-[#0052cc] p-1.5 rounded-lg text-white">
-                  <span className="material-symbols-outlined block text-lg">corporate_fare</span>
-                </div>
-                <span className="text-sm font-bold text-text-primary">CWC</span>
-              </Link>
-              <button
-                onClick={() => setMobileMenuOpen(false)}
-                aria-label="Close menu"
-                className="flex items-center justify-center rounded-lg h-9 w-9 text-text-secondary hover:bg-gray-100 transition-colors"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            {/* Mobile search */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                const q = (formData.get('q') as string) ?? '';
-                if (q.trim()) {
-                  navigate(`/search?q=${encodeURIComponent(q.trim())}`);
-                  setMobileMenuOpen(false);
-                }
-              }}
-              className="px-4 pt-4"
-            >
-              <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-xl">search</span>
-                <input
-                  name="q"
-                  type="text"
-                  placeholder="Search requests and articles..."
-                  className="w-full pl-10 pr-4 py-2 bg-[#f0f2f5] border-none rounded-lg text-sm focus:ring-2 focus:ring-[#0052cc]/20 outline-none"
-                />
-              </div>
-            </form>
-
-            {/* Nav links */}
-            <nav className="flex flex-col py-2 flex-1 overflow-y-auto">
-              {primaryLinks.length > 0 && (
-                <>
-                  <p className="px-4 pt-2 pb-1 text-[11px] font-bold uppercase tracking-wider text-text-tertiary">Main</p>
-                  {primaryLinks.map(link => (
-                    <Link
-                      key={link.to}
-                      to={link.to}
-                      className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
-                        isActive(link.to) ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-lg">{link.icon}</span>
-                      {link.label}
-                    </Link>
-                  ))}
-                </>
-              )}
-              {secondaryLinks.length > 0 && (
-                <>
-                  <p className="px-4 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-text-tertiary">Modules</p>
-                  {secondaryLinks.map(link => (
-                    <Link
-                      key={link.to}
-                      to={link.to}
-                      className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
-                        isActive(link.to) ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-lg">{link.icon}</span>
-                      {link.label}
-                    </Link>
-                  ))}
-                </>
-              )}
-              {adminLinks.length > 0 && (
-                <>
-                  <p className="px-4 pt-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-text-tertiary">Admin</p>
-                  {adminLinks.map(link => (
-                    <Link
-                      key={link.to}
-                      to={link.to}
-                      className={`flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
-                        isActive(link.to) ? 'bg-brand-50 text-brand-700' : 'text-text-secondary hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-lg">{link.icon}</span>
-                      {link.label}
-                    </Link>
-                  ))}
-                </>
-              )}
-            </nav>
-
-            {/* User section at bottom */}
-            {isAuthenticated && user && (
-              <div className="px-4 py-4 border-t border-gray-100">
-                <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
-                <p className="text-xs text-gray-500 mb-1">{user.email}</p>
-                {user.outOfOffice && (
-                  <span className="inline-flex items-center gap-1 mb-2 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-medium rounded">
-                    <span className="material-symbols-outlined text-xs">outbox</span>
-                    Out of Office
-                  </span>
-                )}
-                <button
-                  onClick={() => { setOooModalOpen(true); setMobileMenuOpen(false); }}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors text-sm font-semibold justify-center mb-2"
-                >
-                  <span className="material-symbols-outlined text-base">outbox</span>
-                  {user.outOfOffice ? 'Out of Office Settings' : 'Set Out of Office'}
-                </button>
-                <Link
-                  to="/change-password"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors text-sm font-semibold justify-center mb-2"
-                >
-                  <span className="material-symbols-outlined text-base">lock</span>
-                  Change Password
-                </Link>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors text-sm font-semibold justify-center"
-                >
-                  <span className="material-symbols-outlined text-base">logout</span>
-                  Sign Out
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      <OutOfOfficeModal
-        isOpen={oooModalOpen}
-        onClose={() => setOooModalOpen(false)}
-        isCurrentlyOOO={!!user?.outOfOffice}
-        currentUntil={user?.outOfOfficeUntil ?? null}
-        currentMessage={user?.outOfOfficeMessage ?? null}
-        onSubmit={updateOutOfOffice}
-      />
-    </>
-  );
-};
+import LeftRail from './src/components/layout/LeftRail';
+import MobileDrawer from './src/components/layout/MobileDrawer';
+import TopBar from './src/components/layout/TopBar';
+import { buildNavLinks } from './src/components/layout/navConfig';
 
 const Footer = () => (
   <footer className="mt-auto border-t border-gray-100 py-10 bg-white">
@@ -487,7 +120,7 @@ const NotificationToast = () => {
       role="status"
       aria-live="polite"
       aria-atomic="true"
-      className={`fixed bottom-6 right-6 z-[9999] w-80 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 flex items-start gap-3 animate-fade-in ${toast.relatedRequestId ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+      className={`fixed bottom-6 right-6 z-[9999] w-80 bg-white border border-gray-200 rounded-cwc-lg shadow-2xl p-4 flex items-start gap-3 animate-fade-in ${toast.relatedRequestId ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
     >
       <span className="material-symbols-outlined text-[#0052cc] text-xl flex-shrink-0 mt-0.5">notifications</span>
       <div className="flex-1 min-w-0">
@@ -505,43 +138,89 @@ const NotificationToast = () => {
 };
 
 const AppShell = () => {
-  const { user } = useAuth();
+  const { user, logout, updateOutOfOffice } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
+  const [oooModalOpen, setOooModalOpen] = React.useState(false);
+
   const authPages = ['/login', '/forgot-password', '/reset-password'];
-  const showFooter = !authPages.includes(location.pathname);
-  
-  return (
-    <NotificationProvider userId={user?.id ?? null}>
-      <div className="flex flex-col min-h-screen">
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[999] focus:bg-brand-700 focus:text-white focus:px-4 focus:py-2 focus:rounded-cwc-md focus:text-sm focus:font-bold"
-        >
-          Skip to main content
-        </a>
-        <EnvironmentBanner />
-        <Header />
-        <main id="main-content" className="flex-grow">
-          <Routes>
-              {/* Public routes */}
+  const isAuthPage = authPages.includes(location.pathname);
+  const navLinks = buildNavLinks(user);
+
+  const isActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname === path || location.pathname.startsWith(path + '/');
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
+
+  // Auth pages: no layout, just render routes
+  if (isAuthPage) {
+    return (
+      <NotificationProvider userId={user?.id ?? null}>
+        <div className="flex flex-col min-h-screen">
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[999] focus:bg-brand-700 focus:text-white focus:px-4 focus:py-2 focus:rounded-cwc-md focus:text-sm focus:font-bold"
+          >
+            Skip to main content
+          </a>
+          <EnvironmentBanner />
+          <main id="main-content" className="flex-grow">
+            <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+            </Routes>
+          </main>
+          <NotificationToast />
+          <SessionExpiryBanner />
+        </div>
+      </NotificationProvider>
+    );
+  }
 
+  return (
+    <NotificationProvider userId={user?.id ?? null}>
+      <div className="flex h-screen overflow-hidden">
+        {/* Left rail - desktop only */}
+        <LeftRail
+          navLinks={navLinks}
+          isActive={isActive}
+          user={user}
+          onOOO={() => setOooModalOpen(true)}
+          onLogout={handleLogout}
+        />
 
+        {/* Main content area */}
+        <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+          <TopBar
+            navLinks={navLinks}
+            onMobileMenuToggle={() => setMobileMenuOpen((o) => !o)}
+            mobileMenuOpen={mobileMenuOpen}
+          />
+
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[999] focus:bg-brand-700 focus:text-white focus:px-4 focus:py-2 focus:rounded-cwc-md focus:text-sm focus:font-bold"
+          >
+            Skip to main content
+          </a>
+          <EnvironmentBanner />
+
+          <main id="main-content" className="flex-grow overflow-auto">
+            <Routes>
               {/* Protected routes */}
               <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/hr" element={<ProtectedRoute><HRServices /></ProtectedRoute>} />
               <Route path="/it" element={<ProtectedRoute><ITSupport /></ProtectedRoute>} />
               <Route path="/finance" element={<ProtectedRoute><GroupFinance /></ProtectedRoute>} />
               <Route path="/my-requests" element={<ProtectedRoute><MyRequests /></ProtectedRoute>} />
-              <Route path="/request/:id" element={
-                <ProtectedRoute>
-                  <ErrorBoundary>
-                    <RequestDetail />
-                  </ErrorBoundary>
-                </ProtectedRoute>
-              } />
+              <Route path="/request/:id" element={<ProtectedRoute><ErrorBoundary><RequestDetail /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/it/hardware" element={<Navigate to="/it" replace />} />
               <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requirePermission="report:read"><Reports /></ProtectedRoute>} />
@@ -580,22 +259,37 @@ const AppShell = () => {
               <Route path="/credit/collateral" element={<ProtectedRoute requirePermission="credit:read"><CollateralManagement /></ProtectedRoute>} />
               <Route path="/credit/reports" element={<ProtectedRoute requirePermission="credit:read"><CreditReports /></ProtectedRoute>} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
-              <Route path="/admin/settings" element={
-                <ProtectedRoute requirePermission="admin:access">
-                  <ErrorBoundary>
-                    <AdminSettings />
-                  </ErrorBoundary>
-                </ProtectedRoute>
-              } />
+              <Route path="/admin/settings" element={<ProtectedRoute requirePermission="admin:access"><ErrorBoundary><AdminSettings /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/:deskType/:deskId/create/:categoryId" element={<ProtectedRoute><CreateRequest /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
-          {showFooter && <Footer />}
-          <NotificationToast />
-          <SessionExpiryBanner />
+          <Footer />
         </div>
-      </NotificationProvider>
+      </div>
+
+      {/* Mobile drawer - mobile only */}
+      <MobileDrawer
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        navLinks={navLinks}
+        isActive={isActive}
+        user={user}
+        onOOO={() => { setOooModalOpen(true); setMobileMenuOpen(false); }}
+        onLogout={handleLogout}
+      />
+
+      <OutOfOfficeModal
+        isOpen={oooModalOpen}
+        onClose={() => setOooModalOpen(false)}
+        isCurrentlyOOO={!!user?.outOfOffice}
+        currentUntil={user?.outOfOfficeUntil ?? null}
+        currentMessage={user?.outOfOfficeMessage ?? null}
+        onSubmit={updateOutOfOffice}
+      />
+      <NotificationToast />
+      <SessionExpiryBanner />
+    </NotificationProvider>
   );
 };
 

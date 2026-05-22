@@ -2,18 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import crmService, { CrmOpportunity, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import StateBadge from '../src/components/ui/StateBadge';
+import { STATUS_COLORS } from '../src/components/ui/StateBadge';
 
 const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-
-const STAGE_COLORS: Record<string, string> = {
-  PROSPECTING: '#6366f1',
-  QUALIFICATION: '#f59e0b',
-  PROPOSAL: '#3b82f6',
-  NEGOTIATION: '#8b5cf6',
-  CLOSED_WON: '#22c55e',
-  CLOSED_LOST: '#ef4444',
-};
 
 const winProbStyle = (prob: number) =>
   prob >= 70
@@ -75,12 +68,6 @@ const CrmOpportunities = () => {
     }
     try { setSaving(true); await crmService.createOpportunity(payload); setShowCreate(false); setForm({}); fetchOpportunities(); }
     catch (e) { console.error(e); } finally { setSaving(false); }
-  };
-
-  const getStageColor = (stageName?: string) => {
-    if (!stageName) return '#6b7280';
-    const key = stageName.toUpperCase().replace(/ /g, '_');
-    return STAGE_COLORS[key] || '#6b7280';
   };
 
   return (
@@ -174,10 +161,7 @@ const CrmOpportunities = () => {
                   <div className="text-sm text-text-secondary">{opp.account?.name || '—'}</div>
                 </td>
                 <td className="px-5 py-4">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: `${getStageColor(opp.stage?.name)}20`, color: getStageColor(opp.stage?.name) }}>
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: getStageColor(opp.stage?.name) }} />
-                    {opp.stage?.name || '—'}
-                  </span>
+                  <StateBadge state={opp.stage?.name || '—'} size="sm" />
                 </td>
                 <td className="px-5 py-4">
                   <div className="text-sm font-bold text-indigo-600">{formatCurrency(opp.value)}</div>
@@ -185,7 +169,7 @@ const CrmOpportunities = () => {
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">
                     <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden" style={{ minWidth: 60 }}>
-                      <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: getStageColor(opp.stage?.name) }} />
+                      <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: STATUS_COLORS[opp.stage?.name?.toUpperCase()]?.text || '#6366f1' }} />
                     </div>
                     <span className="text-xs font-bold text-text-secondary">{opp.probability}%</span>
                     {opp.aiWinProbability != null && (() => {

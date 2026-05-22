@@ -3,6 +3,7 @@ import { reportsApi, PipelineReport, ExposureReport } from '../../src/services/c
 import CreditNav from '../../src/components/CreditNav';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
+import RiskBadge from '../../src/components/ui/RiskBadge';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -30,20 +31,6 @@ const STATE_LABELS: Record<string, string> = {
   ACTIVE: 'Active',
   CLOSED: 'Closed',
   WITHDRAWN: 'Withdrawn',
-};
-
-const RATING_COLORS: Record<string, string> = {
-  AAA: 'bg-emerald-100 text-emerald-700',
-  AA: 'bg-emerald-50 text-emerald-600',
-  A: 'bg-green-50 text-green-600',
-  BBB: 'bg-yellow-50 text-yellow-700',
-  BB: 'bg-orange-50 text-orange-600',
-  B: 'bg-orange-100 text-orange-700',
-  CCC: 'bg-red-50 text-red-600',
-  CC: 'bg-red-100 text-red-700',
-  C: 'bg-red-200 text-red-800',
-  D: 'bg-red-300 text-red-900',
-  NR: 'bg-gray-100 text-gray-500',
 };
 
 // ---------------------------------------------------------------------------
@@ -148,9 +135,7 @@ const ExposureReportView: React.FC<{ data: ExposureReport }> = ({ data }) => (
                 <td className="p-3 font-semibold">{b.borrowerName}</td>
                 <td className="p-3 text-text-secondary">{b.industry || '—'}</td>
                 <td className="p-3">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${RATING_COLORS[b.rating || 'NR'] || RATING_COLORS.NR}`}>
-                    {b.rating || 'NR'}
-                  </span>
+                  <RiskBadge rating={b.rating || 'NR'} size="sm" />
                 </td>
                 <td className="p-3 text-right font-bold">{formatCurrency(b.totalExposure)}</td>
               </tr>
@@ -217,9 +202,7 @@ const ExposureReportView: React.FC<{ data: ExposureReport }> = ({ data }) => (
             ) : data.ratingDistribution.map(r => (
               <tr key={r.rating} className="border-t hover:bg-gray-50 transition-colors">
                 <td className="p-3">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${RATING_COLORS[r.rating] || RATING_COLORS.NR}`}>
-                    {r.rating}
-                  </span>
+                  <RiskBadge rating={r.rating} size="sm" />
                 </td>
                 <td className="p-3 text-right">{r.count}</td>
                 <td className="p-3 text-right font-bold">{formatCurrency(r.totalExposure)}</td>

@@ -4,6 +4,7 @@ import creditService, { BorrowerProfile, CreditApplication, exposureApi, Exposur
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
+import StateBadge from '../src/components/ui/StateBadge';
 
 // ── Helpers ──────────────────────────────────────────────────
 const formatCurrency = (val: number | string | null) => {
@@ -66,26 +67,6 @@ const NricReveal: React.FC<{ maskedNric: string | null; revealFn: () => Promise<
       )}
     </span>
   );
-};
-
-const APP_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  DRAFT: { bg: '#6366f120', text: '#6366f1' },
-  SUBMITTED: { bg: '#f59e0b20', text: '#d97706' },
-  KYC_REVIEW: { bg: '#3b82f620', text: '#2563eb' },
-  KYC_APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-  KYC_REJECTED: { bg: '#ef444420', text: '#dc2626' },
-  UNDER_REVIEW: { bg: '#3b82f620', text: '#2563eb' },
-  UNDERWRITING: { bg: '#8b5cf620', text: '#7c3aed' },
-  CREDIT_ASSESSMENT: { bg: '#a78bfa20', text: '#7c3aed' },
-  COMMITTEE_REVIEW: { bg: '#f9731620', text: '#ea580c' },
-  APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-  REJECTED: { bg: '#ef444420', text: '#dc2626' },
-  OFFER: { bg: '#06b6d420', text: '#0891b2' },
-  ACCEPTED: { bg: '#14b8a620', text: '#0d9488' },
-  DISBURSED: { bg: '#06b6d420', text: '#0891b2' },
-  ACTIVE: { bg: '#22c55e20', text: '#16a34a' },
-  CLOSED: { bg: '#6b728020', text: '#6b7280' },
-  WITHDRAWN: { bg: '#6b728020', text: '#6b7280' },
 };
 
 const FACILITY_TYPE_LABELS: Record<string, string> = {
@@ -566,7 +547,6 @@ const BorrowerProfileDetail: React.FC = () => {
               <div className="space-y-3">
                 {applications.map(app => {
                   const state = (app.state || app.status) as string;
-                  const appBadge = APP_STATUS_COLORS[state] || { bg: '#6366f120', text: '#6366f1' };
                   return (
                     <div key={app.id} className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors cursor-pointer"
                       onClick={() => navigate(`/credit/applications/${app.id}`)}>
@@ -576,9 +556,7 @@ const BorrowerProfileDetail: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="font-semibold text-text-primary text-sm">{app.applicationNo || 'Application'}</p>
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: appBadge.bg, color: appBadge.text }}>
-                            {state.replace(/_/g, ' ')}
-                          </span>
+                          <StateBadge state={state} size="sm" />
                         </div>
                         <p className="text-xs text-text-secondary mt-0.5">
                           {(app as any).productType?.replace(/_/g, ' ') || 'Application'} · {formatCurrency(app.requestedAmount)} · {formatDate(app.createdAt)}

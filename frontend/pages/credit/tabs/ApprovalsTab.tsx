@@ -11,6 +11,8 @@ import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import { formatDateTime } from '../creditUtils';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import StateBadge from '../../../src/components/ui/StateBadge';
+import { STATUS_COLORS } from '../../../src/components/ui/StateBadge';
 
 interface ApprovalsTabProps {
   app: CreditApplication;
@@ -62,17 +64,11 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
         ) : (
           <div className="space-y-4">
             {approvals.map(a => {
-              const decColors: Record<string, { bg: string; text: string }> = {
-                APPROVED: { bg: '#22c55e20', text: '#16a34a' },
-                REJECTED: { bg: '#ef444420', text: '#dc2626' },
-                RETURNED: { bg: '#f59e0b20', text: '#d97706' },
-                ESCALATED: { bg: '#8b5cf620', text: '#7c3aed' },
-              };
-              const c = decColors[a.decision] || { bg: '#6366f120', text: '#6366f1' };
+              const dc = STATUS_COLORS[a.decision] || { bg: '#6366f120', text: '#6366f1' };
               return (
                 <div key={a.id} className="flex gap-3">
                   <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: c.bg, color: c.text }}>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: dc.bg, color: dc.text }}>
                       {a.decision === 'APPROVED' ? '✓' : a.decision === 'REJECTED' ? '✗' : a.decision === 'RETURNED' ? '↩' : '↑'}
                     </div>
                     {a !== approvals[approvals.length - 1] && <div className="w-0.5 flex-1 bg-border mt-1" />}
@@ -80,7 +76,7 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
                   <div className="flex-1 pb-4">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-bold text-text-primary">{a.approver ? `${a.approver.firstName} ${a.approver.lastName}` : 'Unknown'}</span>
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: c.bg, color: c.text }}>{a.decision}</span>
+                      <StateBadge state={a.decision} size="sm" />
                       {a.isCommitteeVote && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700">Committee</span>}
                     </div>
                     {a.comment && <p className="text-xs text-text-secondary mt-0.5">{a.comment}</p>}

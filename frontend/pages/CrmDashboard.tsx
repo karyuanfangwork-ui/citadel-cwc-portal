@@ -11,11 +11,8 @@ const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 
 const formatRelative = (d: string) => { const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m/60)}h ago` : `${Math.floor(m/1440)}d ago`; };
 
 const ACTIVITY_ICONS: Record<string, string> = { CALL: 'call', EMAIL: 'mail', MEETING: 'groups', NOTE: 'sticky_note_2', TASK: 'check_circle', FOLLOW_UP: 'update' };
-const LEAD_COLORS: Record<string, { bg: string; text: string }> = {
-  NEW: { bg: '#eff6ff', text: '#1d4ed8' }, CONTACTED: { bg: '#fef3c7', text: '#92400e' },
-  QUALIFIED: { bg: '#ecfdf5', text: '#065f46' }, UNQUALIFIED: { bg: '#fef2f2', text: '#991b1b' },
-  CONVERTED: { bg: '#f0fdf4', text: '#166534' }, LOST: { bg: '#fef2f2', text: '#991b1b' },
-};
+
+import StateBadge from '../src/components/ui/StateBadge';
 
 const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
   <div style={{ width: w, height: h, background: 'var(--color-border)', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
@@ -413,15 +410,12 @@ const CrmDashboard = () => {
         <div className="bg-surface border border-border rounded-xl p-6 shadow-sm mb-6">
           <h2 className="text-lg font-extrabold text-text-primary mb-4">Leads by Status</h2>
           <div className="flex flex-wrap gap-3">
-            {stats.leadsByStatus.map(ls => {
-              const c = LEAD_COLORS[ls.status] || { bg: '#f3f4f6', text: '#374151' };
-              return (
-                <div key={ls.status} className="flex items-center gap-2 rounded-full px-4 py-2" style={{ background: c.bg }}>
-                  <span className="text-2xl font-black" style={{ color: c.text }}>{ls._count}</span>
-                  <span className="text-xs font-bold" style={{ color: c.text }}>{ls.status.replace(/_/g, ' ')}</span>
+            {stats.leadsByStatus.map(ls => (
+                <div key={ls.status} className="flex items-center gap-2 rounded-full px-4 py-2">
+                  <span className="text-2xl font-black"><StateBadge state={ls.status} size="sm" /></span>
+                  <span className="text-xs font-bold">{ls._count}</span>
                 </div>
-              );
-            })}
+              ))}
           </div>
         </div>
       )}

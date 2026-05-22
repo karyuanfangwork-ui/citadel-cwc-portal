@@ -67,7 +67,7 @@ Assumptions:
 
 ---
 
-### SPRINT 2 (Week 3–4): Design System Foundation + Header Shell
+### SPRINT 2 (Week 3–4): Design System Foundation + Header Shell ✅ COMPLETED
 
 **Theme:** Establish the `ui/` component library and refactor the navigation shell
 

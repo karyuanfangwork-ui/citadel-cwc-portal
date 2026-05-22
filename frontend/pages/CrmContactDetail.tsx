@@ -5,25 +5,13 @@ import crmService, {
 } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
+import StateBadge from '../src/components/ui/StateBadge';
 
 // ── Formatters ────────────────────────────────────────────────────
 const fmt = new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 });
 const formatCurrency = (val: number | null | undefined) => (val != null ? fmt.format(val) : '—');
 const formatDate = (d: string | null | undefined) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-
-const STAGE_COLORS: Record<string, string> = {
-  PROSPECTING: '#6366f1', QUALIFICATION: '#f59e0b', PROPOSAL: '#3b82f6',
-  NEGOTIATION: '#8b5cf6', CLOSED_WON: '#22c55e', CLOSED_LOST: '#ef4444',
-};
-
-const KYC_STATUS_STYLE: Record<string, { bg: string; color: string }> = {
-  PENDING:     { bg: '#f1f5f9', color: '#64748b' },
-  IN_PROGRESS: { bg: '#eff6ff', color: '#3b82f6' },
-  APPROVED:    { bg: '#f0fdf4', color: '#22c55e' },
-  EXPIRED:     { bg: '#fef2f2', color: '#ef4444' },
-  REJECTED:    { bg: '#fef2f2', color: '#ef4444' },
-};
 
 
 
@@ -91,7 +79,7 @@ const KycTab = ({ contactId }: { contactId: string }) => {
 
   if (loading) return <div className="space-y-3 py-4">{[...Array(5)].map((_, i) => <SkeletonLine key={i} />)}</div>;
 
-  const statusStyle = kyc ? (KYC_STATUS_STYLE[kyc.status] ?? KYC_STATUS_STYLE.PENDING) : KYC_STATUS_STYLE.PENDING;
+  // KYC status derived from StateBadge
 
   const checkItems: { key: keyof typeof form; label: string }[] = [
     { key: 'nricVerified', label: 'NRIC / Passport Verified' },
@@ -108,8 +96,8 @@ const KycTab = ({ contactId }: { contactId: string }) => {
         <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
           <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">KYC Status</h3>
           {kyc ? (
-            <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: statusStyle.bg, color: statusStyle.color }}>
-              {kyc.status}
+            <span className="text-xs font-bold px-3 py-1 rounded-full">
+              <StateBadge state={kyc ? kyc.status : 'PENDING'} size="sm" />
             </span>
           ) : (
             <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: '#f1f5f9', color: '#64748b' }}>
@@ -560,10 +548,7 @@ const CrmContactDetail = () => {
                       <p className="font-semibold text-text-primary text-sm">{o.name}</p>
                     </div>
                     {o.stage && (
-                      <span className="text-xs font-bold px-2 py-1 rounded-full"
-                        style={{ background: `${STAGE_COLORS[o.stage.name] ?? '#6366f1'}20`, color: STAGE_COLORS[o.stage.name] ?? '#6366f1' }}>
-                        {o.stage.name}
-                      </span>
+                      <StateBadge state={o.stage.name} size="sm" />
                     )}
                     <span className="text-sm font-bold text-text-primary">{formatCurrency(o.value)}</span>
                   </div>
