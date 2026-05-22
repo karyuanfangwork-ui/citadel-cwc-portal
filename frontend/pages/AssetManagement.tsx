@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import assetService, { Asset, AssetStatus, AssetCategory, AssetAssignment } from '../src/services/asset.service';
 import api from '../src/services/api';
+import StateBadge from '../src/components/ui/StateBadge';
 import { useAuth } from '../src/context/AuthContext';
 import { useToast } from '../src/context/ToastContext';
 
@@ -9,18 +10,6 @@ function hasPermission(permissions: string[] | undefined, perm: string): boolean
   if (!permissions) return false;
   return permissions.includes(perm) || permissions.includes('*');
 }
-
-const STATUS_COLORS: Record<AssetStatus, string> = {
-  IN_STOCK: 'bg-green-100 text-green-800',
-  ASSIGNED: 'bg-blue-100 text-blue-800',
-  RESERVED: 'bg-yellow-100 text-yellow-800',
-  PENDING_RETURN: 'bg-orange-100 text-orange-800',
-  IN_REPAIR: 'bg-purple-100 text-purple-800',
-  RETIRED: 'bg-gray-100 text-gray-600',
-  LOST: 'bg-red-100 text-red-800',
-  STOLEN: 'bg-red-200 text-red-900',
-  DISPOSED: 'bg-gray-200 text-gray-500',
-};
 
 const CATEGORIES: AssetCategory[] = ['LAPTOP','DESKTOP','MONITOR','PERIPHERAL','PHONE','NETWORK','PRINTER','SOFTWARE_LICENSE','OTHER'];
 const STATUSES: AssetStatus[] = ['IN_STOCK','ASSIGNED','RESERVED','PENDING_RETURN','IN_REPAIR','RETIRED','LOST','STOLEN','DISPOSED'];
@@ -281,9 +270,7 @@ function AssetRegistryTab() {
                     <td className="px-4 py-3 text-gray-900">{asset.name}</td>
                     <td className="px-4 py-3 text-gray-500">{asset.category}</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[asset.status]}`}>
-                        {asset.status.replace(/_/g, ' ')}
-                      </span>
+                      <StateBadge state={asset.status} size="sm" />
                     </td>
                     <td className="px-4 py-3">
                       {assignee ? (
@@ -856,9 +843,7 @@ function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () 
                 {STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
               </select>
             ) : (
-              <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[asset.status]}`}>
-                {asset.status.replace(/_/g, ' ')}
-              </span>
+              <StateBadge state={asset.status} size="sm" />
             )}
           </div>
 
