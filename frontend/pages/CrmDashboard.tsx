@@ -56,7 +56,7 @@ const CrmDashboard = () => {
       setBriefing(result);
       sessionStorage.setItem(BRIEFING_KEY, JSON.stringify(result));
     } catch {
-      setBriefingError('Could not generate briefing. Check OPENAI_API_KEY.');
+      setBriefingError('AI briefing is temporarily unavailable. Please try again later.');
     } finally {
       setBriefingLoading(false);
     }

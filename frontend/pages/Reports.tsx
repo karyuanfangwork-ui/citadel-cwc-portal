@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Breadcrumbs from '../src/components/Breadcrumbs';
+import { Skeleton } from '../src/components/ui/Skeleton';
 import reportsService, {
   ReportSummary,
   StatusCount,
@@ -47,8 +48,28 @@ export default function Reports() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      <div className="max-w-[1440px] mx-auto px-6 py-8 space-y-8" aria-busy="true">
+        <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Reports' }]} />
+        <div>
+          <Skeleton height={28} width={240} aria-label="Loading page title" />
+          <Skeleton height={14} width={320} className="mt-2" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+              <Skeleton height={10} width="60%" />
+              <Skeleton height={28} width="40%" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
+              <Skeleton height={16} width="50%" />
+              <Skeleton height={120} width="100%" rounded="lg" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

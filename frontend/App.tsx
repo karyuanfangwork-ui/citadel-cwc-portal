@@ -26,6 +26,7 @@ import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { hasPermission, hasAnyPermission, hasAnyRole } from './src/utils/permissions';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { useFocusTrap } from './src/hooks/useFocusTrap';
+import { isFeatureEnabled } from './src/lib/featureFlags';
 import NavMoreDropdown from './src/components/NavMoreDropdown';
 import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
@@ -423,9 +424,9 @@ const Footer = () => (
         <span className="text-xs font-bold uppercase tracking-widest">© 2026 Citadel Group Technologies Sdn Bhd</span>
       </div>
       <div className="flex gap-8 text-xs font-medium text-gray-500">
-        <a href="#" className="hover:text-[#0052cc]">Privacy Policy</a>
-        <a href="#" className="hover:text-[#0052cc]">Terms of Service</a>
-        <a href="#" className="hover:text-[#0052cc]">Contact Support</a>
+        <span className="opacity-60" title="Coming soon">Privacy Policy</span>
+        <span className="opacity-60" title="Coming soon">Terms of Service</span>
+        <a href="mailto:support@citadelgroup.com.my" className="hover:text-[#0052cc]">Contact Support</a>
       </div>
     </div>
   </footer>
@@ -446,6 +447,9 @@ const NotificationToast = () => {
   return (
     <div
       onClick={toast.relatedRequestId ? handleClick : undefined}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       className={`fixed bottom-6 right-6 z-[9999] w-80 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 flex items-start gap-3 animate-fade-in ${toast.relatedRequestId ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
     >
       <span className="material-symbols-outlined text-[#0052cc] text-xl flex-shrink-0 mt-0.5">notifications</span>
@@ -504,8 +508,8 @@ const AppShell = () => {
               <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requirePermission="report:read"><Reports /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
-              <Route path="/kb" element={import.meta.env.DEV ? <ProtectedRoute><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
-              <Route path="/kb/:slug" element={import.meta.env.DEV ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
+              <Route path="/kb" element={isFeatureEnabled('kb') ? <ProtectedRoute><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
+              <Route path="/kb/:slug" element={isFeatureEnabled('kb') ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
               <Route path="/approvals" element={<ProtectedRoute requirePermission="request:approve"><ApprovalQueue /></ProtectedRoute>} />
               <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
               <Route path="/announcements/:id" element={<ProtectedRoute><AnnouncementDetail /></ProtectedRoute>} />
