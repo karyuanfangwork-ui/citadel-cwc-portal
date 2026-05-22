@@ -38,29 +38,41 @@ export interface SlaStatus {
   noSla: number;
 }
 
+export interface DateRange {
+  from?: string; // ISO date string
+  to?: string;   // ISO date string
+}
+
+function dateParams(range?: DateRange): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (range?.from) params.from = range.from;
+  if (range?.to) params.to = range.to;
+  return params;
+}
+
 const reportsService = {
-  async getSummary(): Promise<ReportSummary> {
-    const response = await api.get('/reports/summary');
+  async getSummary(range?: DateRange): Promise<ReportSummary> {
+    const response = await api.get('/reports/summary', { params: dateParams(range) });
     return response.data.data;
   },
-  async getByStatus(): Promise<StatusCount[]> {
-    const response = await api.get('/reports/by-status');
+  async getByStatus(range?: DateRange): Promise<StatusCount[]> {
+    const response = await api.get('/reports/by-status', { params: dateParams(range) });
     return response.data.data;
   },
-  async getByServiceDesk(): Promise<ServiceDeskCount[]> {
-    const response = await api.get('/reports/by-service-desk');
+  async getByServiceDesk(range?: DateRange): Promise<ServiceDeskCount[]> {
+    const response = await api.get('/reports/by-service-desk', { params: dateParams(range) });
     return response.data.data;
   },
-  async getByPriority(): Promise<PriorityCount[]> {
-    const response = await api.get('/reports/by-priority');
+  async getByPriority(range?: DateRange): Promise<PriorityCount[]> {
+    const response = await api.get('/reports/by-priority', { params: dateParams(range) });
     return response.data.data;
   },
-  async getAgentWorkload(): Promise<AgentWorkload[]> {
-    const response = await api.get('/reports/agent-workload');
+  async getAgentWorkload(range?: DateRange): Promise<AgentWorkload[]> {
+    const response = await api.get('/reports/agent-workload', { params: dateParams(range) });
     return response.data.data;
   },
-  async getSlaStatus(): Promise<SlaStatus> {
-    const response = await api.get('/reports/sla-status');
+  async getSlaStatus(range?: DateRange): Promise<SlaStatus> {
+    const response = await api.get('/reports/sla-status', { params: dateParams(range) });
     return response.data.data;
   },
 };

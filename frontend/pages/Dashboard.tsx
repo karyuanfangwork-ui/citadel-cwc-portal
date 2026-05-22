@@ -350,7 +350,7 @@ const Dashboard = () => {
                       style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                      onClick={() => navigate(`/request/${req.id}`)}
+                      onClick={() => navigate(`/request/${req.referenceNumber || req.id}`)}
                     >
                       <td style={{ padding: 'var(--space-4) var(--space-6)', fontFamily: 'var(--font-mono)', fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--color-brand-700)' }}>
                         {req.referenceNumber}

@@ -26,10 +26,12 @@ import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { hasPermission, hasAnyPermission, hasAnyRole } from './src/utils/permissions';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { useFocusTrap } from './src/hooks/useFocusTrap';
+import { isFeatureEnabled } from './src/lib/featureFlags';
 import NavMoreDropdown from './src/components/NavMoreDropdown';
 import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
 import SessionExpiryBanner from './src/components/SessionExpiryBanner';
+import EnvironmentBanner from './src/components/ui/EnvironmentBanner';
 import { Toaster } from 'react-hot-toast';
 import Login from './src/pages/Login';
 
@@ -85,7 +87,7 @@ import NotFound from './pages/NotFound';
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, updateOutOfOffice } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
   const drawerRef = useFocusTrap(mobileMenuOpen);
@@ -151,7 +153,7 @@ const Header = () => {
     { to: '/assets', label: 'IT Assets', icon: 'devices', group: 'secondary' as const, show: hasAnyPermission(user, ['asset:read']) },
     { to: '/crm', label: 'CRM', icon: 'group', group: 'secondary' as const, show: hasAnyPermission(user, ['crm:read']) },
     { to: '/credit', label: 'Credit', icon: 'account_balance', group: 'secondary' as const, show: hasAnyPermission(user, ['credit:read']) },
-    { to: '/kb', label: 'Knowledge Base', icon: 'menu_book', group: 'secondary' as const, show: import.meta.env.DEV },
+    { to: '/kb', label: 'Knowledge Base', icon: 'menu_book', group: 'secondary' as const, show: isFeatureEnabled('kb') },
     { to: '/reports', label: 'Reports', icon: 'assessment', group: 'secondary' as const, show: hasPermission(user, 'report:read') },
     { to: '/admin/announcements', label: 'Announcements Mgmt', icon: 'campaign', group: 'admin' as const, show: hasPermission(user, 'announcement:write') },
     { to: '/admin/settings', label: 'Admin Settings', icon: 'settings', group: 'admin' as const, show: hasPermission(user, 'admin:access') },
@@ -242,7 +244,24 @@ const Header = () => {
                   <div className="px-4 py-2 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
                     <p className="text-xs text-gray-500">{user.email}</p>
+                    {user.outOfOffice && (
+                      <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-medium rounded">
+                        <span className="material-symbols-outlined text-xs">outbox</span>
+                        Out of Office
+                      </span>
+                    )}
                   </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await updateOutOfOffice({ outOfOffice: !user.outOfOffice });
+                      } catch { /* ignore */ }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors w-full text-left"
+                  >
+                    <span className="material-symbols-outlined text-lg text-gray-400">{user.outOfOffice ? 'outbox' : 'outbox'}</span>
+                    {user.outOfOffice ? 'Mark as Available' : 'Set Out of Office'}
+                  </button>
                   <Link
                     to="/change-password"
                     onClick={() => setUserMenuOpen(false)}
@@ -390,7 +409,22 @@ const Header = () => {
             {isAuthenticated && user && (
               <div className="px-4 py-4 border-t border-gray-100">
                 <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
-                <p className="text-xs text-gray-500 mb-3">{user.email}</p>
+                <p className="text-xs text-gray-500 mb-1">{user.email}</p>
+                {user.outOfOffice && (
+                  <span className="inline-flex items-center gap-1 mb-2 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-medium rounded">
+                    <span className="material-symbols-outlined text-xs">outbox</span>
+                    Out of Office
+                  </span>
+                )}
+                <button
+                  onClick={async () => {
+                    try { await updateOutOfOffice({ outOfOffice: !user.outOfOffice }); } catch { /* ignore */ }
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors text-sm font-semibold justify-center mb-2"
+                >
+                  <span className="material-symbols-outlined text-base">outbox</span>
+                  {user.outOfOffice ? 'Mark as Available' : 'Set Out of Office'}
+                </button>
                 <Link
                   to="/change-password"
                   onClick={() => setMobileMenuOpen(false)}
@@ -423,9 +457,9 @@ const Footer = () => (
         <span className="text-xs font-bold uppercase tracking-widest">© 2026 Citadel Group Technologies Sdn Bhd</span>
       </div>
       <div className="flex gap-8 text-xs font-medium text-gray-500">
-        <a href="#" className="hover:text-[#0052cc]">Privacy Policy</a>
-        <a href="#" className="hover:text-[#0052cc]">Terms of Service</a>
-        <a href="#" className="hover:text-[#0052cc]">Contact Support</a>
+        <span className="opacity-60" title="Coming soon">Privacy Policy</span>
+        <span className="opacity-60" title="Coming soon">Terms of Service</span>
+        <a href="mailto:support@citadelgroup.com.my" className="hover:text-[#0052cc]">Contact Support</a>
       </div>
     </div>
   </footer>
@@ -446,6 +480,9 @@ const NotificationToast = () => {
   return (
     <div
       onClick={toast.relatedRequestId ? handleClick : undefined}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
       className={`fixed bottom-6 right-6 z-[9999] w-80 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 flex items-start gap-3 animate-fade-in ${toast.relatedRequestId ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
     >
       <span className="material-symbols-outlined text-[#0052cc] text-xl flex-shrink-0 mt-0.5">notifications</span>
@@ -478,6 +515,7 @@ const AppShell = () => {
         >
           Skip to main content
         </a>
+        <EnvironmentBanner />
         <Header />
         <main id="main-content" className="flex-grow">
           <Routes>
@@ -504,8 +542,8 @@ const AppShell = () => {
               <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requirePermission="report:read"><Reports /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
-              <Route path="/kb" element={import.meta.env.DEV ? <ProtectedRoute><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
-              <Route path="/kb/:slug" element={import.meta.env.DEV ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
+              <Route path="/kb" element={isFeatureEnabled('kb') ? <ProtectedRoute><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
+              <Route path="/kb/:slug" element={isFeatureEnabled('kb') ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
               <Route path="/approvals" element={<ProtectedRoute requirePermission="request:approve"><ApprovalQueue /></ProtectedRoute>} />
               <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
               <Route path="/announcements/:id" element={<ProtectedRoute><AnnouncementDetail /></ProtectedRoute>} />

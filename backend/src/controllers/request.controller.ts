@@ -14,6 +14,18 @@ import { shouldResumeOnTransition, pauseSla, resumeSla, getEffectiveSlaDueAt } f
 
 const prisma = new PrismaClient();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Resolve an id param that may be a UUID or a referenceNumber (e.g. "IT-1") to an actual DB record id (UUID). */
+async function resolveRequestId(idOrRef: string): Promise<string | null> {
+    if (UUID_RE.test(idOrRef)) return idOrRef;
+    const row = await prisma.request.findFirst({
+        where: { referenceNumber: idOrRef, deletedAt: null },
+        select: { id: true },
+    });
+    return row?.id ?? null;
+}
+
 class RequestController {
     /**
      * Get all requests with filters and pagination
@@ -1181,11 +1193,12 @@ class RequestController {
      * Get request by ID
      */
     getRequestById = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const lookupKey = UUID_RE.test(idOrRef) ? { id: idOrRef } : { referenceNumber: idOrRef };
 
         const request = await prisma.request.findFirst({
             where: {
-                id,
+                ...lookupKey,
                 deletedAt: null,
             },
             include: {
@@ -1377,7 +1390,9 @@ class RequestController {
      * Update request
      */
     updateRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
         const { summary: rawSummary, description: rawDescription, priority, isConfidential, customFields: rawCustomFields } = req.body;
 
         // Sanitize highest-risk text fields
@@ -1443,7 +1458,9 @@ class RequestController {
      * Delete request (soft delete)
      */
     deleteRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -1473,7 +1490,9 @@ class RequestController {
      * Get request activities
      */
     getRequestActivities = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
 
         const request = await prisma.request.findFirst({
             where: { id, deletedAt: null },
@@ -1505,7 +1524,9 @@ class RequestController {
      * Add activity/comment to request
      */
     addActivity = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
         const { message: rawMessage, isInternal } = req.body;
 
         // Sanitize comment message before storing
@@ -1566,7 +1587,9 @@ class RequestController {
      * Max size: 10MB | isScanned: false flag set for future virus scanning
      */
     uploadAttachment = asyncHandler(async (req: AuthRequest, res: Response, __next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
         const file = req.file;
 
         if (!file) {
@@ -1710,7 +1733,9 @@ class RequestController {
      * Assign request to agent
      */
     assignRequest = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
         const { assignedToId } = req.body;
 
         const request = await prisma.request.update({
@@ -1782,7 +1807,9 @@ class RequestController {
      * Update request status
      */
     updateStatus = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) throw new AppError('Request not found', 404);
         const { status } = req.body;
 
         // Fetch current request to validate transition
@@ -2075,6 +2102,50 @@ class RequestController {
             status: 'success',
             data: { request: finalRequest || request },
         });
+    });
+
+    /**
+     * Get recently used request types for the current user.
+     * Returns the top 5 request types the user has submitted most often.
+     */
+    recentServices = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const limit = Math.min(parseInt(req.query.limit as string) || 5, 20);
+
+        // Group the user's requests by requestTypeId, count them, and return top N
+        const grouped = await prisma.request.groupBy({
+            by: ['requestTypeId'],
+            where: {
+                requesterId: userId,
+                deletedAt: null,
+                requestTypeId: { not: null },
+            },
+            _count: { id: true },
+            orderBy: { _count: { id: 'desc' } },
+            take: limit,
+        });
+
+        const typeIds = grouped.map(g => g.requestTypeId!).filter(Boolean);
+        if (typeIds.length === 0) {
+            res.json({ status: 'success', data: [] });
+            return;
+        }
+
+        const types = await prisma.requestType.findMany({
+            where: { id: { in: typeIds } },
+            select: { id: true, name: true, icon: true, description: true, serviceCategoryId: true },
+        });
+
+        const typeMap = new Map(types.map(t => [t.id, t]));
+
+        const data = grouped
+            .filter(g => g.requestTypeId && typeMap.has(g.requestTypeId))
+            .map(g => ({
+                ...typeMap.get(g.requestTypeId!)!,
+                count: g._count.id,
+            }));
+
+        res.json({ status: 'success', data });
     });
 }
 

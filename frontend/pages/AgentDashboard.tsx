@@ -364,7 +364,7 @@ export default function AgentDashboard() {
                 return (
                   <tr
                     key={ticket.id}
-                    onClick={() => navigate(`/request/${ticket.id}`)}
+                    onClick={() => navigate(`/request/${ticket.reference || ticket.id}`)}
                     className={`cursor-pointer transition-colors hover:bg-gray-50 ${sla.breached ? 'bg-red-50 hover:bg-red-100' : ''}`}
                   >
                     <td className="px-4 py-3 font-mono text-xs text-gray-600 font-medium">{ticket.reference}</td>

@@ -1034,6 +1034,33 @@ class UserController {
             },
         });
     });
+
+    /**
+     * Toggle out-of-office status for the current user.
+     * PUT /api/v1/users/me/out-of-office
+     * Body: { outOfOffice: boolean, outOfOfficeUntil?: string (ISO date), outOfOfficeMessage?: string }
+     */
+    updateOutOfOffice = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const { outOfOffice, outOfOfficeUntil, outOfOfficeMessage } = req.body;
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                outOfOffice: !!outOfOffice,
+                outOfOfficeUntil: outOfOfficeUntil ? new Date(outOfOfficeUntil) : null,
+                outOfOfficeMessage: outOfOfficeMessage || null,
+            },
+            select: {
+                id: true,
+                outOfOffice: true,
+                outOfOfficeUntil: true,
+                outOfOfficeMessage: true,
+            },
+        });
+
+        res.json({ status: 'success', data: updated });
+    });
 }
 
 export const userController = new UserController();

@@ -9,6 +9,8 @@ import WizardStepper from '../src/components/create-request/WizardStepper';
 import StepRequestType from '../src/components/create-request/StepRequestType';
 import StepDetails from '../src/components/create-request/StepDetails';
 import StepReview from '../src/components/create-request/StepReview';
+import RecentServices from '../src/components/create-request/RecentServices';
+import { useDraftSave, DraftSaveChip } from '../src/components/create-request/useDraftSave';
 
 const WIZARD_STEPS: { id: WizardStep; label: string; icon: string }[] = [
   { id: 'type', label: 'Request Type', icon: 'category' },
@@ -22,6 +24,14 @@ const CreateRequest = () => {
     const toast = useToast();
 
     const wizard = useCreateRequestWizard(deskId!, categoryId!, deskType!);
+
+    // Draft auto-save with localStorage
+    const draftKey = `request_${deskId}_${categoryId}`;
+    const { hasDraft, lastSaved, restoreDraft, clearDraft } = useDraftSave(
+        draftKey,
+        wizard.formData,
+        wizard.setFormData,
+    );
 
     const handleSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
@@ -42,7 +52,8 @@ const CreateRequest = () => {
                 isConfidential: wizard.isAutoConfidential ? true : wizard.formData.isConfidential
             });
 
-            navigate(`/request/${request.id}`);
+            clearDraft(); // Clear draft on successful submit
+            navigate(`/request/${(request as any).referenceNumber || request.id}`);
             toast.success('Request Created', 'Your request has been submitted successfully.');
         } catch (err: any) {
             console.error('Error creating request:', err);
@@ -81,6 +92,23 @@ const CreateRequest = () => {
                     Tell us what you need help with and we'll get back to you as soon as possible.
                 </p>
             </div>
+
+            {/* Recently Used Services - quick access */}
+            {wizard.step === 'type' && (
+                <RecentServices deskSlug={deskType} className="mb-8" />
+            )}
+
+            {/* Draft save indicator */}
+            {hasDraft && (
+                <div className="mb-4">
+                    <DraftSaveChip
+                        hasDraft={hasDraft}
+                        lastSaved={lastSaved}
+                        onRestore={restoreDraft}
+                        onClear={clearDraft}
+                    />
+                </div>
+            )}
 
             <div>
                 {/* Main Form Area */}

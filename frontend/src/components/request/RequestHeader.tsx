@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import ActionBanner from '@/src/components/request-detail/ActionBanner';
+import SlaProgressBar from '@/src/components/request/SlaProgressBar';
 import { detectRequestRole } from '@/src/utils/roleDetection';
 
 interface Activity {
@@ -56,6 +57,9 @@ interface RequestHeaderProps {
     };
     childRequests?: RequestChild[];
     completedAt?: string;
+    slaDueAt?: string | null;
+    slaPausedAt?: string | null;
+    resolvedAt?: string | null;
   };
   activities: Activity[];
   user: { id: string; roles?: string[]; firstName: string; lastName: string } | null;
@@ -507,6 +511,13 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
           ))}
         </div>
       </div>
+
+      <SlaProgressBar
+        createdAt={request.createdAt}
+        slaDueAt={request.slaDueAt}
+        slaPausedAt={request.slaPausedAt}
+        resolvedAt={request.resolvedAt}
+      />
 
       <ActionBanner
         role={currentRole}

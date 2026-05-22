@@ -18,18 +18,30 @@ const CLOSED_STATUSES: RequestStatus[] = [
     RequestStatus.TICKET_CLOSED_FIN,
 ];
 
+/** Parse optional from/to query params into a Prisma date filter. */
+function dateFilter(req: AuthRequest): { createdAt?: { gte?: Date; lte?: Date } } {
+    const filter: { createdAt?: { gte?: Date; lte?: Date } } = {};
+    const from = req.query.from as string | undefined;
+    const to = req.query.to as string | undefined;
+    if (from) filter.createdAt = { ...filter.createdAt, gte: new Date(from) };
+    if (to) filter.createdAt = { ...filter.createdAt, lte: new Date(to) };
+    return Object.keys(filter).length ? filter : {};
+}
+
 class ReportsController {
-    getSummary = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+    getSummary = async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
+            const df = dateFilter(req);
             const [total, openRequests, resolvedRequests, unassignedRequests, avgResolution] = await Promise.all([
                 // Total tickets
-                prisma.request.count({ where: { deletedAt: null } }),
+                prisma.request.count({ where: { deletedAt: null, ...df } }),
 
                 // Open (not in RESOLVED/CLOSED/REJECTED/COMPLETED/PAYMENT_COMPLETED/REIMBURSEMENT_CLOSED)
                 prisma.request.count({
                     where: {
                         deletedAt: null,
                         status: { notIn: CLOSED_STATUSES },
+                        ...df,
                     },
                 }),
 
@@ -38,6 +50,7 @@ class ReportsController {
                     where: {
                         deletedAt: null,
                         status: { in: RESOLVED_STATUSES },
+                        ...df,
                     },
                 }),
 
@@ -47,6 +60,7 @@ class ReportsController {
                         deletedAt: null,
                         assignedToId: null,
                         status: { notIn: CLOSED_STATUSES },
+                        ...df,
                     },
                 }),
 
@@ -55,6 +69,7 @@ class ReportsController {
                     where: {
                         deletedAt: null,
                         resolvedAt: { not: null },
+                        ...df,
                     },
                     select: {
                         createdAt: true,
@@ -87,11 +102,12 @@ class ReportsController {
         }
     };
 
-    byStatus = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+    byStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
+            const df = dateFilter(req);
             const grouped = await prisma.request.groupBy({
                 by: ['status'],
-                where: { deletedAt: null },
+                where: { deletedAt: null, ...df },
                 _count: { id: true },
                 orderBy: { _count: { id: 'desc' } },
             });
@@ -107,11 +123,12 @@ class ReportsController {
         }
     };
 
-    byServiceDesk = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+    byServiceDesk = async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
+            const df = dateFilter(req);
             const grouped = await prisma.request.groupBy({
                 by: ['serviceDeskId'],
-                where: { deletedAt: null },
+                where: { deletedAt: null, ...df },
                 _count: { id: true },
                 orderBy: { _count: { id: 'desc' } },
             });
@@ -144,11 +161,12 @@ class ReportsController {
         }
     };
 
-    byPriority = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+    byPriority = async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
+            const df = dateFilter(req);
             const grouped = await prisma.request.groupBy({
                 by: ['priority'],
-                where: { deletedAt: null },
+                where: { deletedAt: null, ...df },
                 _count: { id: true },
                 orderBy: { _count: { id: 'desc' } },
             });
@@ -164,14 +182,16 @@ class ReportsController {
         }
     };
 
-    agentWorkload = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+    agentWorkload = async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
+            const df = dateFilter(req);
             const grouped = await prisma.request.groupBy({
                 by: ['assignedToId'],
                 where: {
                     deletedAt: null,
                     assignedToId: { not: null },
                     status: { notIn: CLOSED_STATUSES },
+                    ...df,
                 },
                 _count: { id: true },
                 orderBy: { _count: { id: 'desc' } },
@@ -205,12 +225,14 @@ class ReportsController {
         }
     };
 
-    slaStatus = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+    slaStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
         try {
+            const df = dateFilter(req);
             const now = new Date();
             const openFilter = {
                 deletedAt: null,
                 status: { notIn: CLOSED_STATUSES },
+                ...df,
             };
 
             const [withinSla, breached, noSla] = await Promise.all([

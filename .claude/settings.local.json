@@ -60,7 +60,8 @@
       "Skill(superpowers:using-git-worktrees)",
       "Bash(npm test *)",
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
-      "Bash(echo \"EXIT $?\")"
+      "Bash(echo \"EXIT $?\")",
+      "Bash(grep -E \"navigate\\\\\\(/request/|navigate\\\\\\(\\\\`/request/\")"
     ]
   }
 }

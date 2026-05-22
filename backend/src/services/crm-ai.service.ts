@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { config } from '../config';
 import prisma from '../utils/prisma';
+import { AppError } from '../middleware/error.middleware';
 
 // Lazy-initialize the OpenAI client so the server starts even without
 // OPENAI_API_KEY set. The error surfaces only when an AI endpoint is called.
@@ -8,7 +9,7 @@ let _openai: OpenAI | null = null;
 const getOpenAI = (): OpenAI => {
   if (!_openai) {
     if (!config.openai.apiKey) {
-      throw new Error('OPENAI_API_KEY is not set. Add it to backend/.env to enable AI features.');
+      throw new AppError('AI service is temporarily unavailable. Please try again later.', 503);
     }
     _openai = new OpenAI({ apiKey: config.openai.apiKey });
   }
