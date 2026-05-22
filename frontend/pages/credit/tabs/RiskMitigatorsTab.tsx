@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CreditApplication,
   RiskAssessment,
@@ -8,8 +8,13 @@ import {
   rmdIssueApi,
 } from '../../../src/services/credit.service';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import useAutosave from '../../../src/hooks/useAutosave';
 
-type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
+type Props = {
+  application: CreditApplication;
+  onUpdated: (next: CreditApplication) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+};
 
 const RISK_CATEGORIES: { key: RiskCategory; label: string }[] = [
   { key: 'PROJECT',     label: 'Project Risk' },
@@ -25,29 +30,47 @@ const defaultMap = (): RiskMap => Object.fromEntries(RISK_CATEGORIES.map(c => [c
 
 // ─── Risk Register Section ────────────────────────────────────────────────────
 
-const RiskRegisterSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
+type AutosaveLike = {
+  save: () => Promise<unknown>;
+  saving: boolean;
+  savedAt: Date | null;
+  dirty: boolean;
+  error: string | null;
+  markDirty: () => void;
+  clearDirty: () => void;
+  clearError: () => void;
+};
+
+type RiskRegisterRefs = {
+  rowsRef: React.MutableRefObject<RiskMap>;
+  dirtyCategoriesRef: React.MutableRefObject<Set<RiskCategory>>;
+};
+
+const RiskRegisterSection: React.FC<{
+  appId: string;
+  readOnly: boolean;
+  autosave: AutosaveLike;
+  refs: RiskRegisterRefs;
+}> = ({ appId, readOnly, autosave, refs }) => {
+  const { rowsRef, dirtyCategoriesRef } = refs;
+
   const [rows, setRows] = useState<RiskMap>(defaultMap());
-  const [saving, setSaving] = useState<RiskCategory | null>(null);
 
   useEffect(() => {
     riskAssessmentApi.list(appId).then(items => {
-      setRows(prev => {
-        const next = { ...prev };
-        items.forEach(item => { next[item.riskCategory] = item; });
-        return next;
-      });
+      const next = defaultMap();
+      items.forEach(item => { next[item.riskCategory] = item; });
+      rowsRef.current = next;
+      setRows(next);
     }).catch(() => {});
-  }, [appId]);
+  }, [appId, rowsRef]);
 
   const update = (cat: RiskCategory, key: keyof RiskAssessment, value: string) => {
-    setRows(r => ({ ...r, [cat]: { ...r[cat], [key]: value } }));
-  };
-
-  const flush = async (cat: RiskCategory) => {
-    setSaving(cat);
-    try {
-      await riskAssessmentApi.bulkUpsert(appId, [{ riskCategory: cat, description: rows[cat].description ?? null, mitigation: rows[cat].mitigation ?? null }]);
-    } finally { setSaving(null); }
+    const next = { ...rows, [cat]: { ...rows[cat], [key]: value } };
+    setRows(next);
+    rowsRef.current = next;
+    dirtyCategoriesRef.current.add(cat);
+    autosave.markDirty();
   };
 
   return (
@@ -58,20 +81,20 @@ const RiskRegisterSection: React.FC<{ appId: string; readOnly: boolean }> = ({ a
           <div key={key} className="border rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold">{label}</span>
-              {saving === key && <span className="text-xs text-gray-400">Saving…</span>}
+              {autosave.saving && dirtyCategoriesRef.current.has(key) && <span className="text-xs text-gray-400">Saving…</span>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Risk Description</label>
                 {readOnly
                   ? <p className="text-sm whitespace-pre-wrap">{rows[key].description || '—'}</p>
-                  : <textarea className="w-full border rounded px-2 py-1 text-sm resize-none h-24" value={rows[key].description ?? ''} onChange={e => update(key, 'description', e.target.value)} onBlur={() => flush(key)} placeholder="Describe the risk…" />}
+                  : <textarea className="w-full border rounded px-2 py-1 text-sm resize-none h-24" value={rows[key].description ?? ''} onChange={e => update(key, 'description', e.target.value)} onBlur={() => autosave.save()} placeholder="Describe the risk…" />}
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Mitigation</label>
                 {readOnly
                   ? <p className="text-sm whitespace-pre-wrap">{rows[key].mitigation || '—'}</p>
-                  : <textarea className="w-full border rounded px-2 py-1 text-sm resize-none h-24" value={rows[key].mitigation ?? ''} onChange={e => update(key, 'mitigation', e.target.value)} onBlur={() => flush(key)} placeholder="Describe the mitigation…" />}
+                  : <textarea className="w-full border rounded px-2 py-1 text-sm resize-none h-24" value={rows[key].mitigation ?? ''} onChange={e => update(key, 'mitigation', e.target.value)} onBlur={() => autosave.save()} placeholder="Describe the mitigation…" />}
               </div>
             </div>
           </div>
@@ -83,7 +106,12 @@ const RiskRegisterSection: React.FC<{ appId: string; readOnly: boolean }> = ({ a
 
 // ─── RMD Issues Section ───────────────────────────────────────────────────────
 
-const RmdIssuesSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
+const RmdIssuesSection: React.FC<{
+  appId: string;
+  readOnly: boolean;
+  onCrudAction?: () => void;
+  autosave: ReturnType<typeof useAutosave>;
+}> = ({ appId, readOnly, onCrudAction, autosave }) => {
   const [issues, setIssues] = useState<RmdIssue[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -93,12 +121,14 @@ const RmdIssuesSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appI
 
   const update = (id: string, key: keyof RmdIssue, value: string) => {
     setIssues(is => is.map(i => i.id === id ? { ...i, [key]: value } : i));
+    autosave.markDirty();
   };
 
   const flush = async (issue: RmdIssue) => {
     setSaving(true);
     try {
       await rmdIssueApi.update(appId, issue.id, { issueDescription: issue.issueDescription, businessUnitResponse: issue.businessUnitResponse });
+      autosave.clearDirty();
     } finally { setSaving(false); }
   };
 
@@ -107,12 +137,14 @@ const RmdIssuesSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appI
     try {
       const created = await rmdIssueApi.create(appId, { issueDescription: 'New issue', sortOrder: issues.length + 1 });
       setIssues(is => [...is, created]);
+      onCrudAction?.();
     } finally { setSaving(false); }
   };
 
   const removeIssue = async (id: string) => {
     await rmdIssueApi.remove(appId, id);
     setIssues(is => is.filter(i => i.id !== id));
+    onCrudAction?.();
   };
 
   return (
@@ -155,15 +187,48 @@ const RmdIssuesSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appI
 
 // ─── Main Tab ─────────────────────────────────────────────────────────────────
 
-const RiskMitigatorsTab: React.FC<Props> = ({ application }) => {
+const RiskMitigatorsTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange }) => {
   const readOnly = application.state !== 'DRAFT';
+  const appId = application.id;
+
+  // Shared refs for RiskRegister autosave
+  const rowsRef = useRef<RiskMap>(defaultMap());
+  const dirtyCategoriesRef = useRef<Set<RiskCategory>>(new Set());
+
+  // ── Autosave (for RiskRegister inline edits) ──────────────────────────────
+  const autosave = useAutosave<void>({
+    saveFn: async () => {
+      if (readOnly || dirtyCategoriesRef.current.size === 0) return;
+      for (const cat of dirtyCategoriesRef.current) {
+        const row = rowsRef.current[cat];
+        await riskAssessmentApi.bulkUpsert(appId, [{
+          riskCategory: cat,
+          description: row.description ?? null,
+          mitigation: row.mitigation ?? null,
+        }]);
+      }
+      dirtyCategoriesRef.current.clear();
+    },
+    readOnly,
+    debounceMs: 1500,
+  });
+
+  // Notify parent of dirty state changes (for useDirtyFormGuard)
+  useEffect(() => {
+    onDirtyChange?.(autosave.dirty);
+  }, [autosave.dirty, onDirtyChange]);
+
+  const handleCrudAction = () => {
+    autosave.markDirty();
+  };
+
   return (
     <div className="space-y-6">
-      <CaMemoSection title="Risk Register" phase="Phase 5" readOnly={readOnly}>
-        <RiskRegisterSection appId={application.id} readOnly={readOnly} />
+      <CaMemoSection title="Risk Register" phase="Phase 5" readOnly={readOnly} saving={autosave.saving} savedAt={autosave.savedAt} error={autosave.error}>
+        <RiskRegisterSection appId={appId} readOnly={readOnly} autosave={autosave} refs={{ rowsRef, dirtyCategoriesRef }} />
       </CaMemoSection>
-      <CaMemoSection title="RMD Issues" phase="Phase 5" readOnly={readOnly}>
-        <RmdIssuesSection appId={application.id} readOnly={readOnly} />
+      <CaMemoSection title="RMD Issues" phase="Phase 5" readOnly={readOnly} saving={autosave.saving} savedAt={autosave.savedAt} error={autosave.error}>
+        <RmdIssuesSection appId={appId} readOnly={readOnly} onCrudAction={handleCrudAction} autosave={autosave} />
       </CaMemoSection>
     </div>
   );

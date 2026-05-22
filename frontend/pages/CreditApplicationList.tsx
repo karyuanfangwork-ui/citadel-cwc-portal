@@ -362,8 +362,8 @@ const CreditApplicationList: React.FC = () => {
             <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0">
                 <h2 className="text-lg font-extrabold text-text-primary">New Credit Application</h2>
-                <button onClick={() => setShowCreate(false)} className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
-                  <span className="material-symbols-outlined">close</span>
+                <button onClick={() => setShowCreate(false)} aria-label="Close dialog" className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                  <span className="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
               </div>
               <form onSubmit={handleCreate} className="flex flex-col flex-1 min-h-0">

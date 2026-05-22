@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import creditService, {
-  financialApi, FinancialStatement, FinancialLineItem, FinancialStatus,
-  FinancialStatementType, FinancialPeriod, CurrencyCode,
+  financialApi, trendApi, FinancialStatement, FinancialLineItem, FinancialStatus,
+  FinancialStatementType, FinancialPeriod, CurrencyCode, FinancialRatio, TrendItem,
 } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { useToast } from '../src/context/ToastContext';
+import { FinancialRatioRadar, BalanceSheetComposition, RatioSparklines } from '../src/components/credit/FinancialCharts';
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
@@ -155,6 +156,8 @@ const FinancialSpreading: React.FC = () => {
   const [activeTab, setActiveTab] = useState<StatementTab>('BS');
   const [validation, setValidation] = useState<{ valid: boolean; difference: number; totalAssets: number; totalLiabilitiesEquity: number } | null>(null);
   const [validating, setValidating] = useState(false);
+  const [ratios, setRatios] = useState<FinancialRatio[]>([]);
+  const [trends, setTrends] = useState<TrendItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
@@ -196,7 +199,15 @@ const FinancialSpreading: React.FC = () => {
     } catch (e) { console.error(e); }
   }, [borrowerProfileId]);
 
-  useEffect(() => { fetchStatements(); fetchBorrowerName(); }, [fetchStatements, fetchBorrowerName]);
+  const fetchTrends = useCallback(async () => {
+    if (!borrowerProfileId) return;
+    try {
+      const analysis = await trendApi.getTrends(borrowerProfileId);
+      setTrends(analysis.trends || []);
+    } catch (e) { console.error(e); }
+  }, [borrowerProfileId]);
+
+  useEffect(() => { fetchStatements(); fetchBorrowerName(); fetchTrends(); }, [fetchStatements, fetchBorrowerName, fetchTrends]);
 
   const fetchStatement = useCallback(async () => {
     if (!selectedId) return;
@@ -207,6 +218,12 @@ const FinancialSpreading: React.FC = () => {
       setLineItems(items);
       setValidation(null);
       setComputedRatios(false);
+      // Load ratios if they exist
+      try {
+        const r = await financialApi.listRatios(selectedId);
+        setRatios(r);
+        if (r.length > 0) setComputedRatios(true);
+      } catch { setRatios([]); }
     } catch (e) { console.error(e); }
   }, [selectedId]);
 
@@ -303,8 +320,11 @@ const FinancialSpreading: React.FC = () => {
     if (!selectedId) return;
     try {
       setSubmitting(true);
-      await financialApi.computeRatios(selectedId);
+      const result = await financialApi.computeRatios(selectedId);
+      setRatios(result);
       setComputedRatios(true);
+      // Refresh trends after ratio computation
+      fetchTrends();
       toast.success('Ratios Computed', 'Financial ratios have been calculated.');
     } catch (e) {
       console.error(e);
@@ -579,6 +599,27 @@ const FinancialSpreading: React.FC = () => {
                     setStatements(ss => ss.map(s => s.id === updated.id ? { ...s, ...updated } : s));
                   }}
                 />
+
+                {/* Financial Ratio Radar — shown when ratios exist */}
+                {ratios.length > 0 && (
+                  <div className="mb-4">
+                    <FinancialRatioRadar ratios={ratios} />
+                  </div>
+                )}
+
+                {/* Ratio Trend Sparklines — requires trend data from multiple statements */}
+                {trends.length > 0 && (
+                  <div className="mb-4">
+                    <RatioSparklines trends={trends} />
+                  </div>
+                )}
+
+                {/* Balance Sheet Composition — shown for BS statements */}
+                {selectedStatement.statementType === 'BS' && lineItems.length > 0 && (
+                  <div className="mb-4">
+                    <BalanceSheetComposition lineItems={lineItems} validation={validation} />
+                  </div>
+                )}
 
                 {/* Line Items Table */}
                 <div className="bg-bg-surface border border-border rounded-xl overflow-hidden">

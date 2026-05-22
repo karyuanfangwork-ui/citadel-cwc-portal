@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import creditService, {
   CreditApplication,
   CreditScoreRun,
@@ -14,7 +14,8 @@ import { hasPermission } from '../../../src/utils/permissions';
 import { useToast } from '../../../src/context/ToastContext';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import { RiskRatingKpiCards, RatingScaleBar } from '../../../src/components/credit/FinancialCharts';
+import { RiskRatingKpiCards, RatingScaleBar, EclForecastBar, EclStageDonut, EclSnapshotWaterfall } from '../../../src/components/credit/FinancialCharts';
+import useAutosave from '../../../src/hooks/useAutosave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -50,11 +51,16 @@ const pct = (v: number | string | null | undefined) =>
 const fmt = (v: number | string | null | undefined) =>
   v != null && v !== '' ? Number(v).toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 
-type Props = { application: CreditApplication };
+type Props = { application: CreditApplication; onDirtyChange?: (dirty: boolean) => void };
 
 // ─── External Ratings section ─────────────────────────────────────────────────
 
-const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean; onDataChange?: (ratings: ExternalRating[]) => void }> = ({ appId, readOnly, onDataChange }) => {
+const ExternalRatingsSection: React.FC<{
+  appId: string;
+  readOnly: boolean;
+  onDataChange?: (ratings: ExternalRating[]) => void;
+  onCrudAction?: () => void;
+}> = ({ appId, readOnly, onDataChange, onCrudAction }) => {
   const [ratings, setRatings] = useState<ExternalRating[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -78,6 +84,7 @@ const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean; onDat
       setRatings(rs => { const next = [...rs, r]; onDataChange?.(next); return next; });
       setAdding(false);
       setForm({ agency: 'RAM', subjectType: 'CUSTOMER', rating: '' });
+      onCrudAction?.();
     } finally { setSaving(false); }
   };
 
@@ -85,12 +92,14 @@ const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean; onDat
     const r = await creditService.updateExternalRating(appId, id, editForm);
     setRatings(rs => { const next = rs.map(x => x.id === id ? { ...x, ...r } : x); onDataChange?.(next); return next; });
     setEditingId(null);
+    onCrudAction?.();
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this rating?')) return;
     await creditService.deleteExternalRating(appId, id);
     setRatings(rs => { const next = rs.filter(x => x.id !== id); onDataChange?.(next); return next; });
+    onCrudAction?.();
   };
 
   if (loading) return <div className="text-xs text-gray-400">Loading…</div>;
@@ -171,7 +180,12 @@ const ExternalRatingsSection: React.FC<{ appId: string; readOnly: boolean; onDat
 
 // ─── ECL Snapshots section ────────────────────────────────────────────────────
 
-const EclSnapshotsSection: React.FC<{ appId: string; readOnly: boolean; onDataChange?: (snapshots: EclSnapshot[]) => void }> = ({ appId, readOnly, onDataChange }) => {
+const EclSnapshotsSection: React.FC<{
+  appId: string;
+  readOnly: boolean;
+  onDataChange?: (snapshots: EclSnapshot[]) => void;
+  onCrudAction?: () => void;
+}> = ({ appId, readOnly, onDataChange, onCrudAction }) => {
   const [snapshots, setSnapshots] = useState<EclSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -193,6 +207,7 @@ const EclSnapshotsSection: React.FC<{ appId: string; readOnly: boolean; onDataCh
       setSnapshots(ss => { const next = [...ss, s]; onDataChange?.(next); return next; });
       setAdding(false);
       setForm({ subjectType: 'CUSTOMER', snapshotDate: new Date().toISOString().slice(0, 10) });
+      onCrudAction?.();
     } finally { setSaving(false); }
   };
 
@@ -200,6 +215,7 @@ const EclSnapshotsSection: React.FC<{ appId: string; readOnly: boolean; onDataCh
     if (!confirm('Delete this ECL snapshot?')) return;
     await creditService.deleteEclSnapshot(appId, id);
     setSnapshots(ss => { const next = ss.filter(x => x.id !== id); onDataChange?.(next); return next; });
+    onCrudAction?.();
   };
 
   if (loading) return <div className="text-xs text-gray-400">Loading…</div>;
@@ -268,37 +284,58 @@ const EclSnapshotsSection: React.FC<{ appId: string; readOnly: boolean; onDataCh
 };
 
 // ─── ECL Forecasts section ────────────────────────────────────────────────────
+// Uses shared refs from parent so the parent's useAutosave saveFn can access
+// the dirty years and local forecast data.
 
-const EclForecastsSection: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
-  const [forecasts, setForecasts] = useState<EclForecast[]>([]);
+type EclForecastsRefs = {
+  forecastsRef: React.MutableRefObject<EclForecast[]>;
+  localRef: React.MutableRefObject<Record<number, Partial<EclForecast>>>;
+  dirtyYearsRef: React.MutableRefObject<Set<number>>;
+};
+
+type AutosaveLike = {
+  save: () => Promise<unknown>;
+  saving: boolean;
+  savedAt: Date | null;
+  dirty: boolean;
+  error: string | null;
+  markDirty: () => void;
+  clearDirty: () => void;
+  clearError: () => void;
+};
+
+const EclForecastsSection: React.FC<{
+  appId: string;
+  readOnly: boolean;
+  autosave: AutosaveLike;
+  refs: EclForecastsRefs;
+  onDataChange?: (forecasts: EclForecast[]) => void;
+}> = ({ appId, readOnly, autosave, refs, onDataChange }) => {
+  const { forecastsRef, localRef, dirtyYearsRef } = refs;
+
+  // React state mirrors the ref for rendering
   const [local, setLocal] = useState<Record<number, Partial<EclForecast>>>({});
-  const [saving, setSaving] = useState<number | null>(null);
 
   useEffect(() => {
     creditService.listEclForecasts(appId).then(fs => {
-      setForecasts(fs);
+      forecastsRef.current = fs;
+      onDataChange?.(fs);
       const init: Record<number, Partial<EclForecast>> = {};
       [1, 2, 3].forEach(y => {
         const existing = fs.find(f => f.forecastYear === y);
         init[y] = existing ?? { forecastYear: y };
       });
+      localRef.current = init;
       setLocal(init);
     });
-  }, [appId]);
-
-  const flush = async (year: number) => {
-    setSaving(year);
-    try {
-      const saved = await creditService.upsertEclForecast(appId, year, local[year] ?? {});
-      setForecasts(fs => {
-        const idx = fs.findIndex(f => f.forecastYear === year);
-        return idx >= 0 ? fs.map(f => f.forecastYear === year ? saved : f) : [...fs, saved];
-      });
-    } finally { setSaving(null); }
-  };
+  }, [appId, forecastsRef, localRef]);
 
   const update = (year: number, patch: Partial<EclForecast>) => {
-    setLocal(l => ({ ...l, [year]: { ...(l[year] ?? {}), ...patch } }));
+    const next = { ...local, [year]: { ...(local[year] ?? {}), ...patch } };
+    setLocal(next);
+    localRef.current = next;
+    dirtyYearsRef.current.add(year);
+    autosave.markDirty();
   };
 
   return (
@@ -326,29 +363,29 @@ const EclForecastsSection: React.FC<{ appId: string; readOnly: boolean }> = ({ a
                   <td className="p-2">
                     {readOnly
                       ? <span className="text-sm">{row.mfrsStage ? MFRS_LABELS[row.mfrsStage] : '—'}</span>
-                      : <select className="border rounded px-1 py-0.5 text-sm" value={row.mfrsStage ?? ''} onChange={e => update(year, { mfrsStage: (e.target.value || undefined) as MfrsStage | undefined })} onBlur={() => flush(year)}><option value="">—</option>{MFRS_STAGES.map(s => <option key={s} value={s}>{MFRS_LABELS[s]}</option>)}</select>}
+                      : <select className="border rounded px-1 py-0.5 text-sm" value={row.mfrsStage ?? ''} onChange={e => update(year, { mfrsStage: (e.target.value || undefined) as MfrsStage | undefined })} onBlur={() => autosave.save()}><option value="">—</option>{MFRS_STAGES.map(s => <option key={s} value={s}>{MFRS_LABELS[s]}</option>)}</select>}
                   </td>
                   <td className="p-2 text-right">
                     {readOnly
                       ? <span>{fmt(row.eclAmount)}</span>
-                      : <input type="number" className="border rounded px-2 py-0.5 text-sm w-32 text-right" value={row.eclAmount ?? ''} onChange={e => update(year, { eclAmount: e.target.value })} onBlur={() => flush(year)} placeholder="0.00" />}
+                      : <input type="number" className="border rounded px-2 py-0.5 text-sm w-32 text-right" value={row.eclAmount ?? ''} onChange={e => update(year, { eclAmount: e.target.value })} onBlur={() => autosave.save()} placeholder="0.00" />}
                   </td>
                   <td className="p-2 text-right">
                     {readOnly
                       ? <span>{row.pdPct ?? '—'}</span>
-                      : <input type="number" step="0.0001" className="border rounded px-2 py-0.5 text-sm w-24 text-right" value={row.pdPct ?? ''} onChange={e => update(year, { pdPct: e.target.value })} onBlur={() => flush(year)} placeholder="0.0500" />}
+                      : <input type="number" step="0.0001" className="border rounded px-2 py-0.5 text-sm w-24 text-right" value={row.pdPct ?? ''} onChange={e => update(year, { pdPct: e.target.value })} onBlur={() => autosave.save()} placeholder="0.0500" />}
                   </td>
                   <td className="p-2 text-right">
                     {readOnly
                       ? <span>{row.lgdPct ?? '—'}</span>
-                      : <input type="number" step="0.0001" className="border rounded px-2 py-0.5 text-sm w-24 text-right" value={row.lgdPct ?? ''} onChange={e => update(year, { lgdPct: e.target.value })} onBlur={() => flush(year)} placeholder="0.4000" />}
+                      : <input type="number" step="0.0001" className="border rounded px-2 py-0.5 text-sm w-24 text-right" value={row.lgdPct ?? ''} onChange={e => update(year, { lgdPct: e.target.value })} onBlur={() => autosave.save()} placeholder="0.4000" />}
                   </td>
                   <td className="p-2">
                     {readOnly
                       ? <span className="text-sm">{row.assumptions ?? '—'}</span>
-                      : <input className="border rounded px-2 py-0.5 text-sm w-48" value={row.assumptions ?? ''} onChange={e => update(year, { assumptions: e.target.value })} onBlur={() => flush(year)} />}
+                      : <input className="border rounded px-2 py-0.5 text-sm w-48" value={row.assumptions ?? ''} onChange={e => update(year, { assumptions: e.target.value })} onBlur={() => autosave.save()} />}
                   </td>
-                  {!readOnly && <td className="p-2 text-xs text-gray-400">{saving === year ? 'Saving…' : ''}</td>}
+                  {!readOnly && <td className="p-2 text-xs text-gray-400">{autosave.saving ? 'Saving…' : ''}</td>}
                 </tr>
               );
             })}
@@ -361,7 +398,7 @@ const EclForecastsSection: React.FC<{ appId: string; readOnly: boolean }> = ({ a
 
 // ─── Main tab ─────────────────────────────────────────────────────────────────
 
-const RiskRatingEclTab: React.FC<Props> = ({ application }) => {
+const RiskRatingEclTab: React.FC<Props> = ({ application, onDirtyChange }) => {
   const readOnly = application.state !== 'DRAFT';
   const appId = application.id;
   const { user } = useAuth();
@@ -372,12 +409,50 @@ const RiskRatingEclTab: React.FC<Props> = ({ application }) => {
   const [overrideTarget, setOverrideTarget] = useState<CreditScoreRun | null>(null);
   const [overriding, setOverriding] = useState(false);
   const [overrideForm, setOverrideForm] = useState<{ rating: RiskRating; reason: string }>({ rating: 'BBB', reason: '' });
-  const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
 
   // Lifted state for KPI cards + rating scale visualization
   const [externalRatings, setExternalRatings] = useState<ExternalRating[]>([]);
   const [eclSnapshots, setEclSnapshots] = useState<EclSnapshot[]>([]);
+  const [eclForecasts, setEclForecasts] = useState<EclForecast[]>([]);
+
+  // Shared refs for EclForecasts autosave
+  const forecastsRef = useRef<EclForecast[]>([]);
+  const localRef = useRef<Record<number, Partial<EclForecast>>>({});
+  const dirtyYearsRef = useRef<Set<number>>(new Set());
+
+  // ── Autosave (for EclForecasts inline edits) ─────────────────────────────
+  const autosave = useAutosave<EclForecast[]>({
+    saveFn: async () => {
+      if (readOnly || dirtyYearsRef.current.size === 0) return forecastsRef.current;
+      const results: EclForecast[] = [];
+      for (const year of dirtyYearsRef.current) {
+        const row = localRef.current[year] ?? {};
+        const saved = await creditService.upsertEclForecast(appId, year, row);
+        results.push(saved);
+      }
+      dirtyYearsRef.current.clear();
+      // Merge results into forecastsRef
+      const updated = [...forecastsRef.current];
+      for (const r of results) {
+        const idx = updated.findIndex(f => f.forecastYear === r.forecastYear);
+        if (idx >= 0) updated[idx] = r;
+        else updated.push(r);
+      }
+      forecastsRef.current = updated;
+      // Sync localRef with saved data so future edits use server state
+      for (const r of results) {
+        localRef.current[r.forecastYear] = r;
+      }
+      return updated;
+    },
+    readOnly,
+    debounceMs: 1500,
+  });
+
+  // Notify parent of dirty state changes (for useDirtyFormGuard)
+  useEffect(() => {
+    onDirtyChange?.(autosave.dirty);
+  }, [autosave.dirty, onDirtyChange]);
 
   useEffect(() => {
     creditService.listScoreRuns(application.id).then(setScoreRuns).catch(() => {});
@@ -410,130 +485,146 @@ const RiskRatingEclTab: React.FC<Props> = ({ application }) => {
     finally { setOverriding(false); }
   };
 
+  const handleCrudAction = () => {
+    autosave.markDirty();
+  };
+
   return (
     <CaMemoSection
       title="Risk Rating & ECL — Section 7"
       phase="Phase 3"
       readOnly={readOnly}
-      saving={saving}
-      savedAt={savedAt}
+      saving={autosave.saving}
+      savedAt={autosave.savedAt}
+      error={autosave.error}
     >
       <div className="space-y-8">
-      {/* Risk Overview KPI Cards + Rating Scale */}
-      <RiskRatingKpiCards
-        ratings={externalRatings}
-        snapshots={eclSnapshots}
-        internalScore={scoreRuns.length > 0 ? scoreRuns[0].totalScore : null}
-        internalRating={scoreRuns.length > 0 ? scoreRuns[0].riskRating : null}
-      />
-      <RatingScaleBar
-        currentRating={scoreRuns.length > 0 ? scoreRuns[0].riskRating : null}
-        ratings={externalRatings}
-      />
+        {/* Risk Overview KPI Cards + Rating Scale */}
+        <RiskRatingKpiCards
+          ratings={externalRatings}
+          snapshots={eclSnapshots}
+          internalScore={scoreRuns.length > 0 ? scoreRuns[0].totalScore : null}
+          internalRating={scoreRuns.length > 0 ? scoreRuns[0].riskRating : null}
+        />
+        <RatingScaleBar
+          currentRating={scoreRuns.length > 0 ? scoreRuns[0].riskRating : null}
+          ratings={externalRatings}
+        />
 
-      <ExternalRatingsSection appId={appId} readOnly={readOnly} onDataChange={setExternalRatings} />
-      <EclSnapshotsSection appId={appId} readOnly={readOnly} onDataChange={setEclSnapshots} />
-      <EclForecastsSection appId={appId} readOnly={readOnly} />
+        <ExternalRatingsSection appId={appId} readOnly={readOnly} onDataChange={setExternalRatings} onCrudAction={handleCrudAction} />
+        <EclSnapshotsSection appId={appId} readOnly={readOnly} onDataChange={setEclSnapshots} onCrudAction={handleCrudAction} />
+        <EclForecastsSection
+          appId={appId}
+          readOnly={readOnly}
+          autosave={autosave}
+          refs={{ forecastsRef, localRef, dirtyYearsRef }}
+          onDataChange={setEclForecasts}
+        />
 
-      {/* Score Override Section */}
-      {canApprove && (
-        <section className="mt-6 pt-6 border-t border-border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Credit Scoring</h3>
-            <button
-              onClick={handleRunScore}
-              disabled={runningScore}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50"
-              style={{ cursor: runningScore ? 'wait' : 'pointer', border: '1px solid var(--indigo-200, #c7d2fe)', fontFamily: 'var(--font-sans)' }}
-            >
-              <span className="material-symbols-outlined text-base">play_arrow</span>
-              {runningScore ? 'Running...' : 'Run Score'}
-            </button>
-          </div>
-          {scoreRuns.length === 0 && !runningScore && (
-            <div className="text-center py-6 text-text-secondary bg-bg-surface border border-dashed border-border rounded-xl">
-              <span className="material-symbols-outlined text-3xl block opacity-20 mb-1">analytics</span>
-              <p className="text-sm">No score runs yet. Click "Run Score" to generate a credit score.</p>
-            </div>
-          )}
-          {scoreRuns.length > 0 && (
-            <div className="border border-border rounded-xl overflow-hidden">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
-                  <tr>
-                    {['#', 'Score', 'Rating', 'Date', 'Override', 'Actions'].map(h => (
-                      <th key={h} className="p-2 text-left">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {scoreRuns.map((sr, idx) => (
-                    <tr key={sr.id} className={`border-t ${sr.overriddenBy ? 'bg-amber-50' : ''}`}>
-                      <td className="p-2 text-gray-500">{idx + 1}</td>
-                      <td className="p-2 font-semibold">{sr.totalScore ?? '—'}</td>
-                      <td className="p-2">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getRatingColor(sr.riskRating)}`}>
-                          {sr.riskRating}
-                        </span>
-                      </td>
-                      <td className="p-2 text-gray-500">{new Date(sr.executedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
-                      <td className="p-2">
-                        {sr.overriddenBy ? (
-                          <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                            Override by {sr.overrider ? `${sr.overrider.firstName} ${sr.overrider.lastName}` : 'N/A'}
-                          </span>
-                        ) : <span className="text-xs text-gray-400">Original</span>}
-                      </td>
-                      <td className="p-2">
-                        {canApprove && !sr.overriddenBy && (
-                          <button onClick={() => setOverrideTarget(sr)} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                            Override
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
+        {/* ECL Visualization Charts */}
+        <EclForecastBar forecasts={eclForecasts} />
+        <EclStageDonut snapshots={eclSnapshots} />
+        <EclSnapshotWaterfall snapshots={eclSnapshots} forecasts={eclForecasts} />
 
-      {/* Override Dialog */}
-      {overrideTarget && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setOverrideTarget(null)}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-4">Override Risk Rating</h2>
-            <p className="text-sm text-text-secondary mb-4">
-              Current rating: <span className={`font-bold ${getRatingTextColor(overrideTarget.riskRating)}`}>{overrideTarget.riskRating}</span> (Score: {overrideTarget.totalScore ?? '—'})
-            </p>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">New Rating *</label>
-                <select value={overrideForm.rating} onChange={e => setOverrideForm(f => ({ ...f, rating: e.target.value as RiskRating }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)' }}>
-                  {RISK_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">Reason * <span className="text-xs text-text-tertiary">(required)</span></label>
-                <textarea rows={3} value={overrideForm.reason} onChange={e => setOverrideForm(f => ({ ...f, reason: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}
-                  placeholder="Justification for overriding the risk rating..." />
-              </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setOverrideTarget(null)} className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-gray-50 transition-colors" style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-              <button onClick={handleOverride} disabled={!overrideForm.rating || !overrideForm.reason.trim() || overriding}
-                className="px-4 py-2 text-sm font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                {overriding ? 'Overriding...' : 'Override Rating'}
+        {/* Score Override Section */}
+        {canApprove && (
+          <section className="mt-6 pt-6 border-t border-border">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Credit Scoring</h3>
+              <button
+                onClick={handleRunScore}
+                disabled={runningScore}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-50"
+                style={{ cursor: runningScore ? 'wait' : 'pointer', border: '1px solid var(--indigo-200, #c7d2fe)', fontFamily: 'var(--font-sans)' }}
+              >
+                <span className="material-symbols-outlined text-base">play_arrow</span>
+                {runningScore ? 'Running...' : 'Run Score'}
               </button>
             </div>
+            {scoreRuns.length === 0 && !runningScore && (
+              <div className="text-center py-6 text-text-secondary bg-bg-surface border border-dashed border-border rounded-xl">
+                <span className="material-symbols-outlined text-3xl block opacity-20 mb-1">analytics</span>
+                <p className="text-sm">No score runs yet. Click "Run Score" to generate a credit score.</p>
+              </div>
+            )}
+            {scoreRuns.length > 0 && (
+              <div className="border border-border rounded-xl overflow-hidden">
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                    <tr>
+                      {['#', 'Score', 'Rating', 'Date', 'Override', 'Actions'].map(h => (
+                        <th key={h} className="p-2 text-left">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scoreRuns.map((sr, idx) => (
+                      <tr key={sr.id} className={`border-t ${sr.overriddenBy ? 'bg-amber-50' : ''}`}>
+                        <td className="p-2 text-gray-500">{idx + 1}</td>
+                        <td className="p-2 font-semibold">{sr.totalScore ?? '—'}</td>
+                        <td className="p-2">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${getRatingColor(sr.riskRating)}`}>
+                            {sr.riskRating}
+                          </span>
+                        </td>
+                        <td className="p-2 text-gray-500">{new Date(sr.executedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                        <td className="p-2">
+                          {sr.overriddenBy ? (
+                            <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                              Override by {sr.overrider ? `${sr.overrider.firstName} ${sr.overrider.lastName}` : 'N/A'}
+                            </span>
+                          ) : <span className="text-xs text-gray-400">Original</span>}
+                        </td>
+                        <td className="p-2">
+                          {canApprove && !sr.overriddenBy && (
+                            <button onClick={() => setOverrideTarget(sr)} className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                              Override
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* Override Dialog */}
+        {overrideTarget && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setOverrideTarget(null)}>
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+            <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+              <h2 className="text-lg font-black text-text-primary mb-4">Override Risk Rating</h2>
+              <p className="text-sm text-text-secondary mb-4">
+                Current rating: <span className={`font-bold ${getRatingTextColor(overrideTarget.riskRating)}`}>{overrideTarget.riskRating}</span> (Score: {overrideTarget.totalScore ?? '—'})
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">New Rating *</label>
+                  <select value={overrideForm.rating} onChange={e => setOverrideForm(f => ({ ...f, rating: e.target.value as RiskRating }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)' }}>
+                    {RISK_RATINGS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Reason * <span className="text-xs text-text-tertiary">(required)</span></label>
+                  <textarea rows={3} value={overrideForm.reason} onChange={e => setOverrideForm(f => ({ ...f, reason: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}
+                    placeholder="Justification for overriding the risk rating..." />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button onClick={() => setOverrideTarget(null)} className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-gray-50 transition-colors" style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button onClick={handleOverride} disabled={!overrideForm.rating || !overrideForm.reason.trim() || overriding}
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {overriding ? 'Overriding...' : 'Override Rating'}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
     </CaMemoSection>
   );

@@ -29,6 +29,7 @@ import { useFocusTrap } from './src/hooks/useFocusTrap';
 import NavMoreDropdown from './src/components/NavMoreDropdown';
 import * as Sentry from '@sentry/react';
 import ToastContainer from './src/components/ToastContainer';
+import SessionExpiryBanner from './src/components/SessionExpiryBanner';
 import { Toaster } from 'react-hot-toast';
 import Login from './src/pages/Login';
 
@@ -550,6 +551,7 @@ const AppShell = () => {
           </main>
           {showFooter && <Footer />}
           <NotificationToast />
+          <SessionExpiryBanner />
         </div>
       </NotificationProvider>
   );

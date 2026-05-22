@@ -468,6 +468,7 @@ const CreditApplicationDetail: React.FC = () => {
             <HeaderBackgroundTab
               application={app}
               onUpdated={(updated) => setApp(updated)}
+              onDirtyChange={setDirty}
             />
           </div>
         )}
@@ -490,21 +491,21 @@ const CreditApplicationDetail: React.FC = () => {
         {/* Facilities Tab — CA Memo Phase 2 */}
         {activeTab === 'facilities' && (
           <div role="tabpanel" id="panel-facilities" aria-labelledby="tab-facilities" tabIndex={0}>
-            <FacilitiesTab application={app} />
+            <FacilitiesTab application={app} onDirtyChange={setDirty} />
           </div>
         )}
 
         {/* Risk Rating & ECL Tab — CA Memo Phase 3 */}
         {activeTab === 'risk-rating' && (
           <div role="tabpanel" id="panel-risk-rating" aria-labelledby="tab-risk-rating" tabIndex={0}>
-            <RiskRatingEclTab application={app} />
+            <RiskRatingEclTab application={app} onDirtyChange={setDirty} />
           </div>
         )}
 
         {/* Payment Capability Tab — CA Memo Phase 3 */}
         {activeTab === 'payment-capability' && (
           <div role="tabpanel" id="panel-payment-capability" aria-labelledby="tab-payment-capability" tabIndex={0}>
-            <PaymentCapabilityTab application={app} onUpdated={setApp} />
+            <PaymentCapabilityTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
           </div>
         )}
 
@@ -518,14 +519,14 @@ const CreditApplicationDetail: React.FC = () => {
         {/* Profitability & Wallet Share Tab — CA Memo Phase 4 */}
         {activeTab === 'profitability' && (
           <div role="tabpanel" id="panel-profitability" aria-labelledby="tab-profitability" tabIndex={0}>
-            <ProfitabilityWalletTab application={app} onUpdated={setApp} />
+            <ProfitabilityWalletTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
           </div>
         )}
 
         {/* Counterparties Tab — CA Memo Phase 4 */}
         {activeTab === 'counterparties' && (
           <div role="tabpanel" id="panel-counterparties" aria-labelledby="tab-counterparties" tabIndex={0}>
-            <CounterpartiesTab application={app} onUpdated={setApp} />
+            <CounterpartiesTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
           </div>
         )}
 
@@ -546,28 +547,28 @@ const CreditApplicationDetail: React.FC = () => {
         {/* Industry Outlook Tab — CA Memo Phase 5 */}
         {activeTab === 'industry' && (
           <div role="tabpanel" id="panel-industry" aria-labelledby="tab-industry" tabIndex={0}>
-            <IndustryOutlookTab application={app} onUpdated={setApp} />
+            <IndustryOutlookTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
           </div>
         )}
 
         {/* Risk & Mitigators Tab — CA Memo Phase 5 */}
         {activeTab === 'risk' && (
           <div role="tabpanel" id="panel-risk" aria-labelledby="tab-risk" tabIndex={0}>
-            <RiskMitigatorsTab application={app} onUpdated={setApp} />
+            <RiskMitigatorsTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
           </div>
         )}
 
         {/* ESG Tab — CA Memo Phase 5 */}
         {activeTab === 'esg' && (
           <div role="tabpanel" id="panel-esg" aria-labelledby="tab-esg" tabIndex={0}>
-            <EsgTab application={app} onUpdated={setApp} />
+            <EsgTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
           </div>
         )}
 
         {/* SICR Tab — CA Memo Phase 5 */}
         {activeTab === 'sicr' && (
           <div role="tabpanel" id="panel-sicr" aria-labelledby="tab-sicr" tabIndex={0}>
-            <SicrTab application={app} onUpdated={setApp} />
+            <SicrTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
           </div>
         )}
 

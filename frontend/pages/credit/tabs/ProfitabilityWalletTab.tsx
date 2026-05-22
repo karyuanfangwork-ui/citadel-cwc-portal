@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import creditService, {
   CreditApplication,
   AccountProfitability,
@@ -9,6 +9,7 @@ import creditService, {
 } from '../../../src/services/credit.service';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import { ProfitabilityBarChart, WalletShareChart } from '../../../src/components/credit/FinancialCharts';
+import useAutosave from '../../../src/hooks/useAutosave';
 
 const PRODUCT_CATEGORIES = [
   { key: 'FINANCINGS',         label: 'Financings' },
@@ -28,6 +29,7 @@ const fmt = (v: number | null | undefined) =>
 type Props = {
   application: CreditApplication;
   onUpdated: (next: CreditApplication) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 // ─── Profitability Section ────────────────────────────────────────────────────
@@ -37,14 +39,14 @@ type LineMap = Record<string, Partial<ProfitabilityLine>>;
 const ProfitabilitySection: React.FC<{
   appId: string;
   readOnly: boolean;
-  setSaving: (v: boolean) => void;
-  setSavedAt: (d: Date) => void;
-}> = ({ appId, readOnly, setSaving, setSavedAt }) => {
+  autosave: ReturnType<typeof useAutosave<void>>;
+  onMarkDirty: () => void;
+  syncRef: React.MutableRefObject<{ period: string; notes: string; lines: LineMap }>;
+}> = ({ appId, readOnly, autosave, onMarkDirty, syncRef }) => {
   const [profitability, setProfitability] = useState<AccountProfitability | null>(null);
   const [lines, setLines] = useState<LineMap>({});
   const [notes, setNotes] = useState('');
   const [period, setPeriod] = useState('');
-  const dirty = useRef(false);
 
   useEffect(() => {
     profitabilityApi.get(appId).then(p => {
@@ -60,30 +62,12 @@ const ProfitabilitySection: React.FC<{
   }, [appId]);
 
   const update = (cat: string, key: keyof ProfitabilityLine, value: string) => {
-    setLines(l => ({ ...l, [cat]: { ...l[cat], productCategory: cat, [key]: value } }));
-    dirty.current = true;
-  };
-
-  const flush = async () => {
-    if (!dirty.current) return;
-    setSaving(true);
-    try {
-      const saved = await profitabilityApi.upsert(appId, {
-        reportingPeriod: period || null,
-        notes: notes || null,
-        lines: PRODUCT_CATEGORIES.map((c, i) => ({
-          productCategory: c.key,
-          displayOrder: i,
-          netProfitYtd: (lines[c.key]?.netProfitYtd as any) ?? null,
-          netProfitProjected: (lines[c.key]?.netProfitProjected as any) ?? null,
-          feeIncomeYtd: (lines[c.key]?.feeIncomeYtd as any) ?? null,
-          feeIncomeProjected: (lines[c.key]?.feeIncomeProjected as any) ?? null,
-        })),
-      });
-      setProfitability(saved);
-      dirty.current = false;
-      setSavedAt(new Date());
-    } finally { setSaving(false); }
+    setLines(l => {
+      const next = { ...l, [cat]: { ...l[cat], productCategory: cat, [key]: value } };
+      syncRef.current.lines = next;
+      return next;
+    });
+    onMarkDirty();
   };
 
   const cellInput = (cat: string, key: keyof ProfitabilityLine) => (
@@ -92,7 +76,7 @@ const ProfitabilitySection: React.FC<{
       className="border rounded px-1 py-0.5 text-sm w-28 text-right"
       value={(lines[cat]?.[key] as any) ?? ''}
       onChange={e => update(cat, key, e.target.value)}
-      onBlur={flush}
+      onBlur={() => autosave.save()}
       placeholder="0"
     />
   );
@@ -111,7 +95,7 @@ const ProfitabilitySection: React.FC<{
         <label className="block text-xs text-gray-500 mb-1">Reporting Period</label>
         {readOnly
           ? <span className="text-sm">{period || '—'}</span>
-          : <input className="border rounded px-2 py-1 text-xs w-32" placeholder="Period (e.g. YTD 2026)" value={period} onChange={e => { setPeriod(e.target.value); dirty.current = true; }} onBlur={flush} />}
+          : <input className="border rounded px-2 py-1 text-xs w-32" placeholder="Period (e.g. YTD 2026)" value={period} onChange={e => { setPeriod(e.target.value); syncRef.current.period = e.target.value; onMarkDirty(); }} onBlur={() => autosave.save()} />}
       </div>
       <div className="border rounded-lg overflow-x-auto mb-4">
         <table className="min-w-full text-sm">
@@ -150,7 +134,7 @@ const ProfitabilitySection: React.FC<{
         <label className="block text-xs text-gray-500 mb-1">Notes</label>
         {readOnly
           ? <p className="text-sm whitespace-pre-wrap">{notes || '—'}</p>
-          : <textarea className="w-full border rounded px-3 py-2 text-sm resize-none h-16" value={notes} onChange={e => { setNotes(e.target.value); dirty.current = true; }} onBlur={flush} placeholder="Notes on profitability…" />}
+          : <textarea className="w-full border rounded px-3 py-2 text-sm resize-none h-16" value={notes} onChange={e => { setNotes(e.target.value); syncRef.current.notes = e.target.value; onMarkDirty(); }} onBlur={() => autosave.save()} placeholder="Notes on profitability…" />}
       </div>
     </section>
   );
@@ -163,41 +147,48 @@ type WalletRow = Partial<WalletShare> & { facilityType: string };
 const WalletShareSection: React.FC<{
   appId: string;
   readOnly: boolean;
-  setSaving: (v: boolean) => void;
-  setSavedAt: (d: Date) => void;
-}> = ({ appId, readOnly, setSaving, setSavedAt }) => {
-  const [rows, setRows] = useState<WalletRow[]>([]);
+  autosave: ReturnType<typeof useAutosave<void>>;
+  onMarkDirty: () => void;
+  syncRef: React.MutableRefObject<WalletRow[]>;
+  setRows: React.Dispatch<React.SetStateAction<WalletRow[]>>;
+}> = ({ appId, readOnly, autosave, onMarkDirty, syncRef, setRows }) => {
+  const [rows, localSetRows] = useState<WalletRow[]>([]);
   const [newType, setNewType] = useState('');
 
   useEffect(() => {
-    walletShareApi.list(appId).then(setRows);
+    walletShareApi.list(appId).then(items => {
+      localSetRows(items);
+      setRows(items);
+      syncRef.current = items;
+    });
   }, [appId]);
 
-  const update = (idx: number, key: keyof WalletShare, value: string) => {
-    setRows(r => r.map((row, i) => i === idx ? { ...row, [key]: value } : row));
+  // Wrap setRows to also sync the ref
+  const updateRows = (updater: WalletRow[] | ((prev: WalletRow[]) => WalletRow[])) => {
+    localSetRows(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      syncRef.current = next;
+      setRows(next);
+      return next;
+    });
   };
 
-  const flush = async (idx: number) => {
-    const row = rows[idx];
-    setSaving(true);
-    try {
-      await walletShareApi.bulkUpsert(appId, [row]);
-      const updated = await walletShareApi.list(appId);
-      setRows(updated);
-      setSavedAt(new Date());
-    } finally { setSaving(false); }
+  const update = (idx: number, key: keyof WalletShare, value: string) => {
+    updateRows(r => r.map((row, i) => i === idx ? { ...row, [key]: value } : row));
+    onMarkDirty();
   };
 
   const addRow = () => {
     if (!newType.trim()) return;
-    setRows(r => [...r, { facilityType: newType.trim() }]);
+    updateRows(r => [...r, { facilityType: newType.trim() }]);
     setNewType('');
+    onMarkDirty();
   };
 
   const removeRow = async (idx: number) => {
     const row = rows[idx];
     if (row.id) await walletShareApi.remove(appId, row.id);
-    setRows(r => r.filter((_, i) => i !== idx));
+    updateRows(r => r.filter((_, i) => i !== idx));
   };
 
   return (
@@ -229,7 +220,7 @@ const WalletShareSection: React.FC<{
                   : <>
                       {(['ourLimitAmount', 'totalMarketAmount', 'ourSharePct', 'yoyChangePct'] as (keyof WalletShare)[]).map(k => (
                         <td key={k} className="p-1 text-right">
-                          <input type="number" className="border rounded px-1 py-0.5 text-sm w-24 text-right" value={(row[k] as any) ?? ''} onChange={e => update(idx, k, e.target.value)} onBlur={() => flush(idx)} placeholder="0" />
+                          <input type="number" className="border rounded px-1 py-0.5 text-sm w-24 text-right" value={(row[k] as any) ?? ''} onChange={e => update(idx, k, e.target.value)} onBlur={() => autosave.save()} placeholder="0" />
                         </td>
                       ))}
                       <td className="p-1 text-center">
@@ -257,25 +248,12 @@ const StrategySection: React.FC<{
   application: CreditApplication;
   readOnly: boolean;
   onUpdated: (a: CreditApplication) => void;
-  setSaving: (v: boolean) => void;
-  setSavedAt: (d: Date) => void;
-}> = ({ application, readOnly, onUpdated, setSaving, setSavedAt }) => {
+  autosave: ReturnType<typeof useAutosave<void>>;
+  onMarkDirty: (key: string) => void;
+  syncRef: React.MutableRefObject<{ accountStrategy: string; crossSellingInitiatives: string; dirtyKeys: Set<string> }>;
+}> = ({ application, readOnly, onUpdated, autosave, onMarkDirty, syncRef }) => {
   const [strategy, setStrategy] = useState(application.accountStrategy ?? '');
   const [cross, setCross] = useState(application.crossSellingInitiatives ?? '');
-  const dirty = useRef<Set<string>>(new Set());
-
-  const flush = async () => {
-    if (dirty.current.size === 0) return;
-    setSaving(true);
-    try {
-      const payload: any = {};
-      dirty.current.forEach(k => { payload[k] = k === 'accountStrategy' ? strategy || null : cross || null; });
-      const updated = await creditService.updateApplication(application.id, payload);
-      onUpdated(updated);
-      dirty.current.clear();
-      setSavedAt(new Date());
-    } finally { setSaving(false); }
-  };
 
   return (
     <section>
@@ -284,7 +262,7 @@ const StrategySection: React.FC<{
           <label className="block text-xs text-gray-500 mb-1">Account Strategy</label>
           {readOnly
             ? <span className="text-sm">{application.accountStrategy || '—'}</span>
-            : <select className="border rounded px-2 py-1 text-sm" value={strategy} onChange={e => { setStrategy(e.target.value); dirty.current.add('accountStrategy'); }} onBlur={flush}>
+            : <select className="border rounded px-2 py-1 text-sm" value={strategy} onChange={e => { setStrategy(e.target.value); syncRef.current.accountStrategy = e.target.value; onMarkDirty('accountStrategy'); }} onBlur={() => autosave.save()}>
                 <option value="">— Select —</option>
                 {ACCOUNT_STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>}
@@ -293,7 +271,7 @@ const StrategySection: React.FC<{
           <label className="block text-xs text-gray-500 mb-1">Cross-Selling Initiatives</label>
           {readOnly
             ? <p className="text-sm whitespace-pre-wrap">{application.crossSellingInitiatives || '—'}</p>
-            : <textarea className="w-full border rounded px-3 py-2 text-sm resize-none h-24" value={cross} onChange={e => { setCross(e.target.value); dirty.current.add('crossSellingInitiatives'); }} onBlur={flush} placeholder="Describe cross-selling opportunities…" />}
+            : <textarea className="w-full border rounded px-3 py-2 text-sm resize-none h-24" value={cross} onChange={e => { setCross(e.target.value); syncRef.current.crossSellingInitiatives = e.target.value; onMarkDirty('crossSellingInitiatives'); }} onBlur={() => autosave.save()} placeholder="Describe cross-selling opportunities…" />}
         </div>
       </div>
     </section>
@@ -302,17 +280,106 @@ const StrategySection: React.FC<{
 
 // ─── Main Tab ─────────────────────────────────────────────────────────────────
 
-const ProfitabilityWalletTab: React.FC<Props> = ({ application, onUpdated }) => {
+type DirtySection = 'profitability' | 'walletShare' | 'strategy';
+
+const ProfitabilityWalletTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange }) => {
   const readOnly = application.state !== 'DRAFT';
-  const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const dirtyKeys = useRef<Set<DirtySection>>(new Set());
+
+  // Refs for sub-section state that the saveFn needs to read
+  const profitabilityRef = useRef<{ period: string; notes: string; lines: LineMap }>({ period: '', notes: '', lines: {} });
+  const walletRowsRef = useRef<WalletRow[]>([]);
+  const [, setWalletRowsState] = useState<WalletRow[]>([]); // trigger re-render after save
+  const strategyRef = useRef<{ accountStrategy: string; crossSellingInitiatives: string; dirtyKeys: Set<string> }>({
+    accountStrategy: '',
+    crossSellingInitiatives: '',
+    dirtyKeys: new Set(),
+  });
+
+  const onMarkDirtyProfitability = useCallback(() => {
+    dirtyKeys.current.add('profitability');
+    autosave.markDirty();
+  }, []);
+
+  const onMarkDirtyWallet = useCallback(() => {
+    dirtyKeys.current.add('walletShare');
+    autosave.markDirty();
+  }, []);
+
+  const onMarkDirtyStrategy = useCallback((key: string) => {
+    dirtyKeys.current.add('strategy');
+    strategyRef.current.dirtyKeys.add(key);
+    autosave.markDirty();
+  }, []);
+
+  // ── Autosave ────────────────────────────────────────────────────────────
+  const autosave = useAutosave<void>({
+    saveFn: async () => {
+      if (readOnly || dirtyKeys.current.size === 0) return;
+      const dirty = new Set(dirtyKeys.current);
+      dirtyKeys.current.clear();
+
+      if (dirty.has('profitability')) {
+        const { period, notes, lines } = profitabilityRef.current;
+        await profitabilityApi.upsert(application.id, {
+          reportingPeriod: period || null,
+          notes: notes || null,
+          lines: PRODUCT_CATEGORIES.map((c, i) => ({
+            productCategory: c.key,
+            displayOrder: i,
+            netProfitYtd: (lines[c.key]?.netProfitYtd as any) ?? null,
+            netProfitProjected: (lines[c.key]?.netProfitProjected as any) ?? null,
+            feeIncomeYtd: (lines[c.key]?.feeIncomeYtd as any) ?? null,
+            feeIncomeProjected: (lines[c.key]?.feeIncomeProjected as any) ?? null,
+          })),
+        });
+      }
+
+      if (dirty.has('walletShare')) {
+        const rows = walletRowsRef.current;
+        if (rows.length > 0) {
+          await walletShareApi.bulkUpsert(application.id, rows);
+          const updated = await walletShareApi.list(application.id);
+          walletRowsRef.current = updated;
+          setWalletRowsState(updated);
+        }
+      }
+
+      if (dirty.has('strategy')) {
+        const payload: any = {};
+        strategyRef.current.dirtyKeys.forEach(k => {
+          payload[k] = k === 'accountStrategy'
+            ? strategyRef.current.accountStrategy || null
+            : strategyRef.current.crossSellingInitiatives || null;
+        });
+        strategyRef.current.dirtyKeys.clear();
+        const updated = await creditService.updateApplication(application.id, payload);
+        onUpdated(updated);
+      }
+    },
+    readOnly,
+    debounceMs: 1500,
+  });
+
+  // Notify parent of dirty state changes (for useDirtyFormGuard)
+  useEffect(() => {
+    onDirtyChange?.(autosave.dirty);
+  }, [autosave.dirty, onDirtyChange]);
 
   return (
-    <CaMemoSection title="Profitability & Wallet — Section 9" phase="Phase 4" readOnly={readOnly} saving={saving} savedAt={savedAt}>
+    <CaMemoSection
+      title="Profitability & Wallet — Section 9"
+      phase="Phase 4"
+      readOnly={readOnly}
+      saving={autosave.saving}
+      savedAt={autosave.savedAt}
+      error={autosave.error}
+    >
       <div className="space-y-8">
-        <ProfitabilitySection appId={application.id} readOnly={readOnly} setSaving={setSaving} setSavedAt={setSavedAt} />
-        <WalletShareSection appId={application.id} readOnly={readOnly} setSaving={setSaving} setSavedAt={setSavedAt} />
-        <StrategySection application={application} readOnly={readOnly} onUpdated={onUpdated} setSaving={setSaving} setSavedAt={setSavedAt} />
+        <ProfitabilitySection appId={application.id} readOnly={readOnly} autosave={autosave} onMarkDirty={onMarkDirtyProfitability} syncRef={profitabilityRef} />
+        <WalletShareSection appId={application.id} readOnly={readOnly} autosave={autosave} onMarkDirty={onMarkDirtyWallet} syncRef={walletRowsRef} setRows={setWalletRowsState} />
+
+        <StrategySection application={application} readOnly={readOnly} onUpdated={onUpdated} autosave={autosave} onMarkDirty={onMarkDirtyStrategy} syncRef={strategyRef} />
       </div>
     </CaMemoSection>
   );

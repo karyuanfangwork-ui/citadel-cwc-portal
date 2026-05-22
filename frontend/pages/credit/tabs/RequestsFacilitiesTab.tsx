@@ -10,10 +10,10 @@ import creditService, {
 import apiClient from '../../../src/services/api';
 import { getFacilityTypes } from '../creditUtils';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import useAutosave from '../../../src/hooks/useAutosave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-// Base labels for conventional facility types (always available)
 const BASE_FACILITY_TYPE_LABELS: Record<string, string> = {
   TERM_LOAN: 'Term Loan',
   REVOLVING: 'Revolving Credit',
@@ -28,7 +28,6 @@ const BASE_FACILITY_TYPE_LABELS: Record<string, string> = {
   BRIDGE_LOAN: 'Bridging Loan',
 };
 
-// Phase 2 labels for Islamic facility types (gated by feature flag)
 const ISLAMIC_FACILITY_TYPE_LABELS: Record<string, string> = {
   CASHLINE: 'Cashline (Islamic)',
   RWC_I: 'Revolving Credit (Islamic)',
@@ -70,6 +69,7 @@ const fmt = (v: number | string | null | undefined) =>
 
 type Props = {
   application: CreditApplication;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 // ─── Facility row editor ──────────────────────────────────────────────────────
@@ -256,7 +256,7 @@ const AddFacilityForm: React.FC<AddFacilityFormProps> = ({ applicationId, facili
 
 // ─── Main tab component ───────────────────────────────────────────────────────
 
-const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
+const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) => {
   const readOnly = application.state !== 'DRAFT';
   const appId = application.id;
 
@@ -266,9 +266,11 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
   const [exposure, setExposure] = useState<Partial<ExposureSummary>>({});
   const [loading, setLoading] = useState(true);
   const [showAddFacility, setShowAddFacility] = useState(false);
-  const [exposureSaving, setExposureSaving] = useState(false);
-  const [exposureSavedAt, setExposureSavedAt] = useState<Date | null>(null);
   const exposureDirty = useRef<Set<keyof ExposureSummary>>(new Set());
+  // Also keep a ref to the latest exposure for the autosave saveFn closure
+  const exposureRef = useRef<Partial<ExposureSummary>>({});
+  // Per-request-item dirty key tracking (for RequestItemCard autosave integration)
+  const requestItemDirtyMap = useRef<Map<string, Set<keyof RequestItem>>>(new Map());
 
   useEffect(() => {
     apiClient.get('/credit/feature-flags/credit:islamic_facilities').then(res => {
@@ -294,12 +296,32 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
       setFacilities(facs);
       setRequestItems(items);
       setExposure(exp ?? {});
+      exposureRef.current = exp ?? {};
     } finally {
       setLoading(false);
     }
   }, [appId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── Autosave (for Exposure Summary inline edits + Request Item inline edits) ──
+  const autosave = useAutosave<ExposureSummary>({
+    saveFn: async () => {
+      if (readOnly || exposureDirty.current.size === 0) return exposureRef.current as ExposureSummary;
+      const saved = await creditService.upsertExposureSummary(appId, exposureRef.current);
+      setExposure(saved);
+      exposureRef.current = saved;
+      exposureDirty.current.clear();
+      return saved;
+    },
+    readOnly,
+    debounceMs: 1500,
+  });
+
+  // Notify parent of dirty state changes (for useDirtyFormGuard)
+  useEffect(() => {
+    onDirtyChange?.(autosave.dirty);
+  }, [autosave.dirty, onDirtyChange]);
 
   // Facility handlers
   const handleFacilitySave = async (id: string, patch: Partial<CreditFacility>) => {
@@ -320,21 +342,11 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
 
   // Exposure handlers
   const updateExposure = (key: keyof ExposureSummary, value: string) => {
-    setExposure(prev => ({ ...prev, [key]: value }));
+    const next = { ...exposure, [key]: value };
+    setExposure(next);
+    exposureRef.current = next;
     exposureDirty.current.add(key);
-  };
-
-  const flushExposure = async () => {
-    if (exposureDirty.current.size === 0) return;
-    setExposureSaving(true);
-    try {
-      const saved = await creditService.upsertExposureSummary(appId, exposure);
-      setExposure(saved);
-      setExposureSavedAt(new Date());
-      exposureDirty.current.clear();
-    } finally {
-      setExposureSaving(false);
-    }
+    autosave.markDirty();
   };
 
   // Request item handlers
@@ -362,7 +374,7 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
   }
 
   return (
-    <CaMemoSection title="Facilities" phase="Phase 1" readOnly={readOnly} saving={exposureSaving} savedAt={exposureSavedAt}>
+    <CaMemoSection title="Facilities" phase="Phase 1" readOnly={readOnly} saving={autosave.saving} savedAt={autosave.savedAt} error={autosave.error}>
       <div className="space-y-8">
       {/* Section 3a — Facilities Table */}
       <section>
@@ -426,10 +438,11 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
       <section>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Exposure Summary</h3>
-          {exposureSaving && <span className="text-xs text-gray-400">Saving…</span>}
-          {!exposureSaving && exposureSavedAt && (
-            <span className="text-xs text-green-600">Saved {exposureSavedAt.toLocaleTimeString()}</span>
+          {autosave.saving && <span className="text-xs text-gray-400">Saving…</span>}
+          {!autosave.saving && autosave.savedAt && (
+            <span className="text-xs text-green-600">Saved {autosave.savedAt.toLocaleTimeString()}</span>
           )}
+          {autosave.error && <span className="text-xs text-red-600">{autosave.error}</span>}
         </div>
         <div className="border rounded-lg overflow-hidden">
           <table className="min-w-full text-sm">
@@ -452,7 +465,7 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
                         className="border rounded px-2 py-1 text-sm w-36 text-right"
                         value={(exposure[key] as any) ?? ''}
                         onChange={e => updateExposure(key, e.target.value)}
-                        onBlur={flushExposure}
+                        onBlur={() => autosave.save()}
                         placeholder="0.00"
                       />
                     )}
@@ -491,6 +504,8 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application }) => {
                 readOnly={readOnly}
                 onChange={handleRequestItemChange}
                 onDelete={handleDeleteRequestItem}
+                autosave={autosave}
+                dirtyKeys={(() => { if (!requestItemDirtyMap.current.has(item.id)) requestItemDirtyMap.current.set(item.id, new Set()); return requestItemDirtyMap.current.get(item.id)!; })()}
               />
             ))}
           </div>
@@ -511,26 +526,25 @@ type RequestItemCardProps = {
   onDelete: (id: string) => Promise<void>;
 };
 
-const RequestItemCard: React.FC<RequestItemCardProps> = ({ item, index, readOnly, onChange, onDelete }) => {
+const RequestItemCard: React.FC<RequestItemCardProps & { autosave: ReturnType<typeof useAutosave>; dirtyKeys: Set<keyof RequestItem> }> = ({ item, index, readOnly, onChange, onDelete, autosave, dirtyKeys }) => {
   const [local, setLocal] = useState(item);
-  const [saving, setSaving] = useState(false);
-  const dirty = useRef<Set<keyof RequestItem>>(new Set());
 
   useEffect(() => { setLocal(item); }, [item.id, item.updatedAt]);
 
   const update = <K extends keyof RequestItem>(key: K, value: RequestItem[K]) => {
     setLocal(prev => ({ ...prev, [key]: value }));
-    dirty.current.add(key);
+    dirtyKeys.add(key);
+    autosave.markDirty();
   };
 
   const flush = async () => {
-    if (dirty.current.size === 0) return;
-    setSaving(true);
+    if (dirtyKeys.size === 0) return;
     const patch: Partial<RequestItem> = {};
-    dirty.current.forEach(k => { (patch as any)[k] = (local as any)[k]; });
+    dirtyKeys.forEach(k => { (patch as any)[k] = (local as any)[k]; });
     await onChange(item.id, patch);
-    dirty.current.clear();
-    setSaving(false);
+    dirtyKeys.clear();
+    // Clear autosave dirty since request item saves go through a different API
+    autosave.clearDirty();
   };
 
   return (
@@ -538,7 +552,7 @@ const RequestItemCard: React.FC<RequestItemCardProps> = ({ item, index, readOnly
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-500 uppercase">Request {index + 1}</span>
         <div className="flex items-center gap-2">
-          {saving && <span className="text-xs text-gray-400">Saving…</span>}
+          {autosave.saving && <span className="text-xs text-gray-400">Saving…</span>}
           {!readOnly && (
             <button onClick={() => onDelete(item.id)} className="text-xs text-red-400 hover:underline">Remove</button>
           )}
