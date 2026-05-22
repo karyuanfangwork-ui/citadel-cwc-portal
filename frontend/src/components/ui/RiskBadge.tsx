@@ -6,8 +6,8 @@ import React from 'react';
  */
 
 type RiskBadgeProps = {
-  /** The rating string, e.g. 'AAA', 'BB', 'NR' */
-  rating: string;
+  /** The rating string, e.g. 'AAA', 'BB', 'NR'. Undefined shows 'NR'. */
+  rating?: string;
   /** Optional extra classNames */
   className?: string;
   /** Show icon? Default true (ignored for RiskBadge — kept for API compatibility) */
@@ -37,8 +37,10 @@ const RiskBadge: React.FC<RiskBadgeProps> = ({
   className = '',
   size = 'md',
 }) => {
-  const colors = RATING_COLORS[rating.toUpperCase()] || RATING_COLORS.NR;
-  const label = rating.toUpperCase();
+  const safeRating = rating ?? '';
+  const upper = safeRating.toUpperCase();
+  const colors = RATING_COLORS[upper] || RATING_COLORS.NR;
+  const label = upper || 'NR';
   const isSm = size === 'sm';
 
   return (
