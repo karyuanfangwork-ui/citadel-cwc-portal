@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { Skeleton } from '../src/components/ui/Skeleton';
 import reportsService, {
@@ -8,6 +9,7 @@ import reportsService, {
   PriorityCount,
   AgentWorkload,
   SlaStatus,
+  DateRange,
 } from '../src/services/reports.service';
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -17,7 +19,20 @@ const PRIORITY_COLORS: Record<string, string> = {
   LOW: 'bg-gray-400',
 };
 
+/** Quick-select preset ranges. */
+const PRESETS: { label: string; days: number }[] = [
+  { label: '7d', days: 7 },
+  { label: '30d', days: 30 },
+  { label: '90d', days: 90 },
+  { label: 'YTD', days: -1 }, // special: year-to-date
+];
+
+function toISO(d: Date): string {
+  return d.toISOString().split('T')[0];
+}
+
 export default function Reports() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [statuses, setStatuses] = useState<StatusCount[]>([]);
@@ -26,14 +41,57 @@ export default function Reports() {
   const [agents, setAgents] = useState<AgentWorkload[]>([]);
   const [sla, setSla] = useState<SlaStatus | null>(null);
 
+  // Date range from URL search params
+  const fromParam = searchParams.get('from') || '';
+  const toParam = searchParams.get('to') || '';
+  const [fromDate, setFromDate] = useState(fromParam);
+  const [toDate, setToDate] = useState(toParam);
+
+  const buildRange = useCallback((): DateRange | undefined => {
+    if (!fromDate && !toDate) return undefined;
+    const range: DateRange = {};
+    if (fromDate) range.from = new Date(fromDate).toISOString();
+    if (toDate) range.to = new Date(toDate + 'T23:59:59').toISOString();
+    return range;
+  }, [fromDate, toDate]);
+
+  // Sync URL params when date inputs change
+  const syncParams = useCallback(() => {
+    const params = new URLSearchParams();
+    if (fromDate) params.set('from', fromDate);
+    if (toDate) params.set('to', toDate);
+    setSearchParams(params, { replace: true });
+  }, [fromDate, toDate, setSearchParams]);
+
+  useEffect(() => { syncParams(); }, [fromDate, toDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setPreset = (days: number) => {
+    const now = new Date();
+    if (days === -1) {
+      // YTD
+      setFromDate(toISO(new Date(now.getFullYear(), 0, 1)));
+      setToDate(toISO(now));
+    } else {
+      setFromDate(toISO(new Date(now.getTime() - days * 86400000)));
+      setToDate(toISO(now));
+    }
+  };
+
+  const clearDates = () => {
+    setFromDate('');
+    setToDate('');
+  };
+
   useEffect(() => {
+    setLoading(true);
+    const range = buildRange();
     Promise.all([
-      reportsService.getSummary(),
-      reportsService.getByStatus(),
-      reportsService.getByServiceDesk(),
-      reportsService.getByPriority(),
-      reportsService.getAgentWorkload(),
-      reportsService.getSlaStatus(),
+      reportsService.getSummary(range),
+      reportsService.getByStatus(range),
+      reportsService.getByServiceDesk(range),
+      reportsService.getByPriority(range),
+      reportsService.getAgentWorkload(range),
+      reportsService.getSlaStatus(range),
     ])
       .then(([summaryData, statusData, sdData, priorityData, agentData, slaData]) => {
         setSummary(summaryData);
@@ -44,7 +102,7 @@ export default function Reports() {
         setSla(slaData);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [buildRange]);
 
   if (loading) {
     return (
@@ -84,10 +142,55 @@ export default function Reports() {
         { label: 'Home', to: '/' },
         { label: 'Reports' },
       ]} />
-      {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
-        <p className="text-sm text-gray-500 mt-1">Overview of helpdesk performance metrics</p>
+
+      {/* Page header + date range */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Reports & Analytics</h1>
+          <p className="text-sm text-gray-500 mt-1">Overview of helpdesk performance metrics</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Preset buttons */}
+          {PRESETS.map((p) => (
+            <button
+              key={p.label}
+              type="button"
+              onClick={() => setPreset(p.days)}
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              {p.label}
+            </button>
+          ))}
+
+          {/* Date inputs */}
+          <input
+            type="date"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className="px-2 py-1.5 text-xs border border-gray-200 rounded-md bg-white text-gray-700 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-700 outline-none"
+            aria-label="From date"
+          />
+          <span className="text-xs text-gray-400">—</span>
+          <input
+            type="date"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className="px-2 py-1.5 text-xs border border-gray-200 rounded-md bg-white text-gray-700 focus:ring-2 focus:ring-brand-500/20 focus:border-brand-700 outline-none"
+            aria-label="To date"
+          />
+
+          {/* Clear */}
+          {(fromDate || toDate) && (
+            <button
+              type="button"
+              onClick={clearDates}
+              className="px-2 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Summary row — 5 cards */}

@@ -65,6 +65,13 @@ router.put('/me', validate(updateProfileSchema), userController.updateMe);
 router.put('/me/password', validate(changePasswordSchema), userController.changeMyPassword);
 
 /**
+ * @route   PUT /api/v1/users/me/out-of-office
+ * @desc    Toggle out-of-office status for current user
+ * @access  Private
+ */
+router.put('/me/out-of-office', userController.updateOutOfOffice);
+
+/**
  * @route   POST /api/v1/users/roles
  * @desc    Create a new role
  * @access  Private (admin:settings)

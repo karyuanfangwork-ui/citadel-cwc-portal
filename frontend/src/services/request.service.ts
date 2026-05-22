@@ -139,4 +139,9 @@ export const requestService = {
     async removeParticipant(requestId: string, userId: string): Promise<void> {
         await apiClient.delete(`/requests/${requestId}/participants/${userId}`);
     },
+
+    async getRecentServices(limit: number = 5) {
+        const response = await apiClient.get(`/requests/recent-services?limit=${limit}`);
+        return response.data.data;
+    },
 };

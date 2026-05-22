@@ -9,6 +9,9 @@ export interface User {
     roles?: string[];
     permissions?: string[];
     agentTeam?: string | null;
+    outOfOffice?: boolean;
+    outOfOfficeUntil?: string | null;
+    outOfOfficeMessage?: string | null;
 }
 
 interface RegisterData {
@@ -28,6 +31,8 @@ interface AuthContextType {
     register: (data: RegisterData) => Promise<void>;
     logout: () => Promise<void>;
     isAuthenticated: boolean;
+    refreshUser: () => Promise<void>;
+    updateOutOfOffice: (data: { outOfOffice: boolean; outOfOfficeUntil?: string; outOfOfficeMessage?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -70,8 +75,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setAccessToken(null);
     };
 
+    const refreshUser = async () => {
+        const u = await authService.getCurrentUser();
+        setUser(u);
+    };
+
+    const updateOutOfOffice = async (data: { outOfOffice: boolean; outOfOfficeUntil?: string; outOfOfficeMessage?: string }) => {
+        const apiClient = (await import('../services/api')).default;
+        const res = await apiClient.put('/users/me/out-of-office', data);
+        setUser(prev => prev ? { ...prev, outOfOffice: res.data.data.outOfOffice, outOfOfficeUntil: res.data.data.outOfOfficeUntil, outOfOfficeMessage: res.data.data.outOfOfficeMessage } : prev);
+    };
+
     return (
-        <AuthContext.Provider value={{ user, loading, accessToken, login, register, logout, isAuthenticated: !!user }}>
+        <AuthContext.Provider value={{ user, loading, accessToken, login, register, logout, isAuthenticated: !!user, refreshUser, updateOutOfOffice }}>
             {children}
         </AuthContext.Provider>
     );

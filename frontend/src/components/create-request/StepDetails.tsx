@@ -45,6 +45,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
       case 'textarea':
         return (
           <textarea
+            id={`field-${field.id}`}
             required={field.required}
             rows={4}
             className={`${commonClass} resize-none`}
@@ -52,22 +53,26 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             value={formData.customFields[field.id] || ''}
             onChange={e => handleCustomFieldChange(field.id, e.target.value)}
             disabled={submitting}
+            aria-invalid={field.required && !formData.customFields[field.id]?.toString().trim()}
           />
         );
       case 'date':
         return (
           <input
+            id={`field-${field.id}`}
             required={field.required}
             type="date"
             className={commonClass}
             value={formData.customFields[field.id] || ''}
             onChange={e => handleCustomFieldChange(field.id, e.target.value)}
             disabled={submitting}
+            aria-invalid={field.required && !formData.customFields[field.id]}
           />
         );
       case 'number':
         return (
           <input
+            id={`field-${field.id}`}
             required={field.required}
             type="number"
             className={commonClass}
@@ -75,6 +80,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             value={formData.customFields[field.id] || ''}
             onChange={e => handleCustomFieldChange(field.id, e.target.value)}
             disabled={submitting}
+            aria-invalid={field.required && !formData.customFields[field.id]}
           />
         );
       case 'currency':
@@ -84,6 +90,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
               RM
             </span>
             <input
+              id={`field-${field.id}`}
               required={field.required}
               type="number"
               step="0.01"
@@ -313,11 +320,13 @@ const StepDetails: React.FC<StepDetailsProps> = ({
         return (
           <div className="relative">
             <select
+              id={`field-${field.id}`}
               required={field.required}
               className={`${commonClass} appearance-none`}
               value={formData.customFields[field.id] || ''}
               onChange={e => handleCustomFieldChange(field.id, e.target.value)}
               disabled={submitting}
+              aria-invalid={field.required && !formData.customFields[field.id]}
             >
               <option value="" disabled>Select an option...</option>
               {field.options?.map((option: string, i: number) => (
@@ -332,11 +341,13 @@ const StepDetails: React.FC<StepDetailsProps> = ({
         return (
           <div className="relative">
             <select
+              id={`field-${field.id}`}
               required={field.required}
               className={`${commonClass} appearance-none`}
               value={selected}
               onChange={e => handleCustomFieldChange(field.id, e.target.value)}
               disabled={submitting}
+              aria-invalid={field.required && !selected}
             >
               <option value="" disabled>Select an entity...</option>
               {entityOptions.map(e => (
@@ -350,6 +361,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
       default: // text
         return (
           <input
+            id={`field-${field.id}`}
             required={field.required}
             type="text"
             className={commonClass}
@@ -357,6 +369,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             value={formData.customFields[field.id] || ''}
             onChange={e => handleCustomFieldChange(field.id, e.target.value)}
             disabled={submitting}
+            aria-invalid={field.required && !formData.customFields[field.id]?.toString().trim()}
           />
         );
     }
@@ -365,13 +378,13 @@ const StepDetails: React.FC<StepDetailsProps> = ({
   return (
     <div className="space-y-6">
       {error && (
-        <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-cwc-xl text-sm font-medium">
+        <div role="alert" aria-live="assertive" className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-cwc-xl text-sm font-medium">
           {error}
         </div>
       )}
 
       {isRoleBlocked && (
-        <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-cwc-xl">
+          <div role="alert" aria-live="assertive" className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-cwc-xl">
           <span className="material-symbols-outlined text-red-500 mt-0.5">lock</span>
           <div>
             <p className="text-sm font-bold text-red-700">Access Restricted</p>
@@ -403,10 +416,11 @@ const StepDetails: React.FC<StepDetailsProps> = ({
         </div>
       ) : (
         <div>
-          <label className="block text-sm font-bold text-text-primary mb-2 flex justify-between">
+          <label htmlFor="request-summary" className="block text-sm font-bold text-text-primary mb-2 flex justify-between">
             Summary <span className="text-red-500">*</span>
           </label>
           <input
+            id="request-summary"
             required
             type="text"
             placeholder="Enter a brief summary"
@@ -414,6 +428,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
             value={formData.summary}
             onChange={e => setFormData(prev => ({ ...prev, summary: e.target.value }))}
             disabled={submitting}
+            aria-invalid={!formData.summary.trim()}
           />
         </div>
       )}
@@ -421,7 +436,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
       {/* DYNAMIC FIELDS FROM ADMIN CONFIG */}
       {selectedRequestType?.formConfig?.map((field: any) => (
         <div key={field.id} className="scale-in">
-          <label className="block text-sm font-bold text-text-primary mb-2 flex justify-between">
+          <label htmlFor={`field-${field.id}`} className="block text-sm font-bold text-text-primary mb-2 flex justify-between">
             {field.label} {field.required && <span className="text-red-500">*</span>}
           </label>
           {renderDynamicField(field)}
@@ -431,7 +446,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
       {/* Description - Only for IT Support */}
       {deskType === 'it' && (
         <div>
-          <label className="block text-sm font-bold text-text-primary mb-2">Description</label>
+          <label htmlFor="request-description" className="block text-sm font-bold text-text-primary mb-2">Description</label>
           <div className="border border-cwc-border rounded-cwc-md overflow-hidden focus-within:ring-2 focus-within:ring-brand-500/20 focus-within:border-brand-700 transition-all">
             <div className="bg-surface-muted/50 border-b border-cwc-border px-4 py-2 flex gap-4">
               <button type="button" className="material-symbols-outlined text-text-tertiary hover:text-brand-700 text-lg">format_bold</button>
@@ -440,6 +455,7 @@ const StepDetails: React.FC<StepDetailsProps> = ({
               <button type="button" className="material-symbols-outlined text-text-tertiary hover:text-brand-700 text-lg">link</button>
             </div>
             <textarea
+              id="request-description"
               rows={8}
               placeholder="Provide additional details about your request..."
               className="w-full px-4 py-3 bg-white border-none text-base outline-none resize-none placeholder:text-text-tertiary"
@@ -454,9 +470,10 @@ const StepDetails: React.FC<StepDetailsProps> = ({
       {/* Urgency - Only for IT Support */}
       {deskType === 'it' && (
         <div>
-          <label className="block text-sm font-bold text-text-primary mb-2">Urgency</label>
+          <label htmlFor="request-urgency" className="block text-sm font-bold text-text-primary mb-2">Urgency</label>
           <div className="relative">
             <select
+              id="request-urgency"
               className="w-full pl-4 pr-10 py-3 bg-white border border-cwc-border rounded-cwc-md text-base focus:ring-2 focus:ring-brand-500/20 focus:border-brand-700 outline-none transition-all appearance-none text-text-primary"
               value={formData.urgency}
               onChange={e => setFormData(prev => ({ ...prev, urgency: e.target.value }))}

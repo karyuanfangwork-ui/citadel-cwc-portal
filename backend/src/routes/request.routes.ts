@@ -44,6 +44,13 @@ router.get('/pending-approvals', requirePermission('request:approve'), requestCo
 router.post('/bulk-action', requirePermission('request:approve'), requestController.bulkAction);
 
 /**
+ * @route   GET /api/v1/requests/recent-services
+ * @desc    Get recently used request types for current user
+ * @access  Private
+ */
+router.get('/recent-services', requestController.recentServices);
+
+/**
  * @route   GET /api/v1/requests/:id
  * @desc    Get request by ID
  * @access  Private

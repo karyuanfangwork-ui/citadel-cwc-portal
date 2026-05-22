@@ -87,7 +87,7 @@ import NotFound from './pages/NotFound';
 const Header = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, updateOutOfOffice } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
   const [userMenuOpen, setUserMenuOpen] = React.useState(false);
   const drawerRef = useFocusTrap(mobileMenuOpen);
@@ -153,7 +153,7 @@ const Header = () => {
     { to: '/assets', label: 'IT Assets', icon: 'devices', group: 'secondary' as const, show: hasAnyPermission(user, ['asset:read']) },
     { to: '/crm', label: 'CRM', icon: 'group', group: 'secondary' as const, show: hasAnyPermission(user, ['crm:read']) },
     { to: '/credit', label: 'Credit', icon: 'account_balance', group: 'secondary' as const, show: hasAnyPermission(user, ['credit:read']) },
-    { to: '/kb', label: 'Knowledge Base', icon: 'menu_book', group: 'secondary' as const, show: import.meta.env.DEV },
+    { to: '/kb', label: 'Knowledge Base', icon: 'menu_book', group: 'secondary' as const, show: isFeatureEnabled('kb') },
     { to: '/reports', label: 'Reports', icon: 'assessment', group: 'secondary' as const, show: hasPermission(user, 'report:read') },
     { to: '/admin/announcements', label: 'Announcements Mgmt', icon: 'campaign', group: 'admin' as const, show: hasPermission(user, 'announcement:write') },
     { to: '/admin/settings', label: 'Admin Settings', icon: 'settings', group: 'admin' as const, show: hasPermission(user, 'admin:access') },
@@ -244,7 +244,24 @@ const Header = () => {
                   <div className="px-4 py-2 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
                     <p className="text-xs text-gray-500">{user.email}</p>
+                    {user.outOfOffice && (
+                      <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-medium rounded">
+                        <span className="material-symbols-outlined text-xs">outbox</span>
+                        Out of Office
+                      </span>
+                    )}
                   </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await updateOutOfOffice({ outOfOffice: !user.outOfOffice });
+                      } catch { /* ignore */ }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors w-full text-left"
+                  >
+                    <span className="material-symbols-outlined text-lg text-gray-400">{user.outOfOffice ? 'outbox' : 'outbox'}</span>
+                    {user.outOfOffice ? 'Mark as Available' : 'Set Out of Office'}
+                  </button>
                   <Link
                     to="/change-password"
                     onClick={() => setUserMenuOpen(false)}
@@ -392,7 +409,22 @@ const Header = () => {
             {isAuthenticated && user && (
               <div className="px-4 py-4 border-t border-gray-100">
                 <p className="text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
-                <p className="text-xs text-gray-500 mb-3">{user.email}</p>
+                <p className="text-xs text-gray-500 mb-1">{user.email}</p>
+                {user.outOfOffice && (
+                  <span className="inline-flex items-center gap-1 mb-2 px-1.5 py-0.5 bg-amber-100 text-amber-800 text-xs font-medium rounded">
+                    <span className="material-symbols-outlined text-xs">outbox</span>
+                    Out of Office
+                  </span>
+                )}
+                <button
+                  onClick={async () => {
+                    try { await updateOutOfOffice({ outOfOffice: !user.outOfOffice }); } catch { /* ignore */ }
+                  }}
+                  className="flex items-center gap-1.5 rounded-lg px-3 py-2 w-full bg-surface-muted text-text-primary hover:bg-gray-200 transition-colors text-sm font-semibold justify-center mb-2"
+                >
+                  <span className="material-symbols-outlined text-base">outbox</span>
+                  {user.outOfOffice ? 'Mark as Available' : 'Set Out of Office'}
+                </button>
                 <Link
                   to="/change-password"
                   onClick={() => setMobileMenuOpen(false)}

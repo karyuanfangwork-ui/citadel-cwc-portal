@@ -30,7 +30,15 @@ export const errorHandler = (
         message = err.message;
     }
 
-    // Log error
+    // Strip env-var names and secrets from error messages visible to clients
+    const sanitizeMessage = (msg: string): string =>
+        msg
+            .replace(/[\w_]*(KEY|SECRET|PASSWORD|TOKEN|CREDENTIAL|API_KEY)[\w_]*/gi, '[REDACTED]')
+            .replace(/\/\.env\S*/g, '[REDACTED_PATH]');
+
+    const safeMessage = sanitizeMessage(message);
+
+    // Log error (full detail for server logs)
     if (statusCode >= 500) {
         logger.error(`${statusCode} - ${message} - ${req.originalUrl} - ${req.method} - ${req.ip}`, {
             error: err,
@@ -40,14 +48,13 @@ export const errorHandler = (
         logger.warn(`${statusCode} - ${message} - ${req.originalUrl} - ${req.method} - ${req.ip}`);
     }
 
-    // Send error response
+    // Send error response (sanitized for client)
     res.status(statusCode).json({
         status: 'error',
         statusCode,
-        message,
+        message: safeMessage,
         ...(process.env.NODE_ENV === 'development' && {
             stack: err.stack,
-            error: err,
         }),
     });
 };
