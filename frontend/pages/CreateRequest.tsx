@@ -42,7 +42,7 @@ const CreateRequest = () => {
                 isConfidential: wizard.isAutoConfidential ? true : wizard.formData.isConfidential
             });
 
-            navigate(`/request/${request.id}`);
+            navigate(`/request/${(request as any).referenceNumber || request.id}`);
             toast.success('Request Created', 'Your request has been submitted successfully.');
         } catch (err: any) {
             console.error('Error creating request:', err);

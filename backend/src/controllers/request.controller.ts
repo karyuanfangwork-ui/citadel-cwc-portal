@@ -1181,11 +1181,13 @@ class RequestController {
      * Get request by ID
      */
     getRequestById = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const lookupKey = UUID_RE.test(idOrRef) ? { id: idOrRef } : { referenceNumber: idOrRef };
 
         const request = await prisma.request.findFirst({
             where: {
-                id,
+                ...lookupKey,
                 deletedAt: null,
             },
             include: {

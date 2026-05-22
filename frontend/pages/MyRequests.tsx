@@ -268,7 +268,7 @@ const MyRequests = () => {
                           <tr
                             key={req.id}
                             className="hover:bg-gray-50 border-t border-gray-100 cursor-pointer transition-colors"
-                            onClick={() => navigate(`/request/${req.id}`)}
+                            onClick={() => navigate(`/request/${req.referenceNumber || req.id}`)}
                           >
                             <td className="px-6 py-4 text-center">
                               <span

@@ -46,7 +46,7 @@ const SearchResults: React.FC = () => {
             id: r.id,
             title: r.summary || r.referenceNumber,
             excerpt: r.description || '',
-            url: `/request/${r.id}`,
+            url: `/request/${r.referenceNumber || r.id}`,
             meta: { ref: r.referenceNumber, status: r.status, desk: r.serviceDesk?.name || '' },
           })));
         }
