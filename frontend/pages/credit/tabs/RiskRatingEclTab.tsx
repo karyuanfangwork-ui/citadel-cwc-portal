@@ -14,7 +14,7 @@ import { hasPermission } from '../../../src/utils/permissions';
 import { useToast } from '../../../src/context/ToastContext';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
-import { RiskRatingKpiCards, RatingScaleBar, EclForecastBar, EclStageDonut, EclSnapshotWaterfall } from '../../../src/components/credit/FinancialCharts';
+import { RiskRatingKpiCards, RatingScaleBar, EclForecastBar, EclStageDonut, EclSnapshotWaterfall, ScoreRunHistory } from '../../../src/components/credit/FinancialCharts';
 import useAutosave from '../../../src/hooks/useAutosave';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -527,6 +527,7 @@ const RiskRatingEclTab: React.FC<Props> = ({ application, onDirtyChange }) => {
         <EclSnapshotWaterfall snapshots={eclSnapshots} forecasts={eclForecasts} />
 
         {/* Score Override Section */}
+        <ScoreRunHistory scoreRuns={scoreRuns} />
         {canApprove && (
           <section className="mt-6 pt-6 border-t border-border">
             <div className="flex items-center justify-between mb-4">

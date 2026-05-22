@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, Cell, LineChart, Line,
   RadarChart, Radar, PolarAngleAxis, PolarRadiusAxis, PolarGrid,
   PieChart, Pie, AreaChart, Area, ReferenceLine,
+  ComposedChart,
 } from 'recharts';
 
 // ─── Shared color palette ────────────────────────────────────────────────────────
@@ -967,6 +968,210 @@ export const RatioSparklines: React.FC<{ trends: TrendItemRow[] }> = ({ trends }
           );
         })}
       </div>
+    </div>
+  );
+};
+
+// ─── Score Run History (Timeline of past credit score runs) ──────────────
+
+type ScoreRunRow = {
+  totalScore: number;
+  riskRating: string;
+  overriddenRating: string | null;
+  executedAt: string;
+  executedBy: string;
+};
+
+const RATING_INDEX = (r: string) => {
+  const i = RATING_ORDER.indexOf(r as any);
+  return i === -1 ? RATING_ORDER.length : i;
+};
+
+export const ScoreRunHistory: React.FC<{ scoreRuns: ScoreRunRow[] }> = ({ scoreRuns }) => {
+  if (!scoreRuns || scoreRuns.length === 0) return <ChartEmpty label="No score runs yet. Click 'Run Score' to generate a credit score." />;
+
+  const sorted = [...scoreRuns].sort((a, b) => new Date(a.executedAt).getTime() - new Date(b.executedAt).getTime());
+
+  const data = sorted.map(sr => ({
+    date: new Date(sr.executedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }),
+    Score: sr.totalScore,
+    Rating: RATING_INDEX(sr.overriddenRating || sr.riskRating),
+    ratingLabel: sr.overriddenRating || sr.riskRating,
+    overridden: sr.overriddenRating ? sr.riskRating : null,
+  }));
+
+  return (
+    <div className="mb-6">
+      <h4 className="text-sm font-semibold text-text-secondary mb-2">Score Run History</h4>
+      <ResponsiveContainer width="100%" height={220}>
+        <ComposedChart data={data} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <XAxis dataKey="date" tick={{ fontSize: 11, ...CHART_FONT }} />
+          <YAxis yAxisId="score" orientation="left" tick={{ fontSize: 11, ...CHART_FONT }} label={{ value: 'Score', angle: -90, position: 'insideLeft', style: { fontSize: 10, ...CHART_FONT } }} />
+          <YAxis yAxisId="rating" orientation="right" reversed tick={{ fontSize: 11, ...CHART_FONT }} domain={[0, RATING_ORDER.length - 1]} ticks={RATING_ORDER.map((_, i) => i)} tickFormatter={v => RATING_ORDER[v] || ''} label={{ value: 'Rating', angle: 90, position: 'insideRight', style: { fontSize: 10, ...CHART_FONT } }} />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const d = payload[0].payload;
+              return (
+                <div style={{ background: '#fff', border: '1px solid #e5e7eb', padding: 8, fontSize: 12, ...CHART_FONT }}>
+                  <div>{d.date}</div>
+                  <div>Score: <b>{d.Score}</b></div>
+                  <div>Rating: <b>{d.ratingLabel}</b></div>
+                  {d.overridden && <div style={{ color: COLORS.amber }}>Override from: {d.overridden}</div>}
+                </div>
+              );
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: 11, ...CHART_FONT }} />
+          <Bar yAxisId="score" dataKey="Score" fill={COLORS.brand} radius={[3, 3, 0, 0]} />
+          <Line yAxisId="rating" dataKey="Rating" stroke={COLORS.amber} strokeWidth={2} dot={{ r: 4 }} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+// ─── BS Validation Gauge (Balance Sheet check visual) ────────────────────
+
+type BsValidationData = {
+  valid: boolean;
+  difference: number;
+  totalAssets: number;
+  totalLiabilitiesEquity: number;
+};
+
+export const BsValidationGauge: React.FC<{ validation: BsValidationData | null }> = ({ validation }) => {
+  if (!validation) return <ChartEmpty label="Validate balance sheet to see the gauge" />;
+
+  const { valid, difference, totalAssets, totalLiabilitiesEquity } = validation;
+  const maxVal = Math.max(totalAssets, totalLiabilitiesEquity, 1);
+  const diffPct = Math.min(Math.abs(difference) / maxVal * 100, 100);
+  const color = valid ? COLORS.green : (diffPct < 5 ? COLORS.amber : COLORS.red);
+
+  return (
+    <div className="mb-6">
+      <h4 className="text-sm font-semibold text-text-secondary mb-2">Balance Sheet Validation</h4>
+      <div className="flex items-center gap-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+        {/* Semi-circle gauge via SVG */}
+        <svg viewBox="0 0 200 120" width="140" height="84">
+          {/* Background arc */}
+          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#e5e7eb" strokeWidth="16" strokeLinecap="round" />
+          {/* Value arc */}
+          <path
+            d="M 20 100 A 80 80 0 0 1 180 100"
+            fill="none"
+            stroke={color}
+            strokeWidth="16"
+            strokeLinecap="round"
+            strokeDasharray={`${(100 - diffPct) / 100 * 251.3} 251.3`}
+          />
+          {/* Center text */}
+          <text x="100" y="80" textAnchor="middle" style={{ fontSize: 18, fontWeight: 700, fill: color, ...CHART_FONT }}>
+            {valid ? 'Balanced' : `${diffPct.toFixed(1)}%`}
+          </text>
+          <text x="100" y="100" textAnchor="middle" style={{ fontSize: 10, fill: '#6b7280', ...CHART_FONT }}>
+            {valid ? 'Assets = L + E' : `Diff: RM ${Math.abs(difference).toLocaleString()}`}
+          </text>
+        </svg>
+
+        {/* Summary numbers */}
+        <div className="flex-1 space-y-2">
+          <div className="flex justify-between text-sm">
+            <span className="text-text-secondary">Total Assets</span>
+            <span className="font-semibold text-text-primary">{fmt(totalAssets)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-text-secondary">Total L + E</span>
+            <span className="font-semibold text-text-primary">{fmt(totalLiabilitiesEquity)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-text-secondary">Difference</span>
+            <span className="font-semibold" style={{ color }}>{valid ? 'RM 0' : fmt(Math.abs(difference))}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-text-secondary">Status</span>
+            <span className="font-semibold" style={{ color }}>{valid ? 'Valid' : 'Imbalanced'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── P&L Waterfall (Income Statement contribution chart) ──────────────────
+
+const PL_POSITIVE_KEYS = ['revenue', 'interest_income', 'fee_income', 'other_income', 'total_revenue', 'gross_profit', 'operating_profit', 'ebitda', 'profit_before_tax', 'net_profit'];
+const PL_NEGATIVE_KEYS = ['cost_of_sales', 'operating_expenses', 'depreciation', 'interest_expense', 'tax', 'total_expenses', 'finance_costs', 'admin_expenses', 'selling_expenses'];
+
+const plSign = (label: string): 'positive' | 'negative' | 'total' => {
+  const key = label.toLowerCase().replace(/[\s_-]+/g, '_');
+  if (key.includes('net_profit') || key.includes('net_income') || key.includes('profit_after_tax')) return 'total';
+  if (PL_POSITIVE_KEYS.some(k => key.includes(k))) return 'positive';
+  if (PL_NEGATIVE_KEYS.some(k => key.includes(k))) return 'negative';
+  return 'positive'; // default to positive
+};
+
+type PlLineItemRow = {
+  lineLabel: string;
+  amount: number | string;
+};
+
+export const PlWaterfall: React.FC<{ lineItems: PlLineItemRow[] }> = ({ lineItems }) => {
+  if (!lineItems || lineItems.length === 0) return <ChartEmpty label="Enter P&L data to see the waterfall chart" />;
+
+  // Filter to items with amount values
+  const items = lineItems.filter(li => li.amount != null && Number(li.amount) !== 0);
+  if (items.length === 0) return <ChartEmpty label="No P&L line items with values" />;
+
+  // Build waterfall data
+  let running = 0;
+  const data: { name: string; base: number; value: number; fill: string }[] = [];
+
+  items.forEach(li => {
+    const val = Number(li.amount) || 0;
+    const sign = plSign(li.lineLabel);
+    const isTotal = sign === 'total';
+
+    if (isTotal) {
+      // Totals start from 0
+      data.push({ name: li.lineLabel, base: 0, value: Math.abs(val), fill: COLORS.brand });
+      running = val;
+    } else if (val >= 0) {
+      data.push({ name: li.lineLabel, base: running, value: val, fill: COLORS.green });
+      running += val;
+    } else {
+      const newRunning = running + val;
+      data.push({ name: li.lineLabel, base: newRunning, value: Math.abs(val), fill: COLORS.red });
+      running = newRunning;
+    }
+  });
+
+  return (
+    <div className="mb-6">
+      <h4 className="text-sm font-semibold text-text-secondary mb-2">P&L Waterfall (Current Year)</h4>
+      <ResponsiveContainer width="100%" height={300}>
+        <BarChart data={data} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <XAxis dataKey="name" tick={{ fontSize: 9, ...CHART_FONT }} angle={-30} textAnchor="end" height={60} />
+          <YAxis tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v} tick={{ fontSize: 11, ...CHART_FONT }} />
+          <Tooltip
+            formatter={(value: number, name: string, props: any) => {
+              const d = props.payload;
+              return `${d.name}: RM ${value.toLocaleString()}`;
+            }}
+            contentStyle={{ fontSize: 12, ...CHART_FONT }}
+          />
+          {/* Invisible base bars */}
+          <Bar dataKey="base" stackId="stack" fill="transparent" />
+          {/* Visible value bars */}
+          <Bar dataKey="value" stackId="stack" radius={[3, 3, 0, 0]}>
+            {data.map((entry, idx) => (
+              <Cell key={idx} fill={entry.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 };

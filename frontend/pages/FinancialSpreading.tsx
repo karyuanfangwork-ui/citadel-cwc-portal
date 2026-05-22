@@ -8,7 +8,7 @@ import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { useToast } from '../src/context/ToastContext';
-import { FinancialRatioRadar, BalanceSheetComposition, RatioSparklines } from '../src/components/credit/FinancialCharts';
+import { FinancialRatioRadar, BalanceSheetComposition, RatioSparklines, BsValidationGauge, PlWaterfall } from '../src/components/credit/FinancialCharts';
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
@@ -618,6 +618,20 @@ const FinancialSpreading: React.FC = () => {
                 {selectedStatement.statementType === 'BS' && lineItems.length > 0 && (
                   <div className="mb-4">
                     <BalanceSheetComposition lineItems={lineItems} validation={validation} />
+                  </div>
+                )}
+
+                {/* BS Validation Gauge — shown for BS statements after validation */}
+                {selectedStatement.statementType === 'BS' && (
+                  <div className="mb-4">
+                    <BsValidationGauge validation={validation} />
+                  </div>
+                )}
+
+                {/* P&L Waterfall — shown for PL statements */}
+                {selectedStatement.statementType === 'PL' && lineItems.length > 0 && (
+                  <div className="mb-4">
+                    <PlWaterfall lineItems={lineItems} />
                   </div>
                 )}
 
