@@ -91,16 +91,9 @@ const Dashboard = () => {
   const [allRequests, setAllRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
   const [pinned, setPinned] = useState<DashboardAnnouncement[]>([]);
   const [latestAnnouncements, setLatestAnnouncements] = useState<DashboardAnnouncement[]>([]);
 
-  const handleSearch = () => {
-    const q = searchQuery.trim();
-    if (q) {
-      navigate(`/search?q=${encodeURIComponent(q)}`);
-    }
-  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -142,51 +135,16 @@ const Dashboard = () => {
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
 
-      {/* ── HERO ── */}
-      <section className="bg-gradient-to-br from-brand-900 via-brand-700 to-[#2a4a7f] rounded-xl py-12 px-4 sm:px-8 relative overflow-hidden mb-6">
-        {/* decorative circles */}
-        <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
-
-        <div className="relative z-10">
-          <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">
-            {formatDate()}
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-6">
+      {/* ── GREETING ── */}
+      <div className="flex items-baseline gap-3 mb-6 pt-2">
+        <div>
+          <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest mb-0.5">{formatDate()}</p>
+          <h1 className="text-2xl font-black text-text-primary leading-tight">
             {greeting}{' '}
-            <span className="text-white/65 font-normal">How can<br />we help you today?</span>
+            <span className="text-text-secondary font-normal text-lg">How can we help you today?</span>
           </h1>
-
-          {/* Search */}
-          <div className="flex items-center gap-3 bg-white/12 backdrop-blur-sm border border-white/20 rounded-lg py-3 px-4 max-w-[560px] transition-colors duration-200">
-            <span className="material-symbols-outlined text-white/50 text-xl">search</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleSearch(); }}
-              placeholder={t('dashboard.searchPlaceholder')}
-              style={{
-                flex: 1, background: 'none', border: 'none', outline: 'none',
-                color: '#fff', fontSize: 'var(--text-base)', fontFamily: 'var(--font-sans)',
-              }}
-              onFocus={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.5)'; }}
-              onBlur={e => { const bar = e.currentTarget.closest('div') as HTMLDivElement; if (bar) bar.style.borderColor = 'rgba(255,255,255,0.2)'; }}
-            />
-            <button onClick={handleSearch} className="bg-white text-brand-700 border-none rounded-cwc-md py-2 px-5 text-sm font-extrabold cursor-pointer font-sans whitespace-nowrap">
-              Search
-            </button>
-          </div>
-
-          {/* Quick tags */}
-          <div className="flex items-center gap-4 mt-4 flex-wrap">
-            <span className="text-xs text-white/45">Common:</span>
-            {['VPN Setup', 'Reset Password', 'Payroll Calendar', 'Annual Leave'].map(tag => (
-              <span key={tag} onClick={() => navigate(`/search?q=${encodeURIComponent(tag)}`)} className="text-xs font-bold text-white/75 bg-white/10 rounded-full py-[3px] px-2.5 cursor-pointer hover:bg-white/20 transition-colors">{tag}</span>
-            ))}
-          </div>
         </div>
-      </section>
+      </div>
 
       {/* ── STATS STRIP ── */}
       {loading ? (
