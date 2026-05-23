@@ -67,6 +67,13 @@ const PRIORITY_BADGE: Record<string, { bg: string; color: string; label: string 
   LOW:      { bg: '#f0fdf4', color: '#16a34a', label: 'Low' },
 };
 
+const PRIORITY_CARD: Record<string, { bg: string; border: string; titleColor: string; unread: string }> = {
+  CRITICAL: { bg: '#fef2f2', border: '#fecaca', titleColor: '#991b1b', unread: '#dc2626' },
+  HIGH:     { bg: '#fffbeb', border: '#fde68a', titleColor: '#92400e', unread: '#d97706' },
+  MEDIUM:   { bg: '#eff6ff', border: '#bfdbfe', titleColor: '#1e3a8a', unread: '#2563eb' },
+  LOW:      { bg: '#f0fdf4', border: '#bbf7d0', titleColor: '#166534', unread: '#16a34a' },
+};
+
 // ── Desk config ────────────────────────────────────────────────────────────
 
 const DESK_STYLE: Record<string, { colorBar: string; iconBg: string; icon: string }> = {
@@ -80,6 +87,110 @@ const DESK_STYLE: Record<string, { colorBar: string; iconBg: string; icon: strin
 const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
   <div style={{ width: w, height: h, background: 'var(--color-border)', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
 );
+
+interface AnnouncementBannerProps {
+  pinned: DashboardAnnouncement[];
+  latest: DashboardAnnouncement[];
+  loading: boolean;
+}
+
+const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ pinned, latest, loading }) => {
+  const items = [...pinned, ...latest].slice(0, 3);
+
+  if (loading) {
+    return (
+      <div style={{ marginBottom: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        {[0, 1].map(i => (
+          <div key={i} style={{ height: 52, background: 'var(--color-border)', borderRadius: 'var(--radius-md)', animation: 'pulse 1.5s ease-in-out infinite' }} />
+        ))}
+      </div>
+    );
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div style={{ marginBottom: 'var(--space-6)' }}>
+      {/* Card stack */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
+        {items.map(a => {
+          const isPinned = pinned.includes(a);
+          const card = PRIORITY_CARD[a.priority] || { bg: 'var(--color-surface-subtle)', border: 'var(--color-border)', titleColor: 'var(--color-text-primary)', unread: 'var(--color-brand-700)' };
+          const pri = PRIORITY_BADGE[a.priority];
+          return (
+            <Link
+              key={a.id}
+              to={`/announcements?open=${a.id}`}
+              style={{ textDecoration: 'none' }}
+            >
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                padding: 'var(--space-3) var(--space-4)',
+                background: card.bg,
+                border: `1px solid ${card.border}`,
+                borderLeft: `3px solid ${a.isRead ? card.border : card.unread}`,
+                borderRadius: 'var(--radius-md)',
+                transition: 'opacity 0.15s',
+              }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.opacity = '0.85'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
+              >
+                {isPinned && <span style={{ fontSize: 13, flexShrink: 0 }}>📌</span>}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 'var(--text-sm)', fontWeight: a.isRead ? 500 : 700,
+                    color: card.titleColor,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {a.title}
+                  </div>
+                  {a.excerpt && (
+                    <div style={{
+                      fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      marginTop: 2,
+                    }}>
+                      {a.excerpt}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
+                  {pri && (
+                    <span style={{
+                      fontSize: 'var(--text-xs)', fontWeight: 700,
+                      padding: '2px 8px', borderRadius: 'var(--radius-full)',
+                      background: pri.bg, color: pri.color,
+                    }}>
+                      {pri.label}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                    {a.publishedAt ? formatRelativeTime(a.publishedAt) : ''}
+                  </span>
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* View all footer */}
+      <div style={{
+        borderTop: '1px solid var(--color-border-subtle)',
+        marginTop: 'var(--space-2)',
+        paddingTop: 'var(--space-2)',
+        textAlign: 'right',
+      }}>
+        <Link to="/announcements" style={{
+          fontSize: 'var(--text-sm)', fontWeight: 700,
+          color: 'var(--color-brand-700)', textDecoration: 'none',
+        }}>
+          View all announcements →
+        </Link>
+      </div>
+    </div>
+  );
+};
 
 // ── Main component ─────────────────────────────────────────────────────────
 
@@ -145,6 +256,9 @@ const Dashboard = () => {
           </h1>
         </div>
       </div>
+
+      {/* ── ANNOUNCEMENT BANNER ── */}
+      <AnnouncementBanner pinned={pinned} latest={latestAnnouncements} loading={loading} />
 
       {/* ── STATS STRIP ── */}
       {loading ? (
@@ -342,83 +456,6 @@ const Dashboard = () => {
           )}
         </div>
       </div>
-
-      {/* ── ANNOUNCEMENTS WIDGET ── */}
-      {(pinned.length > 0 || latestAnnouncements.length > 0) && (
-        <div style={{ marginBottom: 'var(--space-8)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-4)' }}>
-            <h2 style={{ fontSize: 'var(--text-lg)', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              Announcements
-            </h2>
-            <Link to="/announcements" style={{ fontSize: 'var(--text-sm)', fontWeight: 700, color: 'var(--color-brand-700)', textDecoration: 'none' }}>
-              View all →
-            </Link>
-          </div>
-
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-            {[...pinned.slice(0, 3), ...latestAnnouncements.slice(0, 3)].map((a, idx) => {
-              const isPin = pinned.includes(a);
-              const catColor = CATEGORY_COLOR[a.category] || 'var(--color-brand-700)';
-              const pri = PRIORITY_BADGE[a.priority];
-              return (
-                <Link
-                  key={a.id}
-                  to={`/announcements?open=${a.id}`}
-                  style={{ textDecoration: 'none' }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--space-3)',
-                      padding: 'var(--space-3) var(--space-5)',
-                      borderTop: idx === 0 ? 'none' : '1px solid var(--color-border-subtle)',
-                      background: isPin ? '#fffbeb' : 'transparent',
-                      borderLeft: !a.isRead ? `3px solid var(--color-brand-700)` : '3px solid transparent',
-                      transition: 'background 0.12s',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'var(--color-surface-subtle)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = isPin ? '#fffbeb' : 'transparent'; }}
-                  >
-                    {isPin && (
-                      <span style={{ fontSize: 14, flexShrink: 0 }}>📌</span>
-                    )}
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: catColor, flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontSize: 'var(--text-sm)',
-                        fontWeight: a.isRead ? 500 : 700,
-                        color: 'var(--color-text-primary)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}>
-                        {a.title}
-                      </div>
-                      {a.excerpt && (
-                        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {a.excerpt}
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
-                      {pri && (
-                        <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 7px', borderRadius: 'var(--radius-full)', background: pri.bg, color: pri.color }}>
-                          {pri.label}
-                        </span>
-                      )}
-                      <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-                        {a.publishedAt ? formatRelativeTime(a.publishedAt) : ''}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* ── FOOTER CTAs ── */}
       {import.meta.env.DEV && (
