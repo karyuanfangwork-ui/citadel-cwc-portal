@@ -50,16 +50,17 @@ export default function LeftRail({ navLinks, isActive, user, onOOO, onLogout, cl
       } ${className}`}
     >
       {/* Brand */}
-      <div className="flex items-center gap-3 px-3 h-14 border-b border-gray-100 flex-shrink-0">
+      <div className={`flex items-center gap-3 px-3 border-b border-gray-100 flex-shrink-0 ${expanded ? 'py-3' : 'py-3'}`}>
         <div className="bg-brand-700 p-1.5 rounded-cwc-md text-white flex-shrink-0">
           <span className="material-symbols-outlined block text-lg">corporate_fare</span>
         </div>
         <span
-          className={`text-sm font-bold text-text-primary whitespace-nowrap overflow-hidden transition-all duration-200 ${
+          className={`leading-tight transition-all duration-200 ${
             expanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
           }`}
         >
-          Citadel Workplace Connect
+          <span className="block text-sm font-bold text-text-primary leading-none">Citadel</span>
+          <span className="block text-[11px] font-semibold text-text-secondary leading-none mt-0.5">Workplace Connect</span>
         </span>
       </div>
 
