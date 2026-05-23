@@ -4,14 +4,12 @@ import { useAuth } from '../src/context/AuthContext';
 import { useRequestDetail } from '../src/components/request/useRequestDetail';
 import OnboardingDashboard from '../src/components/OnboardingDashboard';
 import OffboardingDashboard from '../src/components/OffboardingDashboard';
-import ActionSidebar from '../src/components/request-detail/ActionSidebar';
 import ActivityFeed from '../src/components/request-detail/ActivityFeed';
 import RequestHeader from '../src/components/request/RequestHeader';
 import RequestFormFields from '../src/components/request/RequestFormFields';
 import HiringWorkflowPanel from '../src/components/request/HiringWorkflowPanel';
-import ApprovalActions from '../src/components/request/ApprovalActions';
+import WorkflowCockpit from '../src/components/request-detail/WorkflowCockpit';
 import { requestService } from '../src/services/request.service';
-import { EntityApprovalsPanel } from '../src/components/EntityApprovalsPanel';
 import ResolutionModal from '../src/components/request/modals/ResolutionModal';
 import RejectionModal from '../src/components/request/modals/RejectionModal';
 import CompleteOnboardingModal from '../src/components/request/modals/CompleteOnboardingModal';
@@ -60,11 +58,31 @@ const RequestDetailContainer: React.FC = () => {
         rq.setRequest({ ...request, customFields: updatedCustomFields });
     };
 
+    // Derive workflow steps from request type
+    const workflowSteps = request.requestType?.workflow?.steps
+        ? request.requestType.workflow.steps
+              .sort((a: any, b: any) => a.displayOrder - b.displayOrder)
+              .map((s: any) => ({ step: s.status, label: s.label, order: s.displayOrder }))
+        : undefined;
+
+    // Map approvals for cockpit
+    const approvals = (request.approvals || []).map((a: any) => ({
+        id: a.id,
+        approverId: a.approverId,
+        approverType: a.approverType,
+        status: a.status,
+        decision: a.decision ?? null,
+        decidedAt: a.decidedAt ?? null,
+        approver: a.approver
+            ? { id: a.approver.id, firstName: a.approver.firstName, lastName: a.approver.lastName, email: a.approver.email }
+            : { id: a.approverId, firstName: '?', lastName: '', email: '' },
+        entity: a.entity ?? null,
+    }));
+
     return (
         <div className="max-w-[1440px] mx-auto px-6 py-8">
             <RequestHeader
                 request={request}
-                activities={activities}
                 user={user}
                 onActionClick={() => {}}
                 onScheduleInterview={() => rq.setShowScheduleInterviewModal(true)}
@@ -85,8 +103,11 @@ const RequestDetailContainer: React.FC = () => {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-10">
+            {/* ─── 2-Pane Cockpit Layout ─── */}
+            <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
+
+                {/* ─── LEFT PANE: Content ─── */}
+                <div className="space-y-10">
                     <RequestFormFields
                         request={request}
                         activities={activities}
@@ -147,65 +168,61 @@ const RequestDetailContainer: React.FC = () => {
                     />
                 </div>
 
-                <div data-actions-sidebar className="lg:col-span-1 flex flex-col gap-3 self-start sticky top-6">
-                    <ApprovalActions
-                        request={request}
-                        interviewDetails={rq.interviewDetails}
-                        user={user}
-                        processingAction={rq.processingAction}
-                        hasLOA={!!rq.loaDetails}
-                        onStartHRScreening={rq.handleStartHRScreening}
-                        onRouteLOAForApproval={rq.handleRouteLOAForApproval}
-                        onReviseAndResubmit={rq.handleReviseAndResubmit}
-                        onReopenForNewCandidates={rq.handleReopenForNewCandidates}
-                    />
-                    <EntityApprovalsPanel approvals={request.approvals || []} />
-                    <ActionSidebar
-                        requestId={request.id}
-                        status={request.status}
-                        userRoles={user?.roles || []}
-                        userId={user?.id || ''}
-                        userName={user ? `${user.firstName} ${user.lastName}` : ''}
-                        assignedTo={request.assignedTo || null}
-                        assignedTeam={request.assignedTeam || null}
-                        approvals={request.approvals || []}
-                        requestTypeName={request.requestType?.name || ''}
-                        requestTypeCode={request.requestType?.code || ''}
-                        referenceNumber={request.referenceNumber}
-                        priority={request.priority}
-                        serviceDeskName={request.serviceDesk?.name || ''}
-                        requesterName={request.requester ? `${request.requester.firstName} ${request.requester.lastName}` : ''}
-                        requesterId={request.requesterId || request.requester?.id || ''}
-                        createdAt={request.createdAt}
-                        slaDueAt={request.slaDueAt}
-                        serviceDeskCode={request.serviceDesk?.code || ''}
-                        requiresApproval={request.requestType?.requiresApproval ?? true}
-                        agentTeam={user?.agentTeam}
-                        attachments={request.attachments || []}
-                        hasResumes={rq.resumes.length > 0}
-                        screeningCompleted={rq.screeningDetails?.overallStatus === 'COMPLETED'}
-                        hasLOA={!!rq.loaDetails}
-                        hasSignedLOA={!!rq.loaDetails?.signedLoaFileUrl}
-                        selectedCandidateId={request.customFields?.selectedCandidateId}
-                        selectedCandidateIds={request.customFields?.selectedCandidateIds || (request.customFields?.selectedCandidateId ? [request.customFields.selectedCandidateId] : [])}
-                        candidateNames={[...new Set(rq.resumes.map(r => r.candidateName?.trim()).filter(Boolean) as string[])]}
-                        onManagerDecision={() => rq.setShowManagerDecisionModal(true)}
-                        onActionSuccess={rq.fetchRequestData}
-                        onLOAApproval={() => rq.setShowLOAApprovalModal(true)}
-                        onRouteToManager={rq.handleRouteToManager}
-                        onIssueLOA={rq.handleMarkLOAIssued}
-                        onMarkLOAAccepted={rq.handleMarkLOAAccepted}
-                        onAdvanceOnboardingPhase={rq.handleAdvanceOnboardingPhase}
-                        onCompleteOnboarding={rq.handleCompleteOnboarding}
-                        onAdvanceOffboardingPhase={rq.handleAdvanceOffboardingPhase}
-                        onCompleteOffboarding={rq.handleCompleteOffboarding}
-                        onResolveRequest={() => rq.handleStatusChange('RESOLVED')}
-                        onInterviewFeedback={() => rq.setShowInterviewFeedbackModal(true)}
-                    />
-                </div>
+                {/* ─── RIGHT PANE: Workflow Cockpit ─── */}
+                <WorkflowCockpit
+                    request={{
+                        id: request.id,
+                        status: request.status,
+                        slaDueAt: request.slaDueAt,
+                        slaPausedAt: (request as any).slaPausedAt ?? null,
+                        slaPauseDurationMs: (request as any).slaPauseDurationMs ?? null,
+                        createdAt: request.createdAt,
+                        resolvedAt: (request as any).resolvedAt ?? null,
+                        referenceNumber: request.referenceNumber,
+                        priority: request.priority,
+                        serviceDeskName: request.serviceDesk?.name,
+                        serviceDeskCode,
+                        requestTypeName: request.requestType?.name,
+                        requestTypeCode: request.requestType?.code,
+                        requesterId: request.requesterId || request.requester?.id,
+                        requesterName: request.requester ? `${request.requester.firstName} ${request.requester.lastName}` : '',
+                        requiresApproval: request.requestType?.requiresApproval ?? true,
+                        assignedToId: request.assignedTo?.id,
+                        assignedTo: request.assignedTo ?? null,
+                        assignedTeam: request.assignedTeam ?? null,
+                        isConfidential: request.isConfidential,
+                    }}
+                    user={{
+                        id: user?.id || '',
+                        roles: user?.roles || [],
+                        name: user ? `${user.firstName} ${user.lastName}` : '',
+                        permissions: user?.permissions || [],
+                    }}
+                    workflowSteps={workflowSteps}
+                    approvals={approvals}
+                    hasResumes={rq.resumes.length > 0}
+                    screeningCompleted={rq.screeningDetails?.overallStatus === 'COMPLETED'}
+                    hasLOA={!!rq.loaDetails}
+                    hasSignedLOA={!!rq.loaDetails?.signedLoaFileUrl}
+                    selectedCandidateId={request.customFields?.selectedCandidateId}
+                    selectedCandidateIds={request.customFields?.selectedCandidateIds || (request.customFields?.selectedCandidateId ? [request.customFields.selectedCandidateId] : [])}
+                    candidateNames={[...new Set(rq.resumes.map(r => r.candidateName?.trim()).filter(Boolean) as string[])]}
+                    onActionComplete={rq.fetchRequestData}
+                    onRouteToManager={rq.handleRouteToManager}
+                    onManagerDecision={() => rq.setShowManagerDecisionModal(true)}
+                    onLOAApproval={() => rq.setShowLOAApprovalModal(true)}
+                    onIssueLOA={rq.handleMarkLOAIssued}
+                    onMarkLOAAccepted={rq.handleMarkLOAAccepted}
+                    onInterviewFeedback={() => rq.setShowInterviewFeedbackModal(true)}
+                    onAdvanceOnboardingPhase={rq.handleAdvanceOnboardingPhase}
+                    onCompleteOnboarding={() => rq.setShowCompleteOnboardingConfirm(true)}
+                    onAdvanceOffboardingPhase={rq.handleAdvanceOffboardingPhase}
+                    onCompleteOffboarding={rq.handleCompleteOffboarding}
+                    onResolveRequest={() => rq.handleStatusChange('RESOLVED')}
+                />
             </div>
 
-            {/* Modals */}
+            {/* Modals — kept for now (Phase C removes these in favor of config-driven modals) */}
             <ResolutionModal
                 isOpen={rq.showResolutionModal}
                 resolutionComment={rq.resolutionComment}

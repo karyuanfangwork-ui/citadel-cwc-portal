@@ -45,6 +45,7 @@ import UnifiedInbox from './pages/UnifiedInbox';
 import CreateRequest from './pages/CreateRequest';
 import AgentDashboard from './pages/AgentDashboard';
 import Reports from './pages/Reports';
+import Insights from './pages/Insights';
 import SearchResults from './pages/SearchResults';
 import KnowledgeBase from './pages/KnowledgeBase';
 import ArticleDetail from './pages/ArticleDetail';
@@ -227,6 +228,7 @@ const AppShell = () => {
               <Route path="/it/hardware" element={<Navigate to="/it" replace />} />
               <Route path="/agent" element={<ProtectedRoute><AgentDashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute requirePermission="report:read"><Reports /></ProtectedRoute>} />
+              <Route path="/insights" element={<ProtectedRoute requirePermission="report:read"><Insights /></ProtectedRoute>} />
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
               <Route path="/kb" element={isFeatureEnabled('kb') ? <ProtectedRoute><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
               <Route path="/kb/:slug" element={isFeatureEnabled('kb') ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />

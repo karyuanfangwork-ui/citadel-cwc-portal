@@ -21,6 +21,7 @@ export const buildNavLinks = (user: any): NavLinkConfig[] => [
   { to: '/credit', label: 'Credit', icon: 'account_balance', group: 'secondary', show: hasAnyPermission(user, ['credit:read']) },
   { to: '/kb', label: 'Knowledge Base', icon: 'menu_book', group: 'secondary', show: isFeatureEnabled('kb') },
   { to: '/reports', label: 'Reports', icon: 'assessment', group: 'secondary', show: hasPermission(user, 'report:read') },
+  { to: '/insights', label: 'Insights', icon: 'insights', group: 'secondary', show: hasPermission(user, 'report:read') },
   { to: '/admin/announcements', label: 'Announcements', icon: 'campaign', group: 'admin', show: hasPermission(user, 'announcement:write') },
   { to: '/admin/settings', label: 'Admin', icon: 'settings', group: 'admin', show: hasPermission(user, 'admin:access') },
   { to: '/admin/audit', label: 'Audit Trail', icon: 'history', group: 'admin', show: hasPermission(user, 'admin:access') },

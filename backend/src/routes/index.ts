@@ -36,6 +36,7 @@ import crmRoutes from './crm.routes';
 import announcementRoutes from './announcement.routes';
 import creditRoutes from '../credit/routes/credit.routes';
 import schedulerRoutes from './scheduler.routes';
+import insightsRoutes from './insights.routes';
 
 const router = Router();
 
@@ -79,6 +80,7 @@ router.use('/crm', crmRoutes);
 router.use('/announcements', announcementRoutes);
 router.use('/credit', creditRoutes);
 router.use('/admin/scheduler', schedulerRoutes);
+router.use('/insights', insightsRoutes);
 
 export default router;
 

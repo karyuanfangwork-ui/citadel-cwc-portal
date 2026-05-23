@@ -1,15 +1,22 @@
 // frontend/src/utils/workflowModalConfig.ts
 // Config-driven workflow modal definitions.
 // Add new action types here to automatically get a generic WorkflowActionModal —
-// no need to create a dedicated modal component or touch ActionSidebar's switch.
+// no need to create a dedicated modal component.
 
 import itWorkflowService from '../services/it-workflow.service';
+import financeWorkflowService from '../services/finance-workflow.service';
+import chargebackWorkflowService from '../services/chargeback-workflow.service';
+import { requestService } from '../services/request.service';
+import api from '../services/api';
+import interviewService from '../services/interview.service';
+import screeningService from '../services/screening.service';
+import loaService from '../services/loa.service';
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type FieldInputType = 'text' | 'textarea' | 'date' | 'number' | 'select';
+export type FieldInputType = 'text' | 'textarea' | 'date' | 'number' | 'select' | 'file';
 
 export interface WorkflowModalField {
   /** Machine key used as the form state property name */
@@ -51,14 +58,47 @@ export interface WorkflowModalConfig {
   submitColor: SubmitColor;
   /** Async handler — receives requestId + keyed form values */
   onSubmit: (requestId: string, values: Record<string, unknown>) => Promise<unknown>;
+  /**Conditionally show/hide the modal based on request & user context */
+  showWhen?: (request: any, user: any) => boolean;
+  /** Custom validation returning field→error map (empty = valid) */
+  validation?: (values: Record<string, unknown>) => Record<string, string>;
+  /** Required permission to display this modal */
+  requiresPermission?: string;
+  /** Label shown while the submit is in-flight */
+  loadingLabel?: string;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Reusable field presets                                              */
+/* ------------------------------------------------------------------ */
+
+const DECISION_OPTIONS: { value: string; label: string }[] = [
+  { value: 'APPROVE', label: 'Approve' },
+  { value: 'REJECT', label: 'Reject' },
+];
+
+const SCREENING_RESULT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'PASS', label: 'Pass' },
+  { value: 'FAIL', label: 'Fail' },
+];
+
+const INTERVIEW_RECOMMENDATION_OPTIONS: { value: string; label: string }[] = [
+  { value: 'STRONG_YES', label: 'Strong Yes' },
+  { value: 'YES', label: 'Yes' },
+  { value: 'NO', label: 'No' },
+  { value: 'STRONG_NO', label: 'Strong No' },
+];
 
 /* ------------------------------------------------------------------ */
 /*  Modal key → config map                                             */
 /* ------------------------------------------------------------------ */
 
-/** Keys must match the ModalType values used in ActionSidebar's openModal state. */
+/** Keys must match the ModalType values used in the workflow action state. */
 export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
+  /* ────────────────────────────────────────────────────────────────── *
+   *  IT WORKFLOW                                                      *
+   * ────────────────────────────────────────────────────────────────── */
+
   PROCUREMENT: {
     title: 'Procurement In Progress',
     subtitle: 'IT Workflow · Log vendor & order details',
@@ -133,6 +173,1070 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       itWorkflowService.markHardwareOrdered(requestId, {
         orderNumber: (values.orderRef as string) || undefined,
       }),
+  },
+
+  HARDWARE_RECEIVED: {
+    title: 'Mark Hardware as Received',
+    subtitle: 'IT Workflow · Confirm hardware delivery',
+    icon: 'inventory_2',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Receiving notes, condition, etc.',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Confirm Received',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      itWorkflowService.markHardwareReceived(requestId, {
+        notes: (values.notes as string) || undefined,
+      }),
+  },
+
+  SOFTWARE_PROVISIONED: {
+    title: 'Mark Software as Provisioned',
+    subtitle: 'IT Workflow · Confirm software setup',
+    icon: 'cloud_done',
+    iconBgClass: 'bg-purple-100',
+    iconTextClass: 'text-purple-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Provisioning Notes',
+        type: 'textarea',
+        placeholder: 'Describe software provisioned, licenses assigned…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Confirm Provisioned',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      itWorkflowService.markSoftwareProvisioned(requestId, {
+        provisioningNotes: (values.notes as string) || undefined,
+      }),
+  },
+
+  FULFILMENT: {
+    title: 'Mark as Fulfilled',
+    subtitle: 'IT Workflow · Confirm request fulfilment',
+    icon: 'task_alt',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Fulfilment details…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Confirm Fulfilment',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      itWorkflowService.markFulfilled(requestId, (values.notes as string) || undefined),
+  },
+
+  ASSIGN: {
+    title: 'Assign Request',
+    subtitle: 'Assign this request to an agent',
+    icon: 'person_add',
+    iconBgClass: 'bg-indigo-100',
+    iconTextClass: 'text-indigo-600',
+    fields: [],
+    submitLabel: 'Assign',
+    submitColor: 'primary',
+    onSubmit: (requestId) =>
+      requestService.updateStatus(requestId, 'ASSIGNED' as any),
+  },
+
+  ACKNOWLEDGE_IT: {
+    title: 'Acknowledge Request',
+    subtitle: 'IT Workflow · Confirm acknowledgement',
+    icon: 'acknowledgement',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional acknowledgement notes…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Acknowledge',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      itWorkflowService.acknowledgeRequest(requestId, '', (values.notes as string) || undefined),
+  },
+
+  CEO_DECISION: {
+    title: 'CEO Decision',
+    subtitle: 'IT Workflow · Approve or reject',
+    icon: 'gavel',
+    iconBgClass: 'bg-amber-100',
+    iconTextClass: 'text-amber-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      itWorkflowService.ceoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  CTO_DECISION: {
+    title: 'CTO Decision',
+    subtitle: 'IT Workflow · Approve or reject',
+    icon: 'gavel',
+    iconBgClass: 'bg-teal-100',
+    iconTextClass: 'text-teal-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      itWorkflowService.ctoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  ROUTE_TO_CFO: {
+    title: 'Route to CFO',
+    subtitle: 'IT Workflow · Forward for CFO approval',
+    icon: 'send',
+    iconBgClass: 'bg-orange-100',
+    iconTextClass: 'text-orange-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional notes for CFO…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Route to CFO',
+    submitColor: 'primary',
+    loadingLabel: 'Routing…',
+    onSubmit: (requestId, values) =>
+      api.post(`/it-workflow/requests/${requestId}/route-to-cfo`, {
+        notes: (values.notes as string) || undefined,
+      }),
+  },
+
+  CFO_DECISION: {
+    title: 'CFO Decision',
+    subtitle: 'IT Workflow · Approve or reject payment',
+    icon: 'gavel',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      itWorkflowService.cfoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  PAYMENT_DONE: {
+    title: 'Mark Payment Done',
+    subtitle: 'IT Workflow · Record payment reference',
+    icon: 'payments',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'paymentRef',
+        label: 'Payment Reference',
+        type: 'text',
+        placeholder: 'e.g. PAY-2026-00123',
+        required: true,
+      },
+      {
+        name: 'amount',
+        label: 'Amount',
+        type: 'number',
+        placeholder: '0.00',
+        required: true,
+      },
+      {
+        name: 'paymentDate',
+        label: 'Payment Date',
+        type: 'date',
+        required: true,
+      },
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional payment notes…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Confirm Payment',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      itWorkflowService.markPaymentDone(requestId, {
+        paymentReference: (values.paymentRef as string) || '',
+        amount: Number(values.amount) || 0,
+        paymentDate: (values.paymentDate as string) || '',
+        notes: (values.notes as string) || undefined,
+      }),
+  },
+
+  COMPLETE_DELIVERY: {
+    title: 'Complete Delivery',
+    subtitle: 'IT Workflow · Confirm delivery complete',
+    icon: 'check_circle',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional delivery confirmation notes…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Confirm Delivery',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      itWorkflowService.completeDelivery(requestId, (values.notes as string) || undefined),
+  },
+
+  /* ────────────────────────────────────────────────────────────────── *
+   *  FINANCE WORKFLOW                                                  *
+   * ────────────────────────────────────────────────────────────────── */
+
+  FIN_ACKNOWLEDGE: {
+    title: 'Acknowledge Finance Request',
+    subtitle: 'Finance Workflow · Confirm acknowledgement',
+    icon: 'acknowledgement',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional acknowledgement notes…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Acknowledge',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.acknowledge(requestId, (values.notes as string) || undefined),
+  },
+
+  ROUTE_TO_CEO_FIN: {
+    title: 'Route to CEO',
+    subtitle: 'Finance Workflow · Set finalized amount & forward',
+    icon: 'send',
+    iconBgClass: 'bg-orange-100',
+    iconTextClass: 'text-orange-600',
+    fields: [
+      {
+        name: 'finalizedAmount',
+        label: 'Finalized Amount',
+        type: 'number',
+        placeholder: '0.00',
+        required: true,
+      },
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional notes for CEO…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Route to CEO',
+    submitColor: 'primary',
+    loadingLabel: 'Routing…',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.setFinalizedAmountAndRouteCeo(
+        requestId,
+        Number(values.finalizedAmount) || 0,
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  CFO_DECISION_FIN: {
+    title: 'CFO Decision',
+    subtitle: 'Finance Workflow · Approve or reject',
+    icon: 'gavel',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.cfoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  GROUP_CEO_DECISION_FIN: {
+    title: 'Group CEO Decision',
+    subtitle: 'Finance Workflow · Approve or reject',
+    icon: 'gavel',
+    iconBgClass: 'bg-purple-100',
+    iconTextClass: 'text-purple-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.groupCeoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  MARK_PAYMENT_COMPLETE_FIN: {
+    title: 'Mark Payment Complete',
+    subtitle: 'Finance Workflow · Record payment reference',
+    icon: 'payments',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'paymentRef',
+        label: 'Payment Reference',
+        type: 'text',
+        placeholder: 'e.g. PAY-2026-00456',
+        required: false,
+      },
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional payment notes…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Confirm Payment',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.markPaymentComplete(
+        requestId,
+        (values.paymentRef as string) || undefined,
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  CLOSE_TICKET_FIN: {
+    title: 'Close Finance Ticket',
+    subtitle: 'Finance Workflow · Finalize and close',
+    icon: 'check_circle',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Closing Notes',
+        type: 'textarea',
+        placeholder: 'Optional closing remarks…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Close Ticket',
+    submitColor: 'success',
+    onSubmit: (requestId) =>
+      financeWorkflowService.closeTicket(requestId),
+  },
+
+  /* ────────────────────────────────────────────────────────────────── *
+   *  HR WORKFLOW                                                       *
+   * ────────────────────────────────────────────────────────────────── */
+
+  ROUTE_TO_CEO_HR: {
+    title: 'Route to CEO (HR)',
+    subtitle: 'HR Workflow · Forward for CEO approval',
+    icon: 'send',
+    iconBgClass: 'bg-orange-100',
+    iconTextClass: 'text-orange-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional notes for CEO…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Route to CEO',
+    submitColor: 'primary',
+    loadingLabel: 'Routing…',
+    onSubmit: (requestId, values) =>
+      api.post(`/hr-workflow/requests/${requestId}/route-to-ceo`, {
+        notes: (values.notes as string) || undefined,
+      }),
+  },
+
+  ROUTE_TO_GROUP_CEO_HR: {
+    title: 'Route to Group CEO (HR)',
+    subtitle: 'HR Workflow · Forward for Group CEO approval',
+    icon: 'send',
+    iconBgClass: 'bg-orange-100',
+    iconTextClass: 'text-orange-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional notes for Group CEO…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Route to Group CEO',
+    submitColor: 'primary',
+    loadingLabel: 'Routing…',
+    onSubmit: (requestId, values) =>
+      api.post(`/hr-workflow/requests/${requestId}/route-to-group-ceo`, {
+        notes: (values.notes as string) || undefined,
+      }),
+  },
+
+  GROUP_CEO_DECISION_HR: {
+    title: 'Group CEO Decision (HR)',
+    subtitle: 'HR Workflow · Approve or reject',
+    icon: 'gavel',
+    iconBgClass: 'bg-purple-100',
+    iconTextClass: 'text-purple-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      api.post(`/hr-workflow/requests/${requestId}/group-ceo-decision`, {
+        decision: (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        comments: (values.notes as string) || undefined,
+      }),
+  },
+
+  MARK_JOB_POSTED: {
+    title: 'Mark Job as Posted',
+    subtitle: 'HR Workflow · Record job posting details',
+    icon: 'work',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+    fields: [
+      {
+        name: 'jobPostUrl',
+        label: 'Job Post URL',
+        type: 'text',
+        placeholder: 'https://careers.example.com/job/12345',
+        required: false,
+      },
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Job posting details…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Mark as Posted',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      api.post(`/hr-workflow/requests/${requestId}/mark-job-posted`, {
+        jobPostUrl: (values.jobPostUrl as string) || undefined,
+        notes: (values.notes as string) || undefined,
+      }),
+  },
+
+  UPLOAD_RESUME: {
+    title: 'Upload Resume',
+    subtitle: 'HR Workflow · Attach candidate resume',
+    icon: 'upload_file',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Candidate details or notes…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Upload Resume',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      api.post(`/hr-workflow/requests/${requestId}/upload-resume`, {
+        notes: (values.notes as string) || undefined,
+      }),
+  },
+
+  MANAGER_DECISION: {
+    title: 'Manager Decision (HR)',
+    subtitle: 'HR Workflow · Approve or reject candidate',
+    icon: 'gavel',
+    iconBgClass: 'bg-amber-100',
+    iconTextClass: 'text-amber-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      api.post(`/hr-workflow/requests/${requestId}/manager-decision`, {
+        decision: (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        comments: (values.notes as string) || undefined,
+      }),
+  },
+
+  SCHEDULE_INTERVIEW: {
+    title: 'Schedule Interview',
+    subtitle: 'HR Workflow · Set interview date & time',
+    icon: 'calendar_month',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+    fields: [
+      {
+        name: 'interviewDate',
+        label: 'Interview Date',
+        type: 'date',
+        required: true,
+      },
+      {
+        name: 'interviewTime',
+        label: 'Interview Time',
+        type: 'text',
+        placeholder: 'e.g. 10:00 AM',
+        required: true,
+      },
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Interview details…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Schedule Interview',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      interviewService.scheduleInterview(requestId, {
+        candidateId: '', // populated by context
+        interviewDate: (values.interviewDate as string) || '',
+        interviewTime: (values.interviewTime as string) || '',
+        notes: (values.notes as string) || undefined,
+        interviewers: [],
+      } as any),
+  },
+
+  UPDATE_SCREENING: {
+    title: 'Update Screening',
+    subtitle: 'HR Workflow · Record screening results',
+    icon: 'fact_check',
+    iconBgClass: 'bg-indigo-100',
+    iconTextClass: 'text-indigo-600',
+    fields: [
+      {
+        name: 'screeningNotes',
+        label: 'Screening Notes',
+        type: 'textarea',
+        placeholder: 'Screening observations…',
+        required: false,
+        rows: 3,
+      },
+      {
+        name: 'screeningResult',
+        label: 'Screening Result',
+        type: 'select',
+        required: true,
+        options: SCREENING_RESULT_OPTIONS,
+      },
+    ],
+    submitLabel: 'Update Screening',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      screeningService.updateScreeningStatus(requestId, {
+        backgroundCheckStatus: (values.screeningResult as string) === 'PASS' ? 'PASSED' : 'FAILED',
+        backgroundCheckNotes: (values.screeningNotes as string) || undefined,
+        referencesCheckStatus: (values.screeningResult as string) === 'PASS' ? 'PASSED' : 'FAILED',
+        referencesCheckNotes: (values.screeningNotes as string) || undefined,
+      }),
+  },
+
+  UPLOAD_LOA: {
+    title: 'Upload Letter of Acceptance',
+    subtitle: 'HR Workflow · Upload LOA document',
+    icon: 'upload_file',
+    iconBgClass: 'bg-blue-100',
+    iconTextClass: 'text-blue-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional notes about the LOA…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Upload LOA',
+    submitColor: 'primary',
+    onSubmit: (requestId) =>
+      api.post(`/loa/requests/${requestId}/route-for-approval`, {}),
+  },
+
+  UPLOAD_SIGNED_LOA: {
+    title: 'Upload Signed LOA',
+    subtitle: 'HR Workflow · Upload signed Letter of Acceptance',
+    icon: 'upload_file',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional notes about the signed LOA…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Upload Signed LOA',
+    submitColor: 'primary',
+    onSubmit: (requestId) =>
+      api.post(`/loa/requests/${requestId}/mark-issued`, {}),
+  },
+
+  INTERVIEW_FEEDBACK: {
+    title: 'Interview Feedback',
+    subtitle: 'HR Workflow · Record interview evaluation',
+    icon: 'rate_review',
+    iconBgClass: 'bg-purple-100',
+    iconTextClass: 'text-purple-600',
+    fields: [
+      {
+        name: 'feedback',
+        label: 'Feedback',
+        type: 'textarea',
+        placeholder: 'Detailed interview feedback…',
+        required: true,
+        rows: 4,
+      },
+      {
+        name: 'recommendation',
+        label: 'Recommendation',
+        type: 'select',
+        required: true,
+        options: INTERVIEW_RECOMMENDATION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Additional Notes',
+        type: 'textarea',
+        placeholder: 'Any additional notes…',
+        required: false,
+        rows: 2,
+      },
+    ],
+    submitLabel: 'Submit Feedback',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      interviewService.submitFeedback(requestId, {
+        decision: (['STRONG_YES', 'YES'] as string[]).includes(values.recommendation as string)
+          ? 'PROCEED'
+          : 'REJECT',
+        overallRating: 3,
+        technicalSkills: 3,
+        culturalFit: 3,
+        communication: 3,
+        feedback: (values.feedback as string) || '',
+        concerns: (values.notes as string) || undefined,
+      } as any),
+  },
+
+  /* ────────────────────────────────────────────────────────────────── *
+   *  CHARGEBACK / ENTITY WORKFLOW                                      *
+   * ────────────────────────────────────────────────────────────────── */
+
+  FROM_ENTITY_APPROVE: {
+    title: 'Approve (From Entity)',
+    subtitle: 'Chargeback · Approve chargeback from originating entity',
+    icon: 'check_circle',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional approval comments…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Approve',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      chargebackWorkflowService.fromEntityDecision(
+        requestId,
+        'APPROVED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  FROM_ENTITY_REJECT: {
+    title: 'Reject (From Entity)',
+    subtitle: 'Chargeback · Reject chargeback from originating entity',
+    icon: 'cancel',
+    iconBgClass: 'bg-red-100',
+    iconTextClass: 'text-red-600',
+    fields: [
+      {
+        name: 'reason',
+        label: 'Reason for Rejection',
+        type: 'textarea',
+        placeholder: 'Why is this chargeback being rejected?',
+        required: true,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Reject',
+    submitColor: 'danger',
+    onSubmit: (requestId, values) =>
+      chargebackWorkflowService.fromEntityDecision(
+        requestId,
+        'REJECTED',
+        (values.reason as string) || undefined,
+      ),
+  },
+
+  TO_ENTITY_APPROVE: {
+    title: 'Approve (To Entity)',
+    subtitle: 'Chargeback · Approve chargeback to receiving entity',
+    icon: 'check_circle',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional approval comments…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Approve',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      chargebackWorkflowService.toEntityDecision(
+        requestId,
+        'APPROVED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  TO_ENTITY_REJECT: {
+    title: 'Reject (To Entity)',
+    subtitle: 'Chargeback · Reject chargeback to receiving entity',
+    icon: 'cancel',
+    iconBgClass: 'bg-red-100',
+    iconTextClass: 'text-red-600',
+    fields: [
+      {
+        name: 'reason',
+        label: 'Reason for Rejection',
+        type: 'textarea',
+        placeholder: 'Why is this chargeback being rejected?',
+        required: true,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Reject',
+    submitColor: 'danger',
+    onSubmit: (requestId, values) =>
+      chargebackWorkflowService.toEntityDecision(
+        requestId,
+        'REJECTED',
+        (values.reason as string) || undefined,
+      ),
+  },
+
+  /* ────────────────────────────────────────────────────────────────── *
+   *  EXPENSE / REIMBURSEMENT WORKFLOW                                  *
+   * ────────────────────────────────────────────────────────────────── */
+
+  MANAGER_APPROVE_EXPENSE: {
+    title: 'Approve Expense (Manager)',
+    subtitle: 'Expense · Manager approval',
+    icon: 'check_circle',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional approval comments…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Approve',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.managerApproveExpense(
+        requestId,
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  MANAGER_REJECT_EXPENSE: {
+    title: 'Reject Expense (Manager)',
+    subtitle: 'Expense · Manager rejection',
+    icon: 'cancel',
+    iconBgClass: 'bg-red-100',
+    iconTextClass: 'text-red-600',
+    fields: [
+      {
+        name: 'reason',
+        label: 'Reason for Rejection',
+        type: 'textarea',
+        placeholder: 'Why is this expense being rejected?',
+        required: true,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Reject',
+    submitColor: 'danger',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.managerRejectExpense(
+        requestId,
+        (values.reason as string) || undefined,
+      ),
+  },
+
+  FINANCE_HEAD_APPROVE_EXPENSE: {
+    title: 'Approve Expense (Finance Head)',
+    subtitle: 'Expense · Finance Head approval',
+    icon: 'check_circle',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional approval comments…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Approve',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.financeHeadApproveExpense(
+        requestId,
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  FINANCE_HEAD_REJECT_EXPENSE: {
+    title: 'Reject Expense (Finance Head)',
+    subtitle: 'Expense · Finance Head rejection',
+    icon: 'cancel',
+    iconBgClass: 'bg-red-100',
+    iconTextClass: 'text-red-600',
+    fields: [
+      {
+        name: 'reason',
+        label: 'Reason for Rejection',
+        type: 'textarea',
+        placeholder: 'Why is this expense being rejected?',
+        required: true,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Reject',
+    submitColor: 'danger',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.financeHeadRejectExpense(
+        requestId,
+        (values.reason as string) || undefined,
+      ),
+  },
+
+  MARK_EXPENSE_PAYMENT_COMPLETE: {
+    title: 'Mark Expense Payment Complete',
+    subtitle: 'Expense · Record payment reference',
+    icon: 'payments',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'paymentRef',
+        label: 'Payment Reference',
+        type: 'text',
+        placeholder: 'e.g. EXP-PAY-2026-001',
+        required: false,
+      },
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional payment notes…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Confirm Payment',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.markExpensePaymentComplete(
+        requestId,
+        (values.paymentRef as string) || undefined,
+        (values.notes as string) || undefined,
+      ),
   },
 };
 
