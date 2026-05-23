@@ -64,7 +64,7 @@ const ProcessOverview: React.FC<{ workflow: WorkflowInfo; slaHours?: number | nu
                       ? 'bg-green-600 border-green-600 text-white'
                       : 'bg-white border-brand-300 text-brand-600'
                 }`}>
-                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{step.icon || 'radio_button_checked'}</span>
+                  <span className="material-symbols-outlined leading-none" style={{ fontSize: '14px' }}>{step.icon || 'radio_button_checked'}</span>
                 </div>
                 {hasConnection && (
                   <div className="w-0.5 flex-1 min-h-[20px] bg-brand-200" />

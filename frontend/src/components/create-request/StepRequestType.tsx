@@ -49,53 +49,55 @@ const WorkflowPreview: React.FC<{ workflow: WorkflowInfo; slaHours?: number | nu
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4">
-          <div className="flex items-start gap-0">
-            {steps.map((step, idx) => {
-              const isFirst = idx === 0;
-              const isLast = idx === steps.length - 1;
-              return (
-                <div key={step.id} className="flex flex-col items-center flex-1 min-w-0">
-                  {/* Step node */}
-                  <div className="flex items-center w-full">
-                    {/* Connector left */}
-                    {!isFirst && (
-                      <div className="flex-1 h-0.5 bg-brand-200" />
-                    )}
-                    {/* Icon circle */}
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 border-2 ${
-                      step.isInitial
-                        ? 'bg-brand-700 border-brand-700 text-white'
-                        : step.isFinal
-                          ? 'bg-green-600 border-green-600 text-white'
-                          : 'bg-white border-brand-300 text-brand-600'
-                    }`}>
-                      <span className="material-symbols-outlined text-base">{step.icon || 'radio_button_checked'}</span>
+        <div className="pb-4">
+          <div className="relative">
+            <div className="overflow-x-auto pb-2 px-4" style={{ scrollbarWidth: 'thin' }}>
+              <div className="flex items-start gap-0" style={{ minWidth: 'max-content' }}>
+                {steps.map((step, idx) => {
+                  const isFirst = idx === 0;
+                  const isLast = idx === steps.length - 1;
+                  return (
+                    <div key={step.id} className="flex flex-col items-center" style={{ width: '80px', flexShrink: 0 }}>
+                      {/* Step node */}
+                      <div className="flex items-center w-full">
+                        {/* Connector left */}
+                        <div className={`h-0.5 shrink-0 ${isFirst ? 'invisible' : 'bg-brand-200'}`} style={{ width: '16px' }} />
+                        {/* Icon circle */}
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 ${
+                          step.isInitial
+                            ? 'bg-brand-700 border-brand-700 text-white'
+                            : step.isFinal
+                              ? 'bg-green-600 border-green-600 text-white'
+                              : 'bg-white border-brand-300 text-brand-600'
+                        }`}>
+                          <span className="material-symbols-outlined leading-none" style={{ fontSize: '14px' }}>{step.icon || 'radio_button_checked'}</span>
+                        </div>
+                        {/* Connector right */}
+                        <div className={`h-0.5 shrink-0 ${isLast ? 'invisible' : 'bg-brand-200'}`} style={{ width: '16px' }} />
+                      </div>
+                      {/* Label */}
+                      <div className="mt-1.5 text-center w-full px-0.5">
+                        <p className={`font-semibold leading-tight break-words ${
+                          step.isInitial ? 'text-brand-700' : step.isFinal ? 'text-green-700' : 'text-text-secondary'
+                        }`} style={{ fontSize: '10px' }}>
+                          {step.label}
+                        </p>
+                        {step.slaPause && (
+                          <span className="inline-flex items-center gap-0.5 mt-0.5 px-1 py-px font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full" style={{ fontSize: '9px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '9px' }}>pause</span>
+                            Pauses SLA
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    {/* Connector right */}
-                    {!isLast && (
-                      <div className="flex-1 h-0.5 bg-brand-200" />
-                    )}
-                  </div>
-                  {/* Label */}
-                  <div className="mt-1.5 text-center px-0.5">
-                    <p className={`text-xs font-semibold leading-tight ${
-                      step.isInitial ? 'text-brand-700' : step.isFinal ? 'text-green-700' : 'text-text-secondary'
-                    }`}>
-                      {step.label}
-                    </p>
-                    {step.slaPause && (
-                      <span className="inline-flex items-center gap-0.5 mt-0.5 px-1 py-px text-[10px] font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full">
-                        <span className="material-symbols-outlined" style={{ fontSize: '10px' }}>pause</span>
-                        Pauses SLA
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
+            {/* Right fade hint */}
+            <div className="absolute right-0 top-0 bottom-2 w-8 bg-gradient-to-l from-brand-50/80 to-transparent pointer-events-none rounded-r-cwc-lg" />
           </div>
-          <p className="mt-3 text-xs text-text-tertiary leading-relaxed">
+          <p className="mt-2 px-4 text-xs text-text-tertiary leading-relaxed">
             Your request will follow this process. You can track progress on the request detail page after submission.
           </p>
         </div>

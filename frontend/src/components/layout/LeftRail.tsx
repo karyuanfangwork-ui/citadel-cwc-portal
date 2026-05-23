@@ -50,7 +50,7 @@ export default function LeftRail({ navLinks, isActive, user, onOOO, onLogout, cl
       } ${className}`}
     >
       {/* Brand */}
-      <div className={`flex items-center gap-3 px-3 border-b border-gray-100 flex-shrink-0 ${expanded ? 'py-3' : 'py-3'}`}>
+      <Link to="/" className={`flex items-center gap-3 px-3 border-b border-gray-100 flex-shrink-0 hover:bg-brand-50/50 transition-colors ${expanded ? 'py-3' : 'py-3'}`}>
         <div className="bg-brand-700 p-1.5 rounded-cwc-md text-white flex-shrink-0">
           <span className="material-symbols-outlined block text-lg">corporate_fare</span>
         </div>
@@ -62,7 +62,7 @@ export default function LeftRail({ navLinks, isActive, user, onOOO, onLogout, cl
           <span className="block text-sm font-bold text-text-primary leading-none">Citadel</span>
           <span className="block text-[11px] font-semibold text-text-secondary leading-none mt-0.5">Workplace Connect</span>
         </span>
-      </div>
+      </Link>
 
       {/* Nav groups */}
       <nav className="flex-1 overflow-y-auto py-2" aria-label="Main navigation">

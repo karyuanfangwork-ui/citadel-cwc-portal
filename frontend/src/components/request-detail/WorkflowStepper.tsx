@@ -287,12 +287,12 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                   <button
                     type="button"
                     onClick={() => setPopoverStep(isPopoverOpen ? null : step.step)}
-                    className="relative z-10 focus:outline-none"
+                    className="relative z-10 focus:outline-none size-5"
                     aria-label={`Step ${idx + 1}: ${step.label}`}
                   >
                     {step.state === 'completed' ? (
                       <div className="size-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-white text-xs" aria-hidden="true">check</span>
+                        <span className="material-symbols-outlined text-white text-xs leading-none" aria-hidden="true">check</span>
                       </div>
                     ) : step.state === 'current' ? (
                       <div className="size-5 rounded-full bg-[#0052cc] flex items-center justify-center animate-pulse">
@@ -385,12 +385,12 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                 <button
                   type="button"
                   onClick={() => setPopoverStep(isPopoverOpen ? null : step.step)}
-                  className="relative z-10 focus:outline-none"
+                  className="relative z-10 focus:outline-none size-6"
                   aria-label={`Step ${idx + 1}: ${step.label}`}
                 >
                   {step.state === 'completed' ? (
                     <div className="size-6 rounded-full bg-emerald-500 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-white text-sm" aria-hidden="true">check</span>
+                      <span className="material-symbols-outlined text-white text-sm leading-none" aria-hidden="true">check</span>
                     </div>
                   ) : step.state === 'current' ? (
                     <div className="size-6 rounded-full bg-[#0052cc] flex items-center justify-center animate-pulse">
