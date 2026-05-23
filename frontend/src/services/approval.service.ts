@@ -192,6 +192,86 @@ export const bulkAction = async (action: 'approve' | 'reject', requestIds: strin
     return data;
 };
 
+// ============================================================================
+// POLICY EXPLAINER SERVICES
+// ============================================================================
+
+export interface ItsmPolicyExplanation {
+    type: 'itsm';
+    requestId: string;
+    referenceNumber: string;
+    requestSummary: string;
+    currentUserId: string;
+    approvals: Array<{
+        approvalId: string;
+        approverType: string;
+        approverId: string | null;
+        approverName: string | null;
+        entityId: string | null;
+        entityName: string | null;
+        status: string;
+        reason: string;
+    }>;
+    routingRules: Array<{
+        ruleId: string;
+        requestTypeName: string;
+        routingMode: string;
+        customFieldKey: string | null;
+        label: string | null;
+    }>;
+    summary: string;
+}
+
+export interface CreditPolicyExplanation {
+    type: 'credit';
+    applicationId: string;
+    applicationNo: string;
+    currentUserId: string;
+    state: string;
+    requestedAmount: string;
+    productType: string;
+    borrowerRiskRating: string | null;
+    borrowerTotalExposure: string | null;
+    authorityLevel: string | null;
+    requiredApproverCount: number;
+    matrixName: string | null;
+    decisions: Array<{
+        decisionId: string;
+        decisionType: string;
+        decidedById: string;
+        decidedByName: string | null;
+        authorityLevel: string | null;
+        comments: string | null;
+        createdAt: string;
+    }>;
+    signoffs: Array<{
+        signoffId: string;
+        role: string;
+        signedById: string;
+        signedByName: string | null;
+        designationSnapshot: string;
+        signedAt: string | null;
+    }>;
+    explanation: string;
+}
+
+export type PolicyExplanation = ItsmPolicyExplanation | CreditPolicyExplanation;
+
+/**
+ * Fetch a human-readable policy explanation for why an approval is routed to the current user.
+ * @param type 'itsm' or 'credit'
+ * @param id requestId (for ITSM) or applicationId (for credit)
+ */
+export const getPolicyExplanation = async (
+    type: 'itsm' | 'credit',
+    id: string
+): Promise<PolicyExplanation> => {
+    const response = await apiClient.get(
+        `/approvals/policy-explainer?type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`
+    );
+    return response.data.data;
+};
+
 const approvalService = {
     routeToCEO,
     ceoDecision,
@@ -205,6 +285,7 @@ const approvalService = {
     deleteResume,
     getPendingApprovals,
     bulkAction,
+    getPolicyExplanation,
 };
 
 export default approvalService;

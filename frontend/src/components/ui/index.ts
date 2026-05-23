@@ -11,6 +11,7 @@ export { default as RiskBadge } from './RiskBadge';
 export { default as Skeleton } from './Skeleton';
 export { default as EmptyState } from './EmptyState';
 export { default as Tooltip } from './Tooltip';
+export { default as PolicyExplainer } from './PolicyExplainer';
 
 // ── Inputs & Forms ──
 export { default as Button } from './Button';

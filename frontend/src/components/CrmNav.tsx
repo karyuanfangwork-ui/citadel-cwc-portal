@@ -42,7 +42,7 @@ const CrmNav: React.FC = () => {
   });
 
   return (
-    <nav className="sticky top-16 z-30 bg-surface/95 backdrop-blur-sm border-b border-[var(--border,#e5e7eb)]">
+    <nav className="sticky top-0 z-30 bg-surface/95 backdrop-blur-sm border-b border-[var(--border,#e5e7eb)]">
       <div className="max-w-[1200px] mx-auto flex items-center gap-1 overflow-x-auto px-4 sm:px-8" style={{ scrollbarWidth: 'none' }}>
         {visibleItems.map(item => (
           <Link

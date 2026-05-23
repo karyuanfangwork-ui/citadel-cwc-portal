@@ -70,8 +70,14 @@ model User {
   lastLoginAt       DateTime?      @map("last_login_at") @db.Timestamp(6)
   passwordChangedAt DateTime?      @map("password_changed_at") @db.Timestamp(6)
   outOfOffice        Boolean        @default(false) @map("out_of_office")
-  outOfOfficeUntil   DateTime?     @map("out_of_office_until") @db.Timestamp(6)
+  outOfOfficeUntil   DateTime?      @map("out_of_office_until") @db.Timestamp(6)
   outOfOfficeMessage String?        @map("out_of_office_message") @db.Text
+  delegationEnabled  Boolean        @default(false) @map("delegation_enabled")
+  delegatedToId      String?        @map("delegated_to_id") @db.Uuid
+
+  // Delegation
+  delegatedTo              User?                  @relation("UserDelegate", fields: [delegatedToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  delegatingFrom           User[]                 @relation("UserDelegate")
 
   // Relations
   manager                   User?                  @relation("UserManager", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
@@ -152,6 +158,7 @@ model User {
   @@index([email])
   @@index([managerId])
   @@index([entityId])
+  @@index([delegatedToId])
   @@map("users")
 }
 

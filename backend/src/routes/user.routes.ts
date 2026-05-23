@@ -72,6 +72,27 @@ router.put('/me/password', validate(changePasswordSchema), userController.change
 router.put('/me/out-of-office', userController.updateOutOfOffice);
 
 /**
+ * @route   PUT /api/v1/users/me/delegation
+ * @desc    Update delegation settings for current user
+ * @access  Private
+ */
+router.put('/me/delegation', userController.updateDelegation);
+
+/**
+ * @route   GET /api/v1/users/me/delegation/search
+ * @desc    Search users for delegation (typeahead)
+ * @access  Private
+ */
+router.get('/me/delegation/search', userController.searchDelegates);
+
+/**
+ * @route   GET /api/v1/users/me/delegation/incoming
+ * @desc    Get users who have delegated to current user
+ * @access  Private
+ */
+router.get('/me/delegation/incoming', userController.getIncomingDelegations);
+
+/**
  * @route   POST /api/v1/users/roles
  * @desc    Create a new role
  * @access  Private (admin:settings)

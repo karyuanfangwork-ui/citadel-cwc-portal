@@ -40,6 +40,8 @@ import GroupFinance from './pages/GroupFinance';
 import MyRequests from './pages/MyRequests';
 import RequestDetail from './pages/RequestDetail';
 import AdminSettings from './pages/AdminSettings';
+import AuditTrail from './pages/AuditTrail';
+import UnifiedInbox from './pages/UnifiedInbox';
 import CreateRequest from './pages/CreateRequest';
 import AgentDashboard from './pages/AgentDashboard';
 import Reports from './pages/Reports';
@@ -47,6 +49,7 @@ import SearchResults from './pages/SearchResults';
 import KnowledgeBase from './pages/KnowledgeBase';
 import ArticleDetail from './pages/ArticleDetail';
 import ApprovalQueue from './pages/ApprovalQueue';
+import ApprovalCenter from './pages/ApprovalCenter';
 import AssetManagement from './pages/AssetManagement';
 import CrmAccountDetail from './pages/CrmAccountDetail';
 import CrmOpportunityDetail from './pages/CrmOpportunityDetail';
@@ -227,7 +230,8 @@ const AppShell = () => {
               <Route path="/search" element={<ProtectedRoute><SearchResults /></ProtectedRoute>} />
               <Route path="/kb" element={isFeatureEnabled('kb') ? <ProtectedRoute><KnowledgeBase /></ProtectedRoute> : <Navigate to="/" replace />} />
               <Route path="/kb/:slug" element={isFeatureEnabled('kb') ? <ProtectedRoute><ArticleDetail /></ProtectedRoute> : <Navigate to="/" replace />} />
-              <Route path="/approvals" element={<ProtectedRoute requirePermission="request:approve"><ApprovalQueue /></ProtectedRoute>} />
+              <Route path="/approvals" element={<ProtectedRoute><ApprovalCenter /></ProtectedRoute>} />
+              <Route path="/inbox" element={<ProtectedRoute><UnifiedInbox /></ProtectedRoute>} />
               <Route path="/announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
               <Route path="/announcements/:id" element={<ProtectedRoute><AnnouncementDetail /></ProtectedRoute>} />
               <Route path="/admin/announcements" element={<ProtectedRoute requirePermission="announcement:write"><AnnouncementsManage /></ProtectedRoute>} />
@@ -260,6 +264,7 @@ const AppShell = () => {
               <Route path="/credit/reports" element={<ProtectedRoute requirePermission="credit:read"><CreditReports /></ProtectedRoute>} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute requirePermission="admin:access"><ErrorBoundary><AdminSettings /></ErrorBoundary></ProtectedRoute>} />
+              <Route path="/admin/audit" element={<ProtectedRoute requirePermission="admin:access"><ErrorBoundary><AuditTrail /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/:deskType/:deskId/create/:categoryId" element={<ProtectedRoute><CreateRequest /></ProtectedRoute>} />
               <Route path="*" element={<NotFound />} />
             </Routes>

@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authService } from '../services/auth.service';
 
+export interface DelegateUser {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+}
+
 export interface User {
     id: string;
     email: string;
@@ -12,6 +19,9 @@ export interface User {
     outOfOffice?: boolean;
     outOfOfficeUntil?: string | null;
     outOfOfficeMessage?: string | null;
+    delegationEnabled?: boolean;
+    delegatedToId?: string | null;
+    delegatedTo?: DelegateUser | null;
 }
 
 interface RegisterData {
@@ -33,6 +43,7 @@ interface AuthContextType {
     isAuthenticated: boolean;
     refreshUser: () => Promise<void>;
     updateOutOfOffice: (data: { outOfOffice: boolean; outOfOfficeUntil?: string; outOfOfficeMessage?: string }) => Promise<void>;
+    updateDelegation: (data: { delegationEnabled: boolean; delegatedToId?: string | null }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -83,11 +94,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const updateOutOfOffice = async (data: { outOfOffice: boolean; outOfOfficeUntil?: string; outOfOfficeMessage?: string }) => {
         const apiClient = (await import('../services/api')).default;
         const res = await apiClient.put('/users/me/out-of-office', data);
-        setUser(prev => prev ? { ...prev, outOfOffice: res.data.data.outOfOffice, outOfOfficeUntil: res.data.data.outOfOfficeUntil, outOfOfficeMessage: res.data.data.outOfOfficeMessage } : prev);
+        setUser(prev => prev ? {
+            ...prev,
+            outOfOffice: res.data.data.outOfOffice,
+            outOfOfficeUntil: res.data.data.outOfOfficeUntil,
+            outOfOfficeMessage: res.data.data.outOfOfficeMessage,
+            delegationEnabled: res.data.data.delegationEnabled ?? prev.delegationEnabled,
+            delegatedToId: res.data.data.delegatedToId ?? prev.delegatedToId,
+        } : prev);
+    };
+
+    const updateDelegation = async (data: { delegationEnabled: boolean; delegatedToId?: string | null }) => {
+        const apiClient = (await import('../services/api')).default;
+        const res = await apiClient.put('/users/me/delegation', data);
+        setUser(prev => prev ? {
+            ...prev,
+            delegationEnabled: res.data.data.delegationEnabled,
+            delegatedToId: res.data.data.delegatedToId ?? null,
+            delegatedTo: res.data.data.delegatedTo ?? null,
+        } : prev);
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, accessToken, login, register, logout, isAuthenticated: !!user, refreshUser, updateOutOfOffice }}>
+        <AuthContext.Provider value={{ user, loading, accessToken, login, register, logout, isAuthenticated: !!user, refreshUser, updateOutOfOffice, updateDelegation }}>
             {children}
         </AuthContext.Provider>
     );

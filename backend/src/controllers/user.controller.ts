@@ -1056,10 +1056,113 @@ class UserController {
                 outOfOffice: true,
                 outOfOfficeUntil: true,
                 outOfOfficeMessage: true,
+                delegationEnabled: true,
+                delegatedToId: true,
             },
         });
 
         res.json({ status: 'success', data: updated });
+    });
+
+    /**
+     * Update delegation settings for the current user.
+     * PUT /api/v1/users/me/delegation
+     * Body: { delegationEnabled: boolean, delegatedToId?: string }
+     */
+    updateDelegation = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const { delegationEnabled, delegatedToId } = req.body;
+
+        // Validate delegatedToId if provided
+        if (delegatedToId) {
+            const delegate = await prisma.user.findUnique({
+                where: { id: delegatedToId },
+                select: { id: true, firstName: true, lastName: true, isActive: true },
+            });
+            if (!delegate || !delegate.isActive) {
+                return res.status(400).json({ status: 'error', message: 'Delegate user not found or inactive' });
+            }
+            // Cannot delegate to yourself
+            if (delegatedToId === userId) {
+                return res.status(400).json({ status: 'error', message: 'Cannot delegate to yourself' });
+            }
+        }
+
+        const updated = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                delegationEnabled: !!delegationEnabled,
+                delegatedToId: delegationEnabled ? (delegatedToId || null) : null,
+            },
+            select: {
+                id: true,
+                delegationEnabled: true,
+                delegatedToId: true,
+                delegatedTo: delegationEnabled && delegatedToId
+                    ? { select: { id: true, firstName: true, lastName: true, email: true } }
+                    : undefined,
+            },
+        });
+
+        res.json({ status: 'success', data: updated });
+    });
+
+    /**
+     * Search users for delegation (typeahead).
+     * GET /api/v1/users/me/delegation/search?q=term
+     */
+    searchDelegates = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+        const { q } = req.query;
+        const term = String(q || '').trim();
+
+        if (!term || term.length < 2) {
+            return res.json({ status: 'success', data: [] });
+        }
+
+        const users = await prisma.user.findMany({
+            where: {
+                isActive: true,
+                id: { not: userId },
+                OR: [
+                    { firstName: { contains: term, mode: 'insensitive' } },
+                    { lastName: { contains: term, mode: 'insensitive' } },
+                    { email: { contains: term, mode: 'insensitive' } },
+                ],
+            },
+            select: { id: true, firstName: true, lastName: true, email: true, department: true },
+            take: 10,
+            orderBy: [{ firstName: 'asc' }],
+        });
+
+        res.json({ status: 'success', data: users });
+    });
+
+    /**
+     * Get users who have delegated to the current user (incoming delegations).
+     * GET /api/v1/users/me/delegation/incoming
+     */
+    getIncomingDelegations = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const userId = req.user!.id;
+
+        const delegators = await prisma.user.findMany({
+            where: {
+                delegationEnabled: true,
+                delegatedToId: userId,
+                isActive: true,
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                outOfOffice: true,
+                outOfOfficeUntil: true,
+                outOfOfficeMessage: true,
+            },
+        });
+
+        res.json({ status: 'success', data: delegators });
     });
 }
 
