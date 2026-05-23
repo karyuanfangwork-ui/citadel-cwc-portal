@@ -55,8 +55,8 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, c
   }, [location.pathname]);
 
   return (
-    <header className={`sticky top-0 z-20 w-full border-b border-cwc-border bg-surface/80 backdrop-blur-md h-14 ${className}`}>
-      <div className="flex items-center justify-between h-full px-4 sm:px-6">
+    <header className={`sticky top-0 z-20 w-full border-b border-cwc-border bg-surface/80 backdrop-blur-md h-14 overflow-visible ${className}`}>
+      <div className="flex items-center justify-between h-full px-4 sm:px-6 overflow-visible">
         {/* Left: hamburger (mobile) */}
         <div className="flex items-center gap-4">
           {/* Mobile hamburger */}
@@ -112,19 +112,7 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, c
                   </div>
                   <span className={`hidden md:inline material-symbols-outlined text-gray-400 text-lg transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}>expand_more</span>
                 </button>
-                {/* Role badge — visible on desktop */}
-                {(() => {
-                  const role = primaryRole(user.roles);
-                  const badge = ROLE_BADGE[role] || ROLE_BADGE.END_USER;
-                  return (
-                    <span
-                      className="hidden sm:inline-flex items-center gap-1 text-[10px] font-bold rounded-full px-2 py-0.5"
-                      style={{ background: badge.bg, color: badge.text }}
-                    >
-                      {badge.label}
-                    </span>
-                  );
-                })()}
+
               {userMenuOpen && (
                 <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-cwc-lg shadow-lg border border-gray-100 py-1 z-[70]">
                   <div className="px-4 py-2 border-b border-gray-100">
