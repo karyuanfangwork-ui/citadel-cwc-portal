@@ -8,6 +8,7 @@ import financeWorkflowService from '../services/finance-workflow.service';
 import chargebackWorkflowService from '../services/chargeback-workflow.service';
 import { requestService } from '../services/request.service';
 import api from '../services/api';
+import approvalService from '../services/approval.service';
 import interviewService from '../services/interview.service';
 import screeningService from '../services/screening.service';
 import loaService from '../services/loa.service';
@@ -678,9 +679,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitColor: 'primary',
     loadingLabel: 'Routing…',
     onSubmit: (requestId, values) =>
-      api.post(`/hr-workflow/requests/${requestId}/route-to-ceo`, {
-        notes: (values.notes as string) || undefined,
-      }),
+      approvalService.routeToCEO(requestId, undefined, (values.notes as string) || undefined),
   },
 
   ROUTE_TO_GROUP_CEO_HR: {
@@ -703,9 +702,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitColor: 'primary',
     loadingLabel: 'Routing…',
     onSubmit: (requestId, values) =>
-      api.post(`/hr-workflow/requests/${requestId}/route-to-group-ceo`, {
-        notes: (values.notes as string) || undefined,
-      }),
+      approvalService.routeToGroupCeoHR(requestId, (values.notes as string) || undefined),
   },
 
   GROUP_CEO_DECISION_HR: {
@@ -734,10 +731,11 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitLabel: 'Submit Decision',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      api.post(`/hr-workflow/requests/${requestId}/group-ceo-decision`, {
-        decision: (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-        comments: (values.notes as string) || undefined,
-      }),
+      approvalService.groupCeoDecisionHR(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined
+      ),
   },
 
   MARK_JOB_POSTED: {
@@ -766,10 +764,11 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitLabel: 'Mark as Posted',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      api.post(`/hr-workflow/requests/${requestId}/mark-job-posted`, {
-        jobPostUrl: (values.jobPostUrl as string) || undefined,
-        notes: (values.notes as string) || undefined,
-      }),
+      approvalService.markJobPosted(
+        requestId,
+        (values.jobPostUrl as string) || undefined,
+        (values.notes as string) || undefined
+      ),
   },
 
   UPLOAD_RESUME: {
@@ -791,7 +790,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitLabel: 'Upload Resume',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      api.post(`/hr-workflow/requests/${requestId}/upload-resume`, {
+      api.post(`/approvals/requests/${requestId}/upload-resume`, {
         notes: (values.notes as string) || undefined,
       }),
   },
@@ -822,10 +821,12 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitLabel: 'Submit Decision',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      api.post(`/hr-workflow/requests/${requestId}/manager-decision`, {
-        decision: (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-        comments: (values.notes as string) || undefined,
-      }),
+      approvalService.managerDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        [],
+        (values.notes as string) || undefined
+      ),
   },
 
   SCHEDULE_INTERVIEW: {
