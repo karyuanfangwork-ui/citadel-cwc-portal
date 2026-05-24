@@ -125,11 +125,11 @@ const UnifiedInbox: React.FC = () => {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">
-      <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Inbox' }]} />
+      <Breadcrumbs items={[{ label: 'Home', to: '/' }, { label: 'Notifications' }]} />
 
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-text-primary">Inbox</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-text-primary">Notifications</h1>
           <p className="text-sm text-text-secondary mt-1">
             {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up'}
           </p>
@@ -172,7 +172,7 @@ const UnifiedInbox: React.FC = () => {
         </div>
       ) : displayedItems.length === 0 ? (
         <div className="text-center py-16 text-text-secondary bg-surface border border-cwc-border rounded-xl">
-          <span className="material-symbols-outlined text-5xl block mb-3 opacity-30">inbox</span>
+          <span className="material-symbols-outlined text-5xl block mb-3 opacity-30">notifications_off</span>
           <p className="font-bold text-lg">Nothing here</p>
           <p className="text-sm mt-1">You're all caught up!</p>
         </div>

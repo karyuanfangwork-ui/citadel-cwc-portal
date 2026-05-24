@@ -13,9 +13,9 @@ export const buildNavLinks = (user: any): NavLinkConfig[] => [
   // ── Main ──────────────────────────────────────────────────────────
   { to: '/',              label: 'Dashboard',     icon: 'space_dashboard', group: 'primary', show: true },
   { to: '/my-requests',   label: 'My Requests',   icon: 'assignment',      group: 'primary', show: true },
-  { to: '/inbox',         label: 'Inbox',         icon: 'inbox',           group: 'primary', show: true },
   { to: '/announcements', label: 'Announcements', icon: 'campaign',        group: 'primary', show: true },
   { to: '/approvals',     label: 'Approvals',     icon: 'approval',        group: 'primary', show: hasAnyPermission(user, ['request:approve', 'credit:approve']) },
+  { to: '/inbox',         label: 'Notifications', icon: 'notifications',   group: 'primary', show: true },
   { to: '/agent',         label: 'Support Queue', icon: 'support_agent',   group: 'primary', show: hasAnyRole(user, ['ADMIN', 'AGENT']) },
 
   // ── Service Desks ─────────────────────────────────────────────────
