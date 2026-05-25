@@ -100,7 +100,7 @@ const KycTab = ({ contactId }: { contactId: string }) => {
               <StateBadge state={kyc ? kyc.status : 'PENDING'} size="sm" />
             </span>
           ) : (
-            <span className="text-xs font-bold px-3 py-1 rounded-full" style={{ background: '#f1f5f9', color: '#64748b' }}>
+            <span className="text-xs font-bold px-3 py-1 rounded-full bg-surface-muted text-text-tertiary">
               NO RECORD
             </span>
           )}
@@ -115,7 +115,7 @@ const KycTab = ({ contactId }: { contactId: string }) => {
           </div>
         )}
         {kyc?.rejectionReason && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 mb-4">
+          <div className="rounded-lg p-3 text-sm mb-4" style={{ background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)', color: 'var(--color-danger)' }}>
             <span className="font-semibold">Rejection reason:</span> {kyc.rejectionReason}
           </div>
         )}
@@ -187,7 +187,7 @@ const KycTab = ({ contactId }: { contactId: string }) => {
             <button
               onClick={handleApprove}
               disabled={saving}
-              className="px-4 py-2 rounded-lg text-sm font-semibold border border-green-500 text-green-600 hover:bg-green-50 disabled:opacity-50"
+              className="px-4 py-2 rounded-lg text-sm font-semibold border border-emerald-500 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
             >
               Approve KYC
             </button>
@@ -421,7 +421,7 @@ const CrmContactDetail = () => {
         <div className="ml-auto">
           <button
             onClick={() => { setDraftModal(true); setDraftResult(null); }}
-            className="flex items-center gap-2 border border-violet-300 bg-violet-50 px-4 py-2 rounded-lg text-sm font-bold text-violet-700 hover:bg-violet-100 transition-colors"
+            className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2 rounded-lg text-sm font-bold text-brand-700 hover:bg-brand-100 transition-colors"
             style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
           >
             <span className="material-symbols-outlined text-sm">auto_awesome</span>
@@ -483,27 +483,27 @@ const CrmContactDetail = () => {
           {/* AI KYC Gap Detector (Task 11) */}
           <AiInsightCard title="AI KYC Compliance Check" loading={kycLoading} onRefresh={handleKycCheck}>
             {!kycGaps ? (
-              <button onClick={handleKycCheck} className="text-sm text-violet-600 hover:underline">
+              <button onClick={handleKycCheck} className="text-sm text-brand-600 hover:underline">
                 <span className="material-symbols-outlined text-sm">refresh</span>
                 Refresh
               </button>
             ) : (
               <div className="space-y-2">
-                <div className={`flex items-center gap-2 text-sm font-semibold ${kycGaps.isCompliant ? 'text-green-700' : 'text-red-600'}`}>
+                <div className={`flex items-center gap-2 text-sm font-semibold ${kycGaps.isCompliant ? 'text-emerald-700' : 'text-red-600'}`}>
                   <span className="material-symbols-outlined text-base">{kycGaps.isCompliant ? 'check_circle' : 'warning'}</span>
                   {kycGaps.complianceSummary}
                 </div>
                 {kycGaps.gaps.length > 0 && (
                   <ul className="space-y-1">
                     {kycGaps.gaps.map((g, i) => (
-                      <li key={i} className={`flex items-start gap-2 rounded-md px-2 py-1 text-xs ${g.severity === 'required' ? 'bg-red-50 text-red-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                      <li key={i} className={`flex items-start gap-2 rounded-md px-2 py-1 text-xs ${g.severity === 'required' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
                         <span className="material-symbols-outlined mt-0.5 text-sm">{g.severity === 'required' ? 'error' : 'info'}</span>
                         <span><span className="font-semibold">{g.field}:</span> {g.requirement}</span>
                       </li>
                     ))}
                   </ul>
                 )}
-                <p className="text-xs text-gray-400">AI-generated — verify against latest BNM guidelines.</p>
+                <p className="text-xs text-text-tertiary">AI-generated — verify against latest BNM guidelines.</p>
               </div>
             )}
           </AiInsightCard>
@@ -511,7 +511,7 @@ const CrmContactDetail = () => {
           {/* AI Risk Profile Classifier (Task 12) */}
           <AiInsightCard title="AI Risk Classification" loading={riskLoading} onRefresh={handleRiskProfile}>
             {!riskProfile ? (
-              <button onClick={handleRiskProfile} className="text-sm text-violet-600 hover:underline">
+              <button onClick={handleRiskProfile} className="text-sm text-brand-600 hover:underline">
                 <span className="material-symbols-outlined text-sm">refresh</span>
                 Refresh
               </button>
@@ -520,15 +520,15 @@ const CrmContactDetail = () => {
                 <div className="flex items-center gap-2">
                   <span className={`rounded-full px-3 py-1 text-xs font-bold ${
                     riskProfile.suggestedRiskTier === 'High' ? 'bg-red-100 text-red-700'
-                    : riskProfile.suggestedRiskTier === 'Medium' ? 'bg-yellow-100 text-yellow-700'
-                    : 'bg-green-100 text-green-700'
+                    : riskProfile.suggestedRiskTier === 'Medium' ? 'bg-amber-100 text-amber-700'
+                    : 'bg-emerald-100 text-emerald-700'
                   }`}>
                     {riskProfile.suggestedRiskTier} Risk
                   </span>
-                  <span className="text-xs text-gray-400">(AI suggestion — agent must confirm)</span>
+                  <span className="text-xs text-text-tertiary">(AI suggestion — agent must confirm)</span>
                 </div>
-                <p className="text-gray-700">{riskProfile.justification}</p>
-                <p className="text-xs text-gray-500 italic">{riskProfile.regulatoryBasis}</p>
+                <p className="text-text-primary">{riskProfile.justification}</p>
+                <p className="text-xs text-text-secondary italic">{riskProfile.regulatoryBasis}</p>
               </div>
             )}
           </AiInsightCard>
@@ -569,17 +569,17 @@ const CrmContactDetail = () => {
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Draft Follow-Up Message</h2>
-              <button onClick={() => setDraftModal(false)} className="text-gray-400 hover:text-gray-600" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button onClick={() => setDraftModal(false)} className="text-text-tertiary hover:text-text-secondary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             <div className="mb-4 flex gap-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Channel</label>
+                <label className="mb-1 block text-xs font-medium text-text-secondary">Channel</label>
                 <select
                   value={draftConfig.channel}
                   onChange={(e) => setDraftConfig((p) => ({ ...p, channel: e.target.value as 'whatsapp' | 'email' }))}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm"
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   <option value="whatsapp">WhatsApp</option>
@@ -587,11 +587,11 @@ const CrmContactDetail = () => {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Tone</label>
+                <label className="mb-1 block text-xs font-medium text-text-secondary">Tone</label>
                 <select
                   value={draftConfig.tone}
                   onChange={(e) => setDraftConfig((p) => ({ ...p, tone: e.target.value as 'formal' | 'friendly' }))}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm"
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   <option value="friendly">Friendly</option>
@@ -602,7 +602,7 @@ const CrmContactDetail = () => {
                 <button
                   onClick={handleDraftMessage}
                   disabled={draftLoading}
-                  className="rounded-md bg-violet-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                  className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                   style={{ border: 'none', cursor: 'pointer' }}
                 >
                   {draftLoading ? 'Drafting…' : 'Generate'}
@@ -613,20 +613,20 @@ const CrmContactDetail = () => {
               <div className="space-y-3">
                 {draftResult.subject && (
                   <div>
-                    <p className="mb-1 text-xs font-medium text-gray-600">Subject</p>
-                    <p className="rounded-md bg-gray-50 px-3 py-2 text-sm">{draftResult.subject}</p>
+                    <p className="mb-1 text-xs font-medium text-text-secondary">Subject</p>
+                    <p className="rounded-md bg-surface-muted px-3 py-2 text-sm">{draftResult.subject}</p>
                   </div>
                 )}
                 <div>
-                  <p className="mb-1 text-xs font-medium text-gray-600">Message</p>
+                  <p className="mb-1 text-xs font-medium text-text-secondary">Message</p>
                   <textarea
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-border px-3 py-2 text-sm"
                     rows={8}
                     defaultValue={draftResult.body}
                     style={{ fontFamily: 'var(--font-sans)' }}
                   />
                 </div>
-                <p className="text-xs text-gray-400">Edit as needed before sending. AI-generated — review before use.</p>
+                <p className="text-xs text-text-tertiary">Edit as needed before sending. AI-generated — review before use.</p>
               </div>
             )}
           </div>

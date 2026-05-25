@@ -11,9 +11,9 @@ type ContactUrgencyBadge = { label: string; bg: string; text: string; icon: stri
 const getContactUrgencyBadge = (c: CrmContact): ContactUrgencyBadge => {
   if (!c.followUpDate) return null;
   if (isOverdueDate(c.followUpDate) && !isTodayDate(c.followUpDate))
-    return { label: 'Overdue', bg: '#fef2f2', text: '#dc2626', icon: 'error' };
+    return { label: 'Overdue', bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'error' };
   if (isTodayDate(c.followUpDate))
-    return { label: 'Due Today', bg: '#fffbeb', text: '#b45309', icon: 'schedule' };
+    return { label: 'Due Today', bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'schedule' };
   return null;
 };
 
@@ -144,8 +144,8 @@ const CrmContacts = () => {
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                   <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                        <span className="text-sm font-bold text-indigo-600">{c.firstName?.[0]}{c.lastName?.[0]}</span>
+                      <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-brand-600">{c.firstName?.[0]}{c.lastName?.[0]}</span>
                       </div>
                       <div>
                         <span className="text-sm font-bold text-text-primary">{c.firstName} {c.lastName}</span>
@@ -184,7 +184,7 @@ const CrmContacts = () => {
             <div className="flex gap-1">
               {Array.from({ length: Math.min(pagination.totalPages, 5) }, (_, i) => i + 1).map(p => (
                 <button key={p} onClick={() => fetchContacts(p)} style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-                  className={`w-8 h-8 rounded-lg text-sm font-bold transition-colors ${p === pagination.page ? 'bg-brand-700 text-white' : 'bg-transparent text-text-secondary hover:bg-gray-100'}`}>{p}</button>
+                  className={`w-8 h-8 rounded-lg text-sm font-bold transition-colors ${p === pagination.page ? 'bg-brand-700 text-white' : 'bg-transparent text-text-secondary hover:bg-surface-muted'}`}>{p}</button>
               ))}
             </div>
           </div>
@@ -197,10 +197,10 @@ const CrmContacts = () => {
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md mx-4 max-h-[85vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200 shrink-0">
-              <h2 className="text-lg font-black text-gray-900">New Contact</h2>
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-border shrink-0">
+              <h2 className="text-lg font-black text-text-primary">New Contact</h2>
               <button onClick={() => { setShowCreate(false); setForm({}); setDuplicateWarning(null); }}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-surface-muted transition-colors"
                 style={{ border: 'none', cursor: 'pointer', background: 'none' }}>
                 <span className="material-symbols-outlined text-xl">close</span>
               </button>
@@ -208,51 +208,51 @@ const CrmContacts = () => {
             <form onSubmit={handleCreate} className="p-6 pt-4 space-y-3 overflow-y-auto flex-1">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">First Name *</label>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
                   <input required value={form.firstName ?? ''} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Last Name *</label>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
                   <input required value={form.lastName ?? ''} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Email</label>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Email</label>
                 <input type="email" value={form.email ?? ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   onBlur={e => checkDuplicateContact('email', e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                  className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Phone</label>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Phone</label>
                   <input value={form.phone ?? ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                     onBlur={e => checkDuplicateContact('phone', e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Mobile</label>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Mobile</label>
                   <input value={form.mobile ?? ''} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Job Title</label>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Job Title</label>
                   <input value={form.jobTitle ?? ''} onChange={e => setForm(f => ({ ...f, jobTitle: e.target.value }))}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Department</label>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Department</label>
                   <input value={form.department ?? ''} onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Account</label>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Account</label>
                 <select value={form.accountId ?? ''} onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}
-                  className="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }}>
+                  className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }}>
                   <option value="">Select account...</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
@@ -260,8 +260,8 @@ const CrmContacts = () => {
               <div className="flex items-center gap-2">
                 <input type="checkbox" id="isPrimary" checked={form.isPrimary ?? false}
                   onChange={e => setForm(f => ({ ...f, isPrimary: e.target.checked }))}
-                  className="w-4 h-4 rounded border-gray-300 accent-brand-700" />
-                <label htmlFor="isPrimary" className="text-sm text-gray-900">Primary contact</label>
+                  className="w-4 h-4 rounded border-border accent-brand-700" />
+                <label htmlFor="isPrimary" className="text-sm text-text-primary">Primary contact</label>
               </div>
               {duplicateWarning && (
                 <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
@@ -279,7 +279,7 @@ const CrmContacts = () => {
               )}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowCreate(false); setForm({}); setDuplicateWarning(null); }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border text-text-secondary hover:bg-surface-muted transition-colors"
                   style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}
                   className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
