@@ -337,14 +337,14 @@ const CrmLeadDetail = () => {
           </button>
           {!isConverted && !isLost && (
             <button onClick={openConvert}
-              className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-green-700 transition-colors"
+              className="flex items-center gap-2 bg-success text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-success/90 transition-colors"
               style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
               <span className="material-symbols-outlined text-base">swap_horiz</span> Convert to Opportunity
             </button>
           )}
           {!isConverted && !isLost && (
             <button onClick={handleMarkLost}
-              className="flex items-center gap-2 border border-red-300 text-red-600 px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-red-50 transition-colors"
+              className="flex items-center gap-2 border border-danger text-danger px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-danger/10 transition-colors"
               style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
               <span className="material-symbols-outlined text-base">cancel</span> Mark Lost
             </button>
@@ -456,7 +456,7 @@ const CrmLeadDetail = () => {
           )}
           {lead.lostReason && (
             <div className="mt-4 pt-4 border-t border-border">
-              <p className="text-xs font-semibold text-red-500 mb-1">Lost Reason</p>
+              <p className="text-xs font-semibold text-danger mb-1">Lost Reason</p>
               <p className="text-sm text-text-primary">{lead.lostReason}</p>
             </div>
           )}
@@ -623,7 +623,7 @@ const CrmLeadDetail = () => {
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle"
                   style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-green-600 text-white hover:bg-green-700"
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-success text-white hover:bg-success/90"
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Converting…' : 'Convert to Opportunity'}
                 </button>
@@ -744,7 +744,7 @@ const CrmLeadDetail = () => {
               <button
                 onClick={handleConfirmLost}
                 disabled={!lostCategory}
-                className="px-4 py-2 text-sm font-bold rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 text-sm font-bold rounded-lg bg-danger text-white hover:bg-danger/90 disabled:opacity-50 transition-colors"
                 style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               >
                 Mark as Lost
