@@ -3,13 +3,28 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveRequestId(idOrRef: string): Promise<string | null> {
+    if (UUID_RE.test(idOrRef)) return idOrRef;
+    const row = await prisma.request.findFirst({
+        where: { referenceNumber: idOrRef, deletedAt: null },
+        select: { id: true },
+    });
+    return row?.id ?? null;
+}
+
 /**
  * Schedule interview with candidate
  * POST /requests/:id/schedule-interview
  */
 export const scheduleInterview = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const {
             candidateId,
             interviewDate,
@@ -156,7 +171,11 @@ export const scheduleInterview = async (req: Request, res: Response) => {
  */
 export const submitInterviewFeedback = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const {
             candidateId,
             decision,
@@ -318,7 +337,11 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
  */
 export const updateInterviewSchedule = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const {
             interviewDate,
             interviewTime,
@@ -392,7 +415,11 @@ export const updateInterviewSchedule = async (req: Request, res: Response) => {
  */
 export const getInterviewDetails = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
 
         // Get all interview schedules and all feedback for this request
         const [interviewSchedules, interviewFeedbacks] = await Promise.all([

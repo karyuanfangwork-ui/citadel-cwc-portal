@@ -7,13 +7,26 @@ import { auditLog } from '../utils/audit';
 
 const prisma = new PrismaClient();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveRequestId(idOrRef: string): Promise<string | null> {
+    if (UUID_RE.test(idOrRef)) return idOrRef;
+    const row = await prisma.request.findFirst({
+        where: { referenceNumber: idOrRef, deletedAt: null },
+        select: { id: true },
+    });
+    return row?.id ?? null;
+}
+
 class ParticipantController {
     /**
      * GET /api/v1/requests/:id/participants
      * Accessible by requester, agents, admins, and existing participants.
      */
     listParticipants = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const requestId = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) throw new AppError('Request not found', 404);
 
         const request = await prisma.request.findUnique({
             where: { id: requestId },
@@ -52,7 +65,9 @@ class ParticipantController {
      * Allowed: requester, agents, admins.
      */
     addParticipant = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const requestId = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) throw new AppError('Request not found', 404);
         const { userId } = req.body;
 
         if (!userId || typeof userId !== 'string') {
@@ -125,7 +140,9 @@ class ParticipantController {
      * Allowed: requester, agents, admins.
      */
     removeParticipant = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
-        const requestId = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const requestId = await resolveRequestId(idOrRef);
+        if (!requestId) throw new AppError('Request not found', 404);
         const targetUserId = String(req.params.userId);
 
         const request = await prisma.request.findUnique({

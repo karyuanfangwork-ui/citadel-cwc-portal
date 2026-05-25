@@ -5,13 +5,28 @@ import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveRequestId(idOrRef: string): Promise<string | null> {
+    if (UUID_RE.test(idOrRef)) return idOrRef;
+    const row = await prisma.request.findFirst({
+        where: { referenceNumber: idOrRef, deletedAt: null },
+        select: { id: true },
+    });
+    return row?.id ?? null;
+}
+
 /**
  * Upload LOA document
  * POST /requests/:id/loa/upload
  */
 export const uploadLOA = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const userId = (req as any).user?.id;
         const file = (req as any).file;
 
@@ -103,7 +118,11 @@ export const uploadLOA = async (req: Request, res: Response) => {
  */
 export const routeLOAForApproval = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { comments } = req.body;
         const userId = (req as any).user?.id;
 
@@ -178,7 +197,11 @@ export const routeLOAForApproval = async (req: Request, res: Response) => {
  */
 export const managerApproveLOA = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
 
@@ -284,7 +307,11 @@ export const managerApproveLOA = async (req: Request, res: Response) => {
  */
 export const markLOAIssued = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -364,7 +391,11 @@ export const markLOAIssued = async (req: Request, res: Response) => {
  */
 export const uploadSignedLOA = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const userId = (req as any).user?.id;
         const file = (req as any).file;
 
@@ -464,7 +495,11 @@ export const uploadSignedLOA = async (req: Request, res: Response) => {
  */
 export const markLOAAccepted = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -584,7 +619,11 @@ export const markLOAAccepted = async (req: Request, res: Response) => {
  */
 export const getLOADetails = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
 
         const loa = await prisma.letterOfAcceptance.findUnique({
             where: { requestId: id },

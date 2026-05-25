@@ -20,8 +20,9 @@ interface WorkflowStepperProps {
     approverId: string;
     approverType: string;
     status: string;
-    decision: string | null;
-    decidedAt: string | null;
+    comments: string | null;
+    createdAt: string;
+    updatedAt: string;
     approver: { id: string; firstName: string; lastName: string; email: string };
     entity: { id: string; name: string; code: string } | null;
   }[];
@@ -333,19 +334,19 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                                 </div>
                                 <span className="font-semibold">{approval.approver.firstName} {approval.approver.lastName}</span>
                               </div>
-                              {approval.decision && (
+                              {approval.status !== 'PENDING' && (
                                 <div className="flex items-center gap-1">
                                   <span className={`material-symbols-outlined text-sm ${
-                                    approval.decision === 'APPROVED' ? 'text-emerald-500' : 'text-red-500'
+                                    approval.status === 'APPROVED' ? 'text-emerald-500' : 'text-red-500'
                                   }`}>
-                                    {approval.decision === 'APPROVED' ? 'check_circle' : 'cancel'}
+                                    {approval.status === 'APPROVED' ? 'check_circle' : 'cancel'}
                                   </span>
-                                  <span>{approval.decision}</span>
+                                  <span>{approval.status === 'APPROVED' ? 'Approved' : 'Rejected'}</span>
                                 </div>
                               )}
-                              {approval.decidedAt && (
+                              {approval.status !== 'PENDING' && (
                                 <div className="text-[10px] text-gray-400">
-                                  {new Date(approval.decidedAt).toLocaleString()}
+                                  {new Date(approval.updatedAt).toLocaleString()}
                                 </div>
                               )}
                             </div>
@@ -438,19 +439,19 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                               </div>
                               <span className="font-semibold">{approval.approver.firstName} {approval.approver.lastName}</span>
                             </div>
-                            {approval.decision && (
+                            {approval.status !== 'PENDING' && (
                               <div className="flex items-center gap-1">
                                 <span className={`material-symbols-outlined text-sm ${
-                                  approval.decision === 'APPROVED' ? 'text-emerald-500' : 'text-red-500'
+                                  approval.status === 'APPROVED' ? 'text-emerald-500' : 'text-red-500'
                                 }`}>
-                                  {approval.decision === 'APPROVED' ? 'check_circle' : 'cancel'}
+                                  {approval.status === 'APPROVED' ? 'check_circle' : 'cancel'}
                                 </span>
-                                <span>{approval.decision}</span>
+                                <span>{approval.status === 'APPROVED' ? 'Approved' : 'Rejected'}</span>
                               </div>
                             )}
-                            {approval.decidedAt && (
+                            {approval.status !== 'PENDING' && (
                               <div className="text-[10px] text-gray-400">
-                                {new Date(approval.decidedAt).toLocaleString()}
+                                {new Date(approval.updatedAt).toLocaleString()}
                               </div>
                             )}
                           </div>

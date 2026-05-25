@@ -3,6 +3,8 @@
 // and page-level modal flags from useRequestDetail.
 
 import React, { useState, useCallback } from 'react';
+import CeoDecisionModal from './CeoDecisionModal';
+import ScheduleInterviewModal from './ScheduleInterviewModal';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 import WorkflowActionModal from './WorkflowActionModal';
@@ -62,14 +64,15 @@ interface DecisionPanelProps {
 
 const ACTION_ICONS: Record<string, { icon: string; bgClass: string; textClass: string }> = {
   // IT
-  ACKNOWLEDGE_IT:        { icon: 'acknowledgement', bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
+  ACKNOWLEDGE_IT:        { icon: 'task_alt', bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
   START_PROCUREMENT:     { icon: 'shopping_cart',   bgClass: 'bg-amber-100', textClass: 'text-amber-600' },
   MARK_HARDWARE_ORDERED: { icon: 'local_shipping',  bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
   MARK_HARDWARE_RECEIVED:{ icon: 'inventory_2',     bgClass: 'bg-green-100', textClass: 'text-green-600' },
   MARK_SOFTWARE_PROVISIONED:{ icon: 'computer',     bgClass: 'bg-purple-100', textClass: 'text-purple-600' },
   MARK_FULFILLED:        { icon: 'check_circle',    bgClass: 'bg-green-100', textClass: 'text-green-600' },
   ASSIGN:                { icon: 'person_add',      bgClass: 'bg-indigo-100', textClass: 'text-indigo-600' },
-  CEO_DECISION:          { icon: 'gavel',           bgClass: 'bg-red-100', textClass: 'text-red-600' },
+  CEO_DECISION_IT:     { icon: 'gavel',           bgClass: 'bg-red-100', textClass: 'text-red-600' },
+  CEO_DECISION_HR:     { icon: 'gavel',           bgClass: 'bg-red-100', textClass: 'text-red-600' },
   CTO_DECISION:          { icon: 'engineering',     bgClass: 'bg-red-100', textClass: 'text-red-600' },
   ROUTE_TO_CFO:          { icon: 'route',           bgClass: 'bg-orange-100', textClass: 'text-orange-600' },
   CFO_DECISION:          { icon: 'gavel',           bgClass: 'bg-red-100', textClass: 'text-red-600' },
@@ -88,6 +91,7 @@ const ACTION_ICONS: Record<string, { icon: string; bgClass: string; textClass: s
   SCHEDULE_INTERVIEW:    { icon: 'calendar_add_on', bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
   SUBMIT_INTERVIEW_FEEDBACK:{ icon: 'rate_review', bgClass: 'bg-purple-100', textClass: 'text-purple-600' },
   UPDATE_SCREENING:      { icon: 'fact_check',      bgClass: 'bg-teal-100', textClass: 'text-teal-600' },
+  ROUTE_LOA_FOR_APPROVAL: { icon: 'send',              bgClass: 'bg-green-100', textClass: 'text-green-600' },
   UPLOAD_LOA:           { icon: 'upload_file',      bgClass: 'bg-amber-100', textClass: 'text-amber-600' },
   UPLOAD_SIGNED_LOA:    { icon: 'upload_file',      bgClass: 'bg-green-100', textClass: 'text-green-600' },
   ISSUE_LOA:            { icon: 'description',       bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
@@ -102,7 +106,7 @@ const ACTION_ICONS: Record<string, { icon: string; bgClass: string; textClass: s
   SUBMIT_FOR_APPROVAL:  { icon: 'send',             bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
   RESUBMIT_REQUEST:     { icon: 'replay',           bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
   // Finance
-  FIN_ACKNOWLEDGE:           { icon: 'acknowledgement', bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
+  FIN_ACKNOWLEDGE:           { icon: 'task_alt', bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
   SET_FINALIZED_AMOUNT:      { icon: 'calculate',       bgClass: 'bg-amber-100', textClass: 'text-amber-600' },
   ROUTE_TO_CEO_FIN:         { icon: 'route',            bgClass: 'bg-orange-100', textClass: 'text-orange-600' },
   CFO_DECISION_FIN:          { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
@@ -166,12 +170,15 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   requestTypeName = '',
   requestTypeCode = '',
   serviceDeskCode,
+  serviceDeskName,
   requiresApproval = true,
   requesterId,
   hasResumes = false,
   screeningCompleted = false,
   hasLOA = false,
   hasSignedLOA = false,
+  selectedCandidateId,
+  selectedCandidateIds,
   onActionComplete,
   // Direct-action callbacks
   onRouteToManager,
@@ -406,8 +413,30 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
         </div>
       )}
 
-      {/* Config-driven modal */}
-      {activeModal && hasWorkflowModalConfig(activeModal) && (
+      {/* Dedicated CEO decision modal (handles IT CTO selector + HR approval routing) */}
+      {(activeModal === 'CEO_DECISION_IT' || activeModal === 'CEO_DECISION_HR') && serviceDeskName && (
+        <CeoDecisionModal
+          requestId={requestId}
+          serviceDeskCode={serviceDeskCode}
+          serviceDeskName={serviceDeskName}
+          onSuccess={handleModalSuccess}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {/* Dedicated Schedule Interview modal (needs candidateId from request context) */}
+      {activeModal === 'SCHEDULE_INTERVIEW' && (
+        <ScheduleInterviewModal
+          requestId={requestId}
+          selectedCandidateIds={selectedCandidateIds}
+          selectedCandidateId={selectedCandidateId}
+          onSuccess={handleModalSuccess}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {/* Config-driven modal (non-CEO, non-schedule-interview actions) */}
+      {activeModal && activeModal !== 'CEO_DECISION_IT' && activeModal !== 'CEO_DECISION_HR' && activeModal !== 'SCHEDULE_INTERVIEW' && hasWorkflowModalConfig(activeModal) && (
         <WorkflowActionModal
           open={!!activeModal}
           requestId={requestId}
@@ -462,7 +491,8 @@ function actionToModalKey(action: WorkflowActionType): string | null {
     MARK_FULFILLED: 'FULFILMENT',
     ASSIGN: 'ASSIGN',
     ACKNOWLEDGE_IT: 'ACKNOWLEDGE_IT',
-    CEO_DECISION: 'CEO_DECISION',
+    CEO_DECISION_IT: 'CEO_DECISION_IT',
+    CEO_DECISION_HR: 'CEO_DECISION_HR',
     CTO_DECISION: 'CTO_DECISION',
     ROUTE_TO_CFO: 'ROUTE_TO_CFO',
     CFO_DECISION: 'CFO_DECISION',
@@ -482,6 +512,7 @@ function actionToModalKey(action: WorkflowActionType): string | null {
     SCHEDULE_INTERVIEW: 'SCHEDULE_INTERVIEW',
     UPDATE_SCREENING: 'UPDATE_SCREENING',
     UPLOAD_LOA: 'UPLOAD_LOA',
+    ROUTE_LOA_FOR_APPROVAL: 'ROUTE_LOA_FOR_APPROVAL',
     UPLOAD_SIGNED_LOA: 'UPLOAD_SIGNED_LOA',
     FROM_ENTITY_APPROVE: 'FROM_ENTITY_APPROVE',
     FROM_ENTITY_REJECT: 'FROM_ENTITY_REJECT',

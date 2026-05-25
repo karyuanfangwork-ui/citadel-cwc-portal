@@ -59,6 +59,18 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!candidateId) {
+      setError('Please select a candidate');
+      return;
+    }
+    if (!interviewDate) {
+      setError('Please select an interview date');
+      return;
+    }
+    if (!interviewTime) {
+      setError('Please select an interview time');
+      return;
+    }
     try {
       setSubmitting(true);
       setError(null);
@@ -88,7 +100,8 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
         onSuccess();
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to schedule interview');
+      const msg = err?.response?.data?.message || err?.message || 'Failed to schedule interview';
+      setError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -180,13 +193,33 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
                     Time <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="time"
-                    value={interviewTime}
-                    onChange={e => setInterviewTime(e.target.value)}
-                    required
-                    className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
-                  />
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg pointer-events-none">schedule</span>
+                    <select
+                      value={interviewTime}
+                      onChange={e => setInterviewTime(e.target.value)}
+                      required
+                      className="w-full pl-10 pr-8 py-2.5 text-sm border border-gray-200 rounded-lg appearance-none bg-white focus:outline-none focus:border-[#0052cc] cursor-pointer"
+                    >
+                      <option value="">Select time...</option>
+                      {(() => {
+                        const slots: { label: string; value: string }[] = [];
+                        for (let h = 8; h <= 18; h++) {
+                          for (const m of [0, 30]) {
+                            if (h === 18 && m === 30) break;
+                            const period = h < 12 ? 'AM' : 'PM';
+                            const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+                            slots.push({
+                              label: `${String(displayHour).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`,
+                              value: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+                            });
+                          }
+                        }
+                        return slots.map(s => <option key={s.value} value={s.value}>{s.label}</option>);
+                      })()}
+                    </select>
+                    <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">expand_more</span>
+                  </div>
                 </div>
               </div>
               <div>

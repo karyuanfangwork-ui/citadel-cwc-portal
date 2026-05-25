@@ -8,7 +8,8 @@ export type WorkflowActionType =
   | 'ASSIGN'
   | 'RESUBMIT_REQUEST'
   | 'ACKNOWLEDGE_IT'
-  | 'CEO_DECISION'
+  | 'CEO_DECISION_IT'
+  | 'CEO_DECISION_HR'
   | 'CTO_DECISION'
   | 'ROUTE_TO_CFO'
   | 'CFO_DECISION'
@@ -25,6 +26,7 @@ export type WorkflowActionType =
   | 'SCHEDULE_INTERVIEW'
   | 'UPDATE_SCREENING'
   | 'UPLOAD_LOA'
+  | 'ROUTE_LOA_FOR_APPROVAL'
   | 'ISSUE_LOA'
   | 'UPLOAD_SIGNED_LOA'
   | 'MARK_LOA_ACCEPTED'
@@ -125,9 +127,16 @@ export function getWorkflowActions(
   // Designated approver (e.g. CEO as IT manager approver) — removed (Scenario 3 dead code)
   // CEO/CTO/CFO decision blocks — must be above the canAct guard as these roles are not agents/admins
   if (userRoles.includes('CEO')) {
-    if (status === 'PENDING_CEO_APPROVAL_IT' || status === 'PENDING_CEO_APPROVAL') {
+    if (status === 'PENDING_CEO_APPROVAL_IT') {
       actions.push({
-        type: 'CEO_DECISION',
+        type: 'CEO_DECISION_IT',
+        label: 'CEO Approval Decision',
+        description: 'Review and approve or reject this IT request as CEO.',
+        variant: 'primary',
+      });
+    } else if (status === 'PENDING_CEO_APPROVAL') {
+      actions.push({
+        type: 'CEO_DECISION_HR',
         label: 'CEO Approval Decision',
         description: 'Review and approve or reject this request as CEO.',
         variant: 'primary',
@@ -490,6 +499,13 @@ export function getWorkflowActions(
         description: screeningCompleted
           ? 'Reference check complete. Upload the draft Letter of Acceptance.'
           : 'Upload the draft Letter of Acceptance for the candidate.',
+        variant: 'success',
+      });
+    } else {
+      actions.push({
+        type: 'ROUTE_LOA_FOR_APPROVAL',
+        label: 'Route LOA for Approval',
+        description: 'LOA document uploaded. Route it to the hiring manager for approval.',
         variant: 'success',
       });
     }

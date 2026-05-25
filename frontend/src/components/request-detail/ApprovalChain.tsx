@@ -10,8 +10,9 @@ interface ApprovalChainProps {
     approverId: string;
     approverType: string;
     status: string;
-    decision: string | null;
-    decidedAt: string | null;
+    comments: string | null;
+    createdAt: string;
+    updatedAt: string;
     approver: { id: string; firstName: string; lastName: string; email: string };
     entity: { id: string; name: string; code: string } | null;
   }[];
@@ -54,13 +55,15 @@ const ApprovalChain: React.FC<ApprovalChainProps> = ({ approvals }) => {
     setPopoverId(prev => (prev === id ? null : id));
   };
 
-  // Sort approvals: decided (APPROVED/REJECTED) first sorted by decidedAt, then pending
+  // Sort approvals: decided (APPROVED/REJECTED) first sorted by updatedAt, then pending
   const sorted = useMemo(() => {
     if (!approvals || approvals.length === 0) return [];
     return [...approvals].sort((a, b) => {
-      if (a.decidedAt && !b.decidedAt) return -1;
-      if (!a.decidedAt && b.decidedAt) return 1;
-      if (a.decidedAt && b.decidedAt) return new Date(a.decidedAt).getTime() - new Date(b.decidedAt).getTime();
+      const aDecided = a.status !== 'PENDING';
+      const bDecided = b.status !== 'PENDING';
+      if (aDecided && !bDecided) return -1;
+      if (!aDecided && bDecided) return 1;
+      if (aDecided && bDecided) return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
       return 0;
     });
   }, [approvals]);
@@ -95,9 +98,9 @@ const ApprovalChain: React.FC<ApprovalChainProps> = ({ approvals }) => {
       <div className="space-y-0">
         {sorted.map((approval, idx) => {
           const isLast = idx === sorted.length - 1;
-          const isPending = approval.status === 'PENDING' || !approval.decision;
-          const isApproved = approval.decision === 'APPROVED';
-          const isRejected = approval.decision === 'REJECTED';
+          const isPending = approval.status === 'PENDING';
+          const isApproved = approval.status === 'APPROVED';
+          const isRejected = approval.status === 'REJECTED';
           const isPopoverOpen = popoverId === approval.id;
 
           return (
@@ -108,7 +111,7 @@ const ApprovalChain: React.FC<ApprovalChainProps> = ({ approvals }) => {
                   type="button"
                   onClick={() => togglePopover(approval.id)}
                   className="relative z-10 focus:outline-none"
-                  aria-label={`${approval.approver.firstName} ${approval.approver.lastName} — ${isPending ? 'Pending' : approval.decision ?? 'Pending'}`}
+                  aria-label={`${approval.approver.firstName} ${approval.approver.lastName} — ${isPending ? 'Pending' : approval.status}`}
                 >
                   {isApproved ? (
                     <div className="size-8 rounded-full bg-emerald-500 flex items-center justify-center shadow-sm">
@@ -158,20 +161,24 @@ const ApprovalChain: React.FC<ApprovalChainProps> = ({ approvals }) => {
                   {isApproved ? (
                     <>
                       <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">Approved</span>
-                      {approval.decidedAt && (
-                        <span className="text-[10px] text-gray-400">{formatRelative(approval.decidedAt)}</span>
+                      {!isPending && (
+                        <span className="text-[10px] text-gray-400">{formatRelative(approval.updatedAt)}</span>
                       )}
                     </>
                   ) : isRejected ? (
                     <>
                       <span className="text-[10px] font-semibold text-red-600 bg-red-50 px-1.5 py-0.5 rounded">Rejected</span>
-                      {approval.decidedAt && (
-                        <span className="text-[10px] text-gray-400">{formatRelative(approval.decidedAt)}</span>
+                      {!isPending && (
+                        <span className="text-[10px] text-gray-400">{formatRelative(approval.updatedAt)}</span>
                       )}
                     </>
                   ) : (
                     <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
-                      Waiting for {approval.approverType?.replace(/_/g, ' ').toLowerCase() ?? 'approval'}
+                      Waiting for {(() => {
+                        const raw = approval.approverType?.replace(/_/g, ' ') ?? 'approval';
+                        // Preserve known acronyms, title-case the rest
+                        return raw.split(' ').map(w => ['CEO', 'CFO', 'CTO', 'IT', 'HR', 'LOA'].includes(w) ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+                      })()}
                     </span>
                   )}
                 </div>
@@ -194,7 +201,7 @@ const ApprovalChain: React.FC<ApprovalChainProps> = ({ approvals }) => {
                         <span>{approval.entity.name} ({approval.entity.code})</span>
                       </div>
                     )}
-                    {approval.decision && (
+                    {approval.status !== 'PENDING' && (
                       <div className="flex items-center gap-1">
                         <span className={`material-symbols-outlined text-sm ${
                           isApproved ? 'text-emerald-500' : 'text-red-500'
@@ -202,14 +209,14 @@ const ApprovalChain: React.FC<ApprovalChainProps> = ({ approvals }) => {
                           {isApproved ? 'check_circle' : 'cancel'}
                         </span>
                         <span className={`font-semibold ${isApproved ? 'text-emerald-600' : 'text-red-600'}`}>
-                          {approval.decision}
+                          {approval.status}
                         </span>
                       </div>
                     )}
-                    {approval.decidedAt && (
+                    {approval.status !== 'PENDING' && (
                       <div className="flex items-center gap-1 text-[10px] text-gray-400">
                         <span className="material-symbols-outlined text-xs" aria-hidden="true">schedule</span>
-                        <span>{new Date(approval.decidedAt).toLocaleString()}</span>
+                        <span>{new Date(approval.updatedAt).toLocaleString()}</span>
                       </div>
                     )}
                     {isPending && (

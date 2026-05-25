@@ -14,6 +14,7 @@ import loaService from '../../services/loa.service';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import financeWorkflowService from '../../services/finance-workflow.service';
+import itWorkflowService from '../../services/it-workflow.service';
 import apiClient from '../../services/api';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -117,6 +118,8 @@ export interface Request {
     requester?: { id: string; firstName: string; lastName: string; email: string };
     createdAt: string;
     updatedAt: string;
+    resolvedAt?: string | null;
+    completedAt?: string | null;
     slaDueAt?: string | null;
     priority: string;
     requestType?: {
@@ -209,7 +212,7 @@ interface UseRequestDetailReturn {
     handleLOAApprovalDecision: (decision: 'APPROVE' | 'REJECT', comments?: string) => Promise<void>;
     handleMarkLOAIssued: () => Promise<void>;
     handleMarkLOAAccepted: () => Promise<void>;
-    handleCEODecision: (decision: 'APPROVED' | 'REJECTED', comments: string) => Promise<void>;
+    handleCEODecision: (decision: 'APPROVED' | 'REJECTED', comments: string, ctoId?: string) => Promise<void>;
     handleManagerDecision: (decision: 'APPROVED' | 'REJECTED', selectedCandidateIds: string[], comments: string) => Promise<void>;
     handleRouteToManager: () => Promise<void>;
     handleAdvanceOnboardingPhase: () => Promise<void>;
@@ -426,7 +429,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
             await fetchRequestData();
             setShowScheduleInterviewModal(false);
         } catch (error: any) {
-            toast.error('Schedule Failed', error.message || 'Failed to schedule interview');
+            toast.error('Schedule Failed', error?.response?.data?.message || error?.message || 'Failed to schedule interview');
         } finally {
             setProcessingAction(false);
         }
@@ -526,19 +529,25 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         }
     }, [id, fetchRequestData]);
 
-    const handleCEODecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', comments: string) => {
+    const handleCEODecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', comments: string, ctoId?: string) => {
         if (!id) return;
         try {
             setProcessingAction(true);
-            await approvalService.ceoDecision(id, decision, comments);
+            // Route to the correct service based on request status
+            const isITRequest = request?.status === 'PENDING_CEO_APPROVAL_IT';
+            if (isITRequest) {
+                await itWorkflowService.ceoDecision(id, decision, comments, ctoId);
+            } else {
+                await approvalService.ceoDecision(id, decision, comments);
+            }
             await fetchRequestData();
             setShowCEODecisionModal(false);
         } catch (error: any) {
-            toast.error('CEO Decision Failed', error.response?.data?.message || 'Failed to process CEO decision');
+            toast.error('CEO Decision Failed', error.response?.data?.error || error.response?.data?.message || 'Failed to process CEO decision');
         } finally {
             setProcessingAction(false);
         }
-    }, [id, fetchRequestData]);
+    }, [id, request?.status, fetchRequestData]);
 
     const handleManagerDecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', selectedCandidateIds: string[], comments: string) => {
         if (!id) return;

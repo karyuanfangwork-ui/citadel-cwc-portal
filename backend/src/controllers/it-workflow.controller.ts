@@ -24,6 +24,17 @@ function inferCategoryFromName(name: string): string {
 
 const prisma = new PrismaClient();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveRequestId(idOrRef: string): Promise<string | null> {
+  if (UUID_RE.test(idOrRef)) return idOrRef;
+  const row = await prisma.request.findFirst({
+    where: { referenceNumber: idOrRef, deletedAt: null },
+    select: { id: true },
+  });
+  return row?.id ?? null;
+}
+
 /**
  * Reassign a request to the first active agent on the specified team.
  * Creates an activity record and notifies the new assignee.
@@ -77,7 +88,11 @@ export const uploadInvoice = { single: (field: string) => uploadSingleFile(field
 
 export async function markProcurement(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
+    const idOrRef = String(req.params.id);
+  const id = await resolveRequestId(idOrRef);
+  if (!id) {
+    return res.status(404).json({ status: 'error', message: 'Request not found' });
+  }
     const { orderNumber, vendor, estimatedDelivery } = req.body;
 
     const request = await prisma.request.findUnique({ where: { id } });
@@ -141,7 +156,11 @@ export async function markProcurement(req: Request, res: Response) {
 
 export async function markFulfilled(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
+    const idOrRef = String(req.params.id);
+  const id = await resolveRequestId(idOrRef);
+  if (!id) {
+    return res.status(404).json({ status: 'error', message: 'Request not found' });
+  }
     const { notes } = req.body;
 
     const request = await prisma.request.findUnique({ where: { id } });
@@ -196,7 +215,11 @@ export async function markFulfilled(req: Request, res: Response) {
 
 export async function markHardwareOrdered(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
+    const idOrRef = String(req.params.id);
+  const id = await resolveRequestId(idOrRef);
+  if (!id) {
+    return res.status(404).json({ status: 'error', message: 'Request not found' });
+  }
     const { orderNumber, vendor, trackingNumber } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -273,7 +296,11 @@ export async function markHardwareOrdered(req: Request, res: Response) {
 
 export async function markHardwareReceived(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
+    const idOrRef = String(req.params.id);
+  const id = await resolveRequestId(idOrRef);
+  if (!id) {
+    return res.status(404).json({ status: 'error', message: 'Request not found' });
+  }
     const { receivedDate, notes, assetTag, serialNumber, registerAsAsset = false } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -387,7 +414,11 @@ export async function markHardwareReceived(req: Request, res: Response) {
 
 export async function markSoftwareProvisioned(req: Request, res: Response) {
   try {
-    const id = String(req.params.id);
+    const idOrRef = String(req.params.id);
+  const id = await resolveRequestId(idOrRef);
+  if (!id) {
+    return res.status(404).json({ status: 'error', message: 'Request not found' });
+  }
     const { provisioningNotes, softwareInstalled } = req.body;
 
     const request = await prisma.request.findUnique({
@@ -505,7 +536,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
       data: {
         requestId: id,
         activityType: 'SYSTEM',
-        message: `Request acknowledged. Routed to CEO for approval${notes ? ': ' + notes : ''}`,
+        message: `Request acknowledged and routed to CEO (${ceoUser.firstName} ${ceoUser.lastName}) for approval${notes ? ': ' + notes : ''}`,
         authorName: currentUser.firstName || 'Agent',
         authorRole: 'AGENT',
         isSystemGenerated: true,

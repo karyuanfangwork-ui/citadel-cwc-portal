@@ -7,13 +7,30 @@ import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Resolve an id param that may be a UUID or a referenceNumber (e.g. "HR-4") to an actual DB record id (UUID). */
+async function resolveRequestId(idOrRef: string): Promise<string | null> {
+    if (UUID_RE.test(idOrRef)) return idOrRef;
+    const row = await prisma.request.findFirst({
+        where: { referenceNumber: idOrRef, deletedAt: null },
+        select: { id: true },
+    });
+    return row?.id ?? null;
+}
+
 /**
  * Route request to CEO for approval
  * POST /requests/:id/route-to-ceo
  */
 export const routeToCEO = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
         const { comments, ceoId } = req.body;
         const userId = (req as any).user?.id;
 
@@ -62,6 +79,13 @@ export const routeToCEO = async (req: Request, res: Response) => {
             }
         });
 
+        // Resolve CEO display name for activity log
+        let ceoDisplayName = 'CEO';
+        if (ceoId) {
+            const ceoUser = await prisma.user.findUnique({ where: { id: ceoId } });
+            if (ceoUser) ceoDisplayName = `${ceoUser.firstName} ${ceoUser.lastName}`;
+        }
+
         // Create activity log
         await prisma.requestActivity.create({
             data: {
@@ -70,7 +94,7 @@ export const routeToCEO = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'ASSIGNMENT',
-                message: `Request routed to CEO for approval — assigned to CEO${comments ? ': ' + comments : ''}`,
+                message: `Request routed to CEO for approval — assigned to ${ceoDisplayName}${comments ? ': ' + comments : ''}`,
                 isSystemGenerated: true
             }
         });
@@ -110,7 +134,12 @@ export const routeToCEO = async (req: Request, res: Response) => {
  */
 export const ceoDecision = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
         const { decision, comments } = req.body; // decision: 'APPROVED' | 'REJECTED'
         const userId = (req as any).user?.id;
 
@@ -174,18 +203,70 @@ export const ceoDecision = async (req: Request, res: Response) => {
         // Update request status and reassign back to the original HR agent
         const newStatus = decision === 'APPROVED' ? 'CEO_APPROVED' : 'CEO_REJECTED';
 
-        // Find an HR agent from the same entity to reassign to
-        const hrAgent = await prisma.user.findFirst({
+        // Find an HR agent to reassign to — try same entity first, fall back to any active HR agent
+        let hrAgent = await prisma.user.findFirst({
             where: {
                 agentTeam: 'HR',
                 isActive: true,
                 entityId: request.requester.entityId,
             }
         });
+        if (!hrAgent) {
+            hrAgent = await prisma.user.findFirst({
+                where: {
+                    agentTeam: 'HR',
+                    isActive: true,
+                }
+            });
+        }
 
         const updateData: any = { status: newStatus };
-        if (hrAgent) {
+        if (hrAgent && decision !== 'APPROVED') {
+            // Only assign to HR agent if not auto-advancing to Group CEO
             updateData.assignedToId = hrAgent.id;
+        }
+
+        // When CEO approves, auto-advance to Group CEO for HR hiring workflow
+        if (decision === 'APPROVED') {
+            const groupCeo = await prisma.user.findFirst({
+                where: { executiveRole: 'GROUP_CEO', isActive: true }
+            });
+            if (groupCeo) {
+                updateData.status = 'PENDING_GROUP_CEO_APPROVAL';
+                updateData.assignedToId = groupCeo.id;
+
+                // Create Group CEO approval record
+                await prisma.requestApproval.create({
+                    data: {
+                        requestId: id,
+                        approverType: 'GROUP_CEO',
+                        approverId: groupCeo.id,
+                        status: ApprovalStatus.PENDING,
+                        comments: null
+                    }
+                });
+
+                // Activity log for auto-routing
+                await prisma.requestActivity.create({
+                    data: {
+                        requestId: id,
+                        authorId: userId,
+                        authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                        authorRole: 'CEO',
+                        activityType: 'ASSIGNMENT',
+                        message: `Request auto-routed to Group CEO (${groupCeo.firstName} ${groupCeo.lastName}) after CEO approval`,
+                        isSystemGenerated: true
+                    }
+                });
+
+                // Notify Group CEO
+                await notify({
+                    userId: groupCeo.id,
+                    eventType: 'APPROVAL_REQUIRED',
+                    variables: { requestId: id, role: 'GROUP_CEO' },
+                    relatedRequestId: id,
+                });
+            }
         }
 
         const updatedRequest = await prisma.request.update({
@@ -228,7 +309,10 @@ export const ceoDecision = async (req: Request, res: Response) => {
         comments: comments || null,
     }, { status: 'PENDING_CEO_APPROVAL' });
 
-    await resumeSla(id);
+    // Only resume SLA if not auto-advancing to another pause status (Group CEO approval)
+    if (decision !== 'APPROVED' || updateData.status === 'CEO_APPROVED') {
+        await resumeSla(id);
+    }
 
     // Notify requester of CEO decision
     if (decision === 'APPROVED') {
@@ -269,7 +353,12 @@ export const ceoDecision = async (req: Request, res: Response) => {
  */
 export const markJobPosted = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
         const { jobPostingUrl, notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -340,7 +429,12 @@ export const markJobPosted = async (req: Request, res: Response) => {
  */
 export const routeToManager = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
         const { comments } = req.body;
         const userId = (req as any).user?.id;
 
@@ -455,7 +549,12 @@ export const routeToManager = async (req: Request, res: Response) => {
  */
 export const managerDecision = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
         const { decision, selectedCandidateIds, selectedCandidateId, comments } = req.body;
         const userId = (req as any).user?.id;
 
@@ -503,7 +602,8 @@ export const managerDecision = async (req: Request, res: Response) => {
                         status: ApprovalStatus.PENDING
                     }
                 },
-                candidateResumes: true
+                candidateResumes: true,
+                requester: true
             }
         });
 
@@ -566,6 +666,43 @@ export const managerDecision = async (req: Request, res: Response) => {
         // Update request status
         const newStatus = decision === 'APPROVED' ? 'MANAGER_APPROVED' : 'IN_REVIEW';
 
+        // Find an HR agent to reassign back to — try same entity first, fall back to any active HR agent
+        let hrAgent: any = null;
+        if (decision === 'APPROVED') {
+            hrAgent = await prisma.user.findFirst({
+                where: {
+                    agentTeam: 'HR',
+                    isActive: true,
+                    entityId: request.requester?.entityId,
+                }
+            });
+            if (!hrAgent) {
+                hrAgent = await prisma.user.findFirst({
+                    where: {
+                        agentTeam: 'HR',
+                        isActive: true,
+                    }
+                });
+            }
+        } else {
+            // Rejected: reassign to HR agent for re-work
+            hrAgent = await prisma.user.findFirst({
+                where: {
+                    agentTeam: 'HR',
+                    isActive: true,
+                    entityId: request.requester?.entityId,
+                }
+            });
+            if (!hrAgent) {
+                hrAgent = await prisma.user.findFirst({
+                    where: {
+                        agentTeam: 'HR',
+                        isActive: true,
+                    }
+                });
+            }
+        }
+
         // Store selected candidates in customFields
         const customFields = request.customFields as any || {};
         if (decision === 'APPROVED' && candidateIds.length > 0) {
@@ -582,12 +719,17 @@ export const managerDecision = async (req: Request, res: Response) => {
             customFields.selectedCandidateName = selectedNames[0] || 'Unknown Candidate';
         }
 
+        const updateData: any = {
+            status: newStatus,
+            customFields
+        };
+        if (hrAgent) {
+            updateData.assignedToId = hrAgent.id;
+        }
+
         const updatedRequest = await prisma.request.update({
             where: { id },
-            data: {
-                status: newStatus,
-                customFields
-            }
+            data: updateData
         });
 
         // Create activity log
@@ -609,6 +751,29 @@ export const managerDecision = async (req: Request, res: Response) => {
                 isSystemGenerated: false
             }
         });
+
+        // Reassignment activity log
+        if (hrAgent) {
+            await prisma.requestActivity.create({
+                data: {
+                    requestId: id,
+                    authorId: userId,
+                    authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
+                    authorRole: 'System',
+                    activityType: 'ASSIGNMENT',
+                    message: `Request reassigned to HR Agent (${hrAgent.firstName} ${hrAgent.lastName}) after Hiring Manager ${decision === 'APPROVED' ? 'approval' : 'rejection'}`,
+                    isSystemGenerated: true
+                }
+            });
+
+            // Notify HR agent
+            await notify({
+                userId: hrAgent.id,
+                eventType: 'REQUEST_ASSIGNED',
+                variables: { requestId: id, role: 'HR_AGENT' },
+                relatedRequestId: id,
+            });
+        }
 
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
@@ -783,8 +948,13 @@ export const entityDecision = async (req: Request, res: Response) => {
  */
 export const routeToGroupCeoHr = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
-        const { comments } = req.body;
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+        const { comments, groupCeoId } = req.body;
         const userId = (req as any).user?.id;
 
         const request = await prisma.request.findUnique({
@@ -802,10 +972,18 @@ export const routeToGroupCeoHr = async (req: Request, res: Response) => {
             return;
         }
 
-        // Find Group CEO user
-        const groupCeo = await prisma.user.findFirst({
-            where: { executiveRole: 'GROUP_CEO', isActive: true }
-        });
+        // Find Group CEO user — use provided ID or auto-detect
+        let groupCeo;
+        if (groupCeoId) {
+            groupCeo = await prisma.user.findFirst({
+                where: { id: groupCeoId, isActive: true }
+            });
+        }
+        if (!groupCeo) {
+            groupCeo = await prisma.user.findFirst({
+                where: { executiveRole: 'GROUP_CEO', isActive: true }
+            });
+        }
 
         if (!groupCeo) {
             res.status(404).json({ status: 'error', message: 'No active Group CEO found' });
@@ -873,7 +1051,12 @@ export const routeToGroupCeoHr = async (req: Request, res: Response) => {
  */
 export const groupCeoDecisionHr = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
 
@@ -910,14 +1093,22 @@ export const groupCeoDecisionHr = async (req: Request, res: Response) => {
 
         const newStatus = decision === 'APPROVED' ? 'GROUP_CEO_APPROVED' : 'GROUP_CEO_REJECTED';
 
-        // Reassign back to HR agent after Group CEO decision
-        const hrAgent = await prisma.user.findFirst({
+        // Reassign back to HR agent after Group CEO decision — try same entity first, fall back to any
+        let hrAgent = await prisma.user.findFirst({
             where: {
                 agentTeam: 'HR',
                 isActive: true,
                 entityId: request.requester?.entityId,
             }
         });
+        if (!hrAgent) {
+            hrAgent = await prisma.user.findFirst({
+                where: {
+                    agentTeam: 'HR',
+                    isActive: true,
+                }
+            });
+        }
 
         const updateData: any = { status: newStatus };
         if (hrAgent) {

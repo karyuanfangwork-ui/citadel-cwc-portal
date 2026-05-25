@@ -17,7 +17,7 @@ import loaService from '../services/loa.service';
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type FieldInputType = 'text' | 'textarea' | 'date' | 'number' | 'select' | 'file';
+export type FieldInputType = 'text' | 'textarea' | 'date' | 'number' | 'select' | 'time-select' | 'file';
 
 export interface WorkflowModalField {
   /** Machine key used as the form state property name */
@@ -30,8 +30,10 @@ export interface WorkflowModalField {
   placeholder?: string;
   /** Whether the field is required before submit */
   required?: boolean;
-  /** Options for select type */
+  /** Options for select type (static) */
   options?: { value: string; label: string }[];
+  /** Async options loader — called on mount to populate select options dynamically */
+  asyncOptions?: () => Promise<{ value: string; label: string }[]>;
   /** Default value */
   defaultValue?: string;
   /** Number of rows (textarea only) */
@@ -260,12 +262,23 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
   },
 
   ACKNOWLEDGE_IT: {
-    title: 'Acknowledge Request',
-    subtitle: 'IT Workflow · Confirm acknowledgement',
-    icon: 'acknowledgement',
+    title: 'Acknowledge & Route to CEO',
+    subtitle: 'IT Workflow · Select CEO and confirm acknowledgement',
+    icon: 'task_alt',
     iconBgClass: 'bg-blue-100',
     iconTextClass: 'text-blue-600',
     fields: [
+      {
+        name: 'ceoId',
+        label: 'Select CEO',
+        type: 'select',
+        required: true,
+        placeholder: 'Choose a CEO…',
+        asyncOptions: async () => {
+          const users = await itWorkflowService.getUsersByRole('CEO');
+          return users.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }));
+        },
+      },
       {
         name: 'notes',
         label: 'Notes',
@@ -275,13 +288,13 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
         rows: 3,
       },
     ],
-    submitLabel: 'Acknowledge',
+    submitLabel: 'Acknowledge & Route',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      itWorkflowService.acknowledgeRequest(requestId, '', (values.notes as string) || undefined),
+      itWorkflowService.acknowledgeRequest(requestId, (values.ceoId as string) || '', (values.notes as string) || undefined),
   },
 
-  CEO_DECISION: {
+  CEO_DECISION_IT: {
     title: 'CEO Decision',
     subtitle: 'IT Workflow · Approve or reject',
     icon: 'gavel',
@@ -308,6 +321,39 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
       itWorkflowService.ceoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
+  CEO_DECISION_HR: {
+    title: 'CEO Decision',
+    subtitle: 'HR Workflow · Approve or reject',
+    icon: 'gavel',
+    iconBgClass: 'bg-amber-100',
+    iconTextClass: 'text-amber-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      approvalService.ceoDecision(
         requestId,
         (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
         (values.notes as string) || undefined,
@@ -481,7 +527,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
   FIN_ACKNOWLEDGE: {
     title: 'Acknowledge Finance Request',
     subtitle: 'Finance Workflow · Confirm acknowledgement',
-    icon: 'acknowledgement',
+    icon: 'task_alt',
     iconBgClass: 'bg-blue-100',
     iconTextClass: 'text-blue-600',
     fields: [
@@ -660,12 +706,23 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
    * ────────────────────────────────────────────────────────────────── */
 
   ROUTE_TO_CEO_HR: {
-    title: 'Route to CEO (HR)',
-    subtitle: 'HR Workflow · Forward for CEO approval',
+    title: 'Route to CEO',
+    subtitle: 'HR Workflow · Select CEO and forward for approval',
     icon: 'send',
     iconBgClass: 'bg-orange-100',
     iconTextClass: 'text-orange-600',
     fields: [
+      {
+        name: 'ceoId',
+        label: 'Select CEO',
+        type: 'select',
+        required: true,
+        placeholder: 'Choose a CEO…',
+        asyncOptions: async () => {
+          const users = await itWorkflowService.getUsersByRole('CEO');
+          return users.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }));
+        },
+      },
       {
         name: 'notes',
         label: 'Notes',
@@ -679,16 +736,27 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitColor: 'primary',
     loadingLabel: 'Routing…',
     onSubmit: (requestId, values) =>
-      approvalService.routeToCEO(requestId, undefined, (values.notes as string) || undefined),
+      approvalService.routeToCEO(requestId, (values.ceoId as string) || undefined, (values.notes as string) || undefined),
   },
 
   ROUTE_TO_GROUP_CEO_HR: {
-    title: 'Route to Group CEO (HR)',
-    subtitle: 'HR Workflow · Forward for Group CEO approval',
+    title: 'Route to Group CEO',
+    subtitle: 'HR Workflow · Select Group CEO and forward for approval',
     icon: 'send',
     iconBgClass: 'bg-orange-100',
     iconTextClass: 'text-orange-600',
     fields: [
+      {
+        name: 'groupCeoId',
+        label: 'Select Group CEO',
+        type: 'select',
+        required: true,
+        placeholder: 'Choose a Group CEO…',
+        asyncOptions: async () => {
+          const users = await itWorkflowService.getUsersByRole('GROUP_CEO');
+          return users.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }));
+        },
+      },
       {
         name: 'notes',
         label: 'Notes',
@@ -702,7 +770,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitColor: 'primary',
     loadingLabel: 'Routing…',
     onSubmit: (requestId, values) =>
-      approvalService.routeToGroupCeoHR(requestId, (values.notes as string) || undefined),
+      approvalService.routeToGroupCeoHR(requestId, (values.notes as string) || undefined, (values.groupCeoId as string) || undefined),
   },
 
   GROUP_CEO_DECISION_HR: {
@@ -845,8 +913,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       {
         name: 'interviewTime',
         label: 'Interview Time',
-        type: 'text',
-        placeholder: 'e.g. 10:00 AM',
+        type: 'time-select',
         required: true,
       },
       {
@@ -912,6 +979,13 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     iconTextClass: 'text-blue-600',
     fields: [
       {
+        name: 'loaFile',
+        label: 'LOA Document',
+        type: 'file',
+        placeholder: '.pdf,.doc,.docx,.jpg,.jpeg,.png',
+        required: true,
+      },
+      {
         name: 'notes',
         label: 'Notes',
         type: 'textarea',
@@ -922,8 +996,34 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     ],
     submitLabel: 'Upload LOA',
     submitColor: 'primary',
-    onSubmit: (requestId) =>
-      api.post(`/loa/requests/${requestId}/route-for-approval`, {}),
+    onSubmit: async (requestId, values) => {
+      const file = values.loaFile as File | null;
+      if (!file) throw new Error('LOA file is required');
+      return loaService.uploadLOA(requestId, file);
+    },
+  },
+
+  ROUTE_LOA_FOR_APPROVAL: {
+    title: 'Route LOA for Approval',
+    subtitle: 'HR Workflow · Send LOA to hiring manager for review',
+    icon: 'send',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional notes for the hiring manager…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Route for Approval',
+    submitColor: 'success',
+    onSubmit: async (requestId) => {
+      return loaService.routeForApproval(requestId);
+    },
   },
 
   UPLOAD_SIGNED_LOA: {
@@ -933,6 +1033,13 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     iconBgClass: 'bg-green-100',
     iconTextClass: 'text-green-600',
     fields: [
+      {
+        name: 'signedLoaFile',
+        label: 'Signed LOA Document',
+        type: 'file',
+        placeholder: '.pdf,.doc,.docx,.jpg,.jpeg,.png',
+        required: true,
+      },
       {
         name: 'notes',
         label: 'Notes',
@@ -944,8 +1051,11 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     ],
     submitLabel: 'Upload Signed LOA',
     submitColor: 'primary',
-    onSubmit: (requestId) =>
-      api.post(`/loa/requests/${requestId}/mark-issued`, {}),
+    onSubmit: async (requestId, values) => {
+      const file = values.signedLoaFile as File | null;
+      if (!file) throw new Error('Signed LOA file is required');
+      return loaService.uploadSignedLOA(requestId, file);
+    },
   },
 
   INTERVIEW_FEEDBACK: {

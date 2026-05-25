@@ -1,7 +1,7 @@
 # Citadel Workplace Connect (CWC) — Production Documentation
 
-**Document Version:** 2.1
-**Date:** 2026-05-13
+**Document Version:** 2.2
+**Date:** 2026-05-25
 **Classification:** Internal / Confidential
 
 ---
@@ -88,7 +88,7 @@ Enterprise organizations face fragmented internal service management:
 | 8  | **Search**                 | Global search across requests and knowledge base articles                | `SearchResults.tsx`       |
 | 9  | **Reports**                | Analytics and reporting for admins (permission-gated)                    | `Reports.tsx`             |
 | 10 | **Real-Time Notifications**| SSE-based live notification feed with in-app dropdown                    | `NotificationDropdown.tsx`|
-| 11 | **Approval Queue**         | Executive approval dashboard showing pending requests by role            | `ApprovalQueue.tsx`       |
+| 11 | **Approval Center**        | Executive approval dashboard showing pending requests by role            | `ApprovalCenter.tsx`      |
 | 12 | **IT Asset Management**    | IT asset registry with CRUD, assignment/return, employee assets view, CSV import/export | `AssetManagement.tsx` |
 | 13 | **Announcements**          | Staff announcement board — list, detail, unread badge, dashboard widget  | `Announcements.tsx`, `AnnouncementDetail.tsx`, `AnnouncementWidget.tsx` |
 | 14 | **Announcements Admin**    | Create/edit/publish/pin/delete announcements; PDF/DOCX parsing; image upload | `AnnouncementsManage.tsx` |
@@ -101,6 +101,26 @@ Enterprise organizations face fragmented internal service management:
 | 21 | **CRM Team Dashboard**     | Team performance metrics (admin-only)                                    | `CrmTeamDashboard.tsx` |
 | 22 | **CRM Reports**            | 7 report types: lead conversion, sales performance, pipeline forecast, activity summary, lead aging, win/loss, KYC compliance | `CrmReports.tsx` |
 | 23 | **CRM Guide**              | User guide / onboarding reference for the CRM module                    | `CrmGuide.tsx` |
+| 24 | **Unified Inbox**          | Consolidated inbox for all pending actions across all request types      | `UnifiedInbox.tsx` |
+| 25 | **Insights**               | AI-powered analytics and insights dashboard (`report:read`)              | `Insights.tsx` |
+| 26 | **Audit Trail**            | Standalone admin audit trail viewer — immutable log of all system actions | `AuditTrail.tsx` |
+
+#### Credit Assessment Module (12 main pages + 22 tab components)
+
+| #  | Feature                        | Purpose                                                                    | Module |
+|----|--------------------------------|----------------------------------------------------------------------------|--------|
+| 27 | **Credit Dashboard**           | Overview of credit pipeline, application KPIs, risk exposure              | `CreditDashboard.tsx` |
+| 28 | **Borrower Profiles**          | List and detail of borrower profiles with risk ratings                     | `BorrowerProfileList.tsx`, `BorrowerProfileDetail.tsx` |
+| 29 | **Credit Applications**        | Full credit application lifecycle — list, detail, multi-tab review        | `CreditApplicationList.tsx`, `CreditApplicationDetail.tsx` |
+| 30 | **Financial Spreading**        | Financial statement spreading and analysis tool                            | `FinancialSpreading.tsx` |
+| 31 | **Financial Analysis**         | Financial ratio and trend analysis for credit assessment                   | `FinancialAnalysis.tsx` |
+| 32 | **Scorecard Management**       | Credit scoring model management                                            | `ScorecardManagement.tsx` |
+| 33 | **Committee Meetings**         | Credit committee meeting management and decision recording                 | `CommitteeMeetings.tsx` |
+| 34 | **Collateral Management**      | Collateral registry and valuation tracking                                 | `CollateralManagement.tsx` |
+| 35 | **Credit Reports**             | Credit assessment reporting and analytics                                  | `CreditReports.tsx` |
+| 36 | **My Approvals (Credit)**      | Credit-specific approval queue                                             | `MyApprovals.tsx` |
+
+> **Credit Application tab components (22):** AccountConductTab, ApprovalsTab, AuditTab, CollateralTab, ConditionsTab, CounterpartiesTab, CreditChecksTab, DocumentsTab, EsgTab, FacilitiesTab, HeaderBackgroundTab, IndustryOutlookTab, PartiesTab, PaymentCapabilityTab, ProfitabilityWalletTab, RequestsFacilitiesTab, RiskMitigatorsTab, RiskRatingEclTab, SecurityGuaranteesTab, SicrTab, SignoffTab, SummaryTab
 
 #### IT Support Service Desk (5 Categories)
 
@@ -231,12 +251,26 @@ SUBMITTED
 ### 3.4 HR Hiring Workflow
 
 ```
-SUBMITTED → PENDING_CEO_APPROVAL → CEO_APPROVED → JOB_POSTED
-  → PENDING_MANAGER_REVIEW → MANAGER_APPROVED
-  → INTERVIEW_SCHEDULED → INTERVIEW_FEEDBACK_PENDING
-  → [PROCEED] HR_SCREENING → LOA_PENDING_APPROVAL → LOA_APPROVED
-  → LOA_ISSUED → LOA_ACCEPTED → COMPLETED
+SUBMITTED → [HR agent routes to CEO] PENDING_CEO_APPROVAL
+  → [CEO approves] CEO_APPROVED
+  → [HR agent routes to Group CEO] PENDING_GROUP_CEO_APPROVAL
+  → [Group CEO approves] GROUP_CEO_APPROVED
+  → [HR agent marks job posted] JOB_POSTED
+  → [HR uploads resumes + routes to manager] PENDING_MANAGER_REVIEW
+  → [Manager selects candidates] MANAGER_APPROVED
+  → [HR schedules interview] INTERVIEW_SCHEDULED
+  → [Hiring manager submits feedback] INTERVIEW_FEEDBACK_PENDING
+  → [PROCEED] HR_SCREENING
+  → [HR uploads LOA + routes for approval] LOA_PENDING_APPROVAL
+  → [Manager/HR approves LOA] LOA_APPROVED
+  → [HR issues LOA to candidate] LOA_ISSUED
+  → [HR uploads signed LOA] LOA_ACCEPTED → COMPLETED
   → [Triggers onboarding child ticket]
+
+[CEO rejects]          → CEO_REJECTED → RESOLVED
+[Group CEO rejects]    → (stays REJECTED)
+[Manager rejects]      → CANDIDATE_REJECTED_INTERVIEW
+[Interview rejected]   → CANDIDATE_REJECTED_INTERVIEW
 ```
 
 ### 3.5 Finance Reimbursement Flow
@@ -270,10 +304,9 @@ SUBMITTED → PENDING_FROM_ENTITY_APPROVAL → FROM_ENTITY_APPROVED
 
 ```
 AppShell (BrowserRouter)
-├── /login              → Login
-├── /register           → Register
+├── /login              → Login (public)
 ├── /forgot-password    → ForgotPassword (public)
-├── /reset-password/:token → ResetPassword (public)
+├── /reset-password     → ResetPassword (public, token passed as query param)
 ├── /change-password    → ChangePassword (protected)
 ├── / (Dashboard)       → Dashboard (protected)
 │   ├── Stats cards (open/in-progress/resolved/total, SLA-breach indicator)
@@ -283,28 +316,36 @@ AppShell (BrowserRouter)
 ├── /my-requests        → MyRequests (protected)
 ├── /request/:id        → RequestDetail (protected, ErrorBoundary)
 │   ├── RequestHeader with context-aware breadcrumb
-│   ├── ActionSidebar (26+ workflow modals)
+│   ├── WorkflowCockpit (right-pane container)
+│   │   ├── WorkflowStepper (progress visualization)
+│   │   ├── DecisionPanel (contextual action buttons + modals)
+│   │   ├── ApprovalChain
+│   │   ├── SLAIndicator (with pause state)
+│   │   └── ParticipantsSection
 │   ├── ActivityFeed
 │   ├── CustomFieldsPanel
-│   ├── SLAIndicator (with pause state)
-│   ├── ConfidentialDocumentsPanel (HR hiring resumes)
-│   └── HiringWorkflowPanel (for HR hiring requests)
+│   ├── HiringWorkflowPanel (HR hiring requests only)
+│   ├── OnboardingDashboard / OffboardingDashboard (lifecycle requests)
+│   └── ConfidentialDocumentsPanel (HR hiring resumes)
 ├── /hr                 → HRServices (protected)
 ├── /it                 → ITSupport (protected)
 ├── /finance            → GroupFinance (protected)
 ├── /it/hardware        → Redirect to /it
 ├── /:deskType/:deskId/create/:categoryId → CreateRequest (protected)
 ├── /agent              → AgentDashboard (protected, ADMIN/AGENT role)
-├── /approvals          → ApprovalQueue (protected, request:approve permission)
+├── /approvals          → ApprovalCenter (protected, request:approve permission)
+├── /inbox              → UnifiedInbox (protected)
 ├── /assets             → AssetManagement (protected, asset:read permission)
 ├── /reports            → Reports (protected, report:read permission)
+├── /insights           → Insights (protected, report:read permission)
 ├── /search             → SearchResults (protected)
-├── /kb                 → KnowledgeBase (protected, DEV only)
-├── /kb/:slug           → ArticleDetail (protected, DEV only)
+├── /kb                 → KnowledgeBase (protected, feature-flagged)
+├── /kb/:slug           → ArticleDetail (protected, feature-flagged)
 ├── /announcements      → Announcements (protected)
 ├── /announcements/:id  → AnnouncementDetail (protected)
-├── /admin/announcements → AnnouncementsManage (protected, announcement:write permission)
-├── /crm                → CrmDashboard (protected, crm:read permission)
+├── /admin/announcements → AnnouncementsManage (protected, announcement:write)
+├── /admin/audit        → AuditTrail (protected, admin:access)
+├── /crm                → CrmDashboard (protected, crm:read)
 ├── /crm/accounts       → CrmAccounts (protected, crm:read)
 ├── /crm/accounts/:id   → CrmAccountDetail (protected, crm:read)
 ├── /crm/contacts       → CrmContacts (protected, crm:read)
@@ -314,10 +355,22 @@ AppShell (BrowserRouter)
 ├── /crm/opportunities  → CrmOpportunities (protected, crm:read)
 ├── /crm/opportunities/:id → CrmOpportunityDetail (protected, crm:read)
 ├── /crm/pipeline       → CrmPipeline/Kanban (protected, crm:read)
-├── /crm/team           → CrmTeamDashboard (protected, crm:admin permission)
+├── /crm/team           → CrmTeamDashboard (protected, crm:admin)
 ├── /crm/reports        → CrmReports (protected, crm:read)
 ├── /crm/guide          → CrmGuide (protected, crm:read)
-└── /admin/settings     → AdminSettings (protected, admin:access permission)
+├── /credit             → CreditDashboard (protected)
+├── /credit/borrowers   → BorrowerProfileList (protected)
+├── /credit/borrowers/:id → BorrowerProfileDetail (protected)
+├── /credit/applications → CreditApplicationList (protected)
+├── /credit/applications/:id → CreditApplicationDetail (protected)
+├── /credit/approvals   → MyApprovals (protected)
+├── /credit/financials  → FinancialSpreading (protected)
+├── /credit/analysis    → FinancialAnalysis (protected)
+├── /credit/scorecards  → ScorecardManagement (protected)
+├── /credit/committee   → CommitteeMeetings (protected)
+├── /credit/collateral  → CollateralManagement (protected)
+├── /credit/reports     → CreditReports (protected)
+└── /admin/settings     → AdminSettings (protected, admin:access)
     ├── User Accounts tab
     ├── Role Assignment tab
     ├── Permissions tab
@@ -471,7 +524,7 @@ frontend/
 │   ├── RequestDetail.tsx           # Request detail with workflow
 │   ├── CreateRequest.tsx           # Dynamic form request creation
 │   ├── AgentDashboard.tsx          # Agent ticket management
-│   ├── ApprovalQueue.tsx           # Executive approval queue (request:approve)
+│   ├── ApprovalCenter.tsx          # Executive approval center (request:approve)
 │   ├── AssetManagement.tsx         # IT asset registry + employee assignment view
 │   ├── AdminSettings.tsx           # Admin configuration panel
 │   ├── Reports.tsx                 # Analytics & reports
@@ -497,7 +550,31 @@ frontend/
 │   ├── CrmPipeline.tsx             # Kanban pipeline board
 │   ├── CrmTeamDashboard.tsx        # Team performance (crm:admin)
 │   ├── CrmReports.tsx              # 7 CRM report types
-│   └── CrmGuide.tsx                # CRM user guide
+│   ├── CrmGuide.tsx                # CRM user guide
+│   ├── UnifiedInbox.tsx            # Consolidated inbox for pending actions
+│   ├── Insights.tsx                # AI-powered analytics dashboard (report:read)
+│   ├── AuditTrail.tsx              # Standalone admin audit trail (admin:access)
+│   ├── ApprovalCenter.tsx          # Executive approval queue (request:approve)
+│   ├── NotFound.tsx                # 404 error page
+│   ├── CreditDashboard.tsx         # Credit assessment overview
+│   ├── BorrowerProfileList.tsx     # Borrower profile list
+│   ├── BorrowerProfileDetail.tsx   # Borrower profile detail
+│   ├── CreditApplicationList.tsx   # Credit application list
+│   ├── CreditApplicationDetail.tsx # Credit application detail (multi-tab)
+│   ├── MyApprovals.tsx             # Credit approval queue
+│   ├── FinancialSpreading.tsx      # Financial statement spreading
+│   ├── FinancialAnalysis.tsx       # Financial analysis
+│   ├── ScorecardManagement.tsx     # Credit scorecard management
+│   ├── CommitteeMeetings.tsx       # Credit committee meetings
+│   ├── CollateralManagement.tsx    # Collateral registry
+│   ├── CreditReports.tsx           # Credit reporting
+│   └── [22 credit tab components]  # AccountConductTab, ApprovalsTab, AuditTab, CollateralTab,
+│                                   # ConditionsTab, CounterpartiesTab, CreditChecksTab,
+│                                   # DocumentsTab, EsgTab, FacilitiesTab, HeaderBackgroundTab,
+│                                   # IndustryOutlookTab, PartiesTab, PaymentCapabilityTab,
+│                                   # ProfitabilityWalletTab, RequestsFacilitiesTab,
+│                                   # RiskMitigatorsTab, RiskRatingEclTab, SecurityGuaranteesTab,
+│                                   # SicrTab, SignoffTab, SummaryTab
 ├── src/
 │   ├── pages/
 │   │   ├── Login.tsx               # Login page
@@ -520,23 +597,47 @@ frontend/
 │   │   ├── ToastContainer.tsx       # Toast notification renderer
 │   │   ├── Breadcrumbs.tsx          # Context-aware breadcrumb navigation
 │   │   ├── EntityApprovalsPanel.tsx # Entity-based approval routing panel
-│   │   ├── withErrorBoundary.tsx   # HOC for error boundary wrapping
-│   │   ├── ErrorFallback.tsx       # Error fallback UI component
-│   │   ├── ModalPortal.tsx         # Portal for modal rendering outside DOM hierarchy
-│   │   ├── ModalWrapper.tsx        # Reusable modal wrapper with backdrop
+│   │   ├── withErrorBoundary.tsx    # HOC for error boundary wrapping
+│   │   ├── ErrorFallback.tsx        # Error fallback UI component
+│   │   ├── ModalPortal.tsx          # Portal for modal rendering outside DOM hierarchy
+│   │   ├── ModalWrapper.tsx         # Reusable modal wrapper with backdrop
 │   │   ├── SkeletonCategoryCard.tsx # Loading skeleton for category cards
-│   │   ├── SkeletonRow.tsx         # Loading skeleton for table rows
+│   │   ├── SkeletonRow.tsx          # Loading skeleton for table rows
+│   │   ├── RichTextEditor.tsx       # Rich text editor component
+│   │   ├── SessionExpiryBanner.tsx  # Session expiry warning banner
+│   │   ├── EmptyState.tsx           # Generic empty state component
+│   │   ├── NavMoreDropdown.tsx      # Navigation overflow dropdown
+│   │   ├── CrmNav.tsx               # CRM module navigation bar
+│   │   ├── CreditNav.tsx            # Credit assessment navigation bar
+│   │   ├── CollapsibleKanbanColumn.tsx # Collapsible column for Kanban boards
+│   │   ├── ui/                      # 16 design-system primitives (Button, Card, Tabs, Drawer,
+│   │   │                            #   Modal, Combobox, Tooltip, Skeleton, StateBadge, RiskBadge,
+│   │   │                            #   AutosaveTextField, EmptyState, EnvironmentBanner,
+│   │   │                            #   OutOfOfficeModal, PolicyExplainer, index.ts)
 │   │   ├── admin/                   # 21 admin setting components (12 tabs + 11 modals + 3 utils)
 │   │   ├── request/                 # Request header, form fields, hiring panel, approval actions
 │   │   ├── request/modals/          # 9 HR workflow modals (CEO, Manager, Rejection, Resolution, Interview, LOA, Onboarding)
-│   │   ├── request-detail/          # 25 request detail components (ActionSidebar, ActivityFeed, SLAIndicator, CustomFieldsPanel, ConfidentialDocumentsPanel, HiringWorkflowPanel, AssignAgentModal, WorkflowActionModal, + 17 workflow modals for IT/Finance/Chargeback)
+│   │   ├── request-detail/          # 38 request detail components: WorkflowCockpit, WorkflowStepper,
+│   │   │                            #   DecisionPanel, ActivityFeed, SLAIndicator, CustomFieldsPanel,
+│   │   │                            #   ApprovalChain, ParticipantsSection, AssignAgentModal,
+│   │   │                            #   WorkflowActionModal, + 28 workflow modals for IT/HR/Finance/Chargeback
 │   │   └── create-request/          # WizardStepper, useCreateRequestWizard
-│   ├── services/                   # 23 API service files (incl. asset.service.ts, sentry.ts)
+│   ├── services/                   # 28 API service files — auth, request, admin, approval,
+│   │                               #   asset, announcement, crm, interview, it-workflow,
+│   │                               #   finance-workflow, chargeback-workflow, loa, screening,
+│   │                               #   notification, kb, search, reports, serviceDesk, workflow,
+│   │                               #   entity, bannerConfig, requestStatus, auditLog,
+│   │                               #   credit, insights, scheduler, sentry (error monitoring), api
 │   ├── hooks/
 │   │   ├── useBannerConfigs.ts     # Dashboard banner config hook
 │   │   ├── useModalDismiss.ts      # Modal click-outside dismiss
 │   │   ├── useFocusTrap.ts         # Accessibility focus trap hook
-│   │   └── useEscapeKey.ts         # Escape key handler hook
+│   │   ├── useEscapeKey.ts         # Escape key handler hook
+│   │   ├── useAutosave.ts          # Autosave with debounce hook
+│   │   ├── useCrmAi.ts             # CRM AI features hook
+│   │   ├── useDebouncedValue.ts    # Debounce utility hook
+│   │   ├── useIdleSession.ts       # Idle session detection hook
+│   │   └── useScrollLock.ts        # Body scroll lock hook
 │   ├── utils/
 │   │   ├── permissions.ts          # RBAC permission checks
 │   │   ├── roleDetection.ts        # User role detection
@@ -586,17 +687,18 @@ frontend/
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                    Routes (34 files + index)               │ │
+│  │                    Routes (37 files + index)               │ │
 │  │  /auth /users /requests /service-desks /notifications    │ │
 │  │  /kb /search /approvals /interviews /screening /loa       │ │
 │  │  /onboarding /offboarding /it-workflow /finance-workflow  │ │
 │  │  /chargeback-workflow /reports /files /sla /assets        │ │
 │  │  /announcements /crm /system-settings                     │ │
+│  │  /insights /policyExplainer /scheduler                    │ │
 │  │  /admin/* (entities, workflows, templates, configs)       │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                    Controllers (33 files)                  │ │
+│  │                    Controllers (38 files)                  │ │
 │  │  Auth, User, Request, Resume, ServiceDesk, Notification, │ │
 │  │  KB, Search, Approval, Interview, Screening, LOA,         │ │
 │  │  Onboarding, Offboarding, ITWorkflow, FinanceWorkflow,    │ │
@@ -604,20 +706,22 @@ frontend/
 │  │  EscalationRule, WorkflowTransition, NotificationTemplate,│ │
 │  │  Asset, File, Workflow, RequestStatusDef, SystemSetting,  │ │
 │  │  OnboardingTemplate, OffboardingTemplate, AuditLog,       │ │
-│  │  Announcement, CRM                                        │ │
+│  │  Announcement, CRM, CrmAI, Insights, PolicyExplainer,    │ │
+│  │  Participant, Scheduler                                   │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
-│  │                   Services (16 files)                    │ │
+│  │                   Services (20 files)                    │ │
 │  │  email, entityRouting, notification, onboarding,          │ │
 │  │  password-reset, permission, s3, sla, sla-pause, token,  │ │
 │  │  serviceDesk, autoAssignment, announcement,               │ │
-│  │  crm, crm-automation, crm-reports                         │ │
+│  │  crm, crm-automation, crm-reports, crm-ai,               │ │
+│  │  insights, policyExplainer, scheduler                     │ │
 │  └─────────────────────────┬───────────────────────────────┘ │
 │                             │                                 │
 │  ┌─────────────────────────▼───────────────────────────────┐ │
 │  │                  Data Layer (Prisma ORM)                  │ │
-│  │  PostgreSQL — 58 models, 16 enums, 94 RequestStatus values│ │
+│  │  PostgreSQL — 121 models, 58 enums, 94 RequestStatus values│ │
 │  │  Redis (ioredis) — token blocklist, rate limiting,        │ │
 │  │                    permission cache, SLA state            │ │
 │  └──────────────────────────────────────────────────────────┘ │
@@ -633,9 +737,9 @@ backend/
 │   ├── index.ts                    # Server startup
 │   ├── config/
 │   │   └── index.ts                # Centralized config (env vars, thresholds)
-│   ├── controllers/                # 31 controller files
-│   ├── routes/                     # 31 route files + index.ts
-│   ├── services/                   # 12 business logic services
+│   ├── controllers/                # 38 controller files
+│   ├── routes/                     # 37 route files + index.ts
+│   ├── services/                   # 20 business logic services
 │   ├── middleware/
 │   │   ├── auth.middleware.ts       # JWT auth, role/permission authorization, SSE auth
 │   │   ├── error.middleware.ts      # Centralized error handler
@@ -651,7 +755,7 @@ backend/
 │   └── utils/
 │       └── logger.ts               # Winston logger
 ├── prisma/
-│   ├── schema.prisma               # 43 models, 1364 lines, 10 enums
+│   ├── schema.prisma               # 121 models, 58 enums
 │   ├── migrations/                 # Database migrations
 │   ├── seed.ts                     # Database seeding (users, roles, permissions, service desks)
 │   ├── seed-admin-config.ts        # Admin configuration seed data
@@ -1389,10 +1493,12 @@ See section 10.3 for required variables. Additional configuration:
 
 ---
 
-*This document reflects Citadel Workplace Connect v2.1.0 as of 2026-05-13. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (94 values), i18next foundation, notificationSse route, serviceDesk service, request-detail workflow modals (26+), accessibility hooks (useFocusTrap, useEscapeKey), password management pages (ForgotPassword, ResetPassword, ChangePassword), systemSetting controller + routes (global email toggle), autoAssignment service.*
+*This document reflects Citadel Workplace Connect v2.2.0 as of 2026-05-25. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (94 values), i18next foundation, notificationSse route, serviceDesk service, request-detail workflow modals (26+), accessibility hooks (useFocusTrap, useEscapeKey), password management pages (ForgotPassword, ResetPassword, ChangePassword), systemSetting controller + routes (global email toggle), autoAssignment service.*
 
 **Doc sync (2026-05-05):** Updated RequestStatus count (76→94), controller count (31→30), route files (+notificationSse), service count (10→11, +serviceDesk), validator count (+serviceDesk), schema lines (1363→1364), Prisma data layer (76→94 statuses), backend test counts (112→121), frontend test counts (97→91), admin modals (6→11), request-detail components documented, STATUS_CONFIG count (76+→94), workflow modals (15→26+), FSD modal description (9→26+ with directory split), added hooks (useFocusTrap, useEscapeKey), added notificationSSE route, corrected individual test per-suite counts.
 
 **Doc sync (2026-05-08):** Corrected controller count (30→31, +systemSetting), service count (11→12, +autoAssignment), route count (30→31, +systemSetting), admin tab count (13→12, Role Assignment is modal not a tab); added /forgot-password, /reset-password/:token, /change-password to navigation structure; added ForgotPassword/ResetPassword/ChangePassword to frontend module structure; added /system-settings to API route table and backend architecture diagrams.
+
+**Doc sync (2026-05-25):** Added Credit Assessment module (12 main pages + 22 tab components, 12 `/credit/*` routes, credit.service.ts frontend service); added UnifiedInbox page (`/inbox`); added Insights page (`/insights`, `report:read`); added AuditTrail standalone page (`/admin/audit`); renamed ApprovalQueue → ApprovalCenter; corrected HR hiring workflow (added missing PENDING_GROUP_CEO_APPROVAL → GROUP_CEO_APPROVED steps between CEO_APPROVED and JOB_POSTED); fixed `/register` route (removed — does not exist in App.tsx); fixed `/reset-password/:token` → `/reset-password` (no token param); updated controller count (33→38, +interview, insights, policyExplainer, scheduler, participant); updated route count (34→37, +insights, policyExplainer, scheduler); updated service count backend (16→20, +crm-ai, insights, policyExplainer, scheduler); updated Prisma model count (58→121) and enum count (16→58) reflecting major schema growth; updated frontend services (23→28, +credit, insights, scheduler, auditLog, bannerConfig, entity, loa, requestStatus, screening, workflow); added `src/components/ui/` directory (16 primitives: Button, Card, Tabs, Drawer, Modal, Combobox, Tooltip, Skeleton, StateBadge, RiskBadge, AutosaveTextField, EmptyState, EnvironmentBanner, OutOfOfficeModal, PolicyExplainer); added new components (RichTextEditor, SessionExpiryBanner, NavMoreDropdown, CrmNav, CreditNav, CollapsibleKanbanColumn); updated hooks (4→9, added useAutosave, useCrmAi, useDebouncedValue, useIdleSession, useScrollLock); updated request-detail component count (25→38, added WorkflowCockpit, WorkflowStepper, DecisionPanel, ParticipantsSection, ActionBanner, AssignToDropdown, + new workflow modals); updated navigation section to reflect WorkflowCockpit/WorkflowStepper architecture in RequestDetail.
 
 **Doc sync (2026-05-13):** Added CRM module (13 frontend pages, 3 backend services crm/crm-automation/crm-reports, 1 route file, 1 controller, 10 CRM Prisma models + 4 enums, 4 permissions crm:read/write/delete/admin, 7 report types, automation engine, Malaysian-specific fields); added Announcement Board (4 frontend pages/widget, 1 backend service, 1 route file, 1 controller, 2 Prisma models, 2 permissions announcement:write/admin, 14 API endpoints including PDF/DOCX parse and image upload); updated route count (31→34), controller count (31→33), service count (12→16), Prisma model count (43→58), enum count (16), KB routes flagged as DEV-only; updated rate limit to 2000/15min; updated navigation structure with all new CRM and announcement routes; added sections 9.7 CRM Module, 9.8 Announcement Board; updated glossary with 12 new terms.*

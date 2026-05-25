@@ -2,7 +2,7 @@
 // Generic config-driven workflow action modal.
 // Driven entirely by WorkflowModalConfig — no per-action hard-coding needed.
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import ModalWrapper from '../ModalWrapper';
 import { WorkflowModalConfig, WorkflowModalField } from '../../utils/workflowModalConfig';
 
@@ -26,14 +26,29 @@ const SUBMIT_BUTTON_CLASSES: Record<string, string> = {
     'bg-green-600 text-white hover:bg-green-700 focus-visible:ring-green-600',
 };
 
-/* ---- Field renderer ---- */
-const renderField = (
-  field: WorkflowModalField,
-  value: string,
-  onChange: (val: string) => void,
-) => {
-  const sharedInputClass =
-    'w-full px-3 py-2.5 text-sm border border-cwc-border rounded-cwc-md bg-white text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-[#0052cc]/30 focus:border-[#0052cc] transition-colors';
+const SHARED_INPUT_CLASS =
+  'w-full px-3 py-2.5 text-sm border border-cwc-border rounded-cwc-md bg-white text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-[#0052cc]/30 focus:border-[#0052cc] transition-colors';
+
+/* ---- Field renderer (supports async options + file uploads) ---- */
+const ModalField: React.FC<{
+  field: WorkflowModalField;
+  value: string;
+  onChange: (val: string) => void;
+  onFileChange?: (file: File | null) => void;
+}> = ({ field, value, onChange, onFileChange }) => {
+  // Async option loading
+  const [asyncOpts, setAsyncOpts] = useState<{ value: string; label: string }[]>([]);
+  const [optsLoading, setOptsLoading] = useState(false);
+
+  useEffect(() => {
+    if (field.type === 'select' && field.asyncOptions && !field.options?.length) {
+      setOptsLoading(true);
+      field.asyncOptions()
+        .then((opts) => setAsyncOpts(opts))
+        .catch(() => setAsyncOpts([]))
+        .finally(() => setOptsLoading(false));
+    }
+  }, [field]);
 
   const labelEl = (
     <label
@@ -49,6 +64,8 @@ const renderField = (
     </label>
   );
 
+  const resolvedOptions = field.options?.length ? field.options : asyncOpts;
+
   switch (field.type) {
     case 'textarea':
       return (
@@ -62,7 +79,7 @@ const renderField = (
             rows={field.rows ?? 3}
             placeholder={field.placeholder}
             required={field.required}
-            className={`${sharedInputClass} resize-none`}
+            className={`${SHARED_INPUT_CLASS} resize-none`}
           />
         </div>
       );
@@ -77,10 +94,13 @@ const renderField = (
             value={value}
             onChange={(e) => onChange(e.target.value)}
             required={field.required}
-            className={sharedInputClass}
+            disabled={optsLoading}
+            className={SHARED_INPUT_CLASS}
           >
-            <option value="">Select…</option>
-            {field.options?.map((opt) => (
+            <option value="">
+              {optsLoading ? 'Loading…' : 'Select…'}
+            </option>
+            {resolvedOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
               </option>
@@ -100,10 +120,60 @@ const renderField = (
             value={value}
             onChange={(e) => onChange(e.target.value)}
             required={field.required}
-            className={sharedInputClass}
+            className={SHARED_INPUT_CLASS}
           />
         </div>
       );
+
+    case 'time-select': {
+      const TIME_SLOTS = [
+        { value: '08:00 AM', label: '08:00 AM' },
+        { value: '08:30 AM', label: '08:30 AM' },
+        { value: '09:00 AM', label: '09:00 AM' },
+        { value: '09:30 AM', label: '09:30 AM' },
+        { value: '10:00 AM', label: '10:00 AM' },
+        { value: '10:30 AM', label: '10:30 AM' },
+        { value: '11:00 AM', label: '11:00 AM' },
+        { value: '11:30 AM', label: '11:30 AM' },
+        { value: '12:00 PM', label: '12:00 PM' },
+        { value: '12:30 PM', label: '12:30 PM' },
+        { value: '01:00 PM', label: '01:00 PM' },
+        { value: '01:30 PM', label: '01:30 PM' },
+        { value: '02:00 PM', label: '02:00 PM' },
+        { value: '02:30 PM', label: '02:30 PM' },
+        { value: '03:00 PM', label: '03:00 PM' },
+        { value: '03:30 PM', label: '03:30 PM' },
+        { value: '04:00 PM', label: '04:00 PM' },
+        { value: '04:30 PM', label: '04:30 PM' },
+        { value: '05:00 PM', label: '05:00 PM' },
+        { value: '05:30 PM', label: '05:30 PM' },
+        { value: '06:00 PM', label: '06:00 PM' },
+      ];
+      return (
+        <div key={field.name}>
+          {labelEl}
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none text-lg">schedule</span>
+            <select
+              id={field.name}
+              name={field.name}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              required={field.required}
+              className={`${SHARED_INPUT_CLASS} appearance-none pl-9 pr-8`}
+            >
+              <option value="">Select time...</option>
+              {TIME_SLOTS.map((slot) => (
+                <option key={slot.value} value={slot.value}>
+                  {slot.label}
+                </option>
+              ))}
+            </select>
+            <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none text-lg">expand_more</span>
+          </div>
+        </div>
+      );
+    }
 
     case 'number':
       return (
@@ -119,8 +189,31 @@ const renderField = (
             required={field.required}
             min="0"
             step="0.01"
-            className={sharedInputClass}
+            className={SHARED_INPUT_CLASS}
           />
+        </div>
+      );
+
+    case 'file':
+      return (
+        <div key={field.name}>
+          {labelEl}
+          <div className="relative">
+            <input
+              id={field.name}
+              name={field.name}
+              type="file"
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                onFileChange?.(file);
+                // Mark the string state so required validation sees a value
+                onChange(file ? '[FILE]' : '');
+              }}
+              required={field.required}
+              accept={field.placeholder || '.pdf,.doc,.docx,.jpg,.jpeg,.png'}
+              className="block w-full text-sm text-text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:cursor-pointer cursor-pointer"
+            />
+          </div>
         </div>
       );
 
@@ -137,7 +230,7 @@ const renderField = (
             onChange={(e) => onChange(e.target.value)}
             placeholder={field.placeholder}
             required={field.required}
-            className={sharedInputClass}
+            className={SHARED_INPUT_CLASS}
           />
         </div>
       );
@@ -162,6 +255,8 @@ const WorkflowActionModal: React.FC<WorkflowActionModalProps> = ({
   };
 
   const [formData, setFormData] = useState<Record<string, string>>(buildInitialState);
+  // Track File objects separately — file inputs can't be represented as strings
+  const [fileMap, setFileMap] = useState<Record<string, File | null>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -169,14 +264,36 @@ const WorkflowActionModal: React.FC<WorkflowActionModalProps> = ({
     setFormData((prev) => ({ ...prev, [name]: value }));
   }, []);
 
+  const handleFileChange = useCallback((name: string, file: File | null) => {
+    setFileMap((prev) => ({ ...prev, [name]: file }));
+    // Mark the text placeholder so required validation sees a value
+    setFormData((prev) => ({ ...prev, [name]: file ? '[FILE]' : '' }));
+  }, []);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (open) {
+      setFormData(buildInitialState());
+      setFileMap({});
+      setError(null);
+    }
+  }, [open]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Client-side required validation
     for (const field of config.fields) {
-      if (field.required && !formData[field.name]?.trim()) {
-        setError(`${field.label} is required`);
-        return;
+      if (field.required) {
+        if (field.type === 'file') {
+          if (!fileMap[field.name]) {
+            setError(`${field.label} is required — please select a file`);
+            return;
+          }
+        } else if (!formData[field.name]?.trim()) {
+          setError(`${field.label} is required`);
+          return;
+        }
       }
     }
 
@@ -187,11 +304,16 @@ const WorkflowActionModal: React.FC<WorkflowActionModalProps> = ({
       // Convert number fields from string to actual number for the API
       const values: Record<string, unknown> = {};
       for (const field of config.fields) {
-        const raw = formData[field.name];
-        if (field.type === 'number' && raw !== '') {
-          values[field.name] = parseFloat(raw);
+        if (field.type === 'file') {
+          // Pass the actual File object through
+          values[field.name] = fileMap[field.name] ?? null;
         } else {
-          values[field.name] = raw;
+          const raw = formData[field.name];
+          if (field.type === 'number' && raw !== '') {
+            values[field.name] = parseFloat(raw);
+          } else {
+            values[field.name] = raw;
+          }
         }
       }
 
@@ -229,11 +351,15 @@ const WorkflowActionModal: React.FC<WorkflowActionModalProps> = ({
 
       <form onSubmit={handleSubmit} noValidate>
         <div className="space-y-4">
-          {config.fields.map((field) =>
-            renderField(field, formData[field.name], (val) =>
-              handleChange(field.name, val),
-            ),
-          )}
+          {config.fields.map((field) => (
+            <ModalField
+              key={field.name}
+              field={field}
+              value={formData[field.name]}
+              onChange={(val) => handleChange(field.name, val)}
+              onFileChange={(file) => handleFileChange(field.name, file)}
+            />
+          ))}
 
           {error && (
             <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-cwc-md">

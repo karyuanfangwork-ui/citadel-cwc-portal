@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Breadcrumbs from '../src/components/Breadcrumbs';
 import { useAuth } from '../src/context/AuthContext';
 import notificationService, { Notification } from '../src/services/notification.service';
@@ -44,6 +44,7 @@ function withinTimeFrame(dateStr: string, tf: string): boolean {
 
 const UnifiedInbox: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [timeFrame, setTimeFrame] = useState<string>('all');
   const [loading, setLoading] = useState(true);
@@ -96,12 +97,21 @@ const UnifiedInbox: React.FC = () => {
 
   // ── Render item ──────────────────────────────────────────
 
-  const renderItem = (item: NotificationItem) => (
+  const renderItem = (item: NotificationItem) => {
+    const handleClick = () => {
+      if (!item.readAt) markRead(item.id);
+      if (item.relatedRequestId) navigate(`/request/${item.relatedRequestId}`);
+    };
+
+    return (
     <div key={item.id}
       className={`flex items-start gap-3 px-4 py-3 border rounded-lg transition-colors cursor-pointer ${
         item.readAt ? 'bg-surface border-cwc-border' : 'bg-brand-50 border-brand-200 hover:bg-brand-100'
       }`}
-      onClick={() => { if (!item.readAt) markRead(item.id); }}
+      onClick={handleClick}
+      role={item.relatedRequestId ? 'button' : undefined}
+      tabIndex={item.relatedRequestId ? 0 : undefined}
+      onKeyDown={item.relatedRequestId ? (e => { if (e.key === 'Enter') handleClick(); }) : undefined}
     >
       <span className={`material-symbols-outlined mt-0.5 ${item.readAt ? 'text-text-tertiary' : 'text-brand-700'}`}>
         {item.readAt ? 'notifications' : 'notifications_active'}
@@ -112,16 +122,13 @@ const UnifiedInbox: React.FC = () => {
         <p className="text-xs text-text-tertiary mt-0.5">{new Date(item.createdAt).toLocaleString()}</p>
       </div>
       {item.relatedRequestId && (
-        <Link to={`/request/${item.relatedRequestId}`}
-          className="flex items-center gap-1 text-xs text-brand-700 font-semibold hover:underline"
-          onClick={e => e.stopPropagation()}
-        >
+        <span className="flex items-center gap-1 text-xs text-brand-700 font-semibold">
           View <span className="material-symbols-outlined" style={{ fontSize: 12 }}>arrow_forward</span>
-        </Link>
+        </span>
       )}
       <span className="material-symbols-outlined text-text-tertiary text-lg mt-0.5">chevron_right</span>
     </div>
-  );
+  );}
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-8">

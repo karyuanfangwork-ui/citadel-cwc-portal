@@ -6,6 +6,17 @@ import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveRequestId(idOrRef: string): Promise<string | null> {
+    if (UUID_RE.test(idOrRef)) return idOrRef;
+    const row = await prisma.request.findFirst({
+        where: { referenceNumber: idOrRef, deletedAt: null },
+        select: { id: true },
+    });
+    return row?.id ?? null;
+}
+
 async function logActivity(requestId: string, message: string, authorId?: string) {
     await prisma.requestActivity.create({
         data: {
@@ -22,7 +33,11 @@ async function logActivity(requestId: string, message: string, authorId?: string
 /** POST /chargeback-workflow/requests/:id/submit — Submit chargeback to From Entity approver */
 export const submitChargeback = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const userId = (req as any).user?.id;
 
         const request = await prisma.request.findUnique({ where: { id } });
@@ -98,7 +113,11 @@ export const submitChargeback = async (req: Request, res: Response) => {
 /** POST /chargeback-workflow/requests/:id/from-entity-decision */
 export const fromEntityDecision = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
         const userRoles: string[] = (req as any).user?.roles || [];
@@ -216,7 +235,11 @@ export const fromEntityDecision = async (req: Request, res: Response) => {
 /** POST /chargeback-workflow/requests/:id/to-entity-decision */
 export const toEntityDecision = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { decision, comments } = req.body;
         const userId = (req as any).user?.id;
         const userRoles: string[] = (req as any).user?.roles || [];
@@ -295,7 +318,11 @@ export const toEntityDecision = async (req: Request, res: Response) => {
 /** POST /chargeback-workflow/requests/:id/mark-confirmed */
 export const markConfirmed = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const { notes } = req.body;
         const userId = (req as any).user?.id;
 
@@ -333,7 +360,11 @@ export const markConfirmed = async (req: Request, res: Response) => {
 /** POST /chargeback-workflow/requests/:id/complete */
 export const completeChargeback = async (req: Request, res: Response) => {
     try {
-        const id = String(req.params.id);
+        const idOrRef = String(req.params.id);
+        const id = await resolveRequestId(idOrRef);
+        if (!id) {
+            return res.status(404).json({ status: 'error', message: 'Request not found' });
+        }
         const userId = (req as any).user?.id;
 
         const request = await prisma.request.findUnique({ where: { id } });

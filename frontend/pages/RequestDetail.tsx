@@ -71,8 +71,9 @@ const RequestDetailContainer: React.FC = () => {
         approverId: a.approverId,
         approverType: a.approverType,
         status: a.status,
-        decision: a.decision ?? null,
-        decidedAt: a.decidedAt ?? null,
+        comments: a.comments ?? null,
+        createdAt: a.createdAt ?? '',
+        updatedAt: a.updatedAt ?? '',
         approver: a.approver
             ? { id: a.approver.id, firstName: a.approver.firstName, lastName: a.approver.lastName, email: a.approver.email }
             : { id: a.approverId, firstName: '?', lastName: '', email: '' },
@@ -109,9 +110,25 @@ const RequestDetailContainer: React.FC = () => {
                 {/* ─── LEFT PANE: Content ─── */}
                 <div className="space-y-10">
                     <RequestFormFields
-                        request={request}
+                        request={{
+                            ...request,
+                            requester: request.requester ?? null,
+                            assignedTo: request.assignedTo ?? null,
+                            assignedTeam: request.assignedTeam ?? null,
+                            priority: request.priority ?? undefined,
+                            serviceDesk: request.serviceDesk
+                                ? { code: request.serviceDesk.code, name: request.serviceDesk.name }
+                                : undefined,
+                            requestType: request.requestType
+                                ? { code: request.requestType.code, name: request.requestType.name, formConfig: request.requestType.formConfig }
+                                : undefined,
+                        }}
                         activities={activities}
                         canEditCustomFields={isFinanceAgent}
+                        canReassign={!!(user?.roles?.includes('ADMIN') || user?.roles?.includes('AGENT'))}
+                        currentUserId={user?.id}
+                        currentUserName={user ? `${user.firstName} ${user.lastName}` : ''}
+                        onReassigned={rq.fetchRequestData}
                         onCustomFieldsSaved={handleCustomFieldsSaved}
                     />
 
@@ -257,6 +274,18 @@ const RequestDetailContainer: React.FC = () => {
                 isOpen={rq.showScheduleInterviewModal}
                 processingAction={rq.processingAction}
                 requestId={request.id}
+                candidates={(() => {
+                    const seen = new Map<string, { id: string; candidateName: string; documentCount: number }>();
+                    for (const r of rq.resumes) {
+                        const name = r.candidateName || 'Unknown';
+                        if (!seen.has(name)) {
+                            seen.set(name, { id: r.id, candidateName: name, documentCount: 1 });
+                        } else {
+                            seen.get(name)!.documentCount++;
+                        }
+                    }
+                    return Array.from(seen.values());
+                })()}
                 onClose={() => rq.setShowScheduleInterviewModal(false)}
                 onSubmit={rq.handleScheduleInterview}
             />
@@ -301,6 +330,7 @@ const RequestDetailContainer: React.FC = () => {
                 processingAction={rq.processingAction}
                 onClose={() => rq.setShowCEODecisionModal(false)}
                 onSubmit={rq.handleCEODecision}
+                isITRequest={rq.request?.status === 'PENDING_CEO_APPROVAL_IT'}
             />
 
             <ManagerDecisionModal

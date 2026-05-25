@@ -14,8 +14,9 @@ interface ApprovalEntry {
   approverId: string;
   approverType: string;
   status: string;
-  decision: string | null;
-  decidedAt: string | null;
+  comments: string | null;
+  createdAt: string;
+  updatedAt: string;
   approver: { id: string; firstName: string; lastName: string; email: string };
   entity: { id: string; name: string; code: string } | null;
 }
@@ -153,6 +154,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               requestTypeName={request.requestTypeName}
               requestTypeCode={request.requestTypeCode}
               serviceDeskCode={request.serviceDeskCode}
+              serviceDeskName={request.serviceDeskName}
               referenceNumber={request.referenceNumber}
               priority={request.priority}
               requesterName={request.requesterName}
@@ -286,6 +288,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   requestTypeName={request.requestTypeName}
                   requestTypeCode={request.requestTypeCode}
                   serviceDeskCode={request.serviceDeskCode}
+                  serviceDeskName={request.serviceDeskName}
                   referenceNumber={request.referenceNumber}
                   priority={request.priority}
                   requesterName={request.requesterName}

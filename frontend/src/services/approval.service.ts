@@ -33,9 +33,10 @@ export const ceoDecision = async (
 /**
  * Route HR hiring request to Group CEO for approval
  */
-export const routeToGroupCeoHR = async (requestId: string, comments?: string) => {
+export const routeToGroupCeoHR = async (requestId: string, comments?: string, groupCeoId?: string) => {
     const response = await apiClient.post(`/approvals/requests/${requestId}/route-to-group-ceo-hr`, {
-        comments
+        comments,
+        groupCeoId,
     });
     return response.data.data;
 };
