@@ -280,11 +280,11 @@ const CrmAccountDetail = () => {
               </Link>
             </div>
           </div>
-          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 flex items-start gap-3">
-            <span className="material-symbols-outlined text-indigo-600 text-xl shrink-0 mt-0.5">info</span>
+          <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 flex items-start gap-3">
+            <span className="material-symbols-outlined text-brand-600 text-xl shrink-0 mt-0.5">info</span>
             <div>
-              <p className="text-sm font-semibold text-indigo-800">Cross-module navigation</p>
-              <p className="text-xs text-indigo-700 mt-0.5">Clicking "View Borrower Profiles" will take you to the Credit module, pre-filtered to show borrower profiles linked to this account ({account.name}).</p>
+              <p className="text-sm font-semibold text-brand-800">Cross-module navigation</p>
+              <p className="text-xs text-brand-700 mt-0.5">Clicking "View Borrower Profiles" will take you to the Credit module, pre-filtered to show borrower profiles linked to this account ({account.name}).</p>
             </div>
           </div>
         </div>

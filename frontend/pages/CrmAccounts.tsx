@@ -109,8 +109,8 @@ const CrmAccounts = () => {
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                   <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                        <span className="material-symbols-outlined text-indigo-600 text-lg">business</span>
+                      <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-brand-600 text-lg">business</span>
                       </div>
                       <div>
                         <div>
