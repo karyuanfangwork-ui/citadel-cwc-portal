@@ -9,10 +9,10 @@ const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 
 const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
 const winProbStyle = (prob: number) =>
   prob >= 70
-    ? { bg: '#f0fdf4', text: '#15803d', icon: 'trending_up' }
+    ? { bg: 'var(--color-hr-50)', text: 'var(--color-success)', icon: 'trending_up' }
     : prob >= 40
-    ? { bg: '#fffbeb', text: '#b45309', icon: 'trending_flat' }
-    : { bg: '#fef2f2', text: '#dc2626', icon: 'trending_down' };
+    ? { bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'trending_flat' }
+    : { bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'trending_down' };
 
 const CrmPipelineView = () => {
   const navigate = useNavigate();
@@ -201,7 +201,7 @@ const CrmPipelineView = () => {
                   <CollapsedColumnPill
                     key={stage.id}
                     label={stage.name}
-                    color={stage.color || '#6b7280'}
+                    color={stage.color || 'var(--color-text-secondary)'}
                     count={opps.length}
                     onClick={() => toggleCollapse(stage.id)}
                   />
@@ -244,11 +244,11 @@ const CrmPipelineView = () => {
                         onDragStart={e => handleDragStart(e, opp.id)}
                         onDragEnd={() => setDraggedOpp(null)}
                         onClick={() => navigate(`/crm/opportunities/${opp.id}`)}
-                        className={`bg-white border border-gray-100 rounded-lg p-3.5 cursor-grab hover:shadow-md hover:border-brand-200 transition-all ${draggedOpp === opp.id ? 'opacity-40 scale-95' : ''}`}
+                        className={`bg-surface border border-border rounded-lg p-3.5 cursor-grab hover:shadow-md hover:border-brand-200 transition-all ${draggedOpp === opp.id ? 'opacity-40 scale-95' : ''}`}
                         style={{ userSelect: 'none' }}
                       >
                         <div className="text-sm font-bold text-text-primary mb-1 line-clamp-2">{opp.name}</div>
-                        <div className="text-lg font-black text-indigo-600 mb-2">{formatCurrency(Number(opp.value))}</div>
+                        <div className="text-lg font-black text-brand-600 mb-2">{formatCurrency(Number(opp.value))}</div>
                         {opp.aiWinProbability != null && (() => {
                           const ws = winProbStyle(opp.aiWinProbability);
                           return (
@@ -273,8 +273,8 @@ const CrmPipelineView = () => {
                         </div>
                         {opp.owner && (
                           <div className="flex items-center gap-1.5 mt-2">
-                            <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center">
-                              <span className="text-[10px] font-bold text-indigo-600">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
+                            <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center">
+                              <span className="text-[10px] font-bold text-brand-600">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
                             </div>
                             <span className="text-xs text-text-tertiary">{opp.owner.firstName} {opp.owner.lastName}</span>
                           </div>
@@ -292,8 +292,8 @@ const CrmPipelineView = () => {
       {showCreate && selectedPipeline && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowCreate(false); setOppForm({}); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-200 shrink-0">
+          <div className="relative bg-surface rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-border shrink-0">
               <h2 className="text-lg font-black text-text-primary">New Opportunity</h2>
               <button onClick={() => { setShowCreate(false); setOppForm({}); }}
                 className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -304,12 +304,12 @@ const CrmPipelineView = () => {
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Opportunity Name *</label>
                 <input required value={oppForm.name ?? ''} onChange={e => setOppForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-surface-muted outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Account *</label>
                 <select required value={oppForm.accountId ?? ''} onChange={e => setOppForm(f => ({ ...f, accountId: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }}>
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-surface-muted outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }}>
                   <option value="">Select account...</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
@@ -319,7 +319,7 @@ const CrmPipelineView = () => {
                 <select value={oppForm.stageId ?? ''} onChange={e => {
                   const stage = selectedPipeline.stages?.find(s => s.id === e.target.value);
                   setOppForm(f => ({ ...f, stageId: e.target.value, probability: stage?.probability ?? f.probability }));
-                }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }}>
+                }} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-surface-muted outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }}>
                   {(selectedPipeline.stages ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -327,12 +327,12 @@ const CrmPipelineView = () => {
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Value (MYR)</label>
                   <input type="number" min="0" value={oppForm.value ?? ''} onChange={e => setOppForm(f => ({ ...f, value: Number(e.target.value) }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-surface-muted outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }} />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Close Date</label>
                   <input type="date" value={oppForm.expectedCloseDate ?? ''} onChange={e => setOppForm(f => ({ ...f, expectedCloseDate: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50 outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-surface-muted outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all" style={{ fontFamily: 'var(--font-sans)' }} />
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
