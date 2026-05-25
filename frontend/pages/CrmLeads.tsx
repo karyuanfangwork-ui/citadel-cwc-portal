@@ -4,12 +4,12 @@ import crmService, { CrmLead, CrmUser, Pagination, LeadStatus, LeadSource } from
 import CrmNav from '../src/components/CrmNav';
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: string }> = {
-  NEW: { bg: '#eff6ff', text: '#1d4ed8', icon: 'fiber_new' },
-  CONTACTED: { bg: '#fef3c7', text: '#92400e', icon: 'call' },
-  QUALIFIED: { bg: '#ecfdf5', text: '#065f46', icon: 'verified' },
-  UNQUALIFIED: { bg: '#fef2f2', text: '#991b1b', icon: 'block' },
-  CONVERTED: { bg: '#f0fdf4', text: '#166534', icon: 'swap_horiz' },
-  LOST: { bg: '#f3f4f6', text: '#6b7280', icon: 'cancel' },
+  NEW: { bg: 'var(--color-it-50)', text: 'var(--color-it-500)', icon: 'fiber_new' },
+  CONTACTED: { bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'call' },
+  QUALIFIED: { bg: 'var(--color-hr-50)', text: 'var(--color-success)', icon: 'verified' },
+  UNQUALIFIED: { bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'block' },
+  CONVERTED: { bg: 'var(--color-hr-50)', text: 'var(--color-success)', icon: 'swap_horiz' },
+  LOST: { bg: 'var(--color-surface-muted)', text: 'var(--color-text-secondary)', icon: 'cancel' },
 };
 
 // ── Activity type icons (including WHATSAPP & SITE_VISIT) ──────
@@ -17,11 +17,11 @@ export const ACTIVITY_ICONS: Record<string, { icon: string; color: string }> = {
   CALL: { icon: 'call', color: '#2563eb' },
   EMAIL: { icon: 'mail', color: '#7c3aed' },
   MEETING: { icon: 'groups', color: '#059669' },
-  NOTE: { icon: 'note', color: '#6b7280' },
+  NOTE: { icon: 'note', color: 'var(--color-text-secondary)' },
   TASK: { icon: 'task_alt', color: '#d97706' },
   FOLLOW_UP: { icon: 'event_repeat', color: '#ea580c' },
   WHATSAPP: { icon: 'chat', color: '#16a34a' },
-  SITE_VISIT: { icon: 'location_on', color: '#dc2626' },
+  SITE_VISIT: { icon: 'location_on', color: 'var(--color-danger)' },
 };
 
 const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -44,23 +44,23 @@ type UrgencyBadge = { label: string; bg: string; text: string; icon: string } | 
 const getUrgencyBadge = (lead: CrmLead): UrgencyBadge => {
   if (lead.followUpDate) {
     if (isOverdue(lead.followUpDate) && !isToday(lead.followUpDate))
-      return { label: 'Overdue', bg: '#fef2f2', text: '#dc2626', icon: 'error' };
+      return { label: 'Overdue', bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'error' };
     if (isToday(lead.followUpDate))
-      return { label: 'Due Today', bg: '#fffbeb', text: '#b45309', icon: 'schedule' };
+      return { label: 'Due Today', bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'schedule' };
   }
   // Stale: no activity in 7+ days and not closed
   if (isStale(lead.updatedAt) && lead.status !== 'CONVERTED' && lead.status !== 'LOST')
-    return { label: 'Stale', bg: '#f3f4f6', text: '#6b7280', icon: 'hourglass_empty' };
+    return { label: 'Stale', bg: 'var(--color-surface-muted)', text: 'var(--color-text-secondary)', icon: 'hourglass_empty' };
   return null;
 };
 
 // AI score colour helper
 const scoreStyle = (score: number) =>
   score >= 70
-    ? { bg: '#f0fdf4', text: '#15803d' }
+    ? { bg: 'var(--color-hr-50)', text: 'var(--color-success)' }
     : score >= 40
-    ? { bg: '#fffbeb', text: '#b45309' }
-    : { bg: '#fef2f2', text: '#dc2626' };
+    ? { bg: 'var(--color-fin-50)', text: 'var(--color-warning)' }
+    : { bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)' };
 
 const CrmLeads = () => {
   const navigate = useNavigate();
@@ -194,13 +194,13 @@ const CrmLeads = () => {
       {filterParam && (
         <div className="flex items-center gap-2 mb-4">
           <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold" style={{
-            background: filterParam === 'stale' ? '#f3f4f6' : '#fef3c7',
-            color: filterParam === 'stale' ? '#6b7280' : '#92400e',
+            background: filterParam === 'stale' ? 'var(--color-surface-muted)' : 'var(--color-fin-50)',
+            color: filterParam === 'stale' ? 'var(--color-text-secondary)' : 'var(--color-warning)',
           }}>
             <span className="material-symbols-outlined text-sm">{filterParam === 'stale' ? 'hourglass_empty' : 'event_repeat'}</span>
             {filterParam === 'followup' ? 'Follow-ups Due Today & Overdue' : 'Stale Leads (7+ days inactive)'}
           </span>
-          <button onClick={clearFilterParam} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6b7280' }} className="text-sm hover:text-gray-900">
+          <button onClick={clearFilterParam} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }} className="text-sm hover:text-gray-900">
             <span className="material-symbols-outlined text-base">close</span>
           </button>
         </div>
@@ -284,7 +284,7 @@ const CrmLeads = () => {
 
               {/* Follow-up date row */}
               {lead.followUpDate && (
-                <div className="flex items-center gap-1.5 text-xs mt-1" style={{ color: followUpOverdue ? '#dc2626' : '#6b7280' }}>
+                <div className="flex items-center gap-1.5 text-xs mt-1" style={{ color: followUpOverdue ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}>
                   <span className="material-symbols-outlined text-sm">event</span>
                   <span className={followUpOverdue ? 'font-bold' : ''}>
                     {formatShortDate(lead.followUpDate)}
@@ -298,14 +298,14 @@ const CrmLeads = () => {
               )}
 
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-                <span className="text-sm font-bold text-indigo-600">{formatCurrency(lead.estimatedValue)}</span>
+                <span className="text-sm font-bold text-brand-600">{formatCurrency(lead.estimatedValue)}</span>
                 {lead.owner && (
                   <div className="flex items-center gap-1.5">
                     {lead.owner.avatarUrl ? (
                       <img src={lead.owner.avatarUrl} alt={lead.owner.firstName} className="w-5 h-5 rounded-full object-cover" />
                     ) : (
-                      <div className="w-5 h-5 rounded-full bg-indigo-100 flex items-center justify-center">
-                        <span className="text-[10px] font-bold text-indigo-600">{lead.owner.firstName?.[0]}{lead.owner.lastName?.[0]}</span>
+                      <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-brand-600">{lead.owner.firstName?.[0]}{lead.owner.lastName?.[0]}</span>
                       </div>
                     )}
                     <span className="text-xs text-text-tertiary">{lead.owner.firstName}</span>
