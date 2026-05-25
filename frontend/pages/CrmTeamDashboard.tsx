@@ -73,7 +73,7 @@ const CrmTeamDashboard = () => {
       <CrmNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Hero */}
-      <section className="bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4338ca] rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">
+      <section className="bg-gradient-to-br from-brand-950 via-brand-800 to-brand-700 rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">
         <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
         <div className="relative z-10">
@@ -96,7 +96,7 @@ const CrmTeamDashboard = () => {
       <div className="bg-surface border border-border rounded-xl shadow-sm mb-6 overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-violet-600">auto_awesome</span>
+            <span className="material-symbols-outlined text-brand-600">auto_awesome</span>
             <span className="font-extrabold text-text-primary">AI Pipeline Briefing</span>
             {briefing && (
               <span className="text-xs text-text-secondary ml-2 truncate max-w-xs hidden sm:inline">
@@ -107,7 +107,7 @@ const CrmTeamDashboard = () => {
           <button
             onClick={briefingOpen ? () => setBriefingOpen(false) : briefing ? () => setBriefingOpen(true) : loadBriefing}
             disabled={briefingLoading}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
             style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
           >
             <span className="material-symbols-outlined text-base">
@@ -161,9 +161,9 @@ const CrmTeamDashboard = () => {
           ))
         ) : (
           [
-            { label: 'Total Leads', value: totalLeads, icon: 'lightbulb', bg: '#fef3c7', color: '#92400e' },
-            { label: 'Pipeline Value', value: formatCurrency(totalPipelineValue), icon: 'payments', bg: '#ecfdf5', color: '#065f46' },
-            { label: 'Won This Month', value: `${totalWonCount} · ${formatCurrency(totalWonValue)}`, icon: 'emoji_events', bg: '#f0fdf4', color: '#166534' },
+            { label: 'Total Leads', value: totalLeads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)' },
+            { label: 'Pipeline Value', value: formatCurrency(totalPipelineValue), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
+            { label: 'Won This Month', value: `${totalWonCount} · ${formatCurrency(totalWonValue)}`, icon: 'emoji_events', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
           ].map((s) => (
             <div key={s.label} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
               <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
@@ -230,8 +230,8 @@ const CrmTeamDashboard = () => {
                         {agent.avatarUrl ? (
                           <img src={agent.avatarUrl} alt={agent.name} className="w-9 h-9 rounded-full object-cover" />
                         ) : (
-                          <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
-                            <span className="text-sm font-bold text-indigo-700">{agent.name.charAt(0).toUpperCase()}</span>
+                          <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
+                            <span className="text-sm font-bold text-brand-700">{agent.name.charAt(0).toUpperCase()}</span>
                           </div>
                         )}
                         <div className="min-w-0">
