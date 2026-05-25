@@ -74,7 +74,7 @@ const CrmOpportunityDetail = () => {
   };
 
   const confidenceColor = (c: string) =>
-    c === 'high' ? 'text-success bg-green-100' : c === 'low' ? 'text-danger bg-red-100' : 'text-warning bg-yellow-100';
+    c === 'high' ? 'text-success bg-success/10' : c === 'low' ? 'text-danger bg-danger/10' : 'text-warning bg-warning/10';
 
   const reload = () => {
     if (!id) return;
@@ -440,13 +440,13 @@ const CrmOpportunityDetail = () => {
       {showMoveStage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowMoveStage(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-surface rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Move Stage</h2>
             <form onSubmit={handleMoveStage} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Select Stage</label>
                 <select value={selectedStageId} onChange={e => setSelectedStageId(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
                   {stages.map(s => <option key={s.id} value={s.id}>{s.name} ({s.probability}%)</option>)}
                 </select>
               </div>
@@ -454,7 +454,7 @@ const CrmOpportunityDetail = () => {
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Lost Reason</label>
                   <input value={lostReason} onChange={e => setLostReason(e.target.value)}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
                 </div>
               )}
               <div className="flex justify-end gap-3 pt-2">
@@ -476,25 +476,25 @@ const CrmOpportunityDetail = () => {
       {showAddActivity && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-surface rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Log Activity</h2>
             <form onSubmit={handleAddActivity} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
                 <select value={activityForm.activityType} onChange={e => setActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
                   {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label>
                 <input required value={activityForm.subject ?? ''} onChange={e => setActivityForm(f => ({ ...f, subject: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
                 <textarea rows={3} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}
@@ -515,11 +515,11 @@ const CrmOpportunityDetail = () => {
       {showAddNote && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddNote(false); setNoteContent(''); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+          <div className="relative bg-surface rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Add Note</h2>
             <form onSubmit={handleAddNote} className="space-y-4">
               <textarea required rows={5} value={noteContent} onChange={e => setNoteContent(e.target.value)}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddNote(false); setNoteContent(''); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
