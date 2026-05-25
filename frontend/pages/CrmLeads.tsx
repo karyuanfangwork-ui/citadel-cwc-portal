@@ -164,7 +164,7 @@ const CrmLeads = () => {
             onClick={() => setPrioritySort(p => !p)}
             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
               prioritySort
-                ? 'bg-amber-500 text-white hover:bg-amber-600'
+                ? 'bg-warning text-white hover:bg-warning/90'
                 : 'bg-surface border border-border text-text-secondary hover:bg-gray-100'
             }`}
             style={{ border: prioritySort ? 'none' : undefined, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
@@ -410,14 +410,14 @@ const CrmLeads = () => {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 {duplicateWarning && (
-                  <div className="flex-1 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  <div className="flex-1 flex items-start gap-2 p-3 bg-warning/10 border border-warning rounded-lg text-sm text-warning">
                     <span className="material-symbols-outlined text-base shrink-0 mt-0.5">warning</span>
                     <div className="flex-1">{duplicateWarning}</div>
                     <button
                       type="button"
                       onClick={() => setDuplicateWarning(null)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                      className="text-amber-600 hover:text-amber-800 shrink-0"
+                      className="text-warning hover:text-warning shrink-0"
                     >
                       <span className="material-symbols-outlined text-base">close</span>
                     </button>

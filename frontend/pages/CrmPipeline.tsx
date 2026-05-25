@@ -150,7 +150,7 @@ const CrmPipelineView = () => {
             </div>
             <div className="flex items-center gap-4">
               <h1 className="text-2xl font-black text-text-primary">Sales Pipeline</h1>
-              <span className="text-lg font-bold text-emerald-600">{formatCurrency(totalValue)} total</span>
+              <span className="text-lg font-bold text-success">{formatCurrency(totalValue)} total</span>
             </div>
           </div>
           <div className="flex items-center gap-3">

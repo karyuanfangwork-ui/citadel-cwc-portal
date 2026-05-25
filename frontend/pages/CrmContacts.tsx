@@ -264,14 +264,14 @@ const CrmContacts = () => {
                 <label htmlFor="isPrimary" className="text-sm text-text-primary">Primary contact</label>
               </div>
               {duplicateWarning && (
-                <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning rounded-lg text-sm text-warning">
                   <span className="material-symbols-outlined text-base shrink-0 mt-0.5">warning</span>
                   <div className="flex-1">{duplicateWarning}</div>
                   <button
                     type="button"
                     onClick={() => setDuplicateWarning(null)}
                     style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                    className="text-amber-600 hover:text-amber-800 shrink-0"
+                    className="text-warning hover:text-warning shrink-0"
                   >
                     <span className="material-symbols-outlined text-base">close</span>
                   </button>
