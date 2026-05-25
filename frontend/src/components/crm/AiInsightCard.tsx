@@ -44,7 +44,7 @@ export default function AiInsightCard({
       )}
 
       {error && !loading && (
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-danger">{error}</p>
       )}
 
       {!loading && !error && children}

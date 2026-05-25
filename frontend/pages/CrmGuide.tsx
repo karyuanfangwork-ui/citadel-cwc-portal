@@ -250,7 +250,7 @@ const CrmGuide = () => {
           </div>
           <div className="p-4 rounded-xl border border-border bg-surface">
             <div className="font-bold text-text-primary text-sm mb-1 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-base text-amber-600">sticky_note_2</span>
+              <span className="material-symbols-outlined text-base text-warning">sticky_note_2</span>
               Notes
             </div>
             <p className="text-xs text-text-secondary">Write a note when you <em>learned</em> something — context, observations, key details. Notes are not tracked in reports.</p>
