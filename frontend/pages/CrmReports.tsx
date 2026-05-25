@@ -246,7 +246,7 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
                 <td className="py-2 text-text-primary">{row.source || '—'}</td>
                 <td className="py-2 text-right text-text-secondary">{row.total}</td>
                 <td className="py-2 text-right text-green-600 font-medium">{row.converted}</td>
-                <td className="py-2 text-right text-red-500">{row.lost}</td>
+                <td className="py-2 text-right text-danger">{row.lost}</td>
                 <td className="py-2 text-right font-semibold">{row.conversionRate.toFixed(1)}%</td>
               </tr>
             ))}
@@ -317,7 +317,7 @@ function SalesPerformancePanel({ from, to }: { from: string; to: string }) {
                   <td className="py-2 text-text-primary font-medium">{row.ownerName}</td>
                   <td className="py-2 text-right text-text-secondary">{row.totalDeals}</td>
                   <td className="py-2 text-right text-green-600">{row.wonDeals}</td>
-                  <td className="py-2 text-right text-red-500">{row.lostDeals}</td>
+                  <td className="py-2 text-right text-danger">{row.lostDeals}</td>
                   <td className="py-2 text-right font-semibold">{row.winRate.toFixed(1)}%</td>
                   <td className="py-2 text-right">{myr.format(row.totalWonValue)}</td>
                   <td className="py-2 text-right">{myr.format(row.avgDealSize)}</td>
@@ -557,9 +557,9 @@ function LeadAgingPanel() {
                 <td className="py-2 text-right">{row.count}</td>
                 <td className="py-2 text-right">{row.avgAgeDays.toFixed(1)}</td>
                 <td className="py-2 text-right">{row.maxAgeDays}</td>
-                <td className="py-2 text-right text-amber-600">{row.leadsOver30Days}</td>
+                <td className="py-2 text-right text-warning">{row.leadsOver30Days}</td>
                 <td className="py-2 text-right text-orange-600">{row.leadsOver60Days}</td>
-                <td className="py-2 text-right text-red-600 font-semibold">{row.leadsOver90Days}</td>
+                <td className="py-2 text-right text-danger font-semibold">{row.leadsOver90Days}</td>
               </tr>
             ))}
           </tbody>
