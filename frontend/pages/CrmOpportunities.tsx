@@ -10,10 +10,10 @@ const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-
 
 const winProbStyle = (prob: number) =>
   prob >= 70
-    ? { bg: '#f0fdf4', text: '#15803d', icon: 'trending_up' }
+    ? { bg: 'var(--color-hr-50)', text: 'var(--color-success)', icon: 'trending_up' }
     : prob >= 40
-    ? { bg: '#fffbeb', text: '#b45309', icon: 'trending_flat' }
-    : { bg: '#fef2f2', text: '#dc2626', icon: 'trending_down' };
+    ? { bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'trending_flat' }
+    : { bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'trending_down' };
 
 const CrmOpportunities = () => {
   const navigate = useNavigate();
@@ -116,13 +116,13 @@ const CrmOpportunities = () => {
       {filterParam && (
         <div className="flex items-center gap-2 mb-4">
           <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold" style={{
-            background: filterParam === 'overdue' ? '#fef2f2' : '#f3f4f6',
-            color: filterParam === 'overdue' ? '#dc2626' : '#6b7280',
+            background: filterParam === 'overdue' ? 'rgba(220,38,38,0.06)' : 'var(--color-surface-muted)',
+            color: filterParam === 'overdue' ? 'var(--color-danger)' : 'var(--color-text-secondary)',
           }}>
             <span className="material-symbols-outlined text-sm">{filterParam === 'overdue' ? 'notifications_active' : 'filter_list'}</span>
             {filterParam === 'overdue' ? 'Overdue Deals (past expected close date)' : `Filtered: ${filterParam}`}
           </span>
-          <button onClick={() => { searchParams.delete('filter'); setSearchParams(searchParams); }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6b7280' }} className="text-sm hover:text-gray-900">
+          <button onClick={() => { searchParams.delete('filter'); setSearchParams(searchParams); }} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--color-text-secondary)' }} className="text-sm hover:text-text-primary">
             <span className="material-symbols-outlined text-base">close</span>
           </button>
         </div>
@@ -164,12 +164,12 @@ const CrmOpportunities = () => {
                   <StateBadge state={opp.stage?.name || '—'} size="sm" />
                 </td>
                 <td className="px-5 py-4">
-                  <div className="text-sm font-bold text-indigo-600">{formatCurrency(opp.value)}</div>
+                  <div className="text-sm font-bold text-brand-600">{formatCurrency(opp.value)}</div>
                 </td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden" style={{ minWidth: 60 }}>
-                      <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: STATUS_COLORS[opp.stage?.name?.toUpperCase()]?.text || '#6366f1' }} />
+                    <div className="flex-1 h-1.5 bg-surface-muted rounded-full overflow-hidden" style={{ minWidth: 60 }}>
+                      <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: STATUS_COLORS[opp.stage?.name?.toUpperCase()]?.text || 'var(--color-it-500)' }} />
                     </div>
                     <span className="text-xs font-bold text-text-secondary">{opp.probability}%</span>
                     {opp.aiWinProbability != null && (() => {
@@ -193,8 +193,8 @@ const CrmOpportunities = () => {
                 <td className="px-5 py-4">
                   {opp.owner ? (
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center">
-                        <span className="text-[10px] font-bold text-indigo-600">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
+                      <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center">
+                        <span className="text-[10px] font-bold text-brand-600">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
                       </div>
                       <span className="text-sm text-text-secondary">{opp.owner.firstName}</span>
                     </div>
@@ -211,7 +211,7 @@ const CrmOpportunities = () => {
         <div className="flex justify-center mt-6 gap-1">
           {Array.from({ length: Math.min(pagination.totalPages, 5) }, (_, i) => i + 1).map(p => (
             <button key={p} onClick={() => fetchOpportunities(p)} style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-              className={`w-8 h-8 rounded-lg text-sm font-bold transition-colors ${p === pagination.page ? 'bg-brand-700 text-white' : 'bg-transparent text-text-secondary hover:bg-gray-100'}`}>{p}</button>
+              className={`w-8 h-8 rounded-lg text-sm font-bold transition-colors ${p === pagination.page ? 'bg-brand-700 text-white' : 'bg-transparent text-text-secondary hover:bg-surface-muted'}`}>{p}</button>
           ))}
         </div>
       )}
@@ -221,7 +221,7 @@ const CrmOpportunities = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCreate(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+            <div className="flex items-center justify-between p-6 border-b border-border">
               <h2 className="text-lg font-extrabold text-text-primary">New Opportunity</h2>
               <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
             </div>
@@ -280,7 +280,7 @@ const CrmOpportunities = () => {
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreate(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="button" onClick={() => setShowCreate(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-surface-muted" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Creating...' : 'Create Opportunity'}
                 </button>

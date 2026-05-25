@@ -74,7 +74,7 @@ const CrmOpportunityDetail = () => {
   };
 
   const confidenceColor = (c: string) =>
-    c === 'high' ? 'text-green-700 bg-green-100' : c === 'low' ? 'text-red-600 bg-red-100' : 'text-yellow-700 bg-yellow-100';
+    c === 'high' ? 'text-success bg-green-100' : c === 'low' ? 'text-danger bg-red-100' : 'text-warning bg-yellow-100';
 
   const reload = () => {
     if (!id) return;
@@ -181,7 +181,7 @@ const CrmOpportunityDetail = () => {
             {stages.map((s, i) => {
               const isPast = s.displayOrder < currentStageOrder;
               const isCurrent = s.id === opp.stageId;
-              const color = STATUS_COLORS[s.name.toUpperCase()]?.text || '#6366f1';
+              const color = STATUS_COLORS[s.name.toUpperCase()]?.text || 'var(--color-it-500)';
               return (
                 <React.Fragment key={s.id}>
                   <div className="flex flex-col items-center min-w-[80px]">
@@ -205,7 +205,7 @@ const CrmOpportunityDetail = () => {
       {/* KPI chips */}
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm">
-          <span className="material-symbols-outlined text-base text-green-600">payments</span>
+          <span className="material-symbols-outlined text-base text-success">payments</span>
           <span className="font-bold text-text-primary">{formatCurrency(opp.value)}</span>
           <span className="text-text-secondary">Deal Value</span>
         </div>
@@ -223,7 +223,7 @@ const CrmOpportunityDetail = () => {
         )}
         {(isWon || isLost) && (
           <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm border"
-            style={{ background: isWon ? '#f0fdf4' : '#fef2f2', borderColor: isWon ? '#86efac' : '#fca5a5', color: isWon ? '#15803d' : '#dc2626' }}>
+            style={{ background: isWon ? 'var(--color-hr-50)' : 'rgba(220,38,38,0.06)', borderColor: isWon ? 'var(--color-success)' : 'var(--color-danger)', color: isWon ? 'var(--color-success)' : 'var(--color-danger)' }}>
             <span className="material-symbols-outlined text-base">{isWon ? 'emoji_events' : 'cancel'}</span>
             <span className="font-bold">{isWon ? 'Won' : 'Lost'}</span>
           </div>
@@ -243,7 +243,7 @@ const CrmOpportunityDetail = () => {
             <button
               onClick={handleWinProbability}
               disabled={winLoading}
-              className="flex items-center gap-2 border border-violet-300 bg-violet-50 px-4 py-2 rounded-xl text-sm font-semibold text-violet-700 hover:bg-violet-100 disabled:opacity-50"
+              className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2 rounded-xl text-sm font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-50"
               style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             >
               <span className="material-symbols-outlined text-base">auto_awesome</span>
@@ -302,7 +302,7 @@ const CrmOpportunityDetail = () => {
             {!debrief ? (
               <button
                 onClick={handleGetDebrief}
-                className="text-sm text-violet-600 hover:underline"
+                className="text-sm text-brand-600 hover:underline"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               >
                 Generate debrief
@@ -319,8 +319,8 @@ const CrmOpportunityDetail = () => {
                   {debrief.lessonsLearned.map((l, i) => <p key={i} className="text-text-primary">• {l}</p>)}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-emerald-700 uppercase mb-1">Follow-On Actions</p>
-                  {debrief.followOnActions.map((a, i) => <p key={i} className="text-emerald-700 font-medium">• {a}</p>)}
+                  <p className="text-xs font-bold text-success uppercase mb-1">Follow-On Actions</p>
+                  {debrief.followOnActions.map((a, i) => <p key={i} className="text-success font-medium">• {a}</p>)}
                 </div>
               </div>
             )}
@@ -352,7 +352,7 @@ const CrmOpportunityDetail = () => {
                       <button
                         onClick={() => handleAnalyzeNote(a.id)}
                         disabled={analyzingId === a.id}
-                        className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-50"
+                        className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 disabled:opacity-50"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
                       >
                         <span className="material-symbols-outlined text-sm">auto_awesome</span>
@@ -363,22 +363,22 @@ const CrmOpportunityDetail = () => {
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
                             <span className={`material-symbols-outlined text-sm ${
-                              analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-green-600'
-                              : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-red-500'
-                              : 'text-gray-500'
+                              analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-success'
+                              : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-danger'
+                              : 'text-text-tertiary'
                             }`}>
                               {analyzedNotes[a.id]!.sentiment === 'positive' ? 'sentiment_satisfied'
                                 : analyzedNotes[a.id]!.sentiment === 'negative' ? 'sentiment_dissatisfied'
                                 : 'sentiment_neutral'}
                             </span>
-                            <span className="capitalize text-gray-600">{analyzedNotes[a.id]!.sentiment}</span>
+                            <span className="capitalize text-text-secondary">{analyzedNotes[a.id]!.sentiment}</span>
                           </div>
                           <p><span className="font-medium">Next action:</span> {analyzedNotes[a.id]!.nextAction}</p>
                           {analyzedNotes[a.id]!.suggestedStatusChange && (
-                            <p className="text-violet-700"><span className="font-medium">Suggest stage:</span> {analyzedNotes[a.id]!.suggestedStatusChange}</p>
+                            <p className="text-brand-700"><span className="font-medium">Suggest stage:</span> {analyzedNotes[a.id]!.suggestedStatusChange}</p>
                           )}
                           {analyzedNotes[a.id]!.keyFacts.length > 0 && (
-                            <ul className="list-disc pl-4 text-gray-600">
+                            <ul className="list-disc pl-4 text-text-secondary">
                               {analyzedNotes[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
                             </ul>
                           )}
@@ -404,8 +404,8 @@ const CrmOpportunityDetail = () => {
           </div>
           {(opp.notes ?? []).length === 0 && <p className="text-text-secondary text-sm">No notes yet.</p>}
           {(opp.notes ?? []).map(n => (
-            <div key={n.id} className={`bg-bg-surface border rounded-xl p-4 ${n.isPinned ? 'border-yellow-300' : 'border-border'}`}>
-              {n.isPinned && <span className="flex items-center gap-1 text-xs text-yellow-600 mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
+            <div key={n.id} className={`bg-bg-surface border rounded-xl p-4 ${n.isPinned ? 'border-warning' : 'border-border'}`}>
+              {n.isPinned && <span className="flex items-center gap-1 text-xs text-warning mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
               <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{n.content}</p>
               <p className="text-xs text-text-secondary mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
             </div>
@@ -420,7 +420,7 @@ const CrmOpportunityDetail = () => {
             <div key={h.id} className="flex gap-4 bg-bg-surface border border-border rounded-xl p-4">
               <div className="flex flex-col items-center">
                 <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold"
-                  style={{ background: i === (opp.stageHistory?.length ?? 0) - 1 ? '#22c55e' : 'var(--bg-subtle)', color: i === (opp.stageHistory?.length ?? 0) - 1 ? '#fff' : 'var(--text-secondary)' }}>
+                  style={{ background: i === (opp.stageHistory?.length ?? 0) - 1 ? 'var(--color-success)' : 'var(--bg-subtle)', color: i === (opp.stageHistory?.length ?? 0) - 1 ? '#fff' : 'var(--text-secondary)' }}>
                   {i + 1}
                 </div>
                 {i < (opp.stageHistory?.length ?? 0) - 1 && <div className="w-0.5 flex-1 bg-border mt-1" />}
