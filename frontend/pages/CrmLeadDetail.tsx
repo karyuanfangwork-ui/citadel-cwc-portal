@@ -58,7 +58,7 @@ const CrmLeadDetail = () => {
 
   // Lead Score (Task 8)
   const scoreColor = (score: number) =>
-    score >= 70 ? 'bg-green-100 text-green-700' : score >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600';
+    score >= 70 ? 'bg-[var(--color-hr-50)] text-[var(--color-success)]' : score >= 40 ? 'bg-[var(--color-fin-50)] text-[var(--color-warning)]' : 'bg-[rgba(220,38,38,0.06)] text-[var(--color-danger)]';
 
   // Fetch CRM team users for owner reassignment
   useEffect(() => {
@@ -320,7 +320,7 @@ const CrmLeadDetail = () => {
               <button
                 onClick={handleGetScore}
                 disabled={scoreLoading}
-                className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-500 hover:bg-violet-100 hover:text-violet-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs text-text-tertiary hover:bg-brand-100 hover:text-brand-700 disabled:opacity-50"
               >
                 <span className="material-symbols-outlined text-xs">auto_awesome</span>
                 {scoreLoading ? '…' : 'Score'}
@@ -370,7 +370,7 @@ const CrmLeadDetail = () => {
           {!isConverted && !isLost && (
             <button
               onClick={() => { setDraftModal(true); setDraftResult(null); }}
-              className="flex items-center gap-2 border border-violet-300 bg-violet-50 px-4 py-2.5 rounded-lg text-sm font-bold text-violet-700 hover:bg-violet-100 transition-colors"
+              className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2.5 rounded-lg text-sm font-bold text-brand-700 hover:bg-brand-100 transition-colors"
               style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             >
               <span className="material-symbols-outlined text-sm">auto_awesome</span>
@@ -471,15 +471,15 @@ const CrmLeadDetail = () => {
               {!summary ? (
                 <button
                   onClick={handleGetSummary}
-                  className="text-sm text-violet-600 hover:underline"
+                  className="text-sm text-brand-600 hover:underline"
                 >
                   Generate summary
                 </button>
               ) : (
                 <ul className="space-y-2 text-sm">
-                  <li><span className="font-medium text-gray-700">Status:</span> {summary.statusSummary}</li>
-                  <li><span className="font-medium text-gray-700">Key facts:</span> {summary.keyFacts}</li>
-                  <li><span className="font-medium text-violet-700">Next step:</span> {summary.recommendedNextStep}</li>
+                  <li><span className="font-medium text-text-secondary">Status:</span> {summary.statusSummary}</li>
+                  <li><span className="font-medium text-text-secondary">Key facts:</span> {summary.keyFacts}</li>
+                  <li><span className="font-medium text-brand-700">Next step:</span> {summary.recommendedNextStep}</li>
                 </ul>
               )}
             </AiInsightCard>
@@ -508,7 +508,7 @@ const CrmLeadDetail = () => {
                       <button
                         onClick={() => handleAnalyzeNote(a.id)}
                         disabled={analyzingId === a.id}
-                        className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-50"
+                        className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 disabled:opacity-50"
                       >
                         <span className="material-symbols-outlined text-sm">auto_awesome</span>
                         {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
@@ -518,22 +518,22 @@ const CrmLeadDetail = () => {
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
                             <span className={`material-symbols-outlined text-sm ${
-                              analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-green-600'
-                              : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-red-500'
-                              : 'text-gray-500'
+                              analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-success'
+                              : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-danger'
+                              : 'text-text-tertiary'
                             }`}>
                               {analyzedNotes[a.id]!.sentiment === 'positive' ? 'sentiment_satisfied'
                                 : analyzedNotes[a.id]!.sentiment === 'negative' ? 'sentiment_dissatisfied'
                                 : 'sentiment_neutral'}
                             </span>
-                            <span className="capitalize text-gray-600">{analyzedNotes[a.id]!.sentiment}</span>
+                            <span className="capitalize text-text-secondary">{analyzedNotes[a.id]!.sentiment}</span>
                           </div>
                           <p><span className="font-medium">Next action:</span> {analyzedNotes[a.id]!.nextAction}</p>
                           {analyzedNotes[a.id]!.suggestedStatusChange && (
-                            <p className="text-violet-700"><span className="font-medium">Suggest status:</span> {analyzedNotes[a.id]!.suggestedStatusChange}</p>
+                            <p className="text-brand-700"><span className="font-medium">Suggest status:</span> {analyzedNotes[a.id]!.suggestedStatusChange}</p>
                           )}
                           {analyzedNotes[a.id]!.keyFacts.length > 0 && (
-                            <ul className="list-disc pl-4 text-gray-600">
+                            <ul className="list-disc pl-4 text-text-secondary">
                               {analyzedNotes[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
                             </ul>
                           )}
@@ -546,7 +546,7 @@ const CrmLeadDetail = () => {
                                 await crmService.updateLead(lead!.id, { followUpDate: date });
                                 reload();
                               }}
-                              className="mt-2 flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors"
+                              className="mt-2 flex items-center gap-1 text-xs font-bold text-success bg-hr-50 hover:bg-hr-100 px-3 py-1.5 rounded-lg transition-colors"
                               style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
                             >
                               <span className="material-symbols-outlined text-sm">event_available</span>
@@ -570,8 +570,8 @@ const CrmLeadDetail = () => {
         <div className="space-y-3">
           {notes.length === 0 && <p className="text-text-secondary text-sm">No notes yet. Click "Add Note" to add one.</p>}
           {notes.map((n: CrmNote) => (
-            <div key={n.id} className={`bg-bg-surface border rounded-xl p-4 ${n.isPinned ? 'border-yellow-300' : 'border-border'}`}>
-              {n.isPinned && <span className="flex items-center gap-1 text-xs text-yellow-600 mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
+            <div key={n.id} className={`bg-bg-surface border rounded-xl p-4 ${n.isPinned ? 'border-warning' : 'border-border'}`}>
+              {n.isPinned && <span className="flex items-center gap-1 text-xs text-warning mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
               <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{n.content}</p>
               <p className="text-xs text-text-secondary mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
             </div>
@@ -590,31 +590,31 @@ const CrmLeadDetail = () => {
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Opportunity Name *</label>
                 <input required value={convertForm.oppName} onChange={e => setConvertForm(f => ({ ...f, oppName: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Opportunity Value (MYR)</label>
                 <input type="number" min="0" value={convertForm.oppValue} onChange={e => setConvertForm(f => ({ ...f, oppValue: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Expected Close Date</label>
                 <input type="date" value={convertForm.expectedCloseDate} onChange={e => setConvertForm(f => ({ ...f, expectedCloseDate: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Pipeline *</label>
                 <select value={convertForm.pipelineId} onChange={e => {
                   const pl = pipelines.find(p => p.id === e.target.value);
                   setConvertForm(f => ({ ...f, pipelineId: e.target.value, stageId: pl?.stages?.[0]?.id ?? '' }));
-                }} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                }} className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
                   {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Initial Stage *</label>
                 <select value={convertForm.stageId} onChange={e => setConvertForm(f => ({ ...f, stageId: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
                   {(selectedPipeline?.stages ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -643,19 +643,19 @@ const CrmLeadDetail = () => {
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
                 <select value={activityForm.activityType} onChange={e => setActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
                   {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label>
                 <input required value={activityForm.subject ?? ''} onChange={e => setActivityForm(f => ({ ...f, subject: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
                 <textarea rows={3} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}
@@ -701,7 +701,7 @@ const CrmLeadDetail = () => {
                   value={lostCategory}
                   onChange={e => setLostCategory(e.target.value)}
                   className="w-full px-3 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200"
-                  style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}
+                  style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}
                 >
                   <option value="">Select a reason…</option>
                   {[
@@ -736,7 +736,7 @@ const CrmLeadDetail = () => {
               <button
                 type="button"
                 onClick={() => setShowLostModal(false)}
-                className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-gray-100 transition-colors"
+                className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
                 style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               >
                 Cancel
@@ -764,7 +764,7 @@ const CrmLeadDetail = () => {
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Note *</label>
                 <textarea required rows={5} value={noteContent} onChange={e => setNoteContent(e.target.value)}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddNote(false); setNoteContent(''); }}
@@ -787,18 +787,18 @@ const CrmLeadDetail = () => {
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold">Draft Follow-Up Message</h2>
-              <button onClick={() => setDraftModal(false)} className="text-gray-400 hover:text-gray-600" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button onClick={() => setDraftModal(false)} className="text-text-tertiary hover:text-text-secondary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
 
             <div className="mb-4 flex gap-4">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Channel</label>
+                <label className="mb-1 block text-xs font-medium text-text-secondary">Channel</label>
                 <select
                   value={draftConfig.channel}
                   onChange={(e) => setDraftConfig((p) => ({ ...p, channel: e.target.value as 'whatsapp' | 'email' }))}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm"
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   <option value="whatsapp">WhatsApp</option>
@@ -806,11 +806,11 @@ const CrmLeadDetail = () => {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Tone</label>
+                <label className="mb-1 block text-xs font-medium text-text-secondary">Tone</label>
                 <select
                   value={draftConfig.tone}
                   onChange={(e) => setDraftConfig((p) => ({ ...p, tone: e.target.value as 'formal' | 'friendly' }))}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+                  className="rounded-md border border-border px-3 py-1.5 text-sm"
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   <option value="friendly">Friendly</option>
@@ -821,7 +821,7 @@ const CrmLeadDetail = () => {
                 <button
                   onClick={handleDraftMessage}
                   disabled={draftLoading}
-                  className="rounded-md bg-violet-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                  className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                   style={{ border: 'none', cursor: 'pointer' }}
                 >
                   {draftLoading ? 'Drafting…' : 'Generate'}
@@ -833,20 +833,20 @@ const CrmLeadDetail = () => {
               <div className="space-y-3">
                 {draftResult.subject && (
                   <div>
-                    <p className="mb-1 text-xs font-medium text-gray-600">Subject</p>
-                    <p className="rounded-md bg-gray-50 px-3 py-2 text-sm">{draftResult.subject}</p>
+                    <p className="mb-1 text-xs font-medium text-text-secondary">Subject</p>
+                    <p className="rounded-md bg-bg-subtle px-3 py-2 text-sm">{draftResult.subject}</p>
                   </div>
                 )}
                 <div>
-                  <p className="mb-1 text-xs font-medium text-gray-600">Message</p>
+                  <p className="mb-1 text-xs font-medium text-text-secondary">Message</p>
                   <textarea
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    className="w-full rounded-md border border-border px-3 py-2 text-sm"
                     rows={8}
                     defaultValue={draftResult.body}
                     style={{ fontFamily: 'var(--font-sans)' }}
                   />
                 </div>
-                <p className="text-xs text-gray-400">Edit as needed before sending. AI-generated — review before use.</p>
+                <p className="text-xs text-text-tertiary">Edit as needed before sending. AI-generated — review before use.</p>
               </div>
             )}
           </div>
@@ -858,7 +858,7 @@ const CrmLeadDetail = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEdit(false)}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
               <h2 className="text-lg font-extrabold text-text-primary">Edit Lead</h2>
               <button onClick={() => setShowEdit(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
             </div>
@@ -935,7 +935,7 @@ const CrmLeadDetail = () => {
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowEdit(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="button" onClick={() => setShowEdit(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-bg-subtle" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
