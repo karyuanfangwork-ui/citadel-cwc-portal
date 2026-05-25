@@ -77,7 +77,7 @@ const CrmGuide = () => {
         <p className="text-text-secondary text-sm leading-relaxed mb-3">
           There are two main roles in the CRM. <strong className="text-text-primary">Sales reps</strong> manage their own leads and deals day-to-day. <strong className="text-text-primary">Managers</strong> get an additional Team Dashboard and access to reports across the whole team.
         </p>
-        <InfoBox icon="lightbulb" color="#eff6ff">
+        <InfoBox icon="lightbulb" color="var(--color-it-50)">
           <strong>New to CRMs?</strong> Think of the CRM as a shared notebook for your sales team. Instead of tracking clients in WhatsApp or a spreadsheet, every interaction is recorded here — so anyone on the team can pick up where another left off.
         </InfoBox>
       </Section>
@@ -114,7 +114,7 @@ const CrmGuide = () => {
             </tbody>
           </table>
         </div>
-        <InfoBox icon="info" color="#f0fdf4">
+        <InfoBox icon="info" color="var(--color-hr-50)">
           <strong>Start here every morning:</strong> Open the Dashboard first. It shows what needs your attention today — overdue follow-ups, stale leads, and recent team activity.
         </InfoBox>
       </Section>
@@ -154,7 +154,7 @@ const CrmGuide = () => {
             </tbody>
           </table>
         </div>
-        <p className="text-text-secondary text-sm">Click <strong className="text-text-primary">Save</strong>. The lead is created with status <StatusBadge label="NEW" bg="#eff6ff" text="#1d4ed8" />.</p>
+        <p className="text-text-secondary text-sm">Click <strong className="text-text-primary">Save</strong>. The lead is created with status <StatusBadge label="NEW" bg="var(--color-it-50)" text="var(--color-it-500)" />.</p>
       </Section>
 
       <Section id="status-flow" title="Step 2: The Lead Status Flow">
@@ -164,13 +164,13 @@ const CrmGuide = () => {
         {/* Status flow diagram */}
         <div className="flex flex-wrap items-center gap-2 mb-6 p-4 bg-gray-50 rounded-xl border border-border">
           {[
-            { label: 'NEW', bg: '#eff6ff', text: '#1d4ed8' },
-            { label: '→', bg: 'transparent', text: '#9ca3af' },
-            { label: 'CONTACTED', bg: '#fef3c7', text: '#92400e' },
-            { label: '→', bg: 'transparent', text: '#9ca3af' },
-            { label: 'QUALIFIED', bg: '#ecfdf5', text: '#065f46' },
-            { label: '→', bg: 'transparent', text: '#9ca3af' },
-            { label: 'CONVERTED', bg: '#f0fdf4', text: '#166534' },
+            { label: 'NEW', bg: 'var(--color-it-50)', text: 'var(--color-it-500)' },
+            { label: '→', bg: 'transparent', text: 'var(--color-text-tertiary)' },
+            { label: 'CONTACTED', bg: 'var(--color-fin-50)', text: 'var(--color-warning)' },
+            { label: '→', bg: 'transparent', text: 'var(--color-text-tertiary)' },
+            { label: 'QUALIFIED', bg: 'var(--color-hr-50)', text: 'var(--color-success)' },
+            { label: '→', bg: 'transparent', text: 'var(--color-text-tertiary)' },
+            { label: 'CONVERTED', bg: 'var(--color-hr-50)', text: 'var(--color-success)' },
           ].map((item, i) => (
             item.label === '→'
               ? <span key={i} className="text-gray-400 font-bold text-lg">→</span>
@@ -187,12 +187,12 @@ const CrmGuide = () => {
             </thead>
             <tbody className="divide-y divide-border">
               {[
-                { status: 'NEW', bg: '#eff6ff', text: '#1d4ed8', meaning: 'Just created — you have not yet made any contact' },
-                { status: 'CONTACTED', bg: '#fef3c7', text: '#92400e', meaning: 'You have reached out at least once (call, email, WhatsApp, etc.)' },
-                { status: 'QUALIFIED', bg: '#ecfdf5', text: '#065f46', meaning: 'Budget confirmed, genuine interest, decision-maker identified — ready to pitch' },
-                { status: 'UNQUALIFIED', bg: '#fef2f2', text: '#991b1b', meaning: 'Not a fit — wrong profile, no budget, or not interested' },
-                { status: 'CONVERTED', bg: '#f0fdf4', text: '#166534', meaning: 'Lead has been converted into a Deal (the lead is now locked)' },
-                { status: 'LOST', bg: '#f3f4f6', text: '#6b7280', meaning: 'Was progressing but the deal has fallen through — record a reason in notes' },
+                { status: 'NEW', bg: 'var(--color-it-50)', text: 'var(--color-it-500)', meaning: 'Just created — you have not yet made any contact' },
+                { status: 'CONTACTED', bg: 'var(--color-fin-50)', text: 'var(--color-warning)', meaning: 'You have reached out at least once (call, email, WhatsApp, etc.)' },
+                { status: 'QUALIFIED', bg: 'var(--color-hr-50)', text: 'var(--color-success)', meaning: 'Budget confirmed, genuine interest, decision-maker identified — ready to pitch' },
+                { status: 'UNQUALIFIED', bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', meaning: 'Not a fit — wrong profile, no budget, or not interested' },
+                { status: 'CONVERTED', bg: 'var(--color-hr-50)', text: 'var(--color-success)', meaning: 'Lead has been converted into a Deal (the lead is now locked)' },
+                { status: 'LOST', bg: 'var(--color-surface-muted)', text: 'var(--color-text-secondary)', meaning: 'Was progressing but the deal has fallen through — record a reason in notes' },
               ].map(row => (
                 <tr key={row.status} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 whitespace-nowrap"><StatusBadge label={row.status} bg={row.bg} text={row.text} /></td>
@@ -210,14 +210,14 @@ const CrmGuide = () => {
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {[
-            { type: 'CALL', icon: 'call', color: '#2563eb', desc: 'Phone call made or received' },
-            { type: 'EMAIL', icon: 'mail', color: '#7c3aed', desc: 'Email sent or received' },
-            { type: 'MEETING', icon: 'groups', color: '#059669', desc: 'In-person or video meeting' },
-            { type: 'WHATSAPP', icon: 'chat', color: '#16a34a', desc: 'WhatsApp message or conversation' },
-            { type: 'SITE_VISIT', icon: 'location_on', color: '#dc2626', desc: 'You visited a site or they came to you' },
-            { type: 'FOLLOW_UP', icon: 'event_repeat', color: '#ea580c', desc: 'Scheduled follow-up action completed' },
-            { type: 'TASK', icon: 'task_alt', color: '#d97706', desc: 'Any to-do item related to this lead' },
-            { type: 'NOTE', icon: 'sticky_note_2', color: '#6b7280', desc: 'General observation (no specific action)' },
+            { type: 'CALL', icon: 'call', color: 'var(--color-brand-600)', desc: 'Phone call made or received' },
+            { type: 'EMAIL', icon: 'mail', color: 'var(--color-brand-500)', desc: 'Email sent or received' },
+            { type: 'MEETING', icon: 'groups', color: 'var(--color-success)', desc: 'In-person or video meeting' },
+            { type: 'WHATSAPP', icon: 'chat', color: 'var(--color-success)', desc: 'WhatsApp message or conversation' },
+            { type: 'SITE_VISIT', icon: 'location_on', color: 'var(--color-danger)', desc: 'You visited a site or they came to you' },
+            { type: 'FOLLOW_UP', icon: 'event_repeat', color: 'var(--color-warning)', desc: 'Scheduled follow-up action completed' },
+            { type: 'TASK', icon: 'task_alt', color: 'var(--color-warning)', desc: 'Any to-do item related to this lead' },
+            { type: 'NOTE', icon: 'sticky_note_2', color: 'var(--color-text-secondary)', desc: 'General observation (no specific action)' },
           ].map(item => (
             <div key={item.type} className="flex items-start gap-3 p-3 rounded-xl border border-border bg-surface">
               <span className="material-symbols-outlined text-xl shrink-0 mt-0.5" style={{ color: item.color }}>{item.icon}</span>
@@ -228,7 +228,7 @@ const CrmGuide = () => {
             </div>
           ))}
         </div>
-        <InfoBox icon="warning" color="#fffbeb">
+        <InfoBox icon="warning" color="var(--color-fin-50)">
           <strong>Log activities immediately.</strong> The activity log is your evidence trail. Managers can see it. If you hand a lead to a colleague, they see exactly what happened and when.
         </InfoBox>
       </Section>
@@ -264,9 +264,9 @@ const CrmGuide = () => {
         </p>
         <div className="space-y-3 mb-4">
           {[
-            { label: 'Overdue', bg: '#fef2f2', text: '#dc2626', icon: 'error', desc: 'Follow-up date has passed. Contact them today or reschedule.' },
-            { label: 'Due Today', bg: '#fffbeb', text: '#b45309', icon: 'schedule', desc: "Follow-up is today. Reach out before the day ends." },
-            { label: 'Stale', bg: '#f3f4f6', text: '#6b7280', icon: 'hourglass_empty', desc: 'No activity logged in 7+ days. Log an activity or close the lead.' },
+            { label: 'Overdue', bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'error', desc: 'Follow-up date has passed. Contact them today or reschedule.' },
+            { label: 'Due Today', bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'schedule', desc: "Follow-up is today. Reach out before the day ends." },
+            { label: 'Stale', bg: 'var(--color-surface-muted)', text: 'var(--color-text-secondary)', icon: 'hourglass_empty', desc: 'No activity logged in 7+ days. Log an activity or close the lead.' },
           ].map(badge => (
             <div key={badge.label} className="flex items-start gap-3 p-4 rounded-xl border border-border">
               <span className="material-symbols-outlined text-xl shrink-0 mt-0.5" style={{ color: badge.text }}>{badge.icon}</span>
@@ -277,7 +277,7 @@ const CrmGuide = () => {
             </div>
           ))}
         </div>
-        <InfoBox icon="tips_and_updates" color="#eff6ff">
+        <InfoBox icon="tips_and_updates" color="var(--color-it-50)">
           <strong>Daily habit:</strong> Check the Leads list first thing every morning. Clear all Overdue and Due Today badges before starting new outreach.
         </InfoBox>
       </Section>
@@ -324,7 +324,7 @@ const CrmGuide = () => {
             </ul>
           </div>
         </div>
-        <p className="text-text-secondary text-sm">Only <StatusBadge label="QUALIFIED" bg="#ecfdf5" text="#065f46" /> leads can be converted to a Deal.</p>
+        <p className="text-text-secondary text-sm">Only <StatusBadge label="QUALIFIED" bg="var(--color-hr-50)" text="var(--color-success)" /> leads can be converted to a Deal.</p>
       </Section>
 
       <Section id="convert" title="Step 7: Convert a Lead to a Deal">
@@ -355,9 +355,9 @@ const CrmGuide = () => {
           </table>
         </div>
         <p className="text-text-secondary text-sm leading-relaxed mb-3">
-          Click <strong className="text-text-primary">Convert</strong>. The lead status becomes <StatusBadge label="CONVERTED" bg="#f0fdf4" text="#166534" /> and is locked. A new <strong className="text-text-primary">Opportunity</strong> (Deal) is created and linked from the Lead Detail page.
+          Click <strong className="text-text-primary">Convert</strong>. The lead status becomes <StatusBadge label="CONVERTED" bg="var(--color-hr-50)" text="var(--color-success)" /> and is locked. A new <strong className="text-text-primary">Opportunity</strong> (Deal) is created and linked from the Lead Detail page.
         </p>
-        <InfoBox icon="swap_horiz" color="#f0fdf4">
+        <InfoBox icon="swap_horiz" color="var(--color-hr-50)">
           After conversion, manage the deal in <Link to="/crm/pipeline" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Pipeline</Link> or <Link to="/crm/opportunities" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Opportunities</Link>. The original lead is kept for reference.
         </InfoBox>
       </Section>
@@ -382,7 +382,7 @@ const CrmGuide = () => {
             </li>
           ))}
         </ul>
-        <InfoBox icon="warning" color="#fffbeb">
+        <InfoBox icon="warning" color="var(--color-fin-50)">
           <strong>Move deals forward promptly.</strong> Do not leave a deal sitting in a stage once it has progressed. Your manager's pipeline view reflects exactly where each deal is in real time.
         </InfoBox>
       </Section>
@@ -413,12 +413,12 @@ const CrmGuide = () => {
       <Section id="tips" title="Tips & Best Practices">
         <div className="space-y-3">
           {[
-            { icon: 'today', color: '#2563eb', title: 'Same-day rule', desc: 'Update the lead status and log an activity on the same day you make contact. Memory fades — log it immediately.' },
-            { icon: 'hourglass_empty', color: '#d97706', title: 'No stale leads', desc: 'Check the Leads list daily. If a lead has the Stale badge (no activity in 7+ days), either log an activity or close it.' },
-            { icon: 'event', color: '#059669', title: 'Every lead needs a follow-up date', desc: 'Unless the lead is Converted, Lost, or Unqualified, always set a follow-up date. This is how the system surfaces what needs attention today.' },
-            { icon: 'task_alt', color: '#7c3aed', title: 'Notes are not a substitute for activities', desc: 'Notes are invisible to automated reports. Use activities for trackable touchpoints (calls, emails, meetings) — they feed your performance metrics.' },
-            { icon: 'link', color: '#dc2626', title: 'Use Accounts and Contacts', desc: 'Link your leads and opportunities to Contact and Account records. This gives a full relationship history with a company across multiple deals over time.' },
-            { icon: 'dashboard', color: '#0891b2', title: 'Check the Dashboard first', desc: 'Start every workday at the CRM Dashboard. It surfaces overdue follow-ups, stale leads, and your pipeline summary — everything that needs attention today.' },
+            { icon: 'today', color: 'var(--color-brand-600)', title: 'Same-day rule', desc: 'Update the lead status and log an activity on the same day you make contact. Memory fades — log it immediately.' },
+            { icon: 'hourglass_empty', color: 'var(--color-warning)', title: 'No stale leads', desc: 'Check the Leads list daily. If a lead has the Stale badge (no activity in 7+ days), either log an activity or close it.' },
+            { icon: 'event', color: 'var(--color-success)', title: 'Every lead needs a follow-up date', desc: 'Unless the lead is Converted, Lost, or Unqualified, always set a follow-up date. This is how the system surfaces what needs attention today.' },
+            { icon: 'task_alt', color: 'var(--color-brand-500)', title: 'Notes are not a substitute for activities', desc: 'Notes are invisible to automated reports. Use activities for trackable touchpoints (calls, emails, meetings) — they feed your performance metrics.' },
+            { icon: 'link', color: 'var(--color-danger)', title: 'Use Accounts and Contacts', desc: 'Link your leads and opportunities to Contact and Account records. This gives a full relationship history with a company across multiple deals over time.' },
+            { icon: 'dashboard', color: 'var(--color-brand-500)', title: 'Check the Dashboard first', desc: 'Start every workday at the CRM Dashboard. It surfaces overdue follow-ups, stale leads, and your pipeline summary — everything that needs attention today.' },
           ].map(tip => (
             <div key={tip.title} className="flex items-start gap-3 p-4 rounded-xl border border-border bg-surface">
               <span className="material-symbols-outlined text-xl shrink-0 mt-0.5" style={{ color: tip.color }}>{tip.icon}</span>
