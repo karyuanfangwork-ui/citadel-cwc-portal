@@ -294,7 +294,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
 
       {/* Upload Modal — managed by this component */}
       {showUploadModal && (
-        <Suspense fallback={<div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center"><div className="bg-white rounded-xl p-6 text-sm text-gray-600">Loading...</div></div>}>
+        <Suspense fallback={<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center"><div className="bg-white rounded-xl p-6 text-sm text-gray-600">Loading...</div></div>}>
           <UploadResumeModal
             requestId={request.id}
             onSuccess={handleUploadSuccess}

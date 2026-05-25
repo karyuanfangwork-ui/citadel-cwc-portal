@@ -132,7 +132,7 @@ export const BannerConfigTab: React.FC<Props> = () => {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">{editing ? 'Edit Banner' : 'Add Banner'}</h3>
             <div className="space-y-4">

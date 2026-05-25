@@ -37,7 +37,7 @@ const EditInterviewModal: React.FC<EditInterviewModalProps> = ({
   if (!isOpen || !interviewDetails?.schedule) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999] p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
         <div className="p-8">
           <h2 className="text-2xl font-bold mb-1">Edit Interview Details</h2>

@@ -236,7 +236,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
           <>
             {/* Backdrop */}
             <div
-              className="fixed inset-0 z-40 bg-black/40"
+              className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
               onClick={() => setMobileExpanded(false)}
             />
             {/* Sheet */}

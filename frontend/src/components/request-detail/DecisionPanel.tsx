@@ -332,12 +332,12 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   return (
     <div className="space-y-3">
       {/* Section header */}
-      <div className="flex items-center gap-2 mb-1">
-        <span className="relative flex size-2">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="relative flex size-2.5">
           <span className="animate-ping absolute inline-flex size-full rounded-full bg-amber-400 opacity-75" />
-          <span className="relative inline-flex size-2 rounded-full bg-amber-500" />
+          <span className="relative inline-flex size-2.5 rounded-full bg-amber-500" />
         </span>
-        <span className="text-xs font-bold uppercase tracking-widest text-gray-500">
+        <span className="text-sm font-bold uppercase tracking-widest text-gray-500">
           Actions
         </span>
       </div>
@@ -358,29 +358,29 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
               key={action.type}
               onClick={() => handleActionClick(action.type)}
               disabled={directLoading}
-              className="w-full text-left bg-blue-50 border border-blue-100 rounded-xl p-3 hover:bg-blue-100/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
+              className="w-full text-left bg-blue-50 border border-blue-100 rounded-xl p-4 hover:bg-blue-100/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
             >
-              <div className="flex items-start gap-3">
+              <div className="flex items-center gap-3">
                 <div
-                  className={`size-8 rounded-lg flex items-center justify-center shrink-0 ${icons.bgClass}`}
+                  className={`size-9 rounded-lg flex items-center justify-center shrink-0 ${icons.bgClass}`}
                 >
                   <span
-                    className={`material-symbols-outlined text-[18px] ${icons.textClass}`}
+                    className={`material-symbols-outlined text-[20px] ${icons.textClass}`}
                   >
                     {config?.icon || icons.icon}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-[#1e40af] leading-tight">
+                  <p className="text-sm font-bold text-[#1e40af] leading-snug">
                     {config?.title || action.label}
                   </p>
-                  <p className="text-[11px] text-blue-600 mt-0.5 leading-snug">
+                  <p className="text-xs text-blue-500 mt-1 leading-relaxed">
                     {config?.subtitle || action.description}
                   </p>
                 </div>
                 <span
-                  className={`material-symbols-outlined text-blue-400 group-hover:text-blue-600 transition-colors mt-0.5`}
-                  style={{ fontSize: '18px' }}
+                  className={`material-symbols-outlined text-blue-400 group-hover:text-blue-600 transition-colors shrink-0`}
+                  style={{ fontSize: '20px' }}
                 >
                   chevron_right
                 </span>
@@ -521,7 +521,7 @@ const FallbackConfirmModal: React.FC<FallbackConfirmModalProps> = ({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
         <h3 className="text-lg font-bold text-gray-900 mb-4 capitalize">
           {title.replace(/_/g, ' ')}

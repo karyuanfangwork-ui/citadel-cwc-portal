@@ -41,7 +41,7 @@ const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ user, onClose, 
     };
 
     return (
-        <div ref={focusTrapRef} className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" role="dialog" aria-modal="true" aria-label="Reset Password">
+        <div ref={focusTrapRef} className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" role="dialog" aria-modal="true" aria-label="Reset Password">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-gray-100 flex-shrink-0">

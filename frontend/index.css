@@ -100,6 +100,19 @@
   animation: modal-fade-in 0.2s ease-out;
 }
 
+/* ── SUPPRESS BROWSER EXTENSION OVERLAYS ── */
+/* When a modal is open, <body> gets .modal-open.
+   JS in ModalPortal/ModalWrapper also hides elements with inline z-index ≥ 1 000 000
+   (browser extension overlays like Edge autofill watermark).
+   These CSS rules target known extension class/attribute names as a belt-and-suspenders approach. */
+body.modal-open [data-edgem-overlay],
+body.modal-open [data-edgem],
+body.modal-open .edgem-autofill-overlay,
+body.modal-open .edgem-watermark {
+  display: none !important;
+  visibility: hidden !important;
+}
+
 /* ── ACCESSIBILITY: Respect reduced motion preference ── */
 @media (prefers-reduced-motion: reduce) {
   *,

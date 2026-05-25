@@ -64,7 +64,7 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
 
   return (
     <ModalPortal>
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[9999] p-4" onClick={handleBackdropClick}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
         <div className="flex items-center gap-3 p-5 border-b border-gray-100 bg-amber-50">
           <div className="size-9 rounded-lg bg-amber-100 flex items-center justify-center">
