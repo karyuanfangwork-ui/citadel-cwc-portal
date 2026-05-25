@@ -247,7 +247,7 @@ const CrmDashboard = () => {
       </section>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
+        <div className="bg-danger/10 border border-danger text-danger p-4 rounded-lg mb-6">
           <p className="font-bold">Error loading CRM dashboard</p>
           <p className="text-sm mt-1">{error}</p>
         </div>
@@ -361,18 +361,18 @@ const CrmDashboard = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <div className="bg-surface border border-border rounded-xl p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-emerald-600">emoji_events</span>
+              <span className="material-symbols-outlined text-success">emoji_events</span>
               <span className="font-bold text-text-primary">Won Deals</span>
             </div>
-            <div className="text-3xl font-black text-emerald-600">{formatCurrency(Number(stats.wonDeals.value))}</div>
+            <div className="text-3xl font-black text-success">{formatCurrency(Number(stats.wonDeals.value))}</div>
             <div className="text-sm text-text-secondary mt-1">{stats.wonDeals.count} deals closed</div>
           </div>
           <div className="bg-surface border border-border rounded-xl p-5 shadow-sm">
             <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-red-500">trending_down</span>
+              <span className="material-symbols-outlined text-danger">trending_down</span>
               <span className="font-bold text-text-primary">Lost Deals</span>
             </div>
-            <div className="text-3xl font-black text-red-500">{formatCurrency(Number(stats.lostDeals.value))}</div>
+            <div className="text-3xl font-black text-danger">{formatCurrency(Number(stats.lostDeals.value))}</div>
             <div className="text-sm text-text-secondary mt-1">{stats.lostDeals.count} deals lost</div>
           </div>
         </div>

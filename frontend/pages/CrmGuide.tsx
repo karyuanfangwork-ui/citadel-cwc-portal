@@ -145,7 +145,7 @@ const CrmGuide = () => {
                   <td className="px-4 py-3 font-semibold text-text-primary whitespace-nowrap">{row.field}</td>
                   <td className="px-4 py-3 text-center">
                     {row.required === 'Yes'
-                      ? <span className="text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">Required</span>
+                      ? <span className="text-xs font-bold text-danger bg-danger/10 px-2 py-0.5 rounded-full">Required</span>
                       : <span className="text-xs text-text-secondary">Optional</span>}
                   </td>
                   <td className="px-4 py-3 text-text-secondary">{row.desc}</td>
@@ -287,24 +287,24 @@ const CrmGuide = () => {
           When you have enough information to judge whether this lead is worth pursuing, update the status on the Lead Detail page.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-          <div className="p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50">
-            <div className="font-black text-emerald-700 text-sm mb-2 flex items-center gap-1.5">
+          <div className="p-4 rounded-xl border-2 border-success/40 bg-success/10">
+            <div className="font-black text-success text-sm mb-2 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-base">verified</span>
               Mark QUALIFIED when:
             </div>
-            <ul className="text-xs text-emerald-800 space-y-1 list-disc list-inside">
+            <ul className="text-xs text-success space-y-1 list-disc list-inside">
               <li>You have spoken to the decision maker</li>
               <li>They have confirmed interest</li>
               <li>Budget is confirmed or likely</li>
               <li>You are ready to present a proposal</li>
             </ul>
           </div>
-          <div className="p-4 rounded-xl border-2 border-red-200 bg-red-50">
-            <div className="font-black text-red-700 text-sm mb-2 flex items-center gap-1.5">
+          <div className="p-4 rounded-xl border-2 border-danger/40 bg-danger/10">
+            <div className="font-black text-danger text-sm mb-2 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-base">block</span>
               Mark UNQUALIFIED when:
             </div>
-            <ul className="text-xs text-red-800 space-y-1 list-disc list-inside">
+            <ul className="text-xs text-danger space-y-1 list-disc list-inside">
               <li>They are not the right profile</li>
               <li>No budget available</li>
               <li>No interest in the product</li>
@@ -392,19 +392,19 @@ const CrmGuide = () => {
           On the Opportunity Detail page, when the deal reaches its outcome, mark it as closed:
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-          <div className="p-4 rounded-xl border-2 border-emerald-200 bg-emerald-50">
-            <div className="font-black text-emerald-700 text-sm mb-2 flex items-center gap-1.5">
+          <div className="p-4 rounded-xl border-2 border-success/40 bg-success/10">
+            <div className="font-black text-success text-sm mb-2 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-base">emoji_events</span>
               Won
             </div>
-            <p className="text-xs text-emerald-800">Mark Won and record the final deal value. The deal is archived as a success and counted in your performance metrics.</p>
+            <p className="text-xs text-success">Mark Won and record the final deal value. The deal is archived as a success and counted in your performance metrics.</p>
           </div>
-          <div className="p-4 rounded-xl border-2 border-red-200 bg-red-50">
-            <div className="font-black text-red-700 text-sm mb-2 flex items-center gap-1.5">
+          <div className="p-4 rounded-xl border-2 border-danger/40 bg-danger/10">
+            <div className="font-black text-danger text-sm mb-2 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-base">cancel</span>
               Lost
             </div>
-            <p className="text-xs text-red-800">Mark Lost and record a reason. This feeds the Reports page so the team can learn from losses and improve over time.</p>
+            <p className="text-xs text-danger">Mark Lost and record a reason. This feeds the Reports page so the team can learn from losses and improve over time.</p>
           </div>
         </div>
         <p className="text-text-secondary text-sm">Closed deals leave the active Pipeline view but remain searchable in <Link to="/crm/opportunities" className="text-brand-700 font-semibold" style={{ textDecoration: 'none' }}>Opportunities</Link>.</p>
