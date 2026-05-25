@@ -212,7 +212,7 @@ const CrmDashboard = () => {
                         <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f59e0b' }}>leaderboard</span>
                         <span style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{l.title}</span>
                         {l.companyName && <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{l.companyName}</span>}
-                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#f1f5f9', color: '#64748b', marginLeft: 'auto', fontWeight: 600 }}>{l.status}</span>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'var(--color-surface-muted)', color: 'var(--color-text-secondary)', marginLeft: 'auto', fontWeight: 600 }}>{l.status}</span>
                       </div>
                     ))}
                   </div>
@@ -224,7 +224,7 @@ const CrmDashboard = () => {
                       <div key={o.id} onClick={() => { navigate(`/crm/opportunities/${o.id}`); setShowResults(false); setSearchQuery(''); }}
                         style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
                         className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#8b5cf6' }}>monetization_on</span>
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--color-brand-500)' }}>monetization_on</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{o.name}</div>
                           {o.account && <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{o.account.name}</div>}

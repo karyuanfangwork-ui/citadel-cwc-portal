@@ -18,9 +18,9 @@ export default function AiInsightCard({
   className = '',
 }: AiInsightCardProps) {
   return (
-    <div className={`rounded-lg border border-violet-200 bg-violet-50 p-4 ${className}`}>
+    <div className={`rounded-lg border border-brand-200 bg-brand-50 p-4 ${className}`}>
       <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-semibold text-violet-700">
+        <div className="flex items-center gap-2 text-sm font-semibold text-brand-700">
           <span className="material-symbols-outlined text-base">auto_awesome</span>
           {title}
         </div>
@@ -28,7 +28,7 @@ export default function AiInsightCard({
           <button
             onClick={onRefresh}
             disabled={loading}
-            className="rounded p-1 text-violet-500 hover:bg-violet-100 disabled:opacity-40"
+            className="rounded p-1 text-brand-500 hover:bg-brand-100 disabled:opacity-40"
             title="Refresh"
           >
             <span className="material-symbols-outlined text-sm">refresh</span>
@@ -37,7 +37,7 @@ export default function AiInsightCard({
       </div>
 
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-violet-500">
+        <div className="flex items-center gap-2 text-sm text-brand-500">
           <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
           Analyzing…
         </div>
