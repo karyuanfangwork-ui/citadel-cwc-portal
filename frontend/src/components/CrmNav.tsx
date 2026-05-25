@@ -50,8 +50,8 @@ const CrmNav: React.FC = () => {
             to={item.to}
             className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
               isActive(item.to)
-                ? 'text-[#0052cc] border-[#0052cc]'
-                : 'text-text-secondary border-transparent hover:text-[#0052cc] hover:border-[#0052cc]/30'
+                ? 'text-brand-700 border-brand-700'
+                : 'text-text-secondary border-transparent hover:text-brand-700 hover:border-brand-700/30'
             }`}
             style={{ textDecoration: 'none' }}
           >
