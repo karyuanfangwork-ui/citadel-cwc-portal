@@ -132,7 +132,7 @@ const CrmDashboard = () => {
       <CrmNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Hero */}
-      <section className="bg-gradient-to-br from-[#1e1b4b] via-[#312e81] to-[#4338ca] rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">
+      <section className="bg-gradient-to-br from-brand-900 via-brand-700 to-brand-600 rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">
         <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
         <div className="relative z-10">
@@ -144,8 +144,8 @@ const CrmDashboard = () => {
               </h1>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setMyDeals(false)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!myDeals ? 'bg-white text-indigo-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>All Deals</button>
-              <button onClick={() => setMyDeals(true)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${myDeals ? 'bg-white text-indigo-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>My Deals</button>
+              <button onClick={() => setMyDeals(false)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!myDeals ? 'bg-white text-brand-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>All Deals</button>
+              <button onClick={() => setMyDeals(true)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${myDeals ? 'bg-white text-brand-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>My Deals</button>
             </div>
           </div>
           {/* Global Search */}
@@ -173,45 +173,45 @@ const CrmDashboard = () => {
               <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 8, background: 'white', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', zIndex: 100, overflow: 'hidden', maxHeight: 400, overflowY: 'auto' }}>
                 {searchResults.accounts.length > 0 && (
                   <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1 }}>Accounts</div>
+                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Accounts</div>
                     {searchResults.accounts.map(a => (
                       <div key={a.id} onClick={() => { navigate(`/crm/accounts/${a.id}`); setShowResults(false); setSearchQuery(''); }}
                         style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
                         className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#6366f1' }}>business</span>
-                        <span style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{a.name}</span>
-                        {a.industry && <span style={{ fontSize: 12, color: '#9ca3af' }}>{a.industry}</span>}
+                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--color-brand-500)' }}>business</span>
+                        <span style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{a.name}</span>
+                        {a.industry && <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{a.industry}</span>}
                       </div>
                     ))}
                   </div>
                 )}
                 {searchResults.contacts.length > 0 && (
                   <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1 }}>Contacts</div>
+                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Contacts</div>
                     {searchResults.contacts.map(c => (
                       <div key={c.id} onClick={() => { navigate(`/crm/contacts/${c.id}`); setShowResults(false); setSearchQuery(''); }}
                         style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
                         className="hover:bg-gray-50">
                         <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#22c55e' }}>person</span>
                         <div>
-                          <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{c.firstName} {c.lastName}</div>
-                          {c.email && <div style={{ fontSize: 12, color: '#9ca3af' }}>{c.email}</div>}
+                          <div style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{c.firstName} {c.lastName}</div>
+                          {c.email && <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{c.email}</div>}
                         </div>
-                        {c.account && <span style={{ fontSize: 12, color: '#9ca3af', marginLeft: 'auto' }}>{c.account.name}</span>}
+                        {c.account && <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginLeft: 'auto' }}>{c.account.name}</span>}
                       </div>
                     ))}
                   </div>
                 )}
                 {searchResults.leads.length > 0 && (
                   <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1 }}>Leads</div>
+                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Leads</div>
                     {searchResults.leads.map(l => (
                       <div key={l.id} onClick={() => { navigate(`/crm/leads/${l.id}`); setShowResults(false); setSearchQuery(''); }}
                         style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
                         className="hover:bg-gray-50">
                         <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f59e0b' }}>leaderboard</span>
-                        <span style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{l.title}</span>
-                        {l.companyName && <span style={{ fontSize: 12, color: '#9ca3af' }}>{l.companyName}</span>}
+                        <span style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{l.title}</span>
+                        {l.companyName && <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{l.companyName}</span>}
                         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: '#f1f5f9', color: '#64748b', marginLeft: 'auto', fontWeight: 600 }}>{l.status}</span>
                       </div>
                     ))}
@@ -219,15 +219,15 @@ const CrmDashboard = () => {
                 )}
                 {searchResults.opportunities.length > 0 && (
                   <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 1 }}>Deals</div>
+                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Deals</div>
                     {searchResults.opportunities.map(o => (
                       <div key={o.id} onClick={() => { navigate(`/crm/opportunities/${o.id}`); setShowResults(false); setSearchQuery(''); }}
                         style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
                         className="hover:bg-gray-50">
                         <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#8b5cf6' }}>monetization_on</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, color: '#111827', fontWeight: 500 }}>{o.name}</div>
-                          {o.account && <div style={{ fontSize: 12, color: '#9ca3af' }}>{o.account.name}</div>}
+                          <div style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{o.name}</div>
+                          {o.account && <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{o.account.name}</div>}
                         </div>
                         {o.stage && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 600, background: `${o.stage.color}20`, color: o.stage.color }}>{o.stage.name}</span>}
                       </div>
@@ -235,7 +235,7 @@ const CrmDashboard = () => {
                   </div>
                 )}
                 {searchResults.accounts.length === 0 && searchResults.contacts.length === 0 && searchResults.leads.length === 0 && searchResults.opportunities.length === 0 && (
-                  <div style={{ padding: '20px 16px', textAlign: 'center', color: '#9ca3af', fontSize: 14 }}>
+                  <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 14 }}>
                     No results found for "{searchQuery}"
                   </div>
                 )}
@@ -263,17 +263,17 @@ const CrmDashboard = () => {
                 <SkeletonBox w="40px" h="40px" /><div><SkeletonBox w="36px" h="24px" /><div className="mt-1"><SkeletonBox w="80px" h="10px" /></div></div>
               </div>
             )) : stats && [
-              { label: 'Follow-ups Due Today', value: stats.followUpDueToday ?? 0, icon: '📋', bg: '#fffbeb', color: '#b45309', link: '/crm/leads?filter=followup' },
-              { label: 'Stale Leads', value: stats.staleLeads ?? 0, icon: '⚠️', bg: '#fff1f2', color: '#be123c', link: '/crm/leads?filter=stale' },
-              { label: 'Overdue Deals', value: stats.overdueDeals ?? 0, icon: '🔔', bg: '#fef2f2', color: '#dc2626', link: '/crm/opportunities?filter=overdue' },
+              { label: 'Follow-ups Due Today', value: stats.followUpDueToday ?? 0, icon: 'assignment', bg: 'var(--color-fin-50)', color: 'var(--color-warning)', link: '/crm/leads?filter=followup' },
+              { label: 'Stale Leads', value: stats.staleLeads ?? 0, icon: 'warning', bg: 'rgba(220,38,38,0.06)', color: 'var(--color-danger)', link: '/crm/leads?filter=stale' },
+              { label: 'Overdue Deals', value: stats.overdueDeals ?? 0, icon: 'notifications', bg: 'rgba(220,38,38,0.06)', color: 'var(--color-danger)', link: '/crm/opportunities?filter=overdue' },
             ].map(p => (
               <div
                 key={p.label}
                 onClick={() => navigate(p.link)}
                 className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 text-xl" style={{ background: p.bg }}>
-                  {p.icon}
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: p.bg }}>
+                  <span className="material-symbols-outlined text-[20px]" style={{ color: p.color }}>{p.icon}</span>
                 </div>
                 <div>
                   <div className="text-2xl font-black leading-none" style={{ color: p.color }}>{p.value}</div>
@@ -293,7 +293,7 @@ const CrmDashboard = () => {
           loading={briefingLoading}
           error={briefingError}
           onRefresh={handleGetBriefing}
-          className="border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50"
+          className="border-brand-100 bg-gradient-to-br from-brand-50 to-brand-50/60"
         >
           {!briefing ? (
             briefingLoading ? null : (
@@ -318,13 +318,13 @@ const CrmDashboard = () => {
               <ul className="space-y-1">
                 {briefing.bullets.map((b, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="material-symbols-outlined text-sm text-violet-500 mt-0.5">chevron_right</span>
+                    <span className="material-symbols-outlined text-sm text-brand-500 mt-0.5">chevron_right</span>
                     {b}
                   </li>
                 ))}
               </ul>
-              <div className="rounded-lg border border-violet-300 bg-white px-3 py-2">
-                <p className="text-xs font-bold text-violet-600 uppercase tracking-wide mb-0.5">Top Priority Today</p>
+              <div className="rounded-lg border border-brand-300 bg-white px-3 py-2">
+                <p className="text-xs font-bold text-brand-700 uppercase tracking-wide mb-0.5">Top Priority Today</p>
                 <p className="text-sm font-semibold text-gray-800">{briefing.topPriority}</p>
               </div>
             </div>
@@ -339,10 +339,10 @@ const CrmDashboard = () => {
             <SkeletonBox w="44px" h="44px" /><div><SkeletonBox w="48px" h="28px" /><div className="mt-1"><SkeletonBox w="80px" h="12px" /></div></div>
           </div>
         )) : stats && [
-          { label: 'Accounts', value: stats.totalAccounts, icon: 'business', bg: '#eff6ff', color: '#1d4ed8' },
-          { label: 'Open Leads', value: stats.totalLeads, icon: 'lightbulb', bg: '#fef3c7', color: '#92400e' },
-          { label: 'Pipeline Value', value: formatCurrency(Number(stats.pipelineValue)), icon: 'payments', bg: '#ecfdf5', color: '#065f46' },
-          { label: 'Win Rate', value: `${stats.winRate}%`, icon: 'trending_up', bg: '#f0fdf4', color: '#166534' },
+          { label: 'Accounts', value: stats.totalAccounts, icon: 'business', bg: 'var(--color-it-50)', color: 'var(--color-it-500)' },
+          { label: 'Open Leads', value: stats.totalLeads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)' },
+          { label: 'Pipeline Value', value: formatCurrency(Number(stats.pipelineValue)), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
+          { label: 'Win Rate', value: `${stats.winRate}%`, icon: 'trending_up', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
         ].map(s => (
           <div key={s.label} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
             <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
@@ -384,12 +384,12 @@ const CrmDashboard = () => {
           <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">My Performance</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
-              { label: 'My Leads', value: myStats.leads, icon: 'lightbulb', bg: '#fef3c7', color: '#92400e' },
-              { label: 'My Open Deals', value: myStats.opportunities, icon: 'monetization_on', bg: '#eff6ff', color: '#1d4ed8' },
-              { label: 'My Pipeline', value: formatCurrency(myStats.pipelineValue), icon: 'payments', bg: '#ecfdf5', color: '#065f46' },
-              { label: 'Won This Month', value: myStats.wonThisMonth, icon: 'emoji_events', bg: '#f0fdf4', color: '#166534' },
-              { label: 'Stale Leads', value: myStats.staleLeads, icon: 'warning', bg: '#fff1f2', color: '#be123c' },
-              { label: 'Activities This Week', value: myStats.activitiesThisWeek, icon: 'event_note', bg: '#f5f3ff', color: '#6d28d9' },
+              { label: 'My Leads', value: myStats.leads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)' },
+              { label: 'My Open Deals', value: myStats.opportunities, icon: 'monetization_on', bg: 'var(--color-it-50)', color: 'var(--color-it-500)' },
+              { label: 'My Pipeline', value: formatCurrency(myStats.pipelineValue), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
+              { label: 'Won This Month', value: myStats.wonThisMonth, icon: 'emoji_events', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
+              { label: 'Stale Leads', value: myStats.staleLeads, icon: 'warning', bg: 'rgba(220,38,38,0.06)', color: 'var(--color-danger)' },
+              { label: 'Activities This Week', value: myStats.activitiesThisWeek, icon: 'event_note', bg: 'var(--color-brand-50)', color: 'var(--color-brand-600)' },
             ].map(s => (
               <div key={s.label} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
                 <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
@@ -438,8 +438,8 @@ const CrmDashboard = () => {
           <div className="divide-y divide-border">
             {stats?.recentActivities.map((act: CrmActivity) => (
               <div key={act.id} className="flex items-start gap-3 p-4 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => act.accountId && navigate(`/crm/accounts/${act.accountId}`)}>
-                <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-indigo-600 text-lg">{ACTIVITY_ICONS[act.activityType] || 'note'}</span>
+                <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-brand-600 text-lg">{ACTIVITY_ICONS[act.activityType] || 'note'}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-text-primary truncate">{act.subject}</div>
