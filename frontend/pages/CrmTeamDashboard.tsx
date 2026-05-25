@@ -86,7 +86,7 @@ const CrmTeamDashboard = () => {
       </section>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg mb-6">
+        <div className="bg-danger/10 border border-danger text-danger p-4 rounded-lg mb-6">
           <p className="font-bold">Error loading team performance</p>
           <p className="text-sm mt-1">{error}</p>
         </div>
@@ -120,7 +120,7 @@ const CrmTeamDashboard = () => {
         {briefingOpen && briefing && (
           <div className="px-5 pb-5 border-t border-border pt-4 grid sm:grid-cols-3 gap-4">
             <div>
-              <p className="text-xs font-bold text-red-600 uppercase tracking-wide mb-2">At-Risk Deals</p>
+              <p className="text-xs font-bold text-danger uppercase tracking-wide mb-2">At-Risk Deals</p>
               {briefing.atRiskDeals.length === 0
                 ? <p className="text-sm text-text-secondary">None — pipeline looks healthy</p>
                 : briefing.atRiskDeals.map((d, i) => (
@@ -128,7 +128,7 @@ const CrmTeamDashboard = () => {
                 ))}
             </div>
             <div>
-              <p className="text-xs font-bold text-amber-600 uppercase tracking-wide mb-2">Activity Gaps</p>
+              <p className="text-xs font-bold text-warning uppercase tracking-wide mb-2">Activity Gaps</p>
               {briefing.repActivityGaps.length === 0
                 ? <p className="text-sm text-text-secondary">All reps active this week</p>
                 : briefing.repActivityGaps.map((r, i) => (
@@ -136,7 +136,7 @@ const CrmTeamDashboard = () => {
                 ))}
             </div>
             <div>
-              <p className="text-xs font-bold text-emerald-600 uppercase tracking-wide mb-2">Recommendations</p>
+              <p className="text-xs font-bold text-success uppercase tracking-wide mb-2">Recommendations</p>
               {briefing.recommendations.map((r, i) => (
                 <p key={i} className="text-sm text-text-primary mb-1">• {r}</p>
               ))}
@@ -212,7 +212,7 @@ const CrmTeamDashboard = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-border bg-gray-50">
+                <tr className="border-b border-border bg-surface-muted">
                   <th className="text-left font-bold text-text-secondary px-5 py-3">Agent</th>
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Leads</th>
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Open Deals</th>
@@ -223,7 +223,7 @@ const CrmTeamDashboard = () => {
               </thead>
               <tbody className="divide-y divide-border">
                 {agents.map((agent) => (
-                  <tr key={agent.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={agent.id} className="hover:bg-surface-muted transition-colors">
                     {/* Agent */}
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
@@ -245,17 +245,17 @@ const CrmTeamDashboard = () => {
                     {/* Open Deals */}
                     <td className="text-right px-5 py-4 font-semibold text-text-primary">{agent.openDeals}</td>
                     {/* Pipeline Value */}
-                    <td className="text-right px-5 py-4 font-semibold text-emerald-700">{formatCurrency(agent.pipelineValue)}</td>
+                    <td className="text-right px-5 py-4 font-semibold text-success">{formatCurrency(agent.pipelineValue)}</td>
                     {/* Won This Month */}
                     <td className="text-right px-5 py-4">
                       <div className="font-semibold text-text-primary">{agent.wonThisMonth.count} deals</div>
-                      <div className="text-xs text-emerald-600">{formatCurrency(agent.wonThisMonth.value)}</div>
+                      <div className="text-xs text-success">{formatCurrency(agent.wonThisMonth.value)}</div>
                     </td>
                     {/* Stale Leads */}
                     <td className="text-right px-5 py-4">
                       <span
                         className={`inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold ${
-                          agent.staleLeads > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-500'
+                          agent.staleLeads > 0 ? 'bg-danger/10 text-danger' : 'bg-surface-muted text-text-tertiary'
                         }`}
                       >
                         {agent.staleLeads}
