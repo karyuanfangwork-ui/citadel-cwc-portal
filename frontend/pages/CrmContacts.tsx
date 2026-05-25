@@ -171,7 +171,7 @@ const CrmContacts = () => {
                     {c.account ? <span className="text-sm font-medium text-brand-700">{c.account.name}</span> : <span className="text-sm text-text-tertiary">\u2014</span>}
                   </td>
                   <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                    {c.isPrimary && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold"><span className="material-symbols-outlined text-xs">star</span>Primary</span>}
+                    {c.isPrimary && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success/10 text-success text-xs font-bold"><span className="material-symbols-outlined text-xs">star</span>Primary</span>}
                   </td>
                 </tr>
               ))}

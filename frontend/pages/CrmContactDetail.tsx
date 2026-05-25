@@ -187,7 +187,7 @@ const KycTab = ({ contactId }: { contactId: string }) => {
             <button
               onClick={handleApprove}
               disabled={saving}
-              className="px-4 py-2 rounded-lg text-sm font-semibold border border-emerald-500 text-emerald-600 hover:bg-emerald-50 disabled:opacity-50"
+              className="px-4 py-2 rounded-lg text-sm font-semibold border border-success text-success hover:bg-success/10 disabled:opacity-50"
             >
               Approve KYC
             </button>
@@ -489,14 +489,14 @@ const CrmContactDetail = () => {
               </button>
             ) : (
               <div className="space-y-2">
-                <div className={`flex items-center gap-2 text-sm font-semibold ${kycGaps.isCompliant ? 'text-emerald-700' : 'text-red-600'}`}>
+                <div className={`flex items-center gap-2 text-sm font-semibold ${kycGaps.isCompliant ? 'text-success' : 'text-danger'}`}>
                   <span className="material-symbols-outlined text-base">{kycGaps.isCompliant ? 'check_circle' : 'warning'}</span>
                   {kycGaps.complianceSummary}
                 </div>
                 {kycGaps.gaps.length > 0 && (
                   <ul className="space-y-1">
                     {kycGaps.gaps.map((g, i) => (
-                      <li key={i} className={`flex items-start gap-2 rounded-md px-2 py-1 text-xs ${g.severity === 'required' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                      <li key={i} className={`flex items-start gap-2 rounded-md px-2 py-1 text-xs ${g.severity === 'required' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
                         <span className="material-symbols-outlined mt-0.5 text-sm">{g.severity === 'required' ? 'error' : 'info'}</span>
                         <span><span className="font-semibold">{g.field}:</span> {g.requirement}</span>
                       </li>
@@ -519,9 +519,9 @@ const CrmContactDetail = () => {
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
                   <span className={`rounded-full px-3 py-1 text-xs font-bold ${
-                    riskProfile.suggestedRiskTier === 'High' ? 'bg-red-100 text-red-700'
-                    : riskProfile.suggestedRiskTier === 'Medium' ? 'bg-amber-100 text-amber-700'
-                    : 'bg-emerald-100 text-emerald-700'
+                    riskProfile.suggestedRiskTier === 'High' ? 'bg-danger/10 text-danger'
+                    : riskProfile.suggestedRiskTier === 'Medium' ? 'bg-warning/10 text-warning'
+                    : 'bg-success/10 text-success'
                   }`}>
                     {riskProfile.suggestedRiskTier} Risk
                   </span>
