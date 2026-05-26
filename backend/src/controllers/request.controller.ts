@@ -673,7 +673,7 @@ class RequestController {
         const isExpenseClaim = requestType?.code === 'EXPENSE_CLAIM';
 
         // Validate summary: required unless auto-generated for specific request types
-        const autoSummaryCodes = ['NEW_HIRING', 'EMPLOYEE_OFFBOARDING', 'NEW_HARDWARE', 'GET_IT_HELP', 'PURCHASE_REQUISITION'];
+        const autoSummaryCodes = ['NEW_HIRING', 'EMPLOYEE_OFFBOARDING', 'NEW_HARDWARE', 'GET_IT_HELP', 'REPORT_SYSTEM_PROBLEM', 'SOFTWARE_INSTALLATION', 'PURCHASE_REQUISITION'];
         const isAutoSummaryType = requestType?.code ? autoSummaryCodes.includes(requestType.code) : false;
         if (!summary && !isAutoSummaryType) {
             throw new AppError('Summary is required', 400);
@@ -882,6 +882,41 @@ class RequestController {
                     shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
                 }
                 finalSummary = `Get IT Help: ${shortSummary}`;
+            }
+        }
+        if (!finalSummary && requestType?.code === 'REPORT_SYSTEM_PROBLEM') {
+            const desc = (rawDescription || '').trim();
+            if (desc) {
+                const firstLine = desc.split('\n')[0].trim();
+                const maxLen = 120;
+                // Reserve 17 chars for "System Problem: " prefix
+                const summaryMaxLen = maxLen - 17;
+                let shortSummary: string;
+                if (firstLine.length <= summaryMaxLen) {
+                    shortSummary = firstLine;
+                } else {
+                    const truncated = firstLine.substring(0, summaryMaxLen);
+                    const lastSpace = truncated.lastIndexOf(' ');
+                    shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
+                }
+                finalSummary = `System Problem: ${shortSummary}`;
+            }
+        }
+        if (!finalSummary && requestType?.code === 'SOFTWARE_INSTALLATION') {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = (requestType?.formConfig || []) as any[];
+            const resolveByLabel = (labelMatch: string): any => {
+                for (const f of formConfig) {
+                    if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                        if (cf[f.id]) return cf[f.id];
+                    }
+                }
+                return undefined;
+            };
+            const swName = cf.sw_name || resolveByLabel('software name') || resolveByLabel('software') || '';
+            if (swName) {
+                const swVersion = cf.sw_version || resolveByLabel('version') || '';
+                finalSummary = swVersion ? `Install software: ${swName} v${swVersion}` : `Install software: ${swName}`;
             }
         }
         if (!finalSummary && isPurchaseRequisition) {

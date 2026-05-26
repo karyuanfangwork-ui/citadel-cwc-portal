@@ -212,7 +212,7 @@ interface UseRequestDetailReturn {
     handleLOAApprovalDecision: (decision: 'APPROVE' | 'REJECT', comments?: string) => Promise<void>;
     handleMarkLOAIssued: () => Promise<void>;
     handleMarkLOAAccepted: () => Promise<void>;
-    handleCEODecision: (decision: 'APPROVED' | 'REJECTED', comments: string, ctoId?: string) => Promise<void>;
+    handleCEODecision: (decision: 'APPROVED' | 'REJECTED', comments: string) => Promise<void>;
     handleManagerDecision: (decision: 'APPROVED' | 'REJECTED', selectedCandidateIds: string[], comments: string) => Promise<void>;
     handleRouteToManager: () => Promise<void>;
     handleAdvanceOnboardingPhase: () => Promise<void>;
@@ -529,14 +529,14 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         }
     }, [id, fetchRequestData]);
 
-    const handleCEODecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', comments: string, ctoId?: string) => {
+    const handleCEODecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', comments: string) => {
         if (!id) return;
         try {
             setProcessingAction(true);
             // Route to the correct service based on request status
             const isITRequest = request?.status === 'PENDING_CEO_APPROVAL_IT';
             if (isITRequest) {
-                await itWorkflowService.ceoDecision(id, decision, comments, ctoId);
+                await itWorkflowService.ceoDecision(id, decision, comments);
             } else {
                 await approvalService.ceoDecision(id, decision, comments);
             }

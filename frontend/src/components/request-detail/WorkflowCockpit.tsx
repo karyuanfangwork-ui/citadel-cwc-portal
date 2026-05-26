@@ -75,6 +75,9 @@ interface WorkflowCockpitProps {
   selectedCandidateIds?: string[];
   candidateNames?: string[];
 
+  /** Request attachments (for invoice preview in CFO decision) */
+  attachments?: { id: string; fileName: string; storageUrl: string; mimeType: string; createdAt: string }[];
+
   /** Callback after any action completes (triggers refetch) */
   onActionComplete: () => void;
 
@@ -90,6 +93,9 @@ interface WorkflowCockpitProps {
   onAdvanceOffboardingPhase?: () => void;
   onCompleteOffboarding?: () => void;
   onResolveRequest?: () => void;
+
+  /** Offboarding pre-conditions state for gating the Advance button in DecisionPanel */
+  offboardingPreConditionsMet?: boolean;
 }
 
 const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
@@ -104,6 +110,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
   selectedCandidateId,
   selectedCandidateIds,
   candidateNames = [],
+  attachments = [],
   onActionComplete,
   onRouteToManager,
   onManagerDecision,
@@ -116,6 +123,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
   onAdvanceOffboardingPhase,
   onCompleteOffboarding,
   onResolveRequest,
+  offboardingPreConditionsMet = true,
 }) => {
   const [mobileExpanded, setMobileExpanded] = useState(false);
 
@@ -170,6 +178,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               selectedCandidateId={selectedCandidateId}
               selectedCandidateIds={selectedCandidateIds}
               candidateNames={candidateNames}
+              attachments={attachments}
               onActionComplete={onActionComplete}
               onRouteToManager={onRouteToManager}
               onManagerDecision={onManagerDecision}
@@ -182,6 +191,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               onAdvanceOffboardingPhase={onAdvanceOffboardingPhase}
               onCompleteOffboarding={onCompleteOffboarding}
               onResolveRequest={onResolveRequest}
+              offboardingPreConditionsMet={offboardingPreConditionsMet}
             />
           </div>
 
@@ -304,6 +314,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   selectedCandidateId={selectedCandidateId}
                   selectedCandidateIds={selectedCandidateIds}
                   candidateNames={candidateNames}
+                  attachments={attachments}
                   onActionComplete={onActionComplete}
                   onRouteToManager={onRouteToManager}
                   onManagerDecision={onManagerDecision}
@@ -316,6 +327,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   onAdvanceOffboardingPhase={onAdvanceOffboardingPhase}
                   onCompleteOffboarding={onCompleteOffboarding}
                   onResolveRequest={onResolveRequest}
+                  offboardingPreConditionsMet={offboardingPreConditionsMet}
                 />
               </div>
 

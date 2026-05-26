@@ -5,6 +5,8 @@
 import React, { useState, useCallback } from 'react';
 import CeoDecisionModal from './CeoDecisionModal';
 import ScheduleInterviewModal from './ScheduleInterviewModal';
+import PendingInvoiceModal from './PendingInvoiceModal';
+import CfoDecisionModal from './CfoDecisionModal';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 import WorkflowActionModal from './WorkflowActionModal';
@@ -41,6 +43,7 @@ interface DecisionPanelProps {
   selectedCandidateId?: string;
   selectedCandidateIds?: string[];
   candidateNames?: string[];
+  attachments?: { id: string; fileName: string; storageUrl: string; mimeType: string; createdAt: string }[];
   /** Called after any workflow action completes successfully */
   onActionComplete: () => void;
   /** Direct-action callbacks for non-modal actions (assign, resolve, etc.) */
@@ -56,6 +59,8 @@ interface DecisionPanelProps {
   onCompleteOnboarding?: () => void;
   onAdvanceOffboardingPhase?: () => void;
   onCompleteOffboarding?: () => void;
+  /** When false, the ADVANCE_OFFBOARDING_PHASE action is disabled (pre-conditions not met) */
+  offboardingPreConditionsMet?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -179,6 +184,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   hasSignedLOA = false,
   selectedCandidateId,
   selectedCandidateIds,
+  attachments = [],
   onActionComplete,
   // Direct-action callbacks
   onRouteToManager,
@@ -192,6 +198,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   onAdvanceOffboardingPhase,
   onCompleteOffboarding,
   onResolveRequest,
+  offboardingPreConditionsMet = true,
 }) => {
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [directLoading, setDirectLoading] = useState(false);
@@ -364,8 +371,12 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
             <button
               key={action.type}
               onClick={() => handleActionClick(action.type)}
-              disabled={directLoading}
-              className="w-full text-left bg-blue-50 border border-blue-100 rounded-xl p-4 hover:bg-blue-100/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed group"
+              disabled={directLoading || (action.type === 'ADVANCE_OFFBOARDING_PHASE' && !offboardingPreConditionsMet)}
+              className={`w-full text-left border rounded-xl p-4 transition-colors group ${
+                action.type === 'ADVANCE_OFFBOARDING_PHASE' && !offboardingPreConditionsMet
+                  ? 'bg-gray-50 border-gray-200 cursor-not-allowed'
+                  : 'bg-blue-50 border-blue-100 hover:bg-blue-100/70'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <div className="flex items-center gap-3">
                 <div
@@ -378,15 +389,25 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-[#1e40af] leading-snug">
+                  <p className={`text-sm font-bold leading-snug ${action.type === 'ADVANCE_OFFBOARDING_PHASE' && !offboardingPreConditionsMet ? 'text-gray-400' : 'text-[#1e40af]'}`}>
                     {config?.title || action.label}
                   </p>
-                  <p className="text-xs text-blue-500 mt-1 leading-relaxed">
+                  <p className={`text-xs mt-1 leading-relaxed ${action.type === 'ADVANCE_OFFBOARDING_PHASE' && !offboardingPreConditionsMet ? 'text-gray-400' : 'text-blue-500'}`}>
                     {config?.subtitle || action.description}
                   </p>
+                  {action.type === 'ADVANCE_OFFBOARDING_PHASE' && !offboardingPreConditionsMet && (
+                    <p className="text-xs text-amber-600 mt-1 font-medium flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">lock</span>
+                      Complete resignation letter & exit interview requirements first
+                    </p>
+                  )}
                 </div>
                 <span
-                  className={`material-symbols-outlined text-blue-400 group-hover:text-blue-600 transition-colors shrink-0`}
+                  className={`material-symbols-outlined transition-colors shrink-0 ${
+                    action.type === 'ADVANCE_OFFBOARDING_PHASE' && !offboardingPreConditionsMet
+                      ? 'text-gray-300'
+                      : 'text-blue-400 group-hover:text-blue-600'
+                  }`}
                   style={{ fontSize: '20px' }}
                 >
                   chevron_right
@@ -435,8 +456,27 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
         />
       )}
 
-      {/* Config-driven modal (non-CEO, non-schedule-interview actions) */}
-      {activeModal && activeModal !== 'CEO_DECISION_IT' && activeModal !== 'CEO_DECISION_HR' && activeModal !== 'SCHEDULE_INTERVIEW' && hasWorkflowModalConfig(activeModal) && (
+      {/* Dedicated Pending Invoice modal (CFO selector + invoice file upload) */}
+      {activeModal === 'ROUTE_TO_CFO' && (
+        <PendingInvoiceModal
+          requestId={requestId}
+          onSuccess={handleModalSuccess}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {/* Dedicated CFO Decision modal (shows invoice preview for IT workflow) */}
+      {activeModal === 'CFO_DECISION' && (
+        <CfoDecisionModal
+          requestId={requestId}
+          attachments={attachments}
+          onSuccess={handleModalSuccess}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {/* Config-driven modal (non-CEO, non-schedule-interview, non-invoice, non-CFO-decision actions) */}
+      {activeModal && activeModal !== 'CEO_DECISION_IT' && activeModal !== 'CEO_DECISION_HR' && activeModal !== 'SCHEDULE_INTERVIEW' && activeModal !== 'ROUTE_TO_CFO' && activeModal !== 'CFO_DECISION' && hasWorkflowModalConfig(activeModal) && (
         <WorkflowActionModal
           open={!!activeModal}
           requestId={requestId}

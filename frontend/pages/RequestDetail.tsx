@@ -24,6 +24,12 @@ const RequestDetailContainer: React.FC = () => {
     const { user } = useAuth();
     const rq = useRequestDetail();
 
+    // Offboarding pre-condition state lifted from OffboardingDashboard for DecisionPanel gating
+    const [offboardingPreConditions, setOffboardingPreConditions] = React.useState<{
+        isAdvancingToFinalWeek: boolean;
+        preConditionsMet: boolean;
+    }>({ isAdvancingToFinalWeek: false, preConditionsMet: true });
+
     if (!rq.request || !rq.id) {
         if (rq.loading) {
             return (
@@ -170,7 +176,7 @@ const RequestDetailContainer: React.FC = () => {
                                 <span className="material-symbols-outlined text-amber-600">person_remove</span>
                                 <h3 className="font-bold text-xl">Offboarding Workflow</h3>
                             </div>
-                            <OffboardingDashboard requestId={request.id} onComplete={rq.fetchRequestData} />
+                            <OffboardingDashboard requestId={request.id} onComplete={rq.fetchRequestData} onPreConditionsChange={setOffboardingPreConditions} />
                         </section>
                     ) : null}
 
@@ -224,6 +230,13 @@ const RequestDetailContainer: React.FC = () => {
                     selectedCandidateId={request.customFields?.selectedCandidateId}
                     selectedCandidateIds={request.customFields?.selectedCandidateIds || (request.customFields?.selectedCandidateId ? [request.customFields.selectedCandidateId] : [])}
                     candidateNames={[...new Set(rq.resumes.map(r => r.candidateName?.trim()).filter(Boolean) as string[])]}
+                    attachments={(request.attachments || []).map((a: any) => ({
+                        id: a.id,
+                        fileName: a.fileName,
+                        storageUrl: a.storageUrl || a.storagePath || '',
+                        mimeType: a.mimeType || '',
+                        createdAt: a.createdAt || '',
+                    }))}
                     onActionComplete={rq.fetchRequestData}
                     onRouteToManager={rq.handleRouteToManager}
                     onManagerDecision={() => rq.setShowManagerDecisionModal(true)}
@@ -236,6 +249,7 @@ const RequestDetailContainer: React.FC = () => {
                     onAdvanceOffboardingPhase={rq.handleAdvanceOffboardingPhase}
                     onCompleteOffboarding={rq.handleCompleteOffboarding}
                     onResolveRequest={() => rq.handleStatusChange('RESOLVED')}
+                    offboardingPreConditionsMet={offboardingPreConditions.preConditionsMet}
                 />
             </div>
 

@@ -496,37 +496,32 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
 export const acknowledgeRequest = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { ceoId, notes } = req.body;
+    const { notes } = req.body;
     const currentUser = (req as any).user;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
-
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!ceoId || !uuidRegex.test(ceoId)) {
-      return res.status(400).json({ error: 'Invalid ceoId: must be a valid UUID' });
-    }
 
     const request = await prisma.request.findUnique({ where: { id }, include: { serviceDesk: true } });
     if (!request) return res.status(404).json({ error: 'Request not found' });
     if (!request.serviceDesk || request.serviceDesk.code !== 'IT') return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     if (request.status !== 'SUBMITTED') return res.status(400).json({ error: 'Request must be in SUBMITTED status' });
 
-    const ceoUser = await prisma.user.findUnique({
-      where: { id: ceoId },
-      include: { roles: { include: { role: true } } },
+    // Auto-find the active CEO user
+    const ceoUser = await prisma.user.findFirst({
+      where: { executiveRole: 'CEO', isActive: true },
     });
-    if (!ceoUser) return res.status(404).json({ error: 'CEO user not found' });
-    const hasCeoRole = (ceoUser as any).roles.some((r: any) => r.role?.name === 'CEO');
-    if (!hasCeoRole) return res.status(400).json({ error: 'Selected user does not have CEO role' });
+    if (!ceoUser) {
+      return res.status(400).json({ error: 'No active CEO user found in the system. Please create a CEO user first.' });
+    }
 
-    await prisma.request.update({ where: { id }, data: { status: 'PENDING_CEO_APPROVAL_IT', assignedToId: ceoId } });
+    await prisma.request.update({ where: { id }, data: { status: 'PENDING_CEO_APPROVAL_IT', assignedToId: ceoUser.id } });
     await pauseSla(id);
 
     await prisma.requestApproval.create({
       data: {
         requestId: id,
         approverType: 'CEO',
-        approverId: ceoId,
+        approverId: ceoUser.id,
         status: 'PENDING',
         comments: notes || null,
       },
@@ -543,15 +538,15 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
       },
     });
 
-    await notify({ userId: ceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CEO' }, relatedRequestId: id });
+    await notify({ userId: ceoUser.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CEO' }, relatedRequestId: id });
 
     await auditLog(req as any, 'IT_ACKNOWLEDGE_ROUTE_CEO', 'request', String(id), {
       status: 'PENDING_CEO_APPROVAL_IT',
       previousStatus: request.status,
-      ceoId,
+      ceoId: ceoUser.id,
       notes: notes || null,
     }, { status: request.status });
-    return res.json({ success: true, message: 'Request acknowledged and routed to CEO' });
+    return res.json({ success: true, message: `Request acknowledged and routed to CEO (${ceoUser.firstName} ${ceoUser.lastName})` });
   } catch (error) {
     console.error('acknowledgeRequest error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -561,7 +556,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
 export const ceoDecision = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { decision, comments, ctoId } = req.body;
+    const { decision, comments } = req.body;
     const currentUser = (req as any).user;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
@@ -573,20 +568,15 @@ export const ceoDecision = async (req: Request, res: Response) => {
     if (!hasRole(req, 'CEO')) return res.status(403).json({ error: 'Only the CEO can make this decision' });
 
     if (decision === 'APPROVED') {
-      // Validate ctoId — must be a UUID belonging to a CTO-role user
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!ctoId || !uuidRegex.test(ctoId)) {
-        return res.status(400).json({ error: 'Invalid ctoId: must be a valid UUID' });
-      }
-      const ctoUser = await prisma.user.findUnique({
-        where: { id: ctoId },
-        include: { roles: { include: { role: true } } },
+      // Auto-find the active CTO user
+      const ctoUser = await prisma.user.findFirst({
+        where: { executiveRole: 'CTO', isActive: true },
       });
-      if (!ctoUser || !ctoUser.roles.some((r: any) => r.role?.name === 'CTO')) {
-        return res.status(400).json({ error: 'Specified ctoId does not belong to a CTO user' });
+      if (!ctoUser) {
+        return res.status(400).json({ error: 'No active CTO user found in the system. Please create a CTO user first.' });
       }
 
-      await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT', assignedToId: ctoId } });
+      await prisma.request.update({ where: { id }, data: { status: 'CEO_APPROVED_IT', assignedToId: ctoUser.id } });
       await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_CTO_APPROVAL_IT' } });
       await pauseSla(id);
@@ -597,21 +587,21 @@ export const ceoDecision = async (req: Request, res: Response) => {
       });
 
       await prisma.requestApproval.create({
-        data: { requestId: id, approverType: 'CTO', approverId: ctoId, status: 'PENDING', comments: null },
+        data: { requestId: id, approverType: 'CTO', approverId: ctoUser.id, status: 'PENDING', comments: null },
       });
 
       await prisma.requestActivity.create({
         data: {
           requestId: id,
           activityType: 'APPROVAL',
-          message: `CEO approved the request${comments ? ': ' + comments : ''}`,
+          message: `CEO approved the request — routed to CTO (${ctoUser.firstName} ${ctoUser.lastName})${comments ? ': ' + comments : ''}`,
           authorName: currentUser.firstName || 'CEO',
           authorRole: 'CEO',
           isSystemGenerated: false,
         },
       });
 
-      await notify({ userId: ctoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
+      await notify({ userId: ctoUser.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
     } else {
       // Reassign back to IT agent on CEO rejection
       const itAgent = await prisma.user.findFirst({

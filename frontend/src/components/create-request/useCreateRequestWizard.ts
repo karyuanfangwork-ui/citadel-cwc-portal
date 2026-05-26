@@ -71,7 +71,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const isAutoSummary = useMemo(() => {
     if (!selectedRequestType) return false;
     const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
-    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'PURCHASE_REQUISITION';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION';
   }, [selectedRequestType]);
 
   const autoSummary = useMemo(() => {
@@ -103,18 +103,39 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       return `Request new hardware: ${name}`;
     }
 
-    if (code === 'GET_IT_HELP') {
+    if (code === 'SOFTWARE_INSTALLATION') {
+      const formConfig = selectedRequestType?.formConfig || [];
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const swName = cf.sw_name || resolveByLabel('software name') || resolveByLabel('software') || '';
+      if (!swName) return '';
+      const swVersion = cf.sw_version || resolveByLabel('version') || '';
+      return swVersion ? `Install software: ${swName} v${swVersion}` : `Install software: ${swName}`;
+    }
+
+    if (code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM') {
       const desc = (formData.description || '').trim();
       if (!desc) return '';
-      // Take the first line, truncate to 120 chars
       const firstLine = desc.split('\n')[0].trim();
       const maxLen = 120;
-      if (firstLine.length <= maxLen) return `Get IT Help: ${firstLine}`;
-      // Truncate at last space before maxLen to avoid mid-word cutoff
-      const truncated = firstLine.substring(0, maxLen);
-      const lastSpace = truncated.lastIndexOf(' ');
-      const short = lastSpace > maxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
-      return `Get IT Help: ${short}`;
+      const prefix = code === 'GET_IT_HELP' ? 'Get IT Help' : 'System Problem';
+      // Reserve chars for prefix + ": "
+      const summaryMaxLen = maxLen - prefix.length - 2;
+      let shortSummary: string;
+      if (firstLine.length <= summaryMaxLen) {
+        shortSummary = firstLine;
+      } else {
+        const truncated = firstLine.substring(0, summaryMaxLen);
+        const lastSpace = truncated.lastIndexOf(' ');
+        shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
+      }
+      return `${prefix}: ${shortSummary}`;
     }
 
     if (code === 'PURCHASE_REQUISITION') {

@@ -162,6 +162,17 @@ export function getWorkflowActions(
     });
   }
 
+  // IT Payment Processing — the assigned finance agent (or admin) must be able
+  // to mark payment done even though this is an IT desk request (cross-desk reassignment)
+  if (status === 'PAYMENT_PROCESSING_IT' && (isAdmin || isAssignedToMe)) {
+    actions.push({
+      type: 'PAYMENT_DONE',
+      label: 'Mark Payment Done',
+      description: 'Enter payment details and mark payment as completed.',
+      variant: 'success',
+    });
+  }
+
   // Finance Purchase Requisition — Executive approver actions (not gated by canAct)
   const isPurchaseRequisition = requestTypeCode === 'PURCHASE_REQUISITION' ||
     (!requestTypeCode && requestTypeName.toLowerCase().includes('purchase requisition'));
@@ -457,8 +468,9 @@ export function getWorkflowActions(
     });
   }
 
-  // IT Hardware Executive Approval Chain
-  if (canActOnDesk && status === 'SUBMITTED' && isProcurement) {
+  // IT Executive Approval Chain — any IT SUBMITTED request that requires approval
+  // (covers both NEW_HARDWARE procurement and SOFTWARE_INSTALLATION)
+  if (canActOnDesk && status === 'SUBMITTED' && requiresApproval && serviceDeskCode === 'IT') {
     actions.push({
       type: 'ACKNOWLEDGE_IT',
       label: 'Acknowledge & Route to CEO',
@@ -607,17 +619,6 @@ export function getWorkflowActions(
       label: 'Route to CFO for Approval',
       description: 'Select CFO and route this request for CFO approval.',
       variant: 'warning',
-    });
-  }
-
-  // Only the assigned finance agent (or admin) can mark payment done —
-  // CFO approval reassigns the ticket to FINANCE team via reassignToTeam('FINANCE')
-  if ((isAdmin || isAssignedToMe) && status === 'PAYMENT_PROCESSING_IT') {
-    actions.push({
-      type: 'PAYMENT_DONE',
-      label: 'Mark Payment Done',
-      description: 'Enter payment details and mark payment as completed.',
-      variant: 'success',
     });
   }
 

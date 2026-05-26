@@ -125,8 +125,12 @@ const defaultWorkflows = [
       { label: 'Submitted', status: 'ONBOARDING_SUBMITTED', icon: 'check_circle', isInitial: true },
       { label: 'HR Approval', status: 'ONBOARDING_PENDING_HR_APPROVAL', icon: 'radio_button_checked', slaPause: true },
       { label: 'Pre-Arrival', status: 'ONBOARDING_PRE_ARRIVAL_SETUP', icon: 'radio_button_checked' },
+      { label: 'Ready for Day 1', status: 'ONBOARDING_READY_FOR_DAY_1', icon: 'radio_button_checked' },
       { label: 'Orientation', status: 'ONBOARDING_DAY_1_ORIENTATION', icon: 'radio_button_checked' },
       { label: 'Integration', status: 'ONBOARDING_WEEK_1_INTEGRATION', icon: 'radio_button_checked' },
+      { label: 'Month 1', status: 'ONBOARDING_MONTH_1_MILESTONE', icon: 'radio_button_checked' },
+      { label: 'Month 2', status: 'ONBOARDING_MONTH_2_MILESTONE', icon: 'radio_button_checked' },
+      { label: 'Month 3', status: 'ONBOARDING_MONTH_3_MILESTONE', icon: 'radio_button_checked' },
       { label: 'Completed', status: 'ONBOARDING_COMPLETED', icon: 'check_circle', isFinal: true },
     ]
   },

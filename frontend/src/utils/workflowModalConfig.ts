@@ -263,22 +263,11 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
 
   ACKNOWLEDGE_IT: {
     title: 'Acknowledge & Route to CEO',
-    subtitle: 'IT Workflow · Select CEO and confirm acknowledgement',
+    subtitle: 'IT Workflow · CEO will be automatically assigned',
     icon: 'task_alt',
     iconBgClass: 'bg-blue-100',
     iconTextClass: 'text-blue-600',
     fields: [
-      {
-        name: 'ceoId',
-        label: 'Select CEO',
-        type: 'select',
-        required: true,
-        placeholder: 'Choose a CEO…',
-        asyncOptions: async () => {
-          const users = await itWorkflowService.getUsersByRole('CEO');
-          return users.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }));
-        },
-      },
       {
         name: 'notes',
         label: 'Notes',
@@ -291,7 +280,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitLabel: 'Acknowledge & Route',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      itWorkflowService.acknowledgeRequest(requestId, (values.ceoId as string) || '', (values.notes as string) || undefined),
+      itWorkflowService.acknowledgeRequest(requestId, (values.notes as string) || undefined),
   },
 
   CEO_DECISION_IT: {

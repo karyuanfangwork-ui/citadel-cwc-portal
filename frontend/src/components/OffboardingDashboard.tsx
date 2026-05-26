@@ -43,9 +43,10 @@ interface OffboardingProgress {
 interface Props {
     requestId: string;
     onComplete?: () => void;
+    onPreConditionsChange?: (data: { isAdvancingToFinalWeek: boolean; preConditionsMet: boolean }) => void;
 }
 
-const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete }) => {
+const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete, onPreConditionsChange }) => {
     const { user } = useAuth();
     const toast = useToast();
     const [offboarding, setOffboarding] = useState<OffboardingRequest | null>(null);
@@ -153,6 +154,11 @@ const OffboardingDashboard: React.FC<Props> = ({ requestId, onComplete }) => {
         !!offboarding?.exitInterviewScheduledDate
     );
     const canAdvancePhase = isAdminOrHRAgent && !isCompleted && !!nextPhase && preConditionsMet;
+
+    // Notify parent about offboarding pre-condition state for DecisionPanel gating
+    React.useEffect(() => {
+        onPreConditionsChange?.({ isAdvancingToFinalWeek, preConditionsMet });
+    }, [isAdvancingToFinalWeek, preConditionsMet, onPreConditionsChange]);
 
     const handleAdvancePhase = async () => {
         if (!nextPhase || advancingPhase) return;

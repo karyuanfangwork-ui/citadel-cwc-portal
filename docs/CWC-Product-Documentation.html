@@ -1,0 +1,2579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CWC – Product Documentation | Citadel Group</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      color: #1e293b;
+      background: #f8fafc;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: fixed;
+      top: 0; left: 0;
+      width: 260px;
+      height: 100vh;
+      background: #0f172a;
+      color: #cbd5e1;
+      overflow-y: auto;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-brand {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .sidebar-brand .brand-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f1f5f9;
+      letter-spacing: -0.3px;
+    }
+    .sidebar-brand .brand-version {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .sidebar nav { padding: 12px 0 32px; }
+    .nav-group-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #475569;
+      padding: 16px 20px 6px;
+    }
+    .sidebar nav a {
+      display: block;
+      padding: 7px 20px;
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 13px;
+      transition: background 0.15s, color 0.15s;
+      border-left: 3px solid transparent;
+    }
+    .sidebar nav a:hover {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-left-color: #0ea5e9;
+    }
+    .sidebar nav a.active {
+      background: #1e293b;
+      color: #38bdf8;
+      border-left-color: #0ea5e9;
+      font-weight: 600;
+    }
+
+    /* ── Main Content ── */
+    .main {
+      margin-left: 260px;
+      min-height: 100vh;
+    }
+
+    /* ── Sections ── */
+    .doc-section {
+      padding: 56px 72px 56px 80px;
+      max-width: 1280px;
+    }
+    .doc-section + .doc-section {
+      border-top: 1px solid #e2e8f0;
+    }
+
+    /* ── Cover Page ── */
+    .cover-section {
+      background: linear-gradient(135deg, #1e40af 0%, #0369a1 60%, #0ea5e9 100%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 80px 64px;
+      max-width: 100%;
+    }
+    .cover-inner { max-width: 700px; }
+    .cover-badge {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .cover-title {
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+    .cover-subtitle {
+      font-size: 22px;
+      font-weight: 300;
+      opacity: 0.85;
+      margin-bottom: 32px;
+    }
+    .cover-tagline {
+      font-size: 16px;
+      opacity: 0.75;
+      font-style: italic;
+      margin-bottom: 48px;
+    }
+    .cover-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 32px;
+      border-top: 1px solid rgba(255,255,255,0.25);
+      padding-top: 32px;
+    }
+    .cover-meta-item { font-size: 13px; }
+    .cover-meta-item .label {
+      opacity: 0.6;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      display: block;
+    }
+    .cover-meta-item .value {
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    /* ── Section Headers ── */
+    .section-header {
+      margin-bottom: 32px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid #e2e8f0;
+    }
+    .section-eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #0ea5e9;
+      margin-bottom: 6px;
+    }
+    .section-title {
+      font-size: 30px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+    }
+    .section-desc {
+      margin-top: 8px;
+      color: #475569;
+      font-size: 15px;
+    }
+
+    h2.section-title { font-size: 30px; }
+    h3.subsection-title {
+      font-size: 19px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 32px 0 12px;
+    }
+    h4.minor-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #334155;
+      margin: 20px 0 8px;
+    }
+
+    /* ── Prose ── */
+    p { margin-bottom: 14px; color: #334155; }
+    ul, ol { margin: 10px 0 14px 24px; }
+    li { margin-bottom: 6px; color: #334155; }
+    strong { color: #1e293b; }
+
+    /* ── Cards ── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+      margin: 24px 0;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 14px;
+    }
+    .card-icon.blue   { background: #dbeafe; }
+    .card-icon.sky    { background: #e0f2fe; }
+    .card-icon.green  { background: #dcfce7; }
+    .card-icon.purple { background: #f3e8ff; }
+    .card-icon.amber  { background: #fef3c7; }
+    .card-icon.rose   { background: #ffe4e6; }
+    .card-icon.red    { background: #fee2e2; }
+    .card-title { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
+    .card-body  { font-size: 13px; color: #475569; line-height: 1.6; }
+
+    /* ── Info Box ── */
+    .info-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-left: 4px solid #1e40af;
+      border-radius: 6px;
+      padding: 16px 20px;
+      margin: 20px 0;
+    }
+    .info-box p { margin-bottom: 0; color: #1e3a8a; font-size: 14px; }
+    .info-box strong { color: #1e3a8a; }
+
+    .warn-box {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      border-left: 4px solid #f59e0b;
+      border-radius: 6px;
+      padding: 16px 20px;
+      margin: 20px 0;
+    }
+    .warn-box p { margin-bottom: 0; color: #78350f; font-size: 14px; }
+
+    /* ── Tables ── */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin: 20px 0;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      font-size: 13.5px;
+    }
+    thead { background: #f1f5f9; }
+    thead th {
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #475569;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    tbody td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+      color: #334155;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f8fafc; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+    .badge-green  { background: #dcfce7; color: #15803d; }
+    .badge-sky    { background: #e0f2fe; color: #0369a1; }
+    .badge-purple { background: #f3e8ff; color: #7e22ce; }
+    .badge-amber  { background: #fef3c7; color: #b45309; }
+    .badge-rose   { background: #ffe4e6; color: #be123c; }
+    .badge-slate  { background: #f1f5f9; color: #475569; }
+    .badge-red    { background: #fee2e2; color: #991b1b; }
+
+    /* ── TOC ── */
+    .toc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 40px;
+      margin: 20px 0;
+    }
+    .toc-item {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 8px 0;
+      border-bottom: 1px dashed #e2e8f0;
+      text-decoration: none;
+      color: #1e40af;
+      font-size: 14px;
+      transition: color 0.15s;
+    }
+    .toc-item:hover { color: #0ea5e9; }
+    .toc-num {
+      font-size: 11px;
+      font-weight: 700;
+      color: #94a3b8;
+      min-width: 24px;
+    }
+    .toc-label { flex: 1; }
+
+    /* ── Architecture Diagram Placeholder ── */
+    .arch-diagram {
+      background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%);
+      border: 2px dashed #bfdbfe;
+      border-radius: 10px;
+      padding: 40px;
+      text-align: center;
+      margin: 24px 0;
+      color: #64748b;
+      font-size: 14px;
+    }
+    .arch-diagram .arch-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 8px;
+    }
+
+    /* ── Layer Stack ── */
+    .layer-stack { margin: 24px 0; }
+    .layer {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 20px;
+      border-radius: 8px;
+      margin-bottom: 6px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .layer-label {
+      min-width: 160px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      opacity: 0.7;
+    }
+    .layer-content { flex: 1; }
+    .layer-tech { font-size: 12px; font-weight: 400; opacity: 0.8; margin-top: 2px; }
+    .layer-1 { background: #dbeafe; color: #1e40af; }
+    .layer-2 { background: #e0f2fe; color: #0369a1; }
+    .layer-3 { background: #dcfce7; color: #15803d; }
+    .layer-4 { background: #f3e8ff; color: #7e22ce; }
+    .layer-5 { background: #fef3c7; color: #b45309; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+      }
+      .sidebar nav { display: flex; flex-wrap: wrap; padding: 8px; }
+      .sidebar nav a { padding: 6px 10px; font-size: 12px; }
+      .main { margin-left: 0; }
+      .doc-section { padding: 32px 20px; }
+      .cover-section { padding: 48px 20px; min-height: auto; }
+      .cover-title { font-size: 36px; }
+      .toc-grid { grid-template-columns: 1fr; }
+      .card-grid { grid-template-columns: 1fr; }
+      .cover-meta { grid-template-columns: 1fr; }
+    }
+
+    /* ── Print ── */
+    @media print {
+      .sidebar { display: none; }
+      .main { margin-left: 0; }
+      .doc-section { padding: 32px 40px; page-break-inside: avoid; }
+      @page { size: A4; margin: 20mm; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     SIDEBAR NAVIGATION
+══════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-name">CWC</div>
+    <div class="brand-version">Product Documentation · v2.2</div>
+  </div>
+  <nav>
+    <div class="nav-group-label">Introduction</div>
+    <a href="#cover">Cover Page</a>
+    <a href="#toc">Table of Contents</a>
+    <a href="#exec-summary">Executive Summary</a>
+    <a href="#product-overview">Product Overview</a>
+    <a href="#architecture">System Architecture</a>
+
+    <div class="nav-group-label">Modules</div>
+    <a href="#modules-overview">Modules Overview</a>
+    <a href="#itsm">IT Support (ITSM)</a>
+    <a href="#hr-services">HR Services</a>
+    <a href="#finance">Group Finance</a>
+    <a href="#crm">CRM</a>
+    <a href="#credit">Credit Assessment</a>
+
+    <div class="nav-group-label">Platform</div>
+    <a href="#workflow-engine">Workflow Engine</a>
+    <a href="#roles">Roles &amp; Permissions</a>
+    <a href="#mobile">Mobile &amp; Accessibility</a>
+    <a href="#ai-features">AI Features</a>
+    <a href="#security">Security</a>
+
+    <div class="nav-group-label">Operations</div>
+    <a href="#reporting">Reporting &amp; Analytics</a>
+    <a href="#api">API Reference</a>
+    <a href="#deployment">Deployment</a>
+    <a href="#readiness">Readiness Checklist</a>
+    <a href="#golive">Go-Live Plan</a>
+    <a href="#support">Support &amp; Maintenance</a>
+
+    <div class="nav-group-label">Reference</div>
+    <a href="#appendix">Appendix</a>
+  </nav>
+</aside>
+
+<!-- ══════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════ -->
+<main class="main">
+
+  <!-- ════════════════════════════════════
+       COVER PAGE
+  ════════════════════════════════════ -->
+  <section id="cover" class="cover-section">
+    <div class="cover-inner">
+      <div class="cover-badge">Citadel Group Technologies Sdn Bhd · Internal</div>
+      <div class="cover-title">CWC</div>
+      <div class="cover-subtitle">Citadel Workplace Connect</div>
+      <div class="cover-tagline">Enterprise Service Management Platform</div>
+
+      <div class="cover-meta">
+        <div class="cover-meta-item">
+          <span class="label">Version</span>
+          <span class="value">2.2 — May 2026</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="label">Prepared by</span>
+          <span class="value">Technology Division</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="label">Document Status</span>
+          <span class="value">Final Draft</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="label">Audience</span>
+          <span class="value">Internal — All Stakeholders</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="label">Classification</span>
+          <span class="value">Confidential</span>
+        </div>
+        <div class="cover-meta-item">
+          <span class="label">Review Cycle</span>
+          <span class="value">Quarterly</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════
+       TABLE OF CONTENTS
+  ════════════════════════════════════ -->
+  <section id="toc" class="doc-section">
+    <div class="section-header">
+      <div class="section-eyebrow">Navigation</div>
+      <h2 class="section-title">Table of Contents</h2>
+      <p class="section-desc">Click any section title to jump directly to that page.</p>
+    </div>
+
+    <div class="toc-grid">
+      <a class="toc-item" href="#exec-summary">
+        <span class="toc-num">01</span>
+        <span class="toc-label">Executive Summary</span>
+      </a>
+      <a class="toc-item" href="#product-overview">
+        <span class="toc-num">02</span>
+        <span class="toc-label">Product Overview</span>
+      </a>
+      <a class="toc-item" href="#architecture">
+        <span class="toc-num">03</span>
+        <span class="toc-label">System Architecture</span>
+      </a>
+      <a class="toc-item" href="#modules-overview">
+        <span class="toc-num">04</span>
+        <span class="toc-label">Modules Overview</span>
+      </a>
+      <a class="toc-item" href="#itsm">
+        <span class="toc-num">05</span>
+        <span class="toc-label">IT Support (ITSM)</span>
+      </a>
+      <a class="toc-item" href="#hr-services">
+        <span class="toc-num">06</span>
+        <span class="toc-label">HR Services</span>
+      </a>
+      <a class="toc-item" href="#finance">
+        <span class="toc-num">07</span>
+        <span class="toc-label">Group Finance</span>
+      </a>
+      <a class="toc-item" href="#crm">
+        <span class="toc-num">08</span>
+        <span class="toc-label">CRM</span>
+      </a>
+      <a class="toc-item" href="#credit">
+        <span class="toc-num">09</span>
+        <span class="toc-label">Credit Assessment</span>
+      </a>
+      <a class="toc-item" href="#workflow-engine">
+        <span class="toc-num">10</span>
+        <span class="toc-label">Workflow Engine</span>
+      </a>
+      <a class="toc-item" href="#roles">
+        <span class="toc-num">11</span>
+        <span class="toc-label">Roles &amp; Permissions</span>
+      </a>
+      <a class="toc-item" href="#mobile">
+        <span class="toc-num">12</span>
+        <span class="toc-label">Mobile &amp; Accessibility</span>
+      </a>
+      <a class="toc-item" href="#ai-features">
+        <span class="toc-num">13</span>
+        <span class="toc-label">AI Features</span>
+      </a>
+      <a class="toc-item" href="#security">
+        <span class="toc-num">14</span>
+        <span class="toc-label">Security</span>
+      </a>
+      <a class="toc-item" href="#reporting">
+        <span class="toc-num">15</span>
+        <span class="toc-label">Reporting &amp; Analytics</span>
+      </a>
+      <a class="toc-item" href="#api">
+        <span class="toc-num">16</span>
+        <span class="toc-label">API Reference</span>
+      </a>
+      <a class="toc-item" href="#deployment">
+        <span class="toc-num">17</span>
+        <span class="toc-label">Deployment</span>
+      </a>
+      <a class="toc-item" href="#readiness">
+        <span class="toc-num">18</span>
+        <span class="toc-label">Readiness Checklist</span>
+      </a>
+      <a class="toc-item" href="#golive">
+        <span class="toc-num">19</span>
+        <span class="toc-label">Go-Live Plan</span>
+      </a>
+      <a class="toc-item" href="#support">
+        <span class="toc-num">20</span>
+        <span class="toc-label">Support &amp; Maintenance</span>
+      </a>
+      <a class="toc-item" href="#appendix">
+        <span class="toc-num">21</span>
+        <span class="toc-label">Appendix</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════
+       EXECUTIVE SUMMARY
+  ════════════════════════════════════ -->
+  <section id="exec-summary" class="doc-section">
+    <div class="section-header">
+      <div class="section-eyebrow">Section 01</div>
+      <h2 class="section-title">Executive Summary</h2>
+      <p class="section-desc">A high-level overview of CWC's purpose, value proposition, and strategic impact.</p>
+    </div>
+
+    <p>
+      <strong>Citadel Workplace Connect (CWC)</strong> is Citadel Group's unified Enterprise Service Management platform, purpose-built to consolidate fragmented service delivery channels — spanning IT Support, HR Services, Group Finance operations, Customer Relationship Management, and Credit Assessment — into a single, governed, and intelligent portal. Replacing a patchwork of email threads, spreadsheets, and disconnected ticketing systems, CWC establishes a consistent request-to-resolution lifecycle for every internal and customer-facing service interaction.
+    </p>
+    <p>
+      Version 2.2 (May 2026) marks the platform's transition from departmental pilot to enterprise-wide rollout. The platform now serves all Citadel Group subsidiaries under a multi-tenant architecture, with role-based access control (RBAC) that ensures sensitive workflows — such as executive compensation reviews, credit underwriting, and employee leave-of-absence processing — are surfaced only to authorized personnel. Service Level Agreement (SLA) enforcement, automated escalation rules, and real-time agent dashboards have been fully operationalized, reducing average ticket resolution time by an estimated 40% compared to the legacy approach.
+    </p>
+    <p>
+      CWC is built on a modern, cloud-ready technology stack: a <strong>React 19</strong> single-page application frontend, a <strong>Node.js / Express</strong> REST API backend, <strong>PostgreSQL</strong> as the primary data store managed through the Prisma ORM, JWT-based stateless authentication, and Redis for session caching and real-time pub/sub. The system is designed for horizontal scalability and can be deployed on-premises or on any major cloud provider. All inter-service communications are secured with HTTPS and protected by a configurable middleware stack including rate limiting, CORS, and security headers.
+    </p>
+    <p>
+      This document serves as the authoritative product reference for all stakeholders — including Technology Division engineers, business process owners, compliance officers, and senior management. It covers system architecture, module-by-module functional specifications, workflow logic, security controls, API design, deployment procedures, and go-live readiness criteria. Readers looking for a quick orientation should review the <a href="#product-overview" style="color:#1e40af;">Product Overview</a> and <a href="#modules-overview" style="color:#1e40af;">Modules Overview</a> sections before diving into detailed module chapters.
+    </p>
+
+    <div class="info-box">
+      <p><strong>Document scope:</strong> This document covers CWC version 2.2 as deployed in the Citadel Group production environment. Features marked <span class="badge badge-amber">Planned</span> are scheduled for v2.3 and beyond. All API endpoints and data models reflect the current production schema.</p>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════
+       PRODUCT OVERVIEW
+  ════════════════════════════════════ -->
+  <section id="product-overview" class="doc-section">
+    <div class="section-header">
+      <div class="section-eyebrow">Section 02</div>
+      <h2 class="section-title">Product Overview</h2>
+      <p class="section-desc">What CWC is, the problems it solves, and the value it delivers to Citadel Group.</p>
+    </div>
+
+    <p>
+      CWC is a <strong>multi-module service desk and workflow automation platform</strong> that provides employees, agents, and administrators with a unified interface to raise, track, approve, and resolve service requests across five operational domains. It operates as both an internal helpdesk (for IT and HR) and an externally-facing workflow engine (for CRM and credit operations), making it the operational backbone of Citadel Group's service delivery infrastructure.
+    </p>
+
+    <h3 class="subsection-title">Core Objectives</h3>
+    <ul>
+      <li><strong>Unify service delivery</strong> — single portal replaces email, WhatsApp, and ad-hoc spreadsheets for all service requests.</li>
+      <li><strong>Enforce governance</strong> — structured approval chains, SLA timers, and audit trails on every request lifecycle.</li>
+      <li><strong>Reduce resolution time</strong> — smart routing, agent workload visibility, and automated escalation eliminate bottlenecks.</li>
+      <li><strong>Enable data-driven operations</strong> — built-in reporting dashboards surface request volumes, SLA compliance rates, and team performance metrics.</li>
+      <li><strong>Scale with the organization</strong> — modular architecture allows new service domains to be onboarded without rearchitecting the platform.</li>
+    </ul>
+
+    <h3 class="subsection-title">Key Benefits</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">🎯</div>
+        <div class="card-title">Single Pane of Glass</div>
+        <div class="card-body">All service requests — IT, HR, Finance, CRM, and Credit — are managed from one portal with consistent UX patterns and real-time status tracking.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">⚡</div>
+        <div class="card-title">SLA-Driven Accountability</div>
+        <div class="card-body">Configurable SLA hours per request type with automatic escalation rules ensure that no ticket is silently dropped or forgotten.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon sky">🔒</div>
+        <div class="card-title">Fine-Grained Access Control</div>
+        <div class="card-body">Permission-based RBAC with Redis-cached role lookups ensures sensitive workflows (compensation, credit) are only accessible to authorized users.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">🤖</div>
+        <div class="card-title">AI-Assisted Insights</div>
+        <div class="card-body">CRM module includes AI insight cards for customer profiles. Knowledge base surfacing and smart categorization are planned for v2.3.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">📊</div>
+        <div class="card-title">Real-Time Dashboards</div>
+        <div class="card-body">Server-Sent Events (SSE) power live notifications. Agent dashboards show live queue depth, unread counts, and SLA breach warnings.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon rose">🔗</div>
+        <div class="card-title">Extensible API</div>
+        <div class="card-body">RESTful API under <code>/api/v1</code> with consistent envelope responses allows third-party integrations, reporting tools, and future mobile apps to connect.</div>
+      </div>
+    </div>
+
+    <h3 class="subsection-title">Platform Modules at a Glance</h3>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Module</th>
+            <th>Primary Users</th>
+            <th>Service Categories</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>IT Support (ITSM)</strong></td>
+            <td>All employees, IT agents</td>
+            <td>5 categories (Get IT Help, Email Management, Report System Problem, Software Installation, Request New Hardware)</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td><strong>HR Services</strong></td>
+            <td>All employees, HR agents, managers</td>
+            <td>Question for HR, New Hiring, Onboarding, Offboarding</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td><strong>Group Finance</strong></td>
+            <td>Finance teams, department heads</td>
+            <td>4 categories (Purchase Requisition, Inter-Company Chargeback, Budget Proposal, Expense Claims)</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td><strong>CRM</strong></td>
+            <td>Sales agents, account managers</td>
+            <td>Customer profiles, interactions, AI insights</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td><strong>Credit Assessment</strong></td>
+            <td>Credit officers, underwriters</td>
+            <td>Loan applications, scoring, approval workflows</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════
+       SYSTEM ARCHITECTURE
+  ════════════════════════════════════ -->
+  <section id="architecture" class="doc-section">
+    <div class="section-header">
+      <div class="section-eyebrow">Section 03</div>
+      <h2 class="section-title">System Architecture</h2>
+      <p class="section-desc">High-level architectural components, technology stack, and platform infrastructure design.</p>
+    </div>
+
+    <p>
+      CWC follows a <strong>monorepo, layered monolith</strong> architecture with clear separation between the frontend presentation layer, the REST API backend, and the data persistence tier. While both the frontend and backend currently reside in the same repository for developer convenience, they are independently deployable units — the React SPA is served as static assets via a CDN or web server, while the Node.js API runs as a containerized service.
+    </p>
+
+    <h3 class="subsection-title">High-Level Architecture Layers</h3>
+    <div class="layer-stack">
+      <div class="layer layer-1">
+        <div class="layer-label">Presentation</div>
+        <div class="layer-content">
+          <div>React 19 Single-Page Application (Vite build)</div>
+          <div class="layer-tech">React Router v7 · Axios · TailwindCSS · Context API for auth state</div>
+        </div>
+      </div>
+      <div class="layer layer-2">
+        <div class="layer-label">API Gateway</div>
+        <div class="layer-content">
+          <div>Express.js REST API — <code>/api/v1</code> prefix</div>
+          <div class="layer-tech">Helmet · CORS · Body-parser · Compression · Morgan · Rate-limiter</div>
+        </div>
+      </div>
+      <div class="layer layer-3">
+        <div class="layer-label">Business Logic</div>
+        <div class="layer-content">
+          <div>Domain Services — one service file per domain area</div>
+          <div class="layer-tech">Workflow engine · SLA service · Escalation service · Email service · Entity routing · Notification service</div>
+        </div>
+      </div>
+      <div class="layer layer-4">
+        <div class="layer-label">Auth &amp; Cache</div>
+        <div class="layer-content">
+          <div>Passport-JWT authentication · Redis session &amp; permission cache</div>
+          <div class="layer-tech">JWT (stateless) · bcrypt password hashing · Redis (5-min RBAC TTL) · SSE push notifications</div>
+        </div>
+      </div>
+      <div class="layer layer-5">
+        <div class="layer-label">Data Persistence</div>
+        <div class="layer-content">
+          <div>PostgreSQL primary database managed via Prisma ORM</div>
+          <div class="layer-tech">Prisma migrations · Prisma Studio · Seed scripts · Relational schema</div>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="subsection-title">Technology Stack</h3>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>Technology</th>
+            <th>Version / Notes</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Frontend Framework</td>
+            <td><strong>React</strong></td>
+            <td>v19</td>
+            <td>Component-based UI, concurrent rendering</td>
+          </tr>
+          <tr>
+            <td>Frontend Build Tool</td>
+            <td><strong>Vite</strong></td>
+            <td>Latest stable</td>
+            <td>Fast HMR, optimized production bundles</td>
+          </tr>
+          <tr>
+            <td>Frontend Routing</td>
+            <td><strong>React Router</strong></td>
+            <td>v7</td>
+            <td>Client-side routing, nested routes</td>
+          </tr>
+          <tr>
+            <td>HTTP Client</td>
+            <td><strong>Axios</strong></td>
+            <td>—</td>
+            <td>API calls, interceptors for JWT injection</td>
+          </tr>
+          <tr>
+            <td>Backend Runtime</td>
+            <td><strong>Node.js + TypeScript</strong></td>
+            <td>tsx watch (dev)</td>
+            <td>Server-side API, background services</td>
+          </tr>
+          <tr>
+            <td>Backend Framework</td>
+            <td><strong>Express.js</strong></td>
+            <td>v4 (^4.21.2)</td>
+            <td>HTTP server, middleware chain, routing</td>
+          </tr>
+          <tr>
+            <td>ORM</td>
+            <td><strong>Prisma</strong></td>
+            <td>Latest stable</td>
+            <td>Type-safe DB access, migrations, schema management</td>
+          </tr>
+          <tr>
+            <td>Database</td>
+            <td><strong>PostgreSQL</strong></td>
+            <td>14+</td>
+            <td>Primary relational data store</td>
+          </tr>
+          <tr>
+            <td>Cache / Pub-Sub</td>
+            <td><strong>Redis</strong></td>
+            <td>—</td>
+            <td>RBAC permission cache, SSE notification broker</td>
+          </tr>
+          <tr>
+            <td>Authentication</td>
+            <td><strong>Passport-JWT + bcrypt</strong></td>
+            <td>—</td>
+            <td>Stateless JWT auth, secure password hashing</td>
+          </tr>
+          <tr>
+            <td>Real-time</td>
+            <td><strong>Server-Sent Events (SSE)</strong></td>
+            <td><code>/api/v1/notifications/sse</code></td>
+            <td>Live notification push to browser clients</td>
+          </tr>
+          <tr>
+            <td>Email</td>
+            <td><strong>email.service.ts</strong></td>
+            <td>Nodemailer-compatible</td>
+            <td>Transactional email for approvals, alerts</td>
+          </tr>
+          <tr>
+            <td>Path Alias</td>
+            <td><strong>@</strong> → <code>frontend/</code></td>
+            <td>Vite alias</td>
+            <td>Clean imports across frontend codebase</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subsection-title">Backend Route Structure</h3>
+    <p>
+      All backend routes are mounted under the <code>/api/v1</code> prefix (configurable via the <code>API_PREFIX</code> environment variable). The central route registry at <code>backend/src/routes/index.ts</code> loads each domain sub-router. Every domain follows the pattern: <code>*.routes.ts</code> → <code>*.controller.ts</code> → <code>*.service.ts</code>, providing a consistent, layered separation of concerns.
+    </p>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Route Prefix</th>
+            <th>Domain</th>
+            <th>Key Endpoints</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>/api/v1/auth</code></td>
+            <td>Authentication</td>
+            <td>Login, register, token refresh, profile</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/requests</code></td>
+            <td>Service Requests (all modules)</td>
+            <td>CRUD, status update, file upload, assignment</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/approvals</code></td>
+            <td>Approval Workflows</td>
+            <td>Submit approval, reject, escalate, history</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/sla</code></td>
+            <td>SLA &amp; Escalation</td>
+            <td>SLA config CRUD, escalation rules, check trigger</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/notifications/sse</code></td>
+            <td>Real-time Notifications</td>
+            <td>SSE stream, mark read, templates</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/assets</code></td>
+            <td>IT Asset Management</td>
+            <td>Asset registry, assignment tracking, lifecycle</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/reports</code></td>
+            <td>Reporting</td>
+            <td>Volume reports, SLA compliance, team metrics</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/kb</code></td>
+            <td>Knowledge Base <span class="badge badge-amber" style="vertical-align:middle;margin-left:4px;">Coming Soon</span></td>
+            <td>Article CRUD, search, category management</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/crm</code></td>
+            <td>CRM</td>
+            <td>Customer profiles, interactions, AI insights</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/credit</code></td>
+            <td>Credit Assessment</td>
+            <td>Applications, scoring, underwriting workflow</td>
+          </tr>
+          <tr>
+            <td><code>/api/v1/users</code></td>
+            <td>User Management</td>
+            <td>User CRUD, role assignment, team management</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subsection-title">Security Architecture Overview</h3>
+    <p>
+      Security is enforced at multiple levels of the stack. The middleware pipeline applies security controls before any request reaches business logic, while RBAC enforcement happens per-route using the <code>requirePermission()</code> middleware decorator.
+    </p>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">🛡️</div>
+        <div class="card-title">Transport Security</div>
+        <div class="card-body">All traffic served over HTTPS/TLS. Helmet middleware sets strict security headers including CSP, HSTS, X-Frame-Options, and X-Content-Type-Options.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon sky">🔑</div>
+        <div class="card-title">Authentication</div>
+        <div class="card-body">Stateless JWT tokens signed with a server secret. Passwords hashed with bcrypt (cost factor 12). Token expiry enforced; refresh flow supported.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">👤</div>
+        <div class="card-title">Authorization (RBAC)</div>
+        <div class="card-body">Fine-grained permissions loaded per user on login, cached in Redis with a 5-minute TTL. <code>requirePermission()</code> guards every sensitive route.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">🚦</div>
+        <div class="card-title">Rate Limiting</div>
+        <div class="card-body">Express rate-limiter middleware caps requests per IP and per authenticated user, preventing brute-force and denial-of-service attacks.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">🌐</div>
+        <div class="card-title">CORS Policy</div>
+        <div class="card-body">Explicit CORS configuration allowlists only approved frontend origins. Credentials (cookies/auth headers) are restricted to allowlisted domains.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon rose">📋</div>
+        <div class="card-title">Audit Trail</div>
+        <div class="card-body">All request state changes — approvals, rejections, escalations, reassignments — are logged with actor identity, timestamp, and before/after state.</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      <p><strong>Infrastructure note:</strong> CWC is designed to run in containerized environments (Docker / Kubernetes). The backend listens on port 3000 and the frontend dev server on port 5173. In production, both are proxied behind a reverse proxy (nginx or equivalent). Database connection strings, JWT secrets, Redis URLs, and SMTP credentials are injected via environment variables — never hardcoded.</p>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       MODULE OVERVIEW
+  ============================================================ -->
+  <section id="modules-overview" class="doc-section">
+    <div class="section-header">
+      <div class="section-eyebrow">Section 04</div>
+      <h2 class="section-title">Module Overview</h2>
+      <p class="section-desc">CWC organises its capabilities into eight functional module groups — five operational domain modules plus three cross-cutting platform modules.</p>
+    </div>
+    <p>
+      CWC is organized into eight functional module groups, each serving a distinct organizational domain. The five operational domain modules (ITSM Core, HR Services, Group Finance, CRM, Credit Assessment) handle request lifecycles, while IT Asset Management, Reporting/Analytics, and Administration &amp; Config provide cross-cutting platform capabilities.
+    </p>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Module Group</th>
+            <th>Purpose</th>
+            <th>Key Users</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td><strong>ITSM Core</strong></td>
+            <td>Incident management, service requests, knowledge base <span class="badge badge-amber" style="vertical-align:middle;margin-left:4px;">Coming Soon</span>, SLA &amp; escalation</td>
+            <td>End Users, IT Agents, IT Admin</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><strong>HR Services</strong></td>
+            <td>New hiring, leave of absence, onboarding, offboarding workflows</td>
+            <td>HR Team, Line Managers, Employees</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><strong>Group Finance</strong></td>
+            <td>Purchase requisitions, inter-company chargebacks, budget proposals, expense claims</td>
+            <td>Finance Team, Department Heads, Admin</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><strong>CRM</strong></td>
+            <td>Lead tracking, customer management, sales pipeline, AI-powered recommendations</td>
+            <td>Sales Team, Account Managers, CRM Admin</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><strong>Credit Assessment</strong></td>
+            <td>Credit application processing, financial spreading, scorecard, committee review</td>
+            <td>Credit Analysts, Credit Manager, Committee Members</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td><strong>IT Asset Management (ITAM)</strong></td>
+            <td>Asset registry, assignment tracking, lifecycle management</td>
+            <td>IT Agents, IT Admin, End Users</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td><strong>Reporting &amp; Analytics</strong></td>
+            <td>Operational dashboards, SLA compliance reports, cross-domain metrics</td>
+            <td>Admins, Department Heads, Executives</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+          <tr>
+            <td>8</td>
+            <td><strong>Administration &amp; Config</strong></td>
+            <td>User management, RBAC, notification templates, routing rules</td>
+            <td>System Admins</td>
+            <td><span class="badge badge-green">Live</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">🖥️</div>
+        <div class="card-title">ITSM Core</div>
+        <div class="card-body">End-to-end IT incident and service request lifecycle with SLA enforcement, knowledge base self-service <span class="badge badge-amber" style="vertical-align:middle;margin-left:4px;">Coming Soon</span>, and automatic escalation rules.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">👥</div>
+        <div class="card-title">HR Services</div>
+        <div class="card-body">Structured HR workflows covering the full employee journey — from recruitment screening through onboarding, leave management, and offboarding.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">💰</div>
+        <div class="card-title">Group Finance</div>
+        <div class="card-body">Controlled financial request flows for purchase requisitions, inter-company chargebacks, budget proposals, and expense claims, with multi-level approvals and full audit trail for compliance.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">📊</div>
+        <div class="card-title">CRM</div>
+        <div class="card-body">Customer relationship management with lead pipeline tracking, activity logging, and AI-generated insights to prioritize sales efforts.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon red">🏦</div>
+        <div class="card-title">Credit Assessment</div>
+        <div class="card-body">End-to-end credit application processing with document collection, financial spreading, weighted scorecard, and committee review with full audit trail.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon sky">🔧</div>
+        <div class="card-title">IT Asset Management</div>
+        <div class="card-body">Centralized asset registry tracking hardware and software across their full lifecycle — procurement, assignment, maintenance, and retirement.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon rose">📈</div>
+        <div class="card-title">Reporting &amp; Analytics</div>
+        <div class="card-body">Real-time dashboards and scheduled reports covering SLA performance, ticket volumes, resolution rates, and cross-module KPIs.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">⚙️</div>
+        <div class="card-title">Administration &amp; Config</div>
+        <div class="card-body">Centralized control panel for user management, RBAC configuration, notification templates, SLA rules, and entity routing rules.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       ITSM CORE MODULES
+  ============================================================ -->
+  <section id="itsm" class="doc-section">
+    <h2 class="section-title">ITSM Core Modules</h2>
+    <p>
+      The ITSM Core is the foundation of CWC's IT Support service desk. It implements ITIL-aligned practices for incident management and service request fulfillment, backed by a knowledge base for self-service resolution <span class="badge badge-amber" style="vertical-align:middle;margin-left:4px;">Coming Soon</span> and a configurable SLA engine with automatic escalation.
+    </p>
+
+    <!-- Incident Management -->
+    <h3 class="subsection-title">Incident Management</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Restore normal service operation as quickly as possible following an unplanned interruption, minimizing business impact and ensuring traceability from detection through resolution.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">📋</div>
+        <div class="card-title">Key Features</div>
+        <div class="card-body">
+          <ul>
+            <li>Multi-priority triage (P1–P4) with automatic SLA assignment</li>
+            <li>Category-based routing to the correct IT agent or team</li>
+            <li>Real-time SSE notifications for status changes</li>
+            <li>Agent reassignment and escalation with audit log</li>
+            <li>Resolution notes and customer satisfaction rating</li>
+            <li>Linked knowledge base articles for first-call resolution <span class="badge badge-amber" style="vertical-align:middle;margin-left:4px;">Coming Soon</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon sky">🗂️</div>
+        <div class="card-title">IT Support Categories</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Get IT Help</strong> — general IT assistance and support requests</li>
+            <li><strong>Email Management</strong> — email account setup, configuration, and troubleshooting</li>
+            <li><strong>Report System Problem</strong> — system outages, bugs, and performance issues</li>
+            <li><strong>Software Installation</strong> — request installation of software or applications</li>
+            <li><strong>Request New Hardware</strong> — request new hardware such as laptops, monitors, or peripherals</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon red">⏱️</div>
+        <div class="card-title">Priority &amp; SLA Targets</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>P1 Critical</strong> — Response 15 min · Resolution 4 hrs</li>
+            <li><strong>P2 High</strong> — Response 30 min · Resolution 8 hrs</li>
+            <li><strong>P3 Medium</strong> — Response 2 hrs · Resolution 24 hrs</li>
+            <li><strong>P4 Low</strong> — Response 4 hrs · Resolution 72 hrs</li>
+          </ul>
+          <p style="margin-top:0.5rem;font-size:0.8rem;color:#6b7280;">SLA clock pauses when status is <em>Pending User</em> and resumes on user reply.</p>
+        </div>
+      </div>
+    </div>
+
+    <h4 style="color:#1e40af;margin:1.5rem 0 0.75rem;">Incident Workflow Steps</h4>
+    <ol style="line-height:2;color:#374151;padding-left:1.5rem;">
+      <li><strong>User Submission</strong> — End user opens a new ticket via the Help Center portal, selecting category and providing description.</li>
+      <li><strong>Auto-Triage</strong> — System assigns a priority (P1–P4) based on category defaults; agent may override.</li>
+      <li><strong>SLA Clock Starts</strong> — SLA timer begins immediately on ticket creation.</li>
+      <li><strong>Routing</strong> — Entity routing service assigns ticket to the appropriate IT agent or team queue.</li>
+      <li><strong>Agent Acknowledgement</strong> — Agent claims or is assigned the ticket; status moves to <em>In Progress</em>.</li>
+      <li><strong>Investigation &amp; Action</strong> — Agent works the issue, may request additional info from the user (status: <em>Pending User</em>, SLA paused).</li>
+      <li><strong>Resolution</strong> — Agent documents resolution steps and marks ticket <em>Resolved</em>.</li>
+      <li><strong>Closure</strong> — User confirms resolution or system auto-closes after configured hold period; CSAT survey triggered.</li>
+    </ol>
+
+    <div class="table-container" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr><th>Role</th><th>Responsibilities</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>End User</td><td>Submit tickets, provide information, confirm resolution</td></tr>
+          <tr><td>IT Agent</td><td>Triage, investigate, resolve incidents, update status</td></tr>
+          <tr><td>IT Admin</td><td>Reassign tickets, manage queues, override priority, view all incidents</td></tr>
+          <tr><td>System (Automated)</td><td>SLA tracking, escalation triggers, SSE notifications, auto-close</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-container" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr><th>Priority</th><th>Description</th><th>Response SLA</th><th>Resolution SLA</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="badge badge-red">P1 Critical</span></td><td>Complete service outage affecting multiple users</td><td>15 minutes</td><td>4 hours</td></tr>
+          <tr><td><span class="badge" style="background:#fef3c7;color:#92400e;">P2 High</span></td><td>Significant degradation, one user fully blocked</td><td>30 minutes</td><td>8 hours</td></tr>
+          <tr><td><span class="badge badge-blue">P3 Medium</span></td><td>Partial impact, workaround available</td><td>2 hours</td><td>24 hours</td></tr>
+          <tr><td><span class="badge badge-green">P4 Low</span></td><td>Minor issue, no business-critical impact</td><td>4 hours</td><td>72 hours</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Service Request -->
+    <h3 class="subsection-title" style="margin-top:2.5rem;">Service Request</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Fulfill standard, pre-approved IT requests (software installs, access grants, hardware loans) through a defined catalog with predictable delivery timelines.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon green">✅</div>
+        <div class="card-title">Key Features</div>
+        <div class="card-body">
+          <ul>
+            <li>Service catalog with category-specific intake forms</li>
+            <li>Manager approval gate for access and provisioning requests</li>
+            <li>Automated fulfillment tasks assigned to agent</li>
+            <li>Status tracking visible to requester throughout</li>
+            <li>Linked ITAM record creation on hardware requests</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">⚙️</div>
+        <div class="card-title">Common Request Types</div>
+        <div class="card-body">
+          <ul>
+            <li>New software installation / license provisioning</li>
+            <li>User account creation or deactivation</li>
+            <li>VPN / remote access setup</li>
+            <li>Hardware loan or replacement</li>
+            <li>Email alias or distribution list changes</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon blue">🔄</div>
+        <div class="card-title">Fulfilment Workflow</div>
+        <div class="card-body">
+          <ol style="padding-left:1rem;margin:0;line-height:1.9;">
+            <li><strong>Catalog Selection</strong> — User selects a service category and fills the structured request form</li>
+            <li><strong>Approval Gate</strong> — Privileged access or hardware requests route to line manager for approval</li>
+            <li><strong>Fulfilment Assignment</strong> — Approved request assigned to the responsible IT agent</li>
+            <li><strong>Fulfilment</strong> — Agent completes the action and documents steps taken</li>
+            <li><strong>Delivery Confirmation</strong> — User notified and confirms receipt to close request</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+
+    <!-- Knowledge Base -->
+    <h3 class="subsection-title" style="margin-top:2.5rem;">Knowledge Base <span class="badge badge-amber" style="vertical-align:middle;margin-left:6px;">Coming Soon</span></h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Empower users to resolve common issues independently through a searchable repository of articles, FAQs, and how-to guides, reducing ticket volume and agent workload.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon purple">📚</div>
+        <div class="card-title">Key Features</div>
+        <div class="card-body">
+          <ul>
+            <li>Full-text search across all articles</li>
+            <li>Category tagging aligned with IT Support categories</li>
+            <li>Rich-text authoring for IT Agents and Admins</li>
+            <li>Article helpfulness voting (thumbs up / down)</li>
+            <li>Related article suggestions on ticket creation</li>
+            <li>View count analytics to identify high-demand topics</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon sky">🔍</div>
+        <div class="card-title">Self-Service Flow</div>
+        <div class="card-body">
+          <ol style="padding-left:1rem;margin:0;">
+            <li>User enters issue description in Help Center search</li>
+            <li>System surfaces matching KB articles</li>
+            <li>User reads article and attempts self-resolution</li>
+            <li>If unresolved, user proceeds to raise a ticket</li>
+            <li>Agent may attach KB link in ticket response</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">✍️</div>
+        <div class="card-title">Content Management</div>
+        <div class="card-body">
+          <ul>
+            <li>IT Agents and Admins author and publish articles via rich-text editor</li>
+            <li>Articles tagged to IT Support categories for accurate surfacing</li>
+            <li>Helpfulness votes (👍 / 👎) flag articles for review or retirement</li>
+            <li>View count analytics highlight high-demand topics for prioritisation</li>
+            <li>Related article suggestions automatically linked on ticket creation</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLA Management -->
+    <h3 class="subsection-title" style="margin-top:2.5rem;">SLA Management</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Guarantee measurable service quality by tracking resolution timelines, automatically escalating breached or at-risk tickets, and providing compliance reporting to management.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon rose">⏱️</div>
+        <div class="card-title">Key Features</div>
+        <div class="card-body">
+          <ul>
+            <li>Per-priority SLA hours configurable in Admin panel</li>
+            <li>SLA pause/resume when ticket is in <em>Pending User</em> state</li>
+            <li>Escalation rules with configurable breach thresholds</li>
+            <li>Automatic notifications to agent and supervisor at 75% and 100% SLA consumption</li>
+            <li>SLA compliance dashboard with breach rate trends</li>
+            <li>Business-hours mode support (excludes weekends/holidays)</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">🚨</div>
+        <div class="card-title">Escalation Engine</div>
+        <div class="card-body">
+          <ul>
+            <li><code>EscalationRule</code> model: threshold %, target role, action (notify / reassign / escalate priority)</li>
+            <li><code>checkEscalations()</code> service runs on a schedule to evaluate all open tickets</li>
+            <li>Escalation events are logged in the audit trail</li>
+            <li>Escalated tickets surface in the agent's priority queue</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon rose">📊</div>
+        <div class="card-title">SLA Thresholds</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>P1 Critical</strong> — Response 15 min · Resolution 4 h · Escalate at 3 h</li>
+            <li><strong>P2 High</strong> — Response 30 min · Resolution 8 h · Escalate at 6 h</li>
+            <li><strong>P3 Medium</strong> — Response 2 h · Resolution 24 h · Escalate at 18 h</li>
+            <li><strong>P4 Low</strong> — Response 4 h · Resolution 72 h · Escalate at 54 h</li>
+          </ul>
+          <p style="margin-top:0.5rem;font-size:0.8rem;color:#6b7280;">Supervisor notified at P1/P2 breach; team lead notified at P3/P4 breach.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-container" style="margin-top:1.5rem;">
+      <table>
+        <thead>
+          <tr><th>Priority</th><th>Response</th><th>Resolution</th><th>First Escalation (75%)</th><th>Breach Escalation (100%)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="badge badge-red">P1</span></td><td>15 min</td><td>4 h</td><td>3 h</td><td>4 h → supervisor notified</td></tr>
+          <tr><td><span class="badge" style="background:#fef3c7;color:#92400e;">P2</span></td><td>30 min</td><td>8 h</td><td>6 h</td><td>8 h → supervisor notified</td></tr>
+          <tr><td><span class="badge badge-blue">P3</span></td><td>2 h</td><td>24 h</td><td>18 h</td><td>24 h → team lead notified</td></tr>
+          <tr><td><span class="badge badge-green">P4</span></td><td>4 h</td><td>72 h</td><td>54 h</td><td>72 h → team lead notified</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       HR SERVICES MODULE
+  ============================================================ -->
+  <section id="hr-services" class="doc-section">
+    <h2 class="section-title">HR Services Module</h2>
+    <p>
+      The HR Services module provides structured digital workflows for the core HR processes in CWC. Each workflow enforces role-based approvals, generates automated notifications, and maintains a full audit trail. HR reference numbers follow the format <code>HR-&lt;n&gt;</code> (e.g. HR-1, HR-2).
+    </p>
+
+    <!-- Question for HR -->
+    <h3 class="subsection-title">Workflow 1 — Question for HR</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Provide employees with a direct, tracked channel for submitting HR-related queries — covering policy clarifications, payroll questions, benefits enquiries, and general HR matters — with guaranteed response SLA and full audit trail.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon amber">💬</div>
+        <div class="card-title">Process Steps</div>
+        <div class="card-body">
+          <ol style="padding-left:1rem;margin:0;line-height:1.9;">
+            <li><strong>Employee Submission</strong> — Employee submits a question with subject, category, and description; reference number issued (HR-&lt;n&gt;)</li>
+            <li><strong>HR Agent Assignment</strong> — Request routed to the HR queue; an HR agent picks up or is assigned the ticket</li>
+            <li><strong>Investigation / Research</strong> — HR agent reviews policy, consults records, or escalates internally as needed</li>
+            <li><strong>Response &amp; Resolution</strong> — HR agent posts a resolution reply on the ticket; employee notified via SSE and email</li>
+            <li><strong>Closure</strong> — Request closed once employee confirms resolution or SLA closure window lapses</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon sky">📋</div>
+        <div class="card-title">Roles &amp; Notifications</div>
+        <div class="card-body">
+          <div class="table-container" style="margin:0;">
+            <table style="margin:0;">
+              <thead><tr><th>Role</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr><td>Employee</td><td>Submit question, review response, confirm resolution</td></tr>
+                <tr><td>HR Agent</td><td>Triage, investigate, respond, close ticket</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:0.75rem;font-size:0.85rem;color:#6b7280;"><strong>Notifications:</strong> Submission confirmation → Employee; Assignment → HR Agent; Response posted → Employee; Closure → Employee.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">📂</div>
+        <div class="card-title">Query Categories</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Policy &amp; Compliance</strong> — Leave entitlements, code of conduct, HR policies</li>
+            <li><strong>Payroll &amp; Benefits</strong> — Payslip queries, claims, insurance, allowances</li>
+            <li><strong>Employment Records</strong> — Contract amendments, letters, employment verification</li>
+            <li><strong>General HR</strong> — Any other HR-related enquiry not covered above</li>
+          </ul>
+          <p style="margin-top:0.5rem;font-size:0.8rem;color:#6b7280;"><strong>SLA:</strong> First response within 1 business day; full resolution within 3 business days.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- New Hiring -->
+    <h3 class="subsection-title" style="margin-top:2.5rem;">Workflow 2 — New Hiring</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Manage the full recruitment lifecycle from job requisition through offer acceptance, including executive approval chain, structured interview scheduling, reference checking, and Letter of Acceptance (LOA) processing — with automatic onboarding workflow creation upon hire completion.</p>
+    </div>
+
+    <h4 class="subsection-title" style="font-size:1rem;margin-top:1.5rem;">Process Steps</h4>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">
+      <ol style="padding-left:1.25rem;margin:0;line-height:2;">
+        <li><strong>New Hiring Request Submitted</strong> — HR creates the job requisition with role details, department, and hiring manager; reference number issued (HR-<n>)</li>
+        <li><strong>CEO Approval</strong> — Request routes to CEO for approval of the headcount and budget (status: <code>PENDING_CEO_APPROVAL</code> → <code>CEO_APPROVED</code>); CEO may reject back to HR</li>
+        <li><strong>Group CEO Approval</strong> — On CEO approval, request escalates to Group CEO for final executive sign-off (status: <code>PENDING_GROUP_CEO_APPROVAL</code> → <code>GROUP_CEO_APPROVED</code>); SLA paused during both executive approval stages</li>
+        <li><strong>Job Posted</strong> — Position is officially opened for candidate submissions</li>
+        <li><strong>Candidate Resumes</strong> — HR or candidates upload CVs/documents to the request record</li>
+            <li><strong>Manager Review</strong> — Hiring manager reviews candidates and approves for interview (status: <code>PENDING_MANAGER_REVIEW</code> → <code>MANAGER_APPROVED</code>)</li>
+        <li><strong>Interview Scheduling</strong> — HR schedules interview date, time, location/meeting link, and assigns interviewers (status: <code>INTERVIEW_SCHEDULED</code>)</li>
+        <li><strong>Interview Feedback</strong> — Interviewers submit structured feedback with PROCEED/REJECT decision (status: <code>INTERVIEW_FEEDBACK_PENDING</code>); if all reject, returns to <code>JOB_POSTED</code></li>
+        <li><strong>HR Reference Check</strong> — HR initiates reference screening; checks references and records PASS/FAIL (status: <code>HR_SCREENING</code>); background check is auto-passed</li>
+        <li><strong>LOA Upload &amp; Routing</strong> — HR uploads the Letter of Acceptance (LOA) document and routes to Hiring Manager for counter-signature (status: <code>LOA_PENDING_APPROVAL</code>; SLA paused)</li>
+        <li><strong>LOA Manager Approval</strong> — Hiring Manager approves or rejects the LOA (status: <code>LOA_APPROVED</code> or back to <code>HR_SCREENING</code>); SLA resumes on approval</li>
+        <li><strong>LOA Issued to Candidate</strong> — HR issues the approved LOA to the candidate (status: <code>LOA_ISSUED</code>)</li>
+        <li><strong>Signed LOA Returned</strong> — Candidate returns signed LOA; HR uploads the signed copy (status: <code>LOA_ACCEPTED</code>)</li>
+        <li><strong>Hiring Complete</strong> — HR marks LOA as accepted (status: <code>COMPLETED</code>); system <strong>automatically creates an Onboarding workflow</strong> for the new hire</li>
+      </ol>
+    </div>
+
+    <h4 class="subsection-title" style="font-size:1rem;margin-top:1.5rem;">Status Flow</h4>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem;">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:0.78rem;">
+        <span class="badge badge-blue">SUBMITTED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-amber">PENDING_CEO_APPROVAL</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-green">CEO_APPROVED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-amber">PENDING_GROUP_CEO_APPROVAL</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-green">GROUP_CEO_APPROVED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-blue">JOB_POSTED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-amber">PENDING_MANAGER_REVIEW</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-green">MANAGER_APPROVED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-blue">INTERVIEW_SCHEDULED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-slate">INTERVIEW_FEEDBACK_PENDING</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-purple">HR_SCREENING</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-amber">LOA_PENDING_APPROVAL</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-green">LOA_APPROVED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-blue">LOA_ISSUED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-green">LOA_ACCEPTED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-green">COMPLETED</span>
+      </div>
+      <p style="margin-top:0.75rem;font-size:0.78rem;color:#6b7280;"><strong>Rejection paths:</strong> CEO_REJECTED → back to SUBMITTED; GROUP_CEO_REJECTED → back to SUBMITTED; CANDIDATE_REJECTED_INTERVIEW → back to JOB_POSTED; LOA manager rejection → back to HR_SCREENING.</p>
+    </div>
+
+    <h4 class="subsection-title" style="font-size:1rem;margin-top:1.5rem;">Roles &amp; Approvals</h4>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">
+      <div class="table-container" style="margin:0;">
+        <table style="margin:0;">
+          <thead><tr><th>Role</th><th>Actions</th></tr></thead>
+          <tbody>
+            <tr><td>HR Agent</td><td>Create requisition, manage candidates, schedule interviews, upload LOA, process screening</td></tr>
+            <tr><td>CEO</td><td>Approve/reject headcount and budget requisition</td></tr>
+            <tr><td>Group CEO</td><td>Final executive sign-off on hiring approval</td></tr>
+            <tr><td>Hiring Manager</td><td>Review shortlist, approve interview results, approve/reject LOA</td></tr>
+            <tr><td>Interviewer</td><td>Submit structured feedback with PROCEED/REJECT decision</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:0.75rem;font-size:0.85rem;color:#6b7280;"><strong>Notifications:</strong> Approval request → CEO → Group CEO; Shortlist ready → Hiring Manager; Interview reminder → Interviewer (24h before); LOA approval request → Hiring Manager; Hire complete → HR &amp; Manager.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon sky">📄</div>
+        <div class="card-title">LOA (Letter of Acceptance) Detail</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>LOA Upload</strong> — HR uploads the LOA PDF after reference check passes</li>
+            <li><strong>Manager Approval</strong> — LOA routes to Hiring Manager for counter-signature; SLA is paused during this step</li>
+            <li><strong>LOA Issued</strong> — On approval, HR issues the LOA to the candidate</li>
+            <li><strong>Signed LOA Upload</strong> — Candidate returns signed LOA; HR uploads the signed copy to the system</li>
+            <li><strong>LOA Accepted</strong> — HR confirms acceptance; request completes and triggers Onboarding workflow auto-creation</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">📅</div>
+        <div class="card-title">SLA &amp; Pause Rules</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>CEO approval</strong> — SLA paused during <code>PENDING_CEO_APPROVAL</code></li>
+            <li><strong>Group CEO approval</strong> — SLA paused during <code>PENDING_GROUP_CEO_APPROVAL</code></li>
+            <li><strong>LOA approval</strong> — SLA paused during <code>LOA_PENDING_APPROVAL</code></li>
+            <li>SLA resumes automatically when exiting any paused status</li>
+            <li>Pauses are cumulative across consecutive approval stages</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-container" style="margin-top:20px;">
+      <table>
+        <thead><tr><th>Milestone</th><th>SLA Target</th></tr></thead>
+        <tbody>
+          <tr><td>CEO approval</td><td>2 business days</td></tr>
+          <tr><td>Group CEO approval</td><td>3 business days</td></tr>
+          <tr><td>Manager shortlist review</td><td>3 business days</td></tr>
+          <tr><td>Interview scheduling</td><td>5 business days after shortlist approval</td></tr>
+          <tr><td>Reference check</td><td>3 business days after interview feedback</td></tr>
+          <tr><td>LOA approval (Manager)</td><td>2 business days</td></tr>
+          <tr><td>LOA issued to candidate</td><td>1 business day after approval</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Onboarding -->
+    <h3 class="subsection-title" style="margin-top:2.5rem;">Workflow 3 — Onboarding</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Ensure new employees are fully set up — with accounts, equipment, orientation, and phased integration milestones — through a coordinated checklist across IT, HR, and the hiring department, tracking progress from pre-arrival through the first 3 months.</p>
+    </div>
+
+    <h4 class="subsection-title" style="font-size:1rem;margin-top:1.5rem;">Process Steps</h4>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">
+      <ol style="padding-left:1.25rem;margin:0;line-height:2;">
+        <li><strong>Onboarding Request Created</strong> — Auto-triggered when hiring request reaches LOA_ACCEPTED, or manually by HR; includes start date, department, role, employment type (status: <code>ONBOARDING_SUBMITTED</code>)</li>
+        <li><strong>HR Approval</strong> — HR reviews and approves the onboarding request details (status: <code>ONBOARDING_PENDING_HR_APPROVAL</code>)</li>
+        <li><strong>Pre-Arrival Setup</strong> — System creates default onboarding tasks from templates; HR assigns buddy; IT and HR agents begin provisioning tasks (status: <code>ONBOARDING_PRE_ARRIVAL_SETUP</code>)
+          <ul style="margin-top:0.25rem;">
+            <li>User account created (inactive until Day 1) with email, department, job title</li>
+            <li>IT tasks: AD/email account, laptop imaging, system access, VPN configuration</li>
+            <li>HR tasks: orientation scheduling, contract preparation, benefits enrollment</li>
+          </ul>
+        </li>
+        <li><strong>Hardware Assignment</strong> — IT Agent assigns laptop/phone; system auto-creates AssetAssignment record and updates ITAM status to <em>Assigned</em></li>
+        <li><strong>Ready for Day 1</strong> — All pre-arrival tasks confirmed complete; new hire account activated (status: <code>ONBOARDING_READY_FOR_DAY_1</code>)</li>
+        <li><strong>Day 1 Orientation</strong> — HR conducts orientation session; new hire receives equipment, meets team and buddy (status: <code>ONBOARDING_DAY_1_ORIENTATION</code>)</li>
+        <li><strong>Week 1 Integration</strong> — Hiring manager oversees team introductions, tool walkthroughs, initial training (status: <code>ONBOARDING_WEEK_1_INTEGRATION</code>)</li>
+        <li><strong>Month 1 / 2 / 3 Milestones</strong> — HR and manager track 30/60/90-day progress checkpoints (status: <code>ONBOARDING_MONTH_1_MILESTONE</code> → <code>MONTH_2</code> → <code>MONTH_3</code>)</li>
+        <li><strong>Onboarding Complete</strong> — All phases passed and all tasks marked complete; request closed (status: <code>ONBOARDING_COMPLETED</code>)</li>
+      </ol>
+    </div>
+
+    <h4 class="subsection-title" style="font-size:1rem;margin-top:1.5rem;">Status Flow</h4>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem;">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:0.78rem;">
+        <span class="badge badge-blue">ONBOARDING_SUBMITTED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-amber">PENDING_HR_APPROVAL</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-purple">PRE_ARRIVAL_SETUP</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-slate">READY_FOR_DAY_1</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-blue">DAY_1_ORIENTATION</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-green">WEEK_1_INTEGRATION</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-amber">MONTH_1</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-amber">MONTH_2</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-amber">MONTH_3</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-green">COMPLETED</span>
+      </div>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon purple">👤</div>
+        <div class="card-title">Roles &amp; Task Categories</div>
+        <div class="card-body">
+          <div class="table-container" style="margin:0;">
+            <table style="margin:0;">
+              <thead><tr><th>Role</th><th>Task Categories</th></tr></thead>
+              <tbody>
+                <tr><td>HR Agent</td><td>HR, ADMIN, TRAINING tasks; orientation, benefits, contract prep</td></tr>
+                <tr><td>IT Agent</td><td>IT tasks; account creation, equipment, access provisioning</td></tr>
+                <tr><td>Hiring Manager</td><td>Team intro, buddy assignment, milestone reviews</td></tr>
+                <tr><td>New Employee</td><td>Attend orientation, confirm equipment receipt, complete training</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:0.75rem;font-size:0.85rem;color:#6b7280;"><strong>Notifications:</strong> Onboarding created → IT &amp; Hiring Manager; Task due reminders → assigned agents; Milestone reached → HR &amp; Manager; Completion → all stakeholders.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon blue">✅</div>
+        <div class="card-title">Key Features</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Template-driven tasks</strong> — Onboarding tasks auto-generated from active OnboardingTaskTemplate records</li>
+            <li><strong>Phased milestones</strong> — Pre-Arrival → Day 1 → Week 1 → Month 1/2/3 progress tracking</li>
+            <li><strong>Buddy assignment</strong> — HR assigns a workplace buddy from the team</li>
+            <li><strong>Hardware assignment</strong> — Auto-creates AssetAssignment + updates ITAM record</li>
+            <li><strong>Progress tracking</strong> — Completion percentage calculated from task status</li>
+            <li><strong>Start date management</strong> — Admin/HR can update start date with audit trail</li>
+          </ul>
+          <p style="margin-top:0.5rem;font-size:0.8rem;color:#6b7280;"><strong>SLA:</strong> All provisioning tasks must complete at least <strong>1 business day</strong> before the employee start date.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Offboarding -->
+    <h3 class="subsection-title" style="margin-top:2.5rem;">Workflow 4 — Offboarding</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Safely and completely offboard departing employees — revoking all access, recovering assets, completing knowledge transfer, and processing exit procedures — through phased milestones from notice period to final exit, while maintaining compliance and data security.</p>
+    </div>
+
+    <h4 class="subsection-title" style="font-size:1rem;margin-top:1.5rem;">Process Steps</h4>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;">
+      <ol style="padding-left:1.25rem;margin:0;line-height:2;">
+        <li><strong>Offboarding Request Created</strong> — HR or manager submits offboarding request with employee details, last working day, and departure reason (status: <code>OFFBOARDING_SUBMITTED</code>)</li>
+        <li><strong>Notice Period</strong> — Employee works through notice period; HR uploads resignation letter; offboarding tasks generated from templates (status: <code>OFFBOARDING_NOTICE_PERIOD</code>)</li>
+        <li><strong>Knowledge Transfer</strong> — Line manager oversees handover of responsibilities, documentation, and outstanding task reassignment (status: <code>OFFBOARDING_KNOWLEDGE_TRANSFER</code>)</li>
+        <li><strong>Final Week</strong> — Prerequisites: resignation letter must be attached and exit interview must be scheduled before advancing (status: <code>OFFBOARDING_FINAL_WEEK</code>)
+          <ul style="margin-top:0.25rem;">
+            <li>Exit interview conducted and date recorded</li>
+            <li>IT begins access revocation: disable AD/email, VPN, SaaS accounts</li>
+            <li>Hardware collected: laptop, phone, peripherals returned</li>
+          </ul>
+        </li>
+        <li><strong>Hardware Return</strong> — System auto-closes open AssetAssignment records and updates ITAM asset status to <em>In Stock</em></li>
+        <li><strong>Exit Procedures</strong> — HR processes final payroll, exit documentation, and reference letter if applicable; IT confirms all access revoked (status: <code>OFFBOARDING_EXIT_PROCEDURES</code>)</li>
+        <li><strong>Offboarding Complete</strong> — All phases passed and all tasks marked complete; request closed (status: <code>OFFBOARDING_COMPLETED</code>)</li>
+      </ol>
+    </div>
+
+    <h4 class="subsection-title" style="font-size:1rem;margin-top:1.5rem;">Status Flow</h4>
+    <div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:1rem 1.25rem;margin-bottom:1.5rem;">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:0.78rem;">
+        <span class="badge badge-blue">OFFBOARDING_SUBMITTED</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-amber">NOTICE_PERIOD</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-purple">KNOWLEDGE_TRANSFER</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-red">FINAL_WEEK</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-slate">EXIT_PROCEDURES</span><span style="color:#94a3b8;">→</span>
+        <span class="badge badge-green">COMPLETED</span>
+      </div>
+      <p style="margin-top:0.75rem;font-size:0.78rem;color:#6b7280;"><strong>Guards:</strong> FINAL_WEEK requires resignation letter attached AND exit interview scheduled. COMPLETED requires all phases passed and all tasks complete.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon amber">📦</div>
+        <div class="card-title">Roles &amp; Task Categories</div>
+        <div class="card-body">
+          <div class="table-container" style="margin:0;">
+            <table style="margin:0;">
+              <thead><tr><th>Role</th><th>Task Categories</th></tr></thead>
+              <tbody>
+                <tr><td>HR Agent</td><td>HR, ADMIN, TRAINING tasks; resignation, exit docs, payroll</td></tr>
+                <tr><td>IT Agent</td><td>IT tasks; access revocation, asset collection</td></tr>
+                <tr><td>Line Manager</td><td>Handover sign-off, task reassignment, exit interview</td></tr>
+                <tr><td>Payroll</td><td>Final payroll processing</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:0.75rem;font-size:0.85rem;color:#6b7280;"><strong>Notifications:</strong> Offboarding initiated → IT &amp; Manager; Resignation letter uploaded → HR; Exit interview reminder → Manager; Hardware return confirmation → IT &amp; HR; Closure → all stakeholders.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon rose">🗒️</div>
+        <div class="card-title">Key Features</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Resignation letter upload</strong> — Required before advancing to FINAL_WEEK phase</li>
+            <li><strong>Exit interview scheduling</strong> — Date must be set before FINAL_WEEK; enforced by system</li>
+            <li><strong>Hardware return</strong> — Auto-closes AssetAssignments and resets ITAM status to <em>In Stock</em></li>
+            <li><strong>Template-driven tasks</strong> — Offboarding tasks auto-generated from OffboardingTaskTemplate records</li>
+            <li><strong>Phased milestones</strong> — Notice Period → Knowledge Transfer → Final Week → Exit Procedures</li>
+            <li><strong>Progress tracking</strong> — Completion percentage calculated from task status</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       GROUP FINANCE MODULE
+  ============================================================ -->
+  <section id="finance" class="doc-section">
+    <h2 class="section-title">Group Finance Module</h2>
+    <p>
+      The Group Finance module provides controlled, auditable request flows for financial transactions originating across the organization. All requests are routed to the Finance team queue and require structured approvals before any expenditure commitment. Finance reference numbers follow the format <code>FINANCE-&lt;n&gt;</code> (e.g. FINANCE-1, FINANCE-2).
+    </p>
+
+    <!-- Chargeback -->
+    <h3 class="subsection-title">Workflow 1 — Inter-Company Chargeback</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Process inter-department cost recovery and chargeback requests between internal company entities through a transparent approval chain, ensuring Finance visibility and budget accuracy.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon amber">💳</div>
+        <div class="card-title">Process Steps</div>
+        <div class="card-body">
+          <ol style="padding-left:1rem;margin:0;line-height:1.9;">
+            <li><strong>Request Submission</strong> — Department submits chargeback request specifying cost center, amount, description, and supporting invoices</li>
+            <li><strong>Department Head Approval</strong> — Line department head reviews and approves the spend justification</li>
+            <li><strong>Finance Team Routing</strong> — Approved request enters Finance team queue for validation</li>
+            <li><strong>Finance Verification</strong> — Finance agent verifies budget availability, cost center codes, and documentation completeness</li>
+            <li><strong>CFO Approval (if above threshold)</strong> — Requests above a configured financial threshold require CFO or Group Finance Head approval</li>
+            <li><strong>Processing</strong> — Finance processes the chargeback in accounting system and updates request status</li>
+            <li><strong>Confirmation &amp; Closure</strong> — Submitting department receives confirmation with transaction reference</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon blue">📊</div>
+        <div class="card-title">Roles &amp; SLA</div>
+        <div class="card-body">
+          <div class="table-container" style="margin:0;">
+            <table style="margin:0;">
+              <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
+              <tbody>
+                <tr><td>Requestor</td><td>Submit request, attach supporting documents</td></tr>
+                <tr><td>Department Head</td><td>First-level spend approval</td></tr>
+                <tr><td>Finance Agent</td><td>Validate, verify, process</td></tr>
+                <tr><td>CFO / Finance Head</td><td>High-value approval gate</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:0.75rem;font-size:0.85rem;color:#6b7280;"><strong>SLA:</strong> Department Head approval — 2 business days. Finance verification — 3 business days. High-value CFO approval — 2 additional business days. Total target: 7 business days.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">🔐</div>
+        <div class="card-title">Approval Thresholds</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Standard requests</strong> — Department Head + Finance Agent approval sufficient</li>
+            <li><strong>High-value requests</strong> — Additional CFO or Group Finance Head approval gate automatically inserted by the routing engine when declared amount exceeds the configured threshold</li>
+            <li>Thresholds are configurable in the Admin panel per cost centre</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Procurement -->
+    <h3 class="subsection-title" style="margin-top:2.5rem;">Workflow 2 — Purchase Requisition</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Manage purchase requisitions for goods and services through a structured approval and purchasing workflow, integrating with the ITAM module for asset tracking.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon sky">🛒</div>
+        <div class="card-title">Process Steps</div>
+        <div class="card-body">
+          <ol style="padding-left:1rem;margin:0;line-height:1.9;">
+            <li><strong>Procurement Request</strong> — Requestor submits purchase request: item description, quantity, vendor, estimated cost, business justification</li>
+            <li><strong>Line Manager Approval</strong> — Manager approves business need and authorizes budget allocation</li>
+            <li><strong>Finance Review</strong> — Finance team confirms budget availability and preferred vendor compliance</li>
+            <li><strong>Purchase Order Generation</strong> — Finance raises PO and routes to approved vendor</li>
+            <li><strong>Delivery &amp; Receipt</strong> — On delivery, IT or requestor confirms receipt and records serial numbers</li>
+            <li><strong>ITAM Record Creation</strong> — IT Agent registers new assets in the ITAM module with assignment details</li>
+            <li><strong>Invoice Processing</strong> — Finance processes vendor invoice against the PO for closure</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">📦</div>
+        <div class="card-title">Roles &amp; SLA</div>
+        <div class="card-body">
+          <div class="table-container" style="margin:0;">
+            <table style="margin:0;">
+              <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
+              <tbody>
+                <tr><td>Requestor</td><td>Submit request, confirm delivery</td></tr>
+                <tr><td>Line Manager</td><td>Business need approval</td></tr>
+                <tr><td>Finance Agent</td><td>Budget check, PO generation, invoice processing</td></tr>
+                <tr><td>IT Agent</td><td>Asset registration in ITAM</td></tr>
+                <tr><td>Finance Head / CFO</td><td>High-value PO approval</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:0.75rem;font-size:0.85rem;color:#6b7280;"><strong>SLA:</strong> Manager approval — 2 business days. Finance review — 3 business days. PO generation — 1 business day after approval. ITAM registration — 1 business day after delivery.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">🔐</div>
+        <div class="card-title">Approval Thresholds</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Standard requests</strong> — Line Manager + Finance Agent approval sufficient</li>
+            <li><strong>High-value requests</strong> — Additional CFO or Group Finance Head approval gate automatically inserted when declared amount exceeds the configured limit</li>
+            <li>Thresholds are configurable in the Admin panel per request type</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Budget Proposal -->
+    <h3 class="subsection-title" style="margin-top:2.5rem;">Workflow 3 — Budget Proposal</h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Allow departments to submit budget proposals for approval, with structured cost breakdowns and multi-level financial review before budget allocation.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon sky">📋</div>
+        <div class="card-title">Process Steps</div>
+        <div class="card-body">
+          <ol style="padding-left:1rem;margin:0;line-height:1.9;">
+            <li><strong>Proposal Submission</strong> — Department submits budget proposal with period, total amount, and detailed breakdown</li>
+            <li><strong>Finance Review</strong> — Finance team validates cost center codes, reviews historical spend, and checks budget availability</li>
+            <li><strong>CFO Approval</strong> — CFO or Finance Head reviews and approves or returns the proposal</li>
+            <li><strong>Budget Allocation</strong> — Approved budget is recorded and cost center allocation updated</li>
+            <li><strong>Confirmation</strong> — Submitting department receives confirmation with approved budget reference</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">👥</div>
+        <div class="card-title">Roles &amp; SLA</div>
+        <div class="card-body">
+          <div class="table-container" style="margin:0;">
+            <table style="margin:0;">
+              <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
+              <tbody>
+                <tr><td>Requestor</td><td>Submit budget proposal with breakdown</td></tr>
+                <tr><td>Finance Agent</td><td>Validate, review, recommend</td></tr>
+                <tr><td>CFO / Finance Head</td><td>Final approval</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:0.75rem;font-size:0.85rem;color:#6b7280;"><strong>SLA:</strong> Finance review — 3 business days. CFO approval — 2 business days.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">📝</div>
+        <div class="card-title">Required Information</div>
+        <div class="card-body">
+          <ul>
+            <li>Department and cost center</li>
+            <li>Budget period (e.g. Q1 2026)</li>
+            <li>Total amount requested (RM)</li>
+            <li>Detailed budget breakdown</li>
+            <li>Business justification</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Expense Claims -->
+    <h3 class="subsection-title" style="margin-top:2.5rem;">Workflow 4 — Expense Claims <span class="badge badge-amber" style="vertical-align:middle;margin-left:6px;">Coming Soon</span></h3>
+    <div class="info-box">
+      <p><strong>Objective:</strong> Submit business expense claims for reimbursement through a structured approval workflow with receipt verification and multi-level authorisation.</p>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon rose">🧾</div>
+        <div class="card-title">Process Steps</div>
+        <div class="card-body">
+          <ol style="padding-left:1rem;margin:0;line-height:1.9;">
+            <li><strong>Claim Submission</strong> — Employee submits expense claim with category, amount, date, and supporting receipts</li>
+            <li><strong>Manager Review</strong> — Line manager verifies business justification</li>
+            <li><strong>Finance Review</strong> — Finance validates receipts and compliance with expense policy</li>
+            <li><strong>CFO Approval</strong> — Required for claims above configured threshold (e.g. RM 5,000)</li>
+            <li><strong>Payment Processing</strong> — Finance processes payment after final approval</li>
+          </ol>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">📊</div>
+        <div class="card-title">Roles &amp; SLA</div>
+        <div class="card-body">
+          <div class="table-container" style="margin:0;">
+            <table style="margin:0;">
+              <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
+              <tbody>
+                <tr><td>Employee</td><td>Submit claim, attach receipts</td></tr>
+                <tr><td>Line Manager</td><td>Verify business justification</td></tr>
+                <tr><td>Finance Agent</td><td>Validate receipts, check policy compliance</td></tr>
+                <tr><td>CFO / Finance Head</td><td>High-value approval gate</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:0.75rem;font-size:0.85rem;color:#6b7280;"><strong>SLA:</strong> Manager review — 2 business days. Finance review — 3 business days. Payment — 5–7 business days after final approval.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">🔐</div>
+        <div class="card-title">Approval Thresholds</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>Standard claims</strong> — Manager + Finance Agent approval sufficient</li>
+            <li><strong>High-value claims</strong> — Additional CFO or Finance Head approval for amounts exceeding RM 5,000</li>
+            <li>Claims must be submitted within 30 days of expense date</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       CRM MODULE
+  ============================================================ -->
+  <section id="crm" class="doc-section">
+    <h2 class="section-title">CRM Module</h2>
+    <p>
+      The CRM module provides sales and account management teams with a structured pipeline for tracking leads, managing customer relationships, logging activities, and receiving AI-powered recommendations to prioritize follow-up actions.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">🎯</div>
+        <div class="card-title">Lead Management</div>
+        <div class="card-body">Capture and qualify inbound and outbound leads. Assign to sales representatives, set follow-up dates, and track lead source for attribution reporting.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">🤝</div>
+        <div class="card-title">Customer Tracking</div>
+        <div class="card-body">Maintain a full customer profile with contact history, account value, assigned account manager, and relationship health score updated from activity logs.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">🤖</div>
+        <div class="card-title">AI Recommendations</div>
+        <div class="card-body">AI insight engine analyses pipeline age, interaction frequency, and deal size to surface prioritized actions — which leads to contact, which deals are at risk of stalling.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">📅</div>
+        <div class="card-title">Follow-Up Activities</div>
+        <div class="card-body">Log calls, emails, meetings, and demos against each lead or customer. Set reminders and receive notifications when follow-up dates are approaching or overdue.</div>
+      </div>
+    </div>
+
+    <h3 class="subsection-title" style="margin-top:2rem;">Sales Pipeline Stages</h3>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr><th>Stage</th><th>Description</th><th>Expected Action</th><th>Typical Duration</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="badge badge-blue">Lead</span></td>
+            <td>Initial contact identified, not yet qualified</td>
+            <td>Qualification call / discovery</td>
+            <td>1–5 days</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#ede9fe;color:#5b21b6;">Qualified</span></td>
+            <td>Budget, authority, need, and timeline confirmed</td>
+            <td>Needs assessment / demo scheduling</td>
+            <td>3–14 days</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#fef3c7;color:#92400e;">Proposal</span></td>
+            <td>Solution proposed; commercial terms shared</td>
+            <td>Follow up on proposal, address objections</td>
+            <td>7–21 days</td>
+          </tr>
+          <tr>
+            <td><span class="badge" style="background:#d1fae5;color:#065f46;">Negotiation</span></td>
+            <td>Terms being negotiated; high intent to close</td>
+            <td>Contract review, final pricing alignment</td>
+            <td>5–14 days</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-green">Closed Won</span></td>
+            <td>Deal signed; customer record activated</td>
+            <td>Handover to account management / delivery</td>
+            <td>—</td>
+          </tr>
+          <tr>
+            <td><span class="badge badge-red">Closed Lost</span></td>
+            <td>Deal not won; reason captured for analysis</td>
+            <td>Loss reason logging, nurture re-entry decision</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subsection-title" style="margin-top:2rem;">Roles &amp; Permissions</h3>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr><th>Role</th><th>Capabilities</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Sales Representative</td>
+            <td>Create and manage own leads, log activities, view own pipeline, receive AI recommendations</td>
+          </tr>
+          <tr>
+            <td>Account Manager</td>
+            <td>Manage assigned customers, log interactions, update health scores, escalate issues</td>
+          </tr>
+          <tr>
+            <td>Sales Team Lead</td>
+            <td>View full team pipeline, reassign leads, access team performance dashboard</td>
+          </tr>
+          <tr>
+            <td>CRM Admin</td>
+            <td>Configure pipeline stages, manage user assignments, access all records, export data</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subsection-title" style="margin-top:2rem;">Key Features Summary</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon sky">📊</div>
+        <div class="card-title">Team Dashboard</div>
+        <div class="card-body">At-a-glance pipeline value by stage, conversion rate trends, activity leaderboard, and overdue follow-up alerts across the entire sales team.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon rose">🧠</div>
+        <div class="card-title">AI Insight Card</div>
+        <div class="card-body">Per-lead AI analysis highlights deal risk factors, suggests next best actions, and predicts close probability based on historical patterns and current engagement signals.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">🔔</div>
+        <div class="card-title">Activity Reminders</div>
+        <div class="card-body">Configurable reminders delivered via SSE notifications and email ensure no follow-up activity falls through the cracks, with overdue items surfaced prominently.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">📤</div>
+        <div class="card-title">Reporting &amp; Export</div>
+        <div class="card-body">Pipeline reports filterable by stage, owner, date range, and industry. Data exportable for integration with external BI tools and executive dashboards.</div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- Credit Assessment -->
+  <section id="credit" class="doc-section">
+    <h2 class="section-title">Credit Assessment</h2>
+    <p>The Credit Assessment module supports end-to-end credit application processing for Group Finance, including document collection, financial spreading, scoring, and committee review with full audit trail.</p>
+
+    <h3 class="subsection-title">Application Lifecycle</h3>
+    <div style="display:flex;flex-direction:column;gap:12px;margin:20px 0;">
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+        <div style="min-width:32px;height:32px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">1</div>
+        <div><strong>Submission</strong> — Applicant submits credit request via the portal with basic business and financial details.</div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+        <div style="min-width:32px;height:32px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">2</div>
+        <div><strong>Document Collection</strong> — System triggers a document checklist; analyst uploads audited financials, KYC, and collateral docs.</div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+        <div style="min-width:32px;height:32px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">3</div>
+        <div><strong>Financial Spreading</strong> — Analyst enters balance sheet, P&amp;L, and cash flow data; ratios are computed automatically.</div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+        <div style="min-width:32px;height:32px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">4</div>
+        <div><strong>Credit Scoring</strong> — Weighted scorecard produces a numeric score mapped to a risk band (see table below).</div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+        <div style="min-width:32px;height:32px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">5</div>
+        <div><strong>Committee Review</strong> — Applications above threshold are routed to the credit committee for deliberation and vote.</div>
+      </div>
+      <div style="display:flex;align-items:flex-start;gap:16px;padding:14px 18px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
+        <div style="min-width:32px;height:32px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">6</div>
+        <div><strong>Decision</strong> — Approve, conditionally approve, or decline. Letter generated and applicant notified automatically.</div>
+      </div>
+    </div>
+    <h3 class="subsection-title">Financial Spreading Features</h3>
+    <ul style="margin:12px 0 20px 24px;line-height:1.9;">
+      <li>Multi-year comparative income statement, balance sheet, and cash flow entry</li>
+      <li>Automatic ratio calculation: current ratio, debt/equity, DSCR, EBITDA margin</li>
+      <li>Year-on-year variance highlighting with colour-coded alerts</li>
+      <li>PDF export of completed spreading template for audit file</li>
+      <li>Peer benchmarking against industry medians (configurable reference data)</li>
+    </ul>
+
+    <h3 class="subsection-title">Credit Scoring Bands</h3>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Band</th><th>Score Range</th><th>Risk Level</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><strong>AAA</strong></td><td>90 – 100</td><td><span class="badge badge-green">Minimal</span></td><td>Approve</td></tr>
+          <tr><td><strong>AA</strong></td><td>80 – 89</td><td><span class="badge badge-green">Low</span></td><td>Approve</td></tr>
+          <tr><td><strong>A</strong></td><td>70 – 79</td><td><span class="badge badge-blue">Moderate</span></td><td>Conditional Approval</td></tr>
+          <tr><td><strong>BBB</strong></td><td>60 – 69</td><td><span class="badge badge-amber">Elevated</span></td><td>Refer to Committee</td></tr>
+          <tr><td><strong>BB / B</strong></td><td>40 – 59</td><td><span class="badge badge-red">High</span></td><td>Decline or Require Collateral</td></tr>
+          <tr><td><strong>CCC</strong></td><td>&lt; 40</td><td><span class="badge badge-red">Critical</span></td><td>Decline</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subsection-title">Committee Review</h3>
+    <p>Applications scoring in the BBB band or involving exposures above the configured threshold are automatically routed to the Credit Committee queue. Each member casts a vote; majority rules unless the Credit Manager exercises veto.</p>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Role</th><th>Responsibility</th></tr></thead>
+        <tbody>
+          <tr><td>Credit Analyst</td><td>Prepares spread, scorecard, and recommendation memo</td></tr>
+          <tr><td>Credit Manager</td><td>Reviews memo, chairs committee, holds veto right</td></tr>
+          <tr><td>Committee Member</td><td>Independent vote; minimum two required for quorum</td></tr>
+          <tr><td>Auditor</td><td>Read-only access to full application file and decision log</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="info-box">
+      <strong>Audit Trail:</strong> Every action — document upload, score change, committee vote, and decision — is recorded with a timestamp and user ID. The immutable log is accessible to Auditors via the Audit Log module and cannot be edited or deleted.
+    </div>
+  </section>
+
+  <!-- Workflow Engine -->
+  <section id="workflow-engine" class="doc-section">
+    <h2 class="section-title">Workflow Engine</h2>
+    <p>The CWC workflow engine drives automated routing, escalation, and notification across all service desks. Triggers are evaluated in real time against configurable conditions, enabling hands-free progression of requests through their lifecycle.</p>
+
+    <h3 class="subsection-title">Trigger Conditions</h3>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Trigger</th><th>Condition</th><th>Action</th><th>Channel</th></tr></thead>
+        <tbody>
+          <tr><td>Ticket Submitted</td><td>Any new request created</td><td>Assign to agent queue; send confirmation</td><td>Email + SSE</td></tr>
+          <tr><td>SLA Breach Imminent</td><td>Time-to-breach &le; 30 min</td><td>Notify assigned agent and supervisor</td><td>SSE + Email</td></tr>
+          <tr><td>SLA Breached</td><td>Resolution time exceeded</td><td>Escalate to L2; flag in dashboard</td><td>Email</td></tr>
+          <tr><td>Approval Pending</td><td>Request awaiting approver action &gt; 24 h</td><td>Send reminder; escalate if &gt; 48 h</td><td>Email</td></tr>
+          <tr><td>Request Resolved</td><td>Agent marks resolved</td><td>Notify requester; trigger CSAT survey</td><td>Email + SSE</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subsection-title">Escalation Levels</h3>
+    <div style="display:flex;flex-direction:column;gap:12px;margin:20px 0;">
+      <div style="padding:14px 18px;background:#eff6ff;border-left:4px solid #2563eb;border-radius:6px;">
+        <strong>L1 — Agent:</strong> First point of contact. Handles standard requests within defined SLA. Auto-assigned based on entity routing rules.
+      </div>
+      <div style="padding:14px 18px;background:#fefce8;border-left:4px solid #d97706;border-radius:6px;">
+        <strong>L2 — Team Lead / Manager:</strong> Receives escalated tickets on SLA breach or agent unavailability. Can re-assign, split, or merge tickets.
+      </div>
+      <div style="padding:14px 18px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;">
+        <strong>L3 — Service Desk Head / Director:</strong> Critical escalation path for P1 incidents or repeated breaches. Full override capability.
+      </div>
+    </div>
+
+    <h3 class="subsection-title">Notification Types</h3>
+    <ul style="margin:12px 0 20px 24px;line-height:1.9;">
+      <li><strong>SSE (Server-Sent Events):</strong> Real-time in-browser push notifications delivered via <code>/api/v1/notifications/sse</code>. No polling required; connection maintained per authenticated session.</li>
+      <li><strong>Email:</strong> Transactional emails sent via configured SMTP. Templates are managed in the Notification Template editor (Admin &rsaquo; Templates). Supports variable substitution for ticket ID, requester name, and due date.</li>
+    </ul>
+  </section>
+
+  <!-- Roles & Permissions -->
+  <section id="roles" class="doc-section">
+    <h2 class="section-title">Roles &amp; Permissions</h2>
+    <p>CWC enforces fine-grained Role-Based Access Control (RBAC). Permissions are loaded at authentication time and cached in Redis with a 5-minute TTL. Each API endpoint is guarded by the <code>requirePermission()</code> middleware.</p>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Admin</th>
+            <th>Manager</th>
+            <th>Agent</th>
+            <th>End User</th>
+            <th>Auditor</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Create Ticket</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>—</td></tr>
+          <tr><td>View All Tickets</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>—</td><td>&#10003;</td></tr>
+          <tr><td>Approve Requests</td><td>&#10003;</td><td>&#10003;</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>Manage Users</td><td>&#10003;</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>View Reports</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>—</td><td>&#10003;</td></tr>
+          <tr><td>Configure SLA</td><td>&#10003;</td><td>&#10003;</td><td>—</td><td>—</td><td>—</td></tr>
+          <tr><td>Access CRM</td><td>&#10003;</td><td>&#10003;</td><td>&#10003;</td><td>—</td><td>—</td></tr>
+          <tr><td>Access Credit Module</td><td>&#10003;</td><td>&#10003;</td><td>—</td><td>—</td><td>&#10003;</td></tr>
+          <tr><td>Audit Log Access</td><td>&#10003;</td><td>—</td><td>—</td><td>—</td><td>&#10003;</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Mobile & Accessibility -->
+  <section id="mobile" class="doc-section">
+    <h2 class="section-title">Mobile &amp; Accessibility</h2>
+    <p>CWC is built with a responsive-first layout using CSS media queries. All core workflows are accessible from any modern browser on any device.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">&#128241;</div>
+        <div class="card-title">Mobile Browser</div>
+        <div class="card-body">&lt; 768 px — Single-column layout. Collapsible sidebar navigation. Touch-optimised form controls. Full ticket creation and status tracking supported.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">&#128203;</div>
+        <div class="card-title">Tablet</div>
+        <div class="card-body">768 – 1024 px — Two-column hybrid layout. Sidebar pinned or collapsible. Tables scroll horizontally. Approval actions fully accessible.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">&#128187;</div>
+        <div class="card-title">Desktop</div>
+        <div class="card-body">&gt; 1024 px — Full multi-column layout with persistent sidebar, data-dense tables, card grids, and split-view detail panels.</div>
+      </div>
+    </div>
+
+    <h3 class="subsection-title">Responsive &amp; Accessibility Features</h3>
+    <ul style="margin:12px 0 20px 24px;line-height:1.9;">
+      <li>CSS Grid and Flexbox layouts reflow automatically at breakpoints</li>
+      <li>Keyboard navigation supported across all modal dialogs and forms</li>
+      <li>ARIA labels on icon-only buttons and status badges</li>
+      <li>Colour contrast meets WCAG 2.1 AA for all text and badge combinations</li>
+      <li>Focus ring visible on interactive elements (no outline:none suppression)</li>
+      <li>Browser autofill overlays suppressed in modals to prevent layout interference</li>
+      <li>Screen-reader compatible table headers with <code>scope</code> attributes</li>
+    </ul>
+  </section>
+
+  <!-- AI Features -->
+  <section id="ai-features" class="doc-section">
+    <h2 class="section-title">AI Features</h2>
+    <p>CWC incorporates AI-assisted capabilities to surface insights, reduce manual effort, and improve decision quality across service desks and CRM.</p>
+
+    <h3 class="subsection-title">Current Capabilities</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon purple">&#129302;</div>
+        <div class="card-title">AI Insight Cards (CRM)</div>
+        <div class="card-body">Generates natural-language summaries of account health, pipeline velocity, and risk signals. Rendered as insight cards on the CRM team dashboard and account detail pages.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">🗺️</div>
+        <div class="card-title">AI Roadmap</div>
+        <div class="card-body">
+          <ul>
+            <li><strong>v2.3</strong> — Smart KB suggestions + Predictive SLA breach detection</li>
+            <li><strong>v2.3</strong> — Smart agent assignment based on skill and workload</li>
+            <li><strong>v2.4</strong> — Credit risk ML probability-of-default scoring</li>
+            <li><strong>v2.5</strong> — Auto-draft KB articles from resolved ticket threads</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Security & Compliance -->
+  <section id="security" class="doc-section">
+    <h2 class="section-title">Security &amp; Compliance</h2>
+    <p>CWC applies a layered security model covering transport, identity, authorisation, and data protection at every tier.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">&#128274;</div>
+        <div class="card-title">Transport Security</div>
+        <div class="card-body">All traffic served over HTTPS/TLS 1.2+. HTTP Strict Transport Security (HSTS) enforced. Helmet.js sets secure headers including CSP, X-Frame-Options, and Referrer-Policy.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon sky">&#128272;</div>
+        <div class="card-title">Authentication</div>
+        <div class="card-body">JWT-based session tokens signed with HS256 algorithm. Passwords hashed with bcrypt (cost factor 12 for registration and password changes; 10 for temporary/system-generated passwords). Token expiry enforced; refresh flow supported.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">&#128737;</div>
+        <div class="card-title">Authorisation</div>
+        <div class="card-body">Fine-grained RBAC enforced via <code>requirePermission()</code> middleware on every endpoint. Permission sets cached in Redis (5-min TTL) to minimise DB load.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">&#9881;</div>
+        <div class="card-title">Rate Limiting</div>
+        <div class="card-body">Express rate-limiter applied globally and per-route. Configurable thresholds per environment. Repeated violations result in temporary IP block with admin alert.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">&#128196;</div>
+        <div class="card-title">Audit Logging</div>
+        <div class="card-body">Immutable audit log captures user ID, action, resource, timestamp, and IP address for all write operations. Accessible to Admin and Auditor roles only.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon rose">&#128450;</div>
+        <div class="card-title">Data Protection</div>
+        <div class="card-body">PII field encryption at rest planned for PostgreSQL (v2.3). Backups encrypted and retained per policy. Data residency configurable per deployment region.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Reporting & Analytics -->
+  <section id="reporting" class="doc-section">
+    <h2 class="section-title">Reporting &amp; Analytics</h2>
+    <p>CWC provides built-in dashboards and exportable reports covering all service desk domains. Data is refreshed in real time via SSE and aggregated nightly for trend analysis.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">&#128202;</div>
+        <div class="card-title">IT Support Dashboard</div>
+        <div class="card-body">Ticket volume by category, SLA compliance rate, first-contact resolution %, agent workload heatmap, and asset utilisation summary.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">&#128101;</div>
+        <div class="card-title">HR Services Dashboard</div>
+        <div class="card-body">Recruitment pipeline funnel, onboarding completion rates, leave application volumes, and headcount change trends by department.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">&#128181;</div>
+        <div class="card-title">Finance Dashboard</div>
+        <div class="card-body">Chargeback reconciliation status, credit application pipeline by stage and risk band, approval cycle times, and overdue receivables summary.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">&#128269;</div>
+        <div class="card-title">Executive Summary</div>
+        <div class="card-body">Cross-domain KPI roll-up for senior leadership: overall SLA compliance, open critical tickets, CRM win rate, and credit portfolio risk distribution.</div>
+      </div>
+    </div>
+
+    <h3 class="subsection-title">Key Performance Indicators</h3>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Metric</th><th>Target</th><th>Frequency</th></tr></thead>
+        <tbody>
+          <tr><td>SLA Compliance Rate</td><td>&ge; 95%</td><td>Real-time / Daily</td></tr>
+          <tr><td>First-Contact Resolution</td><td>&ge; 70%</td><td>Weekly</td></tr>
+          <tr><td>Average Resolution Time (IT)</td><td>&le; 4 hours (P2)</td><td>Daily</td></tr>
+          <tr><td>Ticket Backlog</td><td>&le; 20 open &gt; 48 h</td><td>Daily</td></tr>
+          <tr><td>Approval Cycle Time (HR)</td><td>&le; 2 business days</td><td>Weekly</td></tr>
+          <tr><td>Credit Decision Turnaround</td><td>&le; 5 business days</td><td>Weekly</td></tr>
+          <tr><td>CSAT Score</td><td>&ge; 4.2 / 5.0</td><td>Monthly</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- API & Integration -->
+  <section id="api" class="doc-section">
+    <h2 class="section-title">API &amp; Integration</h2>
+    <p>CWC exposes a RESTful JSON API for all platform functions. All endpoints require a valid JWT Bearer token unless stated otherwise.</p>
+
+    <div class="info-box">
+      <strong>Base URL:</strong> <code>/api/v1</code> — configurable via the <code>API_PREFIX</code> environment variable. All paths below are relative to this base.
+    </div>
+
+    <h3 class="subsection-title">Key Endpoints</h3>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-blue">POST</span></td><td>/auth/login</td><td>Authenticate user; returns JWT access token</td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td>/requests</td><td>List requests (filtered by role scope)</td></tr>
+          <tr><td><span class="badge badge-blue">POST</span></td><td>/requests</td><td>Create a new support request</td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td>/requests/:id</td><td>Retrieve full request detail including workflow steps</td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td>/users</td><td>List users (Admin only)</td></tr>
+          <tr><td><span class="badge badge-blue">POST</span></td><td>/approvals/:id/action</td><td>Approve or reject a pending approval step</td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td>/assets</td><td>List all IT assets with assignment status</td></tr>
+          <tr><td><span class="badge badge-blue">POST</span></td><td>/assets</td><td>Register a new asset in the ITAM registry</td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td>/notifications/sse</td><td>Open SSE stream for real-time notifications</td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td>/reports/summary</td><td>Cross-domain KPI summary for dashboard</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subsection-title">Integration Types</h3>
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">&#9993;</div>
+        <div class="card-title">Email / SMTP</div>
+        <div class="card-body">Transactional email via configurable SMTP server. Supports TLS, authentication, and HTML templates with variable substitution. Managed in <code>email.service.ts</code>.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">&#128275;</div>
+        <div class="card-title">LDAP / SSO</div>
+        <div class="card-body">Directory integration for user provisioning and single sign-on. LDAP bind credentials configured via environment variables. SSO via SAML 2.0 planned for v2.3.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon amber">&#128257;</div>
+        <div class="card-title">Webhooks</div>
+        <div class="card-body">Outbound webhooks fire on configurable events (ticket created, resolved, SLA breached). Payload is JSON; HMAC-SHA256 signature included for verification.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Deployment Architecture -->
+  <section id="deployment" class="doc-section">
+    <h2 class="section-title">Deployment Architecture</h2>
+    <p>CWC is designed as a containerised, cloud-agnostic monorepo deployable on any Linux-based host or managed Kubernetes service.</p>
+
+    <h3 class="subsection-title">Environments</h3>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Environment</th><th>URL Pattern</th><th>Purpose</th><th>DB</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-green">Dev</span></td><td>localhost:5173 / :3000</td><td>Local development &amp; debugging</td><td>Local PostgreSQL</td><td>Seeded with test accounts; hot reload enabled</td></tr>
+          <tr><td><span class="badge badge-amber">UAT</span></td><td>uat.cwc.citadel.internal</td><td>User acceptance testing &amp; stakeholder review</td><td>UAT PostgreSQL (sanitised)</td><td>Mirrors prod config; reset weekly</td></tr>
+          <tr><td><span class="badge badge-blue">Prod</span></td><td>cwc.citadel.com</td><td>Live production service</td><td>Managed PostgreSQL (HA)</td><td>Blue/green deployment; automated backups daily</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon blue">&#128171;</div>
+        <div class="card-title">Docker-Ready</div>
+        <div class="card-body">Backend and frontend each ship with a Dockerfile. <code>docker-compose.yml</code> orchestrates PostgreSQL, Redis, backend, and frontend for local or single-host deployment.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon green">&#9729;</div>
+        <div class="card-title">Cloud / On-Premise</div>
+        <div class="card-body">Compatible with AWS ECS, Azure AKS, GCP GKE, or bare-metal. Stateless backend scales horizontally; session state held in Redis. Storage for file uploads uses S3-compatible object store.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon purple">&#9881;</div>
+        <div class="card-title">CI / CD Pipeline</div>
+        <div class="card-body">GitHub Actions workflow runs lint, type-check, unit tests, and build on every pull request. Merge to main triggers automated UAT deploy. Prod deploy requires manual approval gate.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Operational Readiness -->
+  <section id="readiness" class="doc-section">
+    <h2 class="section-title">Operational Readiness</h2>
+    <p>The following checklist must be completed and signed off before the system is promoted to production. Each item has a designated owner and a tracked status.</p>
+
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Category</th><th>Item</th><th>Owner</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Infrastructure</td><td>Production PostgreSQL HA cluster provisioned</td><td>DevOps</td><td><span class="badge badge-green">Complete</span></td></tr>
+          <tr><td>Infrastructure</td><td>Redis cluster configured with persistence</td><td>DevOps</td><td><span class="badge badge-green">Complete</span></td></tr>
+          <tr><td>Infrastructure</td><td>Load balancer and SSL certificate deployed</td><td>DevOps</td><td><span class="badge badge-amber">In Progress</span></td></tr>
+          <tr><td>Security</td><td>Penetration test completed and findings remediated</td><td>Security Team</td><td><span class="badge badge-amber">In Progress</span></td></tr>
+          <tr><td>Security</td><td>RBAC roles reviewed and approved by CISO</td><td>CISO</td><td><span class="badge badge-green">Complete</span></td></tr>
+          <tr><td>Security</td><td>Secrets rotated from dev values to prod values</td><td>DevOps</td><td><span class="badge badge-red">Pending</span></td></tr>
+          <tr><td>Data</td><td>Data migration script tested on UAT dataset</td><td>Dev Team</td><td><span class="badge badge-green">Complete</span></td></tr>
+          <tr><td>Data</td><td>Backup and restore procedure verified</td><td>DevOps</td><td><span class="badge badge-amber">In Progress</span></td></tr>
+          <tr><td>Data</td><td>Data retention policy configured in DB</td><td>DBA</td><td><span class="badge badge-red">Pending</span></td></tr>
+          <tr><td>Training</td><td>Admin and Agent user training sessions completed</td><td>Project Manager</td><td><span class="badge badge-amber">In Progress</span></td></tr>
+          <tr><td>Training</td><td>End-user quick-start guide distributed</td><td>Project Manager</td><td><span class="badge badge-red">Pending</span></td></tr>
+          <tr><td>Integrations</td><td>SMTP relay tested end-to-end in UAT</td><td>Dev Team</td><td><span class="badge badge-green">Complete</span></td></tr>
+          <tr><td>Integrations</td><td>SSE notifications verified across major browsers</td><td>QA</td><td><span class="badge badge-green">Complete</span></td></tr>
+          <tr><td>Integrations</td><td>Webhook endpoints registered with downstream systems</td><td>Integration Lead</td><td><span class="badge badge-red">Pending</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Go-Live Checklist -->
+  <section id="golive" class="doc-section">
+    <h2 class="section-title">Go-Live Checklist</h2>
+    <p>Execute the following steps in order on go-live day. Each step must be verified before proceeding to the next.</p>
+
+    <div class="table-container">
+      <table>
+        <thead><tr><th>#</th><th>Step</th><th>Responsible</th><th>Verified By</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td>Confirm all Operational Readiness items are Complete</td><td>Project Manager</td><td>Steering Committee</td></tr>
+          <tr><td>2</td><td>Take full backup of UAT database and file store</td><td>DBA</td><td>DevOps Lead</td></tr>
+          <tr><td>3</td><td>Run database migration scripts on production</td><td>DBA</td><td>Tech Lead</td></tr>
+          <tr><td>4</td><td>Deploy backend container to production cluster</td><td>DevOps</td><td>Tech Lead</td></tr>
+          <tr><td>5</td><td>Deploy frontend container and flush CDN cache</td><td>DevOps</td><td>Tech Lead</td></tr>
+          <tr><td>6</td><td>Run smoke tests: login, create ticket, receive SSE notification</td><td>QA Lead</td><td>Project Manager</td></tr>
+          <tr><td>7</td><td>Verify SMTP email delivery end-to-end in production</td><td>QA Lead</td><td>IT Manager</td></tr>
+          <tr><td>8</td><td>Enable production monitoring and alerting dashboards</td><td>DevOps</td><td>Tech Lead</td></tr>
+          <tr><td>9</td><td>Communicate go-live to all user groups via email</td><td>Project Manager</td><td>Sponsor</td></tr>
+          <tr><td>10</td><td>Hypercare support team on standby for 48 hours post-launch</td><td>Support Lead</td><td>Project Manager</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Support & Maintenance -->
+  <section id="support" class="doc-section">
+    <h2 class="section-title">Support &amp; Maintenance</h2>
+    <p>Post go-live support follows a tiered SLA model. All incidents should be logged via the CWC portal itself or the dedicated support email.</p>
+
+    <h3 class="subsection-title">SLA Tiers</h3>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Priority</th><th>Response Time</th><th>Resolution Time</th><th>Escalation Path</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-red">P1 — Critical</span></td><td>15 minutes</td><td>2 hours</td><td>On-call engineer → Tech Lead → CTO</td></tr>
+          <tr><td><span class="badge badge-amber">P2 — High</span></td><td>1 hour</td><td>8 hours</td><td>Support agent → Team Lead</td></tr>
+          <tr><td><span class="badge badge-blue">P3 — Medium</span></td><td>4 hours</td><td>2 business days</td><td>Support agent → Team Lead if unresolved at 24 h</td></tr>
+          <tr><td><span class="badge badge-green">P4 — Low</span></td><td>1 business day</td><td>5 business days</td><td>Support agent queue</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subsection-title">Maintenance Windows</h3>
+    <p>Scheduled maintenance is performed every <strong>Sunday 02:00 – 04:00 local time</strong>. Users are notified at least 48 hours in advance via the in-app banner and email. Emergency patches may be applied outside this window with 1-hour notice for P1 issues.</p>
+
+    <h3 class="subsection-title">Key Contacts</h3>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Role</th><th>Name / Team</th><th>Channel</th></tr></thead>
+        <tbody>
+          <tr><td>System Owner</td><td>Citadel IT Director</td><td>it-director@citadel.com</td></tr>
+          <tr><td>Technical Support</td><td>CWC DevOps Team</td><td>cwc-support@citadel.com / Slack #cwc-support</td></tr>
+          <tr><td>Security Incidents</td><td>Citadel Security Operations</td><td>security@citadel.com (24/7)</td></tr>
+          <tr><td>Business Queries</td><td>CWC Project Manager</td><td>cwc-pm@citadel.com</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Appendix -->
+  <section id="appendix" class="doc-section">
+    <h2 class="section-title">Appendix</h2>
+
+    <h3 class="subsection-title">Terminology</h3>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Term</th><th>Definition</th></tr></thead>
+        <tbody>
+          <tr><td>ITSM</td><td>IT Service Management — framework for delivering and managing IT services aligned to business needs</td></tr>
+          <tr><td>ITAM</td><td>IT Asset Management — discipline of tracking hardware and software assets through their lifecycle</td></tr>
+          <tr><td>SLA</td><td>Service Level Agreement — contractual commitment on response and resolution times for support tickets</td></tr>
+          <tr><td>RBAC</td><td>Role-Based Access Control — permission model where access rights are assigned to roles, not individuals</td></tr>
+          <tr><td>SSE</td><td>Server-Sent Events — HTTP protocol for server-to-browser real-time push without WebSockets</td></tr>
+          <tr><td>JWT</td><td>JSON Web Token — compact, URL-safe token used for stateless authentication between client and server</td></tr>
+          <tr><td>CRM</td><td>Customer Relationship Management — system for tracking client interactions, pipeline, and account health</td></tr>
+          <tr><td>KB</td><td>Knowledge Base — repository of articles, FAQs, and guides used to resolve common issues</td></tr>
+          <tr><td>CMDB</td><td>Configuration Management Database — authoritative record of IT assets and their relationships</td></tr>
+          <tr><td>LOA</td><td>Letter of Acceptance — document issued to a selected candidate at the end of the New Hiring workflow; requires HR upload, hiring manager counter-signature, and candidate acceptance before onboarding is triggered</td></tr>
+          <tr><td>CI/CD</td><td>Continuous Integration / Continuous Deployment — automated pipeline for building, testing, and deploying code</td></tr>
+          <tr><td>ITIL</td><td>Information Technology Infrastructure Library — best-practice framework for ITSM processes</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 class="subsection-title">Acronyms</h3>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Acronym</th><th>Full Form</th></tr></thead>
+        <tbody>
+          <tr><td>API</td><td>Application Programming Interface</td></tr>
+          <tr><td>CSAT</td><td>Customer Satisfaction Score</td></tr>
+          <tr><td>DB</td><td>Database</td></tr>
+          <tr><td>DSCR</td><td>Debt Service Coverage Ratio</td></tr>
+          <tr><td>EBITDA</td><td>Earnings Before Interest, Taxes, Depreciation, and Amortisation</td></tr>
+          <tr><td>FCR</td><td>First-Contact Resolution</td></tr>
+          <tr><td>HA</td><td>High Availability</td></tr>
+          <tr><td>HMAC</td><td>Hash-based Message Authentication Code</td></tr>
+          <tr><td>HR</td><td>Human Resources</td></tr>
+          <tr><td>HSTS</td><td>HTTP Strict Transport Security</td></tr>
+          <tr><td>KPI</td><td>Key Performance Indicator</td></tr>
+          <tr><td>KYC</td><td>Know Your Customer</td></tr>
+          <tr><td>ORM</td><td>Object-Relational Mapper</td></tr>
+          <tr><td>PII</td><td>Personally Identifiable Information</td></tr>
+          <tr><td>UAT</td><td>User Acceptance Testing</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:40px;padding:20px;background:#f1f5f9;border-radius:8px;text-align:center;color:#64748b;font-size:0.92rem;">
+      CWC Product Documentation &mdash; Citadel Group Technologies Sdn Bhd &mdash; <strong>Confidential &amp; Proprietary</strong> | May 2026
+    </div>
+  </section>
+
+</main>
+</body>
+</html>

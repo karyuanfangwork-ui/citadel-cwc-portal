@@ -172,9 +172,9 @@ router.get('/:id', authorize('ADMIN'), userController.getUserById);
 /**
  * @route   GET /api/v1/users
  * @desc    Get all users (with pagination and filters)
- * @access  Private (Admin, Agent — agents need this to look up approvers e.g. CEO for IT workflow)
+ * @access  Private (Admin, Agent, CEO, CTO, CFO, GROUP_CEO — agents & executives need this to look up approvers during workflow)
  */
-router.get('/', authorize('ADMIN', 'AGENT'), userController.getAllUsers);
+router.get('/', authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_CEO'), userController.getAllUsers);
 router.post('/', authorize('ADMIN'), userController.createUser);
 
 /**

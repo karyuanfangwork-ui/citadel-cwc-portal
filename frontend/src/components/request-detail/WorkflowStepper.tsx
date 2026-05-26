@@ -123,6 +123,7 @@ const STATUS_TO_STEP: Record<string, string> = {
   MANAGER_APPROVED_FIN: 'Manager Approved',
   MANAGER_REJECTED_FIN: 'Manager Rejected',
   PAYMENT_PROCESSING: 'Payment Processing',
+  PAYMENT_PROCESSING_FIN: 'Payment Processing',
   PAYMENT_COMPLETED: 'Payment Completed',
   REIMBURSEMENT_CLOSED: 'Reimbursement Closed',
   FINANCE_PENDING_ACK: 'Acknowledgement',
@@ -163,6 +164,52 @@ const formatRemaining = (ms: number): string => {
 // Helper: build ordered steps from workflowSteps prop or STATUS_TO_STEP fallback
 // ---------------------------------------------------------------------------
 
+/**
+ * Ordered list of all known statuses used to infer position when the exact
+ * status doesn't appear in the workflow steps list.  This allows the
+ * stepper to still show progress when a request has transitioned to a
+ * status that isn't (yet) defined as a workflow step.
+ */
+const STATUS_ORDER: string[] = [
+  // General / early
+  'SUBMITTED', 'IN_REVIEW', 'ACTION_REQUIRED', 'IN_PROGRESS', 'WAITING',
+  // IT
+  'ACKNOWLEDGED_IT', 'PENDING_CEO_APPROVAL_IT', 'CEO_APPROVED_IT', 'CEO_REJECTED_IT',
+  'PENDING_CTO_APPROVAL_IT', 'CTO_APPROVED_IT', 'CTO_REJECTED_IT',
+  'PENDING_CFO_APPROVAL_IT', 'CFO_APPROVED_IT', 'CFO_REJECTED_IT',
+  'PROCUREMENT_IN_PROGRESS', 'HARDWARE_ORDERED', 'HARDWARE_RECEIVED', 'SOFTWARE_PROVISIONED',
+  'PENDING_INVOICE_IT', 'PAYMENT_PROCESSING_IT', 'PAYMENT_DONE_IT', 'PENDING_DELIVERY_IT',
+  // HR / Hiring
+  'PENDING_CEO_APPROVAL', 'CEO_APPROVED', 'CEO_REJECTED',
+  'PENDING_GROUP_CEO_APPROVAL', 'GROUP_CEO_APPROVED', 'GROUP_CEO_REJECTED',
+  'JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED',
+  'HR_SCREENING',
+  'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING', 'CANDIDATE_REJECTED_INTERVIEW',
+  'LOA_PENDING_APPROVAL', 'LOA_APPROVED', 'LOA_ISSUED', 'LOA_ACCEPTED',
+  // Onboarding
+  'ONBOARDING_SUBMITTED', 'ONBOARDING_PENDING_HR_APPROVAL', 'ONBOARDING_PRE_ARRIVAL_SETUP',
+  'ONBOARDING_READY_FOR_DAY_1', 'ONBOARDING_DAY_1_ORIENTATION', 'ONBOARDING_WEEK_1_INTEGRATION',
+  'ONBOARDING_MONTH_1_MILESTONE', 'ONBOARDING_MONTH_2_MILESTONE', 'ONBOARDING_MONTH_3_MILESTONE',
+  'ONBOARDING_COMPLETED',
+  // Offboarding
+  'OFFBOARDING_SUBMITTED', 'OFFBOARDING_NOTICE_PERIOD', 'OFFBOARDING_KNOWLEDGE_TRANSFER',
+  'OFFBOARDING_FINAL_WEEK', 'OFFBOARDING_EXIT_PROCEDURES', 'OFFBOARDING_COMPLETED',
+  // Finance
+  'FINANCE_PENDING_ACK', 'FINANCE_ACKNOWLEDGED', 'FINANCE_IN_PROGRESS',
+  'PENDING_FINANCE_HEAD_APPROVAL', 'FINANCE_HEAD_APPROVED', 'FINANCE_HEAD_REJECTED',
+  'PENDING_CFO_APPROVAL_FIN', 'CFO_APPROVED_FIN', 'CFO_REJECTED_FIN',
+  'PENDING_MANAGER_APPROVAL_FIN', 'MANAGER_APPROVED_FIN', 'MANAGER_REJECTED_FIN',
+  'PENDING_GROUP_CEO_APPROVAL', 'GROUP_CEO_APPROVED', 'GROUP_CEO_REJECTED',
+  'PAYMENT_PROCESSING', 'PAYMENT_PROCESSING_FIN', 'REIMBURSEMENT_CLOSED',
+  'AWAITING_PAYMENT_CONFIRMATION', 'PAYMENT_CONFIRMED_FIN', 'PAYMENT_COMPLETED', 'TICKET_CLOSED_FIN',
+  // Chargeback
+  'PENDING_FROM_ENTITY_APPROVAL', 'FROM_ENTITY_APPROVED', 'FROM_ENTITY_REJECTED',
+  'PENDING_TO_ENTITY_APPROVAL', 'TO_ENTITY_APPROVED', 'TO_ENTITY_REJECTED',
+  'CHARGEBACK_FINANCE_REVIEW', 'AWAITING_CHARGEBACK_CONFIRMATION', 'CHARGEBACK_COMPLETED',
+  // Terminal
+  'APPROVED', 'REJECTED', 'RESOLVED', 'COMPLETED',
+];
+
 function buildSteps(
   status: string,
   workflowSteps?: { step: string; label: string; order: number }[],
@@ -171,12 +218,58 @@ function buildSteps(
   if (workflowSteps && workflowSteps.length > 0) {
     const sorted = [...workflowSteps].sort((a, b) => a.order - b.order);
     const currentIdx = sorted.findIndex(s => s.step === status);
-    return sorted.map((s, i) => ({
-      step: s.step,
-      label: s.label,
-      order: s.order,
-      state: i < currentIdx ? 'completed' : i === currentIdx ? 'current' : 'upcoming',
-    }));
+
+    if (currentIdx !== -1) {
+      // Exact match — straightforward marking
+      return sorted.map((s, i) => ({
+        step: s.step,
+        label: s.label,
+        order: s.order,
+        state: i < currentIdx ? 'completed' : i === currentIdx ? 'current' : 'upcoming',
+      }));
+    }
+
+    // Status not in steps — use STATUS_ORDER to infer which steps are completed.
+    // Find the position of the current status in the global order, then mark
+    // all workflow steps whose global order < current status order as "completed"
+    // and insert a synthetic "current" step at the inferred position.
+    const currentGlobalIdx = STATUS_ORDER.indexOf(status);
+    const statusLabel = STATUS_TO_STEP[status] ?? status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+
+    if (currentGlobalIdx === -1) {
+      // Unknown status — treat everything up to last step as completed and append current
+      const items: StepItem[] = sorted.map((s) => ({
+        step: s.step,
+        label: s.label,
+        order: s.order,
+        state: 'completed' as StepState,
+      }));
+      items.push({ step: status, label: statusLabel, order: sorted.length, state: 'current' });
+      return items;
+    }
+
+    // For each workflow step, compute its global order and compare to current
+    const items: StepItem[] = [];
+    let inserted = false;
+    for (const s of sorted) {
+      const stepGlobalIdx = STATUS_ORDER.indexOf(s.step);
+      // If current status comes before this step globally, insert current first
+      if (!inserted && (stepGlobalIdx === -1 || currentGlobalIdx < stepGlobalIdx)) {
+        items.push({ step: status, label: statusLabel, order: s.order - 0.5, state: 'current' });
+        inserted = true;
+      }
+      items.push({
+        step: s.step,
+        label: s.label,
+        order: s.order,
+        state: inserted ? 'upcoming' : 'completed',
+      });
+    }
+    // If current status is after all steps, append it
+    if (!inserted) {
+      items.push({ step: status, label: statusLabel, order: sorted.length, state: 'current' });
+    }
+    return items;
   }
 
   // Fallback: use a single "In Progress" node if we can't map the status
