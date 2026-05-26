@@ -6,8 +6,20 @@ const financeWorkflowService = {
         return response.data;
     },
 
-    async setFinalizedAmountAndRouteCeo(requestId: string, finalizedAmount: number, notes?: string) {
-        const response = await api.post(`/finance-workflow/requests/${requestId}/set-finalized-amount-and-route-ceo`, { finalizedAmount, notes });
+    async setFinalizedAmountAndRouteCfo(requestId: string, finalizedAmount: number, notes?: string, invoiceFile?: File) {
+        if (invoiceFile) {
+            const formData = new FormData();
+            formData.append('finalizedAmount', String(finalizedAmount));
+            if (notes) formData.append('notes', notes);
+            formData.append('invoice', invoiceFile);
+            const response = await api.post(
+                `/finance-workflow/requests/${requestId}/set-finalized-amount-and-route-cfo`,
+                formData,
+                { headers: { 'Content-Type': undefined } },
+            );
+            return response.data;
+        }
+        const response = await api.post(`/finance-workflow/requests/${requestId}/set-finalized-amount-and-route-cfo`, { finalizedAmount, notes });
         return response.data;
     },
 

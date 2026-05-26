@@ -9,7 +9,7 @@ interface Props {
   onClose: () => void;
 }
 
-const RouteToCeoFinModal: React.FC<Props> = ({ requestId, onSuccess, onClose }) => {
+const RouteToCfoFinModal: React.FC<Props> = ({ requestId, onSuccess, onClose }) => {
   const [finalizedAmount, setFinalizedAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -27,7 +27,7 @@ const RouteToCeoFinModal: React.FC<Props> = ({ requestId, onSuccess, onClose }) 
       await financeWorkflowService.setFinalizedAmountAndRouteCfo(requestId, Number(finalizedAmount), notes || undefined);
       onSuccess();
     } catch (err: any) {
-      setError(err.message || 'Failed to route to CEO');
+      setError(err.message || 'Failed to route to CFO');
     } finally {
       setSubmitting(false);
     }
@@ -42,7 +42,7 @@ const RouteToCeoFinModal: React.FC<Props> = ({ requestId, onSuccess, onClose }) 
               <span className="material-symbols-outlined text-amber-700">price_check</span>
             </div>
             <div>
-              <h2 className="font-bold text-base text-gray-900">Set Amount & Route to CEO</h2>
+              <h2 className="font-bold text-base text-gray-900">Set Amount & Route to CFO</h2>
               <p className="text-xs text-gray-500">Finance Workflow · Purchase Requisition</p>
             </div>
           </div>
@@ -75,7 +75,7 @@ const RouteToCeoFinModal: React.FC<Props> = ({ requestId, onSuccess, onClose }) 
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   rows={3}
-                  placeholder="Justification or context for the CEO…"
+                  placeholder="Justification or context for the CFO…"
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] resize-none"
                 />
               </div>
@@ -86,7 +86,7 @@ const RouteToCeoFinModal: React.FC<Props> = ({ requestId, onSuccess, onClose }) 
                 Cancel
               </button>
               <button type="submit" disabled={!isValid || submitting} className="px-4 py-3 text-sm font-bold text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
-                {submitting ? 'Routing…' : 'Route to CEO'}
+                {submitting ? 'Routing…' : 'Route to CFO'}
               </button>
             </div>
           </form>
@@ -96,4 +96,4 @@ const RouteToCeoFinModal: React.FC<Props> = ({ requestId, onSuccess, onClose }) 
   );
 };
 
-export default RouteToCeoFinModal;
+export default RouteToCfoFinModal;

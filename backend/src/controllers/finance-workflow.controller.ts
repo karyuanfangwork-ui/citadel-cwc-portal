@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import path from 'path';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
@@ -55,13 +56,17 @@ export const acknowledge = async (req: Request, res: Response) => {
     }
 };
 
-/** POST /finance-workflow/requests/:id/set-finalized-amount */
+/** POST /finance-workflow/requests/:id/set-finalized-amount-and-route-cfo */
 export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
-        const { finalizedAmount, notes } = req.body;
+        // Multer parses multipart fields into req.body; JSON body stays as-is
+        const finalizedAmount = req.body.finalizedAmount ? Number(req.body.finalizedAmount) : NaN;
+        const notes = req.body.notes || undefined;
+        const invoiceFile = (req as any).file as Express.Multer.File | undefined;
+        const currentUser = (req as any).user;
 
-        if (finalizedAmount === undefined || isNaN(Number(finalizedAmount)) || Number(finalizedAmount) <= 0) {
+        if (isNaN(finalizedAmount) || finalizedAmount <= 0) {
             res.status(400).json({ status: 'error', message: 'finalizedAmount must be a positive number' });
             return;
         }
@@ -86,7 +91,7 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
 
         const updateData: any = {
             status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
-            customFields: { ...existingFields, finalizedAmount: Number(finalizedAmount) },
+            customFields: { ...existingFields, finalizedAmount },
         };
         // Reassign to CFO so ticket shows under CFO's dashboard
         if (cfoUserId) {
@@ -98,11 +103,27 @@ export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response)
             data: updateData,
         });
 
-        await logActivity(id, `Finalized amount set to MYR ${finalizedAmount}. Routed to CFO for approval${notes ? ': ' + notes : ''}`);
+        // Save invoice attachment if provided
+        if (invoiceFile) {
+            await prisma.requestAttachment.create({
+                data: {
+                    requestId: id,
+                    uploadedById: currentUser?.id || null,
+                    fileName: invoiceFile.originalname,
+                    fileSize: BigInt(invoiceFile.size),
+                    mimeType: invoiceFile.mimetype,
+                    fileType: path.extname(invoiceFile.originalname).replace('.', ''),
+                    storagePath: (invoiceFile as any).key,
+                    storageUrl: (invoiceFile as any).key,
+                },
+            });
+        }
+
+        await logActivity(id, `Finalized amount set to MYR ${finalizedAmount}. Routed to CFO for approval${notes ? ': ' + notes : ''}${invoiceFile ? ' (invoice attached)' : ''}`);
         await auditLog(req as any, 'FINANCE_ROUTED_CFO', 'request', id, {
             status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
             previousStatus: request.status,
-            finalizedAmount: Number(finalizedAmount),
+            finalizedAmount,
             notes: notes || null,
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });

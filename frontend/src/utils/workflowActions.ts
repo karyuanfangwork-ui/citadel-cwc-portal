@@ -40,7 +40,7 @@ export type WorkflowActionType =
   // Finance Purchase Requisition workflow actions
   | 'FIN_ACKNOWLEDGE'
   | 'SET_FINALIZED_AMOUNT'
-  | 'ROUTE_TO_CEO_FIN'
+  | 'ROUTE_TO_CFO_FIN'
   | 'CFO_DECISION_FIN'
   | 'GROUP_CEO_DECISION_FIN'
   | 'MARK_PAYMENT_COMPLETE_FIN'
@@ -219,7 +219,7 @@ export function getWorkflowActions(
       }
       if (status === 'FINANCE_ACKNOWLEDGED') {
         actions.push({
-          type: 'ROUTE_TO_CEO_FIN',
+          type: 'ROUTE_TO_CFO_FIN',
           label: 'Set Amount & Route to CFO',
           description: 'Enter the finalized amount and route this request to the CFO for approval.',
           variant: 'warning',

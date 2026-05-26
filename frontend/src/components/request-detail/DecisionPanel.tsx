@@ -7,6 +7,7 @@ import CeoDecisionModal from './CeoDecisionModal';
 import ScheduleInterviewModal from './ScheduleInterviewModal';
 import PendingInvoiceModal from './PendingInvoiceModal';
 import CfoDecisionModal from './CfoDecisionModal';
+import CfoDecisionFinModal from './CfoDecisionFinModal';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 import WorkflowActionModal from './WorkflowActionModal';
@@ -113,7 +114,7 @@ const ACTION_ICONS: Record<string, { icon: string; bgClass: string; textClass: s
   // Finance
   FIN_ACKNOWLEDGE:           { icon: 'task_alt', bgClass: 'bg-blue-100', textClass: 'text-blue-600' },
   SET_FINALIZED_AMOUNT:      { icon: 'calculate',       bgClass: 'bg-amber-100', textClass: 'text-amber-600' },
-  ROUTE_TO_CEO_FIN:         { icon: 'route',            bgClass: 'bg-orange-100', textClass: 'text-orange-600' },
+  ROUTE_TO_CFO_FIN:          { icon: 'route',            bgClass: 'bg-orange-100', textClass: 'text-orange-600' },
   CFO_DECISION_FIN:          { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
   GROUP_CEO_DECISION_FIN:    { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
   MARK_PAYMENT_COMPLETE_FIN: { icon: 'payments',         bgClass: 'bg-emerald-100', textClass: 'text-emerald-600' },
@@ -475,8 +476,18 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
         />
       )}
 
+      {/* Dedicated CFO Decision modal (Finance Purchase Requisition — shows invoice preview) */}
+      {activeModal === 'CFO_DECISION_FIN' && (
+        <CfoDecisionFinModal
+          requestId={requestId}
+          attachments={attachments}
+          onSuccess={handleModalSuccess}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
       {/* Config-driven modal (non-CEO, non-schedule-interview, non-invoice, non-CFO-decision actions) */}
-      {activeModal && activeModal !== 'CEO_DECISION_IT' && activeModal !== 'CEO_DECISION_HR' && activeModal !== 'SCHEDULE_INTERVIEW' && activeModal !== 'ROUTE_TO_CFO' && activeModal !== 'CFO_DECISION' && hasWorkflowModalConfig(activeModal) && (
+      {activeModal && activeModal !== 'CEO_DECISION_IT' && activeModal !== 'CEO_DECISION_HR' && activeModal !== 'SCHEDULE_INTERVIEW' && activeModal !== 'ROUTE_TO_CFO' && activeModal !== 'CFO_DECISION' && activeModal !== 'CFO_DECISION_FIN' && hasWorkflowModalConfig(activeModal) && (
         <WorkflowActionModal
           open={!!activeModal}
           requestId={requestId}
@@ -539,7 +550,7 @@ function actionToModalKey(action: WorkflowActionType): string | null {
     PAYMENT_DONE: 'PAYMENT_DONE',
     COMPLETE_DELIVERY: 'COMPLETE_DELIVERY',
     FIN_ACKNOWLEDGE: 'FIN_ACKNOWLEDGE',
-    ROUTE_TO_CEO_FIN: 'ROUTE_TO_CEO_FIN',
+    ROUTE_TO_CFO_FIN: 'ROUTE_TO_CFO_FIN',
     CFO_DECISION_FIN: 'CFO_DECISION_FIN',
     GROUP_CEO_DECISION_FIN: 'GROUP_CEO_DECISION_FIN',
     MARK_PAYMENT_COMPLETE_FIN: 'MARK_PAYMENT_COMPLETE_FIN',

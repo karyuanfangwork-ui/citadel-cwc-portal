@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, authorize } from '../middleware/auth.middleware';
+import { uploadSingleFile } from '../middleware/upload.middleware';
 import {
     acknowledge,
     setFinalizedAmountAndRouteCfo,
@@ -19,7 +20,12 @@ router.use(authenticate);
 
 // Purchase Requisition Workflow
 router.post('/requests/:id/acknowledge', authorize('ADMIN', 'AGENT'), acknowledge);
-router.post('/requests/:id/set-finalized-amount-and-route-ceo', authorize('ADMIN', 'AGENT'), setFinalizedAmountAndRouteCfo);
+router.post(
+    '/requests/:id/set-finalized-amount-and-route-cfo',
+    authorize('ADMIN', 'AGENT'),
+    uploadSingleFile('invoice'),
+    setFinalizedAmountAndRouteCfo,
+);
 router.post('/requests/:id/cfo-decision', authorize('CFO'), cfoDecision);
 router.post('/requests/:id/group-ceo-decision', authorize('GROUP_CEO'), groupCeoDecision);
 router.post('/requests/:id/mark-payment-complete', authorize('ADMIN', 'AGENT'), markPaymentComplete);

@@ -535,9 +535,9 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       financeWorkflowService.acknowledge(requestId, (values.notes as string) || undefined),
   },
 
-  ROUTE_TO_CEO_FIN: {
-    title: 'Route to CEO',
-    subtitle: 'Finance Workflow · Set finalized amount & forward',
+  ROUTE_TO_CFO_FIN: {
+    title: 'Route to CFO',
+    subtitle: 'Finance Workflow · Set finalized amount, attach invoice & forward',
     icon: 'send',
     iconBgClass: 'bg-orange-100',
     iconTextClass: 'text-orange-600',
@@ -550,22 +550,30 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
         required: true,
       },
       {
+        name: 'invoice',
+        label: 'Invoice',
+        type: 'file',
+        placeholder: '.pdf,.doc,.docx,.png,.jpg,.jpeg',
+        required: true,
+      },
+      {
         name: 'notes',
         label: 'Notes',
         type: 'textarea',
-        placeholder: 'Optional notes for CEO…',
+        placeholder: 'Optional notes for CFO…',
         required: false,
         rows: 3,
       },
     ],
-    submitLabel: 'Route to CEO',
+    submitLabel: 'Route to CFO',
     submitColor: 'primary',
     loadingLabel: 'Routing…',
     onSubmit: (requestId, values) =>
-      financeWorkflowService.setFinalizedAmountAndRouteCeo(
+      financeWorkflowService.setFinalizedAmountAndRouteCfo(
         requestId,
         Number(values.finalizedAmount) || 0,
         (values.notes as string) || undefined,
+        (values.invoice as File) || undefined,
       ),
   },
 
