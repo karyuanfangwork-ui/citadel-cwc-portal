@@ -128,6 +128,15 @@ class RequestController {
             }
         }
 
+        // Agents are scoped to their assigned service desk only.
+        // An HR agent cannot see IT or Finance tickets, and vice versa.
+        if (hasRole(req, 'AGENT') && !hasRole(req, 'ADMIN')) {
+            const agentTeam = (req.user as any)?.agentTeam;
+            if (agentTeam) {
+                where.serviceDesk = { code: agentTeam };
+            }
+        }
+
         // Apply confidentiality filter for users without request:confidential permission.
         // They can only see confidential requests where they are the requester, a designated approver, or the assigned agent.
         if (!canSeeConfidential) {

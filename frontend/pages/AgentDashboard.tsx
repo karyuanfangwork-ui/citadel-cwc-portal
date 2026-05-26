@@ -66,7 +66,7 @@ export default function AgentDashboard() {
       setLoading(true);
       try {
         const myParams: Record<string, any> = { assignedToId: user?.id, excludedStatuses: CLOSED_STATUSES.join(','), limit: 200 };
-        const resolvedParams: Record<string, any> = { assignedToId: user?.id, status: CLOSED_STATUSES.join(','), limit: 200 };
+        const resolvedParams: Record<string, any> = { status: CLOSED_STATUSES.join(','), limit: 200 };
         const unParams: Record<string, any> = { assignedToId: 'none', limit: 200 };
         const allParams: Record<string, any> = { limit: 200 };
         if (selectedRequestTypeId) {
