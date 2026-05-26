@@ -170,18 +170,37 @@ export const cfoDecision = async (req: Request, res: Response) => {
         }
 
         const cfoUpdateData: any = { status: newStatus };
+        // Resolve Group CEO ID (needed for both assignment and notification)
+        let groupCeoId: string | undefined;
         if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
-            // When routing to Group CEO, reassign to them
-            const groupCeoApprovalLookup = await prisma.requestApproval.findFirst({
+            // When routing to Group CEO, reassign to them and create PENDING approval record
+            const existingGroupCeoApproval = await prisma.requestApproval.findFirst({
                 where: { requestId: id, approverType: 'GROUP_CEO', status: 'PENDING' },
                 select: { approverId: true },
             });
-            const groupCeoId = groupCeoApprovalLookup?.approverId ?? (await prisma.user.findFirst({
-                where: { isActive: true, roles: { some: { role: { name: 'GROUP_CEO' } } } },
-                select: { id: true },
-            }))?.id;
+            if (existingGroupCeoApproval?.approverId) {
+                groupCeoId = existingGroupCeoApproval.approverId;
+            } else {
+                const groupCeoUser = await prisma.user.findFirst({
+                    where: { isActive: true, executiveRole: 'GROUP_CEO' },
+                    select: { id: true },
+                });
+                groupCeoId = groupCeoUser?.id;
+            }
             if (groupCeoId) {
                 cfoUpdateData.assignedToId = groupCeoId;
+                // Create the PENDING GROUP_CEO approval record if it doesn't exist yet
+                if (!existingGroupCeoApproval) {
+                    await prisma.requestApproval.create({
+                        data: {
+                            requestId: id,
+                            approverType: 'GROUP_CEO',
+                            approverId: groupCeoId,
+                            status: 'PENDING',
+                            comments: null,
+                        },
+                    });
+                }
             }
         } else {
             // CFO approved (payment processing) or rejected — reassign back to Finance agent (AGENT/ADMIN role only)
@@ -214,16 +233,13 @@ export const cfoDecision = async (req: Request, res: Response) => {
 
         // If routed to Group CEO for approval, notify them
         if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
-            const groupCeoApproval = await prisma.requestApproval.findFirst({
-                where: { requestId: id, approverType: 'GROUP_CEO', status: 'PENDING' },
-                select: { approverId: true },
-            });
-            const groupCeoId = groupCeoApproval?.approverId ?? (await prisma.user.findFirst({
-                where: { isActive: true, roles: { some: { role: { name: 'GROUP_CEO' } } } },
+            // Use the groupCeoId already resolved above if available, otherwise look it up
+            const gCeoIdForNotify = groupCeoId ?? (await prisma.user.findFirst({
+                where: { isActive: true, executiveRole: 'GROUP_CEO' },
                 select: { id: true },
             }))?.id;
-            if (groupCeoId) {
-                await notify({ userId: groupCeoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group CEO' }, relatedRequestId: id });
+            if (gCeoIdForNotify) {
+                await notify({ userId: gCeoIdForNotify, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group CEO' }, relatedRequestId: id });
             }
         }
 
@@ -253,9 +269,27 @@ export const groupCeoDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        const request = await prisma.request.findUnique({ where: { id } });
+        const request = await prisma.request.findUnique({
+            where: { id },
+            include: {
+                approvals: {
+                    where: { approverType: 'GROUP_CEO', status: 'PENDING' },
+                },
+            },
+        });
         if (!request) {
             res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== 'PENDING_GROUP_CEO_APPROVAL') {
+            res.status(400).json({ status: 'error', message: 'Request is not pending Group CEO approval' });
+            return;
+        }
+
+        const pendingApproval = request.approvals[0];
+        if (!pendingApproval) {
+            res.status(404).json({ status: 'error', message: 'No pending Group CEO approval found for this request' });
             return;
         }
 
@@ -274,8 +308,14 @@ export const groupCeoDecision = async (req: Request, res: Response) => {
 
         const updated = await prisma.request.update({ where: { id }, data: gCeoUpdateData });
 
-        await prisma.requestApproval.create({
-            data: { requestId: id, approverType: 'GROUP_CEO', approverId: userId, status: decision, comments: comments || null },
+        // Update the existing PENDING approval record (don't create a duplicate)
+        await prisma.requestApproval.update({
+            where: { id: pendingApproval.id },
+            data: {
+                status: decision,
+                approverId: userId,
+                comments: comments || null,
+            },
         });
 
         const verb = decision === 'APPROVED' ? 'approved — routed to payment processing' : 'rejected';

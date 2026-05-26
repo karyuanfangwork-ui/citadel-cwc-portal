@@ -274,13 +274,31 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             ? RequestStatus.CHARGEBACK_FINANCE_REVIEW
             : RequestStatus.TO_ENTITY_REJECTED;
 
-        // When approved, unassign (finance team will pick it up); when rejected, clear assignment
+        // When approved, reassign back to a Finance agent; when rejected, clear assignment
+        const updateData: Record<string, any> = { status: newStatus };
+        if (decision === 'APPROVED') {
+            // Reassign to a Finance agent so they can see it in their queue
+            const financeAgent = await prisma.user.findFirst({
+                where: {
+                    agentTeam: 'FINANCE',
+                    isActive: true,
+                    roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
+                },
+                select: { id: true, firstName: true, lastName: true },
+                orderBy: { createdAt: 'asc' },
+            });
+            if (financeAgent) {
+                updateData.assignedToId = financeAgent.id;
+                updateData.assignedTeam = 'FINANCE';
+            }
+        } else {
+            updateData.assignedToId = null;
+            updateData.assignedTeam = null;
+        }
+
         const updated = await prisma.request.update({
             where: { id },
-            data: {
-                status: newStatus,
-                assignedToId: decision === 'REJECTED' ? null : undefined,
-            },
+            data: updateData,
         });
 
         // Update the existing PENDING approval record to reflect the decision
@@ -307,6 +325,32 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             variables: { requestId: id, decision },
             relatedRequestId: id,
         });
+
+        // If approved and reassigned, log the auto-assignment
+        if (decision === 'APPROVED' && updateData.assignedToId) {
+            const financeAgent = await prisma.user.findUnique({
+                where: { id: updateData.assignedToId as string },
+                select: { firstName: true, lastName: true },
+            });
+            if (financeAgent) {
+                await prisma.requestActivity.create({
+                    data: {
+                        requestId: id,
+                        authorName: 'System',
+                        activityType: 'ASSIGNMENT',
+                        message: `Auto-reassigned to ${financeAgent.firstName} ${financeAgent.lastName} (FINANCE team) — To Entity approved, finance review`,
+                        isSystemGenerated: true,
+                        metadata: { autoAssigned: true, assignedToId: updateData.assignedToId, assignedTeam: 'FINANCE' },
+                    },
+                });
+                await notify({
+                    userId: updateData.assignedToId as string,
+                    eventType: 'CHARGEBACK_PENDING_FROM_ENTITY',
+                    variables: { requestId: id },
+                    relatedRequestId: id,
+                });
+            }
+        }
 
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {

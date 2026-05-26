@@ -5,16 +5,28 @@ import type { User } from '@/src/context/AuthContext';
 
 /** Map role strings to display labels and badge colors */
 const ROLE_BADGE: Record<string, { label: string; bg: string; text: string }> = {
-  ADMIN:  { label: 'Admin',  bg: '#dc262620', text: '#dc2626' },
-  AGENT:  { label: 'Agent',  bg: '#2563eb20', text: '#2563eb' },
-  END_USER: { label: 'User', bg: '#6b728020', text: '#6b7280' },
+  ADMIN:      { label: 'Admin',      bg: '#dc262620', text: '#dc2626' },
+  GROUP_CEO:  { label: 'Group CEO',  bg: '#7c3aed20', text: '#7c3aed' },
+  CEO:        { label: 'CEO',        bg: '#7c3aed20', text: '#7c3aed' },
+  CTO:        { label: 'CTO',        bg: '#7c3aed20', text: '#7c3aed' },
+  CFO:        { label: 'CFO',        bg: '#7c3aed20', text: '#7c3aed' },
+  COO:        { label: 'COO',        bg: '#7c3aed20', text: '#7c3aed' },
+  CHRO:       { label: 'CHRO',      bg: '#7c3aed20', text: '#7c3aed' },
+  CMO:        { label: 'CMO',        bg: '#7c3aed20', text: '#7c3aed' },
+  AGENT:      { label: 'Agent',      bg: '#2563eb20', text: '#2563eb' },
+  END_USER:   { label: 'User',       bg: '#6b728020', text: '#6b7280' },
 };
+
+/** Role priority order: ADMIN > GROUP_CEO > CEO > CTO > CFO > AGENT > first role > END_USER */
+const ROLE_PRIORITY = ['ADMIN', 'GROUP_CEO', 'CEO', 'CTO', 'CFO', 'AGENT'];
 
 function primaryRole(roles: string[] | undefined): string {
   if (!roles?.length) return 'END_USER';
-  if (roles.includes('ADMIN')) return 'ADMIN';
-  if (roles.includes('AGENT')) return 'AGENT';
-  return roles[0];
+  for (const p of ROLE_PRIORITY) {
+    if (roles.includes(p)) return p;
+  }
+  // Return first non-standard role if known, else END_USER
+  return ROLE_BADGE[roles[0]] ? roles[0] : 'END_USER';
 }
 
 type LeftRailProps = {
