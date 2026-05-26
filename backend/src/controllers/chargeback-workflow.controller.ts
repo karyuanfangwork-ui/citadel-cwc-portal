@@ -137,8 +137,8 @@ export const fromEntityDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        // Only the designated From Entity approver (or admin override) can make this decision
-        if (!userRoles.includes('ADMIN')) {
+        // Only the designated From Entity approver (or admin/GROUP_CEO override) can make this decision
+        if (!userRoles.includes('ADMIN') && !userRoles.includes('GROUP_CEO')) {
             const pendingApproval = await prisma.requestApproval.findFirst({
                 where: { requestId: id, approverType: 'FROM_ENTITY', status: 'PENDING' },
             });
@@ -259,8 +259,8 @@ export const toEntityDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        // Only the designated To Entity approver (or admin override) can make this decision
-        if (!userRoles.includes('ADMIN')) {
+        // Only the designated To Entity approver (or admin/GROUP_CEO override) can make this decision
+        if (!userRoles.includes('ADMIN') && !userRoles.includes('GROUP_CEO')) {
             const pendingApproval = await prisma.requestApproval.findFirst({
                 where: { requestId: id, approverType: 'TO_ENTITY', status: 'PENDING' },
             });

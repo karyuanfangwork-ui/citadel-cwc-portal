@@ -108,10 +108,15 @@ class RequestController {
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else if (hasRole(req, 'GROUP_CEO')) {
-                // GROUP_CEO can see their own requests and Finance Purchase Requisitions pending Group CEO approval
+                // GROUP_CEO can see their own requests, Finance Purchase Requisitions pending their approval,
+                // chargeback requests where they're involved, and requests assigned to them
                 where.OR = [
                     { requesterId: req.user!.id },
                     { status: 'PENDING_GROUP_CEO_APPROVAL' },
+                    { status: 'PENDING_FROM_ENTITY_APPROVAL' },
+                    { status: 'PENDING_TO_ENTITY_APPROVAL' },
+                    { status: 'CHARGEBACK_FINANCE_REVIEW' },
+                    { assignedToId: req.user!.id },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
             } else {
@@ -1463,9 +1468,20 @@ class RequestController {
             request.status === 'PENDING_CFO_APPROVAL_FIN' ||
             isDesignatedApprover
         );
+        const chargebackStatuses = [
+            'PENDING_FROM_ENTITY_APPROVAL',
+            'FROM_ENTITY_REJECTED',
+            'PENDING_TO_ENTITY_APPROVAL',
+            'TO_ENTITY_REJECTED',
+            'CHARGEBACK_FINANCE_REVIEW',
+            'AWAITING_CHARGEBACK_CONFIRMATION',
+            'CHARGEBACK_COMPLETED',
+        ];
         const isGroupCeoApprover = hasRole(req, 'GROUP_CEO') && (
             request.status === 'PENDING_GROUP_CEO_APPROVAL' ||
-            isDesignatedApprover
+            chargebackStatuses.includes(request.status) ||
+            isDesignatedApprover ||
+            request.assignedToId === req.user!.id
         );
 
         if (

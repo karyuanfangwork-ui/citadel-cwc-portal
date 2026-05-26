@@ -50,6 +50,7 @@ export default function AgentDashboard() {
   const [activeTab, setActiveTab] = useState<'mine' | 'unassigned' | 'all' | 'resolved'>('mine');
   const [refreshKey, setRefreshKey] = useState(0);
   const [myTickets, setMyTickets] = useState<TicketRow[]>([]);
+  const [resolvedTicketsFetched, setResolvedTicketsFetched] = useState<TicketRow[]>([]);
   const [unassignedTickets, setUnassignedTickets] = useState<TicketRow[]>([]);
   const [allTickets, setAllTickets] = useState<TicketRow[]>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
@@ -58,15 +59,19 @@ export default function AgentDashboard() {
   const [selectedRequestTypeId, setSelectedRequestTypeId] = useState<string | null>(null);
   const [requestTypeOptions, setRequestTypeOptions] = useState<{ id: string; name: string }[]>([]);
 
+  const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN', 'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED', 'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED'];
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
       try {
-        const myParams: Record<string, any> = { assignedToId: user?.id, limit: 100 };
-        const unParams: Record<string, any> = { assignedToId: 'none', limit: 100 };
-        const allParams: Record<string, any> = { limit: 100 };
+        const myParams: Record<string, any> = { assignedToId: user?.id, excludedStatuses: CLOSED_STATUSES.join(','), limit: 200 };
+        const resolvedParams: Record<string, any> = { assignedToId: user?.id, status: CLOSED_STATUSES.join(','), limit: 200 };
+        const unParams: Record<string, any> = { assignedToId: 'none', limit: 200 };
+        const allParams: Record<string, any> = { limit: 200 };
         if (selectedRequestTypeId) {
           myParams.requestTypeId = selectedRequestTypeId;
+          resolvedParams.requestTypeId = selectedRequestTypeId;
           unParams.requestTypeId = selectedRequestTypeId;
           allParams.requestTypeId = selectedRequestTypeId;
         }
@@ -83,12 +88,13 @@ export default function AgentDashboard() {
         // Fetch tickets — these are critical and must always load
         const ticketRequests = [
           api.get('/requests', { params: myParams }),
+          api.get('/requests', { params: resolvedParams }),
           api.get('/requests', { params: unParams }),
           ...(isAdmin ? [api.get('/requests', { params: allParams })] : []),
         ];
 
         const ticketResults = await Promise.all(ticketRequests);
-        const [myRes, unRes, allRes] = ticketResults as any[];
+        const [myRes, resolvedRes, unRes, allRes] = ticketResults as any[];
 
         const extractTickets = (res: any): TicketRow[] => {
           const raw = res.data?.data;
@@ -106,6 +112,7 @@ export default function AgentDashboard() {
         };
 
         setMyTickets(extractTickets(myRes));
+        setResolvedTicketsFetched(extractTickets(resolvedRes));
         setUnassignedTickets(extractTickets(unRes));
         if (isAdmin && allRes) setAllTickets(extractTickets(allRes));
       } catch (err) {
@@ -121,21 +128,19 @@ export default function AgentDashboard() {
     if (selectedRequestTypeId) return;
     const seen = new Set<string>();
     const options: { id: string; name: string }[] = [];
-    [...myTickets, ...unassignedTickets, ...allTickets].forEach((t) => {
+    [...myTickets, ...resolvedTicketsFetched, ...unassignedTickets, ...allTickets].forEach((t) => {
       if (t.requestType && !seen.has(t.requestType.id)) {
         seen.add(t.requestType.id);
         options.push({ id: t.requestType.id, name: t.requestType.name });
       }
     });
     setRequestTypeOptions(options);
-  }, [myTickets, unassignedTickets]);
+  }, [myTickets, resolvedTicketsFetched, unassignedTickets, allTickets]);
 
-  const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN', 'GROUP_CEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED', 'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED'];
-
-  const openTickets = myTickets.filter(t => !CLOSED_STATUSES.includes(t.status));
+  const openTickets = myTickets;
   const resolvedTickets = isAdmin
     ? allTickets.filter(t => CLOSED_STATUSES.includes(t.status))
-    : myTickets.filter(t => CLOSED_STATUSES.includes(t.status));
+    : resolvedTicketsFetched;
 
   const tickets = activeTab === 'mine' ? openTickets
     : activeTab === 'resolved' ? resolvedTickets
@@ -242,9 +247,9 @@ export default function AgentDashboard() {
           }`}
         >
           My Queue
-          {!loading && myTickets.length > 0 && (
+          {!loading && openTickets.length > 0 && (
             <span className="ml-2 bg-blue-100 text-blue-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
-              {myTickets.length}
+              {openTickets.length}
             </span>
           )}
         </button>
