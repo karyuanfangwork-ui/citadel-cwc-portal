@@ -1094,8 +1094,8 @@ async function main() {
             requestTypeName: 'Inter-Company Chargeback', requestTypeCode: 'INTERCOMPANY_CHARGEBACK', workflowType: 'INTERCOMPANY_CHARGEBACK',
             requiresApproval: true, slaHours: 72,
             formConfig: [
-                { id: 'chargeFromEntity', label: 'Charge From Entity', type: 'text', required: true },
-                { id: 'chargeToEntity', label: 'Charge To Entity', type: 'text', required: true },
+                { id: 'chargeFromEntity', label: 'Charge From Entity', type: 'entity', required: true },
+                { id: 'chargeToEntity', label: 'Charge To Entity', type: 'entity', required: true },
                 { id: 'amount', label: 'Amount (RM)', type: 'currency', required: true },
                 { id: 'costCenter', label: 'Cost Center', type: 'text', required: false },
                 { id: 'description', label: 'Description / Reason', type: 'textarea', required: true },

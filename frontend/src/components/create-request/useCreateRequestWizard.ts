@@ -71,7 +71,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const isAutoSummary = useMemo(() => {
     if (!selectedRequestType) return false;
     const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
-    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT' || code === 'INTERCOMPANY_CHARGEBACK';
   }, [selectedRequestType]);
 
   const autoSummary = useMemo(() => {
@@ -183,6 +183,31 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       if (!itemName) return '';
       const costStr = estimatedCost ? ` (RM${estimatedCost})` : '';
       return `Purchase: ${itemName}${costStr}`;
+    }
+
+    if (code === 'INTERCOMPANY_CHARGEBACK') {
+      const formConfig = selectedRequestType?.formConfig || [];
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const fromEntity = cf.chargeFromEntity || resolveByLabel('charge from entity') || '';
+      const toEntity = cf.chargeToEntity || resolveByLabel('charge to entity') || '';
+      const amount = cf.amount || resolveByLabel('amount') || '';
+      if (!fromEntity && !toEntity) return '';
+      // Resolve entity codes to names
+      const fromName = entityOptions.find(e => e.code === fromEntity)?.name || fromEntity;
+      const toName = entityOptions.find(e => e.code === toEntity)?.name || toEntity;
+      const parts = ['Chargeback:'];
+      if (fromName) parts.push(fromName);
+      parts.push('→');
+      if (toName) parts.push(toName);
+      if (amount) parts.push(`(RM${Number(amount).toLocaleString()})`);
+      return parts.join(' ');
     }
 
     // NEW_HIRING default
