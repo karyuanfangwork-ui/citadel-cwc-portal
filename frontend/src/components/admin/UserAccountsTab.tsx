@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 interface UserPagination {
@@ -14,11 +14,14 @@ interface UserAccountsTabProps {
     userPagination: UserPagination;
     userSearch: string;
     userRoleFilter: string;
+    userStatusFilter: '' | 'active' | 'disabled';
+    userStats: { total: number; active: number; disabled: number; agents: number };
     availableRoles: { id: string; name: string; description: string }[];
     entities?: { id: string; name: string; code: string }[];
     approverEntityMap?: Record<string, string>;
     onSearch: (value: string) => void;
     onRoleFilter: (value: string) => void;
+    onStatusFilter: (value: '' | 'active' | 'disabled') => void;
     onFetchUsers: (page: number) => void;
     onCreateUser: () => void;
     onImportStaff: () => void;
@@ -35,11 +38,14 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
     userPagination,
     userSearch,
     userRoleFilter,
+    userStatusFilter,
+    userStats,
     availableRoles,
     entities,
     approverEntityMap,
     onSearch,
     onRoleFilter,
+    onStatusFilter,
     onFetchUsers,
     onCreateUser,
     onImportStaff,
@@ -56,24 +62,34 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
         if (debouncedSearch !== userSearch) {
             onSearch(debouncedSearch);
         }
-    }, [debouncedSearch]);
+    }, [debouncedSearch, userSearch, onSearch]);
 
     useEffect(() => {
         setSearchInput(userSearch);
     }, [userSearch]);
 
-    const stats = useMemo(() => {
-        const total = userPagination.total;
-        const active = users.filter(u => u.isActive).length;
-        const disabled = users.filter(u => !u.isActive).length;
-        const agents = users.filter(u => u.roles?.some((ur: any) => ur.role?.name === 'AGENT')).length;
-        return { total, active, disabled, agents };
-    }, [users, userPagination.total]);
+    const stats = {
+        total: userStats.total,
+        active: userStats.active,
+        disabled: userStats.disabled,
+        agents: userStats.agents,
+    };
 
     return (
         <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
+            {/* Sub-header with Import Staff */}
+            <div className="px-8 pt-6 pb-0 flex justify-end">
+                <button
+                    onClick={onImportStaff}
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 text-[#44546f] text-xs font-bold rounded-xl hover:bg-gray-50 transition-colors whitespace-nowrap"
+                >
+                    <span className="material-symbols-outlined text-sm">upload_file</span>
+                    Import Staff
+                </button>
+            </div>
+
             {/* Header / Filters */}
-            <div className="p-8 border-b border-gray-100 flex flex-col md:flex-row gap-4 bg-gray-50/20">
+            <div className="px-8 pb-6 border-b border-gray-100 flex flex-col md:flex-row gap-4">
                 <div className="relative flex-1">
                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">search</span>
                     <input
@@ -84,29 +100,42 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                         onChange={e => setSearchInput(e.target.value)}
                     />
                 </div>
-                <select
-                    className="pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none appearance-none"
-                    value={userRoleFilter}
-                    onChange={e => onRoleFilter(e.target.value)}
-                >
-                    <option value="">All Roles</option>
-                    {availableRoles.map(r => (
-                        <option key={r.id} value={r.name}>{r.name}</option>
+                <div className="relative">
+                    <select
+                        className={`pl-4 pr-10 py-3 bg-white border rounded-2xl text-sm font-bold focus:ring-4 focus:ring-[#0052cc]/10 focus:border-[#0052cc] outline-none appearance-none ${userRoleFilter ? 'border-[#0052cc] text-[#0052cc]' : 'border-gray-200'}`}
+                        value={userRoleFilter}
+                        onChange={e => onRoleFilter(e.target.value)}
+                    >
+                        <option value="">All Roles</option>
+                        {availableRoles.map(r => (
+                            <option key={r.id} value={r.name}>{r.name}</option>
+                        ))}
+                    </select>
+                    {userRoleFilter && (
+                        <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-[#0052cc]" />
+                    )}
+                </div>
+                <div className="flex items-center rounded-2xl border border-gray-200 bg-white overflow-hidden text-sm font-bold">
+                    {([['', 'All'], ['active', 'Active'], ['disabled', 'Disabled']] as const).map(([val, label]) => (
+                        <button
+                            key={val}
+                            onClick={() => onStatusFilter(val)}
+                            className={`px-3 py-3 transition-colors whitespace-nowrap ${
+                                userStatusFilter === val
+                                    ? 'bg-[#0052cc] text-white'
+                                    : 'text-[#44546f] hover:bg-gray-50'
+                            }`}
+                        >
+                            {label}
+                        </button>
                     ))}
-                </select>
+                </div>
                 <button
                     onClick={onCreateUser}
                     className="flex items-center gap-2 px-4 py-3 bg-[#0052cc] text-white text-sm font-bold rounded-2xl hover:bg-[#0047b3] transition-colors whitespace-nowrap"
                 >
                     <span className="material-symbols-outlined text-sm">person_add</span>
                     Create User
-                </button>
-                <button
-                    onClick={onImportStaff}
-                    className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 text-[#0052cc] text-sm font-bold rounded-2xl hover:bg-blue-50 transition-colors whitespace-nowrap"
-                >
-                    <span className="material-symbols-outlined text-sm">upload_file</span>
-                    Import Staff
                 </button>
             </div>
 
@@ -159,12 +188,12 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                     ) : (
                     <tbody className="divide-y divide-gray-100">
                             {users.map(user => (
-                                <tr key={user.id} className={`hover:bg-gray-50/50 transition-colors ${!user.isActive ? 'opacity-50' : ''}`}>
-                                    <td className="px-8 py-5">
+                                <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
+                                    <td className={`px-8 py-5 ${!user.isActive ? 'opacity-50' : ''}`}>
                                         <div className="font-bold text-[#101418]">{user.firstName} {user.lastName}</div>
                                         <div className="text-sm text-[#44546f]">{user.email}</div>
                                     </td>
-                                    <td className="px-8 py-5 text-sm text-[#44546f]">
+                                    <td className={`px-8 py-5 text-sm text-[#44546f] ${!user.isActive ? 'opacity-50' : ''}`}>
                                         {(() => {
                                             const entityName = entities?.find(e => e.id === user.entityId)?.name;
                                             const approverFor = approverEntityMap?.[user.id];
@@ -180,7 +209,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                             );
                                         })()}
                                     </td>
-                                    <td className="px-8 py-5">
+                                    <td className={`px-8 py-5 ${!user.isActive ? 'opacity-50' : ''}`}>
                                         <div className="flex flex-wrap gap-1">
                                             {user.roles?.map((ur: any) => (
                                                 <span key={ur.role?.name || ur} className="px-2 py-0.5 bg-blue-50 text-[#0052cc] text-[10px] font-black uppercase rounded-full border border-blue-100">
@@ -189,7 +218,7 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                             ))}
                                         </div>
                                     </td>
-                                    <td className="px-8 py-5">
+                                    <td className={`px-8 py-5 ${!user.isActive ? 'opacity-50' : ''}`}>
                                         {user.roles?.some((ur: any) => ur.role?.name === 'AGENT') ? (
                                             <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${user.agentTeam ? `bg-amber-50 text-amber-600 border-amber-100` : 'bg-gray-50 text-gray-500 border-gray-100'}`}>
                                                 {user.agentTeam || 'Unassigned'}
@@ -198,54 +227,58 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                             <span className="text-gray-400 text-sm">—</span>
                                         )}
                                     </td>
-                                    <td className="px-8 py-5">
+                                    <td className={`px-8 py-5 ${!user.isActive ? 'opacity-50' : ''}`}>
                                         <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${user.isActive ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
                                             {user.isActive ? 'Active' : 'Disabled'}
                                         </span>
                                     </td>
                                     <td className="px-8 py-5 text-right">
-                                        <div className="flex justify-end gap-2">
+                                        <div className="flex justify-end items-center gap-1">
+                                            {/* Safe actions */}
                                             <button
                                                 onClick={() => onEditUser(user)}
-                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                className="w-9 h-9 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
                                                 title="Edit user details"
                                                 aria-label={`Edit ${user.firstName} ${user.lastName}`}
                                             >
-                                                <span className="material-symbols-outlined text-xl">edit</span>
+                                                <span className="material-symbols-outlined text-lg">edit</span>
                                             </button>
                                             <button
                                                 onClick={() => onManageRoles(user)}
-                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                className="w-9 h-9 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-[#0052cc] hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
                                                 title="Manage roles"
                                                 aria-label={`Manage roles for ${user.firstName} ${user.lastName}`}
                                             >
-                                                <span className="material-symbols-outlined text-xl">admin_panel_settings</span>
+                                                <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
                                             </button>
                                             <button
                                                 onClick={() => onResetPassword(user)}
-                                                className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-amber-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                className="w-9 h-9 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-amber-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
                                                 title="Reset password"
                                                 aria-label={`Reset password for ${user.firstName} ${user.lastName}`}
                                             >
-                                                <span className="material-symbols-outlined text-xl">key</span>
+                                                <span className="material-symbols-outlined text-lg">key</span>
                                             </button>
                                             {user.roles?.some((ur: any) => ur.role?.name === 'AGENT') && (
                                                 <button
                                                     onClick={() => onAssignAgentTeam(user)}
-                                                    className="w-10 h-10 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-amber-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
-                                                    title="Assign agent team (IT/HR)"
+                                                    className="w-9 h-9 flex items-center justify-center text-[#44546f] hover:bg-white hover:text-amber-600 hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100"
+                                                    title="Assign agent team"
                                                     aria-label={`Assign agent team for ${user.firstName} ${user.lastName}`}
                                                 >
-                                                    <span className="material-symbols-outlined text-xl">groups</span>
+                                                    <span className="material-symbols-outlined text-lg">groups</span>
                                                 </button>
                                             )}
+                                            {/* Divider */}
+                                            <div className="w-px h-6 bg-gray-200 mx-1" />
+                                            {/* Destructive action */}
                                             <button
                                                 onClick={() => onToggleUserStatus(user)}
-                                                className={`w-10 h-10 flex items-center justify-center hover:bg-white hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 ${user.isActive ? 'text-[#44546f] hover:text-red-600' : 'text-[#44546f] hover:text-emerald-600'}`}
+                                                className={`w-9 h-9 flex items-center justify-center hover:bg-white hover:shadow-md rounded-xl transition-all border border-transparent hover:border-gray-100 ${user.isActive ? 'text-[#44546f] hover:text-red-600' : 'text-emerald-600 hover:text-emerald-700'}`}
                                                 title={user.isActive ? 'Disable account' : 'Enable account'}
                                                 aria-label={`${user.isActive ? 'Disable' : 'Enable'} ${user.firstName} ${user.lastName}`}
                                             >
-                                                <span className="material-symbols-outlined text-xl">{user.isActive ? 'block' : 'check_circle'}</span>
+                                                <span className="material-symbols-outlined text-lg">{user.isActive ? 'block' : 'check_circle'}</span>
                                             </button>
                                         </div>
                                     </td>
@@ -260,22 +293,31 @@ export const UserAccountsTab: React.FC<UserAccountsTabProps> = ({
                                             </div>
                                             <div>
                                                 <p className="text-sm font-bold text-[#101418]">
-                                                    {userSearch || userRoleFilter ? 'No users match your filters' : 'No users yet'}
+                                                    {userSearch || userRoleFilter || userStatusFilter ? 'No users match your filters' : 'No users yet'}
                                                 </p>
                                                 <p className="text-xs text-[#44546f] mt-1">
-                                                    {userSearch || userRoleFilter
-                                                        ? 'Try adjusting your search or role filter.'
+                                                    {userSearch || userRoleFilter || userStatusFilter
+                                                        ? 'Try adjusting your search or filters.'
                                                         : 'Create your first user to get started.'}
                                                 </p>
                                             </div>
-                                            {!userSearch && !userRoleFilter && (
-                                                <button
-                                                    onClick={onCreateUser}
-                                                    className="mt-1 flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white text-sm font-bold rounded-xl hover:bg-[#0047b3] transition-colors"
-                                                >
-                                                    <span className="material-symbols-outlined text-sm">person_add</span>
-                                                    Create User
-                                                </button>
+                                            {!userSearch && !userRoleFilter && !userStatusFilter && (
+                                                <div className="mt-1 flex items-center gap-2">
+                                                    <button
+                                                        onClick={onCreateUser}
+                                                        className="flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white text-sm font-bold rounded-xl hover:bg-[#0047b3] transition-colors"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">person_add</span>
+                                                        Create User
+                                                    </button>
+                                                    <button
+                                                        onClick={onImportStaff}
+                                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-[#0052cc] text-sm font-bold rounded-xl hover:bg-blue-50 transition-colors"
+                                                    >
+                                                        <span className="material-symbols-outlined text-sm">upload_file</span>
+                                                        Import Staff
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     </td>
