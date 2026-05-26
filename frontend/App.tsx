@@ -91,7 +91,7 @@ import TopBar from './src/components/layout/TopBar';
 import { buildNavLinks } from './src/components/layout/navConfig';
 
 const Footer = () => (
-  <footer className="mt-auto border-t border-gray-100 py-10 bg-white">
+  <footer className="mt-auto border-t border-gray-100 py-4 bg-white">
     <div className="max-w-[1440px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4">
       <div className="flex items-center gap-2 opacity-50">
         <span className="material-symbols-outlined text-xl">corporate_fare</span>
@@ -195,9 +195,6 @@ const AppShell = () => {
         <LeftRail
           navLinks={navLinks}
           isActive={isActive}
-          user={user}
-          onOOO={() => setOooModalOpen(true)}
-          onLogout={handleLogout}
         />
 
         {/* Main content area */}
@@ -206,6 +203,7 @@ const AppShell = () => {
             navLinks={navLinks}
             onMobileMenuToggle={() => setMobileMenuOpen((o) => !o)}
             mobileMenuOpen={mobileMenuOpen}
+            onOOO={() => setOooModalOpen(true)}
           />
 
           <a

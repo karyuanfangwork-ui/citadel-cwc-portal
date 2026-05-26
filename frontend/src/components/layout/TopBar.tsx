@@ -34,10 +34,11 @@ type TopBarProps = {
   navLinks: NavLinkConfig[];
   onMobileMenuToggle: () => void;
   mobileMenuOpen: boolean;
+  onOOO: () => void;
   className?: string;
 };
 
-export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, className = '' }: TopBarProps) {
+export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, onOOO, className = '' }: TopBarProps) {
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -158,6 +159,13 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, c
                     <span className="material-symbols-outlined text-lg text-gray-400">lock</span>
                     Change Password
                   </Link>
+                  <button
+                    onClick={() => { setUserMenuOpen(false); onOOO(); }}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors w-full text-left"
+                  >
+                    <span className="material-symbols-outlined text-lg text-gray-400">outbox</span>
+                    {user.outOfOffice ? 'OOO Settings' : 'Set Out of Office'}
+                  </button>
                   <div className="border-t border-gray-100" />
                   <button
                     onClick={handleLogout}

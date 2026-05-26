@@ -1,40 +1,10 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { NavLinkConfig } from './navConfig';
-import type { User } from '@/src/context/AuthContext';
-
-/** Map role strings to display labels and badge colors */
-const ROLE_BADGE: Record<string, { label: string; bg: string; text: string }> = {
-  ADMIN:      { label: 'Admin',      bg: '#dc262620', text: '#dc2626' },
-  GROUP_CEO:  { label: 'Group CEO',  bg: '#7c3aed20', text: '#7c3aed' },
-  CEO:        { label: 'CEO',        bg: '#7c3aed20', text: '#7c3aed' },
-  CTO:        { label: 'CTO',        bg: '#7c3aed20', text: '#7c3aed' },
-  CFO:        { label: 'CFO',        bg: '#7c3aed20', text: '#7c3aed' },
-  COO:        { label: 'COO',        bg: '#7c3aed20', text: '#7c3aed' },
-  CHRO:       { label: 'CHRO',      bg: '#7c3aed20', text: '#7c3aed' },
-  CMO:        { label: 'CMO',        bg: '#7c3aed20', text: '#7c3aed' },
-  AGENT:      { label: 'Agent',      bg: '#2563eb20', text: '#2563eb' },
-  END_USER:   { label: 'User',       bg: '#6b728020', text: '#6b7280' },
-};
-
-/** Role priority order: ADMIN > GROUP_CEO > CEO > CTO > CFO > AGENT > first role > END_USER */
-const ROLE_PRIORITY = ['ADMIN', 'GROUP_CEO', 'CEO', 'CTO', 'CFO', 'AGENT'];
-
-function primaryRole(roles: string[] | undefined): string {
-  if (!roles?.length) return 'END_USER';
-  for (const p of ROLE_PRIORITY) {
-    if (roles.includes(p)) return p;
-  }
-  // Return first non-standard role if known, else END_USER
-  return ROLE_BADGE[roles[0]] ? roles[0] : 'END_USER';
-}
 
 type LeftRailProps = {
   navLinks: NavLinkConfig[];
   isActive: (path: string) => boolean;
-  user: User | null;
-  onOOO: () => void;
-  onLogout: () => void;
   className?: string;
 };
 
@@ -45,18 +15,28 @@ const groupLabels: Record<string, string> = {
   admin: 'Admin',
 };
 
-export default function LeftRail({ navLinks, isActive, user, onOOO, onLogout, className = '' }: LeftRailProps) {
-  const [expanded, setExpanded] = React.useState(false);
-  const navigate = useNavigate();
+export default function LeftRail({ navLinks, isActive, className = '' }: LeftRailProps) {
+  const [hoverExpanded, setHoverExpanded] = React.useState(false);
+  const [pinned, setPinned] = React.useState(() => {
+    try { return localStorage.getItem('cwc-sidebar-pinned') === 'true'; } catch { return false; }
+  });
+  const expanded = pinned || hoverExpanded;
+
+  const togglePin = React.useCallback(() => {
+    setPinned((prev) => {
+      const next = !prev;
+      try { localStorage.setItem('cwc-sidebar-pinned', String(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
 
   const visibleLinks = navLinks.filter((l) => l.show);
   const groups = ['primary', 'service-desks', 'tools', 'admin'] as const;
-  const initials = user ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}` : '?';
 
   return (
     <aside
-      onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
+      onMouseEnter={() => { if (!pinned) setHoverExpanded(true); }}
+      onMouseLeave={() => { if (!pinned) setHoverExpanded(false); }}
       className={`hidden lg:flex flex-col h-screen bg-white border-r border-gray-200 transition-all duration-200 ease-in-out z-30 flex-shrink-0 ${
         expanded ? 'w-60' : 'w-16'
       } ${className}`}
@@ -139,79 +119,29 @@ export default function LeftRail({ navLinks, isActive, user, onOOO, onLogout, cl
         })}
       </nav>
 
-      {/* User section */}
-      {user && (
-        <div className="border-t border-gray-100 px-3 py-3 flex-shrink-0">
-          <div className={`flex items-center gap-2 ${expanded ? '' : 'justify-center'}`}>
-            <div className="h-8 w-8 rounded-full bg-brand-700 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
-              {initials}
-            </div>
-            {expanded && (
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-gray-900 leading-tight truncate">
-                  {user.firstName} {user.lastName}
-                </p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  {(() => {
-                    const role = primaryRole(user.roles);
-                    const badge = ROLE_BADGE[role] || ROLE_BADGE.END_USER;
-                    return (
-                      <span
-                        className="inline-flex items-center text-[9px] font-bold rounded-full px-1.5 py-px"
-                        style={{ background: badge.bg, color: badge.text }}
-                      >
-                        {badge.label}
-                      </span>
-                    );
-                  })()}
-                  {user.outOfOffice && (
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-px bg-amber-100 text-amber-800 text-[9px] font-bold rounded-full">
-                      <span className="material-symbols-outlined" style={{ fontSize: 10 }}>outbox</span>
-                      OOO
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-          {expanded && (
-            <div className="mt-2 flex flex-col gap-1">
-              <button
-                onClick={onOOO}
-                className="flex items-center gap-2 px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-50 rounded-cwc-md transition-colors w-full text-left"
-              >
-                <span className="material-symbols-outlined text-lg text-gray-400">outbox</span>
-                {user.outOfOffice ? 'OOO Settings' : 'Set OOO'}
-              </button>
-              <button
-                onClick={onLogout}
-                className="flex items-center gap-2 px-2 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-cwc-md transition-colors w-full text-left"
-              >
-                <span className="material-symbols-outlined text-lg">logout</span>
-                Sign Out
-              </button>
-            </div>
-          )}
-          {!expanded && (
-            <div className="mt-2 flex flex-col items-center gap-1">
-              <button
-                onClick={onOOO}
-                title={user.outOfOffice ? 'Out of Office Settings' : 'Set Out of Office'}
-                className="flex items-center justify-center h-8 w-8 rounded-cwc-md text-gray-400 hover:bg-gray-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">outbox</span>
-              </button>
-              <button
-                onClick={onLogout}
-                title="Sign Out"
-                className="flex items-center justify-center h-8 w-8 rounded-cwc-md text-red-500 hover:bg-red-50 transition-colors"
-              >
-                <span className="material-symbols-outlined text-lg">logout</span>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* Pin / Auto-hide toggle */}
+      <div className="flex-shrink-0 border-t border-gray-100 px-2 py-1.5">
+        <button
+          onClick={togglePin}
+          title={pinned ? 'Switch to auto-hide' : 'Pin sidebar open'}
+          className={`flex items-center gap-2 w-full rounded-cwc-md transition-colors text-sm font-medium h-8 ${
+            pinned
+              ? 'px-3 text-brand-700 bg-brand-50 hover:bg-brand-100'
+              : 'px-0 justify-center text-gray-400 hover:bg-gray-50 hover:text-gray-600'
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg flex-shrink-0" style={{ fontSize: 18 }}>
+            {pinned ? 'lock' : 'lock_open'}
+          </span>
+          <span
+            className={`whitespace-nowrap overflow-hidden transition-all duration-200 ${
+              expanded ? 'opacity-100 w-auto' : 'opacity-0 w-0'
+            }`}
+          >
+            {pinned ? 'Pinned' : 'Auto-hide'}
+          </span>
+        </button>
+      </div>
     </aside>
   );
 }
