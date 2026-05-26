@@ -71,7 +71,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const isAutoSummary = useMemo(() => {
     if (!selectedRequestType) return false;
     const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
-    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT';
   }, [selectedRequestType]);
 
   const autoSummary = useMemo(() => {
@@ -119,12 +119,42 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       return swVersion ? `Install software: ${swName} v${swVersion}` : `Install software: ${swName}`;
     }
 
-    if (code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM') {
+    if (code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'EMAIL_MANAGEMENT') {
       const desc = (formData.description || '').trim();
-      if (!desc) return '';
+      if (!desc) {
+        // For EMAIL_MANAGEMENT, also try building from custom fields if no description
+        if (code === 'EMAIL_MANAGEMENT') {
+          const formConfig = selectedRequestType?.formConfig || [];
+          const resolveByLabel = (labelMatch: string): string => {
+            for (const f of formConfig) {
+              if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                if (cf[f.id]) return cf[f.id];
+              }
+            }
+            return '';
+          };
+          const emailType = cf.field_email_request_type || resolveByLabel('request type') || '';
+          const emailAddress = cf.field_email_address || resolveByLabel('email address') || '';
+          if (!emailType && !emailAddress) return '';
+          const parts = ['Email Management'];
+          if (emailType) parts.push(emailType);
+          if (emailAddress) parts.push(`(${emailAddress})`);
+          return parts.join(': ').replace(/ \((.+)\)/, ' ($1)');
+        }
+        // For REPORT_SYSTEM_PROBLEM, build from form fields
+        if (code === 'REPORT_SYSTEM_PROBLEM') {
+          const systemName = (cf.field_system_name || '').toString().trim();
+          const problemType = (cf.field_problem_type || '').toString().trim();
+          if (!systemName && !problemType) return '';
+          const parts = [systemName, problemType].filter(Boolean);
+          return `System Problem: ${parts.join(' - ')}`;
+        }
+        return '';
+      }
       const firstLine = desc.split('\n')[0].trim();
       const maxLen = 120;
-      const prefix = code === 'GET_IT_HELP' ? 'Get IT Help' : 'System Problem';
+      const prefixMap: Record<string, string> = { GET_IT_HELP: 'Get IT Help', REPORT_SYSTEM_PROBLEM: 'System Problem', EMAIL_MANAGEMENT: 'Email Management' };
+      const prefix = prefixMap[code] || 'Request';
       // Reserve chars for prefix + ": "
       const summaryMaxLen = maxLen - prefix.length - 2;
       let shortSummary: string;

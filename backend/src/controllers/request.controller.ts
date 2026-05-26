@@ -673,7 +673,7 @@ class RequestController {
         const isExpenseClaim = requestType?.code === 'EXPENSE_CLAIM';
 
         // Validate summary: required unless auto-generated for specific request types
-        const autoSummaryCodes = ['NEW_HIRING', 'EMPLOYEE_OFFBOARDING', 'NEW_HARDWARE', 'GET_IT_HELP', 'REPORT_SYSTEM_PROBLEM', 'SOFTWARE_INSTALLATION', 'PURCHASE_REQUISITION'];
+        const autoSummaryCodes = ['NEW_HIRING', 'EMPLOYEE_OFFBOARDING', 'NEW_HARDWARE', 'GET_IT_HELP', 'REPORT_SYSTEM_PROBLEM', 'SOFTWARE_INSTALLATION', 'PURCHASE_REQUISITION', 'EMAIL_MANAGEMENT'];
         const isAutoSummaryType = requestType?.code ? autoSummaryCodes.includes(requestType.code) : false;
         if (!summary && !isAutoSummaryType) {
             throw new AppError('Summary is required', 400);
@@ -833,6 +833,41 @@ class RequestController {
             finalDescription = `Inter-company chargeback from ${fromEntity} to ${toEntity}. Amount: ${amount}. Cost center: ${costCenter}. Details: ${desc}.`;
         }
 
+        // Auto-generate description for Email Management (IT)
+        if (requestType?.code === 'EMAIL_MANAGEMENT' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const formConfig = (requestType?.formConfig || []) as any[];
+            const resolveByLabel = (labelMatch: string): any => {
+                for (const f of formConfig) {
+                    if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                        if (cf[f.id]) return cf[f.id];
+                    }
+                }
+                return undefined;
+            };
+            const emailType = cfStr(cf.field_email_request_type || resolveByLabel('request type')) || 'Not specified';
+            const emailAddress = cfStr(cf.field_email_address || resolveByLabel('email address')) || 'Not provided';
+            const mailClient = cfStr(cf.field_mail_client || resolveByLabel('mail client')) || '';
+            const symptoms = cfStr(cf.field_email_symptoms || resolveByLabel('error') || resolveByLabel('symptoms')) || '';
+            const parts = [`Email request type: ${emailType}`, `Email address: ${emailAddress}`];
+            if (mailClient) parts.push(`Mail client: ${mailClient}`);
+            if (symptoms) parts.push(`Symptoms: ${symptoms}`);
+            finalDescription = parts.join('. ') + '.';
+        }
+
+        // Auto-generate description for Report System Problem (IT)
+        if (requestType?.code === 'REPORT_SYSTEM_PROBLEM' && !description) {
+            const cf = (customFields || {}) as Record<string, any>;
+            const systemName = cfStr(cf.field_system_name) || 'Unspecified system';
+            const problemType = cfStr(cf.field_problem_type) || 'Unspecified';
+            const affectedUsers = cfStr(cf.field_affected_users) || '';
+            const problemDesc = cfStr(cf.field_problem_description) || 'No details provided';
+            const parts = [`System: ${systemName}`, `Problem type: ${problemType}`];
+            if (affectedUsers) parts.push(`Affected users: ${affectedUsers}`);
+            parts.push(`Details: ${problemDesc}`);
+            finalDescription = parts.join('. ') + '.';
+        }
+
         // Auto-generate description for Budget Proposal (finance)
         if (requestType?.code === 'BUDGET_PROPOSAL' && !description) {
             const cf = (customFields || {}) as Record<string, any>;
@@ -885,12 +920,40 @@ class RequestController {
             }
         }
         if (!finalSummary && requestType?.code === 'REPORT_SYSTEM_PROBLEM') {
+            const cf = (customFields || {}) as Record<string, any>;
+            const systemName = (cf.field_system_name || '').toString().trim();
+            const problemType = (cf.field_problem_type || '').toString().trim();
+            if (systemName || problemType) {
+                // Build from form fields: "System Problem: ERP - System Down / Outage"
+                const parts = [systemName, problemType].filter(Boolean);
+                const summary = parts.join(' - ');
+                finalSummary = `System Problem: ${summary}`.substring(0, 120);
+            } else {
+                // Fallback to description first line
+                const desc = (rawDescription || '').trim();
+                if (desc) {
+                    const firstLine = desc.split('\n')[0].trim();
+                    const maxLen = 120;
+                    const summaryMaxLen = maxLen - 17;
+                    let shortSummary: string;
+                    if (firstLine.length <= summaryMaxLen) {
+                        shortSummary = firstLine;
+                    } else {
+                        const truncated = firstLine.substring(0, summaryMaxLen);
+                        const lastSpace = truncated.lastIndexOf(' ');
+                        shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
+                    }
+                    finalSummary = `System Problem: ${shortSummary}`;
+                }
+            }
+        }
+        if (!finalSummary && requestType?.code === 'EMAIL_MANAGEMENT') {
             const desc = (rawDescription || '').trim();
             if (desc) {
                 const firstLine = desc.split('\n')[0].trim();
                 const maxLen = 120;
-                // Reserve 17 chars for "System Problem: " prefix
-                const summaryMaxLen = maxLen - 17;
+                // Reserve 18 chars for "Email Management: " prefix
+                const summaryMaxLen = maxLen - 18;
                 let shortSummary: string;
                 if (firstLine.length <= summaryMaxLen) {
                     shortSummary = firstLine;
@@ -899,7 +962,27 @@ class RequestController {
                     const lastSpace = truncated.lastIndexOf(' ');
                     shortSummary = lastSpace > summaryMaxLen * 0.6 ? truncated.substring(0, lastSpace) : truncated;
                 }
-                finalSummary = `System Problem: ${shortSummary}`;
+                finalSummary = `Email Management: ${shortSummary}`;
+            } else {
+                // Build summary from custom fields
+                const cf = (customFields || {}) as Record<string, any>;
+                const formConfig = (requestType?.formConfig || []) as any[];
+                const resolveByLabel = (labelMatch: string): any => {
+                    for (const f of formConfig) {
+                        if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+                            if (cf[f.id]) return cf[f.id];
+                        }
+                    }
+                    return undefined;
+                };
+                const emailType = cf.field_email_request_type || resolveByLabel('request type') || '';
+                const emailAddress = cf.field_email_address || resolveByLabel('email address') || '';
+                if (emailType || emailAddress) {
+                    const parts = ['Email Management'];
+                    if (emailType) parts.push(emailType);
+                    if (emailAddress) parts.push(`(${emailAddress})`);
+                    finalSummary = parts.join(': ');
+                }
             }
         }
         if (!finalSummary && requestType?.code === 'SOFTWARE_INSTALLATION') {

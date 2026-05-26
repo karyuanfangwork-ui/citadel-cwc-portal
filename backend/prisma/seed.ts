@@ -840,7 +840,12 @@ async function main() {
                     name: category.name
                 }
             },
-            update: {},
+            update: {
+                description: category.description,
+                icon: category.icon,
+                colorClass: category.colorClass,
+                displayOrder: category.displayOrder,
+            },
             create: {
                 name: category.name,
                 description: category.description,
@@ -868,6 +873,22 @@ async function main() {
         } else if (category.requestTypeCode === 'GET_IT_HELP') {
             formConfig = [
                 { id: 'field_1778721877330', label: 'Attachment', type: 'file', required: false },
+            ];
+        } else if (category.requestTypeCode === 'EMAIL_MANAGEMENT') {
+            formConfig = [
+                { id: 'field_email_request_type', label: 'Request Type', type: 'select', required: true, options: ['New email account', 'Email configuration', 'Email troubleshooting', 'Distribution list / shared mailbox', 'Email forwarding / rules'] },
+                { id: 'field_email_address', label: 'Email Address', type: 'text', required: true },
+                { id: 'field_mail_client', label: 'Mail Client', type: 'select', required: false, options: ['Outlook Desktop', 'Outlook Web', 'Apple Mail', 'Mobile App', 'Other'] },
+                { id: 'field_email_symptoms', label: 'Error / Symptoms', type: 'textarea', required: true },
+                { id: 'field_email_attachment', label: 'Attachment', type: 'file', required: false },
+            ];
+        } else if (category.requestTypeCode === 'REPORT_SYSTEM_PROBLEM') {
+            formConfig = [
+                { id: 'field_system_name', label: 'System / Application Name', type: 'text', required: true },
+                { id: 'field_problem_type', label: 'Problem Type', type: 'select', required: true, options: ['System Down / Outage', 'Slow Performance', 'Error / Bug', 'Access Issue', 'Data Issue', 'Other'] },
+                { id: 'field_affected_users', label: 'Affected Users', type: 'select', required: false, options: ['Just me', 'My team / department', 'Multiple departments', 'Entire company'] },
+                { id: 'field_problem_description', label: 'Describe the Problem', type: 'textarea', required: true },
+                { id: 'field_error_screenshot', label: 'Error Screenshot / Attachment', type: 'file', required: false },
             ];
         }
 
@@ -987,7 +1008,12 @@ async function main() {
                     name: cat.name
                 }
             },
-            update: {},
+            update: {
+                description: cat.description,
+                icon: cat.icon,
+                colorClass: cat.colorClass,
+                displayOrder: cat.displayOrder,
+            },
             create: {
                 name: cat.name,
                 description: cat.description,
@@ -1053,6 +1079,7 @@ async function main() {
             name: 'Purchase Requisition', description: 'Submit a request to purchase goods or services',
             icon: 'shopping_cart', colorClass: 'bg-emerald-50 text-emerald-600', displayOrder: 1,
             requestTypeName: 'Purchase Requisition', requestTypeCode: 'PURCHASE_REQUISITION', workflowType: 'FINANCE',
+            requiresApproval: true, slaHours: 72,
             formConfig: [
                 { id: 'itemName', label: 'Type Of Purchase', type: 'select', required: true, options: ['IT Hardware / Equipment', 'Marketing & Advertising Services', 'Office Supplies', 'Miscellaneous'] },
                 { id: 'field_1778810317886', label: 'Request under which Business Unit', type: 'entity', required: true },
@@ -1064,7 +1091,8 @@ async function main() {
         {
             name: 'Inter-Company Chargeback', description: 'Request a chargeback between internal company entities',
             icon: 'swap_horiz', colorClass: 'bg-indigo-50 text-indigo-600', displayOrder: 2,
-            requestTypeName: 'Inter-Company Chargeback', requestTypeCode: 'INTERCOMPANY_CHARGEBACK', workflowType: 'FINANCE',
+            requestTypeName: 'Inter-Company Chargeback', requestTypeCode: 'INTERCOMPANY_CHARGEBACK', workflowType: 'INTERCOMPANY_CHARGEBACK',
+            requiresApproval: true, slaHours: 72,
             formConfig: [
                 { id: 'chargeFromEntity', label: 'Charge From Entity', type: 'text', required: true },
                 { id: 'chargeToEntity', label: 'Charge To Entity', type: 'text', required: true },
@@ -1077,6 +1105,7 @@ async function main() {
             name: 'Submit Budget Proposal', description: 'Submit a budget proposal for approval',
             icon: 'account_balance', colorClass: 'bg-amber-50 text-amber-600', displayOrder: 3,
             requestTypeName: 'Submit Budget Proposal', requestTypeCode: 'BUDGET_PROPOSAL', workflowType: 'FINANCE',
+            requiresApproval: true, slaHours: 72,
             formConfig: [
                 { id: 'department', label: 'Department', type: 'text', required: true },
                 { id: 'budgetPeriod', label: 'Budget Period (e.g. Q1 2026)', type: 'text', required: true },
@@ -1090,7 +1119,8 @@ async function main() {
             description: 'Submit a business expense claim for reimbursement',
             icon: 'receipt_long', colorClass: 'bg-rose-50 text-rose-600', displayOrder: 4,
             requestTypeName: 'Expense Claim', requestTypeCode: 'EXPENSE_CLAIM', workflowType: 'EXPENSE_REIMBURSEMENT',
-            isActive: false,  // Disabled by admin — enable when ready to launch
+            requiresApproval: true, slaHours: 72,
+            categoryIsActive: false,  // Disabled — enable when ready to launch
             formConfig: [
                 { id: 'expenseCategory', label: 'Expense Category', type: 'text', required: true },
                 { id: 'expenseDate', label: 'Date of Expense', type: 'text', required: true },
@@ -1109,7 +1139,13 @@ async function main() {
                     name: cat.name
                 }
             },
-            update: {},
+            update: {
+                description: cat.description,
+                icon: cat.icon,
+                colorClass: cat.colorClass,
+                displayOrder: cat.displayOrder,
+                isActive: (cat as any).categoryIsActive ?? true,
+            },
             create: {
                 name: cat.name,
                 description: cat.description,
@@ -1117,7 +1153,7 @@ async function main() {
                 colorClass: cat.colorClass,
                 displayOrder: cat.displayOrder,
                 serviceDeskId: financeDesk.id,
-                isActive: cat.isActive ?? true,
+                isActive: (cat as any).categoryIsActive ?? true,
             },
         });
 
@@ -1140,7 +1176,8 @@ async function main() {
                         name: cat.requestTypeName,
                         description: cat.description,
                         formConfig: cat.formConfig,
-                        ...('slaHours' in cat ? { slaHours: (cat as any).slaHours } : {}),
+                        slaHours: (cat as any).slaHours ?? 72,
+                        requiresApproval: (cat as any).requiresApproval ?? false,
                     },
             });
         } else if (existingLegacy) {
@@ -1156,8 +1193,9 @@ async function main() {
                     code: cat.requestTypeCode,
                     name: cat.requestTypeName,
                     description: cat.description,
-                    slaHours: 72,
+                    slaHours: (cat as any).slaHours ?? 72,
                     isActive: true,
+                    requiresApproval: (cat as any).requiresApproval ?? false,
                     formConfig: cat.formConfig,
                 },
             });
