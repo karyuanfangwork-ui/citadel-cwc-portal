@@ -62,6 +62,12 @@ export const crmAiController = {
     res.json({ status: 'success', data: result });
   }),
 
+  nextBestAction: handle(async (req, res) => {
+    const { entityType, entityId } = req.body as { entityType: string; entityId: string };
+    const result = await aiService.getNextBestAction(entityType, entityId);
+    res.json(result);
+  }),
+
   winLossDebrief: handle(async (req, res) => {
     const debrief = await aiService.generateWinLossDebrief(req.params.id as string);
     res.json({ status: 'success', data: debrief });

@@ -13,6 +13,7 @@ import EmptyState from '../src/components/ui/EmptyState';
 import { useAuth } from '../src/context/AuthContext';
 import InlineEdit from '../src/components/crm/InlineEdit';
 import CrmAuditLog from '../src/components/crm/CrmAuditLog';
+import { useNextBestAction, useWinProbability, useAnalyzeNote, useWinLossDebrief } from '../src/hooks/useCrmAi';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -63,34 +64,18 @@ const CrmOpportunityDetail = () => {
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // ── AI state (Task 9) ─────────────────────────────────────────────────
-  const [winData, setWinData] = useState<{ probability: number; confidence: 'high' | 'medium' | 'low'; reason: string } | null>(null);
-  const [winLoading, setWinLoading] = useState(false);
-  const [winError, setWinError] = useState<string | null>(null);
-  const [analyzedNotes, setAnalyzedNotes] = useState<Record<string, { sentiment: string; nextAction: string; suggestedStatusChange: string | null; keyFacts: string[] } | null>>({});
-  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
-  const [noteAnalysisError, setNoteAnalysisError] = useState<string | null>(null);
+  // ── AI state — using hooks ─────────────────────────────────────────────
+  const winProb = useWinProbability();
+  const noteAnalyzer = useAnalyzeNote();
+  const debrief = useWinLossDebrief();
 
-  // ── AI Win/Loss Debrief state ──────────────────────────────────────────
-  const [debrief, setDebrief] = useState<{
-    outcome: 'WON' | 'LOST'; summary: string; keyFactors: string[];
-    lessonsLearned: string[]; followOnActions: string[];
-  } | null>(null);
-  const [debriefLoading, setDebriefLoading] = useState(false);
-  const [debriefError, setDebriefError] = useState<string | null>(null);
+  // ── Next Best Action (Task 11) ─────────────────────────────────────
+  const nba = useNextBestAction();
 
-  const handleGetDebrief = async () => {
+  // ── Wrapper handlers (delegate to hooks) ─────────────────────────────
+  const handleGetDebrief = () => {
     if (!id) return;
-    setDebriefLoading(true);
-    setDebriefError(null);
-    try {
-      const result = await crmService.getWinLossDebrief(id);
-      setDebrief(result);
-    } catch (err) {
-      setDebriefError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setDebriefLoading(false);
-    }
+    debrief.fetch(id);
   };
 
   // ── Edit modal handlers ───────────────────────────────────────────────
@@ -165,31 +150,13 @@ const CrmOpportunityDetail = () => {
     }
   };
 
-  const handleWinProbability = async () => {
+  const handleWinProbability = () => {
     if (!id) return;
-    setWinLoading(true);
-    setWinError(null);
-    try {
-      const result = await crmService.getWinProbability(id);
-      setWinData(result);
-    } catch (err) {
-      setWinError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setWinLoading(false);
-    }
+    winProb.fetch(id);
   };
 
-  const handleAnalyzeNote = async (activityId: string) => {
-    setAnalyzingId(activityId);
-    setNoteAnalysisError(null);
-    try {
-      const result = await crmService.analyzeActivityNote(activityId);
-      setAnalyzedNotes((prev) => ({ ...prev, [activityId]: result }));
-    } catch (err) {
-      setNoteAnalysisError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setAnalyzingId(null);
-    }
+  const handleAnalyzeNote = (activityId: string) => {
+    noteAnalyzer.analyze(activityId);
   };
 
   const confidenceColor = (c: string) =>
@@ -202,6 +169,11 @@ const CrmOpportunityDetail = () => {
   };
 
   useEffect(() => { reload(); }, [id]);
+
+  // Auto-fetch Next Best Action when opportunity loads
+  useEffect(() => {
+    if (opp?.id) nba.fetch('opportunity', opp.id);
+  }, [opp?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
   useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
@@ -295,6 +267,18 @@ const CrmOpportunityDetail = () => {
      } finally {
        setLoadingMoreActivities(false);
      }
+   };
+
+   const handleSetReminder = async (activityId: string) => {
+     try {
+       await crmService.sendActivityReminder(activityId);
+       setOpp(prev => prev ? {
+         ...prev,
+         activities: (prev.activities ?? []).map(a =>
+           a.id === activityId ? { ...a, reminderSent: true } : a
+         ),
+       } : prev);
+     } catch (e) { console.error(e); }
    };
 
 
@@ -421,28 +405,28 @@ const CrmOpportunityDetail = () => {
         )}
         {/* AI Win Probability chip (Task 9) */}
         {!isWon && !isLost && (
-          winData ? (
+          winProb.data ? (
             <div
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm border font-semibold ${confidenceColor(winData.confidence)}`}
-              title={winData.reason}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm border font-semibold ${confidenceColor(winProb.data.confidence)}`}
+              title={winProb.data.reason}
             >
               <span className="material-symbols-outlined text-base">auto_awesome</span>
-              AI Win: {winData.probability}%
-              <span className="text-xs opacity-70">({winData.confidence})</span>
+              AI Win: {winProb.data.probability}%
+              <span className="text-xs opacity-70">({winProb.data.confidence})</span>
             </div>
           ) : (
             <span className="inline-flex items-center gap-2">
               <button
                 onClick={handleWinProbability}
-                disabled={winLoading}
+                disabled={winProb.loading}
                 className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2 rounded-xl text-sm font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-50"
                 style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               >
                 <span className="material-symbols-outlined text-base">auto_awesome</span>
-                {winLoading ? 'Predicting…' : 'AI Win %'}
+                {winProb.loading ? 'Predicting…' : 'AI Win %'}
               </button>
-              {winError && (
-                <span className="text-xs text-danger" title={winError}>
+              {winProb.error && (
+                <span className="text-xs text-danger" title={winProb.error}>
                   <span className="material-symbols-outlined text-xs align-middle">error</span>
                 </span>
               )}
@@ -450,6 +434,25 @@ const CrmOpportunityDetail = () => {
           )
         )}
       </div>
+
+      {/* AI Suggested Actions */}
+      {nba.loading && !nba.data && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="material-symbols-outlined text-sm text-brand-500 animate-pulse">auto_awesome</span>
+          <span className="text-xs text-text-secondary animate-pulse">Loading suggested actions…</span>
+        </div>
+      )}
+      {nba.data && nba.data.actions?.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <span className="text-xs font-semibold text-text-secondary">AI Suggested:</span>
+          {nba.data.actions.map((a, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-bg-subtle border border-border" title={a.reason}>
+              <span className={`w-1.5 h-1.5 rounded-full ${a.priority === 'high' ? 'bg-red-500' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`} />
+              {a.action}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
@@ -551,11 +554,11 @@ const CrmOpportunityDetail = () => {
         <div className="mt-4 pt-4 border-t border-border">
           <AiInsightCard
             title={`AI ${isWon ? 'Win' : 'Loss'} Debrief`}
-            loading={debriefLoading}
-            error={debriefError}
+            loading={debrief.loading}
+            error={debrief.error}
             onRefresh={handleGetDebrief}
           >
-            {!debrief ? (
+            {!debrief.data ? (
               <button
                 onClick={handleGetDebrief}
                 className="text-sm text-brand-600 hover:underline"
@@ -565,18 +568,18 @@ const CrmOpportunityDetail = () => {
               </button>
             ) : (
               <div className="space-y-3 text-sm">
-                <p className="text-text-primary">{debrief.summary}</p>
+                <p className="text-text-primary">{debrief.data.summary}</p>
                 <div>
                   <p className="text-xs font-bold text-text-secondary uppercase mb-1">Key Factors</p>
-                  {debrief.keyFactors.map((f, i) => <p key={i} className="text-text-primary">• {f}</p>)}
+                  {debrief.data.keyFactors.map((f, i) => <p key={i} className="text-text-primary">• {f}</p>)}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-text-secondary uppercase mb-1">Lessons Learned</p>
-                  {debrief.lessonsLearned.map((l, i) => <p key={i} className="text-text-primary">• {l}</p>)}
+                  {debrief.data.lessonsLearned.map((l, i) => <p key={i} className="text-text-primary">• {l}</p>)}
                 </div>
                 <div>
                   <p className="text-xs font-bold text-success uppercase mb-1">Follow-On Actions</p>
-                  {debrief.followOnActions.map((a, i) => <p key={i} className="text-success font-medium">• {a}</p>)}
+                  {debrief.data.followOnActions.map((a, i) => <p key={i} className="text-success font-medium">• {a}</p>)}
                 </div>
               </div>
             )}
@@ -608,47 +611,64 @@ const CrmOpportunityDetail = () => {
                       Overdue
                     </span>
                   )}
+                  {a.reminderSent && (
+                    <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-success bg-success/10 px-1.5 py-0.5 rounded-full">
+                      <span className="material-symbols-outlined text-[10px]">notifications_active</span>
+                      Reminded
+                    </span>
+                  )}
+                  {a.scheduledAt && new Date(a.scheduledAt) > new Date() && !a.reminderSent && (
+                    <button
+                      onClick={() => handleSetReminder(a.id)}
+                      className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-brand-600 hover:text-brand-700 px-1.5 py-0.5 rounded-full hover:bg-brand-50 transition-colors"
+                      style={{ border: 'none', cursor: 'pointer', background: 'none' }}
+                      title="Send a reminder for this scheduled activity"
+                    >
+                      <span className="material-symbols-outlined text-[10px]">notifications</span>
+                      Set Reminder
+                    </button>
+                  )}
                 </p>
                 {/* AI Note Analyzer (Task 9) */}
                 {['CALL', 'MEETING', 'WHATSAPP'].includes(a.activityType) && (
                   <div className="mt-2">
-                    {!analyzedNotes[a.id] ? (
+                    {!noteAnalyzer.results[a.id] ? (
                       <div>
                         <button
                           onClick={() => handleAnalyzeNote(a.id)}
-                          disabled={analyzingId === a.id}
+                          disabled={noteAnalyzer.loadingId === a.id}
                           className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 disabled:opacity-50"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
                         >
                           <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                          {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
+                          {noteAnalyzer.loadingId === a.id ? 'Analyzing…' : 'AI Analyze'}
                         </button>
-                        {noteAnalysisError && !analyzedNotes[a.id] && (
-                          <p className="text-xs text-danger mt-1">{noteAnalysisError}</p>
+                        {noteAnalyzer.error && !noteAnalyzer.results[a.id] && (
+                          <p className="text-xs text-danger mt-1">{noteAnalyzer.error}</p>
                         )}
                       </div>
                     ) : (
-                      <AiInsightCard title="Note Analysis" className="mt-1" error={noteAnalysisError} loading={analyzingId === a.id} onRefresh={() => handleAnalyzeNote(a.id)}>
+                      <AiInsightCard title="Note Analysis" className="mt-1" error={noteAnalyzer.error} loading={noteAnalyzer.loadingId === a.id} onRefresh={() => handleAnalyzeNote(a.id)}>
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
                             <span className={`material-symbols-outlined text-sm ${
-                              analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-success'
-                              : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-danger'
+                              noteAnalyzer.results[a.id]!.sentiment === 'positive' ? 'text-success'
+                              : noteAnalyzer.results[a.id]!.sentiment === 'negative' ? 'text-danger'
                               : 'text-text-tertiary'
                             }`}>
-                              {analyzedNotes[a.id]!.sentiment === 'positive' ? 'sentiment_satisfied'
-                                : analyzedNotes[a.id]!.sentiment === 'negative' ? 'sentiment_dissatisfied'
+                              {noteAnalyzer.results[a.id]!.sentiment === 'positive' ? 'sentiment_satisfied'
+                                : noteAnalyzer.results[a.id]!.sentiment === 'negative' ? 'sentiment_dissatisfied'
                                 : 'sentiment_neutral'}
                             </span>
-                            <span className="capitalize text-text-secondary">{analyzedNotes[a.id]!.sentiment}</span>
+                            <span className="capitalize text-text-secondary">{noteAnalyzer.results[a.id]!.sentiment}</span>
                           </div>
-                          <p><span className="font-medium">Next action:</span> {analyzedNotes[a.id]!.nextAction}</p>
-                          {analyzedNotes[a.id]!.suggestedStatusChange && (
-                            <p className="text-brand-700"><span className="font-medium">Suggest stage:</span> {analyzedNotes[a.id]!.suggestedStatusChange}</p>
+                          <p><span className="font-medium">Next action:</span> {noteAnalyzer.results[a.id]!.nextAction}</p>
+                          {noteAnalyzer.results[a.id]!.suggestedStatusChange && (
+                            <p className="text-brand-700"><span className="font-medium">Suggest stage:</span> {noteAnalyzer.results[a.id]!.suggestedStatusChange}</p>
                           )}
-                          {analyzedNotes[a.id]!.keyFacts.length > 0 && (
+                          {noteAnalyzer.results[a.id]!.keyFacts.length > 0 && (
                             <ul className="list-disc pl-4 text-text-secondary">
-                              {analyzedNotes[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
+                              {noteAnalyzer.results[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
                             </ul>
                           )}
                         </div>

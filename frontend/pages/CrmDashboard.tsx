@@ -5,6 +5,7 @@ import crmService, { DashboardStats, CrmActivity } from '../src/services/crm.ser
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
+import { useDailyBriefing, useNextBestAction } from '../src/hooks/useCrmAi';
 import axios from 'axios';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
@@ -17,8 +18,6 @@ import StateBadge from '../src/components/ui/StateBadge';
 const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
   <div style={{ width: w, height: h, background: 'var(--color-border)', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
 );
-
-const BRIEFING_KEY = 'crm_daily_briefing_v1';
 
 const CrmDashboard = () => {
   const navigate = useNavigate();
@@ -33,31 +32,8 @@ const CrmDashboard = () => {
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  // ── AI Daily Briefing (Task 10) ────────────────────────────────────────────
-  const [briefing, setBriefing] = useState<{
-    headline: string;
-    bullets: string[];
-    topPriority: string;
-  } | null>(() => {
-    try { return JSON.parse(sessionStorage.getItem(BRIEFING_KEY) || 'null'); }
-    catch { return null; }
-  });
-  const [briefingLoading, setBriefingLoading] = useState(false);
-  const [briefingError, setBriefingError] = useState<string | null>(null);
-
-  const handleGetBriefing = useCallback(async () => {
-    setBriefingLoading(true);
-    setBriefingError(null);
-    try {
-      const result = await crmService.getDailyBriefing();
-      setBriefing(result);
-      sessionStorage.setItem(BRIEFING_KEY, JSON.stringify(result));
-    } catch {
-      setBriefingError('AI briefing is temporarily unavailable. Please try again later.');
-    } finally {
-      setBriefingLoading(false);
-    }
-  }, []);
+  // ── AI Daily Briefing (Task 10) — uses useDailyBriefing hook ────────────
+  const { briefing, loading: briefingLoading, error: briefingError, fetch: handleGetBriefing } = useDailyBriefing();
 
   useEffect(() => {
     if (!debouncedQuery || debouncedQuery.length < 2) {
@@ -105,11 +81,7 @@ const CrmDashboard = () => {
   useEffect(() => {
     if (!didAutoLoad.current) {
       didAutoLoad.current = true;
-      // Read directly from sessionStorage to decide whether to auto-load
-      const cached = sessionStorage.getItem(BRIEFING_KEY);
-      if (!cached) {
-        handleGetBriefing();
-      }
+      handleGetBriefing();
     }
   }, [handleGetBriefing]);
 
@@ -330,6 +302,22 @@ const CrmDashboard = () => {
             </div>
           )}
         </AiInsightCard>
+      </div>
+
+      {/* AI Suggested Actions — prompt to visit detail pages */}
+      <div className="mb-6">
+        <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">AI Suggested Actions</h2>
+        <div className="bg-surface border border-border rounded-xl p-5 flex items-center gap-3">
+          <span className="material-symbols-outlined text-xl text-brand-500">auto_awesome</span>
+          <p className="text-sm text-text-secondary">
+            Go to a specific{' '}
+            <Link to="/crm/leads" className="text-brand-700 font-semibold hover:underline">Lead</Link>,{' '}
+            <Link to="/crm/contacts" className="text-brand-700 font-semibold hover:underline">Contact</Link>,{' '}
+            <Link to="/crm/accounts" className="text-brand-700 font-semibold hover:underline">Account</Link>, or{' '}
+            <Link to="/crm/pipeline" className="text-brand-700 font-semibold hover:underline">Opportunity</Link>{' '}
+            detail page to see AI-suggested next actions.
+          </p>
+        </div>
       </div>
 
       {/* Stats Cards */}

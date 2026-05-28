@@ -11,6 +11,7 @@ import { hasPermission } from '../src/utils/permissions';
 import { validateLead, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmAuditLog from '../src/components/crm/CrmAuditLog';
+import { useAnalyzeNote, useDraftMessage, useLeadSummary, useLeadScore, useNextBestAction } from '../src/hooks/useCrmAi';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -53,98 +54,39 @@ const CrmLeadDetail = () => {
   const [hasMoreActivities, setHasMoreActivities] = useState(true);
   const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
 
-  // ── AI state ─────────────────────────────────────────────────────
-  // Note Analyzer (Task 5)
-  const [analyzedNotes, setAnalyzedNotes] = useState<Record<string, {
-    sentiment: string;
-    nextAction: string;
-    suggestedStatusChange: string | null;
-    keyFacts: string[];
-    suggestedFollowUpDays?: number | null;
-  } | null>>({});
-  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
-   const [noteAnalysisError, setNoteAnalysisError] = useState<string | null>(null);
+  // ── AI state — using hooks ─────────────────────────────────────────────
+  const noteAnalyzer = useAnalyzeNote();
+  const draftMsg = useDraftMessage();
+  const leadSummary = useLeadSummary();
+  const leadScore = useLeadScore();
 
-  // Draft Message (Task 6)
+  // Draft Message UI state (keeps modal visibility and config — NOT AI state)
   const [draftModal, setDraftModal] = useState(false);
   const [draftConfig, setDraftConfig] = useState<{ channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' }>({ channel: 'whatsapp', tone: 'friendly' });
-  const [draftResult, setDraftResult] = useState<{ subject: string | null; body: string } | null>(null);
-  const [draftLoading, setDraftLoading] = useState(false);
-   const [draftError, setDraftError] = useState<string | null>(null);
 
-  // Lead Summary (Task 7)
-  const [summary, setSummary] = useState<{ statusSummary: string; keyFacts: string; recommendedNextStep: string } | null>(null);
-  const [summaryLoading, setSummaryLoading] = useState(false);
-   const [summaryError, setSummaryError] = useState<string | null>(null);
-
-  // Lead Score (Task 8)
+  // Lead Score color helper
   const scoreColor = (score: number) =>
     score >= 70 ? 'bg-[var(--color-hr-50)] text-[var(--color-success)]' : score >= 40 ? 'bg-[var(--color-fin-50)] text-[var(--color-warning)]' : 'bg-[rgba(220,38,38,0.06)] text-[var(--color-danger)]';
+
+  // ── Next Best Action (Task 11) ─────────────────────────────────────
+  const nba = useNextBestAction();
 
   // Fetch CRM team users for owner reassignment
   useEffect(() => {
     crmService.listCrmUsers().then(setCrmUsers).catch(() => {});
   }, []);
 
-  // ── AI handlers ─────────────────────────────────────────────────────
-  const handleAnalyzeNote = async (activityId: string) => {
-    setAnalyzingId(activityId);
-    setNoteAnalysisError(null);
-    try {
-      const result = await crmService.analyzeActivityNote(activityId);
-      setAnalyzedNotes((prev) => ({ ...prev, [activityId]: result }));
-    } catch (err) {
-      setNoteAnalysisError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setAnalyzingId(null);
-    }
+  // ── AI wrapper handlers (delegate to hooks) ─────────────────────────
+  const handleAnalyzeNote = (activityId: string) => noteAnalyzer.analyze(activityId);
+
+  const handleDraftMessage = () => {
+    if (!lead) return;
+    draftMsg.draftForLead(lead.id, draftConfig);
   };
 
-  const handleDraftMessage = async () => {
+  const handleGetSummary = () => {
     if (!lead) return;
-    setDraftLoading(true);
-    setDraftResult(null);
-    setDraftError(null);
-    try {
-      const result = await crmService.draftLeadMessage(lead.id, draftConfig);
-      setDraftResult(result);
-    } catch (err) {
-      setDraftError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setDraftLoading(false);
-    }
-  };
-
-  const handleGetSummary = async () => {
-    if (!lead) return;
-    setSummaryLoading(true);
-    setSummaryError(null);
-    try {
-      const result = await crmService.getLeadSummary(lead.id);
-      setSummary(result);
-    } catch (err) {
-      setSummaryError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setSummaryLoading(false);
-    }
-  };
-
-  const [scoreData, setScoreData] = useState<{ score: number; reason: string } | null>(null);
-  const [scoreLoading, setScoreLoading] = useState(false);
-  const [scoreError, setScoreError] = useState<string | null>(null);
-
-  const handleGetScore = async () => {
-    if (!lead) return;
-    setScoreLoading(true);
-    setScoreError(null);
-    try {
-      const result = await crmService.getLeadScore(lead.id);
-      setScoreData(result);
-    } catch (err) {
-      setScoreError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setScoreLoading(false);
-    }
+    leadSummary.fetch(lead.id);
   };
 
   const reload = () => {
@@ -156,6 +98,11 @@ const CrmLeadDetail = () => {
   };
 
   useEffect(() => { setLoading(true); reload(); }, [id]);
+
+  // Auto-fetch Next Best Action when lead loads
+  useEffect(() => {
+    if (lead?.id) nba.fetch('lead', lead.id);
+  }, [lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize hasMoreActivities based on initial activity count
   useEffect(() => {
@@ -264,6 +211,18 @@ const CrmLeadDetail = () => {
     } finally {
       setLoadingMoreActivities(false);
     }
+  };
+
+  const handleSetReminder = async (activityId: string) => {
+    try {
+      await crmService.sendActivityReminder(activityId);
+      setLead(prev => prev ? {
+        ...prev,
+        activities: (prev.activities ?? []).map(a =>
+          a.id === activityId ? { ...a, reminderSent: true } : a
+        ),
+      } : prev);
+    } catch (e) { console.error(e); }
   };
 
   const handleAddNote = async (e: React.FormEvent) => {
@@ -408,28 +367,28 @@ const CrmLeadDetail = () => {
             <h1 className="text-2xl font-black text-text-primary">{lead.title}</h1>
             <StateBadge state={lead.status} size="sm" />
             {/* AI Score Badge (Task 8) */}
-            {(scoreData || lead.aiScore != null) ? (
+            {(leadScore.scoreData || lead.aiScore != null) ? (
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                  scoreColor(scoreData?.score ?? lead.aiScore!)
+                  scoreColor(leadScore.scoreData?.score ?? lead.aiScore!)
                 }`}
-                title={scoreData?.reason ?? lead.aiScoreReason ?? ''}
+                title={leadScore.scoreData?.reason ?? lead.aiScoreReason ?? ''}
               >
                 <span className="material-symbols-outlined text-xs">auto_awesome</span>
-                {scoreData?.score ?? lead.aiScore}/100
+                {leadScore.scoreData?.score ?? lead.aiScore}/100
               </span>
             ) : (
               <span className="inline-flex items-center gap-1">
                 <button
-                  onClick={handleGetScore}
-                  disabled={scoreLoading}
+                  onClick={() => leadScore.fetch(lead.id)}
+                  disabled={leadScore.loading}
                   className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs text-text-tertiary hover:bg-brand-100 hover:text-brand-700 disabled:opacity-50"
                 >
                   <span className="material-symbols-outlined text-xs">auto_awesome</span>
-                  {scoreLoading ? '…' : 'Score'}
+                  {leadScore.loading ? '…' : 'Score'}
                 </button>
-                {scoreError && (
-                  <span className="text-xs text-danger" title={scoreError}>
+                {leadScore.error && (
+                  <span className="text-xs text-danger" title={leadScore.error}>
                     <span className="material-symbols-outlined text-xs align-middle">error</span>
                   </span>
                 )}
@@ -485,7 +444,7 @@ const CrmLeadDetail = () => {
           {/* Draft Message button (Task 6) */}
           {!isConverted && !isLost && (
             <button
-              onClick={() => { setDraftModal(true); setDraftResult(null); }}
+              onClick={() => { setDraftModal(true); }}
               className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2.5 rounded-lg text-sm font-bold text-brand-700 hover:bg-brand-100 transition-colors"
               style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             >
@@ -495,6 +454,25 @@ const CrmLeadDetail = () => {
           )}
         </div>
       </div>
+
+      {/* AI Suggested Actions */}
+      {nba.loading && !nba.data && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="material-symbols-outlined text-sm text-brand-500 animate-pulse">auto_awesome</span>
+          <span className="text-xs text-text-secondary animate-pulse">Loading suggested actions…</span>
+        </div>
+      )}
+      {nba.data && nba.data.actions?.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <span className="text-xs font-semibold text-text-secondary">AI Suggested:</span>
+          {nba.data.actions.map((a, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-bg-subtle border border-border" title={a.reason}>
+              <span className={`w-1.5 h-1.5 rounded-full ${a.priority === 'high' ? 'bg-red-500' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`} />
+              {a.action}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
@@ -673,11 +651,11 @@ const CrmLeadDetail = () => {
           <div className="mt-4 pt-4 border-t border-border">
             <AiInsightCard
               title="AI Summary"
-              loading={summaryLoading}
-              error={summaryError}
+              loading={leadSummary.loading}
+              error={leadSummary.error}
               onRefresh={handleGetSummary}
             >
-              {!summary ? (
+              {!leadSummary.summary ? (
                 <button
                   onClick={handleGetSummary}
                   className="text-sm text-brand-600 hover:underline"
@@ -686,9 +664,9 @@ const CrmLeadDetail = () => {
                 </button>
               ) : (
                 <ul className="space-y-2 text-sm">
-                  <li><span className="font-medium text-text-secondary">Status:</span> {summary.statusSummary}</li>
-                  <li><span className="font-medium text-text-secondary">Key facts:</span> {summary.keyFacts}</li>
-                  <li><span className="font-medium text-brand-700">Next step:</span> {summary.recommendedNextStep}</li>
+                  <li><span className="font-medium text-text-secondary">Status:</span> {leadSummary.summary.statusSummary}</li>
+                  <li><span className="font-medium text-text-secondary">Key facts:</span> {leadSummary.summary.keyFacts}</li>
+                  <li><span className="font-medium text-brand-700">Next step:</span> {leadSummary.summary.recommendedNextStep}</li>
                 </ul>
               )}
             </AiInsightCard>
@@ -715,52 +693,69 @@ const CrmLeadDetail = () => {
                       Overdue
                     </span>
                   )}
+                  {a.reminderSent && (
+                    <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-success bg-success/10 px-1.5 py-0.5 rounded-full">
+                      <span className="material-symbols-outlined text-[10px]">notifications_active</span>
+                      Reminded
+                    </span>
+                  )}
+                  {a.scheduledAt && new Date(a.scheduledAt) > new Date() && !a.reminderSent && (
+                    <button
+                      onClick={() => handleSetReminder(a.id)}
+                      className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-brand-600 hover:text-brand-700 px-1.5 py-0.5 rounded-full hover:bg-brand-50 transition-colors"
+                      style={{ border: 'none', cursor: 'pointer', background: 'none' }}
+                      title="Send a reminder for this scheduled activity"
+                    >
+                      <span className="material-symbols-outlined text-[10px]">notifications</span>
+                      Set Reminder
+                    </button>
+                  )}
                 </p>
                 {/* AI Note Analyzer (Task 5) */}
                 {['CALL', 'MEETING', 'WHATSAPP'].includes(a.activityType) && (
                   <div className="mt-2">
-                    {!analyzedNotes[a.id] ? (
+                    {!noteAnalyzer.results[a.id] ? (
                       <div>
                         <button
                           onClick={() => handleAnalyzeNote(a.id)}
-                          disabled={analyzingId === a.id}
+                          disabled={noteAnalyzer.loadingId === a.id}
                           className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 disabled:opacity-50"
                         >
                           <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                          {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
+                          {noteAnalyzer.loadingId === a.id ? 'Analyzing…' : 'AI Analyze'}
                         </button>
-                        {noteAnalysisError && !analyzedNotes[a.id] && (
-                          <p className="text-xs text-danger mt-1">{noteAnalysisError}</p>
+                        {noteAnalyzer.error && !noteAnalyzer.results[a.id] && (
+                          <p className="text-xs text-danger mt-1">{noteAnalyzer.error}</p>
                         )}
                       </div>
                     ) : (
-                      <AiInsightCard title="Note Analysis" className="mt-1" error={noteAnalysisError} loading={analyzingId === a.id} onRefresh={() => handleAnalyzeNote(a.id)}>
+                      <AiInsightCard title="Note Analysis" className="mt-1" error={noteAnalyzer.error} loading={noteAnalyzer.loadingId === a.id} onRefresh={() => handleAnalyzeNote(a.id)}>
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
                             <span className={`material-symbols-outlined text-sm ${
-                              analyzedNotes[a.id]!.sentiment === 'positive' ? 'text-success'
-                              : analyzedNotes[a.id]!.sentiment === 'negative' ? 'text-danger'
+                              noteAnalyzer.results[a.id]!.sentiment === 'positive' ? 'text-success'
+                              : noteAnalyzer.results[a.id]!.sentiment === 'negative' ? 'text-danger'
                               : 'text-text-tertiary'
                             }`}>
-                              {analyzedNotes[a.id]!.sentiment === 'positive' ? 'sentiment_satisfied'
-                                : analyzedNotes[a.id]!.sentiment === 'negative' ? 'sentiment_dissatisfied'
+                              {noteAnalyzer.results[a.id]!.sentiment === 'positive' ? 'sentiment_satisfied'
+                                : noteAnalyzer.results[a.id]!.sentiment === 'negative' ? 'sentiment_dissatisfied'
                                 : 'sentiment_neutral'}
                             </span>
-                            <span className="capitalize text-text-secondary">{analyzedNotes[a.id]!.sentiment}</span>
+                            <span className="capitalize text-text-secondary">{noteAnalyzer.results[a.id]!.sentiment}</span>
                           </div>
-                          <p><span className="font-medium">Next action:</span> {analyzedNotes[a.id]!.nextAction}</p>
-                          {analyzedNotes[a.id]!.suggestedStatusChange && (
-                            <p className="text-brand-700"><span className="font-medium">Suggest status:</span> {analyzedNotes[a.id]!.suggestedStatusChange}</p>
+                          <p><span className="font-medium">Next action:</span> {noteAnalyzer.results[a.id]!.nextAction}</p>
+                          {noteAnalyzer.results[a.id]!.suggestedStatusChange && (
+                            <p className="text-brand-700"><span className="font-medium">Suggest status:</span> {noteAnalyzer.results[a.id]!.suggestedStatusChange}</p>
                           )}
-                          {analyzedNotes[a.id]!.keyFacts.length > 0 && (
+                          {noteAnalyzer.results[a.id]!.keyFacts.length > 0 && (
                             <ul className="list-disc pl-4 text-text-secondary">
-                              {analyzedNotes[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
+                              {noteAnalyzer.results[a.id]!.keyFacts.map((f, i) => <li key={i}>{f}</li>)}
                             </ul>
                           )}
-                          {analyzedNotes[a.id]!.suggestedFollowUpDays != null && (
+                          {noteAnalyzer.results[a.id]!.suggestedFollowUpDays != null && (
                             <button
                               onClick={async () => {
-                                const days = analyzedNotes[a.id]!.suggestedFollowUpDays!;
+                                const days = noteAnalyzer.results[a.id]!.suggestedFollowUpDays!;
                                 const date = new Date(Date.now() + days * 86_400_000)
                                   .toISOString().slice(0, 10);
                                 await crmService.updateLead(lead!.id, { followUpDate: date });
@@ -770,7 +765,7 @@ const CrmLeadDetail = () => {
                               style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
                             >
                               <span className="material-symbols-outlined text-sm">event_available</span>
-                              Set follow-up in {analyzedNotes[a.id]!.suggestedFollowUpDays} day{analyzedNotes[a.id]!.suggestedFollowUpDays === 1 ? '' : 's'}
+                              Set follow-up in {noteAnalyzer.results[a.id]!.suggestedFollowUpDays} day{noteAnalyzer.results[a.id]!.suggestedFollowUpDays === 1 ? '' : 's'}
                             </button>
                           )}
                         </div>
@@ -1089,27 +1084,27 @@ const CrmLeadDetail = () => {
               <div className="flex items-end">
                 <button
                   onClick={handleDraftMessage}
-                  disabled={draftLoading}
+                  disabled={draftMsg.loading}
                   className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                   style={{ border: 'none', cursor: 'pointer' }}
                 >
-                  {draftLoading ? 'Drafting…' : 'Generate'}
+                  {draftMsg.loading ? 'Drafting…' : 'Generate'}
                 </button>
               </div>
             </div>
 
-            {draftError && (
+            {draftMsg.error && (
               <div className="mb-4 rounded-md bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
-                {draftError}
+                {draftMsg.error}
               </div>
             )}
 
-            {draftResult && (
+            {draftMsg.result && (
               <div className="space-y-3">
-                {draftResult.subject && (
+                {draftMsg.result.subject && (
                   <div>
                     <p className="mb-1 text-xs font-medium text-text-secondary">Subject</p>
-                    <p className="rounded-md bg-bg-subtle px-3 py-2 text-sm">{draftResult.subject}</p>
+                    <p className="rounded-md bg-bg-subtle px-3 py-2 text-sm">{draftMsg.result.subject}</p>
                   </div>
                 )}
                 <div>
@@ -1117,7 +1112,7 @@ const CrmLeadDetail = () => {
                   <textarea
                     className="w-full rounded-md border border-border px-3 py-2 text-sm"
                     rows={8}
-                    defaultValue={draftResult.body}
+                    defaultValue={draftMsg.result.body}
                     style={{ fontFamily: 'var(--font-sans)' }}
                   />
                 </div>

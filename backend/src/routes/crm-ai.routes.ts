@@ -14,6 +14,7 @@ router.get('/leads/:id/summary', requirePermission('crm:read'), crmAiController.
 router.get('/leads/:id/score', requirePermission('crm:read'), crmAiController.leadScore);
 router.get('/opportunities/:id/win-probability', requirePermission('crm:read'), crmAiController.winProbability);
 router.get('/dashboard/briefing', requirePermission('crm:read'), crmAiController.dailyBriefing);
+router.post('/next-best-action', requirePermission('crm:read'), crmAiController.nextBestAction);
 
 // Phase 3 — Compliance Assist
 router.get('/contacts/:id/kyc-gaps', requirePermission('crm:read'), crmAiController.kycGaps);

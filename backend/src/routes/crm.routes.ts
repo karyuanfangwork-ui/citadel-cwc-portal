@@ -72,6 +72,7 @@ router.patch('/pipelines/:id', requirePermission('crm:admin'), crmController.upd
 router.get('/activities', requirePermission('crm:read'), crmController.listActivities);
 router.post('/activities', requirePermission('crm:write'), validate(createActivitySchema), crmController.createActivity);
 router.patch('/activities/:id', requirePermission('crm:write'), validate(updateActivitySchema), crmController.updateActivity);
+router.post('/activities/:id/remind', requirePermission('crm:write'), crmController.remindActivity);
 router.delete('/activities/:id', requirePermission('crm:delete'), crmController.deleteActivity);
 
 // ======== NOTES ========

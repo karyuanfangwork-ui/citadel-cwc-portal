@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
+import { notify } from '../services/notification.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import crmReportsService from '../services/crm-reports.service';
 import { scoreLead, predictWinProbability } from '../services/crm-ai.service';
@@ -566,6 +567,55 @@ class CrmController {
     await prisma.crmActivity.delete({ where: { id: req.params.id as string } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmActivity', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Activity deleted' });
+  });
+
+  remindActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const activityId = req.params.id as string;
+    const activity = await prisma.crmActivity.findUnique({
+      where: { id: activityId },
+      include: { user: { select: { id: true, firstName: true, lastName: true } } },
+    });
+    if (!activity) throw new AppError('Activity not found', 404);
+    if (activity.reminderSent) {
+      res.json({ status: 'success', data: { activity } });
+      return;
+    }
+
+    // Mark reminder as sent
+    const updated = await prisma.crmActivity.update({
+      where: { id: activityId },
+      data: { reminderSent: true },
+    });
+
+    // Build variables for notification
+    const scheduledLabel = activity.scheduledAt
+      ? new Date(activity.scheduledAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : '—';
+
+    // Send in-app notification to the activity's assigned user (or current user)
+    const targetUserId = activity.userId || req.user!.id;
+    await notify({
+      userId: targetUserId,
+      eventType: 'crm_activity_reminder',
+      variables: {
+        activityType: activity.activityType,
+        subject: activity.subject || '(no subject)',
+        scheduledAt: scheduledLabel,
+        remindedBy: `${req.user!.firstName} ${req.user!.lastName}`,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: 'REMIND',
+        resourceType: 'CrmActivity',
+        resourceId: activityId,
+      },
+    });
+
+    res.json({ status: 'success', data: { activity: updated } });
   });
 
   // ======== NOTES ========

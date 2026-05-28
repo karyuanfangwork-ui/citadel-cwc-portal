@@ -15,6 +15,7 @@ import InlineEdit from '../src/components/crm/InlineEdit';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 import CrmAuditLog from '../src/components/crm/CrmAuditLog';
+import { useNextBestAction, useDraftMessage, useKycGaps, useRiskProfile } from '../src/hooks/useCrmAi';
 
 // ── Formatters ────────────────────────────────────────────────────
 const fmt = new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 });
@@ -653,31 +654,20 @@ const CrmContactDetail = () => {
   const [hasMoreActivities, setHasMoreActivities] = useState(true);
   const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
 
-  // ── AI state (Task 5/6/11/12) ───────────────────────────────────────
+  // ── AI state — using hooks ───────────────────────────────────────────
   // Draft Message
   const [draftModal, setDraftModal] = useState(false);
   const [draftConfig, setDraftConfig] = useState<{ channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' }>({ channel: 'whatsapp', tone: 'friendly' });
-  const [draftResult, setDraftResult] = useState<{ subject: string | null; body: string } | null>(null);
-  const [draftLoading, setDraftLoading] = useState(false);
-  const [draftError, setDraftError] = useState<string | null>(null);
+  const draftMsg = useDraftMessage();
 
   // KYC Gap Detector
-  const [kycGaps, setKycGaps] = useState<{
-    gaps: Array<{ field: string; requirement: string; severity: 'required' | 'recommended' }>;
-    complianceSummary: string;
-    isCompliant: boolean;
-  } | null>(null);
-  const [kycLoading, setKycLoading] = useState(false);
-  const [kycError, setKycError] = useState<string | null>(null);
+  const kycGapsHook = useKycGaps();
 
   // Risk Profile
-  const [riskProfile, setRiskProfile] = useState<{
-    suggestedRiskTier: 'Low' | 'Medium' | 'High';
-    justification: string;
-    regulatoryBasis: string;
-  } | null>(null);
-  const [riskLoading, setRiskLoading] = useState(false);
-  const [riskError, setRiskError] = useState<string | null>(null);
+  const riskProfileHook = useRiskProfile();
+
+  // ── Next Best Action (Task 11) ─────────────────────────────────────
+  const nba = useNextBestAction();
 
   useEffect(() => {
     if (!id) return;
@@ -688,59 +678,32 @@ const CrmContactDetail = () => {
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
+  // Auto-fetch Next Best Action when contact loads
+  useEffect(() => {
+    if (contact?.id) nba.fetch('contact', contact.id);
+  }, [contact?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-load KYC gaps and risk profile when contact is loaded
   useEffect(() => {
     if (!contact) return;
-    crmService.getKycGaps(contact.id)
-      .then(setKycGaps)
-      .catch(() => { /* fail silently on auto-load */ });
-    crmService.getRiskProfile(contact.id)
-      .then(setRiskProfile)
-      .catch(() => { /* fail silently on auto-load */ });
+    kycGapsHook.fetch(contact.id);
+    riskProfileHook.fetch(contact.id);
   }, [contact?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── AI handlers ─────────────────────────────────────────────────────
-  const handleDraftMessage = async () => {
+  const handleDraftMessage = () => {
     if (!contact) return;
-    setDraftLoading(true);
-    setDraftResult(null);
-    setDraftError(null);
-    try {
-      const result = await crmService.draftContactMessage(contact.id, draftConfig);
-      setDraftResult(result);
-    } catch (err) {
-      setDraftError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setDraftLoading(false);
-    }
+    draftMsg.draftForContact(contact.id, draftConfig);
   };
 
-  const handleKycCheck = async () => {
+  const handleKycCheck = () => {
     if (!contact) return;
-    setKycLoading(true);
-    setKycError(null);
-    try {
-      const result = await crmService.getKycGaps(contact.id);
-      setKycGaps(result);
-    } catch (err) {
-      setKycError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setKycLoading(false);
-    }
+    kycGapsHook.fetch(contact.id);
   };
 
-  const handleRiskProfile = async () => {
+  const handleRiskProfile = () => {
     if (!contact) return;
-    setRiskLoading(true);
-    setRiskError(null);
-    try {
-      const result = await crmService.getRiskProfile(contact.id);
-      setRiskProfile(result);
-    } catch (err) {
-      setRiskError(err instanceof Error ? err.message : 'AI feature unavailable');
-    } finally {
-      setRiskLoading(false);
-    }
+    riskProfileHook.fetch(contact.id);
   };
 
   // ── Edit modal handlers ───────────────────────────────────────────────
@@ -822,6 +785,18 @@ const CrmContactDetail = () => {
       reload();
     } catch (e) { console.error(e); }
     finally { setSavingActivity(false); }
+  };
+
+  const handleSetReminder = async (activityId: string) => {
+    try {
+      await crmService.sendActivityReminder(activityId);
+      setContact(prev => prev ? {
+        ...prev,
+        activities: (prev.activities ?? []).map(a =>
+          a.id === activityId ? { ...a, reminderSent: true } : a
+        ),
+      } : prev);
+    } catch (e) { console.error(e); }
   };
 
   const openEditActivity = (a: CrmActivity) => {
@@ -954,7 +929,7 @@ const CrmContactDetail = () => {
             <button onClick={() => setShowDelete(true)} className="text-sm text-red-600 hover:underline flex items-center gap-1"><span className="material-symbols-outlined text-base">delete</span>Delete</button>
           )}
           <button
-            onClick={() => { setDraftModal(true); setDraftResult(null); }}
+            onClick={() => { setDraftModal(true); }}
             className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2 rounded-lg text-sm font-bold text-brand-700 hover:bg-brand-100 transition-colors"
             style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
           >
@@ -970,6 +945,25 @@ const CrmContactDetail = () => {
           </button>
         </div>
       </div>
+
+      {/* AI Suggested Actions */}
+      {nba.loading && !nba.data && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="material-symbols-outlined text-sm text-brand-500 animate-pulse">auto_awesome</span>
+          <span className="text-xs text-text-secondary animate-pulse">Loading suggested actions…</span>
+        </div>
+      )}
+      {nba.data && nba.data.actions?.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <span className="text-xs font-semibold text-text-secondary">AI Suggested:</span>
+          {nba.data.actions.map((a, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-bg-subtle border border-border" title={a.reason}>
+              <span className={`w-1.5 h-1.5 rounded-full ${a.priority === 'high' ? 'bg-red-500' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`} />
+              {a.action}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-2 flex-wrap mb-6">
@@ -1073,6 +1067,23 @@ const CrmContactDetail = () => {
                       Overdue
                     </span>
                   )}
+                  {a.reminderSent && (
+                    <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-success bg-success/10 px-1.5 py-0.5 rounded-full">
+                      <span className="material-symbols-outlined text-[10px]">notifications_active</span>
+                      Reminded
+                    </span>
+                  )}
+                  {a.scheduledAt && new Date(a.scheduledAt) > new Date() && !a.reminderSent && (
+                    <button
+                      onClick={() => handleSetReminder(a.id)}
+                      className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-brand-600 hover:text-brand-700 px-1.5 py-0.5 rounded-full hover:bg-brand-50 transition-colors"
+                      style={{ border: 'none', cursor: 'pointer', background: 'none' }}
+                      title="Send a reminder for this scheduled activity"
+                    >
+                      <span className="material-symbols-outlined text-[10px]">notifications</span>
+                      Set Reminder
+                    </button>
+                  )}
                 </p>
               </div>
               <div className="flex flex-col items-center gap-1 shrink-0 ml-auto">
@@ -1129,21 +1140,21 @@ const CrmContactDetail = () => {
         <div className="space-y-4">
           <KycTab contactId={id} />
           {/* AI KYC Gap Detector (Task 11) */}
-          <AiInsightCard title="AI KYC Compliance Check" loading={kycLoading} error={kycError} onRefresh={handleKycCheck}>
-            {!kycGaps ? (
-              <button onClick={handleKycCheck} className="text-sm text-brand-600 hover:underline">
+          <AiInsightCard title="AI KYC Compliance Check" loading={kycGapsHook.loading} error={kycGapsHook.error} onRefresh={() => kycGapsHook.fetch(id)}>
+            {!kycGapsHook.data ? (
+              <button onClick={() => kycGapsHook.fetch(id)} className="text-sm text-brand-600 hover:underline">
                 <span className="material-symbols-outlined text-sm">refresh</span>
                 Refresh
               </button>
             ) : (
               <div className="space-y-2">
-                <div className={`flex items-center gap-2 text-sm font-semibold ${kycGaps.isCompliant ? 'text-success' : 'text-danger'}`}>
-                  <span className="material-symbols-outlined text-base">{kycGaps.isCompliant ? 'check_circle' : 'warning'}</span>
-                  {kycGaps.complianceSummary}
+                <div className={`flex items-center gap-2 text-sm font-semibold ${kycGapsHook.data.isCompliant ? 'text-success' : 'text-danger'}`}>
+                  <span className="material-symbols-outlined text-base">{kycGapsHook.data.isCompliant ? 'check_circle' : 'warning'}</span>
+                  {kycGapsHook.data.complianceSummary}
                 </div>
-                {kycGaps.gaps.length > 0 && (
+                {kycGapsHook.data.gaps.length > 0 && (
                   <ul className="space-y-1">
-                    {kycGaps.gaps.map((g, i) => (
+                    {kycGapsHook.data.gaps.map((g, i) => (
                       <li key={i} className={`flex items-start gap-2 rounded-md px-2 py-1 text-xs ${g.severity === 'required' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'}`}>
                         <span className="material-symbols-outlined mt-0.5 text-sm">{g.severity === 'required' ? 'error' : 'info'}</span>
                         <span><span className="font-semibold">{g.field}:</span> {g.requirement}</span>
@@ -1157,9 +1168,9 @@ const CrmContactDetail = () => {
           </AiInsightCard>
 
           {/* AI Risk Profile Classifier (Task 12) */}
-          <AiInsightCard title="AI Risk Classification" loading={riskLoading} error={riskError} onRefresh={handleRiskProfile}>
-            {!riskProfile ? (
-              <button onClick={handleRiskProfile} className="text-sm text-brand-600 hover:underline">
+          <AiInsightCard title="AI Risk Classification" loading={riskProfileHook.loading} error={riskProfileHook.error} onRefresh={() => riskProfileHook.fetch(id)}>
+            {!riskProfileHook.data ? (
+              <button onClick={() => riskProfileHook.fetch(id)} className="text-sm text-brand-600 hover:underline">
                 <span className="material-symbols-outlined text-sm">refresh</span>
                 Refresh
               </button>
@@ -1167,16 +1178,16 @@ const CrmContactDetail = () => {
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2">
                   <span className={`rounded-full px-3 py-1 text-xs font-bold ${
-                    riskProfile.suggestedRiskTier === 'High' ? 'bg-danger/10 text-danger'
-                    : riskProfile.suggestedRiskTier === 'Medium' ? 'bg-warning/10 text-warning'
+                    riskProfileHook.data.suggestedRiskTier === 'High' ? 'bg-danger/10 text-danger'
+                    : riskProfileHook.data.suggestedRiskTier === 'Medium' ? 'bg-warning/10 text-warning'
                     : 'bg-success/10 text-success'
                   }`}>
-                    {riskProfile.suggestedRiskTier} Risk
+                    {riskProfileHook.data.suggestedRiskTier} Risk
                   </span>
                   <span className="text-xs text-text-tertiary">(AI suggestion — agent must confirm)</span>
                 </div>
-                <p className="text-text-primary">{riskProfile.justification}</p>
-                <p className="text-xs text-text-secondary italic">{riskProfile.regulatoryBasis}</p>
+                <p className="text-text-primary">{riskProfileHook.data.justification}</p>
+                <p className="text-xs text-text-secondary italic">{riskProfileHook.data.regulatoryBasis}</p>
               </div>
             )}
           </AiInsightCard>
@@ -1287,23 +1298,23 @@ const CrmContactDetail = () => {
               <div className="flex items-end">
                 <button
                   onClick={handleDraftMessage}
-                  disabled={draftLoading}
+                  disabled={draftMsg.loading}
                   className="rounded-md bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                   style={{ border: 'none', cursor: 'pointer' }}
                 >
-                  {draftLoading ? 'Drafting…' : 'Generate'}
+                  {draftMsg.loading ? 'Drafting…' : 'Generate'}
                 </button>
               </div>
             </div>
-            {draftError && (
-              <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-600">{draftError}</div>
+            {draftMsg.error && (
+              <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-600">{draftMsg.error}</div>
             )}
-            {draftResult && (
+            {draftMsg.result && (
               <div className="space-y-3">
-                {draftResult.subject && (
+                {draftMsg.result.subject && (
                   <div>
                     <p className="mb-1 text-xs font-medium text-text-secondary">Subject</p>
-                    <p className="rounded-md bg-surface-muted px-3 py-2 text-sm">{draftResult.subject}</p>
+                    <p className="rounded-md bg-surface-muted px-3 py-2 text-sm">{draftMsg.result.subject}</p>
                   </div>
                 )}
                 <div>
@@ -1311,7 +1322,7 @@ const CrmContactDetail = () => {
                   <textarea
                     className="w-full rounded-md border border-border px-3 py-2 text-sm"
                     rows={8}
-                    defaultValue={draftResult.body}
+                    defaultValue={draftMsg.result.body}
                     style={{ fontFamily: 'var(--font-sans)' }}
                   />
                 </div>

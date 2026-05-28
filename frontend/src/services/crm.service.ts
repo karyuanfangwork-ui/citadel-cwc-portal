@@ -349,6 +349,10 @@ const crmService = {
     return res.data.data.activity as CrmActivity;
   },
   async deleteActivity(id: string) { await api.delete(`/crm/activities/${id}`); },
+  async sendActivityReminder(id: string) {
+    const res = await api.post(`/crm/activities/${id}/remind`);
+    return res.data.data.activity as CrmActivity;
+  },
 
   // Notes
   async listNotes(params?: Record<string, string>) {
@@ -513,6 +517,10 @@ const crmService = {
   async getDocumentChecklist(trustProductId: string) {
     const { data } = await api.get(`/crm/ai/trust-products/${trustProductId}/document-checklist`);
     return data as { documents: Array<{ name: string; description: string; required: boolean }>; notes: string };
+  },
+  async getNextBestAction(entityType: string, entityId: string) {
+    const res = await api.post('/crm/ai/next-best-action', { entityType, entityId });
+    return res.data as { actions: Array<{ action: string; priority: 'high' | 'medium' | 'low'; reason: string }> };
   },
 
   // ── Audit Trail ────────────────────────────────────────────────────────

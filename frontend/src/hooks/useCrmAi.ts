@@ -7,6 +7,7 @@ export type NoteAnalysis = {
   nextAction: string;
   suggestedStatusChange: string | null;
   keyFacts: string[];
+  suggestedFollowUpDays?: number | null;
 };
 
 export function useAnalyzeNote() {
@@ -116,6 +117,8 @@ export function useWinProbability() {
 // ── Daily Briefing ────────────────────────────────────────────────────────────
 export type DailyBriefing = { headline: string; bullets: string[]; topPriority: string };
 
+const BRIEFING_CACHE_KEY = 'crm_daily_briefing_v1';
+
 export function useDailyBriefing() {
   const [briefing, setBriefing] = useState<DailyBriefing | null>(null);
   const [loading, setLoading] = useState(false);
@@ -123,12 +126,55 @@ export function useDailyBriefing() {
 
   const fetch = useCallback(async () => {
     setLoading(true); setError(null);
-    try { setBriefing(await crmService.getDailyBriefing()); }
-    catch { setError('Could not generate briefing'); }
+    // Check sessionStorage cache for today
+    try {
+      const cached = sessionStorage.getItem(BRIEFING_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.date === new Date().toISOString().slice(0, 10)) {
+          setBriefing(parsed.briefing);
+          setLoading(false);
+          return;
+        }
+      }
+    } catch {}
+    // Fetch from API
+    try {
+      const result = await crmService.getDailyBriefing();
+      setBriefing(result);
+      sessionStorage.setItem(BRIEFING_CACHE_KEY, JSON.stringify({
+        date: new Date().toISOString().slice(0, 10),
+        briefing: result,
+      }));
+    } catch { setError('Could not generate briefing'); }
     finally { setLoading(false); }
   }, []);
 
   return { briefing, loading, error, fetch };
+}
+
+// ── Win/Loss Debrief ─────────────────────────────────────────────────────────
+export type WinLossDebrief = {
+  outcome: 'WON' | 'LOST';
+  summary: string;
+  keyFactors: string[];
+  lessonsLearned: string[];
+  followOnActions: string[];
+};
+
+export function useWinLossDebrief() {
+  const [data, setData] = useState<WinLossDebrief | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetch = useCallback(async (opportunityId: string) => {
+    setLoading(true); setError(null);
+    try { setData(await crmService.getWinLossDebrief(opportunityId)); }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
+    finally { setLoading(false); }
+  }, []);
+
+  return { data, loading, error, fetch };
 }
 
 // ── KYC Gap Detector ──────────────────────────────────────────────────────────
@@ -185,6 +231,26 @@ export function useDocumentChecklist() {
   const fetch = useCallback(async (trustProductId: string) => {
     setLoading(true); setError(null);
     try { setData(await crmService.getDocumentChecklist(trustProductId)); }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
+    finally { setLoading(false); }
+  }, []);
+
+  return { data, loading, error, fetch };
+}
+
+// ── Next Best Action ──────────────────────────────────────────────────────────
+export type NextBestAction = {
+  actions: Array<{ action: string; priority: 'high' | 'medium' | 'low'; reason: string }>;
+};
+
+export function useNextBestAction() {
+  const [data, setData] = useState<NextBestAction | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetch = useCallback(async (entityType: string, entityId: string) => {
+    setLoading(true); setData(null); setError(null);
+    try { setData(await crmService.getNextBestAction(entityType, entityId)); }
     catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
     finally { setLoading(false); }
   }, []);

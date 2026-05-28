@@ -12,6 +12,7 @@ import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateAccount, validateTrustProduct, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmAuditLog from '../src/components/crm/CrmAuditLog';
+import { useNextBestAction } from '../src/hooks/useCrmAi';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -73,6 +74,9 @@ const CrmAccountDetail = () => {
   const docChecklist = useDocumentChecklist();
   const [showChecklist, setShowChecklist] = useState<string | null>(null); // trust product ID
 
+  // ── Next Best Action (Task 11) ─────────────────────────────────────
+  const nba = useNextBestAction();
+
   // CRM Users for owner select
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
   useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
@@ -111,6 +115,11 @@ const CrmAccountDetail = () => {
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
+  // Auto-fetch Next Best Action when account loads
+  useEffect(() => {
+    if (account?.id) nba.fetch('account', account.id);
+  }, [account?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleAddActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
@@ -123,6 +132,18 @@ const CrmAccountDetail = () => {
       setActivityForm({ activityType: 'CALL' });
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
+  };
+
+  const handleSetReminder = async (activityId: string) => {
+    try {
+      await crmService.sendActivityReminder(activityId);
+      setAccount(prev => prev ? {
+        ...prev,
+        activities: (prev.activities ?? []).map(a =>
+          a.id === activityId ? { ...a, reminderSent: true } : a
+        ),
+      } : prev);
+    } catch (e) { console.error(e); }
   };
 
   const openEditActivity = (a: CrmActivity) => {
@@ -326,6 +347,25 @@ const CrmAccountDetail = () => {
         ))}
       </div>
 
+      {/* AI Suggested Actions */}
+      {nba.loading && !nba.data && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="material-symbols-outlined text-sm text-brand-500 animate-pulse">auto_awesome</span>
+          <span className="text-xs text-text-secondary animate-pulse">Loading suggested actions…</span>
+        </div>
+      )}
+      {nba.data && nba.data.actions?.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mb-4">
+          <span className="text-xs font-semibold text-text-secondary">AI Suggested:</span>
+          {nba.data.actions.map((a, i) => (
+            <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-bg-subtle border border-border" title={a.reason}>
+              <span className={`w-1.5 h-1.5 rounded-full ${a.priority === 'high' ? 'bg-red-500' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`} />
+              {a.action}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
         {(['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const), 'trustProducts', 'audit'] as const).map(tab => (
@@ -525,6 +565,23 @@ const CrmAccountDetail = () => {
                       <span className="material-symbols-outlined" style={{fontSize:11}}>warning</span>
                       Overdue
                     </span>
+                  )}
+                  {a.reminderSent && (
+                    <span className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-success bg-success/10 px-1.5 py-0.5 rounded-full">
+                      <span className="material-symbols-outlined text-[10px]">notifications_active</span>
+                      Reminded
+                    </span>
+                  )}
+                  {a.scheduledAt && new Date(a.scheduledAt) > new Date() && !a.reminderSent && (
+                    <button
+                      onClick={() => handleSetReminder(a.id)}
+                      className="ml-2 inline-flex items-center gap-0.5 text-[10px] font-medium text-brand-600 hover:text-brand-700 px-1.5 py-0.5 rounded-full hover:bg-brand-50 transition-colors"
+                      style={{ border: 'none', cursor: 'pointer', background: 'none' }}
+                      title="Send a reminder for this scheduled activity"
+                    >
+                      <span className="material-symbols-outlined text-[10px]">notifications</span>
+                      Set Reminder
+                    </button>
                   )}
                 </p>
               </div>

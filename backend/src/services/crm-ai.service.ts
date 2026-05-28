@@ -436,6 +436,133 @@ Return JSON with:
   return parseJson(wlResponse.choices[0].message.content!);
 }
 
+export async function getNextBestAction(entityType: string, entityId: string): Promise<{
+  actions: Array<{ action: string; priority: 'high' | 'medium' | 'low'; reason: string }>;
+}> {
+  const VALID_TYPES = ['lead', 'contact', 'account', 'opportunity'];
+  if (!VALID_TYPES.includes(entityType)) {
+    throw new AppError(`Invalid entityType "${entityType}". Must be one of: ${VALID_TYPES.join(', ')}`, 400);
+  }
+
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+
+  // Fetch entity details
+  let statusField = '';
+  let entityName = '';
+
+  if (entityType === 'lead') {
+    const lead = await prisma.crmLead.findUniqueOrThrow({ where: { id: entityId } });
+    statusField = lead.status;
+    entityName = lead.title;
+  } else if (entityType === 'contact') {
+    const contact = await prisma.crmContact.findUniqueOrThrow({ where: { id: entityId } });
+    statusField = contact.isActive ? 'Active' : 'Inactive';
+    entityName = `${contact.firstName} ${contact.lastName}`;
+  } else if (entityType === 'account') {
+    const account = await prisma.crmAccount.findUniqueOrThrow({ where: { id: entityId } });
+    statusField = account.isActive ? 'Active' : 'Inactive';
+    entityName = account.name;
+  } else {
+    const opp = await prisma.crmOpportunity.findUniqueOrThrow({
+      where: { id: entityId },
+      include: { stage: { select: { name: true } } },
+    });
+    statusField = opp.stage.name;
+    entityName = opp.name;
+  }
+
+  // Fetch recent activities for the entity (last 7 days)
+  const activityWhere: any = {
+    createdAt: { gte: sevenDaysAgo },
+  };
+  if (entityType === 'lead') activityWhere.leadId = entityId;
+  else if (entityType === 'contact') activityWhere.contactId = entityId;
+  else if (entityType === 'account') activityWhere.accountId = entityId;
+  else activityWhere.opportunityId = entityId;
+
+  const recentActivities = await prisma.crmActivity.findMany({
+    where: activityWhere,
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+    select: { activityType: true, subject: true, createdAt: true },
+  });
+
+  // Calculate days since last contact
+  const lastActivity = await prisma.crmActivity.findFirst({
+    where: { ...activityWhere, createdAt: undefined },  // remove date filter for "last ever"
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  });
+  const daysSinceLastContact = lastActivity
+    ? Math.floor((Date.now() - lastActivity.createdAt.getTime()) / 86400000)
+    : 999;
+
+  const activitySummary = recentActivities.length > 0
+    ? recentActivities.map(a => `${a.activityType}: ${a.subject}`).join('; ')
+    : 'No activities in last 7 days';
+
+  const ALLOWED_ACTIONS = [
+    'Call within 24h',
+    'Send follow-up email',
+    'Schedule meeting',
+    'Update value estimate',
+    'Review risk profile',
+    'Send proposal',
+    'Request documents',
+  ];
+
+  try {
+    const response = await getOpenAI().chat.completions.create({
+      model: FAST,
+      max_tokens: 300,
+      messages: [
+        {
+          role: 'system',
+          content: `You are a CRM sales assistant for a Malaysian trust and estate planning company. Suggest the next best actions for a sales rep. Return JSON only — no markdown.`,
+        },
+        {
+          role: 'user',
+          content: `Suggest 1-3 next best actions for this CRM entity.
+
+Entity type: ${entityType}
+Name: ${entityName}
+Status/Phase: ${statusField}
+Days since last contact: ${daysSinceLastContact}
+Recent activity (last 7 days): ${activitySummary}
+
+Choose 1-3 actions ONLY from this list: ${ALLOWED_ACTIONS.join(', ')}
+
+Return JSON: { "actions": [{ "action": string (must be from the allowed list), "priority": "high"|"medium"|"low", "reason": string (1 sentence) }] }`,
+        },
+      ],
+    });
+
+    const raw = response.choices[0].message.content!;
+    return parseJson(raw);
+  } catch (err) {
+    // Fallback: return sensible defaults based on rules
+    const actions: Array<{ action: string; priority: 'high' | 'medium' | 'low'; reason: string }> = [];
+
+    if (daysSinceLastContact > 7) {
+      actions.push({ action: 'Call within 24h', priority: 'high', reason: `No contact in ${daysSinceLastContact} days — immediate follow-up required` });
+    }
+    if (daysSinceLastContact > 3) {
+      actions.push({ action: 'Send follow-up email', priority: 'medium', reason: 'Follow-up email to re-engage since no recent contact' });
+    }
+    if (entityType === 'opportunity' && (statusField === 'Proposal' || statusField === 'Negotiation')) {
+      actions.push({ action: 'Send proposal', priority: 'high', reason: `Opportunity is in ${statusField} stage` });
+    }
+    if (entityType === 'lead' && statusField === 'QUALIFIED') {
+      actions.push({ action: 'Schedule meeting', priority: 'high', reason: 'Lead is qualified — schedule a discovery meeting' });
+    }
+    if (actions.length === 0) {
+      actions.push({ action: 'Schedule meeting', priority: 'medium', reason: 'Regular check-in to maintain relationship' });
+    }
+
+    return { actions };
+  }
+}
+
 // ─── Phase 3: Compliance Assist ──────────────────────────────────────────────
 
 export async function detectKycGaps(contactId: string): Promise<{
