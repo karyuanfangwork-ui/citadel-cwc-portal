@@ -7,6 +7,7 @@ import StateBadge from '../src/components/ui/StateBadge';
 import { STATUS_COLORS } from '../src/components/ui/StateBadge';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import { validateOpportunity, ValidationError } from '../src/utils/crmValidation';
 import { hasPermission } from '../src/utils/permissions';
 import EmptyState from '../src/components/ui/EmptyState';
 import { useAuth } from '../src/context/AuthContext';
@@ -45,6 +46,7 @@ const CrmOpportunityDetail = () => {
   const [editStages, setEditStages] = useState<CrmPipelineStage[]>([]);
   const [editAccounts, setEditAccounts] = useState<CrmAccount[]>([]);
   const [loadingEditDeps, setLoadingEditDeps] = useState(false);
+  const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
   // ── Delete state ─────────────────────────────────────────────────────
   const [showDelete, setShowDelete] = useState(false);
@@ -92,6 +94,7 @@ const CrmOpportunityDetail = () => {
       expectedCloseDate: o.expectedCloseDate ? o.expectedCloseDate.slice(0, 10) : '',
       description: o.description ?? '',
     });
+    setFormErrors([]);
     setShowEdit(true);
     // Load pipelines/accounts for dropdowns
     setLoadingEditDeps(true);
@@ -121,12 +124,15 @@ const CrmOpportunityDetail = () => {
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+    const errors = validateOpportunity(editForm);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     setSavingEdit(true);
     try {
       const payload = cleanFormPayload(editForm, NUMERIC_KEYS.opportunity);
       const updated = await crmService.updateOpportunity(id, payload);
       setOpp(updated);
       setShowEdit(false);
+      setFormErrors([]);
     } catch (err) {
       console.error('Failed to update opportunity', err);
     } finally {
@@ -680,7 +686,7 @@ const CrmOpportunityDetail = () => {
 
       {/* Edit Opportunity modal */}
       {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEdit(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEdit(false); setFormErrors([]); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Edit Opportunity</h2>
@@ -688,44 +694,62 @@ const CrmOpportunityDetail = () => {
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Name *</label>
                 <input required value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                  className={`w-full border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary ${formErrors.some(e => e.field === 'name') ? '!border-red-500' : 'border-border'}`} />
+                {formErrors.some(e => e.field === 'name') && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'name')?.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Account</label>
                 <select value={editForm.accountId ?? ''} onChange={e => setEditForm(f => ({ ...f, accountId: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" disabled={loadingEditDeps}>
+                  className={`w-full border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary ${formErrors.some(e => e.field === 'accountId') ? '!border-red-500' : 'border-border'}`} disabled={loadingEditDeps}>
                   <option value="">— None —</option>
                   {editAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
+                {formErrors.some(e => e.field === 'accountId') && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'accountId')?.message}</p>
+                )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Pipeline</label>
                   <select value={editForm.pipelineId ?? ''} onChange={e => handleEditPipelineChange(e.target.value)}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" disabled={loadingEditDeps}>
+                    className={`w-full border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary ${formErrors.some(e => e.field === 'pipelineId') ? '!border-red-500' : 'border-border'}`} disabled={loadingEditDeps}>
                     <option value="">— Select —</option>
                     {editPipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  {formErrors.some(e => e.field === 'pipelineId') && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'pipelineId')?.message}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Stage</label>
                   <select value={editForm.stageId ?? ''} onChange={e => setEditForm(f => ({ ...f, stageId: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" disabled={loadingEditDeps || !editForm.pipelineId}>
+                    className={`w-full border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary ${formErrors.some(e => e.field === 'stageId') ? '!border-red-500' : 'border-border'}`} disabled={loadingEditDeps || !editForm.pipelineId}>
                     <option value="">— Select —</option>
                     {editStages.map(s => <option key={s.id} value={s.id}>{s.name} ({s.probability}%)</option>)}
                   </select>
+                  {formErrors.some(e => e.field === 'stageId') && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'stageId')?.message}</p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Value (MYR)</label>
                   <input type="number" step="0.01" value={editForm.value ?? ''} onChange={e => setEditForm(f => ({ ...f, value: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                    className={`w-full border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary ${formErrors.some(e => e.field === 'value') ? '!border-red-500' : 'border-border'}`} />
+                  {formErrors.some(e => e.field === 'value') && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'value')?.message}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Probability (%)</label>
                   <input type="number" min="0" max="100" value={editForm.probability ?? ''} onChange={e => setEditForm(f => ({ ...f, probability: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                    className={`w-full border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary ${formErrors.some(e => e.field === 'probability') ? '!border-red-500' : 'border-border'}`} />
+                  {formErrors.some(e => e.field === 'probability') && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'probability')?.message}</p>
+                  )}
                 </div>
               </div>
               <div>
@@ -739,7 +763,7 @@ const CrmOpportunityDetail = () => {
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary resize-none" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowEdit(false)}
+                <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
                   style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={savingEdit}

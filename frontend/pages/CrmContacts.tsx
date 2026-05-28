@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmContact, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import { validateContact, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
@@ -40,6 +41,7 @@ const CrmContacts = () => {
   const [deleteItem, setDeleteItem] = useState<CrmContact | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
   const checkDuplicateContact = async (field: 'email' | 'phone', value: string) => {
     if (!value.trim()) { setDuplicateWarning(null); return; }
@@ -68,6 +70,7 @@ const CrmContacts = () => {
   }, [search]);
 
   const openCreate = async () => {
+    setFormErrors([]);
     try {
       const data = await crmService.listAccounts({ limit: 9999 });
       setAccounts(data.accounts.map(a => ({ id: a.id, name: a.name })));
@@ -77,6 +80,8 @@ const CrmContacts = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = validateContact(form);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     try {
       setSaving(true);
       const payload: Record<string, any> = {};
@@ -92,6 +97,7 @@ const CrmContacts = () => {
   };
  
    const openEdit = async (c: CrmContact) => {
+     setFormErrors([]);
      try {
        const data = await crmService.listAccounts({ limit: 9999 });
        setAccounts(data.accounts.map(a => ({ id: a.id, name: a.name })));
@@ -114,6 +120,8 @@ const CrmContacts = () => {
    const handleEdit = async (e: React.FormEvent) => {
      e.preventDefault();
      if (!editingItem) return;
+     const errors = validateContact(form);
+     if (errors.length > 0) { setFormErrors(errors); return; }
      try {
        setSaving(true);
        const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.contact);
@@ -254,13 +262,13 @@ const CrmContacts = () => {
 
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={() => { setShowCreate(false); setForm({}); setDuplicateWarning(null); }}>
+          onClick={() => { setFormErrors([]); setShowCreate(false); setForm({}); setDuplicateWarning(null); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md mx-4 max-h-[85vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 pb-4 border-b border-border shrink-0">
               <h2 className="text-lg font-black text-text-primary">New Contact</h2>
-              <button onClick={() => { setShowCreate(false); setForm({}); setDuplicateWarning(null); }}
+              <button onClick={() => { setFormErrors([]); setShowCreate(false); setForm({}); setDuplicateWarning(null); }}
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-surface-muted transition-colors"
                 style={{ border: 'none', cursor: 'pointer', background: 'none' }}>
                 <span className="material-symbols-outlined text-xl">close</span>
@@ -271,26 +279,30 @@ const CrmContacts = () => {
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
                   <input required value={form.firstName ?? ''} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className={`w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400${formErrors.some(e => e.field === 'firstName') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }} />
+                  {formErrors.some(e => e.field === 'firstName') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'firstName')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
                   <input required value={form.lastName ?? ''} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
-                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className={`w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400${formErrors.some(e => e.field === 'lastName') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }} />
+                  {formErrors.some(e => e.field === 'lastName') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'lastName')?.message}</p>)}
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Email</label>
                 <input type="email" value={form.email ?? ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                   onBlur={e => checkDuplicateContact('email', e.target.value)}
-                  className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                  className={`w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400${formErrors.some(e => e.field === 'email') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }} />
+                {formErrors.some(e => e.field === 'email') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'email')?.message}</p>)}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Phone</label>
                   <input value={form.phone ?? ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                     onBlur={e => checkDuplicateContact('phone', e.target.value)}
-                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className={`w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400${formErrors.some(e => e.field === 'phone') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }} />
+                  {formErrors.some(e => e.field === 'phone') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'phone')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Mobile</label>
@@ -339,7 +351,7 @@ const CrmContacts = () => {
                 </div>
               )}
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowCreate(false); setForm({}); setDuplicateWarning(null); }}
+                <button type="button" onClick={() => { setFormErrors([]); setShowCreate(false); setForm({}); setDuplicateWarning(null); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border text-text-secondary hover:bg-surface-muted transition-colors"
                   style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}
@@ -355,13 +367,13 @@ const CrmContacts = () => {
 
       {showEdit && editingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }}>
+          onClick={() => { setFormErrors([]); setShowEdit(false); setEditingItem(null); setForm({}); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md mx-4 max-h-[85vh] flex flex-col"
             onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 pb-4 border-b border-border shrink-0">
               <h2 className="text-lg font-black text-text-primary">Edit Contact</h2>
-              <button onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }}
+              <button onClick={() => { setFormErrors([]); setShowEdit(false); setEditingItem(null); setForm({}); }}
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-surface-muted transition-colors"
                 style={{ border: 'none', cursor: 'pointer', background: 'none' }}>
                 <span className="material-symbols-outlined text-xl">close</span>
@@ -372,24 +384,28 @@ const CrmContacts = () => {
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
                   <input required value={form.firstName ?? ''} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
-                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className={`w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400${formErrors.some(e => e.field === 'firstName') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }} />
+                  {formErrors.some(e => e.field === 'firstName') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'firstName')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
                   <input required value={form.lastName ?? ''} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
-                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className={`w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400${formErrors.some(e => e.field === 'lastName') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }} />
+                  {formErrors.some(e => e.field === 'lastName') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'lastName')?.message}</p>)}
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Email</label>
                 <input type="email" value={form.email ?? ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                  className={`w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400${formErrors.some(e => e.field === 'email') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }} />
+                {formErrors.some(e => e.field === 'email') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'email')?.message}</p>)}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Phone</label>
                   <input value={form.phone ?? ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                    className={`w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400${formErrors.some(e => e.field === 'phone') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }} />
+                  {formErrors.some(e => e.field === 'phone') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'phone')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Mobile</label>
@@ -424,7 +440,7 @@ const CrmContacts = () => {
                 <label htmlFor="editIsPrimary" className="text-sm text-text-primary">Primary contact</label>
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }}
+                <button type="button" onClick={() => { setFormErrors([]); setShowEdit(false); setEditingItem(null); setForm({}); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border text-text-secondary hover:bg-surface-muted transition-colors"
                   style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}

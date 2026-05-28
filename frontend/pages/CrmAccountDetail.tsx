@@ -6,6 +6,7 @@ import ConfirmDialog from '../src/components/ConfirmDialog';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import { validateAccount, validateTrustProduct, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
 
 const formatCurrency = (val: number | null) =>
@@ -39,6 +40,10 @@ const CrmAccountDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showDelete, setShowDelete] = useState(false);
+
+  // Validation error states
+  const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
+  const [tpFormErrors, setTpFormErrors] = useState<ValidationError[]>([]);
 
   // Trust Products state
   const [trustProducts, setTrustProducts] = useState<CrmTrustProduct[]>([]);
@@ -113,6 +118,7 @@ const CrmAccountDetail = () => {
 
   const openEdit = () => {
     if (!account) return;
+    setFormErrors([]);
     setEditForm({
       name: account.name ?? '',
       registrationNumber: account.registrationNumber ?? '',
@@ -137,6 +143,8 @@ const CrmAccountDetail = () => {
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+    const errors = validateAccount(editForm);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     try {
       setSaving(true);
       const payload = cleanFormPayload(editForm, NUMERIC_KEYS.account);
@@ -407,7 +415,7 @@ const CrmAccountDetail = () => {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-text-primary">Trust Products</h3>
-            <button onClick={() => { setTpForm({ trustType: 'TRUST', status: 'ACTIVE', currency: 'MYR' }); setShowCreateTP(true); }}
+            <button onClick={() => { setTpForm({ trustType: 'TRUST', status: 'ACTIVE', currency: 'MYR' }); setTpFormErrors([]); setShowCreateTP(true); }}
               className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
               style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
               <span className="material-symbols-outlined text-base">add</span> Add Trust Product
@@ -433,6 +441,7 @@ const CrmAccountDetail = () => {
                 <div className="flex gap-2">
                   <button onClick={() => {
                     setEditingTP(tp);
+                    setTpFormErrors([]);
                     setTpForm({
                       trustType: tp.trustType,
                       deedRefNumber: tp.deedRefNumber ?? '',
@@ -453,11 +462,13 @@ const CrmAccountDetail = () => {
                     style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                     <span className="material-symbols-outlined text-sm">edit</span> Edit
                   </button>
-                  <button onClick={() => { setDeletingTP(tp); setShowDeleteTP(true); }}
-                    className="flex items-center gap-1 text-danger px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-danger/10 transition-colors"
-                    style={{ background: 'none', border: '1px solid var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    <span className="material-symbols-outlined text-sm">delete</span> Delete
-                  </button>
+                  {hasPermission(user, 'crm:delete') && (
+                    <button onClick={() => { setDeletingTP(tp); setShowDeleteTP(true); }}
+                      className="flex items-center gap-1 text-danger px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-danger/10 transition-colors"
+                      style={{ background: 'none', border: '1px solid var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                      <span className="material-symbols-outlined text-sm">delete</span> Delete
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
@@ -491,15 +502,17 @@ const CrmAccountDetail = () => {
 
       {/* Create/Edit Trust Product modal */}
       {(showCreateTP || showEditTP) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); setTpFormErrors([]); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-border-subtle">
               <h2 className="text-lg font-extrabold text-text-primary">{showEditTP ? 'Edit Trust Product' : 'Create Trust Product'}</h2>
-              <button onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+              <button onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); setTpFormErrors([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
             </div>
             <form onSubmit={async (e) => {
               e.preventDefault();
+              const errors = validateTrustProduct(tpForm);
+              if (errors.length > 0) { setTpFormErrors(errors); return; }
               try {
                 setSaving(true);
                 const data = { ...tpForm, accountId: id };
@@ -519,9 +532,11 @@ const CrmAccountDetail = () => {
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Trust Type *</label>
                   <select value={tpForm.trustType ?? ''} onChange={e => setTpForm(f => ({ ...f, trustType: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                    className={`w-full border border-border rounded-lg px-3 py-2 text-sm${tpFormErrors.some(e => e.field === 'trustType') ? ' !border-red-500' : ''}`}
+                    style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
                     {['TRUST', 'ESTATE', 'WILL', 'CUSTODY', 'OTHER'].map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
+                  {tpFormErrors.some(e => e.field === 'trustType') && (<p className="text-xs text-red-600 mt-1">{tpFormErrors.find(e => e.field === 'trustType')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Deed Ref Number</label>
@@ -540,7 +555,9 @@ const CrmAccountDetail = () => {
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Asset Value</label>
                   <input type="number" value={tpForm.assetValue ?? ''} onChange={e => setTpForm(f => ({ ...f, assetValue: e.target.value ? Number(e.target.value) : undefined }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                    className={`w-full border border-border rounded-lg px-3 py-2 text-sm${tpFormErrors.some(e => e.field === 'assetValue') ? ' !border-red-500' : ''}`}
+                    style={{ background: '#fff' }} />
+                  {tpFormErrors.some(e => e.field === 'assetValue') && (<p className="text-xs text-red-600 mt-1">{tpFormErrors.find(e => e.field === 'assetValue')?.message}</p>)}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -590,7 +607,7 @@ const CrmAccountDetail = () => {
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); }}
+                <button type="button" onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); setTpFormErrors([]); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
                   style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving}
@@ -693,18 +710,19 @@ const CrmAccountDetail = () => {
 
       {/* Edit Account modal */}
       {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEdit(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEdit(false); setFormErrors([]); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-border-subtle">
               <h2 className="text-lg font-extrabold text-text-primary">Edit Account</h2>
-              <button onClick={() => setShowEdit(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+              <button onClick={() => { setShowEdit(false); setFormErrors([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
             </div>
             <form onSubmit={handleEditSave} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Name *</label>
                 <input required value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'name') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                {formErrors.some(e => e.field === 'name') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'name')?.message}</p>)}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -734,19 +752,22 @@ const CrmAccountDetail = () => {
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Website</label>
                   <input value={editForm.website ?? ''} onChange={e => setEditForm(f => ({ ...f, website: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'website') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                  {formErrors.some(e => e.field === 'website') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'website')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Annual Revenue (MYR)</label>
                   <input type="number" min="0" value={editForm.annualRevenue ?? ''} onChange={e => setEditForm(f => ({ ...f, annualRevenue: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'annualRevenue') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                  {formErrors.some(e => e.field === 'annualRevenue') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'annualRevenue')?.message}</p>)}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Email</label>
                   <input type="email" value={editForm.email ?? ''} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'email') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                  {formErrors.some(e => e.field === 'email') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'email')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Phone</label>
@@ -794,7 +815,7 @@ const CrmAccountDetail = () => {
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowEdit(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-bg-subtle" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-bg-subtle" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>

@@ -8,6 +8,7 @@ import AiInsightCard from '../src/components/crm/AiInsightCard';
 import StateBadge from '../src/components/ui/StateBadge';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import { validateContact, validateBeneficiary, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
@@ -289,6 +290,7 @@ const emptyBenForm = {
 };
 
 const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
+  const { user } = useAuth();
   const [beneficiaries, setBeneficiaries] = useState<CrmBeneficiary[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -299,6 +301,7 @@ const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
   const [showDelete, setShowDelete] = useState(false);
   const [deletingBen, setDeletingBen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CrmBeneficiary | null>(null);
+  const [benFormErrors, setBenFormErrors] = useState<ValidationError[]>([]);
 
   const totalAllocation = beneficiaries.reduce((sum, b) => sum + (b.allocationPct ?? 0), 0);
 
@@ -317,11 +320,13 @@ const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
 
   const openCreate = () => {
     setBenForm({ ...emptyBenForm });
+    setBenFormErrors([]);
     setShowCreate(true);
   };
 
   const openEdit = (b: CrmBeneficiary) => {
     setEditingBeneficiary(b);
+    setBenFormErrors([]);
     setBenForm({
       firstName: b.firstName ?? '',
       lastName: b.lastName ?? '',
@@ -345,6 +350,8 @@ const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = validateBeneficiary(benForm);
+    if (errors.length > 0) { setBenFormErrors(errors); return; }
     setSubmitting(true);
     try {
       const payload = { ...benForm, allocationPct: Number(benForm.allocationPct) };
@@ -361,6 +368,8 @@ const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingBeneficiary) return;
+    const errors = validateBeneficiary(benForm);
+    if (errors.length > 0) { setBenFormErrors(errors); return; }
     setSubmitting(true);
     try {
       const payload = { ...benForm, allocationPct: Number(benForm.allocationPct) };
@@ -395,7 +404,7 @@ const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
 
   // Shared modal JSX for create/edit
   const benModal = (isEdit: boolean) => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => isEdit ? setShowEdit(false) : setShowCreate(false)}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { isEdit ? setShowEdit(false) : setShowCreate(false); setBenFormErrors([]); }}>
       <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <h2 className="text-lg font-black text-text-primary mb-4">{isEdit ? 'Edit Beneficiary' : 'Add Beneficiary'}</h2>
@@ -404,31 +413,35 @@ const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
             <div>
               <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
               <input required value={benForm.firstName} onChange={e => setBenForm(f => ({ ...f, firstName: e.target.value }))}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                className={`w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary${benFormErrors.some(e => e.field === 'firstName') ? ' !border-red-500' : ''}`} />
+              {benFormErrors.some(e => e.field === 'firstName') && (<p className="text-xs text-red-600 mt-1">{benFormErrors.find(e => e.field === 'firstName')?.message}</p>)}
             </div>
             <div>
               <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
               <input required value={benForm.lastName} onChange={e => setBenForm(f => ({ ...f, lastName: e.target.value }))}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                className={`w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary${benFormErrors.some(e => e.field === 'lastName') ? ' !border-red-500' : ''}`} />
+              {benFormErrors.some(e => e.field === 'lastName') && (<p className="text-xs text-red-600 mt-1">{benFormErrors.find(e => e.field === 'lastName')?.message}</p>)}
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-text-secondary mb-1">Relationship *</label>
               <select required value={benForm.relationship} onChange={e => setBenForm(f => ({ ...f, relationship: e.target.value }))}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary">
+                className={`w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary${benFormErrors.some(e => e.field === 'relationship') ? ' !border-red-500' : ''}`}>
                 <option value="SPOUSE">Spouse</option>
                 <option value="CHILD">Child</option>
                 <option value="PARENT">Parent</option>
                 <option value="SIBLING">Sibling</option>
                 <option value="OTHER">Other</option>
               </select>
+              {benFormErrors.some(e => e.field === 'relationship') && (<p className="text-xs text-red-600 mt-1">{benFormErrors.find(e => e.field === 'relationship')?.message}</p>)}
             </div>
             <div>
               <label className="block text-xs font-semibold text-text-secondary mb-1">Allocation % *</label>
               <input type="number" min={0} max={100} required value={benForm.allocationPct}
                 onChange={e => setBenForm(f => ({ ...f, allocationPct: Number(e.target.value) }))}
-                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                className={`w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary${benFormErrors.some(e => e.field === 'allocationPct') ? ' !border-red-500' : ''}`} />
+              {benFormErrors.some(e => e.field === 'allocationPct') && (<p className="text-xs text-red-600 mt-1">{benFormErrors.find(e => e.field === 'allocationPct')?.message}</p>)}
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -474,7 +487,7 @@ const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
               placeholder="Additional notes…" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => isEdit ? setShowEdit(false) : setShowCreate(false)}
+            <button type="button" onClick={() => { isEdit ? setShowEdit(false) : setShowCreate(false); setBenFormErrors([]); }}
               className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
               style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
             <button type="submit" disabled={submitting}
@@ -539,8 +552,10 @@ const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
                       <td className="py-3 px-2 text-right">
                         <button onClick={() => openEdit(b)} className="text-xs text-brand-600 hover:underline mr-3"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Edit</button>
-                        <button onClick={() => confirmDelete(b)} className="text-xs text-red-600 hover:underline"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Delete</button>
+                        {hasPermission(user, 'crm:delete') && (
+                          <button onClick={() => confirmDelete(b)} className="text-xs text-red-600 hover:underline"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Delete</button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -609,6 +624,7 @@ const CrmContactDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
 
@@ -708,6 +724,7 @@ const CrmContactDetail = () => {
 
   // ── Edit modal handlers ───────────────────────────────────────────────
   const openEdit = (c: CrmContact) => {
+    setFormErrors([]);
     setEditForm({
       firstName: c.firstName ?? '',
       lastName: c.lastName ?? '',
@@ -729,6 +746,8 @@ const CrmContactDetail = () => {
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+    const errors = validateContact(editForm);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     setSavingEdit(true);
     try {
       const payload = cleanFormPayload(editForm, NUMERIC_KEYS.contact);
@@ -1057,7 +1076,7 @@ const CrmContactDetail = () => {
 
       {/* Edit Contact modal */}
       {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEdit(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEdit(false); setFormErrors([]); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <h2 className="text-lg font-black text-text-primary mb-4">Edit Contact</h2>
@@ -1066,24 +1085,28 @@ const CrmContactDetail = () => {
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
                   <input required value={editForm.firstName ?? ''} onChange={e => setEditForm(f => ({ ...f, firstName: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                    className={`w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary${formErrors.some(e => e.field === 'firstName') ? ' !border-red-500' : ''}`} />
+                  {formErrors.some(e => e.field === 'firstName') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'firstName')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
                   <input required value={editForm.lastName ?? ''} onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                    className={`w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary${formErrors.some(e => e.field === 'lastName') ? ' !border-red-500' : ''}`} />
+                  {formErrors.some(e => e.field === 'lastName') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'lastName')?.message}</p>)}
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Email</label>
                 <input type="email" value={editForm.email ?? ''} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                  className={`w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary${formErrors.some(e => e.field === 'email') ? ' !border-red-500' : ''}`} />
+                {formErrors.some(e => e.field === 'email') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'email')?.message}</p>)}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Phone</label>
                   <input value={editForm.phone ?? ''} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                    className={`w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary${formErrors.some(e => e.field === 'phone') ? ' !border-red-500' : ''}`} />
+                  {formErrors.some(e => e.field === 'phone') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'phone')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-text-secondary mb-1">Mobile</label>
@@ -1117,7 +1140,7 @@ const CrmContactDetail = () => {
                 <span className="text-sm text-text-primary font-medium">Primary Contact</span>
               </label>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowEdit(false)}
+                <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
                   style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={savingEdit}

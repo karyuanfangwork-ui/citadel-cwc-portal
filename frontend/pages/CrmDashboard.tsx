@@ -339,12 +339,12 @@ const CrmDashboard = () => {
             <SkeletonBox w="44px" h="44px" /><div><SkeletonBox w="48px" h="28px" /><div className="mt-1"><SkeletonBox w="80px" h="12px" /></div></div>
           </div>
         )) : stats && [
-          { label: 'Accounts', value: stats.totalAccounts, icon: 'business', bg: 'var(--color-it-50)', color: 'var(--color-it-500)' },
-          { label: 'Open Leads', value: stats.totalLeads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)' },
-          { label: 'Pipeline Value', value: formatCurrency(Number(stats.pipelineValue)), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
-          { label: 'Win Rate', value: `${stats.winRate}%`, icon: 'trending_up', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
+          { label: 'Accounts', value: stats.totalAccounts, icon: 'business', bg: 'var(--color-it-50)', color: 'var(--color-it-500)', link: '/crm/accounts' },
+          { label: 'Open Leads', value: stats.totalLeads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)', link: '/crm/leads?status=NEW,CONTACTED,QUALIFIED' },
+          { label: 'Pipeline Value', value: formatCurrency(Number(stats.pipelineValue)), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)', link: '/crm/pipeline' },
+          { label: 'Win Rate', value: `${stats.winRate}%`, icon: 'trending_up', bg: 'var(--color-hr-50)', color: 'var(--color-success)', link: '/crm/opportunities?filter=won' },
         ].map(s => (
-          <div key={s.label} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
+          <div key={s.label} onClick={() => navigate(s.link)} className="group bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
             <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
               <span className="material-symbols-outlined text-[22px]" style={{ color: s.color }}>{s.icon}</span>
             </div>
@@ -352,6 +352,7 @@ const CrmDashboard = () => {
               <div className="text-2xl font-black leading-none" style={{ color: s.color }}>{s.value}</div>
               <div className="text-xs font-semibold mt-0.5 text-text-secondary">{s.label}</div>
             </div>
+            <span className="material-symbols-outlined text-base text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity ml-auto">arrow_forward</span>
           </div>
         ))}
       </div>
@@ -359,18 +360,20 @@ const CrmDashboard = () => {
       {/* Won/Lost Summary */}
       {stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <div className="bg-surface border border-border rounded-xl p-5 shadow-sm">
+          <div onClick={() => navigate('/crm/opportunities?filter=won')} className="group bg-surface border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
             <div className="flex items-center gap-2 mb-3">
               <span className="material-symbols-outlined text-success">emoji_events</span>
               <span className="font-bold text-text-primary">Won Deals</span>
+              <span className="material-symbols-outlined text-base text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity ml-auto">arrow_forward</span>
             </div>
             <div className="text-3xl font-black text-success">{formatCurrency(Number(stats.wonDeals.value))}</div>
             <div className="text-sm text-text-secondary mt-1">{stats.wonDeals.count} deals closed</div>
           </div>
-          <div className="bg-surface border border-border rounded-xl p-5 shadow-sm">
+          <div onClick={() => navigate('/crm/opportunities?filter=lost')} className="group bg-surface border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
             <div className="flex items-center gap-2 mb-3">
               <span className="material-symbols-outlined text-danger">trending_down</span>
               <span className="font-bold text-text-primary">Lost Deals</span>
+              <span className="material-symbols-outlined text-base text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity ml-auto">arrow_forward</span>
             </div>
             <div className="text-3xl font-black text-danger">{formatCurrency(Number(stats.lostDeals.value))}</div>
             <div className="text-sm text-text-secondary mt-1">{stats.lostDeals.count} deals lost</div>
@@ -384,14 +387,14 @@ const CrmDashboard = () => {
           <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">My Performance</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {[
-              { label: 'My Leads', value: myStats.leads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)' },
-              { label: 'My Open Deals', value: myStats.opportunities, icon: 'monetization_on', bg: 'var(--color-it-50)', color: 'var(--color-it-500)' },
-              { label: 'My Pipeline', value: formatCurrency(myStats.pipelineValue), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
-              { label: 'Won This Month', value: myStats.wonThisMonth, icon: 'emoji_events', bg: 'var(--color-hr-50)', color: 'var(--color-success)' },
-              { label: 'Stale Leads', value: myStats.staleLeads, icon: 'warning', bg: 'rgba(220,38,38,0.06)', color: 'var(--color-danger)' },
-              { label: 'Activities This Week', value: myStats.activitiesThisWeek, icon: 'event_note', bg: 'var(--color-brand-50)', color: 'var(--color-brand-600)' },
+              { label: 'My Leads', value: myStats.leads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)', link: '/crm/leads?owner=me' },
+              { label: 'My Open Deals', value: myStats.opportunities, icon: 'monetization_on', bg: 'var(--color-it-50)', color: 'var(--color-it-500)', link: '/crm/opportunities?owner=me' },
+              { label: 'My Pipeline', value: formatCurrency(myStats.pipelineValue), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)', link: '/crm/pipeline' },
+              { label: 'Won This Month', value: myStats.wonThisMonth, icon: 'emoji_events', bg: 'var(--color-hr-50)', color: 'var(--color-success)', link: '/crm/opportunities?filter=won' },
+              { label: 'Stale Leads', value: myStats.staleLeads, icon: 'warning', bg: 'rgba(220,38,38,0.06)', color: 'var(--color-danger)', link: '/crm/leads?filter=stale' },
+              { label: 'Activities This Week', value: myStats.activitiesThisWeek, icon: 'event_note', bg: 'var(--color-brand-50)', color: 'var(--color-brand-600)', link: '/crm/leads' },
             ].map(s => (
-              <div key={s.label} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-default">
+              <div key={s.label} onClick={() => navigate(s.link)} className="group bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
                 <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
                   <span className="material-symbols-outlined text-[22px]" style={{ color: s.color }}>{s.icon}</span>
                 </div>
@@ -399,6 +402,7 @@ const CrmDashboard = () => {
                   <div className="text-2xl font-black leading-none" style={{ color: s.color }}>{s.value}</div>
                   <div className="text-xs font-semibold mt-0.5 text-text-secondary">{s.label}</div>
                 </div>
+                <span className="material-symbols-outlined text-base text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity ml-auto">arrow_forward</span>
               </div>
             ))}
           </div>

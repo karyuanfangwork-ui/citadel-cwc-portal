@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import crmService, { CrmLead, CrmUser, Pagination, LeadStatus, LeadSource } from '../src/services/crm.service';
+import crmService, { CrmLead, CrmUser, Pagination, LeadSource } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import { validateLead, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmCardSkeleton from '../src/components/crm/CrmCardSkeleton';
@@ -91,6 +92,7 @@ const CrmLeads = () => {
   const [deleteItem, setDeleteItem] = useState<CrmLead | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
   const checkDuplicateLead = async (field: 'contactEmail' | 'contactPhone', value: string) => {
     if (!value.trim()) { setDuplicateWarning(null); return; }
@@ -149,13 +151,15 @@ const CrmLeads = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = validateLead(form);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     const payload: Record<string, any> = {};
     for (const [k, v] of Object.entries(form)) {
       if (v === '' || v === undefined || v === null) continue;
       if (k === 'estimatedValue') { payload[k] = Number(v); if (isNaN(payload[k])) delete payload[k]; }
       else payload[k] = v;
     }
-    try { setSaving(true); await crmService.createLead(payload); setShowCreate(false); setForm({}); setDuplicateWarning(null); fetchLeads(); }
+    try { setSaving(true); await crmService.createLead(payload); setShowCreate(false); setForm({}); setFormErrors([]); setDuplicateWarning(null); fetchLeads(); }
     catch (e) { console.error(e); } finally { setSaving(false); }
   };
 
@@ -180,11 +184,14 @@ const CrmLeads = () => {
     setEditingItem(null);
     setForm({});
     setDuplicateWarning(null);
+    setFormErrors([]);
   };
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
+    const errors = validateLead(form);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.lead);
     // Never allow status change through the edit modal
     delete payload.status;
@@ -233,7 +240,7 @@ const CrmLeads = () => {
             <span className="material-symbols-outlined text-lg">auto_awesome</span>
             Priority
           </button>
-          <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+          <button onClick={() => { setShowCreate(true); setFormErrors([]); }} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
             <span className="material-symbols-outlined text-lg">add</span> New Lead
           </button>
         </div>
@@ -414,8 +421,11 @@ const CrmLeads = () => {
                   required type="text"
                   value={(form as any).title || ''}
                   onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                  className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'title') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`}
                 />
+                {formErrors.some(e => e.field === 'title') && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'title')?.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Name</label>
@@ -433,8 +443,11 @@ const CrmLeads = () => {
                   value={(form as any).contactEmail || ''}
                   onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
                   onBlur={e => checkDuplicateLead('contactEmail', e.target.value)}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                  className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'contactEmail') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`}
                 />
+                {formErrors.some(e => e.field === 'contactEmail') && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'contactEmail')?.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Phone</label>
@@ -477,7 +490,10 @@ const CrmLeads = () => {
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Estimated Value (MYR)</label>
                 <input type="number" value={(form as any).estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'estimatedValue') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
+                {formErrors.some(e => e.field === 'estimatedValue') && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'estimatedValue')?.message}</p>
+                )}
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 {duplicateWarning && (
@@ -520,8 +536,11 @@ const CrmLeads = () => {
                   required type="text"
                   value={(form as any).title || ''}
                   onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                  className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'title') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`}
                 />
+                {formErrors.some(e => e.field === 'title') && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'title')?.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Name</label>
@@ -539,8 +558,11 @@ const CrmLeads = () => {
                   value={(form as any).contactEmail || ''}
                   onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
                   onBlur={e => checkDuplicateLead('contactEmail', e.target.value)}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                  className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'contactEmail') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`}
                 />
+                {formErrors.some(e => e.field === 'contactEmail') && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'contactEmail')?.message}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Phone</label>
@@ -583,7 +605,10 @@ const CrmLeads = () => {
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Estimated Value (MYR)</label>
                 <input type="number" value={(form as any).estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'estimatedValue') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
+                {formErrors.some(e => e.field === 'estimatedValue') && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'estimatedValue')?.message}</p>
+                )}
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 {duplicateWarning && (

@@ -5,6 +5,7 @@ import CrmNav from '../src/components/CrmNav';
 import StateBadge from '../src/components/ui/StateBadge';
 import { STATUS_COLORS } from '../src/components/ui/StateBadge';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import { validateOpportunity, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
@@ -42,6 +43,7 @@ const CrmOpportunities = () => {
   const [deleteItem, setDeleteItem] = useState<CrmOpportunity | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
   const fetchOpportunities = useCallback(async (page = 1) => {
     try { setLoading(true);
@@ -72,6 +74,8 @@ const CrmOpportunities = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = validateOpportunity(form);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     const payload: Record<string, any> = {};
     for (const [k, v] of Object.entries(form)) {
       if (v === '' || v === undefined || v === null) continue;
@@ -83,6 +87,7 @@ const CrmOpportunities = () => {
   };
 
   const openEdit = async (opp: CrmOpportunity) => {
+    setFormErrors([]);
     setEditingItem(opp);
     setForm({
       name: opp.name ?? '',
@@ -100,6 +105,8 @@ const CrmOpportunities = () => {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
+    const errors = validateOpportunity(form);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     try {
       setSaving(true);
       const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.opportunity);
@@ -133,7 +140,7 @@ const CrmOpportunities = () => {
           </div>
           <h1 className="text-2xl font-black text-text-primary">Opportunities</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+        <button onClick={() => { setFormErrors([]); setShowCreate(true); }} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
           <span className="material-symbols-outlined text-lg">add</span> New Opportunity
         </button>
       </div>
@@ -285,55 +292,61 @@ const CrmOpportunities = () => {
 
       {/* Create Modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCreate(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setFormErrors([]); setShowCreate(false); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-border">
               <h2 className="text-lg font-extrabold text-text-primary">New Opportunity</h2>
-              <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+              <button onClick={() => { setFormErrors([]); setShowCreate(false); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Opportunity Name *</label>
                 <input value={(form as any).name || ''} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} required
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'name') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                {formErrors.some(e => e.field === 'name') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'name')?.message}</p>)}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Account *</label>
                 <select value={(form as any).accountId || ''} onChange={e => setForm(prev => ({ ...prev, accountId: e.target.value }))} required
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                  className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'accountId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                   <option value="">Select Account</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
+                {formErrors.some(e => e.field === 'accountId') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'accountId')?.message}</p>)}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Pipeline *</label>
                   <select value={(form as any).pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); const firstStage = p?.stages?.[0]; setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: firstStage?.id, probability: firstStage?.probability ?? 0 })); }} required
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'pipelineId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Pipeline</option>
                     {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  {formErrors.some(e => e.field === 'pipelineId') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'pipelineId')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Stage *</label>
                   <select value={(form as any).stageId || ''} onChange={e => { const selP = pipelines.find(p => p.id === form.pipelineId); const selS = selP?.stages?.find(s => s.id === e.target.value); setForm(prev => ({ ...prev, stageId: e.target.value, probability: selS?.probability ?? prev.probability ?? 0 })); }} required
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'stageId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Stage</option>
                     {pipelines.find(p => p.id === form.pipelineId)?.stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
+                  {formErrors.some(e => e.field === 'stageId') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'stageId')?.message}</p>)}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Value (MYR)</label>
                   <input type="number" value={(form as any).value || ''} onChange={e => setForm(prev => ({ ...prev, value: Number(e.target.value) }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'value') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                  {formErrors.some(e => e.field === 'value') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'value')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Probability (%)</label>
                   <input type="number" min={0} max={100} value={(form as any).probability || 0} onChange={e => setForm(prev => ({ ...prev, probability: Number(e.target.value) }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'probability') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                  {formErrors.some(e => e.field === 'probability') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'probability')?.message}</p>)}
                 </div>
               </div>
               <div>
@@ -347,7 +360,7 @@ const CrmOpportunities = () => {
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreate(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-surface-muted" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="button" onClick={() => { setFormErrors([]); setShowCreate(false); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-surface-muted" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Creating...' : 'Create Opportunity'}
                 </button>
@@ -358,55 +371,61 @@ const CrmOpportunities = () => {
       )}
 
       {showEdit && editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setFormErrors([]); setShowEdit(false); setEditingItem(null); setForm({}); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-border">
               <h2 className="text-lg font-extrabold text-text-primary">Edit Opportunity</h2>
-              <button onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+              <button onClick={() => { setFormErrors([]); setShowEdit(false); setEditingItem(null); setForm({}); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
             </div>
             <form onSubmit={handleEdit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Opportunity Name *</label>
                 <input value={(form as any).name || ''} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} required
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'name') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                {formErrors.some(e => e.field === 'name') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'name')?.message}</p>)}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Account *</label>
                 <select value={(form as any).accountId || ''} onChange={e => setForm(prev => ({ ...prev, accountId: e.target.value }))} required
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                  className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'accountId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                   <option value="">Select Account</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
+                {formErrors.some(e => e.field === 'accountId') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'accountId')?.message}</p>)}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Pipeline *</label>
                   <select value={(form as any).pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); const firstStage = p?.stages?.[0]; setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: firstStage?.id, probability: firstStage?.probability ?? 0 })); }} required
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'pipelineId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Pipeline</option>
                     {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                  {formErrors.some(e => e.field === 'pipelineId') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'pipelineId')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Stage *</label>
                   <select value={(form as any).stageId || ''} onChange={e => { const selP = pipelines.find(p => p.id === form.pipelineId); const selS = selP?.stages?.find(s => s.id === e.target.value); setForm(prev => ({ ...prev, stageId: e.target.value, probability: selS?.probability ?? prev.probability ?? 0 })); }} required
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'stageId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Stage</option>
                     {pipelines.find(p => p.id === form.pipelineId)?.stages?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
+                  {formErrors.some(e => e.field === 'stageId') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'stageId')?.message}</p>)}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Value (MYR)</label>
                   <input type="number" value={(form as any).value || ''} onChange={e => setForm(prev => ({ ...prev, value: Number(e.target.value) }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'value') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                  {formErrors.some(e => e.field === 'value') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'value')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Probability (%)</label>
                   <input type="number" min={0} max={100} value={(form as any).probability ?? 0} onChange={e => setForm(prev => ({ ...prev, probability: Number(e.target.value) }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'probability') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                  {formErrors.some(e => e.field === 'probability') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'probability')?.message}</p>)}
                 </div>
               </div>
               <div>
@@ -420,7 +439,7 @@ const CrmOpportunities = () => {
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-surface-muted" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="button" onClick={() => { setFormErrors([]); setShowEdit(false); setEditingItem(null); setForm({}); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-surface-muted" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>

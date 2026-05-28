@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmAccount, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import { validateAccount, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
@@ -28,6 +29,7 @@ const CrmAccounts = () => {
   const [deleteItem, setDeleteItem] = useState<CrmAccount | null>(null);
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
   const fetchAccounts = useCallback(async (page = 1) => {
     try {
@@ -42,6 +44,8 @@ const CrmAccounts = () => {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors = validateAccount(form);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     // Clean form data: convert types, strip empty strings
     const payload: Record<string, any> = {};
     for (const [k, v] of Object.entries(form)) {
@@ -55,6 +59,7 @@ const CrmAccounts = () => {
   };
 
   const openEdit = (acc: CrmAccount) => {
+    setFormErrors([]);
     setEditingItem(acc);
     setForm({
       name: acc.name,
@@ -78,6 +83,7 @@ const CrmAccounts = () => {
   };
 
   const closeEdit = () => {
+    setFormErrors([]);
     setShowEdit(false);
     setEditingItem(null);
     setForm({});
@@ -86,6 +92,8 @@ const CrmAccounts = () => {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingItem) return;
+    const errors = validateAccount(form);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.account);
     try {
       setSaving(true);
@@ -119,7 +127,7 @@ const CrmAccounts = () => {
           </div>
           <h1 className="text-2xl font-black text-text-primary">Accounts</h1>
         </div>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+        <button onClick={() => { setFormErrors([]); setShowCreate(true); }} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
           <span className="material-symbols-outlined text-lg">add</span> New Account
         </button>
       </div>
@@ -220,12 +228,12 @@ const CrmAccounts = () => {
 
       {/* Create Modal */}
       {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowCreate(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setFormErrors([]); setShowCreate(false); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-lg font-extrabold text-text-primary">New Account</h2>
-              <button onClick={() => setShowCreate(false)} className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button onClick={() => { setFormErrors([]); setShowCreate(false); }} className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
@@ -251,7 +259,8 @@ const CrmAccounts = () => {
                   <label className="block text-sm font-semibold text-text-primary mb-1">{f.label}</label>
                   <input value={(form as any)[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                     required={f.required} type={f.type || 'text'}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === f.key) ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                  {formErrors.some(e => e.field === f.key) && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === f.key)?.message}</p>)}
                 </div>
               ))}
               <div>
@@ -260,7 +269,7 @@ const CrmAccounts = () => {
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowCreate(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100 transition-colors" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="button" onClick={() => { setFormErrors([]); setShowCreate(false); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100 transition-colors" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Creating...' : 'Create Account'}
                 </button>
@@ -303,7 +312,8 @@ const CrmAccounts = () => {
                   <label className="block text-sm font-semibold text-text-primary mb-1">{f.label}</label>
                   <input value={(form as any)[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                     required={f.required} type={f.type || 'text'}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === f.key) ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
+                  {formErrors.some(e => e.field === f.key) && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === f.key)?.message}</p>)}
                 </div>
               ))}
               <div>

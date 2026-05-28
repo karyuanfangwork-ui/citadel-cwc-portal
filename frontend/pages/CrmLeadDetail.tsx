@@ -7,6 +7,7 @@ import StateBadge from '../src/components/ui/StateBadge';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
+import { validateLead, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
 
 const formatCurrency = (val: number | null) =>
@@ -40,6 +41,7 @@ const CrmLeadDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showDelete, setShowDelete] = useState(false);
+  const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
   // ── AI state ─────────────────────────────────────────────────────
   // Note Analyzer (Task 5)
@@ -256,12 +258,15 @@ const CrmLeadDetail = () => {
       followUpDate: lead.followUpDate ? lead.followUpDate.slice(0, 10) : '',
       followUpNote: lead.followUpNote ?? '',
     });
+    setFormErrors([]);
     setShowEdit(true);
   };
 
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+    const errors = validateLead(editForm);
+    if (errors.length > 0) { setFormErrors(errors); return; }
     try {
       setSaving(true);
       const payload: Record<string, any> = {};
@@ -277,6 +282,7 @@ const CrmLeadDetail = () => {
       if (editForm.followUpDate === '' && lead!.followUpDate) payload.followUpDate = null;
       await crmService.updateLead(id, payload);
       setShowEdit(false);
+      setFormErrors([]);
       reload();
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
@@ -909,18 +915,21 @@ const CrmLeadDetail = () => {
 
       {/* Edit Lead modal */}
       {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEdit(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEdit(false); setFormErrors([]); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-border-subtle">
               <h2 className="text-lg font-extrabold text-text-primary">Edit Lead</h2>
-              <button onClick={() => setShowEdit(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+              <button onClick={() => { setShowEdit(false); setFormErrors([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
             </div>
             <form onSubmit={handleEditSave} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Title *</label>
                 <input required value={editForm.title ?? ''} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'title') ? '!border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
+                {formErrors.some(e => e.field === 'title') && (
+                  <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'title')?.message}</p>
+                )}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -938,7 +947,10 @@ const CrmLeadDetail = () => {
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Email</label>
                   <input type="email" value={editForm.contactEmail ?? ''} onChange={e => setEditForm(f => ({ ...f, contactEmail: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'contactEmail') ? '!border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
+                  {formErrors.some(e => e.field === 'contactEmail') && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'contactEmail')?.message}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Phone</label>
@@ -959,7 +971,10 @@ const CrmLeadDetail = () => {
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Estimated Value (MYR)</label>
                   <input type="number" min="0" value={editForm.estimatedValue ?? ''} onChange={e => setEditForm(f => ({ ...f, estimatedValue: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                    className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'estimatedValue') ? '!border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
+                  {formErrors.some(e => e.field === 'estimatedValue') && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'estimatedValue')?.message}</p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -989,7 +1004,7 @@ const CrmLeadDetail = () => {
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowEdit(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-bg-subtle" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-bg-subtle" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
