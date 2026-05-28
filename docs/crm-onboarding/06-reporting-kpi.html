@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Reporting & KPI Guide | CWC 2.0 CRM</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --brand-primary: #1e3a5f;
+    --brand-secondary: #2563eb;
+    --brand-accent: #0ea5e9;
+    --brand-success: #059669;
+    --brand-warning: #d97706;
+    --brand-danger: #dc2626;
+    --sidebar-w: 280px;
+    --header-h: 64px;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; }
+  #sidebar {
+    position: fixed; top: 0; left: 0; width: var(--sidebar-w);
+    height: 100vh; background: var(--brand-primary); overflow-y: auto;
+    z-index: 1000; display: flex; flex-direction: column;
+  }
+  #sidebar .brand { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,.1); background: rgba(0,0,0,.2); }
+  #sidebar .brand h1 { font-size: .85rem; font-weight: 700; color: #93c5fd; letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+  #sidebar .brand p { font-size: .7rem; color: rgba(255,255,255,.5); margin: .15rem 0 0; }
+  #sidebar nav { flex: 1; padding: .75rem 0; }
+  .nav-section-label { font-size: .65rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.35); padding: .75rem 1.5rem .25rem; }
+  .nav-link-item { display: flex; align-items: center; gap: .65rem; padding: .5rem 1.5rem; color: rgba(255,255,255,.7); text-decoration: none; font-size: .8rem; font-weight: 500; transition: all .15s; border-left: 3px solid transparent; cursor: pointer; }
+  .nav-link-item:hover { background: rgba(255,255,255,.08); color: #fff; border-left-color: var(--brand-accent); }
+  .nav-link-item.active { background: rgba(14,165,233,.15); color: #7dd3fc; border-left-color: #7dd3fc; }
+  .nav-link-item i { width: 16px; text-align: center; opacity: .7; font-size: .78rem; }
+  #topbar {
+    position: fixed; top: 0; left: var(--sidebar-w); right: 0;
+    height: var(--header-h); background: #fff; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; z-index: 900;
+  }
+  #main { margin-left: var(--sidebar-w); padding-top: var(--header-h); min-height: 100vh; }
+  .content-section { padding: 2.5rem 2.5rem 1rem; max-width: 1100px; }
+  .section-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+  .section-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #f1f5f9; }
+  .section-header h2 { font-size: 1.2rem; font-weight: 700; color: var(--brand-primary); margin: 0; }
+  .badge-role { display: inline-flex; align-items: center; gap: .3rem; padding: .18rem .6rem; border-radius: 99px; font-size: .71rem; font-weight: 600; }
+  .alert-box { padding: .9rem 1.15rem; border-radius: 8px; margin: .75rem 0; font-size: .875rem; line-height: 1.55; }
+  .alert-info   { background: #eff6ff; border-left: 4px solid var(--brand-secondary); }
+  .alert-warn   { background: #fffbeb; border-left: 4px solid var(--brand-warning); }
+  .alert-danger { background: #fef2f2; border-left: 4px solid var(--brand-danger); }
+  .alert-success{ background: #f0fdf4; border-left: 4px solid var(--brand-success); }
+  table { width: 100%; border-collapse: collapse; font-size: .845rem; }
+  th { background: var(--brand-primary); color: #fff; padding: .6rem 1rem; text-align: left; font-weight: 600; font-size: .77rem; }
+  td { padding: .55rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tr:hover td { background: #f8fafc; }
+  .suite-nav-link { display: block; color: rgba(255,255,255,.5); font-size: .75rem; padding: .25rem 0; text-decoration: none; transition: color .15s; }
+  .suite-nav-link:hover { color: #fff; }
+  .suite-nav-link.current { color: #7dd3fc; font-weight: 600; }
+  /* KPI stat cards */
+  .kpi-stat { border-radius: 10px; padding: 1.25rem; }
+  .kpi-stat .num { font-size: 1.75rem; font-weight: 800; line-height: 1; }
+  .kpi-stat .label { font-size: .75rem; font-weight: 600; margin-top: .3rem; opacity: .75; }
+  .kpi-stat .sub { font-size: .72rem; margin-top: .2rem; opacity: .6; }
+  /* Report type cards */
+  .report-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; height: 100%; transition: box-shadow .15s; }
+  .report-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.07); }
+  .report-card .rt-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem; margin-bottom: .85rem; }
+  .report-card h6 { font-weight: 700; font-size: .9rem; color: var(--brand-primary); margin-bottom: .4rem; }
+  .report-card p { font-size: .8rem; color: #64748b; margin-bottom: .6rem; }
+  .report-card .meta { font-size: .75rem; color: #94a3b8; }
+  /* Chart wrap */
+  .chart-wrap { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.25rem; }
+  .chart-wrap h6 { font-weight: 700; font-size: .875rem; color: var(--brand-primary); margin-bottom: 1rem; }
+  /* KPI detail table highlight */
+  .kpi-row-lead  td:first-child { border-left: 3px solid #2563eb; }
+  .kpi-row-opp   td:first-child { border-left: 3px solid #059669; }
+  .kpi-row-act   td:first-child { border-left: 3px solid #d97706; }
+  .kpi-row-cs    td:first-child { border-left: 3px solid #dc2626; }
+  .kpi-row-data  td:first-child { border-left: 3px solid #7c3aed; }
+  .kpi-row-ret   td:first-child { border-left: 3px solid #0ea5e9; }
+  /* Hierarchy tree */
+  .hier-node { background: #fff; border: 2px solid #e2e8f0; border-radius: 8px; padding: .75rem 1rem; font-size: .83rem; font-weight: 600; text-align: center; }
+  .hier-line { width: 2px; background: #cbd5e1; margin: 0 auto; height: 24px; }
+  .hier-branch { display: flex; justify-content: center; gap: 1.5rem; position: relative; }
+  .hier-branch::before { content: ''; position: absolute; top: 0; left: 50%; width: calc(100% - 3rem); height: 2px; background: #cbd5e1; transform: translateX(-50%); }
+  .target-badge { display: inline-flex; align-items: center; padding: .15rem .55rem; border-radius: 4px; font-size: .72rem; font-weight: 700; }
+  .target-green { background: #f0fdf4; color: #065f46; }
+  .target-blue  { background: #eff6ff; color: #1e40af; }
+  .target-amber { background: #fffbeb; color: #713f12; }
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<div id="sidebar">
+  <div class="brand">
+    <h1>CRM Documentation</h1>
+    <p>CWC 2.0 — Citadel Group</p>
+  </div>
+  <nav>
+    <div class="nav-section-label">Reporting &amp; KPI Guide</div>
+    <a class="nav-link-item active" data-section="s-overview"><i class="fa fa-th-large"></i> Dashboard Overview</a>
+    <a class="nav-link-item" data-section="s-kpidefs"><i class="fa fa-bullseye"></i> KPI Definitions</a>
+    <a class="nav-link-item" data-section="s-reports"><i class="fa fa-file-alt"></i> Report Types</a>
+    <a class="nav-link-item" data-section="s-charts"><i class="fa fa-chart-bar"></i> Visual Examples</a>
+    <a class="nav-link-item" data-section="s-hierarchy"><i class="fa fa-sitemap"></i> Reporting Hierarchy</a>
+    <a class="nav-link-item" data-section="s-governance"><i class="fa fa-shield-alt"></i> Governance</a>
+  </nav>
+  <div style="padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.1);margin-top:auto">
+    <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:.5rem">Documentation Suite</div>
+    <a href="01-quick-start.html" class="suite-nav-link">&#8227; Quick Start Guide</a>
+    <a href="02-sop.html" class="suite-nav-link">&#8227; SOP Documentation</a>
+    <a href="03-workflows.html" class="suite-nav-link">&#8227; Workflow Documentation</a>
+    <a href="04-business-rules.html" class="suite-nav-link">&#8227; Business Rules</a>
+    <a href="05-role-guides.html" class="suite-nav-link">&#8227; Role-Based Guides</a>
+    <a href="06-reporting-kpi.html" class="suite-nav-link current">&#8227; Reporting &amp; KPI</a>
+  </div>
+</div>
+
+<!-- ═══ TOPBAR ═══ -->
+<div id="topbar">
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <span style="font-size:.8rem;color:#94a3b8">CRM Documentation Suite</span>
+    <span style="color:#cbd5e1">›</span>
+    <span style="font-size:.875rem;font-weight:600;color:#1e293b">Reporting &amp; KPI Guide</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 6 of 6</span>
+    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC 2.0</span>
+  </div>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div id="main">
+
+  <!-- ══════════ DASHBOARD OVERVIEW ══════════ -->
+  <div class="content-section" id="s-overview">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-th-large fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Dashboard Overview</h2>
+      </div>
+      <div class="alert-box alert-info" style="margin-bottom:1.5rem">
+        The CRM reporting layer spans two surfaces: the <strong>live Dashboard</strong> (real-time KPI cards, AI briefing, activity feed) and the <strong>Reports module</strong> (7 structured report types with date filters, drill-down, and CSV export). This guide covers both.
+      </div>
+
+      <!-- KPI Summary Cards -->
+      <h6 style="font-weight:700;margin-bottom:1rem">Dashboard KPI Cards — What Each Metric Means</h6>
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <div class="kpi-stat" style="background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #bfdbfe">
+            <div class="num" style="color:#1e40af">24</div>
+            <div class="label" style="color:#1e40af">My Open Leads</div>
+            <div class="sub" style="color:#3b82f6">Total unqualified prospects assigned to you</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="kpi-stat" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0">
+            <div class="num" style="color:#065f46">MYR 2.4M</div>
+            <div class="label" style="color:#065f46">Pipeline Value</div>
+            <div class="sub" style="color:#059669">Total estimated value of all active opportunities</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="kpi-stat" style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1px solid #fecaca">
+            <div class="num" style="color:#991b1b">7</div>
+            <div class="label" style="color:#991b1b">Overdue Activities</div>
+            <div class="sub" style="color:#dc2626">Scheduled activities past their due date — action immediately</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="kpi-stat" style="background:linear-gradient(135deg,#fdf4ff,#f3e8ff);border:1px solid #e9d5ff">
+            <div class="num" style="color:#6d28d9">5</div>
+            <div class="label" style="color:#6d28d9">Pending Approvals</div>
+            <div class="sub" style="color:#7c3aed">Approval requests awaiting your decision (Manager view)</div>
+          </div>
+        </div>
+      </div>
+
+      <h6 style="font-weight:700;margin-bottom:.75rem">All Dashboard Components</h6>
+      <table style="margin-bottom:1.5rem">
+        <thead><tr><th>Component</th><th>Data Source</th><th>Refresh Rate</th><th>Who Sees It</th><th>Action Available</th></tr></thead>
+        <tbody>
+          <tr><td><strong>AI Daily Briefing</strong></td><td>Lead scores + activity history</td><td>Nightly</td><td>All users</td><td>Click customer name → open record</td></tr>
+          <tr><td><strong>My Open Leads</strong></td><td>Leads table (assigned to me)</td><td>1 hour</td><td>Sales Rep / Manager</td><td>Click → filtered Leads list</td></tr>
+          <tr><td><strong>Pipeline Value</strong></td><td>Opportunities (active, assigned to me)</td><td>1 hour</td><td>Sales Rep / Manager</td><td>Click → Pipeline Kanban</td></tr>
+          <tr><td><strong>Overdue Activities</strong></td><td>Activities (due date past, incomplete)</td><td>1 hour</td><td>All users</td><td>Click → filtered activity list</td></tr>
+          <tr><td><strong>Pending Approvals</strong></td><td>Approval requests (status = pending)</td><td>Real-time</td><td>Managers only</td><td>Click → approval detail</td></tr>
+          <tr><td><strong>Task Panel</strong></td><td>Scheduled activities (today + overdue)</td><td>Real-time</td><td>All users</td><td>Click task → open linked record</td></tr>
+          <tr><td><strong>Activity Timeline</strong></td><td>Recent activities logged by user</td><td>Real-time</td><td>All users</td><td>Click entry → open record</td></tr>
+          <tr><td><strong>Team KPIs</strong></td><td>Team Dashboard aggregates</td><td>1 hour</td><td>Manager / Management</td><td>Click → Team Dashboard</td></tr>
+        </tbody>
+      </table>
+      <div class="alert-box alert-warn">
+        <strong>Cache Note:</strong> KPI cards on the Dashboard refresh every <strong>1 hour</strong>. For the most current figures — before a client meeting or board presentation — navigate to the <strong>Reports module</strong> with real-time list filters instead of relying on dashboard cards.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ KPI DEFINITIONS ══════════ -->
+  <div class="content-section" id="s-kpidefs">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-bullseye fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>KPI Definitions</h2>
+      </div>
+      <div class="alert-box alert-info" style="margin-bottom:1.25rem">
+        All 16 CRM KPIs are defined below with formula, target, owner, and data source. KPI targets are reviewed and updated <strong>quarterly</strong> by Sales Manager and Management.
+      </div>
+
+      <!-- Legend -->
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;font-size:.78rem">
+        <span style="display:inline-flex;align-items:center;gap:.35rem"><span style="width:12px;height:12px;background:#2563eb;border-radius:2px;display:inline-block"></span> Lead KPIs</span>
+        <span style="display:inline-flex;align-items:center;gap:.35rem"><span style="width:12px;height:12px;background:#059669;border-radius:2px;display:inline-block"></span> Opportunity / Pipeline KPIs</span>
+        <span style="display:inline-flex;align-items:center;gap:.35rem"><span style="width:12px;height:12px;background:#d97706;border-radius:2px;display:inline-block"></span> Activity KPIs</span>
+        <span style="display:inline-flex;align-items:center;gap:.35rem"><span style="width:12px;height:12px;background:#dc2626;border-radius:2px;display:inline-block"></span> Customer Service KPIs</span>
+        <span style="display:inline-flex;align-items:center;gap:.35rem"><span style="width:12px;height:12px;background:#7c3aed;border-radius:2px;display:inline-block"></span> Data &amp; Governance KPIs</span>
+        <span style="display:inline-flex;align-items:center;gap:.35rem"><span style="width:12px;height:12px;background:#0ea5e9;border-radius:2px;display:inline-block"></span> Retention KPIs</span>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:18%">KPI Name</th>
+            <th style="width:20%">Formula</th>
+            <th style="width:9%">Target</th>
+            <th style="width:10%">Frequency</th>
+            <th style="width:11%">Owner</th>
+            <th style="width:14%">Data Source</th>
+            <th style="width:18%">Business Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Lead KPIs -->
+          <tr class="kpi-row-lead">
+            <td><strong>Lead Response Time</strong></td>
+            <td>Avg hours from lead creation to first activity logged</td>
+            <td><span class="target-green">&lt; 24h</span></td>
+            <td>Daily</td>
+            <td>Sales Manager</td>
+            <td>Lead Activity Report</td>
+            <td>Slower response = lower conversion. Industry benchmark: contact within 1h is 7× more likely to qualify.</td>
+          </tr>
+          <tr class="kpi-row-lead">
+            <td><strong>Lead Conversion Rate</strong></td>
+            <td>(Qualified Leads ÷ Total Leads) × 100</td>
+            <td><span class="target-green">&gt; 30%</span></td>
+            <td>Weekly</td>
+            <td>Sales Manager</td>
+            <td>Lead Conversion Report</td>
+            <td>Measures qualification efficiency. Low rate signals poor lead quality or rep skill gap.</td>
+          </tr>
+          <tr class="kpi-row-lead">
+            <td><strong>Lead Assignment Rate</strong></td>
+            <td>(Assigned Leads ÷ Total Leads) × 100</td>
+            <td><span class="target-green">100%</span></td>
+            <td>Daily</td>
+            <td>Sales Manager</td>
+            <td>Leads List</td>
+            <td>Unassigned leads receive zero outreach. Rate below 100% means direct revenue leakage.</td>
+          </tr>
+          <!-- Opportunity KPIs -->
+          <tr class="kpi-row-opp">
+            <td><strong>Opportunity Win Rate</strong></td>
+            <td>(Closed Won ÷ Total Closed) × 100</td>
+            <td><span class="target-green">&gt; 40%</span></td>
+            <td>Monthly</td>
+            <td>Sales Manager</td>
+            <td>Pipeline Report</td>
+            <td>Core sales effectiveness measure. Tracks deals won vs. total decisions made.</td>
+          </tr>
+          <tr class="kpi-row-opp">
+            <td><strong>Average Deal Size</strong></td>
+            <td>Total Closed Won Value ÷ Number of Won Deals</td>
+            <td><span class="target-blue">MYR 250k+</span></td>
+            <td>Monthly</td>
+            <td>Management</td>
+            <td>Sales Performance Report</td>
+            <td>Tracks whether reps are closing appropriate-value deals. Decline signals downmarket drift.</td>
+          </tr>
+          <tr class="kpi-row-opp">
+            <td><strong>Pipeline Coverage</strong></td>
+            <td>Total Active Pipeline Value ÷ Monthly Revenue Target</td>
+            <td><span class="target-green">&gt; 3×</span></td>
+            <td>Weekly</td>
+            <td>Management</td>
+            <td>Forecast Report</td>
+            <td>Ensures enough pipeline exists to meet targets even with typical attrition. Below 3× is a risk signal.</td>
+          </tr>
+          <tr class="kpi-row-opp">
+            <td><strong>Average Sales Cycle</strong></td>
+            <td>Avg days from Prospecting to Closed Won</td>
+            <td><span class="target-blue">&lt; 90 days</span></td>
+            <td>Monthly</td>
+            <td>Management</td>
+            <td>Pipeline Report</td>
+            <td>Longer cycles tie up rep capacity and delay revenue. Elongation signals negotiation or qualification issues.</td>
+          </tr>
+          <!-- Activity KPIs -->
+          <tr class="kpi-row-act">
+            <td><strong>Activity Completion Rate</strong></td>
+            <td>(Completed Activities ÷ Scheduled Activities) × 100</td>
+            <td><span class="target-green">&gt; 85%</span></td>
+            <td>Weekly</td>
+            <td>Sales Manager</td>
+            <td>Activity Report</td>
+            <td>Measures rep follow-through. Low rate indicates overloading or poor time management.</td>
+          </tr>
+          <tr class="kpi-row-act">
+            <td><strong>Follow-Up SLA Compliance</strong></td>
+            <td>(On-time Activities ÷ Total Due Activities) × 100</td>
+            <td><span class="target-green">&gt; 90%</span></td>
+            <td>Weekly</td>
+            <td>Sales Manager</td>
+            <td>Activity Report</td>
+            <td>Ensures customers are touched within the committed timeframe. SLA breach correlates with deal loss.</td>
+          </tr>
+          <!-- CS KPIs -->
+          <tr class="kpi-row-cs">
+            <td><strong>Complaint Resolution Rate</strong></td>
+            <td>(Resolved Complaints ÷ Total Complaints) × 100</td>
+            <td><span class="target-green">&gt; 95%</span></td>
+            <td>Weekly</td>
+            <td>CS Manager</td>
+            <td>Activity Report (Complaint type)</td>
+            <td>BNM-sensitive. Unresolved complaints create regulatory exposure and customer churn.</td>
+          </tr>
+          <tr class="kpi-row-cs">
+            <td><strong>Avg Complaint Resolution Time</strong></td>
+            <td>Avg hours from complaint log to resolved status</td>
+            <td><span class="target-green">&lt; 48h</span></td>
+            <td>Weekly</td>
+            <td>CS Manager</td>
+            <td>Activity Report</td>
+            <td>Direct driver of customer satisfaction. High resolution time triggers BNM scrutiny.</td>
+          </tr>
+          <tr class="kpi-row-cs">
+            <td><strong>Approval Cycle Time</strong></td>
+            <td>Avg hours from approval submission to decision</td>
+            <td><span class="target-green">&lt; 24h</span></td>
+            <td>Weekly</td>
+            <td>Sales Manager</td>
+            <td>Approval module</td>
+            <td>Long approval cycles delay deal closure and frustrate customers mid-negotiation.</td>
+          </tr>
+          <!-- Data KPIs -->
+          <tr class="kpi-row-data">
+            <td><strong>Data Completeness Rate</strong></td>
+            <td>(Records with all mandatory fields ÷ Total Records) × 100</td>
+            <td><span class="target-green">&gt; 95%</span></td>
+            <td>Weekly</td>
+            <td>CRM Admin</td>
+            <td>Data Quality Report</td>
+            <td>Incomplete records produce unreliable reports and fail KYC checks.</td>
+          </tr>
+          <tr class="kpi-row-data">
+            <td><strong>Duplicate Rate</strong></td>
+            <td>(Duplicate Records ÷ Total Records) × 100</td>
+            <td><span class="target-green">&lt; 2%</span></td>
+            <td>Weekly</td>
+            <td>CRM Admin</td>
+            <td>Data Quality Report</td>
+            <td>Duplicates fragment customer view and cause reps to contact the same prospect twice.</td>
+          </tr>
+          <tr class="kpi-row-data">
+            <td><strong>KYC Compliance Rate</strong></td>
+            <td>(Accounts with complete KYC docs ÷ Active Accounts) × 100</td>
+            <td><span class="target-green">100%</span></td>
+            <td>Monthly</td>
+            <td>CRM Admin / Compliance</td>
+            <td>KYC Compliance Report</td>
+            <td>BNM mandatory. Any active account without complete KYC is a regulatory violation.</td>
+          </tr>
+          <!-- Retention KPI -->
+          <tr class="kpi-row-ret">
+            <td><strong>Customer Retention Rate</strong></td>
+            <td>((Customers End − New Customers) ÷ Customers Start) × 100</td>
+            <td><span class="target-green">&gt; 85%</span></td>
+            <td>Quarterly</td>
+            <td>Management</td>
+            <td>Customer Report</td>
+            <td>Acquiring new customers costs 5× more than retaining existing ones. A core business health indicator.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════ REPORT TYPES ══════════ -->
+  <div class="content-section" id="s-reports">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-file-alt fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Report Types</h2>
+      </div>
+      <div class="alert-box alert-info" style="margin-bottom:1.25rem">
+        The CRM Reports module provides <strong>7 structured report types</strong>. Each report supports date range filters, team/rep filters, and CSV export. Navigate to <strong>Reports</strong> in the CRM sidebar to access all reports.
+      </div>
+
+      <div class="row g-3">
+        <!-- Pipeline Report -->
+        <div class="col-md-6">
+          <div class="report-card">
+            <div class="rt-icon" style="background:#dbeafe"><i class="fa fa-stream" style="color:#1e40af"></i></div>
+            <h6>Pipeline Report</h6>
+            <p>Shows the current distribution of all active opportunities across pipeline stages, total value per stage, and a 90-day weighted revenue forecast based on AI win probability.</p>
+            <table style="font-size:.8rem;margin-bottom:.5rem">
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b;width:90px">Frequency</td><td style="border:none;padding:.2rem 0 0"><strong>Weekly</strong> — every Monday 9am (auto)</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Audience</td><td style="border:none;padding:.2rem 0 0">Sales Team + Management</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Key KPIs</td><td style="border:none;padding:.2rem 0 0">Pipeline Coverage, Win Rate, Avg Deal Size</td></tr>
+            </table>
+            <div class="meta"><i class="fa fa-download"></i>&nbsp;CSV export available &nbsp;·&nbsp; <i class="fa fa-filter"></i>&nbsp;Filterable by rep, stage, date</div>
+          </div>
+        </div>
+
+        <!-- Lead Conversion -->
+        <div class="col-md-6">
+          <div class="report-card">
+            <div class="rt-icon" style="background:#dcfce7"><i class="fa fa-funnel-dollar" style="color:#065f46"></i></div>
+            <h6>Lead Conversion Report</h6>
+            <p>Breaks down lead volume by source (Referral, Cold Call, Website, Event, Walk-in), shows conversion rates through the qualification funnel, and tracks average time-to-qualify per source.</p>
+            <table style="font-size:.8rem;margin-bottom:.5rem">
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b;width:90px">Frequency</td><td style="border:none;padding:.2rem 0 0"><strong>Monthly</strong> — 5th of each month</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Audience</td><td style="border:none;padding:.2rem 0 0">Sales Manager + Management</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Key KPIs</td><td style="border:none;padding:.2rem 0 0">Lead Conversion Rate, Lead Response Time</td></tr>
+            </table>
+            <div class="meta"><i class="fa fa-download"></i>&nbsp;CSV export available &nbsp;·&nbsp; <i class="fa fa-filter"></i>&nbsp;Filterable by source, rep, date</div>
+          </div>
+        </div>
+
+        <!-- Sales Performance -->
+        <div class="col-md-6">
+          <div class="report-card">
+            <div class="rt-icon" style="background:#fef9c3"><i class="fa fa-medal" style="color:#713f12"></i></div>
+            <h6>Sales Performance Report</h6>
+            <p>Rep-by-rep comparison of deals won, revenue generated, win rate, average deal size, and activity completion rate. Identifies top performers and underperformers for coaching.</p>
+            <table style="font-size:.8rem;margin-bottom:.5rem">
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b;width:90px">Frequency</td><td style="border:none;padding:.2rem 0 0"><strong>Monthly</strong> — 5th of each month</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Audience</td><td style="border:none;padding:.2rem 0 0">Sales Manager + Management + Board</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Key KPIs</td><td style="border:none;padding:.2rem 0 0">Win Rate, Avg Deal Size, Activity Rate</td></tr>
+            </table>
+            <div class="meta"><i class="fa fa-download"></i>&nbsp;CSV export available &nbsp;·&nbsp; <i class="fa fa-filter"></i>&nbsp;Filterable by rep, period</div>
+          </div>
+        </div>
+
+        <!-- Activity Report -->
+        <div class="col-md-6">
+          <div class="report-card">
+            <div class="rt-icon" style="background:#fff7ed"><i class="fa fa-tasks" style="color:#c2410c"></i></div>
+            <h6>Activity Report</h6>
+            <p>Shows activity volume by type (Call, Meeting, Email, Task), completion rates, overdue activities, and late-entry logging. Used to coach reps on follow-up discipline.</p>
+            <table style="font-size:.8rem;margin-bottom:.5rem">
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b;width:90px">Frequency</td><td style="border:none;padding:.2rem 0 0"><strong>Weekly</strong> — Monday 9am (auto)</td></tr>
+              <tr><td style="border:none;padding:.2rem 0 0;color:#64748b">Audience</td><td style="border:none;padding:.2rem 0 0">Sales Manager</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Key KPIs</td><td style="border:none;padding:.2rem 0 0">Activity Completion Rate, Follow-Up SLA</td></tr>
+            </table>
+            <div class="meta"><i class="fa fa-download"></i>&nbsp;CSV export available &nbsp;·&nbsp; <i class="fa fa-filter"></i>&nbsp;Filterable by rep, type, date</div>
+          </div>
+        </div>
+
+        <!-- KYC Compliance -->
+        <div class="col-md-6">
+          <div class="report-card">
+            <div class="rt-icon" style="background:#fdf4ff"><i class="fa fa-id-card" style="color:#7c3aed"></i></div>
+            <h6>KYC Compliance Report</h6>
+            <p>Lists all active accounts with their KYC document completeness status, flags accounts with expiring or missing documents, and tracks KYC renewal timelines. BNM audit-ready.</p>
+            <table style="font-size:.8rem;margin-bottom:.5rem">
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b;width:90px">Frequency</td><td style="border:none;padding:.2rem 0 0"><strong>Monthly</strong> — 5th of each month</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Audience</td><td style="border:none;padding:.2rem 0 0">Compliance + Management</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Key KPIs</td><td style="border:none;padding:.2rem 0 0">KYC Compliance Rate, Expiry Alerts</td></tr>
+            </table>
+            <div class="meta"><i class="fa fa-download"></i>&nbsp;CSV export available &nbsp;·&nbsp; <i class="fa fa-shield-alt"></i>&nbsp;BNM retention: 7 years</div>
+          </div>
+        </div>
+
+        <!-- Forecast Report -->
+        <div class="col-md-6">
+          <div class="report-card">
+            <div class="rt-icon" style="background:#f0fdf4"><i class="fa fa-chart-line" style="color:#059669"></i></div>
+            <h6>Forecast Report</h6>
+            <p>Generates a 90-day weighted revenue forecast by multiplying each opportunity's estimated value by its AI win probability. Segmented by stage, rep, and industry. Used for board-level presentations.</p>
+            <table style="font-size:.8rem;margin-bottom:.5rem">
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b;width:90px">Frequency</td><td style="border:none;padding:.2rem 0 0"><strong>Monthly</strong> — 5th of each month (also on-demand)</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Audience</td><td style="border:none;padding:.2rem 0 0">Board / Directors / Management</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Key KPIs</td><td style="border:none;padding:.2rem 0 0">Pipeline Coverage, Forecast Accuracy</td></tr>
+            </table>
+            <div class="meta"><i class="fa fa-download"></i>&nbsp;CSV export available &nbsp;·&nbsp; <i class="fa fa-filter"></i>&nbsp;Filterable by stage, rep, period</div>
+          </div>
+        </div>
+
+        <!-- Lost Analysis -->
+        <div class="col-md-6">
+          <div class="report-card" style="border-left:3px solid var(--brand-danger)">
+            <div class="rt-icon" style="background:#fef2f2"><i class="fa fa-times-circle" style="color:#dc2626"></i></div>
+            <h6>Lost Analysis Report</h6>
+            <p>Aggregates all Closed Lost opportunities by Lost Reason, stage at which they were lost, competitor involved (if known), and rep. Identifies systemic patterns for process improvement.</p>
+            <table style="font-size:.8rem;margin-bottom:.5rem">
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b;width:90px">Frequency</td><td style="border:none;padding:.2rem 0 0"><strong>Quarterly</strong> — end of quarter (also on-demand)</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Audience</td><td style="border:none;padding:.2rem 0 0">Sales Manager + Management</td></tr>
+              <tr><td style="border:none;padding:.2rem .5rem 0 0;color:#64748b">Key KPIs</td><td style="border:none;padding:.2rem 0 0">Win Rate, Lost Reason Distribution</td></tr>
+            </table>
+            <div class="meta"><i class="fa fa-download"></i>&nbsp;CSV export available &nbsp;·&nbsp; Requires Lost Reason field populated</div>
+          </div>
+        </div>
+
+        <!-- Quick guide -->
+        <div class="col-md-6">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:1.25rem;height:100%">
+            <h6 style="font-weight:700;margin-bottom:1rem;color:var(--brand-primary)"><i class="fa fa-play-circle" style="color:var(--brand-secondary)"></i>&nbsp; How to Run Any Report</h6>
+            <div style="font-size:.875rem;line-height:1.8">
+              <div style="display:flex;align-items:center;gap:.65rem;padding:.3rem 0"><span style="width:22px;height:22px;background:var(--brand-secondary);color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;flex-shrink:0">1</span> Click <strong>Reports</strong> in the CRM sidebar</div>
+              <div style="display:flex;align-items:center;gap:.65rem;padding:.3rem 0"><span style="width:22px;height:22px;background:var(--brand-secondary);color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;flex-shrink:0">2</span> Select report type from the dropdown</div>
+              <div style="display:flex;align-items:center;gap:.65rem;padding:.3rem 0"><span style="width:22px;height:22px;background:var(--brand-secondary);color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;flex-shrink:0">3</span> Set date range and filters (rep, stage, source)</div>
+              <div style="display:flex;align-items:center;gap:.65rem;padding:.3rem 0"><span style="width:22px;height:22px;background:var(--brand-secondary);color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;flex-shrink:0">4</span> Review for anomalies before sharing</div>
+              <div style="display:flex;align-items:center;gap:.65rem;padding:.3rem 0"><span style="width:22px;height:22px;background:var(--brand-secondary);color:#fff;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;flex-shrink:0">5</span> Click <strong>Export CSV</strong> if archiving is required</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ VISUAL EXAMPLES ══════════ -->
+  <div class="content-section" id="s-charts">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-chart-bar fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Visual Examples</h2>
+      </div>
+      <div class="alert-box alert-info" style="margin-bottom:1.25rem">
+        The charts below represent typical CRM reporting outputs. Actual data in your Reports module will reflect your team's live figures.
+      </div>
+
+      <div class="row g-4">
+        <!-- Pipeline by Stage -->
+        <div class="col-md-6">
+          <div class="chart-wrap">
+            <h6><i class="fa fa-stream" style="color:var(--brand-secondary)"></i>&nbsp; Pipeline Value by Stage (MYR '000)</h6>
+            <p style="font-size:.8rem;color:#64748b;margin-bottom:1rem">Shows total estimated deal value sitting in each pipeline stage. Healthy pipelines have a wide base at Prospecting narrowing toward Negotiation.</p>
+            <div style="position:relative;height:260px"><canvas id="pipelineChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Lead Source Breakdown -->
+        <div class="col-md-6">
+          <div class="chart-wrap">
+            <h6><i class="fa fa-funnel-dollar" style="color:var(--brand-secondary)"></i>&nbsp; Lead Source Breakdown (%)</h6>
+            <p style="font-size:.8rem;color:#64748b;margin-bottom:1rem">Distribution of leads by acquisition source. Referral leads typically convert at 3× the rate of cold call leads — use this to guide marketing investment.</p>
+            <div style="position:relative;height:260px"><canvas id="sourceChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Monthly Win Rate Trend -->
+        <div class="col-md-6">
+          <div class="chart-wrap">
+            <h6><i class="fa fa-trophy" style="color:var(--brand-secondary)"></i>&nbsp; Monthly Win Rate Trend (%)</h6>
+            <p style="font-size:.8rem;color:#64748b;margin-bottom:1rem">Win rate trend over the past 6 months. The target line at 40% helps identify months below threshold requiring coaching intervention.</p>
+            <div style="position:relative;height:260px"><canvas id="winRateChart"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Activity Completion -->
+        <div class="col-md-6">
+          <div class="chart-wrap">
+            <h6><i class="fa fa-tasks" style="color:var(--brand-secondary)"></i>&nbsp; Activity Completion by Type (%)</h6>
+            <p style="font-size:.8rem;color:#64748b;margin-bottom:1rem">Completion rate per activity type. Meetings typically have the highest completion rate; emails are often rescheduled. Use this to coach reps on follow-through.</p>
+            <div style="position:relative;height:260px"><canvas id="activityChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ REPORTING HIERARCHY ══════════ -->
+  <div class="content-section" id="s-hierarchy">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-sitemap fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Reporting Hierarchy</h2>
+      </div>
+      <div class="alert-box alert-info" style="margin-bottom:1.5rem">
+        CRM reporting flows upward from rep-level operational data through management layers to board-level strategic dashboards. Each level consumes a different report type and frequency.
+      </div>
+
+      <!-- Hierarchy Visual -->
+      <div style="max-width:700px;margin:0 auto 1.5rem">
+        <div class="hier-node" style="border-color:#1e3a5f;background:#1e3a5f;color:#fff;max-width:240px;margin:0 auto">
+          <i class="fa fa-chess-king"></i>&nbsp; Board / Directors<br/>
+          <span style="font-size:.72rem;opacity:.7;font-weight:400">Forecast Report · Sales Performance · Monthly</span>
+        </div>
+        <div class="hier-line"></div>
+        <div class="hier-node" style="border-color:#2563eb;background:#eff6ff;color:#1e3a5f;max-width:280px;margin:0 auto">
+          <i class="fa fa-chart-bar"></i>&nbsp; Management<br/>
+          <span style="font-size:.72rem;color:#64748b;font-weight:400">Forecast · Performance · Pipeline · Monthly + Weekly</span>
+        </div>
+        <div class="hier-line"></div>
+        <div class="hier-branch">
+          <div style="flex:1;max-width:280px">
+            <div class="hier-node" style="border-color:#059669;background:#f0fdf4;color:#065f46">
+              <i class="fa fa-users-cog"></i>&nbsp; Sales Manager<br/>
+              <span style="font-size:.72rem;color:#64748b;font-weight:400">Pipeline · Activity · Conversion · Weekly</span>
+            </div>
+          </div>
+          <div style="flex:1;max-width:280px">
+            <div class="hier-node" style="border-color:#7c3aed;background:#fdf4ff;color:#581c87">
+              <i class="fa fa-user-shield"></i>&nbsp; CRM Admin<br/>
+              <span style="font-size:.72rem;color:#64748b;font-weight:400">KYC · Data Quality · Weekly</span>
+            </div>
+          </div>
+        </div>
+        <div class="hier-line"></div>
+        <div class="hier-node" style="border-color:#0ea5e9;background:#f0f9ff;color:#0369a1;max-width:280px;margin:0 auto">
+          <i class="fa fa-user-tie"></i>&nbsp; Sales Representative<br/>
+          <span style="font-size:.72rem;color:#64748b;font-weight:400">Activity feed · Task panel · Real-time</span>
+        </div>
+      </div>
+
+      <h6 style="font-weight:700;margin-bottom:.75rem">Reporting Schedule Summary</h6>
+      <table>
+        <thead><tr><th>Report</th><th>Trigger</th><th>Frequency</th><th>Due</th><th>Primary Audience</th><th>Owner</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Pipeline Report</strong></td><td>Scheduled (auto)</td><td>Weekly</td><td>Monday 9:00 AM</td><td>Sales Team + Management</td><td>Sales Manager</td></tr>
+          <tr><td><strong>Activity Completion</strong></td><td>Scheduled (auto)</td><td>Weekly</td><td>Monday 9:00 AM</td><td>Sales Manager</td><td>Sales Manager</td></tr>
+          <tr><td><strong>Data Quality Score</strong></td><td>Scheduled (auto)</td><td>Weekly</td><td>Monday 9:00 AM</td><td>Sales Manager + CRM Admin</td><td>CRM Admin</td></tr>
+          <tr><td><strong>Sales Performance</strong></td><td>Scheduled (auto)</td><td>Monthly</td><td>5th of month</td><td>Management + Board</td><td>Sales Manager</td></tr>
+          <tr><td><strong>Lead Conversion</strong></td><td>Scheduled (auto)</td><td>Monthly</td><td>5th of month</td><td>Sales Manager + Management</td><td>Sales Manager</td></tr>
+          <tr><td><strong>KYC Compliance</strong></td><td>Scheduled (auto)</td><td>Monthly</td><td>5th of month</td><td>Compliance + Management</td><td>CRM Admin</td></tr>
+          <tr><td><strong>Forecast Report</strong></td><td>Scheduled + on-demand</td><td>Monthly</td><td>5th of month</td><td>Board / Directors</td><td>Management</td></tr>
+          <tr><td><strong>Lost Analysis</strong></td><td>On-demand</td><td>Quarterly</td><td>End of quarter</td><td>Sales Manager + Management</td><td>Sales Manager</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══════════ GOVERNANCE ══════════ -->
+  <div class="content-section" id="s-governance">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-shield-alt fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Reporting Governance</h2>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-4">
+          <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:1.25rem;height:100%">
+            <div style="font-weight:700;color:#991b1b;margin-bottom:.5rem"><i class="fa fa-ban"></i>&nbsp; Never Do</div>
+            <ul style="font-size:.855rem;padding-left:1.2rem;color:#7f1d1d;line-height:1.8;margin:0">
+              <li>Share CRM reports externally without management approval</li>
+              <li>Export data to personal devices (home laptop, personal email)</li>
+              <li>Present report data without reviewing for anomalies first</li>
+              <li>Screenshot pipeline data for sharing in unapproved channels</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:1.25rem;height:100%">
+            <div style="font-weight:700;color:#065f46;margin-bottom:.5rem"><i class="fa fa-check-circle"></i>&nbsp; Always Do</div>
+            <ul style="font-size:.855rem;padding-left:1.2rem;color:#14532d;line-height:1.8;margin:0">
+              <li>Review report data for anomalies before sharing</li>
+              <li>Archive CSV exports per the 7-year retention policy</li>
+              <li>Obtain management sign-off before any external report sharing</li>
+              <li>Use the Reports module (not dashboard cache) for live data</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:1.25rem;height:100%">
+            <div style="font-weight:700;color:#1e40af;margin-bottom:.5rem"><i class="fa fa-info-circle"></i>&nbsp; System Controls</div>
+            <ul style="font-size:.855rem;padding-left:1.2rem;color:#1e3a5f;line-height:1.8;margin:0">
+              <li>All CSV exports logged: timestamp + user identity + report type</li>
+              <li>Dashboard KPI cards cache for 1 hour</li>
+              <li>Scheduled reports auto-delivered to owners by email</li>
+              <li>KPI targets locked — only CRM Admin can update after quarterly review</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <table>
+        <thead><tr><th>Governance Rule</th><th>Applies To</th><th>Enforcement</th><th>Consequence if Violated</th></tr></thead>
+        <tbody>
+          <tr><td>No external sharing without approval</td><td>All users</td><td>Policy</td><td>PDPA breach; disciplinary action</td></tr>
+          <tr><td>All exports audit-logged</td><td>All users</td><td>System (automatic)</td><td>Evidence trail for any investigation</td></tr>
+          <tr><td>Anomaly review before presentation</td><td>Managers</td><td>Policy</td><td>Management decision on wrong data</td></tr>
+          <tr><td>7-year report archive</td><td>CRM Admin</td><td>Policy + BNM alignment</td><td>BNM audit failure; regulatory penalty</td></tr>
+          <tr><td>KPI targets quarterly review</td><td>Sales Manager + Management</td><td>Policy</td><td>Reporting against outdated benchmarks</td></tr>
+          <tr><td>On-time scheduled report delivery</td><td>Sales Manager / CRM Admin</td><td>System (auto-generated)</td><td>Management alert; SOP-008 breach</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Suite Complete Banner -->
+    <div style="background:linear-gradient(135deg,#1e3a5f,#2563eb);border-radius:12px;padding:2rem;text-align:center;margin-top:1.5rem;color:#fff">
+      <i class="fa fa-check-circle fa-2x" style="color:#93c5fd;margin-bottom:.75rem;display:block"></i>
+      <h4 style="font-weight:800;margin-bottom:.5rem">Documentation Suite Complete</h4>
+      <p style="color:rgba(255,255,255,.8);font-size:.875rem;margin-bottom:1.25rem">You have reviewed all 6 parts of the CRM Onboarding &amp; Operational Documentation Suite.</p>
+      <div style="display:flex;justify-content:center;gap:.75rem;flex-wrap:wrap">
+        <a href="01-quick-start.html" style="background:rgba(255,255,255,.15);color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-size:.82rem;font-weight:600;border:1px solid rgba(255,255,255,.2)"><i class="fa fa-bolt"></i>&nbsp; Quick Start</a>
+        <a href="02-sop.html" style="background:rgba(255,255,255,.15);color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-size:.82rem;font-weight:600;border:1px solid rgba(255,255,255,.2)"><i class="fa fa-list-alt"></i>&nbsp; SOPs</a>
+        <a href="03-workflows.html" style="background:rgba(255,255,255,.15);color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-size:.82rem;font-weight:600;border:1px solid rgba(255,255,255,.2)"><i class="fa fa-sitemap"></i>&nbsp; Workflows</a>
+        <a href="04-business-rules.html" style="background:rgba(255,255,255,.15);color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-size:.82rem;font-weight:600;border:1px solid rgba(255,255,255,.2)"><i class="fa fa-book"></i>&nbsp; Rules</a>
+        <a href="05-role-guides.html" style="background:rgba(255,255,255,.15);color:#fff;padding:.5rem 1rem;border-radius:6px;text-decoration:none;font-size:.82rem;font-weight:600;border:1px solid rgba(255,255,255,.2)"><i class="fa fa-users"></i>&nbsp; Roles</a>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center;padding:2rem 0 3rem;color:#94a3b8;font-size:.8rem">
+      <p style="margin:0">Reporting &amp; KPI Guide &middot; Part 6 of 6 &middot; CWC 2.0 &mdash; Citadel Group Technologies Sdn Bhd</p>
+      <p style="margin:.25rem 0 0">KPI targets reviewed quarterly. Data governance questions: contact CRM Admin.</p>
+      <div style="margin-top:1rem">
+        <a href="05-role-guides.html" style="color:#94a3b8;text-decoration:none"><i class="fa fa-arrow-left"></i>&nbsp; Role-Based Guides</a>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /#main -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ── Chart 1: Pipeline by Stage ──
+new Chart(document.getElementById('pipelineChart').getContext('2d'), {
+  type: 'bar',
+  data: {
+    labels: ['Prospecting', 'Qualification', 'Proposal', 'Negotiation'],
+    datasets: [{
+      label: 'Pipeline Value (MYR \'000)',
+      data: [850, 620, 340, 180],
+      backgroundColor: ['#3b82f6','#0ea5e9','#06b6d4','#059669'],
+      borderRadius: 6,
+      borderSkipped: false
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' MYR ' + ctx.parsed.y + 'k' } } },
+    scales: { y: { beginAtZero: true, ticks: { callback: v => 'MYR ' + v + 'k' } } }
+  }
+});
+
+// ── Chart 2: Lead Source Doughnut ──
+new Chart(document.getElementById('sourceChart').getContext('2d'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Referral', 'Cold Call', 'Website', 'Event', 'Walk-in'],
+    datasets: [{
+      data: [35, 25, 20, 12, 8],
+      backgroundColor: ['#1e3a5f','#2563eb','#0ea5e9','#059669','#d97706'],
+      borderWidth: 2, borderColor: '#fff'
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false, cutout: '62%',
+    plugins: {
+      legend: { position: 'right', labels: { font: { size: 12 }, padding: 12 } },
+      tooltip: { callbacks: { label: ctx => ' ' + ctx.label + ': ' + ctx.parsed + '%' } }
+    }
+  }
+});
+
+// ── Chart 3: Monthly Win Rate Line ──
+new Chart(document.getElementById('winRateChart').getContext('2d'), {
+  type: 'line',
+  data: {
+    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    datasets: [
+      {
+        label: 'Win Rate (%)',
+        data: [38, 42, 36, 45, 41, 47],
+        borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.1)',
+        borderWidth: 2.5, pointRadius: 5, pointBackgroundColor: '#2563eb', fill: true, tension: 0.3
+      },
+      {
+        label: 'Target (40%)',
+        data: [40, 40, 40, 40, 40, 40],
+        borderColor: '#dc2626', borderWidth: 1.5, borderDash: [6, 4],
+        pointRadius: 0, fill: false
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { font: { size: 12 } } } },
+    scales: { y: { min: 25, max: 60, ticks: { callback: v => v + '%' } } }
+  }
+});
+
+// ── Chart 4: Activity Completion by Type ──
+new Chart(document.getElementById('activityChart').getContext('2d'), {
+  type: 'bar',
+  data: {
+    labels: ['Call', 'Meeting', 'Email', 'Task', 'Note'],
+    datasets: [
+      {
+        label: 'Completed (%)',
+        data: [82, 91, 74, 88, 95],
+        backgroundColor: ['#2563eb','#059669','#d97706','#7c3aed','#0ea5e9'],
+        borderRadius: 5
+      },
+      {
+        label: 'Target (85%)',
+        data: [85, 85, 85, 85, 85],
+        type: 'line',
+        borderColor: '#dc2626', borderWidth: 1.5, borderDash: [5, 4],
+        pointRadius: 0, fill: false
+      }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { labels: { font: { size: 12 } } } },
+    scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } }
+  }
+});
+
+// ── Sidebar scroll-spy ──
+const sections = ['s-overview','s-kpidefs','s-reports','s-charts','s-hierarchy','s-governance'];
+const navItems = {};
+sections.forEach(id => { navItems[id] = document.querySelector(`.nav-link-item[data-section="${id}"]`); });
+
+document.querySelectorAll('.nav-link-item[data-section]').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-link-item').forEach(x => x.classList.remove('active'));
+    el.classList.add('active');
+    const target = document.getElementById(el.dataset.section);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      sections.forEach(id => navItems[id] && navItems[id].classList.remove('active'));
+      navItems[entry.target.id] && navItems[entry.target.id].classList.add('active');
+    }
+  });
+}, { rootMargin: '-64px 0px -50% 0px' });
+
+sections.forEach(id => { const el = document.getElementById(id); if (el) observer.observe(el); });
+</script>
+</body>
+</html>
