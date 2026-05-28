@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Quick Start Guide | CWC 2.0 CRM</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<style>
+  :root {
+    --brand-primary: #1e3a5f;
+    --brand-secondary: #2563eb;
+    --brand-accent: #0ea5e9;
+    --brand-success: #059669;
+    --brand-warning: #d97706;
+    --brand-danger: #dc2626;
+    --sidebar-w: 280px;
+    --header-h: 64px;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; }
+  #sidebar {
+    position: fixed; top: 0; left: 0; width: var(--sidebar-w);
+    height: 100vh; background: var(--brand-primary); overflow-y: auto;
+    z-index: 1000; display: flex; flex-direction: column;
+  }
+  #sidebar .brand { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,.1); background: rgba(0,0,0,.2); }
+  #sidebar .brand h1 { font-size: .85rem; font-weight: 700; color: #93c5fd; letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+  #sidebar .brand p { font-size: .7rem; color: rgba(255,255,255,.5); margin: .15rem 0 0; }
+  #sidebar nav { flex: 1; padding: .75rem 0; }
+  .nav-section-label { font-size: .65rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.35); padding: .75rem 1.5rem .25rem; }
+  .nav-link-item { display: flex; align-items: center; gap: .65rem; padding: .55rem 1.5rem; color: rgba(255,255,255,.7); text-decoration: none; font-size: .82rem; font-weight: 500; transition: all .15s; border-left: 3px solid transparent; cursor: pointer; }
+  .nav-link-item:hover { background: rgba(255,255,255,.08); color: #fff; border-left-color: var(--brand-accent); }
+  .nav-link-item.active { background: rgba(14,165,233,.15); color: #7dd3fc; border-left-color: #7dd3fc; }
+  .nav-link-item i { width: 16px; text-align: center; opacity: .7; font-size: .8rem; }
+  #topbar {
+    position: fixed; top: 0; left: var(--sidebar-w); right: 0;
+    height: var(--header-h); background: #fff; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; z-index: 900; gap: 1rem;
+  }
+  #main { margin-left: var(--sidebar-w); padding-top: var(--header-h); min-height: 100vh; }
+  .content-section { padding: 2.5rem 2.5rem 1.5rem; max-width: 1100px; }
+  .section-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+  .section-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #f1f5f9; }
+  .section-header h2 { font-size: 1.35rem; font-weight: 700; color: var(--brand-primary); margin: 0; }
+  .badge-role { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .65rem; border-radius: 99px; font-size: .72rem; font-weight: 600; }
+  .kpi-card { background: linear-gradient(135deg, #f0f9ff, #e0f2fe); border: 1px solid #bae6fd; border-radius: 10px; padding: 1.25rem; }
+  .step-item { display: flex; gap: 1rem; padding: .85rem 0; border-bottom: 1px solid #f1f5f9; }
+  .step-item:last-child { border-bottom: none; }
+  .step-num { width: 28px; height: 28px; background: var(--brand-secondary); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 700; flex-shrink: 0; margin-top: 2px; }
+  .alert-box { padding: 1rem 1.25rem; border-radius: 8px; margin: 1rem 0; font-size: .875rem; }
+  .alert-info { background: #eff6ff; border-left: 4px solid var(--brand-secondary); }
+  .alert-warn { background: #fffbeb; border-left: 4px solid var(--brand-warning); }
+  .alert-danger { background: #fef2f2; border-left: 4px solid var(--brand-danger); }
+  .alert-success { background: #f0fdf4; border-left: 4px solid var(--brand-success); }
+  .checklist-item { display: flex; align-items: flex-start; gap: .65rem; padding: .4rem 0; font-size: .875rem; }
+  .checklist-item i { margin-top: 2px; flex-shrink: 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+  th { background: var(--brand-primary); color: #fff; padding: .65rem 1rem; text-align: left; font-weight: 600; font-size: .8rem; }
+  td { padding: .6rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tr:hover td { background: #f8fafc; }
+  .suite-nav-link { display: block; color: rgba(255,255,255,.5); font-size: .75rem; padding: .25rem 0; text-decoration: none; transition: color .15s; }
+  .suite-nav-link:hover { color: #fff; }
+  .suite-nav-link.current { color: #7dd3fc; font-weight: 600; }
+  kbd { background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px; padding: .1rem .35rem; font-size: .8rem; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<div id="sidebar">
+  <div class="brand">
+    <h1>CRM Documentation</h1>
+    <p>CWC 2.0 — Citadel Group</p>
+  </div>
+  <nav>
+    <div class="nav-section-label">Quick Start Guide</div>
+    <a class="nav-link-item active" data-section="s-intro"><i class="fa fa-home"></i> System Introduction</a>
+    <a class="nav-link-item" data-section="s-login"><i class="fa fa-sign-in-alt"></i> Login Guide</a>
+    <a class="nav-link-item" data-section="s-dashboard"><i class="fa fa-th-large"></i> Dashboard Overview</a>
+    <a class="nav-link-item" data-section="s-nav"><i class="fa fa-bars"></i> Navigation Guide</a>
+    <a class="nav-link-item" data-section="s-activities"><i class="fa fa-tasks"></i> Daily Core Activities</a>
+    <a class="nav-link-item" data-section="s-best"><i class="fa fa-star"></i> Best Practices</a>
+    <a class="nav-link-item" data-section="s-support"><i class="fa fa-life-ring"></i> Support &amp; Escalation</a>
+  </nav>
+  <div style="padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.1);margin-top:auto">
+    <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:.5rem">Documentation Suite</div>
+    <a href="01-quick-start.html" class="suite-nav-link current">&#8227; Quick Start Guide</a>
+    <a href="02-sop.html" class="suite-nav-link">&#8227; SOP Documentation</a>
+    <a href="03-workflows.html" class="suite-nav-link">&#8227; Workflow Documentation</a>
+    <a href="04-business-rules.html" class="suite-nav-link">&#8227; Business Rules</a>
+    <a href="05-role-guides.html" class="suite-nav-link">&#8227; Role-Based Guides</a>
+    <a href="06-reporting-kpi.html" class="suite-nav-link">&#8227; Reporting &amp; KPI</a>
+  </div>
+</div>
+
+<!-- ═══ TOPBAR ═══ -->
+<div id="topbar">
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <span style="font-size:.8rem;color:#94a3b8">CRM Documentation Suite</span>
+    <span style="color:#cbd5e1">›</span>
+    <span style="font-size:.875rem;font-weight:600;color:#1e293b">Quick Start Guide</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 1 of 6</span>
+    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC 2.0</span>
+  </div>
+</div>
+
+<!-- ═══ MAIN CONTENT ═══ -->
+<div id="main">
+
+  <!-- ═══════════════════════════════════════
+       SECTION 1: System Introduction
+  ═══════════════════════════════════════ -->
+  <div class="content-section" id="s-intro">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-home fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>1. System Introduction</h2>
+      </div>
+
+      <div class="alert-box alert-info" style="margin-bottom:1.75rem">
+        <strong>Welcome to CWC 2.0 CRM.</strong> This guide is your starting point for using the Customer Relationship Management module. Read it fully before your first login.
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="kpi-card">
+            <div style="font-size:.72rem;font-weight:700;color:#0369a1;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem"><i class="fa fa-bullseye"></i>&nbsp; CRM Purpose</div>
+            <p style="font-size:.875rem;margin:0;line-height:1.6">
+              Manage the full customer lifecycle — from lead capture through to deal closure and post-sale trust product management — within a single platform aligned to Malaysian financial services compliance (BNM / KYC / AML).
+            </p>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="kpi-card" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-color:#bbf7d0">
+            <div style="font-size:.72rem;font-weight:700;color:#065f46;text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem"><i class="fa fa-flag"></i>&nbsp; Business Objectives</div>
+            <ul style="font-size:.875rem;margin:0;padding-left:1.2rem;line-height:1.75">
+              <li>Centralise all customer and prospect data</li>
+              <li>Reduce lead response time to under 24 hours</li>
+              <li>Improve pipeline forecast accuracy</li>
+              <li>Ensure BNM-compliant KYC documentation</li>
+              <li>Increase sales team productivity via AI assistance</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <h5 style="font-weight:700;margin-bottom:1rem;color:var(--brand-primary)">Key Modules</h5>
+      <table style="margin-bottom:1.75rem">
+        <thead><tr><th>Module</th><th>What It Does</th><th>Who Uses It</th></tr></thead>
+        <tbody>
+          <tr><td><i class="fa fa-home" style="color:var(--brand-accent)"></i>&nbsp; <strong>Dashboard</strong></td><td>AI daily briefing, KPI cards, activity timeline, quick actions</td><td>All CRM users</td></tr>
+          <tr><td><i class="fa fa-building" style="color:var(--brand-accent)"></i>&nbsp; <strong>Accounts</strong></td><td>Company / entity records, trust products, KYC status lifecycle</td><td>Sales Rep, Manager</td></tr>
+          <tr><td><i class="fa fa-address-book" style="color:var(--brand-accent)"></i>&nbsp; <strong>Contacts</strong></td><td>Individual contacts, KYC data, relationship mapping, beneficiaries</td><td>Sales Rep, Manager</td></tr>
+          <tr><td><i class="fa fa-user-plus" style="color:var(--brand-accent)"></i>&nbsp; <strong>Leads</strong></td><td>Prospect capture, AI scoring (0–100), qualification workflow</td><td>Sales Rep, Manager</td></tr>
+          <tr><td><i class="fa fa-stream" style="color:var(--brand-accent)"></i>&nbsp; <strong>Pipeline</strong></td><td>Kanban deal board, stage management, AI win probability</td><td>Sales Rep, Manager</td></tr>
+          <tr><td><i class="fa fa-users" style="color:#f59e0b"></i>&nbsp; <strong>Team</strong></td><td>Team performance, rep comparison, manager AI intelligence</td><td>Manager, Admin only</td></tr>
+          <tr><td><i class="fa fa-chart-pie" style="color:var(--brand-accent)"></i>&nbsp; <strong>Reports</strong></td><td>7 report types with filters, trend charts, CSV export</td><td>All CRM users</td></tr>
+        </tbody>
+      </table>
+
+      <h5 style="font-weight:700;margin-bottom:1rem;color:var(--brand-primary)">Key Business Benefits</h5>
+      <div class="row g-2 mb-4">
+        <div class="col-md-4">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1rem;height:100%">
+            <div style="font-size:.8rem;font-weight:700;color:var(--brand-primary);margin-bottom:.4rem"><i class="fa fa-robot" style="color:var(--brand-secondary)"></i>&nbsp; AI-Powered Productivity</div>
+            <p style="font-size:.8rem;color:#64748b;margin:0">AI scores your leads, drafts messages, analyses meeting notes, and briefs you each morning on who to contact first.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1rem;height:100%">
+            <div style="font-size:.8rem;font-weight:700;color:var(--brand-primary);margin-bottom:.4rem"><i class="fa fa-shield-alt" style="color:var(--brand-success)"></i>&nbsp; BNM Compliance Built-In</div>
+            <p style="font-size:.8rem;color:#64748b;margin:0">KYC status tracking, document checklists, and compliance alerts are embedded directly in account and contact records.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1rem;height:100%">
+            <div style="font-size:.8rem;font-weight:700;color:var(--brand-primary);margin-bottom:.4rem"><i class="fa fa-chart-line" style="color:var(--brand-warning)"></i>&nbsp; Real-Time Pipeline Visibility</div>
+            <p style="font-size:.8rem;color:#64748b;margin:0">Managers see team pipeline health, SLA compliance, and forecast accuracy in real time through the Team Dashboard.</p>
+          </div>
+        </div>
+      </div>
+
+      <h5 style="font-weight:700;margin-bottom:1rem;color:var(--brand-primary)">Target Users</h5>
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem">
+        <span class="badge-role" style="background:#dbeafe;color:#1e40af;padding:.4rem .9rem"><i class="fa fa-user-tie"></i>&nbsp; Sales Representative</span>
+        <span class="badge-role" style="background:#fef9c3;color:#713f12;padding:.4rem .9rem"><i class="fa fa-users"></i>&nbsp; Sales Manager</span>
+        <span class="badge-role" style="background:#f0fdf4;color:#14532d;padding:.4rem .9rem"><i class="fa fa-headset"></i>&nbsp; Customer Service</span>
+        <span class="badge-role" style="background:#fdf4ff;color:#581c87;padding:.4rem .9rem"><i class="fa fa-cogs"></i>&nbsp; Operations Team</span>
+        <span class="badge-role" style="background:#fff7ed;color:#7c2d12;padding:.4rem .9rem"><i class="fa fa-shield-alt"></i>&nbsp; Admin User</span>
+        <span class="badge-role" style="background:#f1f5f9;color:#475569;padding:.4rem .9rem"><i class="fa fa-chart-bar"></i>&nbsp; Management</span>
+        <span class="badge-role" style="background:#ecfdf5;color:#065f46;padding:.4rem .9rem"><i class="fa fa-door-open"></i>&nbsp; New Joiners</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION 2: Login Guide
+  ═══════════════════════════════════════ -->
+  <div class="content-section" id="s-login">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-sign-in-alt fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>2. Login Guide</h2>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-7">
+          <h5 style="font-weight:700;margin-bottom:1rem">Login Process</h5>
+          <div class="step-item">
+            <div class="step-num">1</div>
+            <div><strong>Open your browser</strong> — Chrome 110+, Edge 110+, or Firefox 115+. Safari 16+ is supported. Internet Explorer is <em>not</em> supported.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div><strong>Navigate to the CWC 2.0 portal URL</strong> provided by your IT administrator during onboarding.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div><strong>Enter your corporate email address</strong> — use your Citadel Group email (<code>@citadelgroup.com.my</code>).</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">4</div>
+            <div><strong>Enter your password</strong> — minimum 8 characters, case-sensitive. Do not share your password with colleagues.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">5</div>
+            <div><strong>Click "Sign In"</strong> — you will be directed to your role-appropriate dashboard.</div>
+          </div>
+
+          <div class="alert-box alert-warn" style="margin-top:1.25rem">
+            <strong><i class="fa fa-clock"></i>&nbsp; Session Timeout Policy:</strong> Sessions automatically expire after <strong>8 hours</strong> of inactivity. Save any in-progress work before stepping away from your workstation.
+          </div>
+
+          <div class="alert-box alert-danger" style="margin-top:.75rem">
+            <strong><i class="fa fa-exclamation-triangle"></i>&nbsp; Account Lockout:</strong> After <strong>5 consecutive failed login attempts</strong>, your account will be locked for 15 minutes. Contact IT Helpdesk if locked out.
+          </div>
+
+          <h5 style="font-weight:700;margin-top:1.75rem;margin-bottom:1rem">Browser Requirements</h5>
+          <table>
+            <thead><tr><th>Browser</th><th>Minimum Version</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Google Chrome</td><td>110+</td><td><span style="color:var(--brand-success);font-weight:600"><i class="fa fa-check-circle"></i> Recommended</span></td></tr>
+              <tr><td>Microsoft Edge</td><td>110+</td><td><span style="color:var(--brand-success);font-weight:600"><i class="fa fa-check-circle"></i> Supported</span></td></tr>
+              <tr><td>Mozilla Firefox</td><td>115+</td><td><span style="color:var(--brand-success);font-weight:600"><i class="fa fa-check-circle"></i> Supported</span></td></tr>
+              <tr><td>Apple Safari</td><td>16+</td><td><span style="color:var(--brand-warning);font-weight:600"><i class="fa fa-exclamation-circle"></i> Limited Support</span></td></tr>
+              <tr><td>Internet Explorer</td><td>Any</td><td><span style="color:var(--brand-danger);font-weight:600"><i class="fa fa-times-circle"></i> Not Supported</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="col-md-5">
+          <div class="section-card" style="background:#f8fafc;border:2px dashed #cbd5e1;text-align:center;padding:2.5rem 1.5rem;margin-bottom:1.5rem">
+            <i class="fa fa-desktop fa-3x" style="color:#cbd5e1;margin-bottom:1rem;display:block"></i>
+            <p style="font-size:.8rem;color:#94a3b8;margin:0">[Screenshot placeholder: CWC 2.0 Login page — email + password fields, Sign In button]</p>
+          </div>
+
+          <h5 style="font-weight:700;margin-bottom:1rem">Password Reset</h5>
+          <div class="step-item">
+            <div class="step-num">1</div>
+            <div>Click <strong>"Forgot Password?"</strong> on the login page (below the Sign In button).</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div>Enter your corporate email address and click <strong>"Send Reset Link"</strong>.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div>Check your inbox for the password reset email. The link is <strong>valid for 30 minutes</strong>.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">4</div>
+            <div>Click the link, set a new password, and log in normally.</div>
+          </div>
+          <div class="alert-box alert-info" style="margin-top:.75rem">
+            <strong>Tip:</strong> If you do not receive the reset email within 5 minutes, check your spam/junk folder or contact IT Helpdesk.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION 3: Dashboard Overview
+  ═══════════════════════════════════════ -->
+  <div class="content-section" id="s-dashboard">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-th-large fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>3. Dashboard Overview</h2>
+      </div>
+
+      <div class="alert-box alert-info" style="margin-bottom:1.5rem">
+        The CRM Dashboard is your operational command centre. Every working day should start here. It surfaces your AI-generated daily briefing, KPI snapshot, pending tasks, recent activities, and quick-action shortcuts.
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-6">
+          <div class="section-card" style="background:#f8fafc;border:2px dashed #cbd5e1;text-align:center;padding:2.5rem 1.5rem">
+            <i class="fa fa-chart-bar fa-3x" style="color:#cbd5e1;margin-bottom:1rem;display:block"></i>
+            <p style="font-size:.8rem;color:#94a3b8;margin:0">[Screenshot placeholder: CRM Dashboard — KPI cards row, AI Daily Briefing panel, Task panel, Activity timeline]</p>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <h5 style="font-weight:700;margin-bottom:1rem">Dashboard Components</h5>
+          <table>
+            <thead><tr><th>Component</th><th>What It Shows</th></tr></thead>
+            <tbody>
+              <tr><td><strong>AI Daily Briefing</strong></td><td>Priority customers to contact today, AI-generated from activity history and lead scores</td></tr>
+              <tr><td><strong>KPI Cards</strong></td><td>My Open Leads, Open Opportunities, Overdue Activities, My Pipeline Value — click any card to drill through</td></tr>
+              <tr><td><strong>Task Panel</strong></td><td>Today's scheduled activities sorted by due date, with overdue items highlighted red</td></tr>
+              <tr><td><strong>Activity Timeline</strong></td><td>Chronological feed of recent calls, emails, meetings logged across your accounts</td></tr>
+              <tr><td><strong>Quick Actions</strong></td><td>+ New Lead, + New Activity, + New Opportunity buttons for fast record creation</td></tr>
+              <tr><td><strong>Notifications Bell</strong></td><td>Unread alerts: task reminders, lead assignments, approval decisions, system notices</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <h5 style="font-weight:700;margin-bottom:1rem">Common Dashboard Actions</h5>
+      <div class="row g-2">
+        <div class="col-md-4">
+          <div class="alert-box alert-success">
+            <strong><i class="fa fa-search"></i>&nbsp; Search:</strong> Use the global search bar in the top navigation (or press <kbd>Ctrl+K</kbd> / <kbd>⌘+K</kbd>) to instantly find any account, contact, lead, or opportunity by name, IC number, or company registration number.
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="alert-box alert-info">
+            <strong><i class="fa fa-filter"></i>&nbsp; Filter:</strong> On list pages (Leads, Accounts, Contacts, Opportunities), use the filter bar to narrow results by status, assigned owner, date range, source, or industry. Filters persist within your session.
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="alert-box alert-warn">
+            <strong><i class="fa fa-bell"></i>&nbsp; Notifications:</strong> Click the bell icon (top right) to open the notification centre. Pending approvals, overdue task reminders, and new lead assignments appear here. Clear notifications once actioned.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION 4: Navigation Guide
+  ═══════════════════════════════════════ -->
+  <div class="content-section" id="s-nav">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-bars fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>4. Navigation Guide</h2>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-6">
+          <h5 style="font-weight:700;margin-bottom:1rem">CRM Sidebar Menu</h5>
+          <table style="margin-bottom:1rem">
+            <thead><tr><th>Menu Item</th><th>Route</th><th>Who Sees It</th></tr></thead>
+            <tbody>
+              <tr><td><i class="fa fa-home" style="color:var(--brand-accent)"></i>&nbsp; Dashboard</td><td><code>/crm</code></td><td>All CRM users</td></tr>
+              <tr><td><i class="fa fa-building" style="color:var(--brand-accent)"></i>&nbsp; Accounts</td><td><code>/crm/accounts</code></td><td>All CRM users</td></tr>
+              <tr><td><i class="fa fa-address-book" style="color:var(--brand-accent)"></i>&nbsp; Contacts</td><td><code>/crm/contacts</code></td><td>All CRM users</td></tr>
+              <tr><td><i class="fa fa-user-plus" style="color:var(--brand-accent)"></i>&nbsp; Leads</td><td><code>/crm/leads</code></td><td>All CRM users</td></tr>
+              <tr><td><i class="fa fa-stream" style="color:var(--brand-accent)"></i>&nbsp; Pipeline</td><td><code>/crm/pipeline</code></td><td>All CRM users</td></tr>
+              <tr><td><i class="fa fa-users" style="color:#f59e0b"></i>&nbsp; Team</td><td><code>/crm/team</code></td><td><strong>Manager / Admin only</strong></td></tr>
+              <tr><td><i class="fa fa-chart-pie" style="color:var(--brand-accent)"></i>&nbsp; Reports</td><td><code>/crm/reports</code></td><td>All CRM users</td></tr>
+            </tbody>
+          </table>
+          <div class="alert-box alert-warn">
+            <strong>Note:</strong> The <strong>Team</strong> tab is hidden for Sales Representatives. If you require team-level performance data, request access through your line manager.
+          </div>
+        </div>
+
+        <div class="col-md-6">
+          <h5 style="font-weight:700;margin-bottom:1rem">Top Navigation Elements</h5>
+          <table style="margin-bottom:1rem">
+            <thead><tr><th>Element</th><th>Location</th><th>Function</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Search Bar</strong></td><td>Top centre</td><td>Global search — type 3+ characters to activate live results across all CRM records</td></tr>
+              <tr><td><strong>Bell Icon</strong></td><td>Top right</td><td>Notification centre — red badge shows unread count</td></tr>
+              <tr><td><strong>User Avatar</strong></td><td>Top right</td><td>Profile settings, password change, preference toggles, logout</td></tr>
+              <tr><td><strong>Module Switcher</strong></td><td>Top left</td><td>Switch between CRM, IT Support, HR Services, and Finance modules</td></tr>
+            </tbody>
+          </table>
+
+          <h5 style="font-weight:700;margin-bottom:1rem">Detail Page Navigation</h5>
+          <table>
+            <thead><tr><th>Action</th><th>How</th></tr></thead>
+            <tbody>
+              <tr><td>Open a record</td><td>Click the record name in any list view</td></tr>
+              <tr><td>Return to list</td><td>Click the breadcrumb or browser back button</td></tr>
+              <tr><td>Switch tabs in a record</td><td>Click Overview / Activities / Documents / Related tabs on the detail page</td></tr>
+              <tr><td>Quick edit</td><td>Click inline on editable fields directly from list or detail view</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION 5: Daily Core Activities
+  ═══════════════════════════════════════ -->
+  <div class="content-section" id="s-activities">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-tasks fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>5. Daily Core Activities</h2>
+      </div>
+
+      <!-- 5.1 Create a Lead -->
+      <div style="margin-bottom:2.5rem">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #eff6ff">
+          <div style="width:32px;height:32px;background:var(--brand-secondary);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa fa-user-plus"></i></div>
+          <h5 style="font-weight:700;color:var(--brand-primary);margin:0">5.1 Create a New Lead</h5>
+          <span class="badge-role" style="background:#dbeafe;color:#1e40af">Sales Rep</span>
+          <span class="badge-role" style="background:#fef9c3;color:#713f12">Manager</span>
+        </div>
+        <p style="font-size:.875rem;color:#64748b;margin-bottom:1rem"><strong>Purpose:</strong> Capture a new prospect into the CRM immediately upon contact. Every prospect must be in the system before any work is done on them.</p>
+        <div class="row g-3">
+          <div class="col-md-7">
+            <h6 style="font-weight:700;margin-bottom:.75rem">Required Fields</h6>
+            <table style="margin-bottom:1rem">
+              <thead><tr><th>Field</th><th>Required?</th><th>Guidance</th></tr></thead>
+              <tbody>
+                <tr><td>Lead Name</td><td><span style="color:var(--brand-danger);font-weight:700">&#10033; Required</span></td><td>Full legal name (individual) or registered company name — no abbreviations</td></tr>
+                <tr><td>Source</td><td><span style="color:var(--brand-danger);font-weight:700">&#10033; Required</span></td><td>Referral / Cold Call / Website / Event / Walk-in — must not be blank</td></tr>
+                <tr><td>Phone or Email</td><td><span style="color:var(--brand-danger);font-weight:700">&#10033; Required</span></td><td>At least one valid contact method is mandatory</td></tr>
+                <tr><td>Assigned To</td><td><span style="color:var(--brand-danger);font-weight:700">&#10033; Required</span></td><td>Defaults to yourself; managers can reassign after creation</td></tr>
+                <tr><td>Lead Value (Est.)</td><td><span style="color:#64748b">Optional</span></td><td>Estimated deal value in MYR — enter if known at point of capture</td></tr>
+                <tr><td>Notes</td><td><span style="color:#64748b">Optional</span></td><td>First contact context, referral source details, background info</td></tr>
+              </tbody>
+            </table>
+            <div class="alert-box alert-danger">
+              <strong><i class="fa fa-exclamation-triangle"></i>&nbsp; Common Mistake:</strong> Leaving <strong>Source</strong> blank. Every lead must have a traceable source for accurate pipeline and marketing reporting. Blank-source leads are flagged in the weekly data quality audit.
+            </div>
+          </div>
+          <div class="col-md-5">
+            <h6 style="font-weight:700;margin-bottom:.75rem">Step-by-Step</h6>
+            <div class="step-item"><div class="step-num">1</div><div><strong>Search first</strong> — use global search to confirm no existing record for this person/company.</div></div>
+            <div class="step-item"><div class="step-num">2</div><div>Click <strong>Leads</strong> in the sidebar menu.</div></div>
+            <div class="step-item"><div class="step-num">3</div><div>Click <strong>"+ New Lead"</strong> button (top right of the Leads list).</div></div>
+            <div class="step-item"><div class="step-num">4</div><div>Fill all required fields. If a <strong>duplicate warning</strong> appears, review the existing record before saving.</div></div>
+            <div class="step-item"><div class="step-num">5</div><div>Click <strong>"Save Lead"</strong>.</div></div>
+            <div class="step-item"><div class="step-num">6</div><div>Add an initial activity note summarising first contact <strong>within 24 hours</strong>.</div></div>
+            <div class="section-card" style="background:#f8fafc;border:2px dashed #cbd5e1;text-align:center;padding:1.5rem;margin-top:.75rem">
+              <i class="fa fa-user-plus fa-2x" style="color:#cbd5e1;margin-bottom:.75rem;display:block"></i>
+              <p style="font-size:.75rem;color:#94a3b8;margin:0">[Screenshot: New Lead form — required fields highlighted]</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5.2 Assign a Lead -->
+      <div style="margin-bottom:2.5rem;padding-top:1.75rem;border-top:2px solid #f1f5f9">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #eff6ff">
+          <div style="width:32px;height:32px;background:#059669;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa fa-user-check"></i></div>
+          <h5 style="font-weight:700;color:var(--brand-primary);margin:0">5.2 Assign a Lead</h5>
+          <span class="badge-role" style="background:#fef9c3;color:#713f12">Manager</span>
+        </div>
+        <p style="font-size:.875rem;color:#64748b;margin-bottom:1rem"><strong>Purpose:</strong> Ensure every lead is assigned to an active sales representative within 4 business hours of creation. Unassigned leads are invisible to the team and never actioned.</p>
+        <div class="row g-3">
+          <div class="col-md-5">
+            <div class="step-item"><div class="step-num">1</div><div>Go to <strong>Leads</strong> list, filter by <em>Status = Unassigned</em>.</div></div>
+            <div class="step-item"><div class="step-num">2</div><div>Review the lead details — source, estimated value, territory.</div></div>
+            <div class="step-item"><div class="step-num">3</div><div>Click the lead row to open it, then click <strong>"Assign"</strong>.</div></div>
+            <div class="step-item"><div class="step-num">4</div><div>Select the appropriate sales representative from the dropdown.</div></div>
+            <div class="step-item"><div class="step-num">5</div><div>The system sends an automatic notification to the assigned rep.</div></div>
+            <div class="step-item"><div class="step-num">6</div><div>Confirm assignment is reflected in the <strong>Team Dashboard</strong>.</div></div>
+          </div>
+          <div class="col-md-7">
+            <div class="alert-box alert-warn"><strong>SLA:</strong> Lead assignment must occur within <strong>4 business hours</strong> of lead creation. After 4 hours with no assignment, an automated alert is sent to the manager.</div>
+            <div class="alert-box alert-info" style="margin-top:.75rem"><strong>Reassignment:</strong> When reassigning an existing lead, a <em>Reason for Reassignment</em> note is required. This is recorded in the audit log.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5.3 Update an Opportunity -->
+      <div style="margin-bottom:2.5rem;padding-top:1.75rem;border-top:2px solid #f1f5f9">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #eff6ff">
+          <div style="width:32px;height:32px;background:#d97706;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa fa-chart-line"></i></div>
+          <h5 style="font-weight:700;color:var(--brand-primary);margin:0">5.3 Update an Opportunity</h5>
+          <span class="badge-role" style="background:#dbeafe;color:#1e40af">Sales Rep</span>
+          <span class="badge-role" style="background:#fef9c3;color:#713f12">Manager</span>
+        </div>
+        <p style="font-size:.875rem;color:#64748b;margin-bottom:1rem"><strong>Purpose:</strong> Opportunities must be updated whenever a meaningful customer interaction occurs. Stale opportunities (no update for 14+ days) trigger automated escalation alerts and distort pipeline forecasts.</p>
+        <div class="row g-3">
+          <div class="col-md-7">
+            <h6 style="font-weight:700;margin-bottom:.75rem">Opportunity Stages</h6>
+            <table style="margin-bottom:1rem">
+              <thead><tr><th>Stage</th><th>Meaning</th><th>Required Action</th></tr></thead>
+              <tbody>
+                <tr><td><span style="background:#dbeafe;color:#1e40af;padding:.15rem .5rem;border-radius:4px;font-size:.75rem;font-weight:600">Prospecting</span></td><td>Initial contact made</td><td>Log first meeting or call as an activity</td></tr>
+                <tr><td><span style="background:#fef9c3;color:#713f12;padding:.15rem .5rem;border-radius:4px;font-size:.75rem;font-weight:600">Qualification</span></td><td>Needs confirmed</td><td>Update estimated value; attach initial KYC docs</td></tr>
+                <tr><td><span style="background:#fdf4ff;color:#581c87;padding:.15rem .5rem;border-radius:4px;font-size:.75rem;font-weight:600">Proposal</span></td><td>Proposal sent</td><td>Attach proposal document; set next follow-up date</td></tr>
+                <tr><td><span style="background:#fff7ed;color:#7c2d12;padding:.15rem .5rem;border-radius:4px;font-size:.75rem;font-weight:600">Negotiation</span></td><td>Terms being discussed</td><td>Log each negotiation call; keep close date current</td></tr>
+                <tr><td><span style="background:#f0fdf4;color:#14532d;padding:.15rem .5rem;border-radius:4px;font-size:.75rem;font-weight:600">Closed Won</span></td><td>Deal agreed</td><td>Convert to Account/Contact; initiate trust product setup</td></tr>
+                <tr><td><span style="background:#fef2f2;color:#7f1d1d;padding:.15rem .5rem;border-radius:4px;font-size:.75rem;font-weight:600">Closed Lost</span></td><td>Deal lost</td><td><strong>Mandatory:</strong> fill Lost Reason field</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="col-md-5">
+            <h6 style="font-weight:700;margin-bottom:.75rem">Steps to Update</h6>
+            <div class="step-item"><div class="step-num">1</div><div>Open <strong>Pipeline</strong> (Kanban) or <strong>Opportunities</strong> list view.</div></div>
+            <div class="step-item"><div class="step-num">2</div><div>Click the opportunity card or row to open the detail page.</div></div>
+            <div class="step-item"><div class="step-num">3</div><div>Click <strong>"Edit"</strong> or update fields inline on the Kanban card.</div></div>
+            <div class="step-item"><div class="step-num">4</div><div>Update stage, estimated value, and projected close date.</div></div>
+            <div class="step-item"><div class="step-num">5</div><div>Log a new activity note describing the interaction that prompted the update.</div></div>
+            <div class="step-item"><div class="step-num">6</div><div>Click <strong>"Save"</strong>.</div></div>
+            <div class="alert-box alert-warn" style="margin-top:.75rem"><strong>Rule:</strong> Stages cannot be skipped. You cannot move directly from Prospecting to Negotiation.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5.4 Add a Customer Activity -->
+      <div style="margin-bottom:2.5rem;padding-top:1.75rem;border-top:2px solid #f1f5f9">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #eff6ff">
+          <div style="width:32px;height:32px;background:#7c3aed;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa fa-comment-alt"></i></div>
+          <h5 style="font-weight:700;color:var(--brand-primary);margin:0">5.4 Add a Customer Activity</h5>
+          <span class="badge-role" style="background:#dbeafe;color:#1e40af">Sales Rep</span>
+          <span class="badge-role" style="background:#f0fdf4;color:#14532d">Customer Service</span>
+        </div>
+        <p style="font-size:.875rem;color:#64748b;margin-bottom:1rem"><strong>Purpose:</strong> Log every customer interaction — call, email, meeting, site visit — within 24 hours of it occurring. Activities form the customer history that managers, AI, and auditors rely on.</p>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="step-item"><div class="step-num">1</div><div>Open the relevant <strong>Lead, Opportunity, Account, or Contact</strong> detail page.</div></div>
+            <div class="step-item"><div class="step-num">2</div><div>Click <strong>"+ Add Activity"</strong> button in the Activities tab.</div></div>
+            <div class="step-item"><div class="step-num">3</div><div>Select activity type: <em>Call / Meeting / Email / Task / Note</em>.</div></div>
+            <div class="step-item"><div class="step-num">4</div><div>Fill the <strong>Subject</strong> and write a descriptive note covering what was discussed and any action items.</div></div>
+            <div class="step-item"><div class="step-num">5</div><div>Set <strong>Date</strong> to when the activity actually occurred (not today's date if it happened earlier).</div></div>
+            <div class="step-item"><div class="step-num">6</div><div>Click <strong>"Save Activity"</strong>.</div></div>
+          </div>
+          <div class="col-md-6">
+            <div class="alert-box alert-info"><strong>AI Tip:</strong> Use the <strong>AI Note Analysis</strong> feature — paste your meeting notes and the AI will extract action items, sentiment signals, and next steps automatically.</div>
+            <div class="alert-box alert-warn" style="margin-top:.75rem"><strong>Rule:</strong> Activities logged more than 24 hours after occurrence are flagged as <em>Late Entry</em> in reporting. Log same-day whenever possible.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5.5 Schedule a Follow-Up -->
+      <div style="margin-bottom:2.5rem;padding-top:1.75rem;border-top:2px solid #f1f5f9">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #eff6ff">
+          <div style="width:32px;height:32px;background:#0891b2;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa fa-calendar-plus"></i></div>
+          <h5 style="font-weight:700;color:var(--brand-primary);margin:0">5.5 Schedule a Follow-Up</h5>
+          <span class="badge-role" style="background:#dbeafe;color:#1e40af">Sales Rep</span>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-5">
+            <div class="step-item"><div class="step-num">1</div><div>Open any Lead, Opportunity, Account, or Contact detail page.</div></div>
+            <div class="step-item"><div class="step-num">2</div><div>Click <strong>"+ Add Activity"</strong>.</div></div>
+            <div class="step-item"><div class="step-num">3</div><div>Set type to <em>Call, Meeting,</em> or <em>Task</em>.</div></div>
+            <div class="step-item"><div class="step-num">4</div><div>Set a <strong>Due Date</strong> in the future — this is what populates your Dashboard task panel.</div></div>
+            <div class="step-item"><div class="step-num">5</div><div>Write a brief note explaining the purpose of the follow-up.</div></div>
+            <div class="step-item"><div class="step-num">6</div><div>Click <strong>"Save Activity"</strong>. It appears in your Task Panel immediately.</div></div>
+          </div>
+          <div class="col-md-7">
+            <div class="alert-box alert-success"><strong><i class="fa fa-check-circle"></i>&nbsp; Best Practice:</strong> Never complete an activity without scheduling the next follow-up. "Zero-gap follow-up" — no period where a prospect has no scheduled next touch — is a tracked team KPI.</div>
+            <div class="alert-box alert-info" style="margin-top:.75rem"><strong>Automation:</strong> The system sends you an email reminder 24 hours before each scheduled follow-up activity. You can also see all upcoming activities in your Dashboard Task Panel.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5.6 Submit an Approval -->
+      <div style="margin-bottom:2.5rem;padding-top:1.75rem;border-top:2px solid #f1f5f9">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #eff6ff">
+          <div style="width:32px;height:32px;background:#dc2626;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa fa-check-double"></i></div>
+          <h5 style="font-weight:700;color:var(--brand-primary);margin:0">5.6 Submit an Approval Request</h5>
+          <span class="badge-role" style="background:#dbeafe;color:#1e40af">Sales Rep</span>
+          <span class="badge-role" style="background:#fef9c3;color:#713f12">Manager</span>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-5">
+            <div class="step-item"><div class="step-num">1</div><div>Open the relevant opportunity or account record.</div></div>
+            <div class="step-item"><div class="step-num">2</div><div>Click <strong>"Request Approval"</strong> in the action bar.</div></div>
+            <div class="step-item"><div class="step-num">3</div><div>Select the approval type (Discount / Exception / High-Value Deal).</div></div>
+            <div class="step-item"><div class="step-num">4</div><div>Attach all supporting documents (proposals, pricing sheets, KYC docs).</div></div>
+            <div class="step-item"><div class="step-num">5</div><div>Write a clear <strong>justification note</strong> — required, cannot submit without it.</div></div>
+            <div class="step-item"><div class="step-num">6</div><div>Click <strong>"Submit"</strong>. Approver receives notification immediately.</div></div>
+            <div class="step-item"><div class="step-num">7</div><div>Track status in the <strong>Approvals</strong> tab. Follow up if pending beyond 24 hours.</div></div>
+          </div>
+          <div class="col-md-7">
+            <div class="alert-box alert-info"><strong>Approval Triggers:</strong> Discounts &gt; 5% require Manager approval. Discounts &gt; 15% require Senior Manager + Finance. Deals &gt; MYR 500,000 require Director sign-off.</div>
+            <div class="alert-box alert-warn" style="margin-top:.75rem"><strong>SLA:</strong> Approval requests must be responded to within <strong>1 business day</strong>. If no response after 24 hours, the system auto-escalates to the next approver level.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5.7 Search a Customer -->
+      <div style="margin-bottom:2.5rem;padding-top:1.75rem;border-top:2px solid #f1f5f9">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #eff6ff">
+          <div style="width:32px;height:32px;background:#475569;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa fa-search"></i></div>
+          <h5 style="font-weight:700;color:var(--brand-primary);margin:0">5.7 Search a Customer</h5>
+          <span class="badge-role" style="background:#dbeafe;color:#1e40af">All Users</span>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="step-item"><div class="step-num">1</div><div>Click the <strong>Search bar</strong> in the top navigation, or press <kbd>Ctrl+K</kbd> (Windows) / <kbd>⌘K</kbd> (Mac).</div></div>
+            <div class="step-item"><div class="step-num">2</div><div>Type at least <strong>3 characters</strong> — the name, IC number, company registration number, or phone number.</div></div>
+            <div class="step-item"><div class="step-num">3</div><div>Results appear grouped by type: Accounts, Contacts, Leads, Opportunities.</div></div>
+            <div class="step-item"><div class="step-num">4</div><div>Click the matching result to open the full detail record.</div></div>
+          </div>
+          <div class="col-md-6">
+            <div class="alert-box alert-info"><strong>Tip:</strong> Search by IC number (e.g., <code>901231045678</code>) for exact individual matches. This is the most reliable way to find a specific person and avoid accidental duplicate record creation.</div>
+            <div class="alert-box alert-warn" style="margin-top:.75rem"><strong>Always search before creating.</strong> If a record already exists, add information to the existing record rather than creating a new one.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5.8 Review Dashboard -->
+      <div style="margin-bottom:2.5rem;padding-top:1.75rem;border-top:2px solid #f1f5f9">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #eff6ff">
+          <div style="width:32px;height:32px;background:#1e3a5f;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa fa-eye"></i></div>
+          <h5 style="font-weight:700;color:var(--brand-primary);margin:0">5.8 Review Your Dashboard (Daily Start-of-Day Routine)</h5>
+          <span class="badge-role" style="background:#dbeafe;color:#1e40af">All Users</span>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-12">
+            <p style="font-size:.875rem;color:#64748b;margin-bottom:1rem">Every working day should begin with a 5-minute dashboard review. This keeps you on top of priorities and ensures nothing falls through the cracks.</p>
+            <div class="row g-2">
+              <div class="col-md-4"><div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1rem"><div style="font-size:.75rem;font-weight:700;color:var(--brand-primary);margin-bottom:.4rem">Step 1 — AI Briefing</div><p style="font-size:.8rem;color:#475569;margin:0">Read the AI Daily Briefing. It highlights which customers need attention most urgently based on activity history and lead scores.</p></div></div>
+              <div class="col-md-4"><div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1rem"><div style="font-size:.75rem;font-weight:700;color:var(--brand-primary);margin-bottom:.4rem">Step 2 — Overdue Tasks</div><p style="font-size:.8rem;color:#475569;margin:0">Check the Task Panel for items in red (overdue). Action these before starting new work — overdue tasks impact your SLA compliance KPI.</p></div></div>
+              <div class="col-md-4"><div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:1rem"><div style="font-size:.75rem;font-weight:700;color:var(--brand-primary);margin-bottom:.4rem">Step 3 — Notifications</div><p style="font-size:.8rem;color:#475569;margin:0">Open the Notifications centre. Clear new lead assignments, approval decisions, and system alerts before starting your prospect outreach.</p></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5.9 Generate Reports -->
+      <div style="padding-top:1.75rem;border-top:2px solid #f1f5f9">
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:2px solid #eff6ff">
+          <div style="width:32px;height:32px;background:#065f46;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.85rem;flex-shrink:0"><i class="fa fa-chart-pie"></i></div>
+          <h5 style="font-weight:700;color:var(--brand-primary);margin:0">5.9 Generate a Report</h5>
+          <span class="badge-role" style="background:#fef9c3;color:#713f12">Manager</span>
+          <span class="badge-role" style="background:#f1f5f9;color:#475569">Management</span>
+        </div>
+        <div class="row g-3">
+          <div class="col-md-5">
+            <div class="step-item"><div class="step-num">1</div><div>Click <strong>Reports</strong> in the CRM sidebar.</div></div>
+            <div class="step-item"><div class="step-num">2</div><div>Select a <strong>report type</strong>: Pipeline / Lead Conversion / Sales Performance / Activity / KYC Compliance / Forecast / Lost Analysis.</div></div>
+            <div class="step-item"><div class="step-num">3</div><div>Set the <strong>date range</strong> and any relevant filters (team member, source, stage).</div></div>
+            <div class="step-item"><div class="step-num">4</div><div>Review the generated data. Check for anomalies before sharing.</div></div>
+            <div class="step-item"><div class="step-num">5</div><div>Click <strong>"Export CSV"</strong> if you need to share or archive the report.</div></div>
+          </div>
+          <div class="col-md-7">
+            <div class="alert-box alert-info"><strong>Report Schedule:</strong> Weekly Pipeline Report every Monday 9am. Monthly Performance Report by the 5th of each month. Both are auto-generated and emailed to managers.</div>
+            <div class="alert-box alert-warn" style="margin-top:.75rem"><strong>Governance:</strong> Reports must not be shared externally without management approval. All CSV exports are logged with timestamp and user identity.</div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.section-card -->
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION 6: Best Practices
+  ═══════════════════════════════════════ -->
+  <div class="content-section" id="s-best">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-star fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>6. Best Practices Guide</h2>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-6">
+          <h5 style="font-weight:700;margin-bottom:1rem;color:var(--brand-primary)"><i class="fa fa-database" style="color:var(--brand-secondary)"></i>&nbsp; Data Quality</h5>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Always search for an existing record before creating a new one — prevent duplicates from day one.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Use the full legal name for all Accounts and Contacts — no abbreviations or nicknames.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Enter IC / Passport numbers in the exact standard format — 12 digits, no dashes or spaces.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Update opportunity stage within 48 hours of any customer interaction.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Never leave the Source field blank on a lead record.</span></div>
+          <div class="checklist-item"><i class="fa fa-times-circle" style="color:var(--brand-danger)"></i><span>Do NOT enter placeholder values like "Test Customer", "N/A", or "TBC" in mandatory fields.</span></div>
+          <div class="checklist-item"><i class="fa fa-times-circle" style="color:var(--brand-danger)"></i><span>Do NOT create a new record if a duplicate warning appears — investigate first.</span></div>
+
+          <h5 style="font-weight:700;margin-top:1.5rem;margin-bottom:1rem;color:var(--brand-primary)"><i class="fa fa-handshake" style="color:var(--brand-secondary)"></i>&nbsp; Customer Handling</h5>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Respond to all customer enquiries within your SLA window — check your dashboard daily.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Log complaint activities with full details — these are reviewed in compliance audits.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Escalate unresolved issues before the SLA breach point — do not wait for the auto-escalation.</span></div>
+        </div>
+
+        <div class="col-md-6">
+          <h5 style="font-weight:700;margin-bottom:1rem;color:var(--brand-primary)"><i class="fa fa-comment-alt" style="color:var(--brand-secondary)"></i>&nbsp; Activity Logging</h5>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Log every customer interaction — call, email, site visit, online meeting — on the same day it occurs.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Use the AI Note Analysis feature to extract action items from long meeting notes automatically.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Use the correct activity type (Call / Meeting / Email) — not generic "Task" for everything.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Schedule the next follow-up <em>before</em> marking an activity as complete — zero-gap follow-up is mandatory.</span></div>
+
+          <h5 style="font-weight:700;margin-top:1.5rem;margin-bottom:1rem;color:var(--brand-primary)"><i class="fa fa-check-double" style="color:var(--brand-secondary)"></i>&nbsp; Approval Submission</h5>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Attach all supporting documents before submitting — an incomplete submission will be rejected.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Write a clear, specific justification note — vague notes cause delays and rejections.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Check approval status within 24 hours — follow up with your manager if pending without response.</span></div>
+
+          <h5 style="font-weight:700;margin-top:1.5rem;margin-bottom:1rem;color:var(--brand-primary)"><i class="fa fa-chart-bar" style="color:var(--brand-secondary)"></i>&nbsp; Reporting Accuracy</h5>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Review report data for anomalies before presenting — investigate outliers rather than presenting raw data.</span></div>
+          <div class="checklist-item"><i class="fa fa-check-circle" style="color:var(--brand-success)"></i><span>Archive all exported reports per the Citadel data retention policy (minimum 7 years).</span></div>
+          <div class="checklist-item"><i class="fa fa-times-circle" style="color:var(--brand-danger)"></i><span>Do NOT share report exports externally without explicit management authorisation.</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SECTION 7: Support & Escalation
+  ═══════════════════════════════════════ -->
+  <div class="content-section" id="s-support">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-life-ring fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>7. Support &amp; Escalation</h2>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-7">
+          <h5 style="font-weight:700;margin-bottom:1rem">Support Contact Matrix</h5>
+          <table style="margin-bottom:1.5rem">
+            <thead><tr><th>Issue Type</th><th>Who to Contact</th><th>How</th><th>SLA</th></tr></thead>
+            <tbody>
+              <tr><td>Login / Account Access Problem</td><td>IT Helpdesk</td><td>CWC ITSM portal — IT Support</td><td>4 hours</td></tr>
+              <tr><td>Data Error / Duplicate Record</td><td>CRM Admin</td><td>Direct message or email</td><td>1 business day</td></tr>
+              <tr><td>Approval Workflow Issue</td><td>Your Line Manager</td><td>Direct or via CRM Approvals tab</td><td>Same business day</td></tr>
+              <tr><td>System Bug / Error Message</td><td>IT Helpdesk</td><td>CWC ITSM portal — log a ticket with screenshot</td><td>4 hours</td></tr>
+              <tr><td>Permission / Access Request</td><td>CRM Admin via Manager</td><td>Manager submits access request</td><td>1 business day</td></tr>
+              <tr><td>CRM Training Request</td><td>HR / Training Coordinator</td><td>Email HR</td><td>3 business days</td></tr>
+              <tr><td>Feature Request / Feedback</td><td>IT Helpdesk / CRM Admin</td><td>CWC ITSM portal — General IT Request</td><td>Reviewed weekly</td></tr>
+            </tbody>
+          </table>
+
+          <div class="alert-box alert-info">
+            <strong><i class="fa fa-ticket-alt"></i>&nbsp; How to Log a Support Ticket:</strong> Navigate to the CWC 2.0 portal → IT Support → General IT Request. Provide a clear description, your department, the error message (if any), and a screenshot. The more detail you provide, the faster the resolution.
+          </div>
+        </div>
+
+        <div class="col-md-5">
+          <h5 style="font-weight:700;margin-bottom:1rem">Escalation Hierarchy</h5>
+          <div class="step-item">
+            <div class="step-num" style="background:#64748b">1</div>
+            <div><strong>Self-Service:</strong> Check this documentation suite first — most common issues are covered.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num" style="background:#0ea5e9">2</div>
+            <div><strong>Team Lead / Senior Colleague:</strong> For process questions and quick how-to guidance.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num" style="background:#2563eb">3</div>
+            <div><strong>Line Manager:</strong> For approval escalations, access requests, and urgent operational issues.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num" style="background:#d97706">4</div>
+            <div><strong>CRM Admin:</strong> For data corrections, permission changes, duplicate merges, and bulk updates.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num" style="background:#dc2626">5</div>
+            <div><strong>IT Helpdesk:</strong> For all system errors, bugs, login failures — log via CWC ITSM portal and include a screenshot.</div>
+          </div>
+
+          <div class="alert-box alert-success" style="margin-top:1rem">
+            <strong><i class="fa fa-clock"></i>&nbsp; SLA Expectations:</strong> IT Helpdesk responds within 4 business hours for system issues. Data corrections by CRM Admin within 1 business day. Always include a ticket number when following up.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center;padding:2rem 0 3rem;color:#94a3b8;font-size:.8rem">
+      <p style="margin:0">CRM Quick Start Guide &middot; Part 1 of 6 &middot; CWC 2.0 &mdash; Citadel Group Technologies Sdn Bhd</p>
+      <p style="margin:.25rem 0 0">For support, log a ticket via the CWC ITSM portal &middot; This document is for internal use only</p>
+      <div style="margin-top:1rem;display:flex;justify-content:center;gap:1rem;flex-wrap:wrap">
+        <a href="02-sop.html" style="color:var(--brand-secondary);font-weight:600;text-decoration:none"><i class="fa fa-arrow-right"></i>&nbsp; Next: SOP Documentation</a>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /#main -->
+
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'base' });
+
+  // Sidebar active state on click
+  document.querySelectorAll('.nav-link-item[data-section]').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.nav-link-item').forEach(x => x.classList.remove('active'));
+      el.classList.add('active');
+      const target = document.getElementById(el.dataset.section);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  // Highlight active section on scroll
+  const sections = ['s-intro','s-login','s-dashboard','s-nav','s-activities','s-best','s-support'];
+  const navItems = {};
+  sections.forEach(id => {
+    navItems[id] = document.querySelector(`.nav-link-item[data-section="${id}"]`);
+  });
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        sections.forEach(id => navItems[id] && navItems[id].classList.remove('active'));
+        navItems[entry.target.id] && navItems[entry.target.id].classList.add('active');
+      }
+    });
+  }, { rootMargin: '-64px 0px -60% 0px' });
+
+  sections.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) observer.observe(el);
+  });
+</script>
+</body>
+</html>
