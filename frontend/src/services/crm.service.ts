@@ -534,8 +534,19 @@ const crmService = {
     const res = await api.get(`/crm/import/field-definitions?entity=${entity}`);
     return res.data.data as { fields: Array<{ key: string; label: string; required: boolean; type: string; enumValues?: string[]; default?: unknown }> };
   },
-  downloadImportTemplate(entity: string, format: 'csv' | 'xlsx' = 'csv') {
-    window.open(`/api/v1/crm/import/template?entity=${entity}&format=${format}`, '_blank');
+  async downloadImportTemplate(entity: string, format: 'csv' | 'xlsx' = 'csv') {
+    const res = await api.get(`/crm/import/template`, {
+      params: { entity, format },
+      responseType: 'blob',
+    });
+    const url = window.URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${entity}_template.${format === 'xlsx' ? 'xlsx' : 'csv'}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
   },
   async uploadImportFile(file: File, entity: string) {
     const formData = new FormData();
@@ -569,7 +580,15 @@ const crmService = {
     return res.data.data as { jobId: string };
   },
   async downloadExport(jobId: string) {
-    window.open(`/api/v1/crm/export/${jobId}/download`, '_blank');
+    const res = await api.get(`/crm/export/${jobId}/download`, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crm_export_${jobId}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
   },
   async getExportHistory(page = 1, limit = 20) {
     const res = await api.get(`/crm/export/history?page=${page}&limit=${limit}`);

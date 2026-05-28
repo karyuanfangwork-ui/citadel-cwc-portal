@@ -319,16 +319,14 @@ const CrmImportExport = () => {
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => crmService.downloadImportTemplate(entity, 'csv')}
+                          onClick={async () => { try { await crmService.downloadImportTemplate(entity, 'csv'); } catch (e) { console.error('CSV template download failed:', e); } }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-cwc-md bg-surface border border-border text-xs font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary transition-colors"
-                          style={{ cursor: 'pointer' }}
                         >
                           <span className="material-symbols-outlined text-[14px]">download</span> CSV Template
                         </button>
                         <button
-                          onClick={() => crmService.downloadImportTemplate(entity, 'xlsx')}
+                          onClick={async () => { try { await crmService.downloadImportTemplate(entity, 'xlsx'); } catch (e) { console.error('Excel template download failed:', e); } }}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-cwc-md bg-surface border border-border text-xs font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary transition-colors"
-                          style={{ cursor: 'pointer' }}
                         >
                           <span className="material-symbols-outlined text-[14px]">download</span> Excel Template
                         </button>
