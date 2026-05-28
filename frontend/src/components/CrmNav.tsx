@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { hasPermission } from '../utils/permissions';
 import Drawer from './ui/Drawer';
@@ -22,6 +22,19 @@ const CRM_NAV_ITEMS: CrmNavItem[] = [
   { to: '/crm/team', label: 'Team', icon: 'groups', permission: 'crm:admin' },
   { to: '/crm/reports', label: 'Reports', icon: 'bar_chart' },
   { to: '/crm/guide', label: 'Guide', icon: 'menu_book' },
+  { to: '/crm/import-export', label: 'Import/Export', icon: 'swap_horiz', permission: 'crm:admin' },
+  { to: '/crm/territories', label: 'Territories', icon: 'map', permission: 'crm:admin' },
+  { to: '/crm/quotas', label: 'Quotas', icon: 'flag', permission: 'crm:read' },
+  { to: '/crm/workflows', label: 'Workflows', icon: 'account_tree', permission: 'crm:admin' },
+  { to: '/crm/integrations', label: 'Integrations', icon: 'sync', permission: 'crm:read' },
+  { to: '/crm/anomalies', label: 'AI Alerts', icon: 'psychology', permission: 'crm:admin' },
+  { to: '/crm/custom-fields', label: 'Custom Fields', icon: 'tune', permission: 'crm:admin' },
+];
+
+// Primary items always shown as tabs; secondary items go into "More" dropdown
+const PRIMARY_ITEMS = [
+  '/crm', '/crm/leads', '/crm/opportunities', '/crm/pipeline',
+  '/crm/accounts', '/crm/contacts', '/credit', '/crm/team', '/crm/reports',
 ];
 
 // Bottom nav: 5 key items for mobile
@@ -35,12 +48,13 @@ const MOBILE_BOTTOM_ITEMS: CrmNavItem[] = [
 
 const CrmNav: React.FC = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
 
-  // Determine active tab: /crm matches Dashboard, /crm/team matches Team, etc.
+  // Determine active tab
   const isActive = (path: string) => {
     if (path === '/crm') return location.pathname === '/crm';
     return location.pathname === path || location.pathname.startsWith(path + '/');
@@ -54,14 +68,38 @@ const CrmNav: React.FC = () => {
     return true;
   });
 
+  const primaryVisible = visibleItems.filter(item => PRIMARY_ITEMS.includes(item.to));
+  const secondaryVisible = visibleItems.filter(item => !PRIMARY_ITEMS.includes(item.to));
+  // Check if a secondary item is currently active
+  const secondaryActive = secondaryVisible.find(item => isActive(item.to));
+
   const canWrite = hasPermission(user, 'crm:write');
+
+  // Close "More" dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    if (moreOpen) {
+      document.addEventListener('mousedown', handler);
+      return () => document.removeEventListener('mousedown', handler);
+    }
+  }, [moreOpen]);
+
+  // Close More on navigation
+  useEffect(() => {
+    setMoreOpen(false);
+  }, [location.pathname]);
 
   return (
     <>
-      {/* ── Desktop: horizontal tabs (md breakpoint and up) ── */}
+      {/* ── Desktop: horizontal tabs + "More" dropdown ── */}
       <nav className="hidden md:block sticky top-0 z-30 bg-surface/95 backdrop-blur-sm border-b border-[var(--border,#e5e7eb)]">
-        <div className="max-w-[1200px] mx-auto flex items-center gap-1 overflow-x-auto px-4 sm:px-8" style={{ scrollbarWidth: 'none' }}>
-          {visibleItems.map(item => (
+        <div className="max-w-[1200px] mx-auto flex items-center px-4 sm:px-8">
+          {/* Primary tabs — always visible */}
+          {primaryVisible.map(item => (
             <Link
               key={item.to}
               to={item.to}
@@ -76,6 +114,47 @@ const CrmNav: React.FC = () => {
               {item.label}
             </Link>
           ))}
+
+          {/* "More" dropdown — only if there are secondary items */}
+          {secondaryVisible.length > 0 && (
+            <div className="relative" ref={moreRef}>
+              <button
+                onClick={() => setMoreOpen(prev => !prev)}
+                className={`flex items-center gap-1 whitespace-nowrap px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+                  secondaryActive
+                    ? 'text-brand-700 border-brand-700'
+                    : 'text-text-secondary border-transparent hover:text-brand-700 hover:border-brand-700/30'
+                }`}
+                style={{ background: 'none', borderLeft: 'none', borderRight: 'none', borderTop: 'none', cursor: 'pointer' }}
+              >
+                More
+                <span className="material-symbols-outlined text-[18px]">
+                  {moreOpen ? 'expand_less' : 'expand_more'}
+                </span>
+              </button>
+              {moreOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 min-w-[200px] bg-surface rounded-xl shadow-lg border border-[var(--border,#e5e7eb)] py-1 z-50"
+                >
+                  {secondaryVisible.map(item => (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${
+                        isActive(item.to)
+                          ? 'bg-brand-50 text-brand-700'
+                          : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary'
+                      }`}
+                      style={{ textDecoration: 'none' }}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </nav>
 
@@ -144,7 +223,6 @@ const CrmNav: React.FC = () => {
         <div className="flex items-center justify-around h-14">
           {MOBILE_BOTTOM_ITEMS.map(item => {
             if (item.to === '__add__') {
-              // FAB-style Add button
               return (
                 <button
                   key={item.to}
@@ -161,7 +239,6 @@ const CrmNav: React.FC = () => {
               );
             }
             if (item.to === '__more__') {
-              // More button opens drawer
               return (
                 <button
                   key={item.to}
@@ -174,7 +251,6 @@ const CrmNav: React.FC = () => {
                 </button>
               );
             }
-            // Regular bottom nav item
             return (
               <Link
                 key={item.to}
