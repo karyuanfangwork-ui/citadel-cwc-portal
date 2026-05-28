@@ -69,7 +69,7 @@ const CrmContacts = () => {
     setBulkProcessing(true);
     let count = 0;
     for (const id of selectedIds) {
-      try { await crmService.updateContact(id, { ownerId: newOwnerId } as any); count++; } catch {}
+      try { await crmService.updateContact(id, { ownerId: newOwnerId } as unknown as Partial<CrmContact>); count++; } catch {}
     }
     setSelectedIds(new Set());
     setShowBulkOwnerSelect(false);

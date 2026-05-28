@@ -338,6 +338,7 @@ class CrmController {
     const existing = await prisma.crmLead.findUnique({ where: { id: req.params.id as string } });
     if (!existing) throw new AppError('Lead not found', 404);
     await prisma.crmLead.update({ where: { id: req.params.id as string }, data: { deletedAt: new Date() } });
+    await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmLead', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Lead deleted' });
   });
 
@@ -463,6 +464,7 @@ class CrmController {
     const existing = await prisma.crmOpportunity.findUnique({ where: { id: req.params.id as string } });
     if (!existing) throw new AppError('Opportunity not found', 404);
     await prisma.crmOpportunity.update({ where: { id: req.params.id as string }, data: { deletedAt: new Date() } });
+    await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmOpportunity', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Opportunity deleted' });
   });
 
@@ -489,6 +491,7 @@ class CrmController {
       data: { ...pipelineData, stages: { create: stages } },
       include: { stages: { orderBy: { displayOrder: 'asc' } } },
     });
+    await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmPipeline', resourceId: pipeline.id, newValues: req.body } });
     res.status(201).json({ status: 'success', data: { pipeline } });
   });
 
@@ -794,6 +797,7 @@ class CrmController {
         owner: { select: userSelect },
       },
     });
+    await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmTrustProduct', resourceId: trustProduct.id, oldValues: existing as any, newValues: req.body } });
     res.json({ status: 'success', data: { trustProduct } });
   });
 
@@ -1037,6 +1041,47 @@ class CrmController {
       orderBy: { firstName: 'asc' },
     });
     res.json({ status: 'success', data: { users } });
+  });
+
+  /** CRM-scoped audit trail — returns audit logs for a specific CRM entity */
+  getEntityAuditTrail = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const entityType = req.params.entityType as string;
+    const entityId = req.params.entityId as string;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+    const offset = (page - 1) * limit;
+
+    // Map frontend entity type to audit resourceType
+    const resourceTypeMap: Record<string, string> = {
+      account: 'CrmAccount',
+      contact: 'CrmContact',
+      lead: 'CrmLead',
+      opportunity: 'CrmOpportunity',
+    };
+    const resourceType = resourceTypeMap[entityType];
+    if (!resourceType) {
+      return res.status(400).json({ status: 'error', message: `Invalid entity type: ${entityType}. Valid: account, contact, lead, opportunity` });
+    }
+
+    const where = { resourceType, resourceId: entityId };
+
+    const [logs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
+
+    res.json({
+      status: 'success',
+      data: {
+        logs,
+        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      },
+    });
   });
 }
 

@@ -1,4 +1,5 @@
 import api from './api';
+import { AuditLogEntry } from './auditLog.service';
 
 // ── CRM Types ───────────────────────────────────────────────────
 
@@ -34,6 +35,8 @@ export interface CrmContact {
   account?: { id: string; name: string; industry?: string };
   opportunities?: CrmOpportunity[];
   leads?: CrmLead[];
+  activities?: CrmActivity[];
+  notes?: CrmNote[];
 }
 
 export interface CrmLead {
@@ -510,6 +513,12 @@ const crmService = {
   async getDocumentChecklist(trustProductId: string) {
     const { data } = await api.get(`/crm/ai/trust-products/${trustProductId}/document-checklist`);
     return data as { documents: Array<{ name: string; description: string; required: boolean }>; notes: string };
+  },
+
+  // ── Audit Trail ────────────────────────────────────────────────────────
+  async getEntityAuditTrail(entityType: string, entityId: string, page = 1, limit = 20) {
+    const res = await api.get(`/crm/audit/${entityType}/${entityId}?page=${page}&limit=${limit}`);
+    return res.data.data as { logs: AuditLogEntry[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
   },
 };
 

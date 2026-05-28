@@ -10,6 +10,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { validateLead, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
+import CrmAuditLog from '../src/components/crm/CrmAuditLog';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -31,7 +32,7 @@ const CrmLeadDetail = () => {
   const [pipelines, setPipelines] = useState<CrmPipeline[]>([]);
   const [convertForm, setConvertForm] = useState({ pipelineId: '', stageId: '', oppName: '', oppValue: '', expectedCloseDate: '' });
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'audit'>('overview');
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
@@ -294,7 +295,7 @@ const CrmLeadDetail = () => {
       ? `${lostCategory}: ${lostNote.trim()}`
       : lostCategory;
     try {
-      await crmService.updateLead(id, { status: 'LOST' as any, lostReason });
+      await crmService.updateLead(id, { status: 'LOST', lostReason });
       setShowLostModal(false);
       reload();
     } catch (e) { console.error(e); }
@@ -344,7 +345,7 @@ const CrmLeadDetail = () => {
       }
       // Clear fields intentionally set to empty
       for (const k of ['contactName', 'contactEmail', 'contactPhone', 'companyName', 'description', 'followUpNote']) {
-        if (editForm[k] === '' && (lead as any)[k] != null) payload[k] = null;
+        if (editForm[k] === '' && lead![k as keyof CrmLead] != null) payload[k] = null;
       }
       if (editForm.followUpDate === '' && lead!.followUpDate) payload.followUpDate = null;
       await crmService.updateLead(id, payload);
@@ -366,8 +367,8 @@ const CrmLeadDetail = () => {
   };
 
   // Type guard for activities/notes - backend returns them when included
-  const activities = (lead as any)?.activities ?? [];
-  const notes = (lead as any)?.notes ?? [];
+  const activities = lead?.activities ?? [];
+  const notes = lead?.notes ?? [];
 
   if (loading) return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '2rem' }}>
@@ -497,11 +498,11 @@ const CrmLeadDetail = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
-        {(['overview', 'activities', 'notes'] as const).map(tab => (
+        {(['overview', 'activities', 'notes', 'audit'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
             className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-            {tab}
+            {tab === 'audit' ? 'Audit Log' : tab}
           </button>
         ))}
       </div>
@@ -840,6 +841,11 @@ const CrmLeadDetail = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Audit Log tab */}
+      {activeTab === 'audit' && lead && (
+        <CrmAuditLog entityType="lead" entityId={lead.id} />
       )}
 
       {/* Convert modal */}

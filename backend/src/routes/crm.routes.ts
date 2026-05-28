@@ -111,4 +111,7 @@ router.get('/reports/kyc-compliance', requirePermission('crm:read'), crmControll
 // ======== AI FEATURES ========
 router.use('/ai', crmAiRoutes);
 
+// ======== AUDIT TRAIL ========
+router.get('/audit/:entityType/:entityId', requirePermission('crm:read'), crmController.getEntityAuditTrail);
+
 export default router;

@@ -14,6 +14,12 @@ import { useAuth } from '../src/context/AuthContext';
 const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
+// Helper: safely read a form field as string for input value
+const formVal = (form: Partial<CrmAccount>, key: string): string => {
+  const v = form[key as keyof CrmAccount];
+  return v == null ? '' : String(v);
+};
+
 const CrmAccounts = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -327,7 +333,7 @@ const CrmAccounts = () => {
               ].map(f => (
                 <div key={f.key}>
                   <label className="block text-sm font-semibold text-text-primary mb-1">{f.label}</label>
-                  <input value={(form as any)[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  <input value={formVal(form, f.key)} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                     required={f.required} type={f.type || 'text'}
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === f.key) ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                   {formErrors.some(e => e.field === f.key) && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === f.key)?.message}</p>)}
@@ -380,7 +386,7 @@ const CrmAccounts = () => {
               ].map(f => (
                 <div key={f.key}>
                   <label className="block text-sm font-semibold text-text-primary mb-1">{f.label}</label>
-                  <input value={(form as any)[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  <input value={formVal(form, f.key)} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
                     required={f.required} type={f.type || 'text'}
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === f.key) ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                   {formErrors.some(e => e.field === f.key) && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === f.key)?.message}</p>)}

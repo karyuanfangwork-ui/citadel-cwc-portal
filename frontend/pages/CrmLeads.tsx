@@ -560,7 +560,7 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Lead Title *</label>
                 <input
                   required type="text"
-                  value={(form as any).title || ''}
+                  value={form.title || ''}
                   onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
                   className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'title') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`}
                 />
@@ -572,7 +572,7 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Name</label>
                 <input
                   type="text"
-                  value={(form as any).contactName || ''}
+                  value={form.contactName || ''}
                   onChange={e => setForm(prev => ({ ...prev, contactName: e.target.value }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
                 />
@@ -581,7 +581,7 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Email</label>
                 <input
                   type="email"
-                  value={(form as any).contactEmail || ''}
+                  value={form.contactEmail || ''}
                   onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
                   onBlur={e => checkDuplicateLead('contactEmail', e.target.value)}
                   className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'contactEmail') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`}
@@ -594,7 +594,7 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Phone</label>
                 <input
                   type="text"
-                  value={(form as any).contactPhone || ''}
+                  value={form.contactPhone || ''}
                   onChange={e => setForm(prev => ({ ...prev, contactPhone: e.target.value }))}
                   onBlur={e => checkDuplicateLead('contactPhone', e.target.value)}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
@@ -604,14 +604,14 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Company Name</label>
                 <input
                   type="text"
-                  value={(form as any).companyName || ''}
+                  value={form.companyName || ''}
                   onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
                 />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Owner</label>
-                <select value={(form as any).ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))}
+                <select value={form.ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
                   <option value="">Myself (default)</option>
                   {crmUsers.map(u => (
@@ -621,7 +621,7 @@ const CrmLeads = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Source</label>
-                <select value={(form as any).source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))}
+                <select value={form.source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
                   {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
                     <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
@@ -630,7 +630,7 @@ const CrmLeads = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Estimated Value (MYR)</label>
-                <input type="number" value={(form as any).estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
+                <input type="number" value={form.estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
                   className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'estimatedValue') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
                 {formErrors.some(e => e.field === 'estimatedValue') && (
                   <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'estimatedValue')?.message}</p>
@@ -675,7 +675,7 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Lead Title *</label>
                 <input
                   required type="text"
-                  value={(form as any).title || ''}
+                  value={form.title || ''}
                   onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
                   className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'title') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`}
                 />
@@ -687,7 +687,7 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Name</label>
                 <input
                   type="text"
-                  value={(form as any).contactName || ''}
+                  value={form.contactName || ''}
                   onChange={e => setForm(prev => ({ ...prev, contactName: e.target.value }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
                 />
@@ -696,7 +696,7 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Email</label>
                 <input
                   type="email"
-                  value={(form as any).contactEmail || ''}
+                  value={form.contactEmail || ''}
                   onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
                   onBlur={e => checkDuplicateLead('contactEmail', e.target.value)}
                   className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'contactEmail') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`}
@@ -709,7 +709,7 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Contact Phone</label>
                 <input
                   type="text"
-                  value={(form as any).contactPhone || ''}
+                  value={form.contactPhone || ''}
                   onChange={e => setForm(prev => ({ ...prev, contactPhone: e.target.value }))}
                   onBlur={e => checkDuplicateLead('contactPhone', e.target.value)}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
@@ -719,14 +719,14 @@ const CrmLeads = () => {
                 <label className="block text-sm font-semibold text-text-primary mb-1">Company Name</label>
                 <input
                   type="text"
-                  value={(form as any).companyName || ''}
+                  value={form.companyName || ''}
                   onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
                 />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Owner</label>
-                <select value={(form as any).ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))}
+                <select value={form.ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
                   <option value="">Myself (default)</option>
                   {crmUsers.map(u => (
@@ -736,7 +736,7 @@ const CrmLeads = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Source</label>
-                <select value={(form as any).source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))}
+                <select value={form.source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
                   {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
                     <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
@@ -745,7 +745,7 @@ const CrmLeads = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Estimated Value (MYR)</label>
-                <input type="number" value={(form as any).estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
+                <input type="number" value={form.estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
                   className={`w-full px-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 transition-all ${formErrors.some(e => e.field === 'estimatedValue') ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-200'}`} />
                 {formErrors.some(e => e.field === 'estimatedValue') && (
                   <p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'estimatedValue')?.message}</p>

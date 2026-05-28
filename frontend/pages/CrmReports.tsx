@@ -171,6 +171,13 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
   );
 }
 
+const DATE_PRESETS = [
+  { label: 'This Month', from: () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; }, to: () => todayStr() },
+  { label: 'Last 30 Days', from: () => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().slice(0, 10); }, to: () => todayStr() },
+  { label: 'Last Quarter', from: () => { const d = new Date(); const q = Math.floor(d.getMonth() / 3) * 3; d.setMonth(q, 1); d.setMonth(d.getMonth() - 3); return d.toISOString().slice(0, 10); }, to: () => { const d = new Date(); const q = Math.floor(d.getMonth() / 3) * 3; d.setMonth(q, 1); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); } },
+  { label: 'Year to Date', from: () => { const d = new Date(); return `${d.getFullYear()}-01-01`; }, to: () => todayStr() },
+] as const;
+
 function DateRangeRow({
   from, to, onFromChange, onToChange, onRefresh,
 }: {
@@ -179,32 +186,51 @@ function DateRangeRow({
   onToChange: (v: string) => void;
   onRefresh: () => void;
 }) {
+  const invalid = from && to && from > to;
   return (
-    <div className="flex items-center gap-3 mb-5 flex-wrap">
-      <label className="flex items-center gap-2 text-sm text-text-secondary">
-        From:
-        <input
-          type="date"
-          value={from}
-          onChange={e => onFromChange(e.target.value)}
-          className="border border-border rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-      </label>
-      <label className="flex items-center gap-2 text-sm text-text-secondary">
-        To:
-        <input
-          type="date"
-          value={to}
-          onChange={e => onToChange(e.target.value)}
-          className="border border-border rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
-        />
-      </label>
-      <button
-        onClick={onRefresh}
-        className="px-4 py-1.5 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors"
-      >
-        Refresh
-      </button>
+    <div className="space-y-3 mb-5">
+      {/* Preset buttons */}
+      <div className="flex flex-wrap gap-2">
+        {DATE_PRESETS.map(p => (
+          <button
+            key={p.label}
+            onClick={() => { onFromChange(p.from()); onToChange(p.to()); }}
+            className="px-3 py-1 rounded-lg text-xs font-medium border border-border bg-bg-surface text-text-secondary hover:bg-bg-subtle hover:text-text-primary hover:border-brand-300 transition-colors"
+            style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+      {/* Date inputs + refresh */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="flex items-center gap-2 text-sm text-text-secondary">
+          From:
+          <input
+            type="date"
+            value={from}
+            onChange={e => onFromChange(e.target.value)}
+            className={`border ${invalid ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-500'} rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2`}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-text-secondary">
+          To:
+          <input
+            type="date"
+            value={to}
+            onChange={e => onToChange(e.target.value)}
+            className={`border ${invalid ? 'border-red-500 focus:ring-red-200' : 'border-border focus:ring-brand-500'} rounded-lg px-3 py-1.5 text-sm bg-bg-surface text-text-primary focus:outline-none focus:ring-2`}
+          />
+        </label>
+        <button
+          onClick={onRefresh}
+          disabled={invalid}
+          className="px-4 py-1.5 rounded-lg bg-brand-600 text-white text-sm font-medium hover:bg-brand-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Refresh
+        </button>
+        {invalid && <span className="text-xs text-red-600">"From" must be before "To"</span>}
+      </div>
     </div>
   );
 }

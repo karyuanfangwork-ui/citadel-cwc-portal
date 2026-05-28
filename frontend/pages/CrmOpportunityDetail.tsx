@@ -12,6 +12,7 @@ import { hasPermission } from '../src/utils/permissions';
 import EmptyState from '../src/components/ui/EmptyState';
 import { useAuth } from '../src/context/AuthContext';
 import InlineEdit from '../src/components/crm/InlineEdit';
+import CrmAuditLog from '../src/components/crm/CrmAuditLog';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -29,7 +30,7 @@ const CrmOpportunityDetail = () => {
   const { user } = useAuth();
   const [opp, setOpp] = useState<CrmOpportunity | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'history' | 'audit'>('overview');
   const [showMoveStage, setShowMoveStage] = useState(false);
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
@@ -260,7 +261,7 @@ const CrmOpportunityDetail = () => {
      if (!editActivityForm.id) return;
      setSavingActivityEdit(true);
      try {
-       const { id: _aid, ...payload } = editActivityForm as any;
+       const { id: _aid, ...payload } = editActivityForm;
        await crmService.updateActivity(editActivityForm.id!, payload);
        reload();
        setShowEditActivity(false);
@@ -452,11 +453,11 @@ const CrmOpportunityDetail = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
-        {(['overview', 'activities', 'notes', 'history'] as const).map(tab => (
+        {(['overview', 'activities', 'notes', 'history', 'audit'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
             className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-            {tab === 'history' ? 'Stage History' : tab}
+            {tab === 'history' ? 'Stage History' : tab === 'audit' ? 'Audit Log' : tab}
           </button>
         ))}
       </div>
@@ -660,11 +661,13 @@ const CrmOpportunityDetail = () => {
               <div className="flex flex-col items-end gap-2 ml-2 shrink-0">
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-brand-50 text-brand-700 border border-brand-200">{a.activityType}</span>
                 <div className="flex items-center gap-1">
+                {hasPermission(user, 'crm:edit') && (
                   <button onClick={() => openEditActivity(a)} title="Edit activity"
                     className="text-xs text-text-secondary hover:text-brand-700 p-1 rounded hover:bg-bg-subtle transition-colors"
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                     <span className="material-symbols-outlined text-base">edit</span>
                   </button>
+                )}
                   {hasPermission(user, 'crm:delete') && (
                     <button onClick={() => { setDeleteActivityId(a.id); setShowDeleteActivity(true); }} title="Delete activity"
                       className="text-xs text-text-secondary hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
@@ -736,6 +739,11 @@ const CrmOpportunityDetail = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Audit Log tab */}
+      {activeTab === 'audit' && opp && (
+        <CrmAuditLog entityType="opportunity" entityId={opp.id} />
       )}
 
       {/* Move Stage modal */}

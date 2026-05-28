@@ -11,6 +11,7 @@ import { hasPermission } from '../src/utils/permissions';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateAccount, validateTrustProduct, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
+import CrmAuditLog from '../src/components/crm/CrmAuditLog';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -32,7 +33,7 @@ const CrmAccountDetail = () => {
   const { user } = useAuth();
   const [account, setAccount] = useState<CrmAccount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'activities' | 'notes' | 'credit' | 'trustProducts'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'activities' | 'notes' | 'credit' | 'trustProducts' | 'audit'>('overview');
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
@@ -327,11 +328,11 @@ const CrmAccountDetail = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
-        {(['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const), 'trustProducts'] as const).map(tab => (
+        {(['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const), 'trustProducts', 'audit'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
             className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-            {tab === 'trustProducts' ? 'Trust Products' : tab === 'credit' ? 'Credit' : tab}
+            {tab === 'trustProducts' ? 'Trust Products' : tab === 'credit' ? 'Credit' : tab === 'audit' ? 'Audit Log' : tab}
           </button>
         ))}
       </div>
@@ -528,7 +529,7 @@ const CrmAccountDetail = () => {
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                {hasPermission(user, 'crm:update') && (
+                {hasPermission(user, 'crm:edit') && (
                   <button onClick={() => openEditActivity(a)} title="Edit activity"
                     className="p-1 rounded hover:bg-bg-subtle transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                     <span className="material-symbols-outlined text-text-secondary text-base">edit</span>
@@ -670,7 +671,7 @@ const CrmAccountDetail = () => {
                       maturityDate: tp.maturityDate ?? '',
                       nextReviewDate: tp.nextReviewDate ?? '',
                       ownerId: tp.ownerId ?? '',
-                    } as any);
+                    });
                     setShowEditTP(true);
                   }}
                     className="flex items-center gap-1 text-brand-700 border border-brand-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-brand-50 transition-colors"
@@ -750,6 +751,11 @@ const CrmAccountDetail = () => {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Audit Log tab */}
+      {activeTab === 'audit' && account && (
+        <CrmAuditLog entityType="account" entityId={account.id} />
       )}
 
       {/* Create/Edit Trust Product modal */}
