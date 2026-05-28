@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Role-Based User Guide | CWC 2.0 CRM</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<style>
+  :root {
+    --brand-primary: #1e3a5f;
+    --brand-secondary: #2563eb;
+    --brand-accent: #0ea5e9;
+    --brand-success: #059669;
+    --brand-warning: #d97706;
+    --brand-danger: #dc2626;
+    --sidebar-w: 280px;
+    --header-h: 64px;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; }
+  #sidebar {
+    position: fixed; top: 0; left: 0; width: var(--sidebar-w);
+    height: 100vh; background: var(--brand-primary); overflow-y: auto;
+    z-index: 1000; display: flex; flex-direction: column;
+  }
+  #sidebar .brand { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,.1); background: rgba(0,0,0,.2); }
+  #sidebar .brand h1 { font-size: .85rem; font-weight: 700; color: #93c5fd; letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+  #sidebar .brand p { font-size: .7rem; color: rgba(255,255,255,.5); margin: .15rem 0 0; }
+  #sidebar nav { flex: 1; padding: .75rem 0; }
+  .nav-section-label { font-size: .65rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.35); padding: .75rem 1.5rem .25rem; }
+  .nav-link-item { display: flex; align-items: center; gap: .65rem; padding: .5rem 1.5rem; color: rgba(255,255,255,.7); text-decoration: none; font-size: .8rem; font-weight: 500; transition: all .15s; border-left: 3px solid transparent; cursor: pointer; }
+  .nav-link-item:hover { background: rgba(255,255,255,.08); color: #fff; border-left-color: var(--brand-accent); }
+  .nav-link-item.active { background: rgba(14,165,233,.15); color: #7dd3fc; border-left-color: #7dd3fc; }
+  .nav-link-item i { width: 16px; text-align: center; opacity: .7; font-size: .78rem; }
+  #topbar {
+    position: fixed; top: 0; left: var(--sidebar-w); right: 0;
+    height: var(--header-h); background: #fff; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; z-index: 900;
+  }
+  #main { margin-left: var(--sidebar-w); padding-top: var(--header-h); min-height: 100vh; }
+  .content-section { padding: 2.5rem 2.5rem 1rem; max-width: 1100px; }
+  .section-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+  .section-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #f1f5f9; }
+  .section-header h2 { font-size: 1.2rem; font-weight: 700; color: var(--brand-primary); margin: 0; }
+  .badge-role { display: inline-flex; align-items: center; gap: .3rem; padding: .18rem .6rem; border-radius: 99px; font-size: .71rem; font-weight: 600; }
+  .alert-box { padding: .9rem 1.15rem; border-radius: 8px; margin: .75rem 0; font-size: .875rem; line-height: 1.55; }
+  .alert-info   { background: #eff6ff; border-left: 4px solid var(--brand-secondary); }
+  .alert-warn   { background: #fffbeb; border-left: 4px solid var(--brand-warning); }
+  .alert-danger { background: #fef2f2; border-left: 4px solid var(--brand-danger); }
+  .alert-success{ background: #f0fdf4; border-left: 4px solid var(--brand-success); }
+  table { width: 100%; border-collapse: collapse; font-size: .855rem; }
+  th { background: var(--brand-primary); color: #fff; padding: .6rem 1rem; text-align: left; font-weight: 600; font-size: .78rem; }
+  td { padding: .55rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tr:hover td { background: #f8fafc; }
+  .suite-nav-link { display: block; color: rgba(255,255,255,.5); font-size: .75rem; padding: .25rem 0; text-decoration: none; transition: color .15s; }
+  .suite-nav-link:hover { color: #fff; }
+  .suite-nav-link.current { color: #7dd3fc; font-weight: 600; }
+  /* Role tab nav */
+  .role-tab-nav { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1.75rem; border-bottom: 2px solid #e2e8f0; padding-bottom: 1rem; }
+  .role-tab-btn {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .55rem 1.1rem; border-radius: 8px; border: 2px solid #e2e8f0;
+    background: #fff; cursor: pointer; font-size: .82rem; font-weight: 600;
+    color: #64748b; transition: all .15s;
+  }
+  .role-tab-btn:hover { border-color: var(--brand-secondary); color: var(--brand-secondary); }
+  .role-tab-btn.active { border-color: transparent; color: #fff; }
+  .role-pane { display: none; }
+  .role-pane.active { display: block; }
+  /* Role summary hero */
+  .role-hero { border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1.25rem; }
+  .role-hero-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; }
+  .role-hero h3 { font-size: 1.1rem; font-weight: 800; margin: 0 0 .25rem; }
+  .role-hero p { font-size: .855rem; margin: 0; opacity: .85; }
+  /* Daily checklist */
+  .checklist-item { display: flex; align-items: flex-start; gap: .65rem; padding: .45rem 0; font-size: .875rem; border-bottom: 1px solid #f1f5f9; }
+  .checklist-item:last-child { border-bottom: none; }
+  .check-num { width: 22px; height: 22px; background: var(--brand-secondary); color: #fff; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: .68rem; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  /* Module pill */
+  .module-pill { display: inline-flex; align-items: center; gap: .3rem; padding: .25rem .7rem; border-radius: 6px; font-size: .78rem; font-weight: 600; margin: .2rem; background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  .module-pill.restricted { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+  /* KPI card */
+  .kpi-mini { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: .85rem 1rem; }
+  .kpi-mini .label { font-size: .72rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .05em; }
+  .kpi-mini .value { font-size: .875rem; font-weight: 700; color: var(--brand-primary); margin-top: .2rem; }
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<div id="sidebar">
+  <div class="brand">
+    <h1>CRM Documentation</h1>
+    <p>CWC 2.0 — Citadel Group</p>
+  </div>
+  <nav>
+    <div class="nav-section-label">Role-Based User Guides</div>
+    <a class="nav-link-item active" data-section="s-overview"><i class="fa fa-users"></i> Overview</a>
+    <a class="nav-link-item" data-section="s-roles" id="nav-r1"><i class="fa fa-user-tie"></i> Sales Representative</a>
+    <a class="nav-link-item" data-section="s-roles" id="nav-r2"><i class="fa fa-users-cog"></i> Sales Manager</a>
+    <a class="nav-link-item" data-section="s-roles" id="nav-r3"><i class="fa fa-headset"></i> Customer Service</a>
+    <a class="nav-link-item" data-section="s-roles" id="nav-r4"><i class="fa fa-cogs"></i> Operations Team</a>
+    <a class="nav-link-item" data-section="s-roles" id="nav-r5"><i class="fa fa-user-shield"></i> Admin User</a>
+    <a class="nav-link-item" data-section="s-roles" id="nav-r6"><i class="fa fa-chart-bar"></i> Management</a>
+  </nav>
+  <div style="padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.1);margin-top:auto">
+    <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:.5rem">Documentation Suite</div>
+    <a href="01-quick-start.html" class="suite-nav-link">&#8227; Quick Start Guide</a>
+    <a href="02-sop.html" class="suite-nav-link">&#8227; SOP Documentation</a>
+    <a href="03-workflows.html" class="suite-nav-link">&#8227; Workflow Documentation</a>
+    <a href="04-business-rules.html" class="suite-nav-link">&#8227; Business Rules</a>
+    <a href="05-role-guides.html" class="suite-nav-link current">&#8227; Role-Based Guides</a>
+    <a href="06-reporting-kpi.html" class="suite-nav-link">&#8227; Reporting &amp; KPI</a>
+  </div>
+</div>
+
+<!-- ═══ TOPBAR ═══ -->
+<div id="topbar">
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <span style="font-size:.8rem;color:#94a3b8">CRM Documentation Suite</span>
+    <span style="color:#cbd5e1">›</span>
+    <span style="font-size:.875rem;font-weight:600;color:#1e293b">Role-Based User Guide</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 5 of 6</span>
+    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC 2.0</span>
+  </div>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div id="main">
+
+  <!-- ══════════ OVERVIEW ══════════ -->
+  <div class="content-section" id="s-overview">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-users fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Role-Based User Guides — Overview</h2>
+      </div>
+      <div class="alert-box alert-info" style="margin-bottom:1.5rem">
+        This guide defines what each CRM role can do, what they are responsible for, and what they cannot do. Find your role below and use it as your primary operational reference.
+      </div>
+      <table style="margin-bottom:1.5rem">
+        <thead><tr><th>Role</th><th>Primary Function</th><th>Key Modules</th><th>Approval Authority</th><th>Team Visibility</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge-role" style="background:#dbeafe;color:#1e40af;padding:.3rem .75rem"><i class="fa fa-user-tie"></i> Sales Representative</span></td>
+            <td>Prospect, qualify, close deals</td>
+            <td>Dashboard, Leads, Accounts, Contacts, Pipeline</td>
+            <td>None — submits requests only</td>
+            <td>Own records only</td>
+          </tr>
+          <tr>
+            <td><span class="badge-role" style="background:#fef9c3;color:#713f12;padding:.3rem .75rem"><i class="fa fa-users-cog"></i> Sales Manager</span></td>
+            <td>Lead team, approve deals, drive pipeline</td>
+            <td>All modules including Team Dashboard</td>
+            <td>Discounts up to 15%, lead reassignment</td>
+            <td>Full team visibility</td>
+          </tr>
+          <tr>
+            <td><span class="badge-role" style="background:#f0fdf4;color:#14532d;padding:.3rem .75rem"><i class="fa fa-headset"></i> Customer Service</span></td>
+            <td>Handle complaints, resolve customer issues</td>
+            <td>Dashboard, Accounts, Contacts, Activities</td>
+            <td>None</td>
+            <td>Own activities only</td>
+          </tr>
+          <tr>
+            <td><span class="badge-role" style="background:#fdf4ff;color:#581c87;padding:.3rem .75rem"><i class="fa fa-cogs"></i> Operations Team</span></td>
+            <td>Trust product setup, document compliance</td>
+            <td>Accounts, Contacts, Reports (read)</td>
+            <td>None</td>
+            <td>Read-only on all accounts</td>
+          </tr>
+          <tr>
+            <td><span class="badge-role" style="background:#fff7ed;color:#7c2d12;padding:.3rem .75rem"><i class="fa fa-user-shield"></i> Admin User</span></td>
+            <td>Data governance, user management, system admin</td>
+            <td>All modules + Admin Console</td>
+            <td>Data corrections, access grants</td>
+            <td>Full system access</td>
+          </tr>
+          <tr>
+            <td><span class="badge-role" style="background:#f1f5f9;color:#475569;padding:.3rem .75rem"><i class="fa fa-chart-bar"></i> Management</span></td>
+            <td>Oversight, reporting, strategic decisions</td>
+            <td>Dashboard, Reports, Team (read-only)</td>
+            <td>Deals &gt; MYR 500k, strategic exceptions</td>
+            <td>Full read-only on all</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="alert-box alert-warn">
+        <strong>Not sure which role applies to you?</strong> Check your permission level with your line manager or CRM Admin. Your accessible modules are determined by your assigned role — if you cannot see a module you need, submit an access request through your manager.
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════ ROLE GUIDES (tabbed) ══════════ -->
+  <div class="content-section" id="s-roles">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-id-badge fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Individual Role Guides</h2>
+      </div>
+
+      <!-- Tab Buttons -->
+      <div class="role-tab-nav">
+        <button class="role-tab-btn active" data-role="r1" style="background:#1e40af;border-color:#1e40af"><i class="fa fa-user-tie"></i> Sales Rep</button>
+        <button class="role-tab-btn" data-role="r2"><i class="fa fa-users-cog"></i> Sales Manager</button>
+        <button class="role-tab-btn" data-role="r3"><i class="fa fa-headset"></i> Customer Service</button>
+        <button class="role-tab-btn" data-role="r4"><i class="fa fa-cogs"></i> Operations</button>
+        <button class="role-tab-btn" data-role="r5"><i class="fa fa-user-shield"></i> Admin</button>
+        <button class="role-tab-btn" data-role="r6"><i class="fa fa-chart-bar"></i> Management</button>
+      </div>
+
+      <!-- ══ ROLE 1: SALES REPRESENTATIVE ══ -->
+      <div class="role-pane active" id="r1">
+        <div class="role-hero" style="background:linear-gradient(135deg,#dbeafe,#eff6ff);border:1px solid #bfdbfe">
+          <div class="role-hero-icon" style="background:#1e40af"><i class="fa fa-user-tie" style="color:#fff"></i></div>
+          <div>
+            <h3 style="color:#1e3a5f">Sales Representative</h3>
+            <p style="color:#1e40af">Front-line revenue generator. Owns the full customer journey from lead capture to deal close. The CRM is your primary work tool — every customer interaction lives here.</p>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Permission Level</div><div class="value"><code>crm:read</code> + <code>crm:write</code></div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Record Visibility</div><div class="value">Own assigned records only</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Approval Authority</div><div class="value">None — submits requests only</div></div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-th-large" style="color:var(--brand-secondary)"></i>&nbsp; Accessible Modules</h6>
+            <div style="margin-bottom:1rem">
+              <span class="module-pill"><i class="fa fa-home"></i> Dashboard</span>
+              <span class="module-pill"><i class="fa fa-building"></i> Accounts</span>
+              <span class="module-pill"><i class="fa fa-address-book"></i> Contacts</span>
+              <span class="module-pill"><i class="fa fa-user-plus"></i> Leads</span>
+              <span class="module-pill"><i class="fa fa-stream"></i> Pipeline</span>
+              <span class="module-pill"><i class="fa fa-chart-pie"></i> Reports</span>
+              <span class="module-pill"><i class="fa fa-book-open"></i> Guide</span>
+              <span class="module-pill restricted"><i class="fa fa-ban"></i> Team (hidden)</span>
+            </div>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tasks" style="color:var(--brand-secondary)"></i>&nbsp; Daily Responsibilities</h6>
+            <div class="checklist-item"><div class="check-num">1</div><div>Review AI Daily Briefing on Dashboard — identify priority customers to contact today</div></div>
+            <div class="checklist-item"><div class="check-num">2</div><div>Clear all overdue tasks from the Task Panel before starting new outreach</div></div>
+            <div class="checklist-item"><div class="check-num">3</div><div>Follow up with Hot leads — same-day response required</div></div>
+            <div class="checklist-item"><div class="check-num">4</div><div>Update opportunity stages after every customer interaction (within 48h)</div></div>
+            <div class="checklist-item"><div class="check-num">5</div><div>Log all activities within 24 hours of occurrence</div></div>
+            <div class="checklist-item"><div class="check-num">6</div><div>Schedule the next follow-up before closing any completed activity</div></div>
+            <div class="checklist-item"><div class="check-num">7</div><div>Search before creating any new record — prevent duplicates</div></div>
+          </div>
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tachometer-alt" style="color:var(--brand-secondary)"></i>&nbsp; KPIs You Own</h6>
+            <table style="margin-bottom:1rem">
+              <thead><tr><th>KPI</th><th>Target</th></tr></thead>
+              <tbody>
+                <tr><td>Lead Response Time</td><td>&lt; 24 hours</td></tr>
+                <tr><td>Activity Completion Rate</td><td>&gt; 85%</td></tr>
+                <tr><td>Personal Pipeline Value</td><td>Per quarterly target</td></tr>
+                <tr><td>Win Rate (personal)</td><td>&gt; 40%</td></tr>
+                <tr><td>Follow-Up SLA Compliance</td><td>&gt; 90%</td></tr>
+                <tr><td>Data Completeness (own records)</td><td>&gt; 95%</td></tr>
+              </tbody>
+            </table>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-ban" style="color:var(--brand-danger)"></i>&nbsp; Restrictions</h6>
+            <div class="alert-box alert-danger" style="margin:0">
+              <ul style="margin:0;padding-left:1.2rem;line-height:1.8">
+                <li>Cannot view other sales reps' leads or opportunities</li>
+                <li>Cannot access the Team Dashboard tab</li>
+                <li>Cannot delete any CRM records</li>
+                <li>Cannot export reports (read-only on Reports module)</li>
+                <li>Cannot approve any discount or deal exception</li>
+                <li>Cannot modify system settings or user permissions</li>
+              </ul>
+            </div>
+
+            <h6 style="font-weight:700;margin:.75rem 0 .5rem"><i class="fa fa-link" style="color:var(--brand-secondary)"></i>&nbsp; Operational Dependencies</h6>
+            <p style="font-size:.855rem;color:#64748b">Depends on <strong>Sales Manager</strong> for lead assignment, approval decisions, and escalation support. Depends on <strong>CRM Admin</strong> for data corrections and access issues.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ROLE 2: SALES MANAGER ══ -->
+      <div class="role-pane" id="r2">
+        <div class="role-hero" style="background:linear-gradient(135deg,#fef9c3,#fffbeb);border:1px solid #fde68a">
+          <div class="role-hero-icon" style="background:#d97706"><i class="fa fa-users-cog" style="color:#fff"></i></div>
+          <div>
+            <h3 style="color:#713f12">Sales Manager</h3>
+            <p style="color:#92400e">Leads the sales team, drives pipeline performance, approves deals, and ensures SLA compliance across all reps. The Team Dashboard is your primary management tool.</p>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Permission Level</div><div class="value"><code>crm:admin</code> (own team)</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Record Visibility</div><div class="value">Full team — all leads, opportunities, accounts</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Approval Authority</div><div class="value">Discounts up to 15%; lead reassignment; exceptions</div></div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-th-large" style="color:var(--brand-secondary)"></i>&nbsp; Accessible Modules</h6>
+            <div style="margin-bottom:1rem">
+              <span class="module-pill"><i class="fa fa-home"></i> Dashboard</span>
+              <span class="module-pill"><i class="fa fa-building"></i> Accounts</span>
+              <span class="module-pill"><i class="fa fa-address-book"></i> Contacts</span>
+              <span class="module-pill"><i class="fa fa-user-plus"></i> Leads</span>
+              <span class="module-pill"><i class="fa fa-stream"></i> Pipeline</span>
+              <span class="module-pill" style="background:#fef9c3;color:#713f12;border-color:#fde68a"><i class="fa fa-users"></i> Team Dashboard</span>
+              <span class="module-pill"><i class="fa fa-chart-pie"></i> Reports</span>
+            </div>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tasks" style="color:var(--brand-secondary)"></i>&nbsp; Daily Responsibilities</h6>
+            <div class="checklist-item"><div class="check-num">1</div><div>Review <strong>Team Dashboard</strong> — check unassigned leads, stale opportunities, and rep activity rates</div></div>
+            <div class="checklist-item"><div class="check-num">2</div><div>Assign all unassigned leads within 4 business hours of creation</div></div>
+            <div class="checklist-item"><div class="check-num">3</div><div>Review and respond to all pending approvals (SLA: 1 business day)</div></div>
+            <div class="checklist-item"><div class="check-num">4</div><div>Coach any rep with 5+ overdue activities — triggered by system alert</div></div>
+            <div class="checklist-item"><div class="check-num">5</div><div>Review weekly pipeline report every Monday 9am</div></div>
+            <div class="checklist-item"><div class="check-num">6</div><div>Escalate unresolved customer complaints before SLA breach</div></div>
+            <div class="checklist-item"><div class="check-num">7</div><div>Review AI Manager Intelligence on Team Dashboard for rep performance insights</div></div>
+          </div>
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tachometer-alt" style="color:var(--brand-secondary)"></i>&nbsp; KPIs You Own</h6>
+            <table style="margin-bottom:1rem">
+              <thead><tr><th>KPI</th><th>Target</th></tr></thead>
+              <tbody>
+                <tr><td>Team Lead Conversion Rate</td><td>&gt; 30%</td></tr>
+                <tr><td>Team Pipeline Value</td><td>Per quarterly target</td></tr>
+                <tr><td>Lead Assignment Rate</td><td>100% within 4h</td></tr>
+                <tr><td>SLA Compliance Rate (team)</td><td>&gt; 90%</td></tr>
+                <tr><td>Approval Cycle Time</td><td>&lt; 24 hours</td></tr>
+                <tr><td>Team Win Rate</td><td>&gt; 40%</td></tr>
+                <tr><td>Rep Activity Completion Rate</td><td>&gt; 85%</td></tr>
+              </tbody>
+            </table>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-ban" style="color:var(--brand-danger)"></i>&nbsp; Restrictions</h6>
+            <div class="alert-box alert-danger" style="margin:0">
+              <ul style="margin:0;padding-left:1.2rem;line-height:1.8">
+                <li>Cannot delete Account records without CRM Admin approval</li>
+                <li>Cannot approve discounts &gt; 15% (requires Senior Manager)</li>
+                <li>Cannot approve deals &gt; MYR 500,000 (requires Director)</li>
+                <li>Cannot self-approve any request submitted by themselves</li>
+                <li>Cannot modify system settings or user permissions</li>
+                <li>Cannot access other teams' records</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ROLE 3: CUSTOMER SERVICE ══ -->
+      <div class="role-pane" id="r3">
+        <div class="role-hero" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #bbf7d0">
+          <div class="role-hero-icon" style="background:#059669"><i class="fa fa-headset" style="color:#fff"></i></div>
+          <div>
+            <h3 style="color:#14532d">Customer Service</h3>
+            <p style="color:#166534">Handles all customer complaints, queries, and escalations. Uses CRM account and activity history to investigate and resolve issues within SLA. The customer's primary advocate inside the organisation.</p>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Permission Level</div><div class="value">Read (Accounts/Contacts) + Write (Activities)</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Record Visibility</div><div class="value">All Accounts + Contacts (read); own Activities (write)</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Approval Authority</div><div class="value">None</div></div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-th-large" style="color:var(--brand-secondary)"></i>&nbsp; Accessible Modules</h6>
+            <div style="margin-bottom:1rem">
+              <span class="module-pill"><i class="fa fa-home"></i> Dashboard</span>
+              <span class="module-pill"><i class="fa fa-building"></i> Accounts (read)</span>
+              <span class="module-pill"><i class="fa fa-address-book"></i> Contacts (read)</span>
+              <span class="module-pill" style="background:#f0fdf4;color:#14532d;border-color:#bbf7d0"><i class="fa fa-comment-alt"></i> Activities (write)</span>
+              <span class="module-pill restricted"><i class="fa fa-ban"></i> Leads (read-only)</span>
+              <span class="module-pill restricted"><i class="fa fa-ban"></i> Pipeline (read-only)</span>
+              <span class="module-pill restricted"><i class="fa fa-ban"></i> Team (hidden)</span>
+              <span class="module-pill restricted"><i class="fa fa-ban"></i> Reports (hidden)</span>
+            </div>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tasks" style="color:var(--brand-secondary)"></i>&nbsp; Daily Responsibilities</h6>
+            <div class="checklist-item"><div class="check-num">1</div><div>Review open complaint activities — prioritise High severity items first</div></div>
+            <div class="checklist-item"><div class="check-num">2</div><div>Acknowledge all new complaints within SLA (30 min High / 2h Standard)</div></div>
+            <div class="checklist-item"><div class="check-num">3</div><div>Investigate using the customer's full Account and Activity history in CRM</div></div>
+            <div class="checklist-item"><div class="check-num">4</div><div>Coordinate with the relevant Sales Rep for context on the customer relationship</div></div>
+            <div class="checklist-item"><div class="check-num">5</div><div>Communicate resolution to customer within the SLA window</div></div>
+            <div class="checklist-item"><div class="check-num">6</div><div>Log detailed resolution note — do not close complaints without full documentation</div></div>
+            <div class="checklist-item"><div class="check-num">7</div><div>Escalate any complaint approaching the 2-day resolution SLA to CS Manager proactively</div></div>
+          </div>
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tachometer-alt" style="color:var(--brand-secondary)"></i>&nbsp; KPIs You Own</h6>
+            <table style="margin-bottom:1rem">
+              <thead><tr><th>KPI</th><th>Target</th></tr></thead>
+              <tbody>
+                <tr><td>Complaint Resolution Rate</td><td>&gt; 95%</td></tr>
+                <tr><td>Avg Resolution Time (standard)</td><td>&lt; 2 business days</td></tr>
+                <tr><td>Avg Resolution Time (high)</td><td>&lt; 4 hours</td></tr>
+                <tr><td>Acknowledge SLA Compliance</td><td>100%</td></tr>
+                <tr><td>Complaint Log Completeness</td><td>100% of complaints logged with full notes</td></tr>
+              </tbody>
+            </table>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-ban" style="color:var(--brand-danger)"></i>&nbsp; Restrictions</h6>
+            <div class="alert-box alert-danger" style="margin:0">
+              <ul style="margin:0;padding-left:1.2rem;line-height:1.8">
+                <li>Cannot create or modify Lead or Opportunity records</li>
+                <li>Cannot edit Account or Contact records (read-only)</li>
+                <li>Cannot access the Pipeline in edit mode</li>
+                <li>Cannot access Reports module</li>
+                <li>Cannot delete any complaint activity records — BNM retention applies</li>
+              </ul>
+            </div>
+
+            <div class="alert-box alert-warn" style="margin-top:.75rem">
+              <strong>BNM Note:</strong> All complaint activity logs are retained for 7 years. Never request deletion of a complaint record — this is a regulatory violation.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ROLE 4: OPERATIONS TEAM ══ -->
+      <div class="role-pane" id="r4">
+        <div class="role-hero" style="background:linear-gradient(135deg,#fdf4ff,#f3e8ff);border:1px solid #e9d5ff">
+          <div class="role-hero-icon" style="background:#7c3aed"><i class="fa fa-cogs" style="color:#fff"></i></div>
+          <div>
+            <h3 style="color:#581c87">Operations Team</h3>
+            <p style="color:#6d28d9">Responsible for trust product setup, KYC document management, beneficiary records, and post-sale account onboarding. Activated by Sales after a Closed Won deal.</p>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Permission Level</div><div class="value">Read (Accounts/Contacts) + Write (Trust Products)</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Record Visibility</div><div class="value">All Accounts + Contacts (read); Trust Products (write)</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Approval Authority</div><div class="value">None</div></div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-th-large" style="color:var(--brand-secondary)"></i>&nbsp; Accessible Modules</h6>
+            <div style="margin-bottom:1rem">
+              <span class="module-pill"><i class="fa fa-home"></i> Dashboard</span>
+              <span class="module-pill"><i class="fa fa-building"></i> Accounts (read + Trust)</span>
+              <span class="module-pill"><i class="fa fa-address-book"></i> Contacts (read)</span>
+              <span class="module-pill"><i class="fa fa-chart-pie"></i> Reports (read)</span>
+              <span class="module-pill restricted"><i class="fa fa-ban"></i> Leads (hidden)</span>
+              <span class="module-pill restricted"><i class="fa fa-ban"></i> Pipeline (read-only)</span>
+              <span class="module-pill restricted"><i class="fa fa-ban"></i> Team (hidden)</span>
+            </div>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tasks" style="color:var(--brand-secondary)"></i>&nbsp; Daily Responsibilities</h6>
+            <div class="checklist-item"><div class="check-num">1</div><div>Review newly converted Accounts (Closed Won) — action trust product setup</div></div>
+            <div class="checklist-item"><div class="check-num">2</div><div>Check KYC document checklist completeness on active accounts — flag gaps to Sales Rep</div></div>
+            <div class="checklist-item"><div class="check-num">3</div><div>Update beneficiary records when instructed by Sales or customer</div></div>
+            <div class="checklist-item"><div class="check-num">4</div><div>Monitor trust product status lifecycle — update when milestones are reached</div></div>
+            <div class="checklist-item"><div class="check-num">5</div><div>Alert Sales Rep and Manager when KYC documents are approaching expiry (30-day window)</div></div>
+            <div class="checklist-item"><div class="check-num">6</div><div>Support sales reps on operational document tasks when requested</div></div>
+          </div>
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tachometer-alt" style="color:var(--brand-secondary)"></i>&nbsp; KPIs You Own</h6>
+            <table style="margin-bottom:1rem">
+              <thead><tr><th>KPI</th><th>Target</th></tr></thead>
+              <tbody>
+                <tr><td>Trust Product Onboarding Time</td><td>&lt; 5 business days from Closed Won</td></tr>
+                <tr><td>KYC Document Completeness</td><td>100% of active accounts</td></tr>
+                <tr><td>Beneficiary Record Accuracy</td><td>100% verified before trust activation</td></tr>
+                <tr><td>KYC Expiry Alert Lead Time</td><td>30 days advance notice to Sales</td></tr>
+              </tbody>
+            </table>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-ban" style="color:var(--brand-danger)"></i>&nbsp; Restrictions</h6>
+            <div class="alert-box alert-danger" style="margin:0">
+              <ul style="margin:0;padding-left:1.2rem;line-height:1.8">
+                <li>Cannot create or edit Lead or Opportunity records</li>
+                <li>Cannot move pipeline stages</li>
+                <li>Cannot access Reports in edit/export mode</li>
+                <li>Cannot approve any commercial terms</li>
+                <li>Cannot access Team Dashboard</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ROLE 5: ADMIN USER ══ -->
+      <div class="role-pane" id="r5">
+        <div class="role-hero" style="background:linear-gradient(135deg,#fff7ed,#ffedd5);border:1px solid #fed7aa">
+          <div class="role-hero-icon" style="background:#c2410c"><i class="fa fa-user-shield" style="color:#fff"></i></div>
+          <div>
+            <h3 style="color:#7c2d12">Admin User</h3>
+            <p style="color:#9a3412">Owns CRM data quality, user access management, and system governance. Every admin action is permanently audit-logged. The Admin is the last line of data integrity defence.</p>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Permission Level</div><div class="value">Full CRM + Admin Console</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Record Visibility</div><div class="value">All records across all teams</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Approval Authority</div><div class="value">Data corrections, access grants, bulk operations</div></div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-th-large" style="color:var(--brand-secondary)"></i>&nbsp; Accessible Modules</h6>
+            <div style="margin-bottom:1rem">
+              <span class="module-pill" style="background:#fff7ed;color:#7c2d12;border-color:#fed7aa"><i class="fa fa-cog"></i> Admin Console</span>
+              <span class="module-pill"><i class="fa fa-home"></i> Dashboard</span>
+              <span class="module-pill"><i class="fa fa-building"></i> Accounts</span>
+              <span class="module-pill"><i class="fa fa-address-book"></i> Contacts</span>
+              <span class="module-pill"><i class="fa fa-user-plus"></i> Leads</span>
+              <span class="module-pill"><i class="fa fa-stream"></i> Pipeline</span>
+              <span class="module-pill"><i class="fa fa-users"></i> Team</span>
+              <span class="module-pill"><i class="fa fa-chart-pie"></i> Reports</span>
+            </div>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tasks" style="color:var(--brand-secondary)"></i>&nbsp; Daily / Weekly Responsibilities</h6>
+            <div class="checklist-item"><div class="check-num">1</div><div>Review data quality alerts and flagged records each morning</div></div>
+            <div class="checklist-item"><div class="check-num">2</div><div>Process and resolve duplicate merge requests within 3 business days</div></div>
+            <div class="checklist-item"><div class="check-num">3</div><div>Manage user access grants and revocations — same-day for leavers</div></div>
+            <div class="checklist-item"><div class="check-num">4</div><div>Run weekly data quality audit every Monday — publish score report</div></div>
+            <div class="checklist-item"><div class="check-num">5</div><div>Archive all exported reports per the 7-year retention policy</div></div>
+            <div class="checklist-item"><div class="check-num">6</div><div>Monitor system notifications for anomalies and permission escalations</div></div>
+            <div class="checklist-item"><div class="check-num">7</div><div>Quarterly: review user access rights against current org structure</div></div>
+          </div>
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tachometer-alt" style="color:var(--brand-secondary)"></i>&nbsp; KPIs You Own</h6>
+            <table style="margin-bottom:1rem">
+              <thead><tr><th>KPI</th><th>Target</th></tr></thead>
+              <tbody>
+                <tr><td>Data Completeness Rate</td><td>&gt; 95%</td></tr>
+                <tr><td>Duplicate Rate</td><td>&lt; 2%</td></tr>
+                <tr><td>KYC Compliance Rate</td><td>100%</td></tr>
+                <tr><td>Access Request Turnaround</td><td>&lt; 1 business day</td></tr>
+                <tr><td>Leaver Access Revocation</td><td>Same day as last day of employment</td></tr>
+                <tr><td>Weekly Quality Report On-Time</td><td>100% (every Monday)</td></tr>
+              </tbody>
+            </table>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-ban" style="color:var(--brand-danger)"></i>&nbsp; Restrictions</h6>
+            <div class="alert-box alert-danger" style="margin:0">
+              <ul style="margin:0;padding-left:1.2rem;line-height:1.8">
+                <li>Cannot approve financial deals or commercial discounts (conflict of interest)</li>
+                <li>All Admin actions are permanently audit-logged — no exceptions</li>
+                <li>Cannot grant own-account elevated permissions (must be authorised by Senior Manager)</li>
+                <li>Cannot delete complaint activity records</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ ROLE 6: MANAGEMENT ══ -->
+      <div class="role-pane" id="r6">
+        <div class="role-hero" style="background:linear-gradient(135deg,#f1f5f9,#e2e8f0);border:1px solid #cbd5e1">
+          <div class="role-hero-icon" style="background:#475569"><i class="fa fa-chart-bar" style="color:#fff"></i></div>
+          <div>
+            <h3 style="color:#1e293b">Management</h3>
+            <p style="color:#475569">Strategic oversight role. Uses CRM for read-only visibility into pipeline health, team performance, and forecast accuracy. Approves high-value deals and strategic exceptions.</p>
+          </div>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Permission Level</div><div class="value">Read-only (all records) + Reports</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Record Visibility</div><div class="value">Full read-only across all teams and records</div></div>
+          </div>
+          <div class="col-md-4">
+            <div class="kpi-mini"><div class="label">Approval Authority</div><div class="value">Deals &gt; MYR 500k; strategic exceptions; Director-level</div></div>
+          </div>
+        </div>
+
+        <div class="row g-4">
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-th-large" style="color:var(--brand-secondary)"></i>&nbsp; Accessible Modules</h6>
+            <div style="margin-bottom:1rem">
+              <span class="module-pill"><i class="fa fa-home"></i> Dashboard</span>
+              <span class="module-pill" style="background:#f1f5f9;color:#475569;border-color:#cbd5e1"><i class="fa fa-users"></i> Team (read-only)</span>
+              <span class="module-pill"><i class="fa fa-chart-pie"></i> Reports (full access)</span>
+              <span class="module-pill restricted"><i class="fa fa-ban"></i> Create/Edit Records (blocked)</span>
+            </div>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tasks" style="color:var(--brand-secondary)"></i>&nbsp; Regular Responsibilities</h6>
+            <div class="checklist-item"><div class="check-num">1</div><div>Review executive dashboard KPIs at start of week — pipeline value, win rate, SLA compliance</div></div>
+            <div class="checklist-item"><div class="check-num">2</div><div>Review weekly pipeline forecast report every Monday</div></div>
+            <div class="checklist-item"><div class="check-num">3</div><div>Review monthly performance report by the 5th of each month</div></div>
+            <div class="checklist-item"><div class="check-num">4</div><div>Attend weekly management review meeting — present pipeline findings</div></div>
+            <div class="checklist-item"><div class="check-num">5</div><div>Approve Director-level deals (&gt; MYR 500,000) within 2 business days</div></div>
+            <div class="checklist-item"><div class="check-num">6</div><div>Review and set quarterly KPI targets with Sales Manager</div></div>
+          </div>
+          <div class="col-md-6">
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-tachometer-alt" style="color:var(--brand-secondary)"></i>&nbsp; KPIs You Monitor</h6>
+            <table style="margin-bottom:1rem">
+              <thead><tr><th>KPI</th><th>Target</th></tr></thead>
+              <tbody>
+                <tr><td>Total Pipeline Value</td><td>&gt; 3× monthly revenue target</td></tr>
+                <tr><td>Revenue Forecast Accuracy</td><td>&gt; 85%</td></tr>
+                <tr><td>Team Win Rate</td><td>&gt; 40%</td></tr>
+                <tr><td>Customer Retention Rate</td><td>&gt; 85% (quarterly)</td></tr>
+                <tr><td>Average Deal Size</td><td>MYR 250k+</td></tr>
+                <tr><td>KYC Compliance Rate</td><td>100%</td></tr>
+              </tbody>
+            </table>
+
+            <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-ban" style="color:var(--brand-danger)"></i>&nbsp; Restrictions</h6>
+            <div class="alert-box alert-danger" style="margin:0">
+              <ul style="margin:0;padding-left:1.2rem;line-height:1.8">
+                <li>Cannot create or edit any CRM records (read-only)</li>
+                <li>Cannot modify system settings or user permissions</li>
+                <li>Cannot share report exports externally without own sign-off documented</li>
+                <li>Cannot access Admin Console</li>
+              </ul>
+            </div>
+
+            <div class="alert-box alert-info" style="margin-top:.75rem">
+              <strong>Reporting Note:</strong> Dashboard KPI cards cache every 1 hour. For the most current figures before a board meeting, use the Reports module with real-time filters rather than the dashboard cards.
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.section-card -->
+
+    <!-- Footer -->
+    <div style="text-align:center;padding:2rem 0 3rem;color:#94a3b8;font-size:.8rem">
+      <p style="margin:0">Role-Based User Guide &middot; Part 5 of 6 &middot; CWC 2.0 &mdash; Citadel Group Technologies Sdn Bhd</p>
+      <p style="margin:.25rem 0 0">Access questions? Contact your line manager or CRM Admin. Permissions are reviewed quarterly.</p>
+      <div style="margin-top:1rem;display:flex;justify-content:center;gap:2rem;flex-wrap:wrap">
+        <a href="04-business-rules.html" style="color:#94a3b8;text-decoration:none"><i class="fa fa-arrow-left"></i>&nbsp; Business Rules</a>
+        <a href="06-reporting-kpi.html" style="color:var(--brand-secondary);font-weight:600;text-decoration:none"><i class="fa fa-arrow-right"></i>&nbsp; Next: Reporting &amp; KPI Guide</a>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /#main -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  // Role tab switching
+  const tabColors = {
+    r1: '#1e40af', r2: '#d97706', r3: '#059669',
+    r4: '#7c3aed', r5: '#c2410c', r6: '#475569'
+  };
+
+  document.querySelectorAll('.role-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const role = btn.dataset.role;
+
+      // Update buttons
+      document.querySelectorAll('.role-tab-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = '';
+        b.style.borderColor = '';
+        b.style.color = '';
+      });
+      btn.classList.add('active');
+      btn.style.background = tabColors[role];
+      btn.style.borderColor = tabColors[role];
+      btn.style.color = '#fff';
+
+      // Update panes
+      document.querySelectorAll('.role-pane').forEach(p => p.classList.remove('active'));
+      document.getElementById(role).classList.add('active');
+
+      // Update sidebar active state
+      document.querySelectorAll('.nav-link-item').forEach(n => n.classList.remove('active'));
+      const sideNav = document.getElementById('nav-r' + role.slice(1));
+      if (sideNav) sideNav.classList.add('active');
+    });
+  });
+
+  // Sidebar nav clicks switch to the correct role tab
+  ['r1','r2','r3','r4','r5','r6'].forEach((role, i) => {
+    const navEl = document.getElementById('nav-' + role);
+    if (!navEl) return;
+    navEl.addEventListener('click', () => {
+      document.getElementById('s-roles').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => {
+        document.querySelector(`.role-tab-btn[data-role="${role}"]`).click();
+      }, 300);
+    });
+  });
+
+  // Overview nav
+  document.querySelector('.nav-link-item[data-section="s-overview"]').addEventListener('click', () => {
+    document.querySelectorAll('.nav-link-item').forEach(x => x.classList.remove('active'));
+    document.querySelector('.nav-link-item[data-section="s-overview"]').classList.add('active');
+    document.getElementById('s-overview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+</script>
+</body>
+</html>
