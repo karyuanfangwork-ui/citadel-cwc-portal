@@ -6,6 +6,8 @@ import StateBadge from '../src/components/ui/StateBadge';
 import { STATUS_COLORS } from '../src/components/ui/StateBadge';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import ConfirmDialog from '../src/components/ConfirmDialog';
+import EmptyState from '../src/components/ui/EmptyState';
+import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -193,13 +195,11 @@ const CrmOpportunities = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {loading ? [0,1,2,3,4].map(i => (
-              <tr key={i}><td colSpan={8} className="px-5 py-8"><div style={{ height: 14, width: '80%', background: 'var(--color-border)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} /></td></tr>
-            )) : opportunities.length === 0 ? (
-              <tr><td colSpan={8} className="px-5 py-16 text-center text-text-secondary">
-                <span className="material-symbols-outlined text-5xl mb-3 block opacity-30">folder_open</span>
-                <p className="font-bold">No opportunities found</p>
-                <p className="text-sm mt-1">{filterParam === 'overdue' ? 'No overdue deals — great work!' : 'Create your first opportunity to start tracking deals'}</p>
+            {loading ? (
+              <tr><td colSpan={8}><CrmTableSkeleton rows={5} cols={8} /></td></tr>
+            ) : opportunities.length === 0 ? (
+              <tr><td colSpan={8}>
+                <EmptyState icon="monetization_on" title="No opportunities yet" description="Create your first opportunity to start tracking deals." action={{ label: 'New Opportunity', onClick: () => setShowCreate(true) }} />
               </td></tr>
             ) : opportunities.map(opp => (
               <tr key={opp.id} onClick={() => navigate(`/crm/opportunities/${opp.id}`)} className="hover:bg-surface-hover cursor-pointer transition-colors">

@@ -4,6 +4,8 @@ import crmService, { CrmContact, Pagination } from '../src/services/crm.service'
 import CrmNav from '../src/components/CrmNav';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import ConfirmDialog from '../src/components/ConfirmDialog';
+import EmptyState from '../src/components/ui/EmptyState';
+import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -173,23 +175,11 @@ const CrmContacts = () => {
               </tr>
             </thead>
             <tbody>
-              {loading ? [0,1,2,3,4].map(i => (
-                <tr key={i} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                  {[180,150,100,120,140,50].map((w,j) => (
-                    <td key={j} style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                      <div style={{ height: 12, width: w, background: 'var(--color-border)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} />
-                    </td>
-                  ))}
-                </tr>
-              )) : contacts.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-text-secondary">
-                  <span className="material-symbols-outlined text-5xl mb-3 block opacity-30">person</span>
-                  <p className="font-bold">No contacts found</p>
-                  <p className="text-sm mt-1">Start by adding your first contact</p>
-                  <button onClick={openCreate} className="mt-4 flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 mx-auto"
-                    style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    <span className="material-symbols-outlined text-base">add</span> New Contact
-                  </button>
+              {loading ? (
+                <tr><td colSpan={7}><CrmTableSkeleton rows={5} cols={7} /></td></tr>
+              ) : contacts.length === 0 ? (
+                <tr><td colSpan={7}>
+                  <EmptyState icon="person" title="No contacts yet" description="Create your first contact to start building your client network." action={{ label: 'New Contact', onClick: () => openCreate() }} />
                 </td></tr>
               ) : contacts.map(c => (
                 <tr key={c.id} onClick={() => navigate(`/crm/contacts/${c.id}`)}

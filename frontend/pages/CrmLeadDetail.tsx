@@ -7,6 +7,7 @@ import StateBadge from '../src/components/ui/StateBadge';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
+import EmptyState from '../src/components/ui/EmptyState';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -298,7 +299,11 @@ const CrmLeadDetail = () => {
   if (loading) return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: '2rem' }}>
       {[...Array(4)].map((_, i) => (
-        <div key={i} style={{ height: 18, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
+        <div key={i} className="bg-bg-surface border border-border rounded-xl p-5 mb-4 animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
+          <div className="h-3 bg-gray-200 rounded w-2/3 mb-2" />
+          <div className="h-3 bg-gray-200 rounded w-1/2" />
+        </div>
       ))}
     </div>
   );

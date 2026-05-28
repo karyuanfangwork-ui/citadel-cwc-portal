@@ -4,6 +4,8 @@ import crmService, { CrmLead, CrmUser, Pagination, LeadStatus, LeadSource } from
 import CrmNav from '../src/components/CrmNav';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import ConfirmDialog from '../src/components/ConfirmDialog';
+import EmptyState from '../src/components/ui/EmptyState';
+import CrmCardSkeleton from '../src/components/crm/CrmCardSkeleton';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -283,18 +285,10 @@ const CrmLeads = () => {
       {/* Lead cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? [0,1,2,3,4,5].map(i => (
-          <div key={i} className="bg-surface border border-border rounded-xl p-5">
-            <div style={{ height: 14, width: '70%', background: 'var(--color-border)', borderRadius: 4, marginBottom: 12, animation: 'pulse 1.5s ease-in-out infinite' }} />
-            <div style={{ height: 10, width: '50%', background: 'var(--color-border)', borderRadius: 4, marginBottom: 8, animation: 'pulse 1.5s ease-in-out infinite' }} />
-            <div style={{ height: 10, width: '40%', background: 'var(--color-border)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} />
-          </div>
+          <CrmCardSkeleton key={i} />
         )) : displayedLeads.length === 0 ? (
-          <div className="col-span-full text-center py-16 text-text-secondary">
-            <span className="material-symbols-outlined text-5xl mb-3 block opacity-30">lightbulb</span>
-            <p className="font-bold">No leads found</p>
-            <p className="text-sm mt-1">
-              {filterParam ? 'Try clearing the current filter' : 'Create your first lead to start tracking prospects'}
-            </p>
+          <div className="col-span-full">
+            <EmptyState icon="lightbulb" title="No leads yet" description="Create your first lead to start tracking potential customers." action={{ label: 'New Lead', onClick: () => setShowCreate(true) }} />
           </div>
         ) : displayedLeads.map(lead => {
           const st = STATUS_STYLES[lead.status] || STATUS_STYLES.NEW;

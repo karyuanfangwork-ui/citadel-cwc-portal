@@ -4,6 +4,8 @@ import crmService, { CrmAccount, Pagination } from '../src/services/crm.service'
 import CrmNav from '../src/components/CrmNav';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import ConfirmDialog from '../src/components/ConfirmDialog';
+import EmptyState from '../src/components/ui/EmptyState';
+import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -150,19 +152,11 @@ const CrmAccounts = () => {
               </tr>
             </thead>
             <tbody>
-              {loading ? [0,1,2,3,4].map(i => (
-                <tr key={i} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
-                  {[200,100,60,60,100,120,80].map((w,j) => (
-                    <td key={j} style={{ padding: 'var(--space-4) var(--space-5)' }}>
-                      <div style={{ height: 12, width: w, background: 'var(--color-border)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} />
-                    </td>
-                  ))}
-                </tr>
-              )) : accounts.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-text-secondary">
-                  <span className="material-symbols-outlined text-5xl mb-3 block opacity-30">business</span>
-                  <p className="font-bold">No accounts yet</p>
-                  <p className="text-sm mt-1">Create your first account to start tracking customers</p>
+              {loading ? (
+                <tr><td colSpan={7}><CrmTableSkeleton rows={5} cols={7} /></td></tr>
+              ) : accounts.length === 0 ? (
+                <tr><td colSpan={7}>
+                  <EmptyState icon="business" title="No accounts yet" description="Create your first account to start managing client organizations." action={{ label: 'New Account', onClick: () => setShowCreate(true) }} />
                 </td></tr>
               ) : accounts.map(acc => (
                 <tr key={acc.id} onClick={() => navigate(`/crm/accounts/${acc.id}`)}

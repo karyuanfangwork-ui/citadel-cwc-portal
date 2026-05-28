@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, {
-  CrmContact, CrmOpportunity, CrmKycRecord, CrmNote, CrmAccount,
+  CrmContact, CrmOpportunity, CrmKycRecord, CrmNote, CrmAccount, CrmBeneficiary,
 } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import StateBadge from '../src/components/ui/StateBadge';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import EmptyState from '../src/components/ui/EmptyState';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -24,7 +25,7 @@ const SkeletonLine = ({ mb = 12 }: { mb?: number }) => (
 );
 
 // ── Tab types ─────────────────────────────────────────────────────
-type Tab = 'overview' | 'kyc' | 'deals' | 'notes';
+type Tab = 'overview' | 'kyc' | 'deals' | 'notes' | 'beneficiaries';
 
 // ── KYC Tab ───────────────────────────────────────────────────────
 const KycTab = ({ contactId }: { contactId: string }) => {
@@ -252,7 +253,7 @@ const NotesTab = ({ contactId }: { contactId: string }) => {
       {loading ? (
         <div className="space-y-3">{[...Array(2)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>
       ) : notes.length === 0 ? (
-        <div className="text-center py-8 text-text-secondary text-sm">No notes yet — add one above.</div>
+        <EmptyState icon="sticky_note_2" title="No notes yet" description="Add notes to keep track of important information." />
       ) : (
         <div className="space-y-3">
           {notes.map(n => (
@@ -268,6 +269,328 @@ const NotesTab = ({ contactId }: { contactId: string }) => {
           ))}
         </div>
       )}
+    </div>
+  );
+};
+
+// ── Beneficiaries Tab ─────────────────────────────────────────────
+const emptyBenForm = {
+  firstName: '',
+  lastName: '',
+  relationship: 'CHILD',
+  allocationPct: 0,
+  email: '',
+  phone: '',
+  nricPassport: '',
+  dateOfBirth: '',
+  isMinor: false,
+  guardianName: '',
+  notes: '',
+};
+
+const BeneficiariesTab = ({ contactId }: { contactId: string }) => {
+  const [beneficiaries, setBeneficiaries] = useState<CrmBeneficiary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreate, setShowCreate] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editingBeneficiary, setEditingBeneficiary] = useState<CrmBeneficiary | null>(null);
+  const [benForm, setBenForm] = useState({ ...emptyBenForm });
+  const [submitting, setSubmitting] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deletingBen, setDeletingBen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CrmBeneficiary | null>(null);
+
+  const totalAllocation = beneficiaries.reduce((sum, b) => sum + (b.allocationPct ?? 0), 0);
+
+  const loadBeneficiaries = () => {
+    setLoading(true);
+    crmService.listBeneficiaries(contactId)
+      .then(res => {
+        // listBeneficiaries returns CrmBeneficiary[] directly
+        setBeneficiaries(Array.isArray(res) ? res : []);
+      })
+      .catch(() => setBeneficiaries([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { loadBeneficiaries(); }, [contactId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openCreate = () => {
+    setBenForm({ ...emptyBenForm });
+    setShowCreate(true);
+  };
+
+  const openEdit = (b: CrmBeneficiary) => {
+    setEditingBeneficiary(b);
+    setBenForm({
+      firstName: b.firstName ?? '',
+      lastName: b.lastName ?? '',
+      relationship: b.relationship ?? 'OTHER',
+      allocationPct: b.allocationPct ?? 0,
+      email: b.email ?? '',
+      phone: b.phone ?? '',
+      nricPassport: b.nricPassport ?? '',
+      dateOfBirth: b.dateOfBirth ?? '',
+      isMinor: b.isMinor ?? false,
+      guardianName: b.guardianName ?? '',
+      notes: b.notes ?? '',
+    });
+    setShowEdit(true);
+  };
+
+  const confirmDelete = (b: CrmBeneficiary) => {
+    setDeleteTarget(b);
+    setShowDelete(true);
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const payload = { ...benForm, allocationPct: Number(benForm.allocationPct) };
+      const created = await crmService.createBeneficiary(contactId, payload);
+      setBeneficiaries(prev => [...prev, created]);
+      setShowCreate(false);
+    } catch (err) {
+      console.error('Failed to create beneficiary', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBeneficiary) return;
+    setSubmitting(true);
+    try {
+      const payload = { ...benForm, allocationPct: Number(benForm.allocationPct) };
+      const updated = await crmService.updateBeneficiary(editingBeneficiary.id, payload);
+      setBeneficiaries(prev => prev.map(b => b.id === updated.id ? updated : b));
+      setShowEdit(false);
+      setEditingBeneficiary(null);
+    } catch (err) {
+      console.error('Failed to update beneficiary', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingBen(true);
+    try {
+      await crmService.deleteBeneficiary(deleteTarget.id);
+      setBeneficiaries(prev => prev.filter(b => b.id !== deleteTarget.id));
+      setShowDelete(false);
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error('Failed to delete beneficiary', err);
+    } finally {
+      setDeletingBen(false);
+    }
+  };
+
+  const capitalize = (s: string) => s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : '—';
+  const maskNric = (s?: string) => s ? s.replace(/(.{3}).+(.{2})/, '$1****$2') : '—';
+
+  // Shared modal JSX for create/edit
+  const benModal = (isEdit: boolean) => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => isEdit ? setShowEdit(false) : setShowCreate(false)}>
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <h2 className="text-lg font-black text-text-primary mb-4">{isEdit ? 'Edit Beneficiary' : 'Add Beneficiary'}</h2>
+        <form onSubmit={isEdit ? handleUpdate : handleCreate} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
+              <input required value={benForm.firstName} onChange={e => setBenForm(f => ({ ...f, firstName: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
+              <input required value={benForm.lastName} onChange={e => setBenForm(f => ({ ...f, lastName: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">Relationship *</label>
+              <select required value={benForm.relationship} onChange={e => setBenForm(f => ({ ...f, relationship: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary">
+                <option value="SPOUSE">Spouse</option>
+                <option value="CHILD">Child</option>
+                <option value="PARENT">Parent</option>
+                <option value="SIBLING">Sibling</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">Allocation % *</label>
+              <input type="number" min={0} max={100} required value={benForm.allocationPct}
+                onChange={e => setBenForm(f => ({ ...f, allocationPct: Number(e.target.value) }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">Email</label>
+              <input type="email" value={benForm.email} onChange={e => setBenForm(f => ({ ...f, email: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">Phone</label>
+              <input value={benForm.phone} onChange={e => setBenForm(f => ({ ...f, phone: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">NRIC / Passport</label>
+              <input value={benForm.nricPassport} onChange={e => setBenForm(f => ({ ...f, nricPassport: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">Date of Birth</label>
+              <input type="date" value={benForm.dateOfBirth} onChange={e => setBenForm(f => ({ ...f, dateOfBirth: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+            </div>
+          </div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={benForm.isMinor} onChange={e => setBenForm(f => ({ ...f, isMinor: e.target.checked }))}
+              className="w-4 h-4 accent-brand-600" />
+            <span className="text-sm text-text-primary font-medium">Minor</span>
+          </label>
+          {benForm.isMinor && (
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary mb-1">Guardian Name</label>
+              <input value={benForm.guardianName} onChange={e => setBenForm(f => ({ ...f, guardianName: e.target.value }))}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+            </div>
+          )}
+          <div>
+            <label className="block text-xs font-semibold text-text-secondary mb-1">Notes</label>
+            <textarea value={benForm.notes} onChange={e => setBenForm(f => ({ ...f, notes: e.target.value }))}
+              rows={3} className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary resize-none"
+              placeholder="Additional notes…" />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={() => isEdit ? setShowEdit(false) : setShowCreate(false)}
+              className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
+              style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+            <button type="submit" disabled={submitting}
+              className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              {submitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Beneficiary'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5">
+      <div className="bg-bg-surface border border-border rounded-xl p-5">
+        {/* Header */}
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Beneficiaries</h3>
+          <button onClick={openCreate}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50"
+            style={{ border: 'none', cursor: 'pointer' }}>
+            + Add Beneficiary
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="space-y-3">{[...Array(3)].map((_, i) => <SkeletonLine key={i} />)}</div>
+        ) : beneficiaries.length === 0 ? (
+          <div className="text-center py-8 text-text-secondary text-sm">No beneficiaries yet. Add one.</div>
+        ) : (
+          <>
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-text-secondary text-xs font-semibold uppercase tracking-wider">
+                    <th className="text-left py-3 px-2">Name</th>
+                    <th className="text-left py-3 px-2">Relationship</th>
+                    <th className="text-left py-3 px-2">Allocation</th>
+                    <th className="text-left py-3 px-2">NRIC/Passport</th>
+                    <th className="text-left py-3 px-2">DOB</th>
+                    <th className="text-left py-3 px-2">Minor</th>
+                    <th className="text-right py-3 px-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {beneficiaries.map(b => (
+                    <tr key={b.id} className="border-b border-border last:border-0 hover:bg-bg-subtle transition-colors">
+                      <td className="py-3 px-2 font-medium text-text-primary">{b.firstName} {b.lastName}</td>
+                      <td className="py-3 px-2 text-text-secondary">{capitalize(b.relationship)}</td>
+                      <td className="py-3 px-2 text-text-primary font-semibold">{b.allocationPct}%</td>
+                      <td className="py-3 px-2 text-text-secondary font-mono text-xs">{maskNric(b.nricPassport)}</td>
+                      <td className="py-3 px-2 text-text-secondary">{formatDate(b.dateOfBirth)}</td>
+                      <td className="py-3 px-2">
+                        {b.isMinor ? (
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-warning/10 text-warning">Minor</span>
+                        ) : (
+                          <span className="text-xs text-text-tertiary">—</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        <button onClick={() => openEdit(b)} className="text-xs text-brand-600 hover:underline mr-3"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Edit</button>
+                        <button onClick={() => confirmDelete(b)} className="text-xs text-red-600 hover:underline"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Allocation bar */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-text-secondary">Total Allocation</span>
+                <span className={`text-sm font-bold ${totalAllocation === 100 ? 'text-success' : totalAllocation > 100 ? 'text-danger' : 'text-warning'}`}>
+                  {totalAllocation}%
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-surface-muted overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${totalAllocation === 100 ? 'bg-success' : totalAllocation > 100 ? 'bg-danger' : 'bg-warning'}`}
+                  style={{ width: `${Math.min(totalAllocation, 100)}%` }}
+                />
+              </div>
+              {totalAllocation !== 100 && (
+                <p className={`text-xs mt-2 ${totalAllocation > 100 ? 'text-danger' : 'text-warning'}`}>
+                  {totalAllocation > 100
+                    ? 'Allocation exceeds 100%. Please adjust beneficiary allocations.'
+                    : `${100 - totalAllocation}% of allocation is unassigned.`}
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Create modal */}
+      {showCreate && benModal(false)}
+
+      {/* Edit modal */}
+      {showEdit && benModal(true)}
+
+      {/* Delete confirm */}
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Beneficiary"
+        message={`Are you sure you want to delete ${deleteTarget?.firstName} ${deleteTarget?.lastName}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => { setShowDelete(false); setDeleteTarget(null); }}
+        loading={deletingBen}
+      />
     </div>
   );
 };
@@ -440,7 +763,13 @@ const CrmContactDetail = () => {
 
   if (loading) return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem' }}>
-      {[...Array(4)].map((_, i) => <SkeletonLine key={i} />)}
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="bg-bg-surface border border-border rounded-xl p-5 mb-4 animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
+          <div className="h-3 bg-gray-200 rounded w-2/3 mb-2" />
+          <div className="h-3 bg-gray-200 rounded w-1/2" />
+        </div>
+      ))}
     </div>
   );
   if (!contact) return null;
@@ -450,6 +779,7 @@ const CrmContactDetail = () => {
     { key: 'kyc',           label: 'KYC',            icon: 'verified_user' },
     { key: 'deals',         label: 'Linked Deals',   icon: 'handshake' },
     { key: 'notes',         label: 'Notes',          icon: 'notes' },
+    { key: 'beneficiaries', label: 'Beneficiaries',  icon: 'family_restroom' },
   ];
 
   return (
@@ -612,7 +942,7 @@ const CrmContactDetail = () => {
       {activeTab === 'deals' && (
         <div>
           {(contact.opportunities ?? []).length === 0 ? (
-            <div className="text-center py-12 text-text-secondary text-sm">No linked deals.</div>
+            <EmptyState icon="handshake" title="No linked deals" description="Link opportunities to this contact." />
           ) : (
             <div className="space-y-3">
               {(contact.opportunities ?? []).map((o: CrmOpportunity) => (
@@ -635,6 +965,10 @@ const CrmContactDetail = () => {
 
       {activeTab === 'notes' && loadedTabs.has('notes') && id && (
         <NotesTab contactId={id} />
+      )}
+
+      {activeTab === 'beneficiaries' && loadedTabs.has('beneficiaries') && id && (
+        <BeneficiariesTab contactId={id} />
       )}
 
       {/* Draft Message modal (Task 6) */}

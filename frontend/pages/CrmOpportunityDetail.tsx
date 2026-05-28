@@ -8,6 +8,7 @@ import { STATUS_COLORS } from '../src/components/ui/StateBadge';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { hasPermission } from '../src/utils/permissions';
+import EmptyState from '../src/components/ui/EmptyState';
 import { useAuth } from '../src/context/AuthContext';
 
 const formatCurrency = (val: number | null) =>
@@ -227,7 +228,11 @@ const CrmOpportunityDetail = () => {
   if (loading) return (
     <div style={{ maxWidth: 1000, margin: '0 auto', padding: '2rem' }}>
       {[...Array(5)].map((_, i) => (
-        <div key={i} style={{ height: 18, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
+        <div key={i} className="bg-bg-surface border border-border rounded-xl p-5 mb-4 animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
+          <div className="h-3 bg-gray-200 rounded w-2/3 mb-2" />
+          <div className="h-3 bg-gray-200 rounded w-1/2" />
+        </div>
       ))}
     </div>
   );

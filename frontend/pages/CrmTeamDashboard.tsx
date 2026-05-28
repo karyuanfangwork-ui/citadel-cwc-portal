@@ -4,6 +4,7 @@ import { hasPermission } from '../src/utils/permissions';
 import { Navigate } from 'react-router-dom';
 import crmService, { TeamPerformance } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import EmptyState from '../src/components/ui/EmptyState';
 
 const formatCurrency = (val: number) =>
   new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
@@ -203,11 +204,7 @@ const CrmTeamDashboard = () => {
             ))}
           </div>
         ) : agents.length === 0 ? (
-          <div className="p-12 text-center text-text-secondary">
-            <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">groups</span>
-            <p className="font-bold">No agents found</p>
-            <p className="text-sm mt-1">Team performance data will appear here once agents are assigned</p>
-          </div>
+          <EmptyState icon="groups" title="No team members" description="Add team members to manage your CRM team." />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

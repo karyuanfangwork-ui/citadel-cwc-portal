@@ -4,6 +4,7 @@ import crmService, { CrmPipeline, CrmPipelineStage, CrmOpportunity } from '../sr
 import CrmNav from '../src/components/CrmNav';
 import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
 import StateBadge from '../src/components/ui/StateBadge';
+import ConfirmDialog from '../src/components/ConfirmDialog';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
 const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
@@ -28,6 +29,9 @@ const CrmPipelineView = () => {
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const { isCollapsed, toggle: toggleCollapse } = useCollapsedColumns('crm-pipeline');
+  const [showLostReason, setShowLostReason] = useState(false);
+  const [lostReason, setLostReason] = useState('');
+  const [pendingLostOpp, setPendingLostOpp] = useState<{ oppId: string; stageId: string } | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -85,18 +89,32 @@ const CrmPipelineView = () => {
     if (currentStageId === stageId) { setDraggedOpp(null); return; }
 
     const targetStage = stages.find(s => s.id === stageId);
-    let lostReason: string | undefined;
     if (targetStage?.isLostStage) {
-      lostReason = prompt('Reason for losing this opportunity:') || undefined;
+      setPendingLostOpp({ oppId, stageId });
+      setShowLostReason(true);
+      setDraggedOpp(null);
+      return; // Don't move yet — wait for modal confirmation
     }
 
     try {
-      await crmService.moveStage(oppId, stageId, lostReason);
+      await crmService.moveStage(oppId, stageId);
       // Re-fetch pipeline data
       const data = await crmService.getPipeline(activePipeline);
       setStages(data.stages); setTotalValue(data.totalValue);
     } catch (e) { console.error(e); }
     setDraggedOpp(null);
+  };
+
+  const handleConfirmLost = async () => {
+    if (!pendingLostOpp) return;
+    try {
+      await crmService.moveStage(pendingLostOpp.oppId, pendingLostOpp.stageId, lostReason || undefined);
+      const data = await crmService.getPipeline(activePipeline);
+      setStages(data.stages); setTotalValue(data.totalValue);
+    } catch (e) { console.error(e); }
+    setShowLostReason(false);
+    setLostReason('');
+    setPendingLostOpp(null);
   };
 
   const selectedPipeline = pipelines.find(p => p.id === activePipeline);
@@ -349,6 +367,25 @@ const CrmPipelineView = () => {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={showLostReason}
+        title="Mark as Lost"
+        message="Please provide a reason for marking this deal as lost."
+        confirmLabel="Confirm Lost"
+        confirmVariant="danger"
+        onConfirm={handleConfirmLost}
+        onCancel={() => { setShowLostReason(false); setLostReason(''); setPendingLostOpp(null); }}
+      >
+        <textarea
+          value={lostReason}
+          onChange={e => setLostReason(e.target.value)}
+          className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary resize-none mb-2"
+          style={{ fontFamily: 'var(--font-sans)' }}
+          rows={3}
+          placeholder="Reason for loss..."
+          autoFocus
+        />
+      </ConfirmDialog>
     </div>
   );
 };

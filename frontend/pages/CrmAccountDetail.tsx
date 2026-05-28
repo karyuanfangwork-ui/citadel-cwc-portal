@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType } from '../src/services/crm.service';
+import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType, CrmTrustProduct } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import EmptyState from '../src/components/ui/EmptyState';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -27,7 +28,7 @@ const CrmAccountDetail = () => {
   const { user } = useAuth();
   const [account, setAccount] = useState<CrmAccount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'activities' | 'notes' | 'credit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'activities' | 'notes' | 'credit' | 'trustProducts'>('overview');
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
@@ -38,6 +39,30 @@ const CrmAccountDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showDelete, setShowDelete] = useState(false);
+
+  // Trust Products state
+  const [trustProducts, setTrustProducts] = useState<CrmTrustProduct[]>([]);
+  const [trustProductsLoading, setTrustProductsLoading] = useState(false);
+  const [showCreateTP, setShowCreateTP] = useState(false);
+  const [showEditTP, setShowEditTP] = useState(false);
+  const [tpForm, setTpForm] = useState<Partial<CrmTrustProduct>>({ trustType: 'TRUST', status: 'ACTIVE', currency: 'MYR' });
+  const [editingTP, setEditingTP] = useState<CrmTrustProduct | null>(null);
+  const [showDeleteTP, setShowDeleteTP] = useState(false);
+  const [deletingTP, setDeletingTP] = useState<CrmTrustProduct | null>(null);
+
+  const loadTrustProducts = () => {
+    if (!id) return;
+    setTrustProductsLoading(true);
+    crmService.listTrustProducts({ accountId: id })
+      .then(res => setTrustProducts(res.trustProducts ?? []))
+      .catch(() => {})
+      .finally(() => setTrustProductsLoading(false));
+  };
+
+  useEffect(() => {
+    if (activeTab !== 'trustProducts' || !id) return;
+    loadTrustProducts();
+  }, [activeTab, id]);
 
   const loadNotes = () => {
     if (!id) return;
@@ -136,7 +161,11 @@ const CrmAccountDetail = () => {
   if (loading) return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }}>
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="skeleton-line" style={{ height: 20, marginBottom: 12, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
+        <div key={i} className="bg-bg-surface border border-border rounded-xl p-5 mb-4 animate-pulse">
+          <div className="h-4 bg-gray-200 rounded w-1/3 mb-3" />
+          <div className="h-3 bg-gray-200 rounded w-2/3 mb-2" />
+          <div className="h-3 bg-gray-200 rounded w-1/2" />
+        </div>
       ))}
     </div>
   );
@@ -215,11 +244,11 @@ const CrmAccountDetail = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border mb-6">
-        {(['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const)] as const).map(tab => (
+        {(['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const), 'trustProducts'] as const).map(tab => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
             className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-            {tab === 'credit' ? 'Credit' : tab}
+            {tab === 'trustProducts' ? 'Trust Products' : tab === 'credit' ? 'Credit' : tab}
           </button>
         ))}
       </div>
@@ -259,7 +288,7 @@ const CrmAccountDetail = () => {
       {/* Contacts tab */}
       {activeTab === 'contacts' && (
         <div className="space-y-3">
-          {(account.contacts ?? []).length === 0 && <p className="text-text-secondary text-sm">No contacts yet.</p>}
+          {(account.contacts ?? []).length === 0 && <EmptyState icon="person" title="No contacts yet" description="Add contacts to this account." />}
           {(account.contacts ?? []).map(c => (
             <Link key={c.id} to={`/crm/contacts/${c.id}`} style={{ textDecoration: 'none' }}>
               <div className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors">
@@ -280,7 +309,7 @@ const CrmAccountDetail = () => {
       {/* Deals tab */}
       {activeTab === 'deals' && (
         <div className="space-y-3">
-          {(account.opportunities ?? []).length === 0 && <p className="text-text-secondary text-sm">No deals yet.</p>}
+          {(account.opportunities ?? []).length === 0 && <EmptyState icon="handshake" title="No deals yet" description="Create opportunities for this account." />}
           {(account.opportunities ?? []).map(o => (
             <Link key={o.id} to={`/crm/opportunities/${o.id}`} style={{ textDecoration: 'none' }}>
               <div className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors">
@@ -301,7 +330,7 @@ const CrmAccountDetail = () => {
       {/* Activities tab */}
       {activeTab === 'activities' && (
         <div className="space-y-3">
-          {(account.activities ?? []).length === 0 && <p className="text-text-secondary text-sm">No activities yet.</p>}
+          {(account.activities ?? []).length === 0 && <EmptyState icon="timeline" title="No activities yet" description="Log activities to track interactions." />}
           {(account.activities ?? []).map(a => (
             <div key={a.id} className="flex gap-4 bg-bg-surface border border-border rounded-xl p-4">
               <span className="material-symbols-outlined text-brand-700 mt-0.5">{ACTIVITY_ICONS[a.activityType]}</span>
@@ -322,7 +351,7 @@ const CrmAccountDetail = () => {
           {notesLoading ? (
             <div className="space-y-3">{[...Array(2)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>
           ) : notes.length === 0 ? (
-            <p className="text-text-secondary text-sm">No notes yet.</p>
+            <EmptyState icon="sticky_note_2" title="No notes yet" description="Add notes to keep track of important information." />
           ) : notes.map(n => (
             <div key={n.id} className={`bg-bg-surface border rounded-xl p-4 ${n.isPinned ? 'border-yellow-300' : 'border-border'}`}>
               {n.isPinned && <span className="flex items-center gap-1 text-xs text-yellow-600 mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
@@ -372,6 +401,229 @@ const CrmAccountDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Trust Products tab */}
+      {activeTab === 'trustProducts' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-text-primary">Trust Products</h3>
+            <button onClick={() => { setTpForm({ trustType: 'TRUST', status: 'ACTIVE', currency: 'MYR' }); setShowCreateTP(true); }}
+              className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              <span className="material-symbols-outlined text-base">add</span> Add Trust Product
+            </button>
+          </div>
+          {trustProductsLoading ? (
+            <div className="space-y-3">{[...Array(3)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>
+          ) : trustProducts.length === 0 ? (
+            <p className="text-text-secondary text-sm">No trust products yet. Add one.</p>
+          ) : trustProducts.map(tp => (
+            <div key={tp.id} className="bg-bg-surface border border-border rounded-xl p-5">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="font-bold text-text-primary text-sm">{tp.trustType}{tp.deedRefNumber ? ` · ${tp.deedRefNumber}` : ''}</p>
+                  <span className="text-xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block"
+                    style={{
+                      background: tp.status === 'ACTIVE' ? '#22c55e20' : tp.status === 'PENDING' ? '#f59e0b20' : tp.status === 'MATURED' ? '#6366f120' : '#ef444420',
+                      color: tp.status === 'ACTIVE' ? '#22c55e' : tp.status === 'PENDING' ? '#f59e0b' : tp.status === 'MATURED' ? '#6366f1' : '#ef4444',
+                    }}>
+                    {tp.status}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => {
+                    setEditingTP(tp);
+                    setTpForm({
+                      trustType: tp.trustType,
+                      deedRefNumber: tp.deedRefNumber ?? '',
+                      status: tp.status,
+                      assetValue: tp.assetValue ?? undefined,
+                      currency: tp.currency,
+                      assetDescription: tp.assetDescription ?? '',
+                      trusteeName: tp.trusteeName ?? '',
+                      trusteeContact: tp.trusteeContact ?? '',
+                      settlementDate: tp.settlementDate ?? '',
+                      maturityDate: tp.maturityDate ?? '',
+                      nextReviewDate: tp.nextReviewDate ?? '',
+                      ownerId: tp.ownerId ?? '',
+                    } as any);
+                    setShowEditTP(true);
+                  }}
+                    className="flex items-center gap-1 text-brand-700 border border-brand-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-brand-50 transition-colors"
+                    style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                    <span className="material-symbols-outlined text-sm">edit</span> Edit
+                  </button>
+                  <button onClick={() => { setDeletingTP(tp); setShowDeleteTP(true); }}
+                    className="flex items-center gap-1 text-danger px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-danger/10 transition-colors"
+                    style={{ background: 'none', border: '1px solid var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                    <span className="material-symbols-outlined text-sm">delete</span> Delete
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
+                <div>
+                  <p className="text-xs text-text-secondary">Value</p>
+                  <p className="font-semibold text-text-primary">{formatCurrency(tp.assetValue ?? 0)} {tp.currency}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-secondary">Trustee</p>
+                  <p className="font-semibold text-text-primary">{tp.trusteeName || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-secondary">Maturity</p>
+                  <p className="font-semibold text-text-primary">{formatDate(tp.maturityDate ?? null)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-text-secondary">Next Review</p>
+                  <p className="font-semibold text-text-primary">{formatDate(tp.nextReviewDate ?? null)}</p>
+                </div>
+                {tp.assetDescription && (
+                  <div className="col-span-2 sm:col-span-3">
+                    <p className="text-xs text-text-secondary">Description</p>
+                    <p className="text-sm text-text-primary">{tp.assetDescription}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create/Edit Trust Product modal */}
+      {(showCreateTP || showEditTP) && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
+              <h2 className="text-lg font-extrabold text-text-primary">{showEditTP ? 'Edit Trust Product' : 'Create Trust Product'}</h2>
+              <button onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                setSaving(true);
+                const data = { ...tpForm, accountId: id };
+                if (showEditTP && editingTP) {
+                  await crmService.updateTrustProduct(editingTP.id, data);
+                } else {
+                  await crmService.createTrustProduct(data);
+                }
+                setShowCreateTP(false);
+                setShowEditTP(false);
+                setEditingTP(null);
+                loadTrustProducts();
+              } catch (e) { console.error(e); }
+              finally { setSaving(false); }
+            }} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Trust Type *</label>
+                  <select value={tpForm.trustType ?? ''} onChange={e => setTpForm(f => ({ ...f, trustType: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                    {['TRUST', 'ESTATE', 'WILL', 'CUSTODY', 'OTHER'].map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Deed Ref Number</label>
+                  <input value={tpForm.deedRefNumber ?? ''} onChange={e => setTpForm(f => ({ ...f, deedRefNumber: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Status *</label>
+                  <select value={tpForm.status ?? ''} onChange={e => setTpForm(f => ({ ...f, status: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                    {['ACTIVE', 'PENDING', 'INACTIVE', 'MATURED'].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Asset Value</label>
+                  <input type="number" value={tpForm.assetValue ?? ''} onChange={e => setTpForm(f => ({ ...f, assetValue: e.target.value ? Number(e.target.value) : undefined }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Currency</label>
+                  <input value={tpForm.currency ?? 'MYR'} onChange={e => setTpForm(f => ({ ...f, currency: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Owner ID</label>
+                  <input value={tpForm.ownerId ?? ''} onChange={e => setTpForm(f => ({ ...f, ownerId: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Asset Description</label>
+                <textarea rows={3} value={tpForm.assetDescription ?? ''} onChange={e => setTpForm(f => ({ ...f, assetDescription: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Trustee Name</label>
+                  <input value={tpForm.trusteeName ?? ''} onChange={e => setTpForm(f => ({ ...f, trusteeName: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Trustee Contact</label>
+                  <input value={tpForm.trusteeContact ?? ''} onChange={e => setTpForm(f => ({ ...f, trusteeContact: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Settlement Date</label>
+                  <input type="date" value={tpForm.settlementDate ?? ''} onChange={e => setTpForm(f => ({ ...f, settlementDate: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Maturity Date</label>
+                  <input type="date" value={tpForm.maturityDate ?? ''} onChange={e => setTpForm(f => ({ ...f, maturityDate: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Next Review Date</label>
+                  <input type="date" value={tpForm.nextReviewDate ?? ''} onChange={e => setTpForm(f => ({ ...f, nextReviewDate: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); }}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving…' : showEditTP ? 'Save Changes' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Trust Product confirmation */}
+      <ConfirmDialog
+        open={showDeleteTP}
+        title="Delete Trust Product"
+        message={`Are you sure you want to delete this trust product${deletingTP?.deedRefNumber ? ` (${deletingTP.deedRefNumber})` : ''}? This action cannot be undone.`}
+        confirmVariant="danger"
+        loading={saving}
+        onConfirm={async () => {
+          if (!deletingTP) return;
+          try {
+            setSaving(true);
+            await crmService.deleteTrustProduct(deletingTP.id);
+            setShowDeleteTP(false);
+            setDeletingTP(null);
+            loadTrustProducts();
+          } catch (e) { console.error(e); }
+          finally { setSaving(false); }
+        }}
+        onCancel={() => { setShowDeleteTP(false); setDeletingTP(null); }}
+      />
 
       {/* Add Activity modal */}
       {showAddActivity && (
