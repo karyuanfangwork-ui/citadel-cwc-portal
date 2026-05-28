@@ -309,12 +309,68 @@ const CrmImportExport = () => {
                   </div>
                 </div>
 
-                {/* Required fields hint */}
+                {/* ── Field reference table + download template ── */}
                 {fieldDefs.length > 0 && (
-                  <p className="text-xs text-text-secondary mb-4">
-                    <span className="font-semibold">Required fields:</span>{' '}
-                    {fieldDefs.filter(f => f.required).map(f => f.label).join(', ')}
-                  </p>
+                  <div className="mb-4 bg-bg-subtle rounded-cwc-lg border border-border overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-brand-50/60 border-b border-border">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-[18px] text-brand-600">schema</span>
+                        <span className="text-sm font-semibold text-brand-700">Column Reference — {ENTITY_LABELS[entity]}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => crmService.downloadImportTemplate(entity, 'csv')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-cwc-md bg-surface border border-border text-xs font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary transition-colors"
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <span className="material-symbols-outlined text-[14px]">download</span> CSV Template
+                        </button>
+                        <button
+                          onClick={() => crmService.downloadImportTemplate(entity, 'xlsx')}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-cwc-md bg-surface border border-border text-xs font-medium text-text-secondary hover:bg-bg-subtle hover:text-text-primary transition-colors"
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <span className="material-symbols-outlined text-[14px]">download</span> Excel Template
+                        </button>
+                      </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-border bg-bg-subtle/50">
+                            <th className="text-left px-3 py-1.5 font-bold uppercase text-text-secondary tracking-wide">Column Name</th>
+                            <th className="text-left px-3 py-1.5 font-bold uppercase text-text-secondary tracking-wide">Type</th>
+                            <th className="text-left px-3 py-1.5 font-bold uppercase text-text-secondary tracking-wide">Required</th>
+                            <th className="text-left px-3 py-1.5 font-bold uppercase text-text-secondary tracking-wide">Allowed Values</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {fieldDefs.map(f => (
+                            <tr key={f.key} className="border-b border-border/50">
+                              <td className="px-3 py-1.5 font-medium text-text-primary">{f.label}</td>
+                              <td className="px-3 py-1.5 text-text-secondary capitalize">{f.type === 'enum' ? 'dropdown' : f.type}</td>
+                              <td className="px-3 py-1.5">
+                                {f.required ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded-cwc-full bg-red-100 text-red-700 text-[10px] font-bold">Required</span>
+                                ) : (
+                                  <span className="text-text-secondary">Optional</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-1.5 text-text-secondary">
+                                {f.enumValues ? (
+                                  <span className="text-[11px]" title={f.enumValues.join(', ')}>
+                                    {f.enumValues.length <= 4 ? f.enumValues.join(', ') : `${f.enumValues.slice(0, 4).join(', ')}… (+${f.enumValues.length - 4})`}
+                                  </span>
+                                ) : f.default !== undefined ? (
+                                  <span className="text-[11px]">Default: {String(f.default)}</span>
+                                ) : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 )}
 
                 {/* Drag & drop zone */}

@@ -528,6 +528,269 @@ const crmService = {
     const res = await api.get(`/crm/audit/${entityType}/${entityId}?page=${page}&limit=${limit}`);
     return res.data.data as { logs: AuditLogEntry[]; pagination: { page: number; limit: number; total: number; totalPages: number } };
   },
+
+  // ── Import / Export ───────────────────────────────────────────────
+  async getFieldDefinitions(entity: string) {
+    const res = await api.get(`/crm/import/field-definitions?entity=${entity}`);
+    return res.data.data as { fields: Array<{ key: string; label: string; required: boolean; type: string; enumValues?: string[]; default?: unknown }> };
+  },
+  downloadImportTemplate(entity: string, format: 'csv' | 'xlsx' = 'csv') {
+    window.open(`/api/v1/crm/import/template?entity=${entity}&format=${format}`, '_blank');
+  },
+  async uploadImportFile(file: File, entity: string) {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post(`/crm/import/upload?entity=${entity}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data as {
+      jobId: string; preview: Record<string, unknown>[]; headers: string[];
+      suggestedMapping: Record<string, string>; totalRows: number;
+    };
+  },
+  async validateImportMapping(jobId: string, columnMapping: Record<string, string>) {
+    const res = await api.post(`/crm/import/${jobId}/validate`, { columnMapping });
+    return res.data.data as { valid: boolean; errors: Array<{ row: number; field: string; error: string }>; warnings: string[] };
+  },
+  async executeImport(jobId: string) {
+    const res = await api.post(`/crm/import/${jobId}/execute`);
+    return res.data.data as { importedRows: number; failedRows: number; errors: Array<{ row: number; error: string }> };
+  },
+  async getImportStatus(jobId: string) {
+    const res = await api.get(`/crm/import/${jobId}/status`);
+    return res.data.data as Record<string, unknown>;
+  },
+  async getImportHistory(page = 1, limit = 20) {
+    const res = await api.get(`/crm/import/history?page=${page}&limit=${limit}`);
+    return res.data.data as { jobs: Record<string, unknown>[]; total: number };
+  },
+  async requestExport(entity: string, filters?: Record<string, unknown>, format = 'CSV') {
+    const res = await api.post('/crm/export', { entity, filters, format });
+    return res.data.data as { jobId: string };
+  },
+  async downloadExport(jobId: string) {
+    window.open(`/api/v1/crm/export/${jobId}/download`, '_blank');
+  },
+  async getExportHistory(page = 1, limit = 20) {
+    const res = await api.get(`/crm/export/history?page=${page}&limit=${limit}`);
+    return res.data.data as { jobs: Record<string, unknown>[]; total: number };
+  },
+
+  // ── Territories ────────────────────────────────────────────────
+  async listTerritories(page = 1, limit = 20) {
+    const res = await api.get(`/crm/territories?page=${page}&limit=${limit}`);
+    return res.data.data as { territories: any[]; total: number };
+  },
+  async getTerritory(id: string) {
+    const res = await api.get(`/crm/territories/${id}`);
+    return res.data.data as any;
+  },
+  async createTerritory(data: { name: string; description?: string; regions?: any }) {
+    const res = await api.post('/crm/territories', data);
+    return res.data.data as any;
+  },
+  async updateTerritory(id: string, data: any) {
+    const res = await api.put(`/crm/territories/${id}`, data);
+    return res.data.data as any;
+  },
+  async deleteTerritory(id: string) {
+    const res = await api.delete(`/crm/territories/${id}`);
+    return res.data.data as any;
+  },
+  async addTerritoryMember(territoryId: string, userId: string, role: string) {
+    const res = await api.post(`/crm/territories/${territoryId}/members`, { userId, role });
+    return res.data.data as any;
+  },
+  async removeTerritoryMember(territoryId: string, userId: string) {
+    const res = await api.delete(`/crm/territories/${territoryId}/members/${userId}`);
+    return res.data.data as any;
+  },
+  async lookupTerritory(state?: string, country?: string) {
+    const params = new URLSearchParams();
+    if (state) params.set('state', state);
+    if (country) params.set('country', country);
+    const res = await api.get(`/crm/territories/lookup?${params}`);
+    return res.data.data as any[];
+  },
+
+  // ── Quotas ─────────────────────────────────────────────────────
+  async listQuotas(filters?: Record<string, string>, page = 1, limit = 20) {
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('limit', String(limit));
+    if (filters) for (const [k, v] of Object.entries(filters)) params.set(k, v);
+    const res = await api.get(`/crm/quotas?${params}`);
+    return res.data.data as { quotas: any[]; total: number };
+  },
+  async getQuota(id: string) {
+    const res = await api.get(`/crm/quotas/${id}`);
+    return res.data.data as any;
+  },
+  async createQuota(data: any) {
+    const res = await api.post('/crm/quotas', data);
+    return res.data.data as any;
+  },
+  async updateQuota(id: string, data: any) {
+    const res = await api.put(`/crm/quotas/${id}`, data);
+    return res.data.data as any;
+  },
+  async deleteQuota(id: string) {
+    const res = await api.delete(`/crm/quotas/${id}`);
+    return res.data.data as any;
+  },
+  async getQuotaAttainment(period: string, userId?: string, territoryId?: string) {
+    const params = new URLSearchParams();
+    params.set('period', period);
+    if (userId) params.set('userId', userId);
+    if (territoryId) params.set('territoryId', territoryId);
+    const res = await api.get(`/crm/quotas/attainment?${params}`);
+    return res.data.data as any[];
+  },
+  async getQuotaDashboard(period: string) {
+    const res = await api.get(`/crm/quotas/dashboard?period=${period}`);
+    return res.data.data as any;
+  },
+
+  // ── Dashboard Layout ──────────────────────────────────────────
+  async getWidgetRegistry() {
+    const res = await api.get('/crm/dashboard/widgets');
+    return res.data.data as any[];
+  },
+  async getDashboardLayout() {
+    const res = await api.get('/crm/dashboard/layout');
+    return res.data.data as { layout: any[]; isDefault: boolean; updatedAt: string | null };
+  },
+  async saveDashboardLayout(layout: any[]) {
+    const res = await api.put('/crm/dashboard/layout', { layout });
+    return res.data.data as any;
+  },
+  async resetDashboardLayout() {
+    const res = await api.post('/crm/dashboard/layout/reset');
+    return res.data.data as { layout: any[]; isDefault: boolean };
+  },
+
+  // ── Workflow Automation ────────────────────────────────────
+  async listWorkflows(page = 1, limit = 20) {
+    const res = await api.get(`/crm/workflows?page=${page}&limit=${limit}`);
+    return res.data.data as { workflows: any[]; total: number; page: number; limit: number };
+  },
+  async getWorkflow(id: string) {
+    const res = await api.get(`/crm/workflows/${id}`);
+    return res.data.data as any;
+  },
+  async createWorkflow(data: any) {
+    const res = await api.post('/crm/workflows', data);
+    return res.data.data as any;
+  },
+  async updateWorkflow(id: string, data: any) {
+    const res = await api.put(`/crm/workflows/${id}`, data);
+    return res.data.data as any;
+  },
+  async deleteWorkflow(id: string) {
+    const res = await api.delete(`/crm/workflows/${id}`);
+    return res.data.data as any;
+  },
+  async toggleWorkflow(id: string) {
+    const res = await api.patch(`/crm/workflows/${id}/toggle`);
+    return res.data.data as any;
+  },
+  async getWorkflowTemplates() {
+    const res = await api.get('/crm/workflows/templates');
+    return res.data.data as any[];
+  },
+  async getWorkflowExecutions(workflowId: string, page = 1, limit = 20) {
+    const res = await api.get(`/crm/workflows/${workflowId}/executions?page=${page}&limit=${limit}`);
+    return res.data.data as { executions: any[]; total: number };
+  },
+  async getAllExecutions(page = 1, limit = 20) {
+    const res = await api.get(`/crm/workflows/executions?page=${page}&limit=${limit}`);
+    return res.data.data as { executions: any[]; total: number };
+  },
+
+  // ── Email / Calendar Integration ──────────────────────────────────
+  async listIntegrations() {
+    const res = await api.get('/crm/integrations');
+    return res.data.data;
+  },
+  async getGoogleAuthUrl() {
+    const res = await api.get('/crm/integrations/google/auth');
+    return res.data.data as { url: string };
+  },
+  async getOutlookAuthUrl() {
+    const res = await api.get('/crm/integrations/outlook/auth');
+    return res.data.data as { url: string };
+  },
+  async disconnectIntegration(id: string) {
+    const res = await api.delete(`/crm/integrations/${id}`);
+    return res.data.data;
+  },
+  async updateSyncPreferences(id: string, data: { syncEnabled?: boolean; syncFrequency?: string }) {
+    const res = await api.patch(`/crm/integrations/${id}`, data);
+    return res.data.data;
+  },
+  async triggerSync(id: string) {
+    const res = await api.post(`/crm/integrations/${id}/sync`);
+    return res.data.data;
+  },
+  async listSyncedEmails(filters?: { contactId?: string; leadId?: string; accountId?: string; page?: number; limit?: number }) {
+    const params = new URLSearchParams();
+    if (filters?.contactId) params.set('contactId', filters.contactId);
+    if (filters?.leadId) params.set('leadId', filters.leadId);
+    if (filters?.accountId) params.set('accountId', filters.accountId);
+    if (filters?.page) params.set('page', String(filters.page));
+    if (filters?.limit) params.set('limit', String(filters.limit));
+    const res = await api.get(`/crm/emails?${params.toString()}`);
+    return res.data.data as { emails: any[]; total: number; page: number; limit: number };
+  },
+  async getEmail(id: string) {
+    const res = await api.get(`/crm/emails/${id}`);
+    return res.data.data;
+  },
+  async sendEmail(data: { to: string; subject: string; body: string; cc?: string; contactId?: string; leadId?: string; accountId?: string }) {
+    const res = await api.post('/crm/emails/send', data);
+    return res.data.data;
+  },
+  async listSyncedEvents(page = 1, limit = 20) {
+    const res = await api.get(`/crm/events?page=${page}&limit=${limit}`);
+    return res.data.data as { events: any[]; total: number; page: number; limit: number };
+  },
+
+  // ── Anomaly Detection ──────────────────────────────────
+  async getAnomalies() {
+    const res = await api.get('/crm/anomalies');
+    return res.data.data as { anomalies: any[] };
+  },
+  async getAnomalyConfig() {
+    const res = await api.get('/crm/anomalies/config');
+    return res.data.data;
+  },
+  async updateAnomalyConfig(id: string, data: { threshold?: number; severity?: string; isActive?: boolean }) {
+    const res = await api.put(`/crm/anomalies/config/${id}`, data);
+    return res.data.data;
+  },
+  async refreshAnomalies() {
+    const res = await api.post('/crm/anomalies/refresh');
+    return res.data.data;
+  },
+
+  // ── Custom Fields ───────────────────────────────────────
+  async getCustomFieldDefinitions(entity?: string) {
+    const url = entity ? `/crm/custom-fields?entity=${entity}` : '/crm/custom-fields';
+    const res = await api.get(url);
+    return res.data.data;
+  },
+  async createCustomFieldDefinition(data: any) {
+    const res = await api.post('/crm/custom-fields', data);
+    return res.data.data;
+  },
+  async updateCustomFieldDefinition(id: string, data: any) {
+    const res = await api.put(`/crm/custom-fields/${id}`, data);
+    return res.data.data;
+  },
+  async deleteCustomFieldDefinition(id: string) {
+    const res = await api.delete(`/crm/custom-fields/${id}`);
+    return res.data.data;
+  },
 };
 
 export default crmService;

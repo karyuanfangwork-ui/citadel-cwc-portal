@@ -8,6 +8,13 @@ import { autoAssignLead } from '../services/crm-automation.service';
 import crmReportsService from '../services/crm-reports.service';
 import { scoreLead, predictWinProbability } from '../services/crm-ai.service';
 import { logger } from '../utils/logger';
+import * as importExportService from '../services/crm-import-export.service';
+import * as territoryService from '../services/crm-territory.service';
+import * as dashboardLayoutService from '../services/crm-dashboard-layout.service';
+import * as workflowService from '../services/crm-workflow.service';
+import * as emailSyncService from '../services/crm-email-sync.service';
+import * as anomalyService from '../services/crm-anomaly.service';
+import * as customFieldsService from '../services/crm-custom-fields.service';
 
 const prisma = new PrismaClient();
 
@@ -305,6 +312,9 @@ class CrmController {
             logger.warn(`[CRM] Background lead scoring failed for ${leadIdToScore}`, { error: err }),
           );
         });
+        // Emit workflow event for lead creation (auto-assigned path)
+        const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
+        emitWorkflowEvent('lead.created', 'LEAD', lead.id, { ...refreshed });
         return;
       }
     }
@@ -316,6 +326,9 @@ class CrmController {
         logger.warn(`[CRM] Background lead scoring failed for ${leadIdToScore}`, { error: err }),
       );
     });
+    // Emit workflow event for lead creation (normal path)
+    const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
+    emitWorkflowEvent('lead.created', 'LEAD', lead.id, { ...lead });
   });
 
   updateLead = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -326,6 +339,11 @@ class CrmController {
     if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
     const lead = await prisma.crmLead.update({ where: { id: req.params.id as string }, data, include: { owner: { select: userSelect } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmLead', resourceId: lead.id, oldValues: existing as any, newValues: req.body } });
+    // Emit workflow event if status changed
+    if (rest.status && rest.status !== existing.status) {
+      const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
+      emitWorkflowEvent('lead.status.changed', 'LEAD', lead.id, { ...lead, previousStatus: existing.status });
+    }
     res.json({ status: 'success', data: { lead } });
   });
 
@@ -443,6 +461,11 @@ class CrmController {
     if (expectedCloseDate !== undefined) data.expectedCloseDate = expectedCloseDate ? new Date(expectedCloseDate) : null;
     const opportunity = await prisma.crmOpportunity.update({ where: { id: req.params.id as string }, data, include: { stage: true, owner: { select: userSelect } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: opportunity.id, oldValues: existing as any, newValues: req.body } });
+    // Emit workflow event if stage changed
+    if (rest.stageId && rest.stageId !== existing.stageId) {
+      const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
+      emitWorkflowEvent('opportunity.stage.changed', 'OPPORTUNITY', opportunity.id, { ...opportunity, previousStageId: existing.stageId });
+    }
     res.json({ status: 'success', data: { opportunity } });
   });
 
@@ -548,6 +571,9 @@ class CrmController {
       include: { user: { select: userSelect }, account: { select: { id: true, name: true } } },
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmActivity', resourceId: activity.id, newValues: req.body } });
+    // Emit workflow event for activity creation
+    const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
+    emitWorkflowEvent('activity.created', 'ACTIVITY', activity.id, { ...activity });
     res.status(201).json({ status: 'success', data: { activity } });
   });
 
@@ -1132,6 +1158,419 @@ class CrmController {
         pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
       },
     });
+  });
+
+  // ======== IMPORT ========
+  uploadImportFile = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { entity } = req.body;
+    const file = req.file as Express.Multer.File | undefined;
+    if (!file) return res.status(400).json({ status: 'error', message: 'No file uploaded' });
+    if (!entity || !['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY'].includes(entity.toUpperCase())) {
+      return res.status(400).json({ status: 'error', message: 'Invalid entity type' });
+    }
+    const result = await importExportService.uploadAndParseFile(file, entity.toUpperCase(), req.user!.id);
+    res.json({ status: 'success', data: result });
+  });
+
+  getFieldDefinitions = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { entity } = req.query;
+    if (!entity || !['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY'].includes(String(entity).toUpperCase())) {
+      return res.status(400).json({ status: 'error', message: 'Invalid entity type' });
+    }
+    const fields = importExportService.getFieldDefinitions(String(entity).toUpperCase());
+    res.json({ status: 'success', data: { fields } });
+  });
+
+  downloadImportTemplate = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { entity, format } = req.query;
+    const entityUpper = String(entity || 'LEAD').toUpperCase();
+    if (!['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY'].includes(entityUpper)) {
+      return res.status(400).json({ status: 'error', message: 'Invalid entity type' });
+    }
+    const fields = importExportService.getFieldDefinitions(entityUpper);
+    const labels = fields.map((f: { label: string }) => f.label);
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([labels]);
+    // Set column widths
+    ws['!cols'] = fields.map((f: { label: string; type: string }) => ({ wch: Math.max(f.label.length + 4, 15) }));
+    XLSX.utils.book_append_sheet(wb, ws, entityUpper);
+    const fmt = String(format || 'csv').toLowerCase();
+    if (fmt === 'xlsx') {
+      const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${entityUpper}_template.xlsx"`);
+      res.send(buf);
+    } else {
+      const csv = XLSX.utils.sheet_to_csv(ws);
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${entityUpper}_template.csv"`);
+      res.send(csv);
+    }
+  });
+
+  validateImportMapping = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const { columnMapping } = req.body;
+    const result = await importExportService.validateImportMapping(id, columnMapping, req.user!.id);
+    res.json({ status: 'success', data: result });
+  });
+
+  executeImport = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await importExportService.executeImport(id, req.user!.id);
+    res.json({ status: 'success', data: result });
+  });
+
+  getImportStatus = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await importExportService.getImportStatus(id, req.user!.id);
+    res.json({ status: 'success', data: result });
+  });
+
+  getImportHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const result = await importExportService.getImportHistory(req.user!.id, page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  // ======== EXPORT ========
+  requestExport = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { entity, filters, format } = req.body;
+    const result = await importExportService.requestExport(entity, filters || null, format || 'CSV', req.user!.id);
+    res.json({ status: 'success', data: result });
+  });
+
+  downloadExport = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const { filePath, fileName } = await importExportService.getExportDownload(id, req.user!.id);
+    res.download(filePath, fileName);
+  });
+
+  getExportHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const result = await importExportService.getExportHistory(req.user!.id, page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  // ======== TERRITORIES ========
+  listTerritories = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const result = await territoryService.listTerritories(page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  getTerritory = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await territoryService.getTerritory(id);
+    res.json({ status: 'success', data: result });
+  });
+
+  createTerritory = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await territoryService.createTerritory(req.body, req.user!.id);
+    res.status(201).json({ status: 'success', data: result });
+  });
+
+  updateTerritory = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await territoryService.updateTerritory(id, req.body);
+    res.json({ status: 'success', data: result });
+  });
+
+  deleteTerritory = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await territoryService.deleteTerritory(id);
+    res.json({ status: 'success', data: result });
+  });
+
+  addTerritoryMember = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const territoryId = String(req.params.id);
+    const { userId, role } = req.body;
+    const result = await territoryService.addTerritoryMember(territoryId, userId, role);
+    res.status(201).json({ status: 'success', data: result });
+  });
+
+  removeTerritoryMember = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const territoryId = String(req.params.id);
+    const userId = String(req.params.userId);
+    const result = await territoryService.removeTerritoryMember(territoryId, userId);
+    res.json({ status: 'success', data: result });
+  });
+
+  updateTerritoryMember = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const territoryId = String(req.params.id);
+    const userId = String(req.params.userId);
+    const { role } = req.body;
+    const result = await territoryService.updateTerritoryMember(territoryId, userId, role);
+    res.json({ status: 'success', data: result });
+  });
+
+  lookupTerritory = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const state = req.query.state as string | undefined;
+    const country = req.query.country as string | undefined;
+    const result = await territoryService.lookupTerritory(state, country);
+    res.json({ status: 'success', data: result });
+  });
+
+  // ======== QUOTAS ========
+  listQuotas = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const filters: Record<string, string> = {};
+    if (req.query.period) filters.period = req.query.period as string;
+    if (req.query.userId) filters.userId = req.query.userId as string;
+    if (req.query.territoryId) filters.territoryId = req.query.territoryId as string;
+    const result = await territoryService.listQuotas(filters, page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  getQuota = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await territoryService.getQuota(id);
+    res.json({ status: 'success', data: result });
+  });
+
+  createQuota = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await territoryService.createQuota(req.body);
+    res.status(201).json({ status: 'success', data: result });
+  });
+
+  updateQuota = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await territoryService.updateQuota(id, req.body);
+    res.json({ status: 'success', data: result });
+  });
+
+  deleteQuota = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await territoryService.deleteQuota(id);
+    res.json({ status: 'success', data: result });
+  });
+
+  getQuotaAttainment = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const period = req.query.period as string;
+    const userId = req.query.userId as string | undefined;
+    const territoryId = req.query.territoryId as string | undefined;
+    const result = await territoryService.getQuotaAttainment(period, userId, territoryId);
+    res.json({ status: 'success', data: result });
+  });
+
+  getQuotaDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const period = req.query.period as string;
+    const result = await territoryService.getQuotaDashboard(period);
+    res.json({ status: 'success', data: result });
+  });
+
+  // ======== DASHBOARD LAYOUT ========
+  getWidgetRegistry = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const registry = dashboardLayoutService.getWidgetRegistry();
+    res.json({ status: 'success', data: registry });
+  });
+
+  getDashboardLayout = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.id;
+    const role = (req.user as any).role || 'AGENT';
+    const result = await dashboardLayoutService.getDashboardLayout(userId, role);
+    res.json({ status: 'success', data: result });
+  });
+
+  saveDashboardLayout = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.id;
+    const { layout } = req.body;
+    if (!Array.isArray(layout)) throw new AppError('Layout must be an array', 400);
+    const result = await dashboardLayoutService.saveDashboardLayout(userId, layout);
+    res.json({ status: 'success', data: result });
+  });
+
+  resetDashboardLayout = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.id;
+    const role = (req.user as any).role || 'AGENT';
+    const defaultLayout = dashboardLayoutService.getDefaultLayout(role);
+    await dashboardLayoutService.resetDashboardLayout(userId);
+    res.json({ status: 'success', data: { layout: defaultLayout, isDefault: true } });
+  });
+
+  // ── Workflow Automation ──────────────────────────────────────────────────
+  listWorkflows = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const result = await workflowService.listWorkflows(page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  getWorkflow = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await workflowService.getWorkflow(id);
+    if (!result) throw new AppError('Workflow not found', 404);
+    res.json({ status: 'success', data: result });
+  });
+
+  createWorkflow = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user!.id;
+    const result = await workflowService.createWorkflow(req.body, userId);
+    res.status(201).json({ status: 'success', data: result });
+  });
+
+  updateWorkflow = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await workflowService.updateWorkflow(id, req.body);
+    res.json({ status: 'success', data: result });
+  });
+
+  deleteWorkflow = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    await workflowService.deleteWorkflow(id);
+    res.json({ status: 'success', data: { deleted: true } });
+  });
+
+  toggleWorkflow = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await workflowService.toggleWorkflow(id);
+    res.json({ status: 'success', data: result });
+  });
+
+  getWorkflowTemplates = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    res.json({ status: 'success', data: workflowService.WORKFLOW_TEMPLATES });
+  });
+
+  getWorkflowExecutions = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const workflowId = String(req.params.id);
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const result = await workflowService.getWorkflowExecutions(workflowId, page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  getAllExecutions = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const result = await workflowService.getAllExecutions(page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  // ── Email/Calendar Integration ────────────────────────────────────────
+  listIntegrations = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await emailSyncService.listIntegrations(req.user!.id);
+    res.json({ status: 'success', data: result });
+  });
+
+  getGoogleAuthUrl = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const state = Buffer.from(JSON.stringify({ userId: req.user!.id })).toString('base64');
+    const url = emailSyncService.getOAuthUrl('GOOGLE', state);
+    res.json({ status: 'success', data: { url } });
+  });
+
+  getOutlookAuthUrl = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const state = Buffer.from(JSON.stringify({ userId: req.user!.id })).toString('base64');
+    const url = emailSyncService.getOAuthUrl('OUTLOOK', state);
+    res.json({ status: 'success', data: { url } });
+  });
+
+  handleGoogleCallback = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { code, state } = req.query;
+    const decoded = JSON.parse(Buffer.from(state as string, 'base64').toString());
+    await emailSyncService.handleOAuthCallback('GOOGLE', code as string, decoded.userId);
+    res.redirect('/crm/integrations?connected=google');
+  });
+
+  handleOutlookCallback = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { code, state } = req.query;
+    const decoded = JSON.parse(Buffer.from(state as string, 'base64').toString());
+    await emailSyncService.handleOAuthCallback('OUTLOOK', code as string, decoded.userId);
+    res.redirect('/crm/integrations?connected=outlook');
+  });
+
+  disconnectIntegration = asyncHandler(async (req: AuthRequest, res: Response) => {
+    await emailSyncService.disconnectIntegration(String(req.params.id), req.user!.id);
+    res.json({ status: 'success', data: { disconnected: true } });
+  });
+
+  updateSyncPreferences = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await emailSyncService.updateSyncPreferences(String(req.params.id), req.user!.id, req.body);
+    res.json({ status: 'success', data: result });
+  });
+
+  triggerSync = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const emailResult = await emailSyncService.syncEmails(String(req.params.id));
+    const calendarResult = await emailSyncService.syncCalendarEvents(String(req.params.id));
+    res.json({ status: 'success', data: { emails: emailResult, events: calendarResult } });
+  });
+
+  listSyncedEmails = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await emailSyncService.listSyncedEmails(req.user!.id, {
+      contactId: req.query.contactId as string,
+      leadId: req.query.leadId as string,
+      accountId: req.query.accountId as string,
+      page: Number(req.query.page) || 1,
+      limit: Number(req.query.limit) || 20,
+    });
+    res.json({ status: 'success', data: result });
+  });
+
+  getEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await emailSyncService.getEmail(String(req.params.id));
+    if (!result) throw new AppError('Email not found', 404);
+    res.json({ status: 'success', data: result });
+  });
+
+  sendEmail = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await emailSyncService.sendEmailFromCrm(req.user!.id, req.body);
+    res.status(201).json({ status: 'success', data: result });
+  });
+
+  listSyncedEvents = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 20;
+    const result = await emailSyncService.listSyncedEvents(req.user!.id, page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  // ── Anomaly Detection ────────────────────────────────────────
+  getAnomalies = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const result = await anomalyService.detectAnomalies(req.user!.id);
+    res.json({ status: 'success', data: { anomalies: result } });
+  });
+
+  getAnomalyConfig = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const configs = await anomalyService.getConfigs();
+    res.json({ status: 'success', data: configs });
+  });
+
+  updateAnomalyConfig = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const config = await anomalyService.updateConfig(String(req.params.id), req.body);
+    res.json({ status: 'success', data: config });
+  });
+
+  refreshAnomalies = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const anomalies = await anomalyService.detectAnomalies(req.user!.id);
+    res.json({ status: 'success', data: { anomalies, refreshedAt: new Date().toISOString() } });
+  });
+
+  // ── Custom Fields ─────────────────────────────────────────────
+  getCustomFieldDefinitions = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const entity = req.query.entity as string | undefined;
+    const definitions = entity
+      ? await customFieldsService.getDefinitionsByEntity(entity as any)
+      : await customFieldsService.getDefinitions();
+    res.json({ status: 'success', data: definitions });
+  });
+
+  createCustomFieldDefinition = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const definition = await customFieldsService.createDefinition(req.body);
+    res.status(201).json({ status: 'success', data: definition });
+  });
+
+  updateCustomFieldDefinition = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const definition = await customFieldsService.updateDefinition(String(req.params.id), req.body);
+    res.json({ status: 'success', data: definition });
+  });
+
+  deleteCustomFieldDefinition = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const definition = await customFieldsService.deleteDefinition(String(req.params.id));
+    res.json({ status: 'success', data: definition });
   });
 }
 
