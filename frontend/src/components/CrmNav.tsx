@@ -18,7 +18,6 @@ const CRM_NAV_ITEMS: CrmNavItem[] = [
   { to: '/crm/pipeline', label: 'Pipeline', icon: 'view_kanban' },
   { to: '/crm/accounts', label: 'Accounts', icon: 'business' },
   { to: '/crm/contacts', label: 'Contacts', icon: 'person' },
-  { to: '/credit', label: 'Credit', icon: 'account_balance', permission: 'credit:read' },
   { to: '/crm/team', label: 'Team', icon: 'groups', permission: 'crm:admin' },
   { to: '/crm/reports', label: 'Reports', icon: 'bar_chart' },
   { to: '/crm/guide', label: 'Guide', icon: 'menu_book' },
@@ -34,7 +33,7 @@ const CRM_NAV_ITEMS: CrmNavItem[] = [
 // Primary items always shown as tabs; secondary items go into "More" dropdown
 const PRIMARY_ITEMS = [
   '/crm', '/crm/leads', '/crm/opportunities', '/crm/pipeline',
-  '/crm/accounts', '/crm/contacts', '/credit', '/crm/team', '/crm/reports',
+  '/crm/accounts', '/crm/contacts', '/crm/team', '/crm/reports',
 ];
 
 // Bottom nav: 5 key items for mobile

@@ -6,6 +6,8 @@ import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
 import { useDailyBriefing, useNextBestAction } from '../src/hooks/useCrmAi';
+import { DashboardLayoutProvider, useDashboardLayout } from '../src/components/crm/DashboardLayoutProvider';
+import WidgetPicker from '../src/components/crm/WidgetPicker';
 import axios from 'axios';
 
 const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
@@ -26,6 +28,7 @@ const CrmDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [myDeals, setMyDeals] = useState(false);
+  const [showCustomize, setShowCustomize] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedQuery = useDebouncedValue(searchQuery, 350);
   const [searchResults, setSearchResults] = useState<Awaited<ReturnType<typeof crmService.globalSearch>> | null>(null);
@@ -118,6 +121,10 @@ const CrmDashboard = () => {
             <div className="flex gap-2">
               <button onClick={() => setMyDeals(false)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!myDeals ? 'bg-white text-brand-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>All Deals</button>
               <button onClick={() => setMyDeals(true)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${myDeals ? 'bg-white text-brand-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>My Deals</button>
+              <button onClick={() => setShowCustomize(true)} className="px-4 py-2 rounded-lg text-sm font-bold bg-white/10 text-white/80 hover:bg-white/20 transition-all flex items-center gap-1">
+                <span className="material-symbols-outlined" style={{fontSize:16}}>dashboard_customize</span>
+                Customize
+              </button>
             </div>
           </div>
           {/* Global Search */}
@@ -455,8 +462,15 @@ const CrmDashboard = () => {
         )}
       </div>
     </div>
+    {showCustomize && <WidgetPicker onClose={() => setShowCustomize(false)} />}
     </>
   );
 };
 
-export default CrmDashboard;
+const CrmDashboardWithLayout: React.FC = () => (
+  <DashboardLayoutProvider>
+    <CrmDashboard />
+  </DashboardLayoutProvider>
+);
+
+export default CrmDashboardWithLayout;

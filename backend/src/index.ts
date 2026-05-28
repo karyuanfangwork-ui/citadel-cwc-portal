@@ -3,6 +3,7 @@ import { config } from './config';
 import { logger } from './utils/logger';
 import { initScheduler, shutdownScheduler } from './services/scheduler.service';
 import { initSseRedis, disconnectSseRedis } from './utils/sseClients';
+import { startWorkflowEngine } from './services/crm-workflow.service';
 import app from './app';
 
 // Load environment variables
@@ -21,8 +22,10 @@ const server = app.listen(PORT, () => {
     initScheduler();
 
     // Initialize Redis pub/sub for SSE fan-out (multi-instance support)
-    // Falls back to single-instance mode if Redis is unavailable
     initSseRedis();
+
+    // Start workflow automation engine
+    startWorkflowEngine();
 });
 
 // Graceful shutdown

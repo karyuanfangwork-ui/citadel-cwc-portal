@@ -128,6 +128,14 @@ model User {
   crmNotes                  CrmNote[]              @relation("CrmNoteAuthor")
   crmTrustProducts          CrmTrustProduct[]      @relation("CrmTrustProductOwner")
   crmKycApprovals           CrmKycRecord[]         @relation("CrmKycApprovedBy")
+  crmImportJobs             CrmImportJob[]         @relation("CrmImportJobUser")
+  crmExportJobs              CrmExportJob[]          @relation("CrmExportJobUser")
+  createdTerritories         CrmTerritory[]          @relation("CrmTerritoryCreator")
+  territoryMemberships       CrmTerritoryMember[]    @relation("CrmTerritoryMemberUser")
+  crmQuotas                  CrmQuota[]               @relation("CrmQuotaUser")
+  crmDashboardLayouts        CrmDashboardLayout[]     @relation("UserCrmDashboardLayout")
+  crmWorkflows                CrmWorkflow[]            @relation("CrmWorkflowCreator")
+  crmEmailIntegration         CrmEmailIntegration?     @relation("CrmEmailIntegrationUser")
   // Announcement Relations
   announcements             Announcement[]         @relation("AnnouncementAuthor")
   announcementReads         AnnouncementRead[]     @relation("AnnouncementReader")
@@ -1527,6 +1535,8 @@ model CrmAccount {
   @@index([ownerId])
   @@index([name])
   @@index([industry])
+  syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailAccount")
+  customFields     Json?              @map("custom_fields")
   @@map("crm_accounts")
 }
 
@@ -1571,6 +1581,8 @@ model CrmContact {
   borrowerProfile BorrowerProfile?
   directors       Director[]
   shareholders    Shareholder[]
+  syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailContact")
+  customFields     Json?              @map("custom_fields")
 
   @@index([accountId])
   @@index([email])
@@ -1586,6 +1598,7 @@ model CrmLead {
   accountId String?    @map("account_id") @db.Uuid
   contactId String?    @map("contact_id") @db.Uuid
   ownerId   String     @map("owner_id") @db.Uuid
+  territoryId String?  @map("territory_id") @db.Uuid
 
   // Lead-specific contact info (for leads without an existing contact)
   contactName  String? @map("contact_name") @db.VarChar(200)
@@ -1619,11 +1632,15 @@ model CrmLead {
   contact    CrmContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
   activities CrmActivity[] @relation("ActivityLead")
   notes      CrmNote[]     @relation("NoteLead")
+  territory  CrmTerritory? @relation("LeadTerritory", fields: [territoryId], references: [id], onDelete: SetNull)
 
   @@index([ownerId])
   @@index([status])
   @@index([accountId])
   @@index([contactId])
+  @@index([territoryId])
+  syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailLead")
+  customFields     Json?              @map("custom_fields")
   @@map("crm_leads")
 }
 
@@ -1708,6 +1725,7 @@ model CrmOpportunity {
   @@index([stageId])
   @@index([ownerId])
   @@index([expectedCloseDate])
+  customFields     Json?              @map("custom_fields")
   @@map("crm_opportunities")
 }
 
@@ -1765,6 +1783,7 @@ model CrmActivity {
   @@index([activityType])
   @@index([scheduledAt])
   @@index([createdAt(sort: Desc)])
+  customFields     Json?              @map("custom_fields")
   @@map("crm_activities")
 }
 
@@ -1908,6 +1927,291 @@ model CrmKycRecord {
   @@index([status])
   @@index([expiresAt])
   @@map("crm_kyc_records")
+}
+
+// CRM Import Job — tracks bulk data imports (CSV/XLSX)
+model CrmImportJob {
+  id              String   @id @default(uuid()) @db.Uuid
+  fileName        String   @map("file_name") @db.VarChar(255)
+  fileType        String   @map("file_type") @db.VarChar(10)  // CSV | XLSX
+  entity          String   @db.VarChar(20)  // LEAD | CONTACT | ACCOUNT | OPPORTUNITY
+  status          String   @default("PENDING") @db.VarChar(20)  // PENDING | VALIDATING | PREVIEW | IMPORTING | COMPLETED | FAILED
+  totalRows       Int      @default(0) @map("total_rows")
+  importedRows    Int      @default(0) @map("imported_rows")
+  failedRows      Int      @default(0) @map("failed_rows")
+  errorReport     Json?    @map("error_report")
+  columnMapping   Json?    @map("column_mapping")
+  rawData         Json?    @map("raw_data")  // Stores parsed rows for preview
+  createdBy       String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamp(6)
+
+  user            User     @relation("CrmImportJobUser", fields: [createdBy], references: [id])
+
+  @@index([createdBy])
+  @@index([entity])
+  @@index([status])
+  @@map("crm_import_jobs")
+}
+
+// CRM Export Job — tracks data exports (CSV/XLSX)
+model CrmExportJob {
+  id              String   @id @default(uuid()) @db.Uuid
+  entity          String   @db.VarChar(20)  // LEAD | CONTACT | ACCOUNT | OPPORTUNITY
+  filters         Json?    // Active filters at export time
+  format          String   @default("CSV") @db.VarChar(10)  // CSV | XLSX
+  rowCount        Int      @default(0) @map("row_count")
+  fileUrl         String?  @map("file_url") @db.Text
+  status          String   @default("PENDING") @db.VarChar(20)  // PENDING | GENERATING | COMPLETED | FAILED
+  error           String?  @db.Text
+  createdBy       String   @map("created_by") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  user            User     @relation("CrmExportJobUser", fields: [createdBy], references: [id])
+
+  @@index([createdBy])
+  @@index([entity])
+  @@index([status])
+  @@map("crm_export_jobs")
+}
+
+// ============================================================================
+// CRM TERRITORY & QUOTA
+// ============================================================================
+
+model CrmTerritory {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique @db.VarChar(100)
+  description String?  @db.Text
+  regions     Json     // { states: ["Selangor", "KL"], countries: ["MY"] }
+  isActive    Boolean  @default(true) @map("is_active")
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  members     CrmTerritoryMember[]
+  quotas      CrmQuota[]
+  leads       CrmLead[]              @relation("LeadTerritory")
+  user        User                    @relation("CrmTerritoryCreator", fields: [createdBy], references: [id])
+
+  @@index([createdBy])
+  @@index([isActive])
+  @@map("crm_territories")
+}
+
+model CrmTerritoryMember {
+  id           String       @id @default(uuid()) @db.Uuid
+  territoryId  String       @map("territory_id") @db.Uuid
+  userId       String       @map("user_id") @db.Uuid
+  role         String       @default("MEMBER") @db.VarChar(20) // MANAGER | MEMBER
+  assignedAt   DateTime     @default(now()) @map("assigned_at") @db.Timestamp(6)
+
+  territory    CrmTerritory @relation(fields: [territoryId], references: [id], onDelete: Cascade)
+  user         User         @relation("CrmTerritoryMemberUser", fields: [userId], references: [id])
+
+  @@unique([territoryId, userId])
+  @@index([territoryId])
+  @@index([userId])
+  @@map("crm_territory_members")
+}
+
+model CrmQuota {
+  id             String        @id @default(uuid()) @db.Uuid
+  territoryId    String?       @map("territory_id") @db.Uuid // null = individual quota
+  userId         String?       @map("user_id") @db.Uuid // null = territory-level quota
+  period         String        @db.VarChar(20) // "2026-Q1", "2026-06", "2026"
+  periodType     String        @default("MONTHLY") @db.VarChar(20) // MONTHLY | QUARTERLY | ANNUALLY
+  targetAmount   Decimal       @default(0) @db.Decimal(15, 2)
+  currency       String        @default("MYR") @db.VarChar(3)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  territory      CrmTerritory? @relation(fields: [territoryId], references: [id])
+  user           User?         @relation("CrmQuotaUser", fields: [userId], references: [id])
+
+  @@index([territoryId])
+  @@index([userId])
+  @@index([period])
+  @@map("crm_quotas")
+}
+
+// ============================================================================
+// CRM DASHBOARD LAYOUT
+// ============================================================================
+
+model CrmDashboardLayout {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  layout    Json     @default("[]")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User     @relation("UserCrmDashboardLayout", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("crm_dashboard_layouts")
+}
+
+// ============================================================================
+// CRM WORKFLOW AUTOMATION
+// ============================================================================
+
+model CrmWorkflow {
+  id              String            @id @default(uuid()) @db.Uuid
+  name            String            @db.VarChar(200)
+  description     String?           @db.Text
+  isActive        Boolean           @default(true) @map("is_active")
+  trigger         Json              @default("{}")
+  actions         Json              @default("[]")
+  executionOrder  Int               @default(0) @map("execution_order")
+  createdBy       String            @map("created_by") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  executions      CrmWorkflowExecution[]
+  user            User              @relation("CrmWorkflowCreator", fields: [createdBy], references: [id])
+
+  @@index([isActive])
+  @@index([createdBy])
+  @@map("crm_workflows")
+}
+
+model CrmWorkflowExecution {
+  id              String            @id @default(uuid()) @db.Uuid
+  workflowId      String            @map("workflow_id") @db.Uuid
+  triggerEntity   String            @db.VarChar(50) // LEAD | OPPORTUNITY | CONTACT | ACCOUNT | ACTIVITY
+  triggerEntityId String            @map("trigger_entity_id") @db.Uuid
+  triggerEvent    String            @map("trigger_event") @db.VarChar(100) // lead.status.changed, etc.
+  status          String            @default("PENDING") @db.VarChar(20) // PENDING | RUNNING | COMPLETED | FAILED
+  actionResults   Json?             @map("action_results")
+  error           String?           @db.Text
+  startedAt       DateTime          @default(now()) @map("started_at")
+  completedAt     DateTime?        @map("completed_at")
+
+  workflow        CrmWorkflow       @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([status])
+  @@index([triggerEntity, triggerEntityId])
+  @@map("crm_workflow_executions")
+}
+
+// ============================================================================
+// CRM EMAIL / CALENDAR INTEGRATION
+// ============================================================================
+
+model CrmEmailIntegration {
+  id                String            @id @default(uuid()) @db.Uuid
+  userId            String            @unique @map("user_id") @db.Uuid
+  provider          String            @db.VarChar(20) // GOOGLE | OUTLOOK
+  accessToken       String            @map("access_token") @db.VarChar(500)
+  refreshToken      String            @map("refresh_token") @db.VarChar(500)
+  tokenExpiresAt    DateTime          @map("token_expires_at")
+  emailAddress      String            @map("email_address") @db.VarChar(255)
+  syncEnabled       Boolean           @default(true) @map("sync_enabled")
+  lastSyncedAt      DateTime?         @map("last_synced_at")
+  syncFrequency     String            @default("15min") @map("sync_frequency") @db.VarChar(10)
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  user              User              @relation("CrmEmailIntegrationUser", fields: [userId], references: [id])
+  syncedEmails      CrmSyncedEmail[]
+  syncedEvents      CrmSyncedEvent[]
+
+  @@map("crm_email_integrations")
+}
+
+model CrmSyncedEmail {
+  id                String            @id @default(uuid()) @db.Uuid
+  integrationId     String            @map("integration_id") @db.Uuid
+  providerMessageId String            @unique @map("provider_message_id") @db.VarChar(500)
+  threadId          String?           @map("thread_id") @db.VarChar(200)
+  from              Json              @default("{}")
+  to                Json              @default("[]")
+  cc                Json?
+  subject           String            @db.VarChar(500)
+  bodyPreview       String?           @map("body_preview") @db.Text
+  bodyHtml          String?           @map("body_html") @db.Text
+  sentAt            DateTime          @map("sent_at")
+  isFromUs          Boolean           @default(false) @map("is_from_us")
+  activityId        String?           @map("activity_id") @db.Uuid
+  matchedContactId  String?           @map("matched_contact_id") @db.Uuid
+  matchedLeadId     String?           @map("matched_lead_id") @db.Uuid
+  matchedAccountId  String?           @map("matched_account_id") @db.Uuid
+
+  integration       CrmEmailIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  contact           CrmContact?       @relation("CrmSyncedEmailContact", fields: [matchedContactId], references: [id])
+  lead              CrmLead?          @relation("CrmSyncedEmailLead", fields: [matchedLeadId], references: [id])
+  account          CrmAccount?       @relation("CrmSyncedEmailAccount", fields: [matchedAccountId], references: [id])
+
+  @@index([integrationId])
+  @@index([sentAt])
+  @@index([matchedContactId])
+  @@index([matchedLeadId])
+  @@index([isFromUs])
+  @@map("crm_synced_emails")
+}
+
+model CrmSyncedEvent {
+  id                String            @id @default(uuid()) @db.Uuid
+  integrationId     String            @map("integration_id") @db.Uuid
+  providerEventId   String            @unique @map("provider_event_id") @db.VarChar(500)
+  title             String            @db.VarChar(500)
+  description       String?           @db.Text
+  location          String?           @db.VarChar(500)
+  startTime         DateTime          @map("start_time")
+  endTime           DateTime          @map("end_time")
+  attendees         Json?
+  activityId        String?           @map("activity_id") @db.Uuid
+
+  integration       CrmEmailIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([integrationId])
+  @@index([startTime])
+  @@map("crm_synced_events")
+}
+
+// ============================================================================
+// CRM ANOMALY DETECTION
+// ============================================================================
+
+model CrmAnomalyConfig {
+  id                String            @id @default(uuid()) @db.Uuid
+  entityType        String            @db.VarChar(20) // OPPORTUNITY | LEAD
+  anomalyType       String            @db.VarChar(30) // DEAL_STUCK | PROBABILITY_DROP | VELOCITY_ANOMALY | STALE_LEAD
+  threshold         Float             @default(14) // days for stuck, % for probability drop, stddev for velocity
+  severity          String            @default("MODERATE") @db.VarChar(10) // LOW | MODERATE | CRITICAL
+  isActive          Boolean           @default(true) @map("is_active")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  @@unique([entityType, anomalyType])
+  @@map("crm_anomaly_configs")
+}
+
+// ============================================================================
+// CRM CUSTOM FIELDS
+// ============================================================================
+
+model CrmCustomFieldDefinition {
+  id                String            @id @default(uuid()) @db.Uuid
+  entity            String            @db.VarChar(20) // LEAD | CONTACT | ACCOUNT | OPPORTUNITY | ACTIVITY
+  fieldKey          String            @map("field_key") @db.VarChar(100) // slug: "trust_deed_number"
+  label             String            @db.VarChar(200)
+  fieldType         String            @map("field_type") @db.VarChar(20) // TEXT | NUMBER | DATE | DROPDOWN | MULTI_SELECT | CHECKBOX | URL
+  group             String?           @db.VarChar(100) // tab/section: "Trust Details"
+  options           Json?             // for DROPDOWN/MULTI_SELECT: [{ label, value }]
+  validation        Json?             // { required: true, min: 0, max: 100, pattern: "..." }
+  defaultValue      String?           @map("default_value") @db.VarChar(500)
+  displayOrder      Int               @default(0) @map("display_order")
+  isSearchable      Boolean           @default(false) @map("is_searchable")
+  isRequired        Boolean           @default(false) @map("is_required")
+  isActive          Boolean           @default(true) @map("is_active")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  @@unique([entity, fieldKey])
+  @@map("crm_custom_field_definitions")
 }
 
 // ============================================================================

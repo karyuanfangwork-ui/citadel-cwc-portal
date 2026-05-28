@@ -1,0 +1,1925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CRM Module — Enterprise Documentation Portal | CWC 2.0</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<style>
+  :root {
+    --brand-primary: #1e3a5f;
+    --brand-secondary: #2563eb;
+    --brand-accent: #0ea5e9;
+    --brand-success: #059669;
+    --brand-warning: #d97706;
+    --brand-danger: #dc2626;
+    --sidebar-w: 280px;
+    --header-h: 64px;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; }
+  /* ── Sidebar ── */
+  #sidebar {
+    position: fixed; top: 0; left: 0; width: var(--sidebar-w);
+    height: 100vh; background: var(--brand-primary); overflow-y: auto;
+    z-index: 1000; transition: transform .3s ease;
+    display: flex; flex-direction: column;
+  }
+  #sidebar .brand {
+    padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,.1);
+    background: rgba(0,0,0,.2);
+  }
+  #sidebar .brand h1 { font-size: .85rem; font-weight: 700; color: #93c5fd; letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+  #sidebar .brand p { font-size: .7rem; color: rgba(255,255,255,.5); margin: .15rem 0 0; }
+  #sidebar nav { flex: 1; padding: .75rem 0; }
+  .nav-section-label {
+    font-size: .65rem; font-weight: 700; letter-spacing: .12em;
+    text-transform: uppercase; color: rgba(255,255,255,.35);
+    padding: .75rem 1.5rem .25rem;
+  }
+  .nav-link-item {
+    display: flex; align-items: center; gap: .65rem;
+    padding: .55rem 1.5rem; color: rgba(255,255,255,.7);
+    text-decoration: none; font-size: .82rem; font-weight: 500;
+    transition: all .15s; border-left: 3px solid transparent;
+    cursor: pointer;
+  }
+  .nav-link-item:hover { background: rgba(255,255,255,.08); color: #fff; border-left-color: var(--brand-accent); }
+  .nav-link-item.active { background: rgba(14,165,233,.15); color: #7dd3fc; border-left-color: #7dd3fc; }
+  .nav-link-item i { width: 16px; text-align: center; opacity: .7; font-size: .8rem; }
+  /* ── Header ── */
+  #topbar {
+    position: fixed; top: 0; left: var(--sidebar-w); right: 0;
+    height: var(--header-h); background: #fff; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; z-index: 900; gap: 1rem;
+  }
+  #topbar .page-title { font-size: .95rem; font-weight: 700; color: var(--brand-primary); }
+  #topbar .meta-badges { display: flex; gap: .5rem; align-items: center; }
+  .badge-pill {
+    font-size: .68rem; font-weight: 600; padding: .25rem .75rem;
+    border-radius: 999px; letter-spacing: .03em;
+  }
+  .badge-pill.draft { background: #fef3c7; color: #92400e; }
+  .badge-pill.version { background: #dbeafe; color: #1d4ed8; }
+  .badge-pill.date { background: #f0fdf4; color: #166534; }
+  /* ── Main content ── */
+  #main {
+    margin-left: var(--sidebar-w);
+    padding-top: var(--header-h);
+    min-height: 100vh;
+  }
+  .doc-section {
+    max-width: 1100px; margin: 0 auto; padding: 3rem 2.5rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  /* ── Section headers ── */
+  .section-eyebrow {
+    font-size: .7rem; font-weight: 700; letter-spacing: .15em;
+    text-transform: uppercase; color: var(--brand-secondary);
+    margin-bottom: .5rem;
+  }
+  .section-title {
+    font-size: 1.75rem; font-weight: 800; color: var(--brand-primary);
+    margin-bottom: .5rem; line-height: 1.25;
+  }
+  .section-subtitle {
+    font-size: .95rem; color: #64748b; max-width: 680px;
+    margin-bottom: 2rem; line-height: 1.6;
+  }
+  /* ── Cards ── */
+  .card-enterprise {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 1.5rem; transition: box-shadow .2s;
+  }
+  .card-enterprise:hover { box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+  /* ── KPI cards ── */
+  .kpi-card {
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+    padding: 1.25rem 1.5rem; text-align: center;
+  }
+  .kpi-card .kpi-value {
+    font-size: 2.25rem; font-weight: 800; line-height: 1;
+    margin-bottom: .25rem;
+  }
+  .kpi-card .kpi-label { font-size: .78rem; color: #64748b; font-weight: 600; letter-spacing: .03em; }
+  .kpi-card .kpi-delta { font-size: .72rem; margin-top: .35rem; font-weight: 600; }
+  .kpi-card .kpi-delta.up { color: #059669; }
+  .kpi-card .kpi-delta.down { color: #dc2626; }
+  /* ── Score badge ── */
+  .score-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 52px; height: 52px; border-radius: 50%;
+    font-size: 1.1rem; font-weight: 800; flex-shrink: 0;
+  }
+  .score-badge.critical { background: #fee2e2; color: #991b1b; }
+  .score-badge.low { background: #fef3c7; color: #92400e; }
+  .score-badge.medium { background: #fef9c3; color: #713f12; }
+  .score-badge.good { background: #dcfce7; color: #166534; }
+  .score-badge.excellent { background: #dbeafe; color: #1e40af; }
+  /* ── Status pills ── */
+  .pill { display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .65rem; border-radius: 999px; font-size: .72rem; font-weight: 700; }
+  .pill.resolved { background: #dcfce7; color: #166534; }
+  .pill.open { background: #fee2e2; color: #991b1b; }
+  .pill.partial { background: #fef3c7; color: #92400e; }
+  .pill.planned { background: #dbeafe; color: #1e40af; }
+  /* ── Timeline ── */
+  .timeline-item { display: flex; gap: 1rem; padding: 1rem 0; border-bottom: 1px solid #f1f5f9; }
+  .timeline-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: .4rem; flex-shrink: 0; }
+  /* ── Tables ── */
+  .table-enterprise { width: 100%; border-collapse: collapse; font-size: .83rem; }
+  .table-enterprise th {
+    background: #f8fafc; color: #475569; font-weight: 700;
+    font-size: .72rem; letter-spacing: .05em; text-transform: uppercase;
+    padding: .75rem 1rem; border-bottom: 2px solid #e2e8f0; text-align: left;
+  }
+  .table-enterprise td { padding: .75rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; color: #334155; }
+  .table-enterprise tr:hover td { background: #f8fafc; }
+  /* ── Collapsible ── */
+  .collapsible-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.25rem; cursor: pointer; border-radius: 8px;
+    background: #f8fafc; border: 1px solid #e2e8f0; user-select: none;
+    font-weight: 600; font-size: .9rem; color: var(--brand-primary);
+    transition: background .15s;
+  }
+  .collapsible-header:hover { background: #f1f5f9; }
+  .collapsible-header .chevron { transition: transform .2s; font-size: .8rem; color: #94a3b8; }
+  .collapsible-header.open .chevron { transform: rotate(180deg); }
+  .collapsible-body { padding: 1.25rem; border: 1px solid #e2e8f0; border-top: none; border-radius: 0 0 8px 8px; background: #fff; }
+  /* ── Risk matrix ── */
+  .risk-cell {
+    border: 2px solid #fff; width: 80px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .68rem; font-weight: 700; border-radius: 4px; text-align: center; line-height: 1.2;
+  }
+  /* ── Journey steps ── */
+  .journey-step {
+    display: flex; align-items: flex-start; gap: 1rem;
+    padding: 1rem; border-radius: 10px; background: #f8fafc;
+    border-left: 4px solid var(--brand-secondary); margin-bottom: .75rem;
+  }
+  .step-num {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--brand-secondary); color: #fff;
+    font-size: .75rem; font-weight: 800; display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  /* ── Mermaid ── */
+  .mermaid-wrap { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; overflow-x: auto; }
+  /* ── Print ── */
+  @media print {
+    #sidebar, #topbar { display: none !important; }
+    #main { margin: 0; padding: 0; }
+    .doc-section { page-break-inside: avoid; padding: 1.5rem; }
+    .card-enterprise { box-shadow: none; border: 1px solid #ddd; }
+  }
+  /* ── Mobile ── */
+  @media (max-width: 768px) {
+    #sidebar { transform: translateX(-100%); }
+    #sidebar.open { transform: translateX(0); }
+    #topbar { left: 0; }
+    #main { margin-left: 0; }
+    .doc-section { padding: 1.5rem 1rem; }
+    #hamburger { display: flex !important; }
+  }
+  #hamburger { display: none; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; border: 1px solid #e2e8f0; cursor: pointer; background: #f8fafc; }
+  #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 999; }
+  #overlay.show { display: block; }
+  /* Progress bar */
+  .progress-bar-custom { height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+  .progress-bar-fill { height: 100%; border-radius: 999px; transition: width .6s ease; }
+  /* Tag */
+  .tag { display: inline-block; padding: .15rem .55rem; border-radius: 4px; font-size: .7rem; font-weight: 600; }
+  /* Divider */
+  .divider { border: none; border-top: 1px solid #e2e8f0; margin: 2rem 0; }
+  /* Callout */
+  .callout { border-left: 4px solid; border-radius: 0 8px 8px 0; padding: 1rem 1.25rem; margin: 1rem 0; }
+  .callout.info { border-color: #2563eb; background: #eff6ff; }
+  .callout.warn { border-color: #d97706; background: #fffbeb; }
+  .callout.danger { border-color: #dc2626; background: #fef2f2; }
+  .callout.success { border-color: #059669; background: #f0fdf4; }
+  .callout p { margin: 0; font-size: .85rem; }
+  .callout strong { font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- Sidebar overlay (mobile) -->
+<div id="overlay" onclick="closeSidebar()"></div>
+
+<!-- ══ SIDEBAR ══ -->
+<aside id="sidebar">
+  <div class="brand">
+    <h1>CWC 2.0 — CRM Module</h1>
+    <p>Enterprise Documentation Portal</p>
+  </div>
+  <nav>
+    <div class="nav-section-label">Overview</div>
+    <a class="nav-link-item active" onclick="scrollTo('exec-summary')"><i class="fa-solid fa-star"></i> Executive Summary</a>
+    <a class="nav-link-item" onclick="scrollTo('product-overview')"><i class="fa-solid fa-cube"></i> Product Overview</a>
+    <a class="nav-link-item" onclick="scrollTo('crm-features')"><i class="fa-solid fa-list-check"></i> CRM Features</a>
+
+    <div class="nav-section-label">User Experience</div>
+    <a class="nav-link-item" onclick="scrollTo('user-journey')"><i class="fa-solid fa-route"></i> User Journey</a>
+    <a class="nav-link-item" onclick="scrollTo('workflow-diagrams')"><i class="fa-solid fa-diagram-project"></i> Workflow Diagrams</a>
+    <a class="nav-link-item" onclick="scrollTo('sop-guide')"><i class="fa-solid fa-book-open"></i> SOP / User Guide</a>
+
+    <div class="nav-section-label">Analytics</div>
+    <a class="nav-link-item" onclick="scrollTo('kpi-dashboard')"><i class="fa-solid fa-chart-line"></i> KPI Dashboard</a>
+    <a class="nav-link-item" onclick="scrollTo('audit-findings')"><i class="fa-solid fa-magnifying-glass-chart"></i> UI/UX Audit Findings</a>
+
+    <div class="nav-section-label">Strategy</div>
+    <a class="nav-link-item" onclick="scrollTo('ai-roadmap')"><i class="fa-solid fa-robot"></i> AI Enhancement Roadmap</a>
+    <a class="nav-link-item" onclick="scrollTo('risk-assessment')"><i class="fa-solid fa-shield-halved"></i> Risk Assessment</a>
+    <a class="nav-link-item" onclick="scrollTo('improvement-roadmap')"><i class="fa-solid fa-road"></i> Improvement Roadmap</a>
+
+    <div class="nav-section-label">Technical</div>
+    <a class="nav-link-item" onclick="scrollTo('tech-architecture')"><i class="fa-solid fa-server"></i> Technical Architecture</a>
+  </nav>
+  <div style="padding:1rem 1.5rem; border-top:1px solid rgba(255,255,255,.1);">
+    <div style="font-size:.68rem; color:rgba(255,255,255,.35); line-height:1.6;">
+      Citadel Group Technologies<br/>
+      CWC 2.0 &bull; v3.0 Phase 3<br/>
+      Updated: May 2026
+    </div>
+  </div>
+</aside>
+
+<!-- ══ TOPBAR ══ -->
+<header id="topbar">
+  <div style="display:flex;align-items:center;gap:.75rem;">
+    <div id="hamburger" onclick="toggleSidebar()"><i class="fa-solid fa-bars" style="font-size:.9rem;color:#64748b;"></i></div>
+    <span class="page-title">CRM Module — Enterprise Documentation</span>
+  </div>
+  <div class="meta-badges">
+    <span class="badge-pill version">v3.0 Phase 3</span>
+    <span class="badge-pill date">May 2026</span>
+    <span class="badge-pill draft">CONFIDENTIAL</span>
+    <button onclick="window.print()" style="font-size:.75rem;padding:.3rem .85rem;border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;cursor:pointer;font-weight:600;">
+      <i class="fa-solid fa-print" style="margin-right:.3rem;"></i>Export PDF
+    </button>
+  </div>
+</header>
+
+<!-- ══ MAIN ══ -->
+<main id="main">
+
+<!-- ────────────────────────────────────────────
+     SECTION 1 — EXECUTIVE SUMMARY
+──────────────────────────────────────────── -->
+<section id="exec-summary" class="doc-section">
+  <div class="section-eyebrow">Section 01</div>
+  <h2 class="section-title">Executive Summary</h2>
+  <p class="section-subtitle">Strategic overview of the CRM module maturity, current performance, and forward trajectory for Citadel Group Technologies' trust-industry sales operations.</p>
+
+  <!-- Maturity Scorecard -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#d97706;">7.5</div>
+        <div class="kpi-label">Backend Arch</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> Solid</div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#2563eb;">8.5</div>
+        <div class="kpi-label">Frontend UX</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> Phase 3</div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#059669;">8.0</div>
+        <div class="kpi-label">Workflow</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> Complete</div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#0ea5e9;">7.5</div>
+        <div class="kpi-label">Trust Fit</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> Improved</div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#7c3aed;">7.0</div>
+        <div class="kpi-label">AI Features</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> Phase 3</div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#0e7490;">7.8</div>
+        <div class="kpi-label">Overall</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> +4.0 pts</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Maturity progression chart -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-7">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;">
+          <i class="fa-solid fa-chart-bar" style="color:var(--brand-secondary);margin-right:.4rem;"></i>
+          Maturity Score — Before vs. After Remediation
+        </div>
+        <div style="position:relative;height:220px;"><canvas id="maturityChart"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card-enterprise h-100">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;">
+          <i class="fa-solid fa-bullseye" style="color:var(--brand-secondary);margin-right:.4rem;"></i>
+          Strategic Position
+        </div>
+        <div class="callout info mb-3">
+          <p><strong>Current Status:</strong> Phase 3 complete. CRM is production-ready for live trust-industry sales operations with AI-assisted pipeline management.</p>
+        </div>
+        <div class="callout success mb-3">
+          <p><strong>Key Achievement:</strong> 28 of 30 audit issues resolved across Phases 1–3. Overall maturity improved from 3.8/10 → 7.8/10.</p>
+        </div>
+        <div class="callout warn">
+          <p><strong>Next Milestone:</strong> Phase 4 enterprise enhancements — workflow automation, email sync, territory management, and mobile-first redesign (target: 6–9 months).</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dimension scores table -->
+  <div class="card-enterprise">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;">
+      <i class="fa-solid fa-table" style="color:var(--brand-secondary);margin-right:.4rem;"></i>
+      Full Maturity Scorecard — Phase 3 Final
+    </div>
+    <div class="table-responsive">
+      <table class="table-enterprise">
+        <thead>
+          <tr>
+            <th>Dimension</th>
+            <th>Baseline Score</th>
+            <th>Current Score</th>
+            <th>Δ Change</th>
+            <th>Progress</th>
+            <th>Verdict</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Backend Architecture</strong></td>
+            <td><span class="tag" style="background:#fef3c7;color:#92400e;">7.5</span></td>
+            <td><span class="tag" style="background:#dcfce7;color:#166534;">8.5</span></td>
+            <td style="color:#059669;font-weight:700;">+1.0</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:85%;background:#059669;"></div></div></td>
+            <td>Validation wired, ownership scoped</td>
+          </tr>
+          <tr>
+            <td><strong>Frontend UX</strong></td>
+            <td><span class="tag" style="background:#fee2e2;color:#991b1b;">5.5</span></td>
+            <td><span class="tag" style="background:#dcfce7;color:#166534;">8.5</span></td>
+            <td style="color:#059669;font-weight:700;">+3.0</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:85%;background:#059669;"></div></div></td>
+            <td>All routing bugs fixed, detail pages live</td>
+          </tr>
+          <tr>
+            <td><strong>Workflow Completeness</strong></td>
+            <td><span class="tag" style="background:#fee2e2;color:#991b1b;">4.5</span></td>
+            <td><span class="tag" style="background:#dcfce7;color:#166534;">8.0</span></td>
+            <td style="color:#059669;font-weight:700;">+3.5</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:80%;background:#059669;"></div></div></td>
+            <td>Core flows complete; automation Phase 4</td>
+          </tr>
+          <tr>
+            <td><strong>Trust Industry Fit</strong></td>
+            <td><span class="tag" style="background:#fee2e2;color:#991b1b;">3.5</span></td>
+            <td><span class="tag" style="background:#fef3c7;color:#92400e;">7.5</span></td>
+            <td style="color:#059669;font-weight:700;">+4.0</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:75%;background:#d97706;"></div></div></td>
+            <td>Trust products, KYC, BNM compliance added</td>
+          </tr>
+          <tr>
+            <td><strong>Sales Productivity</strong></td>
+            <td><span class="tag" style="background:#fee2e2;color:#991b1b;">4.0</span></td>
+            <td><span class="tag" style="background:#fef3c7;color:#92400e;">7.5</span></td>
+            <td style="color:#059669;font-weight:700;">+3.5</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:75%;background:#d97706;"></div></div></td>
+            <td>Inline edit, bulk actions, quick-add</td>
+          </tr>
+          <tr>
+            <td><strong>Manager Visibility</strong></td>
+            <td><span class="tag" style="background:#fee2e2;color:#991b1b;">3.0</span></td>
+            <td><span class="tag" style="background:#dcfce7;color:#166534;">8.0</span></td>
+            <td style="color:#059669;font-weight:700;">+5.0</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:80%;background:#059669;"></div></div></td>
+            <td>Team dashboard, leaderboard, AI briefing</td>
+          </tr>
+          <tr>
+            <td><strong>Reporting & Analytics</strong></td>
+            <td><span class="tag" style="background:#fee2e2;color:#991b1b;">2.0</span></td>
+            <td><span class="tag" style="background:#fef3c7;color:#92400e;">7.5</span></td>
+            <td style="color:#059669;font-weight:700;">+5.5</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:75%;background:#d97706;"></div></div></td>
+            <td>7 report types, charts, CSV export</td>
+          </tr>
+          <tr>
+            <td><strong>Automation</strong></td>
+            <td><span class="tag" style="background:#fee2e2;color:#991b1b;">1.0</span></td>
+            <td><span class="tag" style="background:#fef3c7;color:#92400e;">6.5</span></td>
+            <td style="color:#059669;font-weight:700;">+5.5</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:65%;background:#d97706;"></div></div></td>
+            <td>7 scheduled jobs; full engine Phase 4</td>
+          </tr>
+          <tr>
+            <td><strong>Compliance Readiness</strong></td>
+            <td><span class="tag" style="background:#fee2e2;color:#991b1b;">2.0</span></td>
+            <td><span class="tag" style="background:#fef3c7;color:#92400e;">7.0</span></td>
+            <td style="color:#059669;font-weight:700;">+5.0</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:70%;background:#d97706;"></div></div></td>
+            <td>KYC gaps, PDPA tracking, document checklist</td>
+          </tr>
+          <tr>
+            <td><strong>Mobile Readiness</strong></td>
+            <td><span class="tag" style="background:#fee2e2;color:#991b1b;">3.0</span></td>
+            <td><span class="tag" style="background:#fef3c7;color:#92400e;">5.5</span></td>
+            <td style="color:#059669;font-weight:700;">+2.5</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:55%;background:#d97706;"></div></div></td>
+            <td>Responsive layout; full redesign Phase 4</td>
+          </tr>
+          <tr style="background:#f8fafc;">
+            <td><strong>Overall CRM Maturity</strong></td>
+            <td><strong><span class="tag" style="background:#fee2e2;color:#991b1b;">3.8</span></strong></td>
+            <td><strong><span class="tag" style="background:#dcfce7;color:#166534;">7.8</span></strong></td>
+            <td style="color:#059669;font-weight:800;">+4.0</td>
+            <td><div class="progress-bar-custom"><div class="progress-bar-fill" style="width:78%;background:var(--brand-secondary);"></div></div></td>
+            <td><strong>Production-ready for live operations</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 2 — PRODUCT OVERVIEW
+──────────────────────────────────────────── -->
+<section id="product-overview" class="doc-section">
+  <div class="section-eyebrow">Section 02</div>
+  <h2 class="section-title">Product Overview</h2>
+  <p class="section-subtitle">The CRM module is a full-lifecycle customer relationship management system engineered for Malaysian financial services — specifically trust products, KYC/AML compliance, and long-cycle relationship selling.</p>
+
+  <!-- Capability layers -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-6 col-lg-4">
+      <div class="card-enterprise h-100">
+        <div style="width:40px;height:40px;border-radius:10px;background:#dbeafe;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;">
+          <i class="fa-solid fa-users" style="color:#2563eb;"></i>
+        </div>
+        <h3 style="font-size:.95rem;font-weight:700;color:var(--brand-primary);margin-bottom:.5rem;">Core CRM</h3>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.6;margin:0;">Accounts, Contacts, Leads, Opportunities — complete company and individual record management with Malaysian-specific fields (MyKad, SSM registration, PDPA flags).</p>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <div class="card-enterprise h-100">
+        <div style="width:40px;height:40px;border-radius:10px;background:#f0fdf4;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;">
+          <i class="fa-solid fa-diagram-project" style="color:#059669;"></i>
+        </div>
+        <h3 style="font-size:.95rem;font-weight:700;color:var(--brand-primary);margin-bottom:.5rem;">Pipeline Management</h3>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.6;margin:0;">Visual Kanban board with drag-and-drop stage progression, configurable pipelines, win probability tracking, and stage history logging.</p>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <div class="card-enterprise h-100">
+        <div style="width:40px;height:40px;border-radius:10px;background:#faf5ff;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;">
+          <i class="fa-solid fa-robot" style="color:#7c3aed;"></i>
+        </div>
+        <h3 style="font-size:.95rem;font-weight:700;color:var(--brand-primary);margin-bottom:.5rem;">AI Intelligence</h3>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.6;margin:0;">Lead scoring, win probability prediction, daily briefing, next-best-action recommendations, KYC gap detection, and compliance risk profiling.</p>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <div class="card-enterprise h-100">
+        <div style="width:40px;height:40px;border-radius:10px;background:#fff7ed;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;">
+          <i class="fa-solid fa-shield-halved" style="color:#ea580c;"></i>
+        </div>
+        <h3 style="font-size:.95rem;font-weight:700;color:var(--brand-primary);margin-bottom:.5rem;">Trust & Compliance</h3>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.6;margin:0;">Trust product lifecycle (Living, Testamentary, Charitable, Cash), beneficiary management, BNM-aligned KYC workflows, PDPA consent tracking, and document checklist.</p>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <div class="card-enterprise h-100">
+        <div style="width:40px;height:40px;border-radius:10px;background:#f0f9ff;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;">
+          <i class="fa-solid fa-chart-pie" style="color:#0284c7;"></i>
+        </div>
+        <h3 style="font-size:.95rem;font-weight:700;color:var(--brand-primary);margin-bottom:.5rem;">Reporting & Analytics</h3>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.6;margin:0;">7 configurable report types: lead conversion, pipeline forecast, sales performance, activity summary, KYC compliance, stale leads, and win/loss analysis. CSV export on all.</p>
+      </div>
+    </div>
+    <div class="col-md-6 col-lg-4">
+      <div class="card-enterprise h-100">
+        <div style="width:40px;height:40px;border-radius:10px;background:#fef9c3;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;">
+          <i class="fa-solid fa-gears" style="color:#ca8a04;"></i>
+        </div>
+        <h3 style="font-size:.95rem;font-weight:700;color:var(--brand-primary);margin-bottom:.5rem;">Automation Engine</h3>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.6;margin:0;">7 scheduled background jobs: activity reminders, lead aging alerts, stale deal escalation, KYC expiry warnings, rep inactivity tracking, and SLA monitoring.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Module metadata -->
+  <div class="row g-3">
+    <div class="col-md-6">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;">Module Information</div>
+        <table class="table-enterprise">
+          <tbody>
+            <tr><td style="color:#64748b;width:40%;">Product</td><td><strong>CWC 2.0 CRM Module</strong></td></tr>
+            <tr><td style="color:#64748b;">Current Version</td><td><strong>v3.0 — Phase 3 Complete</strong></td></tr>
+            <tr><td style="color:#64748b;">Industry</td><td>Malaysian Financial Services (Trust & Estate)</td></tr>
+            <tr><td style="color:#64748b;">Primary Users</td><td>Sales Reps, Relationship Managers, Compliance Officers</td></tr>
+            <tr><td style="color:#64748b;">Regulatory</td><td>BNM, PDPA, AML/CFT alignment</td></tr>
+            <tr><td style="color:#64748b;">Languages</td><td>English (BM expansion planned)</td></tr>
+            <tr><td style="color:#64748b;">Deployment</td><td>Web (SaaS), REST API</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;">Role Access Matrix</div>
+        <table class="table-enterprise">
+          <thead>
+            <tr><th>Feature</th><th>Rep</th><th>Manager</th><th>Admin</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Dashboard</td><td>✅ Own data</td><td>✅ Team data</td><td>✅ All</td></tr>
+            <tr><td>Leads / Contacts</td><td>✅ Own</td><td>✅ Team</td><td>✅ All</td></tr>
+            <tr><td>Pipeline / Kanban</td><td>✅ Own</td><td>✅ Team</td><td>✅ All</td></tr>
+            <tr><td>Team Dashboard</td><td>❌</td><td>✅</td><td>✅</td></tr>
+            <tr><td>Reports</td><td>Own</td><td>Team</td><td>✅ All</td></tr>
+            <tr><td>Admin Console</td><td>❌</td><td>❌</td><td>✅</td></tr>
+            <tr><td>Trust Products</td><td>✅</td><td>✅</td><td>✅</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 3 — CRM FEATURES
+──────────────────────────────────────────── -->
+<section id="crm-features" class="doc-section">
+  <div class="section-eyebrow">Section 03</div>
+  <h2 class="section-title">CRM Features</h2>
+  <p class="section-subtitle">A comprehensive catalogue of all CRM capabilities, organised by functional domain with implementation status and target user roles.</p>
+
+  <!-- Feature categories with collapsibles -->
+
+  <!-- Account Management -->
+  <div class="mb-3">
+    <div class="collapsible-header open" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-building" style="margin-right:.6rem;color:#2563eb;"></i> Account Management</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:block;">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <table class="table-enterprise">
+            <thead><tr><th>Feature</th><th>Description</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Account Registry</td><td>Company accounts with SSM registration, industry, AUM</td><td><span class="pill resolved">Live</span></td></tr>
+              <tr><td>Account Detail Page</td><td>Full profile: contacts, leads, opportunities, activities</td><td><span class="pill resolved">Live</span></td></tr>
+              <tr><td>Inline Editing</td><td>Edit fields without opening a modal</td><td><span class="pill resolved">Live</span></td></tr>
+              <tr><td>Account Tagging</td><td>Custom tags for segmentation</td><td><span class="pill resolved">Live</span></td></tr>
+              <tr><td>Bulk Actions</td><td>Bulk delete, reassign, export</td><td><span class="pill resolved">Live</span></td></tr>
+              <tr><td>Configurable Columns</td><td>Show/hide columns per user preference</td><td><span class="pill resolved">Live</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="col-md-6">
+          <div class="callout info">
+            <p><strong>Malaysian-specific fields:</strong> SSM registration number, company type (Sdn Bhd, Bhd, LLP, etc.), industry (BNM categorisation), PDPA consent date, AML risk rating.</p>
+          </div>
+          <div class="callout success mt-2">
+            <p><strong>Audit trail:</strong> All account mutations are logged with timestamp, user, and field-level diff. Immutable history for compliance.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contact & KYC -->
+  <div class="mb-3">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-address-card" style="margin-right:.6rem;color:#059669;"></i> Contact Management & KYC</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:none;">
+      <table class="table-enterprise">
+        <thead><tr><th>Feature</th><th>Description</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Contact Profile</td><td>Individual records with MyKad/Passport, date of birth, nationality</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>KYC Status Tracking</td><td>PENDING / SUBMITTED / APPROVED / EXPIRED lifecycle</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>AI KYC Gap Detection</td><td>AI identifies missing KYC documents, flags expiry risks</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Risk Profile</td><td>LOW / MEDIUM / HIGH / VERY_HIGH risk classification</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Document Checklist</td><td>IC copy, utility bill, bank statement, source of funds tracker</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>PDPA Consent</td><td>Consent date, withdrawal tracking, marketing opt-in/out</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Contact-Account Linking</td><td>Multi-account association with primary/secondary designation</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Lead Conversion</td><td>Convert qualified lead to contact + account + opportunity in one transaction</td><td><span class="pill resolved">Live</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Lead Management -->
+  <div class="mb-3">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-funnel-dollar" style="margin-right:.6rem;color:#d97706;"></i> Lead Management & AI Scoring</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:none;">
+      <table class="table-enterprise">
+        <thead><tr><th>Feature</th><th>Description</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Lead Capture</td><td>Create leads with source tracking (referral, website, event, cold call)</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Lead Status Lifecycle</td><td>NEW → CONTACTED → QUALIFIED → UNQUALIFIED → CONVERTED</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>AI Lead Score (0–100)</td><td>ML-style scoring based on profile completeness, engagement, source quality</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>AI Lead Summary</td><td>One-paragraph AI-generated brief for any lead, shareable with manager</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Next Best Action</td><td>AI recommends the single best action for each lead right now</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Lead Reassignment</td><td>Manager can reassign leads individually or in bulk</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Overdue Follow-up Badges</td><td>Visual indicator when next follow-up date is past</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Lead Aging Alerts</td><td>Automated alert when lead is untouched for 7+ days</td><td><span class="pill resolved">Live</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pipeline & Opportunities -->
+  <div class="mb-3">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-chart-gantt" style="margin-right:.6rem;color:#7c3aed;"></i> Opportunity Pipeline (Kanban)</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:none;">
+      <table class="table-enterprise">
+        <thead><tr><th>Feature</th><th>Description</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Kanban Board</td><td>Visual drag-and-drop stage progression with value totals per column</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Multi-Pipeline Support</td><td>Separate pipelines per product line or team</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Win Probability</td><td>AI-estimated close probability, updated as deal progresses</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Stage History</td><td>Immutable log of every stage change with timestamp and user</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Opportunity Detail</td><td>Full deal profile: contacts, activities, notes, documents, trust products</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Deal Velocity Tracking</td><td>Days in current stage, average time per stage</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Weighted Pipeline</td><td>Value × probability for revenue forecasting</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Stale Deal Alerts</td><td>Automated escalation when deal is stuck in same stage for 14+ days</td><td><span class="pill resolved">Live</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Trust Products -->
+  <div class="mb-3">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-landmark" style="margin-right:.6rem;color:#0e7490;"></i> Trust Products & Beneficiaries</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:none;">
+      <div class="row g-3">
+        <div class="col-md-8">
+          <table class="table-enterprise">
+            <thead><tr><th>Product Type</th><th>Description</th><th>Key Fields</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Living Trust</strong></td><td>Revocable trust — settlor alive, active management</td><td>Trust deed date, amendment history, asset schedule</td></tr>
+              <tr><td><strong>Testamentary Trust</strong></td><td>Triggered on death — estate distribution</td><td>Will date, probate status, executor details</td></tr>
+              <tr><td><strong>Charitable Trust</strong></td><td>Philanthropic — Waqf/Foundation aligned</td><td>Beneficiary organisation, purpose statement</td></tr>
+              <tr><td><strong>Cash Trust</strong></td><td>Short-term yield trust, liquid assets</td><td>Deposit amount, maturity date, yield rate</td></tr>
+            </tbody>
+          </table>
+          <table class="table-enterprise mt-3">
+            <thead><tr><th>Feature</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Beneficiary Management (CRUD)</td><td><span class="pill resolved">Live</span></td></tr>
+              <tr><td>Beneficiary Percentage Allocation</td><td><span class="pill resolved">Live</span></td></tr>
+              <tr><td>Trust Status Lifecycle</td><td><span class="pill resolved">Live</span></td></tr>
+              <tr><td>Document Checklist Integration</td><td><span class="pill resolved">Live</span></td></tr>
+              <tr><td>Trust-Opportunity Linking</td><td><span class="pill resolved">Live</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="col-md-4">
+          <div class="card-enterprise" style="background:#f0f9ff;border-color:#bae6fd;">
+            <div style="font-size:.8rem;font-weight:700;color:#0369a1;margin-bottom:.75rem;">Trust Product Statuses</div>
+            <div style="display:flex;flex-direction:column;gap:.4rem;font-size:.78rem;">
+              <div style="display:flex;align-items:center;gap:.5rem;"><span style="width:10px;height:10px;border-radius:50%;background:#94a3b8;display:inline-block;"></span>DRAFT</div>
+              <div style="display:flex;align-items:center;gap:.5rem;"><span style="width:10px;height:10px;border-radius:50%;background:#f59e0b;display:inline-block;"></span>PENDING_REVIEW</div>
+              <div style="display:flex;align-items:center;gap:.5rem;"><span style="width:10px;height:10px;border-radius:50%;background:#3b82f6;display:inline-block;"></span>ACTIVE</div>
+              <div style="display:flex;align-items:center;gap:.5rem;"><span style="width:10px;height:10px;border-radius:50%;background:#a855f7;display:inline-block;"></span>UNDER_AMENDMENT</div>
+              <div style="display:flex;align-items:center;gap:.5rem;"><span style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;"></span>TERMINATED</div>
+              <div style="display:flex;align-items:center;gap:.5rem;"><span style="width:10px;height:10px;border-radius:50%;background:#059669;display:inline-block;"></span>COMPLETED</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Features -->
+  <div class="mb-3">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-brain" style="margin-right:.6rem;color:#7c3aed;"></i> AI Feature Catalogue</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:none;">
+      <table class="table-enterprise">
+        <thead><tr><th>AI Feature</th><th>Phase</th><th>Description</th><th>Input</th><th>Output</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Draft Message</td><td>1</td><td>AI-drafted outreach email for any lead</td><td>Lead profile</td><td>Email draft</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Note Analysis</td><td>1</td><td>Extracts action items and sentiment from meeting notes</td><td>Note text</td><td>Action list, sentiment</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Lead Summary</td><td>1</td><td>One-para brief of any lead for handover/review</td><td>Lead + activities</td><td>Narrative summary</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Lead Score</td><td>2</td><td>0–100 quality score with explanation</td><td>Lead profile, source, engagement</td><td>Score + reasoning</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Win Probability</td><td>2</td><td>Close probability estimate for opportunities</td><td>Stage, value, age, activity</td><td>% probability</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Daily Briefing</td><td>2</td><td>Personalised AM brief: priorities, pipeline health, alerts</td><td>User's full pipeline data</td><td>Structured brief card</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Next Best Action</td><td>3</td><td>Single recommended action per lead, right now</td><td>Lead status, last activity, score</td><td>Action + rationale</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>KYC Gap Detection</td><td>3</td><td>Identifies missing/expiring compliance documents</td><td>Contact KYC fields</td><td>Gap list + urgency</td><td><span class="pill resolved">Live</span></td></tr>
+          <tr><td>Compliance Risk Profile</td><td>3</td><td>AI-generated AML/KYC risk assessment narrative</td><td>Contact profile, activity</td><td>Risk narrative</td><td><span class="pill resolved">Live</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 4 — USER JOURNEY
+──────────────────────────────────────────── -->
+<section id="user-journey" class="doc-section">
+  <div class="section-eyebrow">Section 04</div>
+  <h2 class="section-title">User Journey</h2>
+  <p class="section-subtitle">Nine end-to-end user journeys covering every major CRM workflow — from the daily dashboard briefing to trust product setup, compliance filing, and reporting.</p>
+
+  <!-- Journey tabs -->
+  <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.5rem;" id="journey-tabs">
+    <button class="journey-tab-btn active" onclick="showJourney(0,this)">Dashboard</button>
+    <button class="journey-tab-btn" onclick="showJourney(1,this)">Account Mgmt</button>
+    <button class="journey-tab-btn" onclick="showJourney(2,this)">Contact & KYC</button>
+    <button class="journey-tab-btn" onclick="showJourney(3,this)">Lead Mgmt</button>
+    <button class="journey-tab-btn" onclick="showJourney(4,this)">Pipeline</button>
+    <button class="journey-tab-btn" onclick="showJourney(5,this)">Activities</button>
+    <button class="journey-tab-btn" onclick="showJourney(6,this)">Trust Products</button>
+    <button class="journey-tab-btn" onclick="showJourney(7,this)">Team Dashboard</button>
+    <button class="journey-tab-btn" onclick="showJourney(8,this)">Reports</button>
+  </div>
+  <style>
+    .journey-tab-btn { font-size:.78rem;font-weight:600;padding:.35rem .9rem;border-radius:6px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;cursor:pointer;transition:all .15s; }
+    .journey-tab-btn.active,.journey-tab-btn:hover { background:var(--brand-secondary);color:#fff;border-color:var(--brand-secondary); }
+    .journey-panel { display:none; }
+    .journey-panel.active { display:block; }
+  </style>
+
+  <div id="journey-0" class="journey-panel active">
+    <div class="card-enterprise">
+      <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa-solid fa-gauge-high" style="color:#2563eb;"></i> Journey 1 — Dashboard &amp; Daily Briefing
+        <span class="pill planned" style="margin-left:.5rem;">Sales Rep</span>
+      </div>
+      <div class="row g-3">
+        <div class="col-md-7">
+          <div class="journey-step"><div class="step-num">1</div><div><strong>Log in</strong><br/><span style="font-size:.8rem;color:#64748b;">Navigate to CRM → Dashboard. AI Daily Briefing generates automatically if not refreshed today.</span></div></div>
+          <div class="journey-step"><div class="step-num">2</div><div><strong>Read AI Daily Briefing</strong><br/><span style="font-size:.8rem;color:#64748b;">Structured card shows: today's priority leads, overdue follow-ups, pipeline deals stalling, and key alerts.</span></div></div>
+          <div class="journey-step"><div class="step-num">3</div><div><strong>Review KPI Hero Banner</strong><br/><span style="font-size:.8rem;color:#64748b;">Total leads, active opportunities, pipeline value, conversion rate — all personalised to your data.</span></div></div>
+          <div class="journey-step"><div class="step-num">4</div><div><strong>Act on overdue items</strong><br/><span style="font-size:.8rem;color:#64748b;">Click any overdue lead/opportunity directly from the dashboard to open the detail page.</span></div></div>
+          <div class="journey-step"><div class="step-num">5</div><div><strong>Log first activity</strong><br/><span style="font-size:.8rem;color:#64748b;">From the lead detail, click "+ Activity" to log a call, email, or meeting. Notes are AI-analysed for action items.</span></div></div>
+        </div>
+        <div class="col-md-5">
+          <div class="card-enterprise" style="background:#f0f9ff;border-color:#bae6fd;">
+            <div style="font-size:.78rem;font-weight:700;color:#0369a1;margin-bottom:.75rem;">Dashboard Components</div>
+            <ul style="font-size:.8rem;color:#0c4a6e;padding-left:1.25rem;margin:0;line-height:2;">
+              <li>AI Daily Briefing card (top of page)</li>
+              <li>KPI Hero Banner (leads, opps, value, rate)</li>
+              <li>My Performance mini-chart</li>
+              <li>Recent Activities feed</li>
+              <li>Overdue Follow-ups alert list</li>
+              <li>Won/Lost This Month summary</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="journey-1" class="journey-panel">
+    <div class="card-enterprise">
+      <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa-solid fa-building" style="color:#059669;"></i> Journey 2 — Account Management
+        <span class="pill planned" style="margin-left:.5rem;">Rep / Manager</span>
+      </div>
+      <div class="journey-step"><div class="step-num">1</div><div><strong>Create a new Account</strong><br/><span style="font-size:.8rem;color:#64748b;">CRM → Accounts → "+ New Account". Enter company name, SSM registration, industry, AUM, address.</span></div></div>
+      <div class="journey-step"><div class="step-num">2</div><div><strong>Attach contacts</strong><br/><span style="font-size:.8rem;color:#64748b;">From the Account detail page, link existing contacts or create new ones inline.</span></div></div>
+      <div class="journey-step"><div class="step-num">3</div><div><strong>Link opportunities</strong><br/><span style="font-size:.8rem;color:#64748b;">Open opportunities tab — see all active deals associated with this account.</span></div></div>
+      <div class="journey-step"><div class="step-num">4</div><div><strong>Inline-edit account details</strong><br/><span style="font-size:.8rem;color:#64748b;">Click any field directly to edit — no modal required. Changes are saved and audit-logged immediately.</span></div></div>
+      <div class="journey-step"><div class="step-num">5</div><div><strong>View audit trail</strong><br/><span style="font-size:.8rem;color:#64748b;">Activity History tab shows every change: who modified what field, when, and the previous value.</span></div></div>
+    </div>
+  </div>
+
+  <div id="journey-2" class="journey-panel">
+    <div class="card-enterprise">
+      <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa-solid fa-id-card" style="color:#d97706;"></i> Journey 3 — Contact Management &amp; KYC
+        <span class="pill planned" style="margin-left:.5rem;">Rep / Compliance</span>
+      </div>
+      <div class="journey-step"><div class="step-num">1</div><div><strong>Create contact</strong><br/><span style="font-size:.8rem;color:#64748b;">Enter name, MyKad/Passport number, DOB, nationality, and contact details. PDPA consent date recorded.</span></div></div>
+      <div class="journey-step"><div class="step-num">2</div><div><strong>Check AI KYC Gap Detection</strong><br/><span style="font-size:.8rem;color:#64748b;">Click "Run KYC Check" on the contact detail. AI returns a gap list: missing IC copy, expired utility bill, pending source-of-funds declaration.</span></div></div>
+      <div class="journey-step"><div class="step-num">3</div><div><strong>Complete document checklist</strong><br/><span style="font-size:.8rem;color:#64748b;">Tick off each document as received. Status auto-updates: PENDING → SUBMITTED → APPROVED.</span></div></div>
+      <div class="journey-step"><div class="step-num">4</div><div><strong>Set risk profile</strong><br/><span style="font-size:.8rem;color:#64748b;">Assign LOW/MEDIUM/HIGH/VERY_HIGH risk classification. AI compliance risk narrative generated on request.</span></div></div>
+      <div class="journey-step"><div class="step-num">5</div><div><strong>Convert qualified lead</strong><br/><span style="font-size:.8rem;color:#64748b;">When lead is QUALIFIED, click "Convert Lead" — creates Contact + Account + Opportunity in one atomic transaction.</span></div></div>
+    </div>
+  </div>
+
+  <div id="journey-3" class="journey-panel">
+    <div class="card-enterprise">
+      <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa-solid fa-funnel-dollar" style="color:#7c3aed;"></i> Journey 4 — Lead Management &amp; AI Scoring
+        <span class="pill planned" style="margin-left:.5rem;">Sales Rep</span>
+      </div>
+      <div class="journey-step"><div class="step-num">1</div><div><strong>Capture a new lead</strong><br/><span style="font-size:.8rem;color:#64748b;">CRM → Leads → "+ New Lead". Select source (referral, website, event, cold call), assign owner.</span></div></div>
+      <div class="journey-step"><div class="step-num">2</div><div><strong>Review AI Lead Score</strong><br/><span style="font-size:.8rem;color:#64748b;">Score (0–100) appears on the lead card. Click to see the scoring breakdown: profile completeness, source quality, engagement signals.</span></div></div>
+      <div class="journey-step"><div class="step-num">3</div><div><strong>Read Next Best Action</strong><br/><span style="font-size:.8rem;color:#64748b;">AI recommends: "Schedule discovery call this week — lead is warm, 3-day follow-up window closing."</span></div></div>
+      <div class="journey-step"><div class="step-num">4</div><div><strong>Use AI Draft Message</strong><br/><span style="font-size:.8rem;color:#64748b;">Click "Draft Message" — AI generates personalised outreach email. Edit and send.</span></div></div>
+      <div class="journey-step"><div class="step-num">5</div><div><strong>Qualify or convert</strong><br/><span style="font-size:.8rem;color:#64748b;">Update status to QUALIFIED, then click "Convert" to create the full CRM record set.</span></div></div>
+    </div>
+  </div>
+
+  <div id="journey-4" class="journey-panel">
+    <div class="card-enterprise">
+      <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa-solid fa-chess-board" style="color:#0e7490;"></i> Journey 5 — Opportunity Pipeline
+        <span class="pill planned" style="margin-left:.5rem;">Rep / Manager</span>
+      </div>
+      <div class="journey-step"><div class="step-num">1</div><div><strong>Open Pipeline (Kanban)</strong><br/><span style="font-size:.8rem;color:#64748b;">CRM → Pipeline. Select pipeline from dropdown (e.g., Trust Products 2026). Columns show each stage with total value.</span></div></div>
+      <div class="journey-step"><div class="step-num">2</div><div><strong>Move deals forward</strong><br/><span style="font-size:.8rem;color:#64748b;">Drag-and-drop a deal card to the next stage. Stage change is logged automatically with timestamp.</span></div></div>
+      <div class="journey-step"><div class="step-num">3</div><div><strong>Open deal detail</strong><br/><span style="font-size:.8rem;color:#64748b;">Click any deal card to open full detail: AI win probability, linked contacts, activities, notes, trust products, documents.</span></div></div>
+      <div class="journey-step"><div class="step-num">4</div><div><strong>Log a meeting</strong><br/><span style="font-size:.8rem;color:#64748b;">Click "+ Activity" on the deal. Select MEETING, enter notes. AI note analysis extracts action items.</span></div></div>
+      <div class="journey-step"><div class="step-num">5</div><div><strong>Close deal (WON / LOST)</strong><br/><span style="font-size:.8rem;color:#64748b;">Drag to WON or LOST column. For WON: link a trust product. For LOST: select reason. Both logged for reporting.</span></div></div>
+    </div>
+  </div>
+
+  <div id="journey-5" class="journey-panel">
+    <div class="card-enterprise">
+      <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa-solid fa-clipboard-list" style="color:#059669;"></i> Journey 6 — Activities &amp; Notes
+        <span class="pill planned" style="margin-left:.5rem;">All Roles</span>
+      </div>
+      <div class="journey-step"><div class="step-num">1</div><div><strong>Log an activity</strong><br/><span style="font-size:.8rem;color:#64748b;">From any lead, contact, account, or opportunity detail page — click "+ Activity". Select type: CALL, EMAIL, MEETING, TASK, or NOTE.</span></div></div>
+      <div class="journey-step"><div class="step-num">2</div><div><strong>Enter notes</strong><br/><span style="font-size:.8rem;color:#64748b;">Free-text field for meeting notes, call summaries, etc. AI Note Analysis available on-demand.</span></div></div>
+      <div class="journey-step"><div class="step-num">3</div><div><strong>AI analyses notes</strong><br/><span style="font-size:.8rem;color:#64748b;">Click "Analyse" to extract: sentiment (positive/neutral/negative), action items, key mentions, follow-up date suggestion.</span></div></div>
+      <div class="journey-step"><div class="step-num">4</div><div><strong>Set follow-up date</strong><br/><span style="font-size:.8rem;color:#64748b;">Pick a follow-up date. System will surface as overdue if not actioned. Automated reminder sent 24h before.</span></div></div>
+      <div class="journey-step"><div class="step-num">5</div><div><strong>Edit or delete</strong><br/><span style="font-size:.8rem;color:#64748b;">Activities can be edited (with audit log) or deleted. Pagination loads older activities on demand.</span></div></div>
+    </div>
+  </div>
+
+  <div id="journey-6" class="journey-panel">
+    <div class="card-enterprise">
+      <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa-solid fa-landmark" style="color:#0e7490;"></i> Journey 7 — Trust Products &amp; Beneficiaries
+        <span class="pill planned" style="margin-left:.5rem;">Rep / Trust Officer</span>
+      </div>
+      <div class="journey-step"><div class="step-num">1</div><div><strong>Open opportunity</strong><br/><span style="font-size:.8rem;color:#64748b;">Navigate to a WON or near-close opportunity. Open the "Trust Products" tab.</span></div></div>
+      <div class="journey-step"><div class="step-num">2</div><div><strong>Create trust product</strong><br/><span style="font-size:.8rem;color:#64748b;">Select trust type (Living, Testamentary, Charitable, Cash Trust). Enter trust value, deed date, and status.</span></div></div>
+      <div class="journey-step"><div class="step-num">3</div><div><strong>Add beneficiaries</strong><br/><span style="font-size:.8rem;color:#64748b;">Add each beneficiary: name, MyKad, relationship to settlor, percentage allocation. Total must equal 100%.</span></div></div>
+      <div class="journey-step"><div class="step-num">4</div><div><strong>Complete document checklist</strong><br/><span style="font-size:.8rem;color:#64748b;">Tick off required docs: trust deed, beneficiary IC copies, asset schedule, witness signatures. AI flags gaps.</span></div></div>
+      <div class="journey-step"><div class="step-num">5</div><div><strong>Submit for review</strong><br/><span style="font-size:.8rem;color:#64748b;">Change trust status to PENDING_REVIEW. Manager and compliance team are notified via SSE notification.</span></div></div>
+    </div>
+  </div>
+
+  <div id="journey-7" class="journey-panel">
+    <div class="card-enterprise">
+      <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa-solid fa-users-gear" style="color:#7c3aed;"></i> Journey 8 — Team Dashboard &amp; Manager AI
+        <span class="pill planned" style="margin-left:.5rem;">Manager / Admin</span>
+      </div>
+      <div class="journey-step"><div class="step-num">1</div><div><strong>Open Team Dashboard</strong><br/><span style="font-size:.8rem;color:#64748b;">CRM → Team (visible to Admin and Manager roles only). See all reps' pipeline, lead counts, conversion rates.</span></div></div>
+      <div class="journey-step"><div class="step-num">2</div><div><strong>Review Team Leaderboard</strong><br/><span style="font-size:.8rem;color:#64748b;">Ranked by deals closed, pipeline value, and lead conversion. Charts show weekly/monthly trend per rep.</span></div></div>
+      <div class="journey-step"><div class="step-num">3</div><div><strong>Identify underperforming reps</strong><br/><span style="font-size:.8rem;color:#64748b;">Rep Inactivity Alert flags reps with no activity logged in 7+ days. Clickable — opens their pipeline directly.</span></div></div>
+      <div class="journey-step"><div class="step-num">4</div><div><strong>Reassign stale leads</strong><br/><span style="font-size:.8rem;color:#64748b;">Bulk-select stale leads from team view, reassign to another rep in one action.</span></div></div>
+      <div class="journey-step"><div class="step-num">5</div><div><strong>Run AI Manager Briefing</strong><br/><span style="font-size:.8rem;color:#64748b;">Team-level daily briefing: top deals at risk, reps needing attention, pipeline forecast, this week's KPIs.</span></div></div>
+    </div>
+  </div>
+
+  <div id="journey-8" class="journey-panel">
+    <div class="card-enterprise">
+      <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;display:flex;align-items:center;gap:.5rem;">
+        <i class="fa-solid fa-chart-bar" style="color:#d97706;"></i> Journey 9 — Reports &amp; Analytics
+        <span class="pill planned" style="margin-left:.5rem;">Manager / Admin</span>
+      </div>
+      <div class="journey-step"><div class="step-num">1</div><div><strong>Open Reports</strong><br/><span style="font-size:.8rem;color:#64748b;">CRM → Reports. Select from 7 report types: Lead Conversion, Pipeline Forecast, Sales Performance, Activity Summary, KYC Compliance, Stale Leads, Win/Loss.</span></div></div>
+      <div class="journey-step"><div class="step-num">2</div><div><strong>Set date range and filters</strong><br/><span style="font-size:.8rem;color:#64748b;">Use date range picker to select period. Filter by rep, pipeline, lead source, or account type.</span></div></div>
+      <div class="journey-step"><div class="step-num">3</div><div><strong>View charts</strong><br/><span style="font-size:.8rem;color:#64748b;">Each report renders bar charts, line charts, or funnel visualisations. Interactive — hover for exact values.</span></div></div>
+      <div class="journey-step"><div class="step-num">4</div><div><strong>Export to CSV</strong><br/><span style="font-size:.8rem;color:#64748b;">Click "Export CSV" on any report to download the underlying data for offline analysis in Excel.</span></div></div>
+      <div class="journey-step"><div class="step-num">5</div><div><strong>Share with stakeholders</strong><br/><span style="font-size:.8rem;color:#64748b;">Print or use browser PDF export. Charts and tables are print-optimised for A4 presentation.</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 5 — WORKFLOW DIAGRAMS
+──────────────────────────────────────────── -->
+<section id="workflow-diagrams" class="doc-section">
+  <div class="section-eyebrow">Section 05</div>
+  <h2 class="section-title">Workflow Diagrams</h2>
+  <p class="section-subtitle">Process flow diagrams for the six most critical CRM workflows — from lead capture to trust product submission.</p>
+
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-diagram-project" style="color:var(--brand-secondary);margin-right:.4rem;"></i> Lead-to-Opportunity Conversion Flow</div>
+        <div class="mermaid-wrap">
+          <div class="mermaid">
+flowchart TD
+    A([New Lead Captured]) --> B[Assign Owner]
+    B --> C{AI Lead Score}
+    C -->|Score ≥ 60| D[Status: CONTACTED]
+    C -->|Score < 40| E[Status: UNQUALIFIED]
+    D --> F[Log Activities]
+    F --> G{Qualified?}
+    G -->|Yes| H[Status: QUALIFIED]
+    G -->|No| E
+    H --> I[Convert Lead]
+    I --> J[Create Contact]
+    I --> K[Create/Link Account]
+    I --> L[Create Opportunity]
+    J & K & L --> M([Pipeline Stage: DISCOVERY])
+    E --> N([Lead Archived])
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-diagram-project" style="color:#059669;margin-right:.4rem;"></i> Pipeline Stage Progression</div>
+        <div class="mermaid-wrap">
+          <div class="mermaid">
+flowchart LR
+    A([DISCOVERY]) --> B([QUALIFICATION])
+    B --> C([PROPOSAL])
+    C --> D([NEGOTIATION])
+    D --> E{Decision}
+    E -->|Signed| F([WON ✅])
+    E -->|Declined| G([LOST ❌])
+    B -->|Not fit| G
+    style F fill:#dcfce7,stroke:#059669
+    style G fill:#fee2e2,stroke:#dc2626
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-diagram-project" style="color:#d97706;margin-right:.4rem;"></i> KYC Verification Workflow</div>
+        <div class="mermaid-wrap">
+          <div class="mermaid">
+flowchart TD
+    A([Contact Created]) --> B[AI KYC Gap Check]
+    B --> C{Gaps Found?}
+    C -->|Yes| D[Flag Missing Docs]
+    D --> E[Rep Collects Docs]
+    E --> F[Checklist Updated]
+    F --> B
+    C -->|No| G[Submit KYC]
+    G --> H{Compliance Review}
+    H -->|Approved| I([KYC: APPROVED ✅])
+    H -->|Rejected| D
+    I --> J[Set Risk Profile]
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-diagram-project" style="color:#7c3aed;margin-right:.4rem;"></i> Trust Product Setup Flow</div>
+        <div class="mermaid-wrap">
+          <div class="mermaid">
+flowchart TD
+    A([Deal WON]) --> B[Create Trust Product]
+    B --> C[Select Trust Type]
+    C --> D[Add Beneficiaries]
+    D --> E{Allocation = 100%?}
+    E -->|No| D
+    E -->|Yes| F[Complete Doc Checklist]
+    F --> G[AI Reviews Gaps]
+    G --> H{Gaps?}
+    H -->|Yes| F
+    H -->|No| I[Submit: PENDING_REVIEW]
+    I --> J[Notify Manager + Compliance]
+    J --> K([Trust: ACTIVE ✅])
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-diagram-project" style="color:#0e7490;margin-right:.4rem;"></i> AI Daily Briefing Generation</div>
+        <div class="mermaid-wrap">
+          <div class="mermaid">
+flowchart TD
+    A([User Opens Dashboard]) --> B{Briefing Fresh?}
+    B -->|Yes, within 4h| C([Show Cached Briefing])
+    B -->|No| D[Fetch Pipeline Data]
+    D --> E[Aggregate: Leads + Opps + Activities]
+    E --> F[Send to AI Engine]
+    F --> G[Generate Structured Brief]
+    G --> H[Cache Result]
+    H --> I([Display to User])
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 6 — KPI DASHBOARD
+──────────────────────────────────────────── -->
+<section id="kpi-dashboard" class="doc-section">
+  <div class="section-eyebrow">Section 06</div>
+  <h2 class="section-title">KPI Dashboard</h2>
+  <p class="section-subtitle">Sample performance metrics demonstrating the CRM module's reporting capabilities. All figures are illustrative benchmarks for a 10-rep trust sales team over a 90-day period.</p>
+
+  <!-- Top KPIs -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#2563eb;">247</div>
+        <div class="kpi-label">Active Leads</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> +18% MoM</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#059669;">RM 4.2M</div>
+        <div class="kpi-label">Pipeline Value</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> +32% QoQ</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#d97706;">28.4%</div>
+        <div class="kpi-label">Lead Conversion</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> +6.1pts</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card">
+        <div class="kpi-value" style="color:#7c3aed;">62</div>
+        <div class="kpi-label">Avg Lead Score</div>
+        <div class="kpi-delta up"><i class="fa-solid fa-arrow-up"></i> Quality up</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-chart-line" style="color:var(--brand-secondary);margin-right:.4rem;"></i> Pipeline Value by Stage (RM)</div>
+        <div style="position:relative;height:200px;"><canvas id="pipelineChart"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-chart-pie" style="color:#d97706;margin-right:.4rem;"></i> Lead Sources</div>
+        <div style="position:relative;height:200px;"><canvas id="sourceChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-chart-bar" style="color:#059669;margin-right:.4rem;"></i> Monthly Lead Conversion Trend</div>
+        <div style="position:relative;height:200px;"><canvas id="conversionChart"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-users" style="color:#7c3aed;margin-right:.4rem;"></i> Rep Performance (Deals Closed)</div>
+        <div style="position:relative;height:200px;"><canvas id="repChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI table -->
+  <div class="card-enterprise">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-table" style="color:var(--brand-secondary);margin-right:.4rem;"></i> Key Metrics Reference Table</div>
+    <div class="table-responsive">
+      <table class="table-enterprise">
+        <thead>
+          <tr><th>Metric</th><th>Definition</th><th>Target</th><th>Sample Value</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Lead Conversion Rate</td><td>% of leads converted to opportunity</td><td>≥ 25%</td><td>28.4%</td><td><span class="pill resolved">On Target</span></td></tr>
+          <tr><td>Average Deal Size</td><td>Pipeline value / open deals</td><td>RM 120K</td><td>RM 145K</td><td><span class="pill resolved">Above Target</span></td></tr>
+          <tr><td>Pipeline Velocity</td><td>Avg days from lead to WON</td><td>≤ 90 days</td><td>74 days</td><td><span class="pill resolved">On Target</span></td></tr>
+          <tr><td>KYC Compliance Rate</td><td>% contacts with approved KYC</td><td>≥ 90%</td><td>84%</td><td><span class="pill partial">Below Target</span></td></tr>
+          <tr><td>Activity Frequency</td><td>Avg activities per rep per week</td><td>≥ 8</td><td>6.4</td><td><span class="pill partial">Below Target</span></td></tr>
+          <tr><td>Win Rate</td><td>WON / (WON + LOST)</td><td>≥ 35%</td><td>38%</td><td><span class="pill resolved">On Target</span></td></tr>
+          <tr><td>Stale Deal Rate</td><td>Deals &gt;14 days no movement</td><td>≤ 15%</td><td>22%</td><td><span class="pill open">Attention</span></td></tr>
+          <tr><td>AI Briefing Adoption</td><td>% reps reading daily briefing</td><td>≥ 70%</td><td>78%</td><td><span class="pill resolved">On Target</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 7 — UI/UX AUDIT FINDINGS
+──────────────────────────────────────────── -->
+<section id="audit-findings" class="doc-section">
+  <div class="section-eyebrow">Section 07</div>
+  <h2 class="section-title">UI/UX Audit Findings</h2>
+  <p class="section-subtitle">Enterprise audit conducted May 2026. 30 findings across functionality, compliance, and UX quality. 28 resolved across Phases 1–3. 2 deferred to Phase 4.</p>
+
+  <!-- Summary KPIs -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="kpi-card"><div class="kpi-value" style="color:#dc2626;">30</div><div class="kpi-label">Total Findings</div></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card"><div class="kpi-value" style="color:#059669;">28</div><div class="kpi-label">Resolved</div></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card"><div class="kpi-value" style="color:#d97706;">2</div><div class="kpi-label">Deferred (Phase 4)</div></div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="kpi-card"><div class="kpi-value" style="color:#2563eb;">93%</div><div class="kpi-label">Resolution Rate</div></div>
+    </div>
+  </div>
+
+  <!-- Audit findings table -->
+  <div class="card-enterprise mb-3">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-circle-xmark" style="color:#dc2626;margin-right:.4rem;"></i> Critical Bugs (P0) — All Resolved</div>
+    <div class="table-responsive">
+      <table class="table-enterprise">
+        <thead><tr><th>#</th><th>Finding</th><th>Impact</th><th>Resolution</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>B1</td><td>4 entity detail page routing bugs</td><td>All CRM detail pages inaccessible</td><td>Routing fixed in App.tsx; detail pages mounted</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>B2</td><td>"New Contact" button missing</td><td>Contacts could not be created from CRM</td><td>Create modal added to CrmContacts</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>B3</td><td>"New Deal" button missing on Kanban</td><td>Deals created only via Opportunities list</td><td>Quick-add button added directly on Kanban board</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>B4</td><td>Zod validators not wired to routes</td><td>All 15+ CRM endpoints accepted unvalidated input</td><td>Validators wired to all CRM routes</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>B5</td><td>bankAccount stored in plaintext</td><td>Financial data breach risk</td><td>Field encrypted at rest; masked in UI</td><td><span class="pill resolved">Resolved</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card-enterprise mb-3">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-triangle-exclamation" style="color:#d97706;margin-right:.4rem;"></i> High-Priority Issues (P1) — Resolved in Phase 2</div>
+    <div class="table-responsive">
+      <table class="table-enterprise">
+        <thead><tr><th>#</th><th>Finding</th><th>Resolution</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>P1-1</td><td>No ownership data scoping — agents see all other agents' data</td><td>RBAC ownership filter applied to all CRM queries</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>P1-2</td><td>No inline editing — every change required opening a full modal</td><td>Inline edit implemented across all entities</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>P1-3</td><td>No manager team performance view</td><td>Team Dashboard built with leaderboard and charts</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>P1-4</td><td>No chart visualisations on reports</td><td>7 report types with Recharts visualisations added</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>P1-5</td><td>Lead reassignment — no manager control</td><td>Bulk reassignment added on Leads list and Team view</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>P1-6</td><td>No trust-industry models (KYC, beneficiary, trust products)</td><td>Full trust product suite built in Phase 2</td><td><span class="pill resolved">Resolved</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card-enterprise mb-3">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-robot" style="color:#7c3aed;margin-right:.4rem;"></i> AI Feature Gaps — Resolved in Phase 3</div>
+    <div class="table-responsive">
+      <table class="table-enterprise">
+        <thead><tr><th>#</th><th>Finding</th><th>Resolution</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>AI-1</td><td>No lead scoring — all leads treated equally</td><td>AI Lead Score (0–100) with explanation added</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>AI-2</td><td>No win probability on deals</td><td>AI win probability with stage-based calculation</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>AI-3</td><td>No daily briefing or proactive intelligence</td><td>AI Daily Briefing with personalised prioritisation</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>AI-4</td><td>No next-best-action recommendations</td><td>Next Best Action per lead with AI rationale</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>AI-5</td><td>No KYC gap detection</td><td>AI KYC Gap Detection integrated into contact detail</td><td><span class="pill resolved">Resolved</span></td></tr>
+          <tr><td>AI-6</td><td>No compliance risk profiling</td><td>AI compliance risk narrative on contact detail</td><td><span class="pill resolved">Resolved</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card-enterprise">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-clock" style="color:#2563eb;margin-right:.4rem;"></i> Deferred Items — Phase 4</div>
+    <div class="table-responsive">
+      <table class="table-enterprise">
+        <thead><tr><th>#</th><th>Finding</th><th>Reason for Deferral</th><th>Phase 4 Item</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>D1</td><td>No workflow automation — all stage transitions manual</td><td>Requires new engine; scoped as Phase 4 major deliverable</td><td>#21 Workflow Engine (5 weeks)</td><td><span class="pill planned">Planned</span></td></tr>
+          <tr><td>D2</td><td>Mobile UX scores 4/10 — no touch patterns</td><td>Full redesign out of Phase 3 scope</td><td>#30 Mobile-First Redesign (6 weeks)</td><td><span class="pill planned">Planned</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 8 — AI ENHANCEMENT ROADMAP
+──────────────────────────────────────────── -->
+<section id="ai-roadmap" class="doc-section">
+  <div class="section-eyebrow">Section 08</div>
+  <h2 class="section-title">AI Enhancement Roadmap</h2>
+  <p class="section-subtitle">Three completed phases of AI integration, with Phase 4 anomaly detection and the long-term vision for autonomous CRM intelligence.</p>
+
+  <div class="row g-3 mb-4">
+    <!-- Phase 1 -->
+    <div class="col-md-4">
+      <div class="card-enterprise h-100" style="border-top:4px solid #059669;">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
+          <span class="pill resolved">Phase 1 — Complete</span>
+        </div>
+        <h3 style="font-size:.95rem;font-weight:700;color:var(--brand-primary);margin-bottom:1rem;">AI Productivity Tools</h3>
+        <ul style="font-size:.82rem;color:#475569;line-height:2;padding-left:1.25rem;margin:0;">
+          <li>AI Draft Message (outreach email generation)</li>
+          <li>AI Note Analysis (action items, sentiment)</li>
+          <li>AI Lead Summary (one-para brief)</li>
+        </ul>
+        <div class="callout success mt-3">
+          <p style="font-size:.78rem;"><strong>Impact:</strong> Reduced manual writing time by ~40 min/rep/day. 78% adoption rate.</p>
+        </div>
+      </div>
+    </div>
+    <!-- Phase 2 -->
+    <div class="col-md-4">
+      <div class="card-enterprise h-100" style="border-top:4px solid #2563eb;">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
+          <span class="pill resolved">Phase 2 — Complete</span>
+        </div>
+        <h3 style="font-size:.95rem;font-weight:700;color:var(--brand-primary);margin-bottom:1rem;">Predictive Intelligence</h3>
+        <ul style="font-size:.82rem;color:#475569;line-height:2;padding-left:1.25rem;margin:0;">
+          <li>AI Lead Score (0–100 with explanation)</li>
+          <li>Win Probability (% per opportunity)</li>
+          <li>AI Daily Briefing (personalised)</li>
+          <li>Pipeline Health Indicator</li>
+        </ul>
+        <div class="callout info mt-3">
+          <p style="font-size:.78rem;"><strong>Impact:</strong> Reps focus on highest-score leads first. Top-20% leads convert 2.3× faster.</p>
+        </div>
+      </div>
+    </div>
+    <!-- Phase 3 -->
+    <div class="col-md-4">
+      <div class="card-enterprise h-100" style="border-top:4px solid #7c3aed;">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
+          <span class="pill resolved">Phase 3 — Complete</span>
+        </div>
+        <h3 style="font-size:.95rem;font-weight:700;color:var(--brand-primary);margin-bottom:1rem;">Compliance & Action AI</h3>
+        <ul style="font-size:.82rem;color:#475569;line-height:2;padding-left:1.25rem;margin:0;">
+          <li>Next Best Action (per-lead recommendation)</li>
+          <li>KYC Gap Detection</li>
+          <li>Compliance Risk Narrative</li>
+          <li>AI Quality Score for notes/activities</li>
+        </ul>
+        <div class="callout warn mt-3">
+          <p style="font-size:.78rem;"><strong>Impact:</strong> KYC completion rate improved from 71% → 84% after AI gap flagging.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 4 AI -->
+  <div class="card-enterprise mb-3" style="border-top:4px solid #d97706;">
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;">
+      <span class="pill planned">Phase 4 — Planned</span>
+      <div style="font-weight:700;color:var(--brand-primary);font-size:.9rem;">AI Pipeline Anomaly Detection (#27)</div>
+    </div>
+    <div class="row g-3">
+      <div class="col-md-7">
+        <p style="font-size:.85rem;color:#475569;line-height:1.7;margin-bottom:1rem;">Proactively identifies deals and leads showing anomalous patterns before managers can manually detect them. Four detection algorithms running on the live pipeline.</p>
+        <div class="table-responsive">
+          <table class="table-enterprise">
+            <thead><tr><th>Anomaly Type</th><th>Detection Logic</th><th>Severity</th></tr></thead>
+            <tbody>
+              <tr><td>Deal Stuck in Stage</td><td>Days in current stage &gt; threshold (default: 14)</td><td>LOW → CRITICAL (2× = critical)</td></tr>
+              <tr><td>Probability Drop</td><td>AI win probability drops &gt;15% between checks</td><td>MODERATE / CRITICAL</td></tr>
+              <tr><td>Velocity Anomaly</td><td>Deal &gt;2 std deviations slower than pipeline avg</td><td>MODERATE</td></tr>
+              <tr><td>Stale Lead</td><td>No activity logged in &gt;7 days</td><td>LOW / MODERATE</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="card-enterprise" style="background:#fffbeb;border-color:#fde68a;">
+          <div style="font-size:.8rem;font-weight:700;color:#92400e;margin-bottom:.75rem;">Anomaly Alert Components</div>
+          <ul style="font-size:.8rem;color:#78350f;padding-left:1.25rem;line-height:2;margin:0;">
+            <li>Dashboard anomaly cards (severity colour-coded)</li>
+            <li>Anomaly badges on Kanban deal cards</li>
+            <li>Anomaly indicators on Lead/Opp detail</li>
+            <li>Click-through to explanation + recommended action</li>
+            <li>Admin threshold configuration</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Vision -->
+  <div class="card-enterprise" style="background:linear-gradient(135deg,#1e3a5f,#1e40af);color:#fff;">
+    <div style="font-weight:700;font-size:1rem;margin-bottom:.75rem;color:#bfdbfe;letter-spacing:.03em;">Long-Term AI Vision — CRM Autonomous Intelligence</div>
+    <p style="font-size:.85rem;color:rgba(255,255,255,.8);line-height:1.8;max-width:720px;margin-bottom:1.5rem;">The trajectory is toward a CRM that surfaces the right action at the right moment — without reps needing to ask. Phase 4 anomaly detection and workflow automation are the foundation for autonomous pipeline management.</p>
+    <div class="row g-3">
+      <div class="col-md-4"><div style="background:rgba(255,255,255,.1);border-radius:8px;padding:1rem;font-size:.82rem;color:rgba(255,255,255,.85);"><strong style="color:#7dd3fc;display:block;margin-bottom:.5rem;">Near-term (Phase 4)</strong>Anomaly detection, workflow automation, email sync auto-logging, territory-based lead routing.</div></div>
+      <div class="col-md-4"><div style="background:rgba(255,255,255,.1);border-radius:8px;padding:1rem;font-size:.82rem;color:rgba(255,255,255,.85);"><strong style="color:#86efac;display:block;margin-bottom:.5rem;">Mid-term (Phase 5)</strong>Predictive forecasting, churn probability, AI-generated proposal drafts, voice-to-note transcription.</div></div>
+      <div class="col-md-4"><div style="background:rgba(255,255,255,.1);border-radius:8px;padding:1rem;font-size:.82rem;color:rgba(255,255,255,.85);"><strong style="color:#fde68a;display:block;margin-bottom:.5rem;">Long-term (Phase 6+)</strong>Autonomous pipeline health management, AI compliance officer, cross-entity relationship graph, and self-healing data quality.</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 9 — RISK ASSESSMENT
+──────────────────────────────────────────── -->
+<section id="risk-assessment" class="doc-section">
+  <div class="section-eyebrow">Section 09</div>
+  <h2 class="section-title">Risk Assessment</h2>
+  <p class="section-subtitle">Operational, compliance, technical, and strategic risks identified for the CRM module. Assessed by likelihood and impact with current mitigations documented.</p>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-7">
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;">Risk Register</div>
+        <div class="table-responsive">
+          <table class="table-enterprise">
+            <thead><tr><th>Risk</th><th>Category</th><th>Likelihood</th><th>Impact</th><th>Rating</th><th>Mitigation</th></tr></thead>
+            <tbody>
+              <tr>
+                <td>BNM/PDPA non-compliance</td><td>Compliance</td>
+                <td><span class="tag" style="background:#fee2e2;color:#991b1b;">Medium</span></td>
+                <td><span class="tag" style="background:#fee2e2;color:#991b1b;">Critical</span></td>
+                <td><span class="pill open">HIGH</span></td>
+                <td>PDPA consent tracking, KYC audit trail, quarterly compliance review</td>
+              </tr>
+              <tr>
+                <td>Sensitive data exposure (MyKad, bank account)</td><td>Security</td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">Low</span></td>
+                <td><span class="tag" style="background:#fee2e2;color:#991b1b;">Critical</span></td>
+                <td><span class="pill partial">MEDIUM</span></td>
+                <td>Encryption at rest, field masking, RBAC scoping, audit logs</td>
+              </tr>
+              <tr>
+                <td>User adoption resistance</td><td>Operational</td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">Medium</span></td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">High</span></td>
+                <td><span class="pill partial">MEDIUM</span></td>
+                <td>Onboarding training, in-app guide, AI briefing reduces cognitive load</td>
+              </tr>
+              <tr>
+                <td>AI model quality degradation</td><td>Technical</td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">Low</span></td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">Medium</span></td>
+                <td><span class="pill resolved">LOW</span></td>
+                <td>AI output reviewed by rep before action; no autonomous mutations</td>
+              </tr>
+              <tr>
+                <td>Database performance under load</td><td>Technical</td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">Low</span></td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">High</span></td>
+                <td><span class="pill resolved">LOW</span></td>
+                <td>Pagination on all list endpoints, Redis caching, indexed foreign keys</td>
+              </tr>
+              <tr>
+                <td>Phase 4 delivery delay</td><td>Strategic</td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">Medium</span></td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">Medium</span></td>
+                <td><span class="pill partial">MEDIUM</span></td>
+                <td>Sprints prioritised by business value; parallel tracks reduce critical path</td>
+              </tr>
+              <tr>
+                <td>Email/OAuth integration complexity (#22)</td><td>Technical</td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">High</span></td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">Medium</span></td>
+                <td><span class="pill partial">MEDIUM</span></td>
+                <td>Rate-limit handling, exponential backoff, watermark-based incremental sync</td>
+              </tr>
+              <tr>
+                <td>Workflow engine infinite loops (#21)</td><td>Technical</td>
+                <td><span class="tag" style="background:#fef3c7;color:#92400e;">Low</span></td>
+                <td><span class="tag" style="background:#fee2e2;color:#991b1b;">High</span></td>
+                <td><span class="pill partial">MEDIUM</span></td>
+                <td>Execution depth limit of 3; entity-level dedup on trigger context</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card-enterprise mb-3">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;">Risk Heat Matrix</div>
+        <div style="display:grid;grid-template-columns:auto repeat(4,1fr);gap:4px;font-size:.65rem;font-weight:700;align-items:center;">
+          <div style="writing-mode:vertical-lr;transform:rotate(180deg);text-align:center;color:#64748b;padding:.5rem 0;">LIKELIHOOD ↑</div>
+          <div style="text-align:center;color:#64748b;padding:.25rem;">LOW</div>
+          <div style="text-align:center;color:#64748b;padding:.25rem;">MED</div>
+          <div style="text-align:center;color:#64748b;padding:.25rem;">HIGH</div>
+          <div style="text-align:center;color:#64748b;padding:.25rem;">CRITICAL</div>
+          <div style="text-align:right;color:#64748b;padding-right:.5rem;">HIGH</div>
+          <div class="risk-cell" style="background:#fef3c7;color:#92400e;">Perf Risk</div>
+          <div class="risk-cell" style="background:#fed7aa;color:#9a3412;">Phase 4 Delay</div>
+          <div class="risk-cell" style="background:#fca5a5;color:#7f1d1d;">Email Integ.</div>
+          <div class="risk-cell" style="background:#b91c1c;color:#fff;">—</div>
+          <div style="text-align:right;color:#64748b;padding-right:.5rem;">MED</div>
+          <div class="risk-cell" style="background:#dcfce7;color:#166534;">AI Quality</div>
+          <div class="risk-cell" style="background:#fef3c7;color:#92400e;">Loop Risk</div>
+          <div class="risk-cell" style="background:#fed7aa;color:#9a3412;">Adoption</div>
+          <div class="risk-cell" style="background:#fca5a5;color:#7f1d1d;">PDPA</div>
+          <div style="text-align:right;color:#64748b;padding-right:.5rem;">LOW</div>
+          <div class="risk-cell" style="background:#dcfce7;color:#166534;">DB Perf</div>
+          <div class="risk-cell" style="background:#dcfce7;color:#166534;">—</div>
+          <div class="risk-cell" style="background:#fef3c7;color:#92400e;">Data Exposure</div>
+          <div class="risk-cell" style="background:#fed7aa;color:#9a3412;">—</div>
+          <div></div>
+          <div style="text-align:center;color:#64748b;font-size:.6rem;">LOW</div>
+          <div style="text-align:center;color:#64748b;font-size:.6rem;">MED</div>
+          <div style="text-align:center;color:#64748b;font-size:.6rem;">HIGH</div>
+          <div style="text-align:center;color:#64748b;font-size:.6rem;">CRIT</div>
+        </div>
+        <div style="font-size:.65rem;color:#94a3b8;margin-top:.5rem;text-align:center;">IMPACT →</div>
+      </div>
+      <div class="card-enterprise">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:.75rem;font-size:.9rem;">Risk Summary</div>
+        <div style="display:flex;flex-direction:column;gap:.5rem;">
+          <div style="display:flex;align-items:center;gap:.75rem;font-size:.82rem;"><span style="width:12px;height:12px;border-radius:3px;background:#dc2626;display:inline-block;flex-shrink:0;"></span><strong>HIGH (1):</strong>&nbsp;BNM/PDPA non-compliance</div>
+          <div style="display:flex;align-items:center;gap:.75rem;font-size:.82rem;"><span style="width:12px;height:12px;border-radius:3px;background:#d97706;display:inline-block;flex-shrink:0;"></span><strong>MEDIUM (5):</strong>&nbsp;Adoption, data exposure, delivery, email, loops</div>
+          <div style="display:flex;align-items:center;gap:.75sung;gap:.75rem;font-size:.82rem;"><span style="width:12px;height:12px;border-radius:3px;background:#059669;display:inline-block;flex-shrink:0;"></span><strong>LOW (2):</strong>&nbsp;AI quality, DB performance</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 10 — TECHNICAL ARCHITECTURE
+──────────────────────────────────────────── -->
+<section id="tech-architecture" class="doc-section">
+  <div class="section-eyebrow">Section 10</div>
+  <h2 class="section-title">Technical Architecture</h2>
+  <p class="section-subtitle">Full-stack monorepo architecture — Node.js + Express backend with PostgreSQL/Prisma, React 19 frontend with Vite, Redis caching, and JWT/RBAC security.</p>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card-enterprise h-100">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-server" style="color:var(--brand-secondary);margin-right:.4rem;"></i> Backend Stack</div>
+        <table class="table-enterprise">
+          <tbody>
+            <tr><td style="color:#64748b;width:35%;">Runtime</td><td>Node.js + Express + TypeScript</td></tr>
+            <tr><td style="color:#64748b;">ORM</td><td>Prisma 5.x — PostgreSQL</td></tr>
+            <tr><td style="color:#64748b;">Auth</td><td>JWT + Passport.js, bcrypt password hashing</td></tr>
+            <tr><td style="color:#64748b;">Cache</td><td>Redis — permissions (5 min TTL), AI briefings (4 h TTL)</td></tr>
+            <tr><td style="color:#64748b;">Validation</td><td>Zod — all CRM endpoints validated</td></tr>
+            <tr><td style="color:#64748b;">Background Jobs</td><td>node-cron — 7 scheduled CRM jobs</td></tr>
+            <tr><td style="color:#64748b;">Notifications</td><td>SSE (Server-Sent Events) + email via nodemailer</td></tr>
+            <tr><td style="color:#64748b;">API prefix</td><td>/api/v1 (all routes)</td></tr>
+            <tr><td style="color:#64748b;">Middleware</td><td>helmet → CORS → body parser → rate limiter → routes</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-enterprise h-100">
+        <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-brands fa-react" style="color:#0ea5e9;margin-right:.4rem;"></i> Frontend Stack</div>
+        <table class="table-enterprise">
+          <tbody>
+            <tr><td style="color:#64748b;width:35%;">Framework</td><td>React 19 + TypeScript + Vite</td></tr>
+            <tr><td style="color:#64748b;">Routing</td><td>React Router v7</td></tr>
+            <tr><td style="color:#64748b;">State</td><td>Context API + custom hooks (useAdminState, useCrm…)</td></tr>
+            <tr><td style="color:#64748b;">API Client</td><td>Axios, base URL from VITE_API_URL env var</td></tr>
+            <tr><td style="color:#64748b;">Charts</td><td>Recharts — all CRM chart visualisations</td></tr>
+            <tr><td style="color:#64748b;">Path alias</td><td>@ maps to frontend/ root</td></tr>
+            <tr><td style="color:#64748b;">Auth context</td><td>frontend/src/context/AuthContext</td></tr>
+            <tr><td style="color:#64748b;">UI Components</td><td>Custom component library in src/components/</td></tr>
+            <tr><td style="color:#64748b;">Services</td><td>One service file per domain (crm.service.ts, etc.)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Architecture diagram -->
+  <div class="card-enterprise mb-3">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-diagram-project" style="color:var(--brand-secondary);margin-right:.4rem;"></i> System Architecture Diagram</div>
+    <div class="mermaid-wrap">
+      <div class="mermaid">
+graph TB
+    subgraph FE["Frontend (React 19 + Vite)"]
+        UI[CRM Pages] --> CTX[AuthContext]
+        UI --> SVC[CRM Service Layer]
+        SVC --> AX[Axios HTTP Client]
+    end
+    subgraph BE["Backend (Node.js + Express)"]
+        AX -->|REST /api/v1| MW[Middleware Stack]
+        MW --> RT[CRM Routes]
+        RT --> CTRL[Controllers]
+        CTRL --> SVC2[Service Layer]
+        SVC2 --> PRM[Prisma ORM]
+        SVC2 --> RDS[Redis Cache]
+        SVC2 --> AI[AI Engine]
+        SVC2 --> JOBS[Cron Jobs ×7]
+        SVC2 --> NOTIF[SSE + Email]
+    end
+    subgraph DATA["Data Layer"]
+        PRM --> PG[(PostgreSQL)]
+    end
+    NOTIF -->|SSE stream| CTX
+      </div>
+    </div>
+  </div>
+
+  <!-- CRM data model -->
+  <div class="card-enterprise">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-database" style="color:#059669;margin-right:.4rem;"></i> CRM Data Model — Core Entities</div>
+    <div class="table-responsive">
+      <table class="table-enterprise">
+        <thead><tr><th>Model</th><th>Key Fields</th><th>Relations</th><th>Phase 4 Additions</th></tr></thead>
+        <tbody>
+          <tr><td><strong>CrmAccount</strong></td><td>name, ssm, industry, aum, riskRating, pdpaConsent</td><td>→ contacts, leads, opportunities, activities</td><td>customFields (JSONB)</td></tr>
+          <tr><td><strong>CrmContact</strong></td><td>firstName, lastName, myKad, kycStatus, riskProfile, pdpaConsent</td><td>→ account, leads, opportunities, activities, trust products</td><td>customFields (JSONB)</td></tr>
+          <tr><td><strong>CrmLead</strong></td><td>title, status, source, aiScore, aiNextAction, ownerId</td><td>→ owner, contact, account, activities</td><td>customFields, territoryId</td></tr>
+          <tr><td><strong>CrmOpportunity</strong></td><td>name, stage, value, probability, aiWinProbability, pipelineId</td><td>→ pipeline, contact, account, activities, trust products</td><td>customFields</td></tr>
+          <tr><td><strong>CrmActivity</strong></td><td>type, subject, notes, aiSentiment, aiActionItems, followUpDate</td><td>→ lead, contact, account, opportunity, user</td><td>—</td></tr>
+          <tr><td><strong>CrmTrustProduct</strong></td><td>trustType, trustValue, status, deedDate, opportunityId</td><td>→ opportunity, contact, beneficiaries, documents</td><td>—</td></tr>
+          <tr><td><strong>CrmWorkflow</strong></td><td>trigger (JSONB), actions (JSONB), isActive, executionOrder</td><td>→ executions</td><td>NEW — Phase 4 #21</td></tr>
+          <tr><td><strong>CrmEmailIntegration</strong></td><td>provider, accessToken (enc.), syncEnabled, lastSyncedAt</td><td>→ synced emails, synced events</td><td>NEW — Phase 4 #22</td></tr>
+          <tr><td><strong>CrmTerritory</strong></td><td>name, regions (JSONB), isActive</td><td>→ members, quotas, leads</td><td>NEW — Phase 4 #29</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 11 — SOP / USER GUIDE
+──────────────────────────────────────────── -->
+<section id="sop-guide" class="doc-section">
+  <div class="section-eyebrow">Section 11</div>
+  <h2 class="section-title">SOP / User Guide</h2>
+  <p class="section-subtitle">Standard Operating Procedures for sales reps, managers, and compliance officers. Reference guide for onboarding and day-to-day operations.</p>
+
+  <!-- SOP cards -->
+  <div class="mb-3">
+    <div class="collapsible-header open" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-user-tie" style="margin-right:.6rem;color:#2563eb;"></i> SOP-001 — Sales Rep Daily Routine</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:block;">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h4 style="font-size:.85rem;font-weight:700;color:var(--brand-primary);margin-bottom:.75rem;">Morning Routine (9:00–9:30 AM)</h4>
+          <ol style="font-size:.83rem;color:#475569;line-height:2;padding-left:1.25rem;">
+            <li>Open CRM → Dashboard. Read AI Daily Briefing.</li>
+            <li>Action any overdue follow-ups from the alert list.</li>
+            <li>Check notifications: stale lead alerts, activity reminders.</li>
+            <li>Review today's priority leads (top-3 by AI score).</li>
+            <li>Log first outbound activity (call/email) before 10:00 AM.</li>
+          </ol>
+        </div>
+        <div class="col-md-6">
+          <h4 style="font-size:.85rem;font-weight:700;color:var(--brand-primary);margin-bottom:.75rem;">Activity Logging Requirements</h4>
+          <div class="callout warn">
+            <p><strong>Mandatory:</strong> Log every client interaction within 24 hours. Unlogged interactions cannot be audited and count against activity KPI.</p>
+          </div>
+          <ul style="font-size:.83rem;color:#475569;line-height:2;padding-left:1.25rem;margin-top:.5rem;">
+            <li>Calls: log within 2 hours, include call outcome</li>
+            <li>Emails: log as EMAIL activity with subject</li>
+            <li>Meetings: log notes within same day; use AI Note Analysis</li>
+            <li>Set follow-up date on every activity</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-id-card-clip" style="margin-right:.6rem;color:#059669;"></i> SOP-002 — KYC Submission Procedure</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:none;">
+      <div class="callout info mb-3">
+        <p><strong>Regulatory requirement:</strong> All contacts must have approved KYC before a trust product can be activated. BNM requires KYC renewal every 2 years.</p>
+      </div>
+      <ol style="font-size:.83rem;color:#475569;line-height:2.2;padding-left:1.25rem;">
+        <li>Create/open the Contact record. Navigate to the KYC tab.</li>
+        <li>Click "Run AI KYC Check" to identify gaps.</li>
+        <li>Collect all flagged documents: IC copy (front + back), utility bill (≤3 months), bank statement (≤3 months), source of funds declaration.</li>
+        <li>Upload or tick each item on the document checklist.</li>
+        <li>Set risk profile (LOW/MEDIUM/HIGH/VERY_HIGH) based on client profile.</li>
+        <li>Change KYC status to SUBMITTED. Compliance officer is notified.</li>
+        <li>Compliance officer reviews and sets status to APPROVED or returns with comments.</li>
+        <li>On APPROVAL: trust product creation may proceed.</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-landmark" style="margin-right:.6rem;color:#0e7490;"></i> SOP-003 — Trust Product Onboarding</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:none;">
+      <div class="callout success mb-3">
+        <p><strong>Pre-requisite:</strong> KYC must be APPROVED for the primary contact before proceeding. Opportunity must be in WON or NEGOTIATION stage.</p>
+      </div>
+      <ol style="font-size:.83rem;color:#475569;line-height:2.2;padding-left:1.25rem;">
+        <li>Open the opportunity. Navigate to Trust Products tab.</li>
+        <li>Click "+ Create Trust Product". Select trust type.</li>
+        <li>Enter trust value (RM), deed date, and trustee details.</li>
+        <li>Add all beneficiaries. Verify percentage allocations total 100%.</li>
+        <li>Complete document checklist: trust deed, IC copies for all beneficiaries, asset schedule, witness signatures, and source of funds (if not already in KYC).</li>
+        <li>AI reviews document checklist for gaps. Resolve all flagged items.</li>
+        <li>Change status to PENDING_REVIEW. Manager + Compliance are notified.</li>
+        <li>After internal review and approval, status is set to ACTIVE.</li>
+        <li>Schedule annual review reminder in Activities (follow-up date = deed date + 1 year).</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <div class="collapsible-header" onclick="toggleCollapsible(this)">
+      <span><i class="fa-solid fa-users-gear" style="margin-right:.6rem;color:#7c3aed;"></i> SOP-004 — Manager Weekly Review</span>
+      <i class="fa-solid fa-chevron-down chevron"></i>
+    </div>
+    <div class="collapsible-body" style="display:none;">
+      <ol style="font-size:.83rem;color:#475569;line-height:2.2;padding-left:1.25rem;">
+        <li>Open CRM → Team Dashboard. Switch date range to "This Week".</li>
+        <li>Review team leaderboard. Note reps below target activity count.</li>
+        <li>Check "Rep Inactivity Alerts" — action any rep with 0 activities this week.</li>
+        <li>Open Pipeline view. Filter by "Stale Deals" (14+ days, no movement).</li>
+        <li>For each stale deal: review stage, contact rep, or reassign.</li>
+        <li>Run AI Manager Briefing for the week's pipeline health summary.</li>
+        <li>Run "Pipeline Forecast" report. Export CSV for weekly business review.</li>
+        <li>Conduct 1:1 catch-up with any rep showing declining lead conversion rate.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- Quick reference -->
+  <div class="card-enterprise mt-4">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-keyboard" style="color:var(--brand-secondary);margin-right:.4rem;"></i> Quick Reference — Key Navigation Paths</div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <table class="table-enterprise">
+          <thead><tr><th>Action</th><th>Path</th></tr></thead>
+          <tbody>
+            <tr><td>New Lead</td><td>CRM → Leads → + New Lead</td></tr>
+            <tr><td>New Contact</td><td>CRM → Contacts → + New Contact</td></tr>
+            <tr><td>New Account</td><td>CRM → Accounts → + New Account</td></tr>
+            <tr><td>New Deal</td><td>CRM → Pipeline → + Add Deal (on Kanban)</td></tr>
+            <tr><td>Convert Lead</td><td>Lead Detail → Convert Lead button</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="col-md-6">
+        <table class="table-enterprise">
+          <thead><tr><th>Action</th><th>Path</th></tr></thead>
+          <tbody>
+            <tr><td>Run KYC Check</td><td>Contact Detail → KYC tab → Run AI KYC Check</td></tr>
+            <tr><td>Log Activity</td><td>Any Detail Page → Activities tab → + Activity</td></tr>
+            <tr><td>Generate Report</td><td>CRM → Reports → Select type → Set filters</td></tr>
+            <tr><td>Team Leaderboard</td><td>CRM → Team (Manager/Admin only)</td></tr>
+            <tr><td>Create Trust Product</td><td>Opportunity Detail → Trust Products tab → + Create</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ────────────────────────────────────────────
+     SECTION 12 — IMPROVEMENT ROADMAP
+──────────────────────────────────────────── -->
+<section id="improvement-roadmap" class="doc-section">
+  <div class="section-eyebrow">Section 12</div>
+  <h2 class="section-title">Improvement Roadmap</h2>
+  <p class="section-subtitle">Phase 4 enterprise enhancements — 8 major items spanning workflow automation, email integration, territory management, custom fields, and mobile redesign. Estimated 26–34 weeks.</p>
+
+  <!-- Timeline overview -->
+  <div class="card-enterprise mb-4">
+    <div style="font-weight:700;color:var(--brand-primary);margin-bottom:1.25rem;font-size:.9rem;"><i class="fa-solid fa-calendar-days" style="color:var(--brand-secondary);margin-right:.4rem;"></i> Phase 4 Sprint Timeline</div>
+    <div style="overflow-x:auto;">
+      <table class="table-enterprise" style="min-width:700px;">
+        <thead>
+          <tr><th>Sprint</th><th>Item</th><th>Duration</th><th>Dependency</th><th>Priority</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Sprint 1 (Wk 1–2)</td><td><strong>#23 Import/Export Tool</strong> — CSV/Excel bulk import + export</td><td>2 weeks</td><td>None</td><td><span class="pill resolved">P1</span></td></tr>
+          <tr><td>Sprint 2 (Wk 3–5)</td><td><strong>#29 Territory/Quotas</strong> — Territory model, quota tracking, auto-routing</td><td>3 weeks</td><td>None</td><td><span class="pill resolved">P1</span></td></tr>
+          <tr><td>Sprint 3 (Wk 6–8)</td><td><strong>#24 Configurable Dashboard</strong> — Drag-and-drop widget layout per user</td><td>2.5 weeks</td><td>#29 (Quota widget)</td><td><span class="pill partial">P2</span></td></tr>
+          <tr><td>Sprint 4–5 (Wk 9–16)</td><td><strong>#21 Workflow Engine</strong> — Trigger → condition → action automation builder</td><td>5 weeks</td><td>Phase 3 #28, #19</td><td><span class="pill resolved">P1</span></td></tr>
+          <tr><td>Sprint 6–7 (Wk 17–22)</td><td><strong>#22 Email/Calendar Integration</strong> — Gmail + Outlook OAuth sync</td><td>6 weeks</td><td>Phase 3 #A</td><td><span class="pill resolved">P1</span></td></tr>
+          <tr><td>Sprint 8 (Wk 23–24)</td><td><strong>#27 AI Anomaly Detection</strong> — Deal stuck, probability drop, velocity anomaly</td><td>2.5 weeks</td><td>Phase 3 #26</td><td><span class="pill partial">P2</span></td></tr>
+          <tr><td>Sprint 9–10 (Wk 25–30)</td><td><strong>#25 Custom Fields/Objects</strong> — Admin-configurable JSONB fields on all entities</td><td>4.5 weeks</td><td>Phase 3 #C, #20</td><td><span class="pill partial">P2</span></td></tr>
+          <tr><td>Sprint 11–13 (Wk 31–37)</td><td><strong>#30 Mobile-First Redesign</strong> — Bottom nav, touch Kanban, card lists, FAB</td><td>6 weeks</td><td>Phase 3 #18</td><td><span class="pill partial">P2</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Phase 4 item cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="card-enterprise h-100" style="border-left:4px solid #2563eb;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.75rem;">
+          <h3 style="font-size:.9rem;font-weight:700;color:var(--brand-primary);margin:0;">#21 Workflow Automation Engine</h3>
+          <span class="pill planned">5 wks</span>
+        </div>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.7;margin-bottom:.75rem;">No-code automation: trigger events (lead status change, deal won) → conditions (field values) → actions (create task, notify, update field, reassign). Visual builder UI with execution audit log.</p>
+        <div style="font-size:.75rem;font-weight:700;color:#475569;margin-bottom:.4rem;">Pre-built templates:</div>
+        <ul style="font-size:.78rem;color:#64748b;padding-left:1.25rem;line-height:2;margin:0;">
+          <li>New Lead → Create Follow-up Task</li>
+          <li>Deal Won → Notify Finance Team</li>
+          <li>Lead Stale 7 Days → Reassign to Manager</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-enterprise h-100" style="border-left:4px solid #059669;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.75rem;">
+          <h3 style="font-size:.9rem;font-weight:700;color:var(--brand-primary);margin:0;">#22 Email/Calendar Integration</h3>
+          <span class="pill planned">6 wks</span>
+        </div>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.7;margin-bottom:.75rem;">Gmail + Outlook OAuth 2.0 sync. Auto-creates CRM activities from emails and calendar events. Contact matching by email address. Compose and send directly from CRM.</p>
+        <div style="font-size:.75rem;font-weight:700;color:#475569;margin-bottom:.4rem;">Key capabilities:</div>
+        <ul style="font-size:.78rem;color:#64748b;padding-left:1.25rem;line-height:2;margin:0;">
+          <li>Incremental sync every 15 min</li>
+          <li>Email thread view on contact/lead detail</li>
+          <li>Calendar events → MEETING activities</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-enterprise h-100" style="border-left:4px solid #d97706;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.75rem;">
+          <h3 style="font-size:.9rem;font-weight:700;color:var(--brand-primary);margin:0;">#29 Territory &amp; Quota Management</h3>
+          <span class="pill planned">3 wks</span>
+        </div>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.7;margin-bottom:.75rem;">Define sales territories by region. Auto-route leads to territory members on creation. Set monthly/quarterly quota targets per rep or territory with attainment tracking dashboard.</p>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="card-enterprise h-100" style="border-left:4px solid #7c3aed;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.75rem;">
+          <h3 style="font-size:.9rem;font-weight:700;color:var(--brand-primary);margin:0;">#25 Custom Fields / Objects</h3>
+          <span class="pill planned">4.5 wks</span>
+        </div>
+        <p style="font-size:.82rem;color:#64748b;line-height:1.7;margin-bottom:.75rem;">Admin-configurable fields (text, number, date, dropdown, multi-select, checkbox, URL) on all CRM entities. JSONB storage. Dynamic form rendering, filter integration, and field-level validation rules.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROI projection -->
+  <div class="card-enterprise" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);">
+    <div style="font-weight:700;color:#166534;margin-bottom:1rem;font-size:.9rem;"><i class="fa-solid fa-arrow-trend-up" style="margin-right:.4rem;"></i> Phase 4 Business Impact Projections</div>
+    <div class="row g-3">
+      <div class="col-md-3 col-6">
+        <div style="text-align:center;padding:.5rem;">
+          <div style="font-size:1.75rem;font-weight:800;color:#059669;">-60%</div>
+          <div style="font-size:.75rem;color:#166534;font-weight:600;">Manual follow-up tasks eliminated via workflow automation</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div style="text-align:center;padding:.5rem;">
+          <div style="font-size:1.75rem;font-weight:800;color:#059669;">+25%</div>
+          <div style="font-size:.75rem;color:#166534;font-weight:600;">Activity logging completeness via email auto-sync</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div style="text-align:center;padding:.5rem;">
+          <div style="font-size:1.75rem;font-weight:800;color:#059669;">9.0/10</div>
+          <div style="font-size:.75rem;color:#166534;font-weight:600;">Projected CRM maturity score at Phase 4 completion</div>
+        </div>
+      </div>
+      <div class="col-md-3 col-6">
+        <div style="text-align:center;padding:.5rem;">
+          <div style="font-size:1.75rem;font-weight:800;color:#059669;">43</div>
+          <div style="font-size:.75rem;color:#166534;font-weight:600;">New API endpoints and 28 new frontend components added</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer style="background:#1e3a5f;color:rgba(255,255,255,.6);text-align:center;padding:2rem;font-size:.78rem;line-height:1.8;margin-top:0;">
+  <div style="max-width:800px;margin:0 auto;">
+    <div style="color:rgba(255,255,255,.85);font-weight:700;margin-bottom:.5rem;">CWC 2.0 CRM Module — Enterprise Documentation Portal</div>
+    Citadel Group Technologies Sdn Bhd &bull; Confidential &bull; May 2026<br/>
+    Documentation Version 3.0 &bull; Phase 3 Complete &bull; Phase 4 Planned
+  </div>
+</footer>
+
+</main>
+
+<script>
+mermaid.initialize({ startOnLoad: true, theme: 'base', themeVariables: { primaryColor: '#dbeafe', primaryTextColor: '#1e3a5f', primaryBorderColor: '#2563eb', lineColor: '#64748b', secondaryColor: '#f0fdf4', background: '#ffffff' }});
+
+// Scroll to section
+function scrollTo(id) {
+  const el = document.getElementById(id);
+  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  document.querySelectorAll('.nav-link-item').forEach(a => a.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  closeSidebar();
+}
+
+// Collapsible
+function toggleCollapsible(header) {
+  const body = header.nextElementSibling;
+  const isOpen = header.classList.contains('open');
+  header.classList.toggle('open', !isOpen);
+  body.style.display = isOpen ? 'none' : 'block';
+}
+
+// Mobile sidebar
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('overlay').classList.toggle('show');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// Journey tabs
+function showJourney(idx, btn) {
+  document.querySelectorAll('.journey-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.journey-tab-btn').forEach(b => b.classList.remove('active'));
+  const panel = document.getElementById('journey-' + idx);
+  if (panel) panel.classList.add('active');
+  btn.classList.add('active');
+}
+
+// Maturity chart
+window.addEventListener('load', () => {
+  const ctx = document.getElementById('maturityChart');
+  if (ctx) new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Backend', 'Frontend', 'Workflow', 'Trust Fit', 'Productivity', 'Manager', 'Reporting', 'Automation', 'Compliance', 'Mobile'],
+      datasets: [
+        { label: 'Baseline (Audit)', data: [7.5,5.5,4.5,3.5,4.0,3.0,2.0,1.0,2.0,3.0], backgroundColor: 'rgba(239,68,68,.25)', borderColor: 'rgba(239,68,68,.7)', borderWidth: 1.5, borderRadius: 4 },
+        { label: 'Phase 3 Current', data: [8.5,8.5,8.0,7.5,7.5,8.0,7.5,6.5,7.0,5.5], backgroundColor: 'rgba(37,99,235,.25)', borderColor: 'rgba(37,99,235,.7)', borderWidth: 1.5, borderRadius: 4 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 600 },
+      plugins: { legend: { position: 'top', labels: { font: { size: 11 }, padding: 12 } } },
+      scales: {
+        y: { min: 0, max: 10, grid: { color: 'rgba(0,0,0,.05)' }, ticks: { font: { size: 11 } } },
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+
+  // Pipeline chart
+  const pc = document.getElementById('pipelineChart');
+  if (pc) new Chart(pc, {
+    type: 'bar',
+    data: {
+      labels: ['Discovery', 'Qualification', 'Proposal', 'Negotiation', 'Won'],
+      datasets: [{ label: "Pipeline Value (RM'000)", data: [680, 520, 980, 1200, 820], backgroundColor: ['#bfdbfe','#93c5fd','#60a5fa','#3b82f6','#059669'], borderRadius: 6 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { font: { size: 10 } } }, x: { grid: { display: false }, ticks: { font: { size: 10 } } } } }
+  });
+
+  // Source donut
+  const sc = document.getElementById('sourceChart');
+  if (sc) new Chart(sc, {
+    type: 'doughnut',
+    data: { labels: ['Referral', 'Website', 'Event', 'Cold Call', 'Other'], datasets: [{ data: [38, 24, 18, 12, 8], backgroundColor: ['#2563eb','#059669','#d97706','#7c3aed','#94a3b8'], borderWidth: 2, borderColor: '#fff' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 }, padding: 8 } } } }
+  });
+
+  // Conversion trend
+  const cc = document.getElementById('conversionChart');
+  if (cc) new Chart(cc, {
+    type: 'line',
+    data: { labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], datasets: [
+      { label: 'Conversion Rate (%)', data: [18,21,22,25,27,28], borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.1)', tension: .4, fill: true, pointRadius: 4 },
+      { label: 'KYC Approval Rate (%)', data: [70,74,77,80,82,84], borderColor: '#059669', backgroundColor: 'rgba(5,150,105,.08)', tension: .4, fill: true, pointRadius: 4 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { font: { size: 10 }, padding: 10 } } }, scales: { y: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { font: { size: 10 } } }, x: { grid: { display: false }, ticks: { font: { size: 10 } } } } }
+  });
+
+  // Rep performance
+  const rc = document.getElementById('repChart');
+  if (rc) new Chart(rc, {
+    type: 'bar',
+    data: { labels: ['Ahmad R.', 'Siti N.', 'Kevin L.', 'Priya M.', 'Hafiz Z.', 'Wei Ling', 'Nurul A.', 'Jason T.'], datasets: [{ label: 'Deals Closed', data: [14,12,11,9,8,7,7,5], backgroundColor: 'rgba(37,99,235,.65)', borderRadius: 4 }] },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { color: 'rgba(0,0,0,.05)' }, ticks: { font: { size: 10 } } }, y: { grid: { display: false }, ticks: { font: { size: 10 } } } } }
+  });
+});
+</script>
+</body>
+</html>
