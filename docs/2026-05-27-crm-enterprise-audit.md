@@ -4,7 +4,47 @@
 **Module:** CRM  
 **Date:** 28 May 2026  
 **Auditor:** AI Enterprise Consultant  
-**Version:** Based on live application + codebase analysis (13 CRM Prisma models, 35+ credit models, 21 frontend files ~8,500 lines)
+**Version:** Based on live application + codebase analysis (13 CRM Prisma models, 35+ credit models, 21 frontend files ~8,500 lines)  
+**Last Updated:** 28 May 2026 — Remediation tracker added; Phases 1 & 2 sprint fixes applied (5 commits)
+
+---
+
+## REMEDIATION TRACKER
+
+> Sprint work completed 28 May 2026 — 5 commits across Phase 1 (Sprints 1–3) and Phase 2 (Sprints 1–2).
+
+| # | Audit Finding | Severity | Sprint | Status |
+|---|---------------|----------|--------|--------|
+| 1 | Notes tab never fetches existing notes (ContactDetail, AccountDetail) | Critical | Phase 1 S1 | ✅ FIXED — GET `/crm/notes` endpoint added; `listNotes` wired to both detail pages |
+| 2 | Silent AI failures — all 9 catch blocks empty | Critical | Phase 1 S1 | ✅ FIXED — Inline error display on LeadDetail, OppDetail, ContactDetail, Dashboard |
+| 3 | No Edit modals for any CRM entity | Critical | Phase 1 S1 | ✅ FIXED — Edit modals on all 4 list pages + all 4 detail pages, pre-populated via `cleanFormPayload` |
+| 4 | No Delete with confirmation | Critical | Phase 1 S1 | ✅ FIXED — Shared `ConfirmDialog` component; delete buttons on all 8 pages gated by `crm:delete` |
+| 5 | No Trust Products UI (model exists, no frontend) | Critical | Phase 1 S2 | ✅ FIXED — Full CRUD tab on CrmAccountDetail (card layout, status badges, create/edit/delete modals) |
+| 6 | No Beneficiaries UI (model exists, no frontend) | Critical | Phase 1 S2 | ✅ FIXED — Full CRUD tab on CrmContactDetail (table, allocation bar, NRIC masking, guardian field) |
+| 7 | No empty state components | Medium | Phase 1 S2 | ✅ FIXED — `EmptyState` component across all CRM list/detail pages |
+| 8 | No loading skeletons on initial page loads | Medium | Phase 1 S2 | ✅ FIXED — `CrmCardSkeleton` + `CrmTableSkeleton` applied to all CRM pages |
+| 9 | Kanban lost reason uses native `window.prompt()` | High | Phase 1 S2 | ✅ FIXED — Replaced with `ConfirmDialog` modal (textarea for reason) |
+| 10 | KPI cards not clickable / no drill-down from dashboard | High | Phase 1 S3 | ✅ FIXED — Stats Cards, My Performance, Won/Lost cards navigate on click; hover arrow indicator |
+| 11 | Weak form validation (HTML `required` only) | Medium | Phase 1 S3 | ✅ FIXED — `crmValidation.ts` with 6 validators; red border + inline errors on all Create/Edit modals |
+| 12 | No lead reassignment UI | Critical | Phase 2 S1 | ✅ FIXED — Team Dashboard Actions column with Reassign button; expandable row with owner dropdown + toast |
+| 13 | Reports have no charts (7 tabs, tables only) | High | Phase 2 S1 | ✅ FIXED — Recharts added; BarChart/PieChart/donut for LeadConversion, SalesPerformance, PipelineForecast, LeadAging, WinLoss; original tables preserved in collapsible `<details>` |
+| 14 | No inline editing on detail pages | High | Phase 2 S1 | ✅ FIXED — `InlineEdit` component (text/number/date/select); applied to overview fields on Lead, Opp, Account, Contact detail pages; owner fields gated by `crm:admin` |
+| 15 | No activity reminder/notification system | High | Phase 2 S2 | ✅ FIXED — `reminderSent` field, 15-min cron job, overdue badges on activity list |
+| 16 | No bulk operations | High | Phase 2 S2 | ✅ FIXED — `BulkActionBar` component on Leads, Opportunities, Contacts, Accounts |
+| 17 | No drill-down from Team Dashboard (cannot click agent) | High | Phase 2 S2 | ✅ FIXED — Clickable agent names expand to show leads, deals, stale leads with drill-down |
+| 18 | No mobile-first design | Medium | — | 🔴 OPEN — Tailwind breakpoints only; no mobile nav patterns or touch-optimized interactions |
+| 19 | No real-time updates (polling/SSE for CRM data) | Low | — | 🔴 OPEN — Manual page refresh still required |
+| 20 | No audit trail for CRM entity changes | High | — | 🔴 OPEN — No field-change log model |
+| 21 | No email/calendar integration | High | — | 🔴 OPEN — Phase 3 scope |
+| 22 | No workflow automation engine | High | — | 🔴 OPEN — Phase 3 scope |
+| 23 | Document Checklist UI missing (API exists) | Medium | — | 🔴 OPEN — Backend only |
+| 24 | No bulk merge/duplicate detection UI | Medium | — | 🔴 OPEN — Backend warns on match but no merge flow |
+| 25 | No configurable dashboard widgets | Medium | — | 🔴 OPEN — Phase 3 scope |
+| 26 | Activity edit/delete missing | Medium | — | 🔴 OPEN — Not yet implemented |
+| 27 | No pagination on detail page activity lists | Low | — | 🔴 OPEN — Still loads all items |
+| 28 | No import/export tool (CSV) | Medium | — | 🔴 OPEN — Phase 3 scope |
+
+**Summary:** 17 of 28 tracked items resolved (61%). All Critical and most High-severity items from original audit are closed.
 
 ---
 
@@ -25,18 +65,18 @@ The CWC CRM is a **functionally solid, domain-specialized CRM** with trust/estat
 
 ### Main Weaknesses
 
-- **Zero edit/delete UI** for any CRM entity — backend supports it, frontend doesn't expose it
-- **Silent AI failures** — all AI features catch errors with empty catch blocks; zero user feedback on failure
-- **Broken Notes tab** on ContactDetail and AccountDetail — never fetches existing notes, only shows newly created ones
-- **No bulk operations** — no multi-select, no bulk update, no bulk assign, no bulk delete
-- **Weak form validation** — HTML `required` only; no email format, phone format, or business rule validation
-- **Missing UI for 3 data models** — Trust Products, Beneficiaries, Document Checklist have backend APIs but no frontend pages/tabs
-- **No mobile-first design** — responsive via Tailwind breakpoints but no mobile-specific layout patterns
-- **No real-time updates** — requires manual page refresh; no WebSocket or polling for CRM data
+- ~~**Zero edit/delete UI** for any CRM entity~~ ✅ **RESOLVED** — Edit modals + Delete with confirmation on all 8 pages (Phase 1 S1)
+- ~~**Silent AI failures**~~ ✅ **RESOLVED** — Inline error display on all AI features (Phase 1 S1)
+- ~~**Broken Notes tab**~~ ✅ **RESOLVED** — GET `/crm/notes` backend + `listNotes` frontend wired (Phase 1 S1)
+- ~~**No bulk operations**~~ ✅ **RESOLVED** — `BulkActionBar` on Leads, Opportunities, Contacts, Accounts (Phase 2 S2)
+- ~~**Weak form validation**~~ ✅ **RESOLVED** — `crmValidation.ts` with 6 validators + inline errors (Phase 1 S3)
+- ~~**Missing UI for Trust Products and Beneficiaries**~~ ✅ **RESOLVED** — Full CRUD tabs added (Phase 1 S2). Document Checklist still open.
+- **No mobile-first design** — responsive via Tailwind breakpoints but no mobile-specific layout patterns *(still open)*
+- **No real-time updates** — requires manual page refresh; no WebSocket or polling for CRM data *(still open)*
 
 ### Enterprise Maturity Level
 
-**3.5 / 5** — Functional but with operational gaps
+**4.0 / 5** — Operationally capable; Phase 3 enterprise integrations remaining *(was 3.5 pre-sprints)*
 
 ### Key Risk Areas
 
@@ -48,21 +88,32 @@ The CWC CRM is a **functionally solid, domain-specialized CRM** with trust/estat
 
 ### Scores
 
-| Metric | Score |
-|--------|-------|
-| Overall UI | 6.5/10 |
-| Overall UX | 5.5/10 |
-| Enterprise Readiness | 4.5/10 |
-| Sales Productivity | 5/10 |
+| Metric | Original | Post-Sprints | Change |
+|--------|----------|--------------|--------|
+| Overall UI | 6.5/10 | 7.5/10 | +1.0 — charts, empty states, skeletons, inline editing |
+| Overall UX | 5.5/10 | 7.5/10 | +2.0 — edit/delete flows, notes fix, validation, KPI drill-down |
+| Enterprise Readiness | 4.5/10 | 6.0/10 | +1.5 — bulk ops, reassignment, reminders, trust/beneficiary UI |
+| Sales Productivity | 5/10 | 7.0/10 | +2.0 — inline edit, reassignment, chart reports, activity reminders |
 
-### Immediate Improvement Priorities
+### Immediate Improvement Priorities (Original)
 
-1. Fix Notes tab data fetching (broken — shows nothing)
-2. Add Edit modals for Leads, Contacts, Accounts, Opportunities
-3. Add user-facing error handling for AI features (toast notifications)
-4. Add Trust Products and Beneficiaries UI tabs (API layer already exists)
-5. Add Delete with confirmation dialogs
-6. Add form validation with error messages
+> All 6 original priorities have been resolved as of 28 May 2026.
+
+1. ~~Fix Notes tab data fetching~~ ✅ DONE
+2. ~~Add Edit modals for Leads, Contacts, Accounts, Opportunities~~ ✅ DONE
+3. ~~Add user-facing error handling for AI features~~ ✅ DONE
+4. ~~Add Trust Products and Beneficiaries UI tabs~~ ✅ DONE
+5. ~~Add Delete with confirmation dialogs~~ ✅ DONE
+6. ~~Add form validation with error messages~~ ✅ DONE
+
+### Remaining Priorities (Phase 3)
+
+1. Mobile-optimized CrmNav + bottom navigation
+2. Audit trail for CRM entity changes
+3. Document Checklist UI (API exists)
+4. Activity edit/delete
+5. Email/calendar integration (Gmail, Outlook)
+6. Workflow automation engine
 
 ---
 
@@ -101,11 +152,11 @@ The CWC CRM is a **functionally solid, domain-specialized CRM** with trust/estat
 |-------|----------|------|-----|----------|-----------------|
 | Card hover/selection states missing | Medium | Lead/Opportunity cards | No visual feedback on hover; users unsure if cards are interactive until click | Add box-shadow/transform on hover, border highlight on focus | Click-through rate |
 | Status badges too small on mobile | Low | All list views | Badge text is tiny on mobile; cannot scan pipeline status at a glance | Use pill badges with min-width; consider icon+text combo on mobile | Mobile usability |
-| No empty state illustrations | Medium | All list views | When tables are empty, users see blank whitespace — feels broken | Add illustration + CTA text ("No opportunities yet. Create your first deal.") | User confidence |
-| Reports have no charts | High | Reports page | 7 report types are all tables. No bar charts, pie charts, or sparklines. | Add Recharts visualizations for by-source, by-status, trend lines | Decision-making speed |
+| ~~No empty state illustrations~~ ✅ FIXED | Medium | All list views | `EmptyState` component added across all CRM list/detail pages | — | User confidence |
+| ~~Reports have no charts~~ ✅ FIXED | High | Reports page | Recharts added — BarChart/PieChart/donut across 5 of 7 report tabs; original tables preserved | — | Decision-making speed |
 | Kanban cards lack thumbnail/owner avatar | Medium | Pipeline | Cards show text only; no company logo placeholder or owner avatar for quick visual scan | Add avatar circle with initials, company logo placeholder | Scan speed |
-| Lost reason uses native browser `prompt()` | High | Pipeline | Drag-to-lost triggers `window.prompt()` — jarring, unstyled, breaks UX flow | Replace with a proper modal dialog | Professionalism |
-| No loading skeleton on initial page loads | Medium | Multiple pages | Some pages show nothing during API fetch (blank white) before jumping to content | Add SkeletonLine components as used in CrmDashboard | Perceived performance |
+| ~~Lost reason uses native browser `prompt()`~~ ✅ FIXED | High | Pipeline | Replaced with `ConfirmDialog` modal (textarea for reason) | — | Professionalism |
+| ~~No loading skeleton on initial page loads~~ ✅ FIXED | Medium | Multiple pages | `CrmCardSkeleton` + `CrmTableSkeleton` applied to all CRM pages | — | Perceived performance |
 
 ### Dashboard Design
 
@@ -125,8 +176,8 @@ The CWC CRM is a **functionally solid, domain-specialized CRM** with trust/estat
 
 | Friction Point | Clicks Needed | User Effort | Severity |
 |----------------|---------------|-------------|----------|
-| Edit a lead | **Impossible** — no edit button exists | High — must contact admin or re-create | Critical |
-| Delete a lead | **Impossible** — no UI | High | Critical |
+| Edit a lead | ✅ 2 clicks — Edit button on card or detail page | Low — pre-populated modal | Resolved |
+| Delete a lead | ✅ 2 clicks — Delete button + confirmation dialog | Low | Resolved |
 | Log a follow-up activity on a lead | 3 clicks (navigate → Activities tab → Log Activity) | Moderate | Medium |
 | Convert lead to opportunity | 2 clicks (QUALIFIED status → Convert) | Low | Good |
 | Find overdue leads | Auto-highlighted with red "Overdue" badge | None | Excellent |
@@ -143,11 +194,11 @@ The CWC CRM is a **functionally solid, domain-specialized CRM** with trust/estat
 | See team pipeline overview | Available (Team Dashboard) | Covered |
 | See individual rep performance | Available (Agent Performance table) | Covered |
 | Forecast view | Available (Reports → Pipeline Forecast tab) | Partial |
-| Assign/reassign leads | **Missing** — no owner change UI | **Critical** |
+| Assign/reassign leads | ✅ **Implemented** — Team Dashboard reassign button with owner dropdown | Resolved |
 | Approve/reject deals | **Missing** — no approval workflow in CRM | **High** |
 | Compare rep activity levels | Partial — Activity Summary report shows by-agent table but no comparison visualization | Medium |
 | AI manager briefing | Available but generates on-demand (not auto-refreshed) | Low |
-| Drill-down from aggregate to detail | Missing — cannot click a KPI number to see the underlying list | **High** |
+| Drill-down from aggregate to detail | ✅ **Implemented** — KPI cards navigate on click; Team Dashboard agent rows expand to show deals/leads | Resolved |
 
 ### Credit Team Perspective
 
@@ -158,17 +209,18 @@ The CWC CRM is a **functionally solid, domain-specialized CRM** with trust/estat
 | AI risk classification | Available (auto-loads on KYC tab) | Covered |
 | Bridge from CRM to Credit module | Available (AccountDetail → Credit tab) | Covered |
 | Initiate credit application from CRM | **Missing** — only a link to `/credit/borrowers?accountId=X` | Medium |
-| View trust product details | **Missing** — no UI for trust products despite API | **Critical** |
-| View/manage beneficiaries | **Missing** — no UI for beneficiaries despite API | **Critical** |
+| View trust product details | ✅ **Implemented** — Trust Products tab on AccountDetail with full CRUD | Resolved |
+| View/manage beneficiaries | ✅ **Implemented** — Beneficiaries tab on ContactDetail with full CRUD | Resolved |
 
 ### UX Severity Matrix
 
-| Severity | Issues |
-|----------|--------|
-| Critical | No edit flows for any entity; No delete flows; Notes tab broken (never fetches existing notes); No lead reassignment; No trust product/beneficiary UI |
-| High | No bulk operations; Silent AI error handling; No drill-down from KPIs; Reports are tables-only (no charts); Native `prompt()` for lost reason |
-| Medium | Weak form validation; No empty state illustrations; No loading skeleton on some pages; CrmNav overflows on mobile |
-| Low | No optimistic updates; AI features not cached (except daily briefing); Pagination missing on detail activity lists |
+| Severity | Issues | Status |
+|----------|--------|--------|
+| Critical | ~~No edit flows for any entity~~; ~~No delete flows~~; ~~Notes tab broken~~; ~~No lead reassignment~~; ~~No trust product/beneficiary UI~~ | ✅ All Resolved |
+| High | ~~No bulk operations~~; ~~Silent AI error handling~~; ~~No drill-down from KPIs~~; ~~Reports tables-only (no charts)~~; ~~Native `prompt()` for lost reason~~ | ✅ All Resolved |
+| High (open) | No audit trail for CRM entity changes; Activity edit/delete missing | 🔴 Open |
+| Medium | ~~Weak form validation~~; ~~No empty state illustrations~~; ~~No loading skeletons~~; CrmNav overflows on mobile | Partially resolved — mobile nav still open |
+| Low | No optimistic updates; AI features not cached (except daily briefing); ~~Pagination missing~~ Activity list pagination still open | 🔴 Partially open |
 
 ### Quick Wins (High Impact, Low Effort)
 
@@ -291,7 +343,7 @@ Seamless transition to full Credit module for underwriting
 | Capability | Status | Assessment |
 |------------|--------|------------|
 | Lead capture | **Exists** — Create Lead modal with all fields | Good |
-| Lead assignment | **Partial** — ownerId set at creation, but no reassignment UI | Needs work |
+| Lead assignment | ✅ **Exists** — ownerId at creation + reassignment via Team Dashboard | Resolved |
 | Lead routing | **Missing** — No round-robin, territory, or rules-based routing | Missing |
 | Lead aging | **Exists** — "Overdue" / "Stale" / "Due Today" badges | Good |
 | Lead source tracking | **Exists** — 8 sources (WEBSITE, REFERRAL, etc.) + filter | Good |
@@ -299,9 +351,9 @@ Seamless transition to full Credit module for underwriting
 | Lead scoring | **Exists** — AI Lead Score (0-100) with reason text | Good |
 | Duplicate prevention | **Partial** — Warns on email/phone match but no merge UI | Needs work |
 | Lead conversion | **Exists** — QUALIFIED → Convert to Opportunity | Good |
-| Lead edit | **Missing** — No edit modal | Critical gap |
-| Lead delete | **Missing** — No UI (backend supports) | Critical gap |
-| Lead bulk actions | **Missing** | Missing |
+| Lead edit | ✅ **Exists** — Edit modal on list page + detail page | Resolved |
+| Lead delete | ✅ **Exists** — Delete with ConfirmDialog, gated by `crm:delete` | Resolved |
+| Lead bulk actions | ✅ **Exists** — BulkActionBar with multi-select | Resolved |
 
 ### Opportunity Management
 
@@ -315,8 +367,8 @@ Seamless transition to full Credit module for underwriting
 | Forecasting | **Partial** — Reports show pipeline by stage, not weighted forecast | Needs work |
 | Pipeline aging | **Missing** — No "days in stage" indicator on deal cards | Missing |
 | Deal risk indicators | **Partial** — Win Probability serves as risk proxy, no dedicated risk model | Needs work |
-| Opportunity edit | **Missing** | Critical gap |
-| Opportunity delete | **Missing** | Critical gap |
+| Opportunity edit | ✅ **Exists** — Edit modal on list page + detail page | Resolved |
+| Opportunity delete | ✅ **Exists** — Delete with ConfirmDialog, gated by `crm:delete` | Resolved |
 | Win/Loss debrief | **Exists** — AI debrief for closed deals | Good |
 | Stage history | **Exists** — Full stage transition timeline | Good |
 
@@ -329,11 +381,11 @@ Seamless transition to full Credit module for underwriting
 | Communication tracking | **Partial** — Activities log CALL/EMAIL/WHATSAPP, but no email sync or inbound tracking | Needs work |
 | Organization structure | **Missing** — No hierarchy (parent company, subsidiaries) | Missing |
 | Account history | **Partial** — Activity log exists but not full change audit | Needs work |
-| Account edit | **Missing** | Critical gap |
-| Contact edit | **Missing** | Critical gap |
-| Contact delete | **Missing** | Critical gap |
-| Trust Products tab | **Missing** — Model exists, UI doesn't | Critical gap |
-| Beneficiaries tab | **Missing** — Model exists, UI doesn't | Critical gap |
+| Account edit | ✅ **Exists** — Edit modal on list page + detail page | Resolved |
+| Contact edit | ✅ **Exists** — Edit modal on list page + detail page | Resolved |
+| Contact delete | ✅ **Exists** — Delete with ConfirmDialog, gated by `crm:delete` | Resolved |
+| Trust Products tab | ✅ **Exists** — Full CRUD tab on AccountDetail | Resolved |
+| Beneficiaries tab | ✅ **Exists** — Full CRUD tab on ContactDetail | Resolved |
 
 ### Activity Management
 
@@ -353,12 +405,12 @@ Seamless transition to full Credit module for underwriting
 
 | Report | Visualization | Assessment |
 |--------|---------------|------------|
-| Lead Conversion | Table only (by source, by status) | Poor — needs bar/pie chart |
-| Sales Performance | Table only (by agent) | Poor — needs bar chart, sparkline |
-| Pipeline Forecast | Table only (by stage) | Poor — needs funnel chart |
+| Lead Conversion | ✅ BarChart by source + PieChart by status (table preserved) | Resolved |
+| Sales Performance | ✅ BarChart by owner (won/lost deals) (table preserved) | Resolved |
+| Pipeline Forecast | ✅ Horizontal BarChart funnel by stage (table preserved) | Resolved |
 | Activity Summary | Table + bar chart (by type) | Acceptable |
-| Lead Aging | Table with >30d/>60d/>90d columns | Acceptable |
-| Win/Loss | Table + win rate percentage | Poor — needs comparison chart |
+| Lead Aging | ✅ Stacked BarChart by age buckets >30d/>60d/>90d (table preserved) | Resolved |
+| Win/Loss | ✅ Donut PieChart (won vs lost) + BarChart (lost reasons) (table preserved) | Resolved |
 | KYC Compliance | Status chips, expiring list, PEP flagged | Good |
 
 **Missing Reports:**
@@ -534,37 +586,55 @@ Seamless transition to full Credit module for underwriting
 
 ## SECTION 11 — PRIORITIZED IMPROVEMENT ROADMAP
 
-### PHASE 1 — QUICK WINS (1-2 weeks each)
+> **Status as of 28 May 2026:** Phases 1 and 2 (items 1–17) fully completed across 5 sprint commits. Items 18–30 remain open.
+
+### PHASE 1 — QUICK WINS ✅ COMPLETE
+
+| # | Improvement | Status | Delivered In |
+|---|-------------|--------|-------------|
+| 1 | Fix Notes tab (fetch existing notes) | ✅ Done | Phase 1 Sprint 1 |
+| 2 | Add inline error handling for AI failures | ✅ Done | Phase 1 Sprint 1 |
+| 3 | Add Edit modals (Lead, Contact, Account, Opportunity) | ✅ Done | Phase 1 Sprint 1 |
+| 4 | Add Delete with confirmation dialogs | ✅ Done | Phase 1 Sprint 1 |
+| 5 | Add Trust Products tab to AccountDetail | ✅ Done | Phase 1 Sprint 2 |
+| 6 | Add Beneficiaries tab to ContactDetail | ✅ Done | Phase 1 Sprint 2 |
+| 7 | Add empty state components | ✅ Done | Phase 1 Sprint 2 |
+| 8 | Add loading skeletons on all pages | ✅ Done | Phase 1 Sprint 2 |
+| 9 | Replace native `prompt()` with modal (pipeline lost reason) | ✅ Done | Phase 1 Sprint 2 |
+| 10 | Add KPI click-through (dashboard → list) | ✅ Done | Phase 1 Sprint 3 |
+
+### PHASE 2 — MID-LEVEL IMPROVEMENTS ✅ COMPLETE (items 11–17) / 🔄 PARTIAL (items 18–20)
+
+| # | Improvement | Status | Delivered In |
+|---|-------------|--------|-------------|
+| 11 | Inline editing on detail pages | ✅ Done | Phase 2 Sprint 1 |
+| 12 | Chart visualizations in Reports | ✅ Done | Phase 2 Sprint 1 |
+| 13 | Lead reassignment UI | ✅ Done | Phase 2 Sprint 1 |
+| 14 | Activity reminder/notification system | ✅ Done | Phase 2 Sprint 2 |
+| 15 | Bulk operations (select, update, assign) | ✅ Done | Phase 2 Sprint 2 |
+| 16 | Drill-down from Team Dashboard | ✅ Done | Phase 2 Sprint 2 |
+| 17 | Form validation with error messages | ✅ Done | Phase 1 Sprint 3 |
+| 18 | Mobile-optimized CrmNav (hamburger) | 🔴 Open | — |
+| 19 | Document Checklist UI | 🔴 Open | — |
+| 20 | Configurable list view (columns, sort, page size) | 🔴 Open | — |
+
+### PHASE 3 — NEXT SPRINT PRIORITIES (carry-forward + promotions)
+
+> Items 18–19 promoted to next sprint due to compliance and mobile usability impact. Items 28 (audit trail) and 26 (AI Next Best Action) promoted from original Phase 3 based on current priority reassessment.
 
 | # | Improvement | Priority | Business Impact | UX Impact | Complexity | Effort | Risk |
 |---|-------------|----------|----------------|----------|------------|--------|------|
-| 1 | Fix Notes tab (fetch existing notes) | P0 | High — broken feature | High | Very Low | 0.5 day | None |
-| 2 | Add toast notifications for AI failures | P0 | Medium — trust | High | Low | 1 day | None |
-| 3 | Add Edit modals (Lead, Contact, Account, Opportunity) | P0 | Very High — daily use | Very High | Medium | 3-5 days | Low |
-| 4 | Add Delete with confirmation dialogs | P0 | High — data management | Medium | Low | 2 days | Medium |
-| 5 | Add Trust Products tab to AccountDetail | P1 | High — domain-specific | High | Medium | 3 days | Low |
-| 6 | Add Beneficiaries tab to ContactDetail | P1 | High — domain-specific | High | Medium | 3 days | Low |
-| 7 | Add empty state components | P1 | Medium — professionalism | Medium | Low | 1 day | None |
-| 8 | Add loading skeletons on all pages | P1 | Medium — perceived performance | Medium | Low | 1 day | None |
-| 9 | Replace native `prompt()` with modal | P1 | Medium — professionalism | Medium | Low | 0.5 day | None |
-| 10 | Add KPI click-through (dashboard → list) | P1 | High — actionability | High | Low | 1 day | None |
-
-### PHASE 2 — MID-LEVEL IMPROVEMENTS (2-4 weeks each)
-
-| # | Improvement | Priority | Business Impact | UX Impact | Complexity | Effort | Risk |
-|---|-------------|----------|----------------|----------|------------|--------|------|
-| 11 | Inline editing on detail pages | P1 | Very High | Very High | Medium | 5 days | Medium |
-| 12 | Chart visualizations in Reports | P1 | High — decision-making | High | Medium | 5 days | Low |
-| 13 | Lead reassignment UI | P1 | High — manager productivity | High | Medium | 3 days | Low |
-| 14 | Activity reminder/notification system | P1 | Very High — follow-up completion | Very High | High | 7 days | Medium |
-| 15 | Bulk operations (select, update, assign) | P1 | High — efficiency for managers | High | High | 7 days | Medium |
-| 16 | Drill-down from Team Dashboard | P2 | Medium — manager visibility | Medium | Medium | 3 days | Low |
-| 17 | Form validation with error messages | P1 | High — data quality | High | Medium | 3 days | Low |
-| 18 | Mobile-optimized CrmNav (hamburger) | P2 | Medium — mobile usability | Medium | Medium | 3 days | Low |
-| 19 | Document Checklist UI | P2 | Medium — compliance | Medium | Medium | 5 days | Low |
+| 18 | Mobile-optimized CrmNav (hamburger/collapsible) | P1 | Medium — mobile usability | Medium | Medium | 3 days | Low |
+| 19 | Document Checklist UI (API already exists) | P1 | High — compliance, trust/estate onboarding | Medium | Medium | 5 days | Low |
+| 28 | Audit trail for CRM entity changes | P1 | High — compliance, KYC/trust data changes untracked | Low | Medium | 2 weeks | Low |
+| A | Activity edit/delete | P1 | Medium — data quality | Medium | Low | 2 days | None |
+| B | Detail page activity list pagination | P1 | Medium — performance at scale | Low | Low | 1 day | None |
+| C | Fix `CrmOpportunities` form `as any` TypeScript cast | P1 | Medium — type safety in edit/create | Low | Low | 0.5 day | None |
+| D | Reports date picker component | P2 | Low–Medium — manager usability | Medium | Low | 1 day | None |
+| 26 | AI Next Best Action | P2 | Very High — rep productivity | Very High | High | 3-4 weeks | Medium |
 | 20 | Configurable list view (columns, sort, page size) | P2 | Medium — personalization | Medium | Medium | 5 days | Low |
 
-### PHASE 3 — ENTERPRISE ENHANCEMENTS (4-8 weeks each)
+### PHASE 4 — ENTERPRISE ENHANCEMENTS (4-8 weeks each)
 
 | # | Improvement | Priority | Business Impact | UX Impact | Complexity | Effort | Risk |
 |---|-------------|----------|----------------|----------|------------|--------|------|
@@ -573,9 +643,7 @@ Seamless transition to full Credit module for underwriting
 | 23 | Import/Export tool (CSV, Excel) | P2 | Medium — data migration | Medium | Medium | 2 weeks | Low |
 | 24 | Configurable dashboard widgets | P2 | High — personalization | High | High | 3-4 weeks | Medium |
 | 25 | Custom fields/objects | P2 | High — extensibility | Medium | Very High | 6-8 weeks | High |
-| 26 | AI Next Best Action | P2 | Very High — rep productivity | Very High | High | 3-4 weeks | Medium |
 | 27 | AI Pipeline Anomaly Detection | P2 | High — deal health | High | High | 3-4 weeks | Medium |
-| 28 | Audit trail for CRM entity changes | P1 | High — compliance | Low | Medium | 2 weeks | Low |
 | 29 | Territory/quotas model + UI | P2 | High — enterprise sales ops | Medium | High | 3-4 weeks | Medium |
 | 30 | Mobile-first redesign (bottom nav, swipe, FAB) | P2 | High — field sales | Very High | Very High | 6-8 weeks | Medium |
 
@@ -583,43 +651,47 @@ Seamless transition to full Credit module for underwriting
 
 ## SECTION 12 — FINAL SCORECARD
 
-| Dimension | Score | Key Driver |
-|-----------|-------|------------|
-| UI Design | 6.5/10 | Clean but generic. Lacks micro-interactions, hover states, charts, empty states. Professional but not differentiated. |
-| UX | 5.5/10 | Good creation flows, but broken edit/delete, silent AI errors, no bulk ops, and broken Notes tab significantly hurt usability. |
-| Mobile Experience | 4/10 | Basic Tailwind responsiveness. No mobile-specific patterns. CrmNav overflows. Kanban drag not touch-optimized. |
-| Sales Productivity | 5/10 | AI features are strong but cannot edit records in-place. Daily briefing is good but dashboard is not actionable. No reminders. |
-| Dashboard Effectiveness | 5.5/10 | Good KPI visibility, AI briefing is strong. But read-only, no drill-down, no charts, duplicated metrics, no action buttons. |
-| Enterprise Readiness | 4.5/10 | Strong data model and domain specificity. Weak on: audit trails, sharing rules, import/export, workflow automation, bulk operations. |
-| AI Readiness | 8/10 | 10+ contextual AI features. Strong breadth. But silent failures erode trust. Needs explainability and next-best-action. |
-| Workflow Efficiency | 5/10 | Creation is smooth. Everything else (edit, delete, bulk, assign, approve) requires workarounds or is missing. |
-| Feature Completeness | 6/10 | CRUD creation for all core entities. AI features are rich. But edit/delete/bulk for all entities is missing. 3 models have no UI. |
-| Scalability | 5.5/10 | Good Prisma model with indexes. But no team/territory model, no sharing rules, no composite indexes for common queries. |
+| Dimension | Original | Post-Sprints | Key Driver |
+|-----------|----------|--------------|------------|
+| UI Design | 6.5/10 | **7.5/10** | Charts, empty states, skeletons, inline editing added. Hover states still missing. |
+| UX | 5.5/10 | **7.5/10** | Edit/delete flows, Notes fix, form validation, KPI drill-down all resolved. |
+| Mobile Experience | 4/10 | **4/10** | Unchanged — no mobile-specific design work yet. |
+| Sales Productivity | 5/10 | **7.0/10** | Inline editing, reassignment, chart reports, activity reminders all added. |
+| Dashboard Effectiveness | 5.5/10 | **7.0/10** | KPI click-through added; team drill-down added. Still no configurable widgets. |
+| Enterprise Readiness | 4.5/10 | **6.0/10** | Bulk ops, trust/beneficiary UI, reminders added. Audit trail, import/export still open. |
+| AI Readiness | 8/10 | **8.5/10** | Silent failures fixed. 10+ features remain strong. |
+| Workflow Efficiency | 5/10 | **7.5/10** | Edit, delete, bulk, assign all resolved. Approve workflow still missing. |
+| Feature Completeness | 6/10 | **7.5/10** | Edit/delete/bulk for all entities + trust products + beneficiaries + charts done. |
+| Scalability | 5.5/10 | **5.5/10** | Unchanged — no team/territory model or composite index work. |
 
-### Final Overall Score: 5.5/10
+### Final Overall Score: 5.5/10 → **7.0/10** (post-sprints)
 
 ### Enterprise Maturity Assessment
 
-**Early Growth Stage**
+**Growth Stage** *(was Early Growth Stage)*
 
-- Data model is robust and domain-specialized (strength)
-- Feature breadth is good but feature depth is shallow (cannot edit what you create)
-- AI integration is ahead of most CRM competitors at this stage (significant strength)
-- Operational workflows (edit, delete, bulk, assign, approve) are incomplete (critical gap)
-- Enterprise capabilities (audit, import/export, integration, custom fields) are absent (blocking gap)
+- Data model is robust and domain-specialized (strength — unchanged)
+- ~~Feature depth is shallow (cannot edit what you create)~~ ✅ Edit/delete/bulk/inline editing all implemented
+- AI integration is ahead of most CRM competitors (strength — enhanced with error handling)
+- ~~Operational workflows incomplete~~ ✅ Edit, delete, bulk, assign all resolved. Approve workflow still open.
+- Enterprise capabilities (audit trail, import/export, email integration, custom fields) remain absent (Phase 3 gap)
 
-### Top 10 Critical Improvements
+### Top 10 Critical Improvements (Current — as of 28 May 2026)
 
-1. **Add Edit modals for all CRM entities** — The single biggest UX gap. Users cannot update any record after creation.
-2. **Fix Notes tab fetching** — Broken feature (shows empty instead of existing notes).
-3. **Add delete with confirmation dialogs** — Basic data management capability.
-4. **Add toast notifications for AI failures** — Users see no feedback when AI features fail.
-5. **Add Trust Products and Beneficiaries UI** — Backend exists, frontend missing. Domain-critical.
-6. **Add chart visualizations in Reports** — Tables alone don't drive decisions.
-7. **Add inline editing on detail pages** — Reduce clicks for everyday updates.
-8. **Add activity reminder/notification system** — Follow-ups fall through cracks without it.
-9. **Add lead reassignment from Team Dashboard** — Managers cannot distribute work.
-10. **Add KPI click-through and action buttons on Dashboard** — Dashboard is passive; needs to be active.
+> All original 10 items resolved. List refreshed to reflect current open priorities.
+
+| # | Improvement | Severity | Business Impact |
+|---|-------------|----------|----------------|
+| 1 | **Audit trail for CRM entity changes** | High | Compliance risk — no field-change log for any entity; KYC/trust data edits are invisible and unauditable |
+| 2 | **Document Checklist UI** | High | API already exists; domain-critical for trust/estate onboarding; currently backend-only |
+| 3 | **Activity edit/delete** | Medium | Users cannot correct a wrongly logged call/meeting; data quality degrades over time |
+| 4 | **Mobile-first CrmNav** | Medium | 10-tab bar overflows on mobile; no hamburger/collapsible; field sales reps blocked |
+| 5 | **Fix `CrmOpportunities` form `as any` TypeScript cast** | Medium | Silent type safety hole in edit/create flow; could mask field mapping bugs |
+| 6 | **Detail page activity list pagination** | Medium | All records load unbounded — performance degrades as data grows; no server-side limit |
+| 7 | **Reports date picker component** | Low–Medium | Manual from/to state is fragile; no date range validation; error-prone for managers |
+| 8 | **AI Next Best Action** | High | Highest-ROI AI feature not yet built; all required data (activities, stage, time) already exists |
+| 9 | **Email/calendar integration (Gmail/Outlook)** | High | Biggest competitive gap vs HubSpot/Pipedrive; blocks automatic communication tracking |
+| 10 | **Workflow automation engine** | High | No trigger rules on stage transitions; pipeline management is entirely manual |
 
 ---
 
@@ -743,14 +815,14 @@ Seamless transition to full Credit module for underwriting
 
 ## APPENDIX C — Known Bugs
 
-1. **Notes tab on ContactDetail** — Never fetches existing notes. Comment in code: "Since there's no listNotes endpoint, initialize empty". But `crmService.listActivities({ contactId })` exists and is called but result unused.
-2. **Notes tab on AccountDetail** — Same pattern: creates notes but never fetches existing.
-3. **AI error handling** — All AI features use `catch {/* fail silently */}`. No toast or inline error shown to user.
-4. **Kanban lost reason** — Uses native browser `prompt()` instead of a proper modal.
-5. **Activity list on CrmContactDetail** — Calls `crmService.listActivities({ contactId, activityType: 'NOTE' })` but doesn't use the result (lines 210-211).
-6. **CrmOpportunities form state** — Casts `form` to `any` for field access, bypassing TypeScript safety.
-7. **Reports date picker** — Uses manual from/to state without a proper date picker component.
-8. **No pagination on detail pages** — Activity and notes lists load all items without server-side pagination.
+1. ~~**Notes tab on ContactDetail**~~ ✅ **FIXED** (Phase 1 S1) — GET `/crm/notes` endpoint added; `listNotes` wired; both detail pages now fetch existing notes on mount.
+2. ~~**Notes tab on AccountDetail**~~ ✅ **FIXED** (Phase 1 S1) — Same fix applied.
+3. ~~**AI error handling**~~ ✅ **FIXED** (Phase 1 S1) — All 9 silent catch blocks replaced with inline error display on AI panels.
+4. ~~**Kanban lost reason uses `window.prompt()`**~~ ✅ **FIXED** (Phase 1 S2) — Replaced with `ConfirmDialog` modal (textarea for reason).
+5. ~~**Activity list unused result on CrmContactDetail**~~ ✅ **FIXED** as part of Notes tab remediation (Phase 1 S1).
+6. **CrmOpportunities form state** — Still casts `form` to `any` for field access, bypassing TypeScript safety. *(open)*
+7. **Reports date picker** — Still uses manual from/to state without a proper date picker component. *(open)*
+8. **No pagination on detail pages** — Activity and notes lists still load all items without server-side pagination. *(open)*
 
 ---
 

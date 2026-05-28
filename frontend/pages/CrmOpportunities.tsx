@@ -453,13 +453,13 @@ const CrmOpportunities = () => {
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Opportunity Name *</label>
-                <input value={(form as any).name || ''} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} required
+                <input value={form.name || ''} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} required
                   className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'name') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                 {formErrors.some(e => e.field === 'name') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'name')?.message}</p>)}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Account *</label>
-                <select value={(form as any).accountId || ''} onChange={e => setForm(prev => ({ ...prev, accountId: e.target.value }))} required
+                <select value={form.accountId || ''} onChange={e => setForm(prev => ({ ...prev, accountId: e.target.value }))} required
                   className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'accountId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                   <option value="">Select Account</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -469,7 +469,7 @@ const CrmOpportunities = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Pipeline *</label>
-                  <select value={(form as any).pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); const firstStage = p?.stages?.[0]; setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: firstStage?.id, probability: firstStage?.probability ?? 0 })); }} required
+                  <select value={form.pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); const firstStage = p?.stages?.[0]; setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: firstStage?.id, probability: firstStage?.probability ?? 0 })); }} required
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'pipelineId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Pipeline</option>
                     {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -478,7 +478,7 @@ const CrmOpportunities = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Stage *</label>
-                  <select value={(form as any).stageId || ''} onChange={e => { const selP = pipelines.find(p => p.id === form.pipelineId); const selS = selP?.stages?.find(s => s.id === e.target.value); setForm(prev => ({ ...prev, stageId: e.target.value, probability: selS?.probability ?? prev.probability ?? 0 })); }} required
+                  <select value={form.stageId || ''} onChange={e => { const selP = pipelines.find(p => p.id === form.pipelineId); const selS = selP?.stages?.find(s => s.id === e.target.value); setForm(prev => ({ ...prev, stageId: e.target.value, probability: selS?.probability ?? prev.probability ?? 0 })); }} required
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'stageId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Stage</option>
                     {pipelines.find(p => p.id === form.pipelineId)?.stages.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -489,25 +489,25 @@ const CrmOpportunities = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Value (MYR)</label>
-                  <input type="number" value={(form as any).value || ''} onChange={e => setForm(prev => ({ ...prev, value: Number(e.target.value) }))}
+                  <input type="number" value={form.value || ''} onChange={e => setForm(prev => ({ ...prev, value: Number(e.target.value) }))}
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'value') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                   {formErrors.some(e => e.field === 'value') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'value')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Probability (%)</label>
-                  <input type="number" min={0} max={100} value={(form as any).probability || 0} onChange={e => setForm(prev => ({ ...prev, probability: Number(e.target.value) }))}
+                  <input type="number" min={0} max={100} value={form.probability || 0} onChange={e => setForm(prev => ({ ...prev, probability: Number(e.target.value) }))}
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'probability') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                   {formErrors.some(e => e.field === 'probability') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'probability')?.message}</p>)}
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Expected Close Date</label>
-                <input type="date" value={(form as any).expectedCloseDate || ''} onChange={e => setForm(prev => ({ ...prev, expectedCloseDate: e.target.value }))}
+                <input type="date" value={form.expectedCloseDate || ''} onChange={e => setForm(prev => ({ ...prev, expectedCloseDate: e.target.value }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
-                <textarea value={(form as any).description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={3}
+                <textarea value={form.description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={3}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
               </div>
               <div className="flex justify-end gap-3 pt-2">
@@ -532,13 +532,13 @@ const CrmOpportunities = () => {
             <form onSubmit={handleEdit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Opportunity Name *</label>
-                <input value={(form as any).name || ''} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} required
+                <input value={form.name || ''} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} required
                   className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'name') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                 {formErrors.some(e => e.field === 'name') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'name')?.message}</p>)}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Account *</label>
-                <select value={(form as any).accountId || ''} onChange={e => setForm(prev => ({ ...prev, accountId: e.target.value }))} required
+                <select value={form.accountId || ''} onChange={e => setForm(prev => ({ ...prev, accountId: e.target.value }))} required
                   className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'accountId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                   <option value="">Select Account</option>
                   {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
@@ -548,7 +548,7 @@ const CrmOpportunities = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Pipeline *</label>
-                  <select value={(form as any).pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); const firstStage = p?.stages?.[0]; setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: firstStage?.id, probability: firstStage?.probability ?? 0 })); }} required
+                  <select value={form.pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); const firstStage = p?.stages?.[0]; setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: firstStage?.id, probability: firstStage?.probability ?? 0 })); }} required
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'pipelineId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Pipeline</option>
                     {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -557,7 +557,7 @@ const CrmOpportunities = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Stage *</label>
-                  <select value={(form as any).stageId || ''} onChange={e => { const selP = pipelines.find(p => p.id === form.pipelineId); const selS = selP?.stages?.find(s => s.id === e.target.value); setForm(prev => ({ ...prev, stageId: e.target.value, probability: selS?.probability ?? prev.probability ?? 0 })); }} required
+                  <select value={form.stageId || ''} onChange={e => { const selP = pipelines.find(p => p.id === form.pipelineId); const selS = selP?.stages?.find(s => s.id === e.target.value); setForm(prev => ({ ...prev, stageId: e.target.value, probability: selS?.probability ?? prev.probability ?? 0 })); }} required
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none${formErrors.some(e => e.field === 'stageId') ? ' !border-red-500 focus:!ring-red-200' : ''}`} style={{ fontFamily: 'var(--font-sans)' }}>
                     <option value="">Select Stage</option>
                     {pipelines.find(p => p.id === form.pipelineId)?.stages?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -568,25 +568,25 @@ const CrmOpportunities = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Value (MYR)</label>
-                  <input type="number" value={(form as any).value || ''} onChange={e => setForm(prev => ({ ...prev, value: Number(e.target.value) }))}
+                  <input type="number" value={form.value || ''} onChange={e => setForm(prev => ({ ...prev, value: Number(e.target.value) }))}
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'value') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                   {formErrors.some(e => e.field === 'value') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'value')?.message}</p>)}
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Probability (%)</label>
-                  <input type="number" min={0} max={100} value={(form as any).probability ?? 0} onChange={e => setForm(prev => ({ ...prev, probability: Number(e.target.value) }))}
+                  <input type="number" min={0} max={100} value={form.probability ?? 0} onChange={e => setForm(prev => ({ ...prev, probability: Number(e.target.value) }))}
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'probability') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                   {formErrors.some(e => e.field === 'probability') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'probability')?.message}</p>)}
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Expected Close Date</label>
-                <input type="date" value={(form as any).expectedCloseDate || ''} onChange={e => setForm(prev => ({ ...prev, expectedCloseDate: e.target.value }))}
+                <input type="date" value={form.expectedCloseDate || ''} onChange={e => setForm(prev => ({ ...prev, expectedCloseDate: e.target.value }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
-                <textarea value={(form as any).description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={3}
+                <textarea value={form.description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={3}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
               </div>
               <div className="flex justify-end gap-3 pt-2">

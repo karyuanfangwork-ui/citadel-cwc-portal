@@ -3,6 +3,8 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType, CrmTrustProduct, CrmUser } from '../src/services/crm.service';
 import InlineEdit from '../src/components/crm/InlineEdit';
 import CrmNav from '../src/components/CrmNav';
+import AiInsightCard from '../src/components/crm/AiInsightCard';
+import { useDocumentChecklist, DocumentChecklist } from '../src/hooks/useCrmAi';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
@@ -34,6 +36,11 @@ const CrmAccountDetail = () => {
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
+  const [showEditActivity, setShowEditActivity] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<CrmActivity | null>(null);
+  const [editActivityForm, setEditActivityForm] = useState<Partial<CrmActivity>>({});
+  const [showDeleteActivity, setShowDeleteActivity] = useState(false);
+  const [deletingActivity, setDeletingActivity] = useState<CrmActivity | null>(null);
   const [noteContent, setNoteContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState<CrmNote[]>([]);
@@ -41,6 +48,11 @@ const CrmAccountDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showDelete, setShowDelete] = useState(false);
+
+  // Activity pagination
+  const [activityPage, setActivityPage] = useState(1);
+  const [hasMoreActivities, setHasMoreActivities] = useState(true);
+  const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
 
   // Validation error states
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
@@ -55,6 +67,10 @@ const CrmAccountDetail = () => {
   const [editingTP, setEditingTP] = useState<CrmTrustProduct | null>(null);
   const [showDeleteTP, setShowDeleteTP] = useState(false);
   const [deletingTP, setDeletingTP] = useState<CrmTrustProduct | null>(null);
+
+  // Document Checklist (AI)
+  const docChecklist = useDocumentChecklist();
+  const [showChecklist, setShowChecklist] = useState<string | null>(null); // trust product ID
 
   // CRM Users for owner select
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
@@ -106,6 +122,60 @@ const CrmAccountDetail = () => {
       setActivityForm({ activityType: 'CALL' });
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
+  };
+
+  const openEditActivity = (a: CrmActivity) => {
+    setEditingActivity(a);
+    setEditActivityForm({
+      activityType: a.activityType,
+      subject: a.subject,
+      description: a.description ?? '',
+      scheduledAt: a.scheduledAt ?? '',
+      completedAt: a.completedAt ?? '',
+      durationMinutes: a.durationMinutes,
+    });
+    setShowEditActivity(true);
+  };
+
+  const handleEditActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingActivity || !id) return;
+    try {
+      setSaving(true);
+      await crmService.updateActivity(editingActivity.id, editActivityForm);
+      const updated = await crmService.getAccount(id);
+      setAccount(updated);
+      setShowEditActivity(false);
+      setEditingActivity(null);
+      setEditActivityForm({});
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeleteActivity = async () => {
+    if (!deletingActivity || !id) return;
+    try {
+      setSaving(true);
+      await crmService.deleteActivity(deletingActivity.id);
+      setShowDeleteActivity(false);
+      setDeletingActivity(null);
+      const updated = await crmService.getAccount(id);
+      setAccount(updated);
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const loadMoreActivities = async () => {
+    if (!id || loadingMoreActivities) return;
+    const nextPage = activityPage + 1;
+    setLoadingMoreActivities(true);
+    try {
+      const res = await crmService.listActivities({ accountId: id, page: nextPage, limit: 10 });
+      setAccount(prev => prev ? { ...prev, activities: [...(prev.activities ?? []), ...res.activities] } : prev);
+      setActivityPage(nextPage);
+      setHasMoreActivities(res.activities.length >= 10);
+    } catch (e) { console.error(e); }
+    finally { setLoadingMoreActivities(false); }
   };
 
   const handleAddNote = async (e: React.FormEvent) => {
@@ -457,9 +527,39 @@ const CrmAccountDetail = () => {
                   )}
                 </p>
               </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {hasPermission(user, 'crm:update') && (
+                  <button onClick={() => openEditActivity(a)} title="Edit activity"
+                    className="p-1 rounded hover:bg-bg-subtle transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <span className="material-symbols-outlined text-text-secondary text-base">edit</span>
+                  </button>
+                )}
+                {hasPermission(user, 'crm:delete') && (
+                  <button onClick={() => { setDeletingActivity(a); setShowDeleteActivity(true); }} title="Delete activity"
+                    className="p-1 rounded hover:bg-red-50 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <span className="material-symbols-outlined text-danger text-base">delete</span>
+                  </button>
+                )}
+              </div>
               <span className="text-xs text-text-secondary shrink-0">{a.activityType}</span>
             </div>
           ))}
+          {hasMoreActivities && (account.activities ?? []).length > 0 && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={loadMoreActivities}
+                disabled={loadingMoreActivities}
+                className="flex items-center gap-2 border border-border px-6 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ background: 'var(--bg-surface)', cursor: loadingMoreActivities ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)' }}
+              >
+                {loadingMoreActivities ? (
+                  <><span className="material-symbols-outlined text-base animate-spin">progress_activity</span>Loading…</>
+                ) : (
+                  <><span className="material-symbols-outlined text-base">expand_more</span>Load More</>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -549,6 +649,11 @@ const CrmAccountDetail = () => {
                   </span>
                 </div>
                 <div className="flex gap-2">
+                  <button onClick={() => { docChecklist.fetch(tp.id); setShowChecklist(tp.id); }}
+                    className="flex items-center gap-1 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-purple-50 transition-colors"
+                    style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                    <span className="material-symbols-outlined text-sm">checklist</span> AI Checklist
+                  </button>
                   <button onClick={() => {
                     setEditingTP(tp);
                     setTpFormErrors([]);
@@ -581,6 +686,43 @@ const CrmAccountDetail = () => {
                   )}
                 </div>
               </div>
+              {/* AI Document Checklist */}
+              {showChecklist === tp.id && (
+                <div className="mt-3 border border-purple-200 rounded-xl p-4 bg-purple-50/50">
+                  {docChecklist.loading && <p className="text-sm text-text-secondary animate-pulse">Generating document checklist…</p>}
+                  {docChecklist.error && <p className="text-sm text-danger">{docChecklist.error}</p>}
+                  {docChecklist.data && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="material-symbols-outlined text-purple-600 text-lg">auto_awesome</span>
+                        <p className="font-bold text-sm text-purple-800">Required Documents</p>
+                        <button onClick={() => setShowChecklist(null)}
+                          className="ml-auto text-xs text-text-secondary hover:text-text-primary"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>✕ Close</button>
+                      </div>
+                      <div className="space-y-2">
+                        {docChecklist.data.documents.map((doc, i) => (
+                          <div key={i} className="flex items-start gap-2 text-sm">
+                            <span className={`material-symbols-outlined text-base mt-0.5 ${doc.required ? 'text-red-500' : 'text-text-secondary'}`}>
+                              {doc.required ? 'priority_high' : 'check_circle'}
+                            </span>
+                            <div>
+                              <p className="font-semibold text-text-primary">{doc.name}{doc.required && <span className="text-red-500 ml-1">*</span>}</p>
+                              {doc.description && <p className="text-xs text-text-secondary">{doc.description}</p>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {docChecklist.data.notes && (
+                        <p className="text-xs text-text-secondary mt-3 italic border-t border-purple-200 pt-2">{docChecklist.data.notes}</p>
+                      )}
+                    </div>
+                  )}
+                  {!docChecklist.loading && !docChecklist.error && !docChecklist.data && (
+                    <p className="text-sm text-text-secondary">Click "AI Checklist" to generate.</p>
+                  )}
+                </div>
+              )}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
                 <div>
                   <p className="text-xs text-text-secondary">Value</p>
@@ -790,6 +932,71 @@ const CrmAccountDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Activity modal */}
+      {showEditActivity && editingActivity && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEditActivity(false); setEditingActivity(null); setEditActivityForm({}); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-text-primary mb-4">Edit Activity</h2>
+            <form onSubmit={handleEditActivity} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
+                <select value={editActivityForm.activityType ?? 'CALL'} onChange={e => setEditActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                  {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label>
+                <input required value={editActivityForm.subject ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, subject: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
+                <textarea rows={3} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Scheduled At</label>
+                <input type="datetime-local" value={editActivityForm.scheduledAt ? editActivityForm.scheduledAt.slice(0, 16) : ''} onChange={e => setEditActivityForm(f => ({ ...f, scheduledAt: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Completed At</label>
+                <input type="datetime-local" value={editActivityForm.completedAt ? editActivityForm.completedAt.slice(0, 16) : ''} onChange={e => setEditActivityForm(f => ({ ...f, completedAt: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Duration (minutes)</label>
+                <input type="number" min={0} value={editActivityForm.durationMinutes ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, durationMinutes: e.target.value ? Number(e.target.value) : null }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setShowEditActivity(false); setEditingActivity(null); setEditActivityForm({}); }}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Activity confirmation */}
+      <ConfirmDialog
+        open={showDeleteActivity}
+        title="Delete Activity"
+        message={`Are you sure you want to delete this activity${deletingActivity?.subject ? ` "${deletingActivity.subject}"` : ''}? This action cannot be undone.`}
+        confirmVariant="danger"
+        loading={saving}
+        onConfirm={handleDeleteActivity}
+        onCancel={() => { setShowDeleteActivity(false); setDeletingActivity(null); }}
+      />
 
       {/* Add Note modal */}
       {showAddNote && (

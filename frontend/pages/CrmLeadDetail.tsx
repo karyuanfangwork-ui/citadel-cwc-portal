@@ -36,6 +36,9 @@ const CrmLeadDetail = () => {
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
   const [noteContent, setNoteContent] = useState('');
+  const [editingActivity, setEditingActivity] = useState<CrmActivity | null>(null);
+  const [editActivityForm, setEditActivityForm] = useState<Partial<CrmActivity>>({});
+  const [deletingActivityId, setDeletingActivityId] = useState<string | null>(null);
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
   const [editingOwner, setEditingOwner] = useState(false);
   const [savingOwner, setSavingOwner] = useState(false);
@@ -43,6 +46,11 @@ const CrmLeadDetail = () => {
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showDelete, setShowDelete] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
+
+  // ── Activity pagination state ─────────────────────────────────────
+  const [activityPage, setActivityPage] = useState(1);
+  const [hasMoreActivities, setHasMoreActivities] = useState(true);
+  const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
 
   // ── AI state ─────────────────────────────────────────────────────
   // Note Analyzer (Task 5)
@@ -148,6 +156,14 @@ const CrmLeadDetail = () => {
 
   useEffect(() => { setLoading(true); reload(); }, [id]);
 
+  // Initialize hasMoreActivities based on initial activity count
+  useEffect(() => {
+    if (lead && lead.activities) {
+      setHasMoreActivities(lead.activities.length >= 10);
+      setActivityPage(1);
+    }
+  }, [lead?.id]);
+
   const openConvert = async () => {
     try {
       const pl = await crmService.listPipelines();
@@ -197,6 +213,56 @@ const CrmLeadDetail = () => {
       }
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
+  };
+
+  const openEditActivity = (a: CrmActivity) => {
+    setEditingActivity(a);
+    setEditActivityForm({
+      activityType: a.activityType,
+      subject: a.subject,
+      description: a.description ?? '',
+      scheduledAt: a.scheduledAt ? a.scheduledAt.slice(0, 16) : '',
+    });
+  };
+
+  const handleEditActivity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingActivity) return;
+    try {
+      setSaving(true);
+      await crmService.updateActivity(editingActivity.id, editActivityForm);
+      setEditingActivity(null);
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeleteActivity = async () => {
+    if (!deletingActivityId) return;
+    try {
+      setSaving(true);
+      await crmService.deleteActivity(deletingActivityId);
+      setDeletingActivityId(null);
+      reload();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleLoadMoreActivities = async () => {
+    if (!id || loadingMoreActivities) return;
+    setLoadingMoreActivities(true);
+    try {
+      const nextPage = activityPage + 1;
+      const result = await crmService.listActivities({ leadId: id, page: nextPage, limit: 10 });
+      const newActivities = result.activities ?? [];
+      setLead(prev => prev ? { ...prev, activities: [...(prev.activities ?? []), ...newActivities] } : prev);
+      setActivityPage(nextPage);
+      setHasMoreActivities(newActivities.length >= 10);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingMoreActivities(false);
+    }
   };
 
   const handleAddNote = async (e: React.FormEvent) => {
@@ -712,9 +778,53 @@ const CrmLeadDetail = () => {
                   </div>
                 )}
               </div>
-              <span className="text-xs text-text-secondary shrink-0">{a.activityType}</span>
+              <div className="flex flex-col items-center gap-1 shrink-0 ml-auto">
+                {hasPermission(user, 'crm:edit') && (
+                  <button
+                    onClick={() => openEditActivity(a)}
+                    className="text-text-tertiary hover:text-brand-700 transition-colors"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
+                    title="Edit activity"
+                  >
+                    <span className="material-symbols-outlined text-base">edit</span>
+                  </button>
+                )}
+                {hasPermission(user, 'crm:delete') && (
+                  <button
+                    onClick={() => setDeletingActivityId(a.id)}
+                    className="text-text-tertiary hover:text-danger transition-colors"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}
+                    title="Delete activity"
+                  >
+                    <span className="material-symbols-outlined text-base">delete</span>
+                  </button>
+                )}
+                <span className="text-xs text-text-secondary">{a.activityType}</span>
+              </div>
             </div>
           ))}
+          {activities.length > 0 && hasMoreActivities && (
+            <div className="flex justify-center pt-2">
+              <button
+                onClick={handleLoadMoreActivities}
+                disabled={loadingMoreActivities}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold text-brand-700 border border-brand-200 hover:bg-brand-50 transition-colors disabled:opacity-50"
+                style={{ background: loadingMoreActivities ? 'var(--bg-subtle)' : 'var(--bg-surface)', cursor: loadingMoreActivities ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)' }}
+              >
+                {loadingMoreActivities ? (
+                  <>
+                    <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
+                    Loading…
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-base">expand_more</span>
+                    Load More
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -1132,6 +1242,61 @@ const CrmLeadDetail = () => {
         loading={saving}
         onConfirm={handleDelete}
         onCancel={() => setShowDelete(false)}
+      />
+
+      {/* Edit Activity modal */}
+      {editingActivity && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setEditingActivity(null)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-text-primary mb-4">Edit Activity</h2>
+            <form onSubmit={handleEditActivity} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
+                <select value={editActivityForm.activityType} onChange={e => setEditActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }}>
+                  {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Subject *</label>
+                <input required value={editActivityForm.subject ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, subject: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
+                <textarea rows={3} value={editActivityForm.description ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Scheduled At</label>
+                <input type="datetime-local" value={editActivityForm.scheduledAt ?? ''} onChange={e => setEditActivityForm(f => ({ ...f, scheduledAt: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: 'var(--color-surface)' }} />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setEditingActivity(null)}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Activity confirmation dialog */}
+      <ConfirmDialog
+        open={!!deletingActivityId}
+        title="Delete Activity"
+        message="Are you sure you want to delete this activity? This action cannot be undone."
+        confirmVariant="danger"
+        loading={saving}
+        onConfirm={handleDeleteActivity}
+        onCancel={() => setDeletingActivityId(null)}
       />
     </div>
     </>
