@@ -446,7 +446,15 @@ const CrmDashboard = () => {
                   <span className="material-symbols-outlined text-brand-600 text-lg">{ACTIVITY_ICONS[act.activityType] || 'note'}</span>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-text-primary truncate">{act.subject}</div>
+                  <div className="text-sm font-semibold text-text-primary truncate">
+                    {act.subject}
+                    {act.scheduledAt && !act.completedAt && new Date(act.scheduledAt) < new Date() && (
+                      <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-700">
+                        <span className="material-symbols-outlined" style={{fontSize:10}}>warning</span>
+                        Overdue
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {act.user && <span className="text-xs text-text-secondary">{act.user.firstName} {act.user.lastName}</span>}
                     {act.account && <><span className="text-text-tertiary">·</span><span className="text-xs text-brand-700 font-medium">{act.account.name}</span></>}

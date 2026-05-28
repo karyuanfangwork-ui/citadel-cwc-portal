@@ -33,6 +33,7 @@ export interface CrmContact {
   followUpDate: string | null; followUpNote: string | null;
   account?: { id: string; name: string; industry?: string };
   opportunities?: CrmOpportunity[];
+  leads?: CrmLead[];
 }
 
 export interface CrmLead {
@@ -86,6 +87,7 @@ export interface CrmActivity {
   userId: string; accountId: string | null; contactId: string | null;
   leadId: string | null; opportunityId: string | null;
   scheduledAt: string | null; completedAt: string | null; durationMinutes: number | null;
+  reminderSent: boolean;
   createdAt: string; updatedAt: string;
   user?: UserRef; account?: { id: string; name: string };
   contact?: { id: string; firstName: string; lastName: string };

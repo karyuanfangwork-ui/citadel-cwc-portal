@@ -349,6 +349,7 @@ async function main() {
         source: lead.source as LeadSource,
         ownerId: owner.id,
         accountId: accounts[randomAccountName]?.id || null,
+        contactId: contactByEmail[lead.contactEmail] || null,
         contactName: lead.contactName,
         contactEmail: lead.contactEmail,
         companyName: lead.companyName,

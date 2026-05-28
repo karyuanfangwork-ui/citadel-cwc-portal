@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import crmService, { CrmLead, CrmUser, Pagination, LeadSource } from '../src/services/crm.service';
+import crmService, { CrmLead, CrmUser, Pagination, LeadSource, LeadStatus } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import BulkActionBar, { BulkAction } from '../src/components/crm/BulkActionBar';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateLead, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
@@ -94,6 +95,72 @@ const CrmLeads = () => {
   const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
+  // ── Bulk Selection (Sprint 2) ──────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkToast, setBulkToast] = useState<string | null>(null);
+  const [showBulkOwnerSelect, setShowBulkOwnerSelect] = useState(false);
+  const [showBulkStatusSelect, setShowBulkStatusSelect] = useState(false);
+  const ownerIdParam = searchParams.get('ownerId') || '';
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(displayedLeads.map(l => l.id)));
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkAssignOwner = async (newOwnerId: string) => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.updateLead(id, { ownerId: newOwnerId }); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setShowBulkOwnerSelect(false);
+    setBulkProcessing(false);
+    setBulkToast(`Assigned ${count} lead${count > 1 ? 's' : ''} to new owner`);
+    fetchLeads();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const handleBulkChangeStatus = async (newStatus: string) => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.updateLead(id, { status: newStatus as LeadStatus }); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setShowBulkStatusSelect(false);
+    setBulkProcessing(false);
+    setBulkToast(`Changed status of ${count} lead${count > 1 ? 's' : ''}`);
+    fetchLeads();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.deleteLead(id); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    setBulkToast(`Deleted ${count} lead${count > 1 ? 's' : ''}`);
+    fetchLeads();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const bulkActions: BulkAction[] = hasPermission(user, 'crm:admin') ? [
+    { label: 'Assign Owner', icon: 'person_add', onClick: async () => { setShowBulkOwnerSelect(true); } },
+    { label: 'Change Status', icon: 'swap_horiz', onClick: async () => { setShowBulkStatusSelect(true); } },
+    { label: 'Delete', icon: 'delete', variant: 'danger', onClick: handleBulkDelete },
+  ] : [];
+
   const checkDuplicateLead = async (field: 'contactEmail' | 'contactPhone', value: string) => {
     if (!value.trim()) { setDuplicateWarning(null); return; }
     try {
@@ -123,10 +190,10 @@ const CrmLeads = () => {
     try { setLoading(true);
       const stale = filterParam === 'stale';
       const followup = filterParam === 'followup';
-      const data = await crmService.listLeads({ page, limit: 20, search: search || undefined, status: (stale || followup) ? undefined : (statusFilter || undefined), source: sourceFilter || undefined, stale: stale || undefined, followup: followup || undefined });
+      const data = await crmService.listLeads({ page, limit: 20, search: search || undefined, status: (stale || followup) ? undefined : (statusFilter || undefined), source: sourceFilter || undefined, stale: stale || undefined, followup: followup || undefined, ownerId: ownerIdParam || undefined });
       setLeads(data.leads); setPagination(data.pagination);
     } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [search, statusFilter, sourceFilter, filterParam]);
+  }, [search, statusFilter, sourceFilter, filterParam, ownerIdParam]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -217,14 +284,23 @@ const CrmLeads = () => {
   return (
     <>
       <CrmNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
             <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700 transition-colors">CRM</Link>
             <span>/</span><span className="font-semibold text-text-primary">Leads</span>
           </div>
-          <h1 className="text-2xl font-black text-text-primary">Leads</h1>
+          <h1 className="text-2xl font-black text-text-primary">
+            Leads
+            {ownerIdParam && (
+              <span className="ml-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700">
+                <span className="material-symbols-outlined" style={{fontSize:12}}>person</span>
+                {crmUsers.find(u => u.id === ownerIdParam)?.firstName ?? 'Owner'}&apos;s leads
+                <button onClick={() => { searchParams.delete('ownerId'); setSearchParams(searchParams); }} className="ml-0.5 hover:text-brand-900" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>✕</button>
+              </span>
+            )}
+          </h1>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -301,11 +377,20 @@ const CrmLeads = () => {
           const st = STATUS_STYLES[lead.status] || STATUS_STYLES.NEW;
           const badge = getUrgencyBadge(lead);
           const followUpOverdue = lead.followUpDate && isOverdue(lead.followUpDate) && !isToday(lead.followUpDate);
+          const isSelected = selectedIds.has(lead.id);
           return (
-            <div key={lead.id} onClick={() => navigate(`/crm/leads/${lead.id}`)}
-              className="bg-surface border border-border rounded-xl p-5 hover:shadow-md hover:border-brand-200 transition-all cursor-pointer">
+            <div key={lead.id}
+              className={`bg-surface border rounded-xl p-5 hover:shadow-md transition-all cursor-pointer ${isSelected ? 'border-brand-400 ring-2 ring-brand-100' : 'border-border hover:border-brand-200'}`}>
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* Checkbox for bulk selection */}
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelect(lead.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+                  />
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold" style={{ background: st.bg, color: st.text }}>
                     <span className="material-symbols-outlined text-sm">{st.icon}</span>{lead.status.replace(/_/g, ' ')}
                   </span>
@@ -331,7 +416,7 @@ const CrmLeads = () => {
                 </div>
                 <span className="text-xs text-text-tertiary">{formatDate(lead.createdAt)}</span>
               </div>
-              <h3 className="text-sm font-bold text-text-primary mb-2 line-clamp-2">{lead.title}</h3>
+              <h3 className="text-sm font-bold text-text-primary mb-2 line-clamp-2 cursor-pointer hover:text-brand-700" onClick={() => navigate(`/crm/leads/${lead.id}`)}>{lead.title}</h3>
               {(lead.contactName || lead.companyName) && (
                 <div className="text-xs text-text-secondary mb-1">
                   {lead.contactName && <span>{lead.contactName}</span>}
@@ -402,6 +487,62 @@ const CrmLeads = () => {
             <button key={p} onClick={() => fetchLeads(p)} style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               className={`w-8 h-8 rounded-lg text-sm font-bold transition-colors ${p === pagination.page ? 'bg-brand-700 text-white' : 'bg-transparent text-text-secondary hover:bg-gray-100'}`}>{p}</button>
           ))}
+        </div>
+      )}
+
+      {/* Bulk Action Bar (Sprint 2) */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        totalCount={displayedLeads.length}
+        onSelectAll={selectAll}
+        onClearSelection={clearSelection}
+        actions={bulkActions}
+        loading={bulkProcessing}
+      />
+
+      {/* Bulk owner select dropdown */}
+      {showBulkOwnerSelect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkOwnerSelect(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text-primary mb-4">Assign Owner</h3>
+            <select
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+              defaultValue=""
+              onChange={(e) => { if (e.target.value) handleBulkAssignOwner(e.target.value); }}
+            >
+              <option value="" disabled>Select new owner</option>
+              {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+            </select>
+            <button onClick={() => setShowBulkOwnerSelect(false)} className="mt-4 w-full px-4 py-2 text-sm text-text-secondary hover:text-text-primary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk status select dropdown */}
+      {showBulkStatusSelect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkStatusSelect(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text-primary mb-4">Change Status</h3>
+            <select
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+              defaultValue=""
+              onChange={(e) => { if (e.target.value) handleBulkChangeStatus(e.target.value); }}
+            >
+              <option value="" disabled>Select new status</option>
+              {(['NEW', 'CONTACTED', 'QUALIFIED', 'UNQUALIFIED', 'CONVERTED', 'LOST'] as LeadStatus[]).map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+            </select>
+            <button onClick={() => setShowBulkStatusSelect(false)} className="mt-4 w-full px-4 py-2 text-sm text-text-secondary hover:text-text-primary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk toast */}
+      {bulkToast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-lg bg-success/10 border border-success text-success text-sm font-semibold flex items-center gap-2 shadow-lg">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          {bulkToast}
         </div>
       )}
 

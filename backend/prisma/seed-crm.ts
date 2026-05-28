@@ -212,6 +212,7 @@ async function main() {
   // 2. Create Contacts
   console.log('\n👥 Creating CRM Contacts...');
   const contacts: Record<string, string[]> = {};
+  const contactByEmail: Record<string, string> = {};
   
   for (const [accountName, contactList] of Object.entries(CONTACTS)) {
     const accountId = accounts[accountName].id;
@@ -235,6 +236,7 @@ async function main() {
         },
       });
       contacts[accountName].push(created.id);
+      contactByEmail[contact.email] = created.id;
     }
     console.log(`   ✓ ${accountName}: ${contactList.length} contacts`);
   }
@@ -278,6 +280,7 @@ async function main() {
         source: lead.source as LeadSource,
         ownerId: salesRep.id,
         accountId: accounts[randomAccount]?.id || null,
+        contactId: contactByEmail[lead.contactEmail] || null,
         contactName: lead.contactName,
         contactEmail: lead.contactEmail,
         companyName: lead.companyName,
@@ -305,6 +308,7 @@ async function main() {
       data: {
         name: `${lead.title} - Opportunity`,
         accountId,
+        contactId: contactByEmail[lead.contactEmail] || null,
         pipelineId: pipeline.id,
         stageId: stageMap[stageName],
         ownerId: salesRep.id,

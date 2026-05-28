@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import crmService, { CrmOpportunity, Pagination } from '../src/services/crm.service';
+import crmService, { CrmOpportunity, CrmUser, Pagination, OpportunityStage } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import BulkActionBar, { BulkAction } from '../src/components/crm/BulkActionBar';
 import StateBadge from '../src/components/ui/StateBadge';
 import { STATUS_COLORS } from '../src/components/ui/StateBadge';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
@@ -45,13 +46,82 @@ const CrmOpportunities = () => {
   const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
+  // ── Bulk Selection (Sprint 2) ──────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkToast, setBulkToast] = useState<string | null>(null);
+  const [showBulkOwnerSelect, setShowBulkOwnerSelect] = useState(false);
+  const [showBulkStageSelect, setShowBulkStageSelect] = useState(false);
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  const ownerIdParam = searchParams.get('ownerId') || '';
+
+  useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(opportunities.map(o => o.id)));
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkAssignOwner = async (newOwnerId: string) => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.updateOpportunity(id, { ownerId: newOwnerId }); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setShowBulkOwnerSelect(false);
+    setBulkProcessing(false);
+    setBulkToast(`Assigned ${count} deal${count > 1 ? 's' : ''} to new owner`);
+    fetchOpportunities();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const handleBulkChangeStage = async (stageId: string) => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.moveStage(id, stageId); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setShowBulkStageSelect(false);
+    setBulkProcessing(false);
+    setBulkToast(`Changed stage of ${count} deal${count > 1 ? 's' : ''}`);
+    fetchOpportunities();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.deleteOpportunity(id); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    setBulkToast(`Deleted ${count} deal${count > 1 ? 's' : ''}`);
+    fetchOpportunities();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const bulkActions: BulkAction[] = hasPermission(user, 'crm:admin') ? [
+    { label: 'Assign Owner', icon: 'person_add', onClick: async () => { setShowBulkOwnerSelect(true); } },
+    { label: 'Change Stage', icon: 'swap_horiz', onClick: async () => { setShowBulkStageSelect(true); } },
+    { label: 'Delete', icon: 'delete', variant: 'danger', onClick: handleBulkDelete },
+  ] : [];
+
   const fetchOpportunities = useCallback(async (page = 1) => {
     try { setLoading(true);
       const overdue = filterParam === 'overdue';
-      const data = await crmService.listOpportunities({ page, limit: 20, search: search || undefined, pipelineId: (overdue ? '' : pipelineFilter) || undefined, stageId: (overdue ? '' : stageFilter) || undefined, overdue: overdue || undefined });
+      const data = await crmService.listOpportunities({ page, limit: 20, search: search || undefined, pipelineId: (overdue ? '' : pipelineFilter) || undefined, stageId: (overdue ? '' : stageFilter) || undefined, overdue: overdue || undefined, ownerId: ownerIdParam || undefined });
       setOpportunities(data.opportunities); setPagination(data.pagination);
     } catch (e) { console.error(e); } finally { setLoading(false); }
-  }, [search, pipelineFilter, stageFilter, filterParam]);
+  }, [search, pipelineFilter, stageFilter, filterParam, ownerIdParam]);
 
   const fetchAccounts = useCallback(async () => {
     try {
@@ -131,14 +201,23 @@ const CrmOpportunities = () => {
   return (
     <>
       <CrmNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
             <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700 transition-colors">CRM</Link>
             <span>/</span><span className="font-semibold text-text-primary">Opportunities</span>
           </div>
-          <h1 className="text-2xl font-black text-text-primary">Opportunities</h1>
+          <h1 className="text-2xl font-black text-text-primary">
+            Opportunities
+            {ownerIdParam && (
+              <span className="ml-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700">
+                <span className="material-symbols-outlined" style={{fontSize:12}}>person</span>
+                {crmUsers.find(u => u.id === ownerIdParam)?.firstName ?? 'Owner'}&apos;s deals
+                <button onClick={() => { searchParams.delete('ownerId'); setSearchParams(searchParams); }} className="ml-0.5 hover:text-brand-900" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>✕</button>
+              </span>
+            )}
+          </h1>
         </div>
         <button onClick={() => { setFormErrors([]); setShowCreate(true); }} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
           <span className="material-symbols-outlined text-lg">add</span> New Opportunity
@@ -191,6 +270,14 @@ const CrmOpportunities = () => {
         <table className="w-full">
           <thead className="bg-surface-muted border-b border-border">
             <tr>
+              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-3 py-3 w-10">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size > 0 && selectedIds.size === opportunities.length}
+                  onChange={() => selectedIds.size === opportunities.length ? clearSelection() : selectAll()}
+                  className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+                />
+              </th>
               <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Opportunity</th>
               <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Account</th>
               <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Stage</th>
@@ -203,15 +290,23 @@ const CrmOpportunities = () => {
           </thead>
           <tbody className="divide-y divide-border">
             {loading ? (
-              <tr><td colSpan={8}><CrmTableSkeleton rows={5} cols={8} /></td></tr>
+              <tr><td colSpan={9}><CrmTableSkeleton rows={5} cols={9} /></td></tr>
             ) : opportunities.length === 0 ? (
-              <tr><td colSpan={8}>
+              <tr><td colSpan={9}>
                 <EmptyState icon="monetization_on" title="No opportunities yet" description="Create your first opportunity to start tracking deals." action={{ label: 'New Opportunity', onClick: () => setShowCreate(true) }} />
               </td></tr>
             ) : opportunities.map(opp => (
-              <tr key={opp.id} onClick={() => navigate(`/crm/opportunities/${opp.id}`)} className="hover:bg-surface-hover cursor-pointer transition-colors">
+              <tr key={opp.id} className={`hover:bg-surface-hover cursor-pointer transition-colors ${selectedIds.has(opp.id) ? 'bg-brand-50/50' : ''}`}>
+                <td className="px-3 py-4" onClick={e => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(opp.id)}
+                    onChange={() => toggleSelect(opp.id)}
+                    className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+                  />
+                </td>
                 <td className="px-5 py-4">
-                  <div className="text-sm font-bold text-text-primary">{opp.name}</div>
+                  <div className="text-sm font-bold text-text-primary cursor-pointer hover:text-brand-700" onClick={() => navigate(`/crm/opportunities/${opp.id}`)}>{opp.name}</div>
                   <div className="text-xs text-text-tertiary mt-0.5">{opp.contact?.firstName ? `${opp.contact.firstName} ${opp.contact.lastName}` : '—'}</div>
                 </td>
                 <td className="px-5 py-4">
@@ -287,6 +382,62 @@ const CrmOpportunities = () => {
             <button key={p} onClick={() => fetchOpportunities(p)} style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
               className={`w-8 h-8 rounded-lg text-sm font-bold transition-colors ${p === pagination.page ? 'bg-brand-700 text-white' : 'bg-transparent text-text-secondary hover:bg-surface-muted'}`}>{p}</button>
           ))}
+        </div>
+      )}
+
+      {/* Bulk Action Bar (Sprint 2) */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        totalCount={opportunities.length}
+        onSelectAll={selectAll}
+        onClearSelection={clearSelection}
+        actions={bulkActions}
+        loading={bulkProcessing}
+      />
+
+      {/* Bulk owner select dropdown */}
+      {showBulkOwnerSelect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkOwnerSelect(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text-primary mb-4">Assign Owner</h3>
+            <select
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+              defaultValue=""
+              onChange={(e) => { if (e.target.value) handleBulkAssignOwner(e.target.value); }}
+            >
+              <option value="" disabled>Select new owner</option>
+              {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+            </select>
+            <button onClick={() => setShowBulkOwnerSelect(false)} className="mt-4 w-full px-4 py-2 text-sm text-text-secondary hover:text-text-primary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk stage select dropdown */}
+      {showBulkStageSelect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkStageSelect(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text-primary mb-4">Change Stage</h3>
+            <select
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+              defaultValue=""
+              onChange={(e) => { if (e.target.value) handleBulkChangeStage(e.target.value); }}
+            >
+              <option value="" disabled>Select new stage</option>
+              {pipelines.map(p => (p.stages ?? []).map(s => <option key={s.id} value={s.id}>{s.name} ({p.name})</option>))}
+            </select>
+            <button onClick={() => setShowBulkStageSelect(false)} className="mt-4 w-full px-4 py-2 text-sm text-text-secondary hover:text-text-primary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk toast */}
+      {bulkToast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-lg bg-success/10 border border-success text-success text-sm font-semibold flex items-center gap-2 shadow-lg">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          {bulkToast}
         </div>
       )}
 

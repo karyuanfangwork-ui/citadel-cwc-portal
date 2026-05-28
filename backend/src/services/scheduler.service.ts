@@ -22,7 +22,7 @@ export interface SchedulerConfigRow {
 
 const DEFAULT_CONFIGS: Omit<SchedulerConfigRow, 'id' | 'updatedAt'>[] = [
   { jobKey: 'sla',                    label: 'SLA Checker',              enabled: true, mode: 'cron', cronExpr: process.env.SLA_CRON_EXPRESSION || '0 9 * * 1-5', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
-  { jobKey: 'crm.activity_reminders', label: 'CRM: Activity Reminders',  enabled: true, mode: 'cron', cronExpr: '0 */4 * * *',   intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
+  { jobKey: 'crm.activity_reminders', label: 'CRM: Activity Reminders',  enabled: true, mode: 'cron', cronExpr: '*/15 * * * *',   intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'crm.lead_aging',         label: 'CRM: Lead Aging',          enabled: true, mode: 'cron', cronExpr: '0 8 * * 1-5',   intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'crm.overdue_followups',  label: 'CRM: Overdue Follow-Ups',  enabled: true, mode: 'cron', cronExpr: '30 8 * * 1-5',  intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'crm.stale_deals',        label: 'CRM: Stale Deals',         enabled: true, mode: 'cron', cronExpr: '0 9 * * 1-5',   intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
@@ -36,7 +36,10 @@ async function seedDefaults(): Promise<void> {
   for (const cfg of DEFAULT_CONFIGS) {
     await prisma.schedulerConfig.upsert({
       where: { jobKey: cfg.jobKey },
-      update: {},
+      update: {
+        cronExpr: cfg.cronExpr,
+        intervalMs: cfg.intervalMs,
+      },
       create: cfg,
     });
   }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, {
-  CrmContact, CrmOpportunity, CrmKycRecord, CrmNote, CrmAccount, CrmBeneficiary,
+  CrmContact, CrmOpportunity, CrmLead, CrmKycRecord, CrmNote, CrmAccount, CrmBeneficiary,
 } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
@@ -1004,23 +1004,53 @@ const CrmContactDetail = () => {
 
       {activeTab === 'deals' && (
         <div>
-          {(contact.opportunities ?? []).length === 0 ? (
-            <EmptyState icon="handshake" title="No linked deals" description="Link opportunities to this contact." />
+          {(contact.leads ?? []).length === 0 && (contact.opportunities ?? []).length === 0 ? (
+            <EmptyState icon="handshake" title="No linked deals" description="Leads and opportunities linked to this contact will appear here." />
           ) : (
-            <div className="space-y-3">
-              {(contact.opportunities ?? []).map((o: CrmOpportunity) => (
-                <Link key={o.id} to={`/crm/opportunities/${o.id}`} style={{ textDecoration: 'none' }}>
-                  <div className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-text-primary text-sm">{o.name}</p>
-                    </div>
-                    {o.stage && (
-                      <StateBadge state={o.stage.name} size="sm" />
-                    )}
-                    <span className="text-sm font-bold text-text-primary">{formatCurrency(o.value)}</span>
+            <div className="space-y-6">
+              {/* Leads section */}
+              {(contact.leads ?? []).length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary mb-3">Leads ({(contact.leads ?? []).length})</h4>
+                  <div className="space-y-2">
+                    {(contact.leads ?? []).map((l: CrmLead) => (
+                      <Link key={l.id} to={`/crm/leads/${l.id}`} style={{ textDecoration: 'none' }}>
+                        <div className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-text-primary text-sm">{l.title}</p>
+                            {l.contactName && <p className="text-xs text-text-secondary mt-0.5">{l.contactName}</p>}
+                          </div>
+                          <StateBadge state={l.status} size="sm" />
+                          {l.estimatedValue && (
+                            <span className="text-sm font-bold text-text-primary">{formatCurrency(l.estimatedValue)}</span>
+                          )}
+                        </div>
+                      </Link>
+                    ))}
                   </div>
-                </Link>
-              ))}
+                </div>
+              )}
+              {/* Opportunities section */}
+              {(contact.opportunities ?? []).length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-text-secondary mb-3">Opportunities ({(contact.opportunities ?? []).length})</h4>
+                  <div className="space-y-2">
+                    {(contact.opportunities ?? []).map((o: CrmOpportunity) => (
+                      <Link key={o.id} to={`/crm/opportunities/${o.id}`} style={{ textDecoration: 'none' }}>
+                        <div className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4 hover:border-brand-300 transition-colors">
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-text-primary text-sm">{o.name}</p>
+                          </div>
+                          {o.stage && (
+                            <StateBadge state={o.stage.name} size="sm" />
+                          )}
+                          <span className="text-sm font-bold text-text-primary">{formatCurrency(o.value)}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

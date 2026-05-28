@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import crmService, { CrmContact, Pagination } from '../src/services/crm.service';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import crmService, { CrmContact, CrmUser, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import BulkActionBar, { BulkAction } from '../src/components/crm/BulkActionBar';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateContact, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
@@ -42,6 +43,59 @@ const CrmContacts = () => {
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
+
+  // ── Bulk Selection ──────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkToast, setBulkToast] = useState<string | null>(null);
+  const [showBulkOwnerSelect, setShowBulkOwnerSelect] = useState(false);
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(contacts.map(c => c.id)));
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkAssignOwner = async (newOwnerId: string) => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.updateContact(id, { ownerId: newOwnerId } as any); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setShowBulkOwnerSelect(false);
+    setBulkProcessing(false);
+    setBulkToast(`Assigned ${count} contact${count > 1 ? 's' : ''} to new owner`);
+    fetchContacts();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.deleteContact(id); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    setBulkToast(`Deleted ${count} contact${count > 1 ? 's' : ''}`);
+    fetchContacts();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const bulkActions: BulkAction[] = hasPermission(user, 'crm:admin') ? [
+    { label: 'Assign Owner', icon: 'person_add', onClick: async () => { setShowBulkOwnerSelect(true); } },
+    { label: 'Delete', icon: 'delete', variant: 'danger', onClick: handleBulkDelete },
+  ] : [];
 
   const checkDuplicateContact = async (field: 'email' | 'phone', value: string) => {
     if (!value.trim()) { setDuplicateWarning(null); return; }
@@ -148,7 +202,7 @@ const CrmContacts = () => {
   return (
     <>
       <CrmNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
@@ -177,6 +231,14 @@ const CrmContacts = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--color-surface-muted)' }}>
+                <th style={{ padding: 'var(--space-3) var(--space-5)', textAlign: 'left', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', width: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size > 0 && selectedIds.size === contacts.length}
+                    onChange={() => selectedIds.size === contacts.length ? clearSelection() : selectAll()}
+                    className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+                  />
+                </th>
                 {['Name', 'Email', 'Phone', 'Job Title', 'Company', 'Primary', ''].map(h => (
                   <th key={h} style={{ padding: 'var(--space-3) var(--space-5)', textAlign: 'left', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
                 ))}
@@ -184,23 +246,30 @@ const CrmContacts = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7}><CrmTableSkeleton rows={5} cols={7} /></td></tr>
+                <tr><td colSpan={8}><CrmTableSkeleton rows={5} cols={8} /></td></tr>
               ) : contacts.length === 0 ? (
-                <tr><td colSpan={7}>
+                <tr><td colSpan={8}>
                   <EmptyState icon="person" title="No contacts yet" description="Create your first contact to start building your client network." action={{ label: 'New Contact', onClick: () => openCreate() }} />
                 </td></tr>
               ) : contacts.map(c => (
-                <tr key={c.id} onClick={() => navigate(`/crm/contacts/${c.id}`)}
-                  style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                <tr key={c.id}
+                  className={selectedIds.has(c.id) ? 'bg-brand-50/50' : ''}
+                  style={{ borderTop: '1px solid var(--color-border-subtle)', transition: 'background 0.12s' }}>
+                  <td style={{ padding: 'var(--space-4) var(--space-5)' }} onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(c.id)}
+                      onChange={() => toggleSelect(c.id)}
+                      className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+                    />
+                  </td>
                   <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
                         <span className="text-sm font-bold text-brand-600">{c.firstName?.[0]}{c.lastName?.[0]}</span>
                       </div>
                       <div>
-                        <span className="text-sm font-bold text-text-primary">{c.firstName} {c.lastName}</span>
+                        <span className="text-sm font-bold text-text-primary cursor-pointer hover:text-brand-700" onClick={() => navigate(`/crm/contacts/${c.id}`)}>{c.firstName} {c.lastName}</span>
                         {(() => {
                           const badge = getContactUrgencyBadge(c);
                           return badge ? (
@@ -465,6 +534,43 @@ const CrmContacts = () => {
         onCancel={() => { setShowDelete(false); setDeleteItem(null); }}
         loading={deleting}
       />
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        totalCount={contacts.length}
+        onSelectAll={selectAll}
+        onClearSelection={clearSelection}
+        actions={bulkActions}
+        loading={bulkProcessing}
+      />
+
+      {/* Bulk owner select dropdown */}
+      {showBulkOwnerSelect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkOwnerSelect(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text-primary mb-4">Assign Owner</h3>
+            <select
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+              defaultValue=""
+              onChange={(e) => { if (e.target.value) handleBulkAssignOwner(e.target.value); }}
+            >
+              <option value="" disabled>Select new owner</option>
+              {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+            </select>
+            <button onClick={() => setShowBulkOwnerSelect(false)} className="mt-4 w-full px-4 py-2 text-sm text-text-secondary hover:text-text-primary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk toast */}
+      {bulkToast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-lg bg-success/10 border border-success text-success text-sm font-semibold flex items-center gap-2 shadow-lg">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          {bulkToast}
+        </div>
+      )}
     </>
   );
 };

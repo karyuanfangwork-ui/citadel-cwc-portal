@@ -1744,6 +1744,9 @@ model CrmActivity {
   completedAt     DateTime? @map("completed_at") @db.Timestamp(6)
   durationMinutes Int?      @map("duration_minutes")
 
+  // Activity Reminders (Sprint 2)
+  reminderSent    Boolean   @default(false) @map("reminder_sent")
+
   metadata  Json?    @db.JsonB
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -1760,6 +1763,7 @@ model CrmActivity {
   @@index([leadId])
   @@index([opportunityId])
   @@index([activityType])
+  @@index([scheduledAt])
   @@index([createdAt(sort: Desc)])
   @@map("crm_activities")
 }

@@ -159,6 +159,7 @@ class CrmController {
       include: {
         account: { select: { id: true, name: true, industry: true } },
         opportunities: { include: { stage: true }, orderBy: { updatedAt: 'desc' }, take: 5 },
+        leads: { include: { owner: { select: userSelect } }, orderBy: { updatedAt: 'desc' }, take: 10 },
         activities: { include: { user: { select: userSelect } }, orderBy: { createdAt: 'desc' }, take: 10 },
         notes: { include: { author: { select: userSelect } }, orderBy: { createdAt: 'desc' }, take: 10 },
       },

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import crmService, { TeamPerformance, CrmUser, CrmLead } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import EmptyState from '../src/components/ui/EmptyState';
@@ -23,6 +23,7 @@ const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
 
 const CrmTeamDashboard = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [agents, setAgents] = useState<TeamPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -290,15 +291,15 @@ const CrmTeamDashboard = () => {
                           </div>
                         )}
                         <div className="min-w-0">
-                          <div className="font-semibold text-text-primary truncate">{agent.name}</div>
+                          <div className="font-semibold text-text-primary truncate cursor-pointer hover:text-brand-700 transition-colors" onClick={() => navigate(`/crm/leads?ownerId=${agent.id}`)}>{agent.name}</div>
                           <div className="text-xs text-text-secondary truncate">{agent.email}</div>
                         </div>
                       </div>
                     </td>
                     {/* Leads */}
-                    <td className="text-right px-5 py-4 font-semibold text-text-primary">{agent.leads}</td>
+                    <td className="text-right px-5 py-4 font-semibold text-text-primary cursor-pointer hover:text-brand-700 transition-colors" onClick={() => navigate(`/crm/leads?ownerId=${agent.id}`)} title="View agent's leads">{agent.leads}</td>
                     {/* Open Deals */}
-                    <td className="text-right px-5 py-4 font-semibold text-text-primary">{agent.openDeals}</td>
+                    <td className="text-right px-5 py-4 font-semibold text-text-primary cursor-pointer hover:text-brand-700 transition-colors" onClick={() => navigate(`/crm/opportunities?ownerId=${agent.id}`)} title="View agent's deals">{agent.openDeals}</td>
                     {/* Pipeline Value */}
                     <td className="text-right px-5 py-4 font-semibold text-success">{formatCurrency(agent.pipelineValue)}</td>
                     {/* Won This Month */}
@@ -309,9 +310,11 @@ const CrmTeamDashboard = () => {
                     {/* Stale Leads */}
                     <td className="text-right px-5 py-4">
                       <span
+                        onClick={() => agent.staleLeads > 0 && navigate(`/crm/leads?ownerId=${agent.id}`)}
                         className={`inline-flex items-center justify-center min-w-[28px] px-2 py-0.5 rounded-full text-xs font-bold ${
-                          agent.staleLeads > 0 ? 'bg-danger/10 text-danger' : 'bg-surface-muted text-text-tertiary'
+                          agent.staleLeads > 0 ? 'bg-danger/10 text-danger cursor-pointer hover:bg-danger/20 transition-colors' : 'bg-surface-muted text-text-tertiary'
                         }`}
+                        title={agent.staleLeads > 0 ? "View agent's stale leads" : undefined}
                       >
                         {agent.staleLeads}
                       </span>

@@ -537,7 +537,15 @@ const CrmOpportunityDetail = () => {
               <div className="flex-1 min-w-0">
                 <p className="font-semibold text-text-primary text-sm">{a.subject}</p>
                 {a.description && <p className="text-xs text-text-secondary mt-0.5">{a.description}</p>}
-                <p className="text-xs text-text-secondary mt-1">{a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}</p>
+                <p className="text-xs text-text-secondary mt-1">{a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
+                  {a.scheduledAt && <span className="ml-2 text-brand-600">Scheduled: {formatDate(a.scheduledAt)}</span>}
+                  {a.scheduledAt && !a.completedAt && new Date(a.scheduledAt) < new Date() && (
+                    <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
+                      <span className="material-symbols-outlined" style={{fontSize:11}}>warning</span>
+                      Overdue
+                    </span>
+                  )}
+                </p>
                 {/* AI Note Analyzer (Task 9) */}
                 {['CALL', 'MEETING', 'WHATSAPP'].includes(a.activityType) && (
                   <div className="mt-2">

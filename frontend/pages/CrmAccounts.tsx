@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import crmService, { CrmAccount, Pagination } from '../src/services/crm.service';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import crmService, { CrmAccount, CrmUser, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import BulkActionBar, { BulkAction } from '../src/components/crm/BulkActionBar';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateAccount, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
@@ -15,6 +16,7 @@ const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day:
 
 const CrmAccounts = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
@@ -30,6 +32,58 @@ const CrmAccounts = () => {
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
+
+  // ── Bulk Selection ──────
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkToast, setBulkToast] = useState<string | null>(null);
+  const [showBulkOwnerSelect, setShowBulkOwnerSelect] = useState(false);
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+
+  useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(accounts.map(a => a.id)));
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleBulkAssignOwner = async (newOwnerId: string) => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.updateAccount(id, { ownerId: newOwnerId }); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setShowBulkOwnerSelect(false);
+    setBulkProcessing(false);
+    setBulkToast(`Assigned ${count} account${count > 1 ? 's' : ''} to new owner`);
+    fetchAccounts();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.deleteAccount(id); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    setBulkToast(`Deleted ${count} account${count > 1 ? 's' : ''}`);
+    fetchAccounts();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const bulkActions: BulkAction[] = ([
+    { label: 'Assign Owner', icon: 'person_add', onClick: async () => { setShowBulkOwnerSelect(true); }, permission: 'crm:admin' },
+    { label: 'Delete', icon: 'delete', variant: 'danger' as const, onClick: handleBulkDelete, permission: 'crm:delete' },
+  ] as Array<BulkAction & { permission: string }>).filter(a => hasPermission(user, a.permission));
 
   const fetchAccounts = useCallback(async (page = 1) => {
     try {
@@ -117,7 +171,7 @@ const CrmAccounts = () => {
   return (
     <>
       <CrmNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
@@ -154,6 +208,14 @@ const CrmAccounts = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--color-surface-muted)' }}>
+                <th style={{ padding: 'var(--space-3) var(--space-5)', textAlign: 'left', width: 40 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size > 0 && selectedIds.size === accounts.length}
+                    onChange={() => selectedIds.size === accounts.length ? clearSelection() : selectAll()}
+                    className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+                  />
+                </th>
                 {['Company', 'Industry', 'Contacts', 'Deals', 'Revenue', 'Owner', 'Created'].map(h => (
                   <th key={h} style={{ padding: 'var(--space-3) var(--space-5)', textAlign: 'left', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
                 ))}
@@ -161,16 +223,24 @@ const CrmAccounts = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7}><CrmTableSkeleton rows={5} cols={7} /></td></tr>
+                <tr><td colSpan={8}><CrmTableSkeleton rows={5} cols={8} /></td></tr>
               ) : accounts.length === 0 ? (
-                <tr><td colSpan={7}>
+                <tr><td colSpan={8}>
                   <EmptyState icon="business" title="No accounts yet" description="Create your first account to start managing client organizations." action={{ label: 'New Account', onClick: () => setShowCreate(true) }} />
                 </td></tr>
               ) : accounts.map(acc => (
-                <tr key={acc.id} onClick={() => navigate(`/crm/accounts/${acc.id}`)}
-                  style={{ borderTop: '1px solid var(--color-border-subtle)', cursor: 'pointer', transition: 'background 0.12s' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-surface-subtle)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                <tr key={acc.id}
+                  style={{ borderTop: '1px solid var(--color-border-subtle)', transition: 'background 0.12s', background: selectedIds.has(acc.id) ? 'var(--color-brand-50, rgba(234,88,12,0.05))' : 'transparent' }}
+                  onMouseEnter={e => { if (!selectedIds.has(acc.id)) e.currentTarget.style.background = 'var(--color-surface-subtle)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = selectedIds.has(acc.id) ? 'var(--color-brand-50, rgba(234,88,12,0.05))' : 'transparent'; }}>
+                  <td style={{ padding: 'var(--space-4) var(--space-5)' }} onClick={e => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(acc.id)}
+                      onChange={() => toggleSelect(acc.id)}
+                      className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
+                    />
+                  </td>
                   <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
@@ -178,7 +248,7 @@ const CrmAccounts = () => {
                       </div>
                       <div>
                         <div>
-                          <span className="text-sm font-bold text-text-primary">{acc.name}</span>
+                          <span className="text-sm font-bold text-text-primary cursor-pointer hover:text-brand-700" onClick={() => navigate(`/crm/accounts/${acc.id}`)}>{acc.name}</span>
                           <button
                             onClick={(e) => { e.stopPropagation(); openEdit(acc); }}
                             className="ml-2 text-xs text-brand-700 hover:text-brand-900 font-semibold transition-colors"
@@ -343,6 +413,43 @@ const CrmAccounts = () => {
         onCancel={() => { setShowDelete(false); setDeleteItem(null); }}
         loading={deleting}
       />
+
+      {/* Bulk Action Bar */}
+      <BulkActionBar
+        selectedCount={selectedIds.size}
+        totalCount={accounts.length}
+        onSelectAll={selectAll}
+        onClearSelection={clearSelection}
+        actions={bulkActions}
+        loading={bulkProcessing}
+      />
+
+      {/* Bulk owner select dropdown */}
+      {showBulkOwnerSelect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkOwnerSelect(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-text-primary mb-4">Assign Owner</h3>
+            <select
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm"
+              defaultValue=""
+              onChange={(e) => { if (e.target.value) handleBulkAssignOwner(e.target.value); }}
+            >
+              <option value="" disabled>Select new owner</option>
+              {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+            </select>
+            <button onClick={() => setShowBulkOwnerSelect(false)} className="mt-4 w-full px-4 py-2 text-sm text-text-secondary hover:text-text-primary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk toast */}
+      {bulkToast && (
+        <div className="fixed top-4 right-4 z-50 px-4 py-2.5 rounded-lg bg-success/10 border border-success text-success text-sm font-semibold flex items-center gap-2 shadow-lg">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          {bulkToast}
+        </div>
+      )}
     </>
   );
 };

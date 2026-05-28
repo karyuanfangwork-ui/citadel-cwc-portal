@@ -16,6 +16,7 @@ export async function checkActivityReminders(): Promise<void> {
     where: {
       scheduledAt: { gte: now, lte: in24Hours },
       completedAt: null,
+      reminderSent: false,
     },
     select: {
       id: true,
@@ -34,7 +35,7 @@ export async function checkActivityReminders(): Promise<void> {
     return;
   }
 
-  logger.info(`[CRM][ActivityReminders] Found ${activities.length} upcoming activities`);
+  logger.info(`[CRM][ActivityReminders] Found ${activities.length} upcoming activities needing reminders`);
 
   for (const activity of activities) {
     const scheduledTime = activity.scheduledAt!.toLocaleString();
@@ -50,6 +51,11 @@ export async function checkActivityReminders(): Promise<void> {
           accountId: activity.accountId ?? '',
           contactId: activity.contactId ?? '',
         },
+      });
+      // Mark reminder as sent so we don't re-notify
+      await prisma.crmActivity.update({
+        where: { id: activity.id },
+        data: { reminderSent: true },
       });
     } catch (err) {
       logger.error(`[CRM][ActivityReminders] Failed to notify user ${activity.userId} for activity ${activity.id}`, { error: err });

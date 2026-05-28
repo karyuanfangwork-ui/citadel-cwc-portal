@@ -642,6 +642,12 @@ const CrmLeadDetail = () => {
                 <p className="text-xs text-text-secondary mt-1">
                   {a.user ? `${a.user.firstName} ${a.user.lastName}` : ''} · {formatDate(a.createdAt)}
                   {a.scheduledAt && <span className="ml-2 text-brand-600">Scheduled: {formatDate(a.scheduledAt)}</span>}
+                  {a.scheduledAt && !a.completedAt && new Date(a.scheduledAt) < new Date() && (
+                    <span className="ml-2 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-700">
+                      <span className="material-symbols-outlined" style={{fontSize:11}}>warning</span>
+                      Overdue
+                    </span>
+                  )}
                 </p>
                 {/* AI Note Analyzer (Task 5) */}
                 {['CALL', 'MEETING', 'WHATSAPP'].includes(a.activityType) && (

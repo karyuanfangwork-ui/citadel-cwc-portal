@@ -171,7 +171,7 @@ export async function convertLead(
       // Create contact from lead info if we have a name
       if (lead.contactName) {
         const nameParts = lead.contactName.split(' ');
-        await tx.crmContact.create({
+        const newContact = await tx.crmContact.create({
           data: {
             accountId: newAccount.id,
             firstName: nameParts[0] || '',
@@ -181,6 +181,7 @@ export async function convertLead(
             isPrimary: true,
           },
         });
+        lead.contactId = newContact.id;
       }
     }
 
@@ -193,12 +194,15 @@ export async function convertLead(
       where: { id: data.stageId },
     });
 
+    // Determine contactId: prefer existing, then newly created during conversion
+    const contactId = lead.contactId || lead.contact?.id || null;
+
     // Create the opportunity
     const opportunity = await tx.crmOpportunity.create({
       data: {
         name: data.opportunityName,
         accountId,
-        contactId: lead.contactId,
+        contactId,
         pipelineId: data.pipelineId,
         stageId: data.stageId,
         ownerId: userId,
