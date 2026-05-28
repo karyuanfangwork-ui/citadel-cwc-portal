@@ -2,6 +2,10 @@ import React, { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import crmService, { CrmPipeline } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, FunnelChart, Funnel, LabelList,
+} from 'recharts';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -96,6 +100,17 @@ const CsvBtn = ({ onClick, label }: { onClick: () => void; label?: string }) => 
     {label || 'Export CSV'}
   </button>
 );
+
+// ── Chart brand palette ────────────────────────────────────────────────────────
+const CHART_COLORS = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+const CHART_TOOLTIP_STYLE: React.CSSProperties = {
+  backgroundColor: 'var(--bg-surface)',
+  border: '1px solid var(--color-border)',
+  borderRadius: 8,
+  fontSize: 12,
+  fontFamily: 'var(--font-sans)',
+};
+const myrFormatter = (v: number) => myr.format(v);
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -228,9 +243,54 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
         <SummaryCard label="Period To" value={data.period.to ? new Date(data.period.to).toLocaleDateString('en-MY') : '—'} />
       </div>
 
+      {/* Bar Chart: Lead Conversion by Source */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">By Source</h3>
-        <table className="w-full text-sm">
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Conversion by Source</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.bySource} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="source" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+            <Legend />
+            <Bar dataKey="total" fill="#4F46E5" name="Total" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="converted" fill="#10B981" name="Converted" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="lost" fill="#EF4444" name="Lost" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Pie Chart: Lead Status Distribution */}
+      <div className="bg-bg-surface border border-border rounded-xl p-5">
+        <h3 className="text-sm font-semibold text-text-primary mb-3">By Status</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={data.byStatus}
+              dataKey="count"
+              nameKey="status"
+              cx="50%"
+              cy="50%"
+              outerRadius={100}
+              label={({ name, value }: any) => `${name}: ${value}`}
+            >
+              {data.byStatus.map((_, i) => (
+                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Data table */}
+      <details className="bg-bg-surface border border-border rounded-xl">
+        <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+          View detailed data table
+        </summary>
+        <div className="p-5 pt-0">
+          <table className="w-full text-sm">
           <thead>
             <tr className="text-text-secondary text-xs uppercase">
               <th className="text-left pb-2">Source</th>
@@ -252,12 +312,8 @@ function LeadConversionPanel({ from, to }: { from: string; to: string }) {
             ))}
           </tbody>
         </table>
-      </div>
-
-      <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-2">By Status</h3>
-        <StatusChips items={data.byStatus} />
-      </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -296,10 +352,30 @@ function SalesPerformancePanel({ from, to }: { from: string; to: string }) {
         <SummaryCard label="Overall Win Rate" value={`${data.overallWinRate.toFixed(1)}%`} />
       </div>
 
+      {/* Bar Chart: Won/Lost Deals by Agent */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">By Agent</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Deals by Agent</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.byOwner} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="ownerName" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+            <Legend />
+            <Bar dataKey="wonDeals" fill="#10B981" name="Won" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="lostDeals" fill="#EF4444" name="Lost" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Data table (collapsible) */}
+      <details className="bg-bg-surface border border-border rounded-xl" open>
+        <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+          Agent performance data
+        </summary>
+        <div className="p-5 pt-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
             <thead>
               <tr className="text-text-secondary text-xs uppercase">
                 <th className="text-left pb-2">Agent</th>
@@ -326,7 +402,8 @@ function SalesPerformancePanel({ from, to }: { from: string; to: string }) {
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </details>
     </div>
   );
 }
@@ -393,9 +470,31 @@ function PipelineForecastPanel() {
             <SummaryCard label="Overdue Value (MYR)" value={myr.format(data.overdueValue)} />
           </div>
 
+          {/* Funnel Chart: Pipeline by Stage */}
           <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-text-primary mb-3">Stages</h3>
-            <table className="w-full text-sm">
+            <h3 className="text-sm font-semibold text-text-primary mb-3">Pipeline Funnel</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart
+                data={data.stages.map(s => ({ name: s.stageName, value: s.totalValue, deals: s.dealCount }))}
+                layout="vertical"
+                margin={{ top: 5, right: 20, left: 80, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={myrFormatter} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={80} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v: number) => myr.format(v)} />
+                <Legend />
+                <Bar dataKey="value" fill="#4F46E5" name="Total Value (MYR)" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          <details className="bg-bg-surface border border-border rounded-xl">
+            <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+              View stage data table
+            </summary>
+            <div className="p-5 pt-0">
+              <table className="w-full text-sm">
               <thead>
                 <tr className="text-text-secondary text-xs uppercase">
                   <th className="text-left pb-2">Stage</th>
@@ -417,7 +516,8 @@ function PipelineForecastPanel() {
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
+          </details>
         </>
       )}
     </div>
@@ -536,35 +636,61 @@ function LeadAgingPanel() {
         <SummaryCard label="Avg Age (days)" value={data.averageAgeAllLeads.toFixed(1)} />
       </div>
 
+      {/* Stacked BarChart: Aging Buckets by Status */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
-        <h3 className="text-sm font-semibold text-text-primary mb-3">By Status</h3>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-text-secondary text-xs uppercase">
-              <th className="text-left pb-2">Status</th>
-              <th className="text-right pb-2">Count</th>
-              <th className="text-right pb-2">Avg Age (d)</th>
-              <th className="text-right pb-2">Max Age (d)</th>
-              <th className="text-right pb-2">&gt;30d</th>
-              <th className="text-right pb-2">&gt;60d</th>
-              <th className="text-right pb-2">&gt;90d</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.byStatus.map(row => (
-              <tr key={row.status} className="border-t border-border">
-                <td className="py-2 text-text-primary">{row.status}</td>
-                <td className="py-2 text-right">{row.count}</td>
-                <td className="py-2 text-right">{row.avgAgeDays.toFixed(1)}</td>
-                <td className="py-2 text-right">{row.maxAgeDays}</td>
-                <td className="py-2 text-right text-warning">{row.leadsOver30Days}</td>
-                <td className="py-2 text-right text-orange-600">{row.leadsOver60Days}</td>
-                <td className="py-2 text-right text-danger font-semibold">{row.leadsOver90Days}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <h3 className="text-sm font-semibold text-text-primary mb-3">Lead Aging by Status</h3>
+        <ResponsiveContainer width="100%" height={300}>
+          <BarChart data={data.byStatus.map(r => ({
+            status: r.status,
+            '&gt;30d': r.leadsOver30Days,
+            '&gt;60d': r.leadsOver60Days,
+            '&gt;90d': r.leadsOver90Days,
+          }))} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+            <XAxis dataKey="status" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+            <Legend />
+            <Bar dataKey="&gt;30d" stackId="age" fill="#F59E0B" name=">30d" />
+            <Bar dataKey="&gt;60d" stackId="age" fill="#EF4444" name=">60d" />
+            <Bar dataKey="&gt;90d" stackId="age" fill="#7F1D1D" name=">90d" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
       </div>
+
+      <details className="bg-bg-surface border border-border rounded-xl">
+        <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+          View aging data table
+        </summary>
+        <div className="p-5 pt-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-text-secondary text-xs uppercase">
+                <th className="text-left pb-2">Status</th>
+                <th className="text-right pb-2">Count</th>
+                <th className="text-right pb-2">Avg Age (d)</th>
+                <th className="text-right pb-2">Max Age (d)</th>
+                <th className="text-right pb-2">&gt;30d</th>
+                <th className="text-right pb-2">&gt;60d</th>
+                <th className="text-right pb-2">&gt;90d</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.byStatus.map(row => (
+                <tr key={row.status} className="border-t border-border">
+                  <td className="py-2 text-text-primary">{row.status}</td>
+                  <td className="py-2 text-right">{row.count}</td>
+                  <td className="py-2 text-right">{row.avgAgeDays.toFixed(1)}</td>
+                  <td className="py-2 text-right">{row.maxAgeDays}</td>
+                  <td className="py-2 text-right text-warning">{row.leadsOver30Days}</td>
+                  <td className="py-2 text-right text-orange-600">{row.leadsOver60Days}</td>
+                  <td className="py-2 text-right text-danger font-semibold">{row.leadsOver90Days}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </div>
   );
 }
@@ -603,9 +729,57 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
         <SummaryCard label="Lost" value={`${data.totalLost.count} (${myr.format(data.totalLost.value)})`} />
       </div>
 
-      {data.byReason.length > 0 && (
+      {/* Won vs Lost PieChart */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Lost Reasons</h3>
+          <h3 className="text-sm font-semibold text-text-primary mb-3">Won vs Lost</h3>
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={[
+                  { name: 'Won', value: data.totalWon.count },
+                  { name: 'Lost', value: data.totalLost.count },
+                ]}
+                cx="50%" cy="50%" innerRadius={60} outerRadius={90}
+                dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+              >
+                <Cell fill="#10B981" />
+                <Cell fill="#EF4444" />
+              </Pie>
+              <Tooltip contentStyle={CHART_TOOLTIP_STYLE} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Lost Reasons BarChart */}
+        {data.byReason.length > 0 && (
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-text-primary mb-3">Lost Reasons</h3>
+            <ResponsiveContainer width="100%" height={250}>
+              <BarChart
+                data={data.byReason.map(r => ({ reason: r.lostReason || '—', count: r.count, value: r.totalValue }))}
+                layout="vertical"
+                margin={{ top: 5, right: 20, left: 60, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                <XAxis type="number" tick={{ fontSize: 11 }} />
+                <YAxis type="category" dataKey="reason" tick={{ fontSize: 11 }} width={60} />
+                <Tooltip contentStyle={CHART_TOOLTIP_STYLE} formatter={(v: number, name: string) => name === 'value' ? myr.format(v) : v} />
+                <Legend />
+                <Bar dataKey="count" fill="#EF4444" name="Count" radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+      </div>
+
+      {data.byReason.length > 0 && (
+      <details className="bg-bg-surface border border-border rounded-xl">
+        <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-text-secondary hover:text-text-primary">
+          View lost reasons data table
+        </summary>
+        <div className="p-5 pt-0">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-text-secondary text-xs uppercase">
@@ -625,6 +799,7 @@ function WinLossPanel({ from, to }: { from: string; to: string }) {
             </tbody>
           </table>
         </div>
+      </details>
       )}
     </div>
   );

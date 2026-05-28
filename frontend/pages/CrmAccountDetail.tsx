@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType, CrmTrustProduct } from '../src/services/crm.service';
+import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType, CrmTrustProduct, CrmUser } from '../src/services/crm.service';
+import InlineEdit from '../src/components/crm/InlineEdit';
 import CrmNav from '../src/components/CrmNav';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { useAuth } from '../src/context/AuthContext';
@@ -54,6 +55,10 @@ const CrmAccountDetail = () => {
   const [editingTP, setEditingTP] = useState<CrmTrustProduct | null>(null);
   const [showDeleteTP, setShowDeleteTP] = useState(false);
   const [deletingTP, setDeletingTP] = useState<CrmTrustProduct | null>(null);
+
+  // CRM Users for owner select
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
 
   const loadTrustProducts = () => {
     if (!id) return;
@@ -266,23 +271,120 @@ const CrmAccountDetail = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-bg-surface border border-border rounded-xl p-5">
             <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Account Info</h3>
-            {[
-              { label: 'Email', value: account.email, icon: 'mail' },
-              { label: 'Phone', value: account.phone, icon: 'call' },
-              { label: 'Website', value: account.website, icon: 'language' },
-              { label: 'Size', value: account.companySize, icon: 'groups' },
-              { label: 'Registration No.', value: account.registrationNumber, icon: 'badge' },
-              { label: 'Tax No.', value: account.taxNumber, icon: 'receipt_long' },
-              { label: 'Bank Account', value: account.bankAccount, icon: 'account_balance' },
-              { label: 'Owner', value: account.owner ? `${account.owner.firstName} ${account.owner.lastName}` : '—', icon: 'manage_accounts' },
-              { label: 'Created', value: formatDate(account.createdAt), icon: 'calendar_today' },
-            ].map(f => f.value && (
-              <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
-                <span className="text-xs text-text-secondary w-16 shrink-0">{f.label}</span>
-                <span className="text-sm text-text-primary">{f.value}</span>
-              </div>
-            ))}
+            {/* Editable fields */}
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">badge</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Name</span>
+              <InlineEdit
+                value={account.name}
+                type="text"
+                onSave={async (v) => { await crmService.updateAccount(id!, { name: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">factory</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Industry</span>
+              <InlineEdit
+                value={account.industry}
+                type="text"
+                onSave={async (v) => { await crmService.updateAccount(id!, { industry: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">groups</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Company Size</span>
+              <InlineEdit
+                value={account.companySize}
+                type="text"
+                onSave={async (v) => { await crmService.updateAccount(id!, { companySize: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">language</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Website</span>
+              <InlineEdit
+                value={account.website}
+                type="text"
+                onSave={async (v) => { await crmService.updateAccount(id!, { website: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">call</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Phone</span>
+              <InlineEdit
+                value={account.phone}
+                type="text"
+                onSave={async (v) => { await crmService.updateAccount(id!, { phone: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">mail</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Email</span>
+              <InlineEdit
+                value={account.email}
+                type="text"
+                onSave={async (v) => { await crmService.updateAccount(id!, { email: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">payments</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Annual Revenue</span>
+              <InlineEdit
+                value={account.annualRevenue}
+                type="number"
+                format={formatCurrency}
+                onSave={async (v) => { await crmService.updateAccount(id!, { annualRevenue: Number(v) }); const u = await crmService.getAccount(id!); setAccount(u); }}
+              />
+            </div>
+            {/* Owner — select, editable only for crm:admin */}
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">manage_accounts</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Owner</span>
+              <InlineEdit
+                value={account.ownerId ?? ''}
+                type="select"
+                display={account.owner ? `${account.owner.firstName} ${account.owner.lastName}` : '—'}
+                editable={hasPermission(user, 'crm:admin')}
+                options={crmUsers.map(u => ({ label: `${u.firstName} ${u.lastName}`, value: u.id }))}
+                onSave={async (v) => { await crmService.updateAccount(id!, { ownerId: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
+              />
+            </div>
+            {/* Read-only fields */}
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">badge</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Registration No.</span>
+              <span className="text-sm text-text-primary">{account.registrationNumber || '—'}</span>
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">receipt_long</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Tax No.</span>
+              <span className="text-sm text-text-primary">{account.taxNumber || '—'}</span>
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">account_balance</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Bank Account</span>
+              <span className="text-sm text-text-primary">{account.bankAccount || '—'}</span>
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">trust</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Purchase Cash Trust</span>
+              <span className="text-sm text-text-primary">{account.purchaseCashTrust ? 'Yes' : 'No'}</span>
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">check_circle</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Active</span>
+              <span className="text-sm text-text-primary">{account.isActive ? 'Yes' : 'No'}</span>
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">calendar_today</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Created</span>
+              <span className="text-sm text-text-primary">{formatDate(account.createdAt)}</span>
+            </div>
+            <div className="flex items-center gap-3 py-2">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">update</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Updated</span>
+              <span className="text-sm text-text-primary">{formatDate(account.updatedAt)}</span>
+            </div>
           </div>
           {account.description && (
             <div className="bg-bg-surface border border-border rounded-xl p-5">

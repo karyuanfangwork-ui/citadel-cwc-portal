@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { Navigate } from 'react-router-dom';
-import crmService, { TeamPerformance } from '../src/services/crm.service';
+import crmService, { TeamPerformance, CrmUser, CrmLead } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import EmptyState from '../src/components/ui/EmptyState';
 
@@ -31,6 +31,14 @@ const CrmTeamDashboard = () => {
   } | null>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingOpen, setBriefingOpen] = useState(false);
+
+  // ── Reassignment state ──
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  const [expandedAgent, setExpandedAgent] = useState<string | null>(null);
+  const [agentLeads, setAgentLeads] = useState<CrmLead[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [reassigning, setReassigning] = useState<string | null>(null); // lead id being reassigned
+  const [toast, setToast] = useState<string | null>(null);
 
   const loadBriefing = async () => {
     setBriefingLoading(true);
@@ -62,6 +70,46 @@ const CrmTeamDashboard = () => {
     };
     fetch();
   }, []);
+
+  // Load CRM users for reassignment dropdown
+  useEffect(() => {
+    crmService.listCrmUsers().then(setCrmUsers).catch(() => {});
+  }, []);
+
+  // Expand agent row to show their leads
+  const expandAgent = async (agentId: string) => {
+    if (expandedAgent === agentId) {
+      setExpandedAgent(null);
+      setAgentLeads([]);
+      return;
+    }
+    setExpandedAgent(agentId);
+    setLeadsLoading(true);
+    try {
+      const res = await crmService.listLeads({ ownerId: agentId, limit: 50 });
+      setAgentLeads(res.leads);
+    } catch { setAgentLeads([]); }
+    finally { setLeadsLoading(false); }
+  };
+
+  const handleReassign = async (leadId: string, newOwnerId: string) => {
+    setReassigning(leadId);
+    try {
+      await crmService.updateLead(leadId, { ownerId: newOwnerId });
+      const newUser = crmUsers.find(u => u.id === newOwnerId);
+      setToast(`Lead reassigned to ${newUser?.firstName} ${newUser?.lastName}`);
+      // Refresh leads list for this agent
+      setAgentLeads(prev => prev.filter(l => l.id !== leadId));
+      // Refresh team performance
+      const data = await crmService.getTeamPerformance();
+      setAgents(data.agents);
+    } catch {
+      setToast('Reassignment failed');
+    } finally {
+      setReassigning(null);
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
 
   // Aggregated totals
   const totalLeads = agents.reduce((s, a) => s + a.leads, 0);
@@ -189,6 +237,14 @@ const CrmTeamDashboard = () => {
           <h2 className="text-lg font-extrabold text-text-primary">Agent Performance</h2>
         </div>
 
+        {/* Toast */}
+        {toast && (
+          <div className="mx-5 mt-4 px-4 py-2.5 rounded-lg bg-success/10 border border-success text-success text-sm font-semibold flex items-center gap-2">
+            <span className="material-symbols-outlined text-base">check_circle</span>
+            {toast}
+          </div>
+        )}
+
         {loading ? (
           <div className="p-5 space-y-4">
             {[0, 1, 2, 3, 4].map((i) => (
@@ -216,11 +272,13 @@ const CrmTeamDashboard = () => {
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Pipeline Value</th>
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Won This Month</th>
                   <th className="text-right font-bold text-text-secondary px-5 py-3">Stale Leads</th>
+                  <th className="text-center font-bold text-text-secondary px-5 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {agents.map((agent) => (
-                  <tr key={agent.id} className="hover:bg-surface-muted transition-colors">
+                  <React.Fragment key={agent.id}>
+                  <tr className="hover:bg-surface-muted transition-colors">
                     {/* Agent */}
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
@@ -258,7 +316,95 @@ const CrmTeamDashboard = () => {
                         {agent.staleLeads}
                       </span>
                     </td>
+                    {/* Actions */}
+                    <td className="text-center px-5 py-4">
+                      <button
+                        onClick={() => expandAgent(agent.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          expandedAgent === agent.id
+                            ? 'bg-brand-600 text-white'
+                            : agent.leads > 0
+                              ? 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+                              : 'bg-surface-muted text-text-tertiary cursor-not-allowed'
+                        }`}
+                        disabled={agent.leads === 0}
+                        style={{ border: 'none', cursor: agent.leads === 0 ? 'not-allowed' : 'pointer' }}
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          {expandedAgent === agent.id ? 'expand_less' : 'swap_horiz'}
+                        </span>
+                        {expandedAgent === agent.id ? 'Close' : 'Reassign'}
+                      </button>
+                    </td>
                   </tr>
+                  {/* Expanded: Agent Leads for Reassignment */}
+                  {expandedAgent === agent.id && (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-0">
+                        <div className="border border-border rounded-lg my-3 overflow-hidden">
+                          <div className="bg-surface-muted px-4 py-2 text-xs font-bold text-text-secondary uppercase tracking-wide">
+                            {agent.name}&apos;s Leads ({agentLeads.length})
+                          </div>
+                          {leadsLoading ? (
+                            <div className="p-4 text-center text-sm text-text-secondary">Loading leads…</div>
+                          ) : agentLeads.length === 0 ? (
+                            <div className="p-4 text-center text-sm text-text-secondary">No leads to reassign.</div>
+                          ) : (
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="border-b border-border bg-surface text-text-secondary text-xs uppercase">
+                                  <th className="text-left px-4 py-2">Lead</th>
+                                  <th className="text-left px-4 py-2">Status</th>
+                                  <th className="text-right px-4 py-2">Est. Value</th>
+                                  <th className="text-center px-4 py-2">Reassign To</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-border">
+                                {agentLeads.map(lead => (
+                                  <tr key={lead.id} className="hover:bg-surface-muted transition-colors">
+                                    <td className="px-4 py-2.5">
+                                      <a href={`/crm/leads/${lead.id}`} className="text-brand-600 hover:underline font-semibold">{lead.title}</a>
+                                      {lead.companyName && <div className="text-xs text-text-secondary">{lead.companyName}</div>}
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                      <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                        lead.status === 'NEW' ? 'bg-brand-50 text-brand-700'
+                                        : lead.status === 'CONTACTED' ? 'bg-amber-50 text-amber-700'
+                                        : lead.status === 'QUALIFIED' ? 'bg-green-50 text-green-700'
+                                        : 'bg-surface-muted text-text-secondary'
+                                      }`}>{lead.status}</span>
+                                    </td>
+                                    <td className="text-right px-4 py-2.5 text-text-primary">
+                                      {lead.estimatedValue ? formatCurrency(lead.estimatedValue) : '—'}
+                                    </td>
+                                    <td className="text-center px-4 py-2.5">
+                                      <select
+                                        className="rounded-lg border border-border bg-bg-surface px-2.5 py-1 text-xs text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 min-w-[140px]"
+                                        defaultValue=""
+                                        disabled={reassigning === lead.id}
+                                        onChange={e => { if (e.target.value) handleReassign(lead.id, e.target.value); }}
+                                      >
+                                        <option value="" disabled>Select new owner…</option>
+                                        {crmUsers
+                                          .filter(u => u.id !== agent.id)
+                                          .map(u => (
+                                            <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                                          ))}
+                                      </select>
+                                      {reassigning === lead.id && (
+                                        <span className="material-symbols-outlined text-sm animate-spin ml-1 text-brand-600">progress_activity</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

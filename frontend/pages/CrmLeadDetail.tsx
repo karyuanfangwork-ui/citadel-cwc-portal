@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmLead, CrmUser, CrmPipeline, CrmActivity, CrmNote, CrmActivityType } from '../src/services/crm.service';
+import crmService, { CrmLead, CrmUser, CrmPipeline, CrmActivity, CrmNote, CrmActivityType, LeadStatus, LeadSource } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import InlineEdit from '../src/components/crm/InlineEdit';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import StateBadge from '../src/components/ui/StateBadge';
 import ConfirmDialog from '../src/components/ConfirmDialog';
@@ -444,51 +445,143 @@ const CrmLeadDetail = () => {
         <div className="bg-bg-surface border border-border rounded-xl p-5">
           <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Lead Info</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
-            {[
-              { label: 'Status', value: lead.status, icon: 'flag', highlight: true },
-              { label: 'Source', value: lead.source ?? '—', icon: 'source' },
-              { label: 'Company', value: lead.companyName ?? '—', icon: 'business', link: lead.account ? { to: `/crm/accounts/${lead.account.id}`, text: lead.account.name } : null },
-              { label: 'Account', value: lead.account ? lead.account.name : '—', icon: 'apartment', link: lead.account ? { to: `/crm/accounts/${lead.account.id}`, text: lead.account.name } : null },
-              { label: 'Contact', value: lead.contact ? `${lead.contact.firstName} ${lead.contact.lastName}` : (lead.contactName ?? '—'), icon: 'person', link: lead.contact ? { to: `/crm/contacts/${lead.contact.id}`, text: `${lead.contact.firstName} ${lead.contact.lastName}` } : null },
-              { label: 'Email', value: lead.contactEmail ?? (lead.contact?.email ?? '—'), icon: 'mail' },
-              { label: 'Phone', value: lead.contactPhone ?? (lead.contact?.phone ?? '—'), icon: 'call' },
-              { label: 'Estimated Value', value: formatCurrency(lead.estimatedValue), icon: 'payments' },
-              { label: 'Owner', value: lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}` : '—', icon: 'manage_accounts', editable: true },
-              { label: 'Follow-up Date', value: lead.followUpDate ? formatDate(lead.followUpDate) : '—', icon: 'event' },
-              { label: 'Created', value: formatDate(lead.createdAt), icon: 'calendar_today' },
-              { label: 'Converted At', value: lead.convertedAt ? formatDate(lead.convertedAt) : '—', icon: 'check_circle' },
-            ].map(f => (
-              <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
-                <span className="text-xs text-text-secondary w-28 shrink-0">{f.label}</span>
-                {(f as any).editable && editingOwner ? (
-                  <select
-                    value={lead.owner?.id || ''}
-                    onChange={e => handleChangeOwner(e.target.value)}
-                    disabled={savingOwner}
-                    className="flex-1 px-3 py-1 border border-brand-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-200 outline-none"
-                    style={{ fontFamily: 'var(--font-sans)' }}
-                  >
-                    {crmUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
-                    ))}
-                  </select>
-                ) : (f as any).link ? (
-                  <Link to={(f as any).link.to} className="text-sm text-brand-700 hover:text-brand-800 font-semibold transition-colors">
-                    {(f as any).link.text}
-                  </Link>
-                ) : (
-                  <span className={`text-sm${(f as any).highlight ? ' font-bold' : ''} ${f.value === '—' ? 'text-text-secondary' : 'text-text-primary'}${(f as any).editable ? ' cursor-pointer hover:text-brand-700 transition-colors' : ''}`}
-                    {...((f as any).editable ? { onClick: () => setEditingOwner(true) } : {})}
-                  >
-                    {f.value}
-                    {(f as any).editable && (
-                      <span className="material-symbols-outlined text-sm ml-1 align-text-bottom text-text-secondary">edit</span>
-                    )}
-                  </span>
-                )}
-              </div>
-            ))}
+            {/* Status — select inline edit */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">flag</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Status</span>
+              <InlineEdit
+                value={lead.status}
+                type="select"
+                options={([
+                  { label: 'New', value: 'NEW' },
+                  { label: 'Contacted', value: 'CONTACTED' },
+                  { label: 'Qualified', value: 'QUALIFIED' },
+                  { label: 'Unqualified', value: 'UNQUALIFIED' },
+                  { label: 'Converted', value: 'CONVERTED' },
+                  { label: 'Lost', value: 'LOST' },
+                ] as { label: string; value: string }[])}
+                editable={hasPermission(user, 'crm:admin') && lead.status !== 'CONVERTED'}
+                onSave={async (v) => { await crmService.updateLead(id!, { status: v as LeadStatus }); reload(); }}
+                className="font-bold"
+              />
+            </div>
+            {/* Source — select inline edit */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">source</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Source</span>
+              <InlineEdit
+                value={lead.source ?? '—'}
+                type="select"
+                options={([
+                  { label: 'Website', value: 'WEBSITE' },
+                  { label: 'Referral', value: 'REFERRAL' },
+                  { label: 'Cold Call', value: 'COLD_CALL' },
+                  { label: 'Trade Show', value: 'TRADE_SHOW' },
+                  { label: 'LinkedIn', value: 'LINKEDIN' },
+                  { label: 'Advertisement', value: 'ADVERTISEMENT' },
+                  { label: 'Partner', value: 'PARTNER' },
+                  { label: 'Other', value: 'OTHER' },
+                ] as { label: string; value: string }[])}
+                onSave={async (v) => { await crmService.updateLead(id!, { source: v as LeadSource }); reload(); }}
+              />
+            </div>
+            {/* Company Name — text inline edit */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">business</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Company</span>
+              <InlineEdit
+                value={lead.companyName}
+                onSave={async (v) => { await crmService.updateLead(id!, { companyName: v || null }); reload(); }}
+              />
+            </div>
+            {/* Account — link (not editable inline) */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">apartment</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Account</span>
+              {lead.account ? (
+                <Link to={`/crm/accounts/${lead.account.id}`} className="text-sm text-brand-700 hover:text-brand-800 font-semibold transition-colors">{lead.account.name}</Link>
+              ) : (
+                <span className="text-sm text-text-secondary">—</span>
+              )}
+            </div>
+            {/* Contact — link (not editable inline) */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">person</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Contact</span>
+              {lead.contact ? (
+                <Link to={`/crm/contacts/${lead.contact.id}`} className="text-sm text-brand-700 hover:text-brand-800 font-semibold transition-colors">{lead.contact.firstName} {lead.contact.lastName}</Link>
+              ) : (
+                <InlineEdit
+                  value={lead.contactName}
+                  onSave={async (v) => { await crmService.updateLead(id!, { contactName: v || null }); reload(); }}
+                />
+              )}
+            </div>
+            {/* Email — text inline edit */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">mail</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Email</span>
+              <InlineEdit
+                value={lead.contactEmail ?? (lead.contact?.email ?? null)}
+                onSave={async (v) => { await crmService.updateLead(id!, { contactEmail: v || null }); reload(); }}
+              />
+            </div>
+            {/* Phone — text inline edit */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">call</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Phone</span>
+              <InlineEdit
+                value={lead.contactPhone ?? (lead.contact?.phone ?? null)}
+                onSave={async (v) => { await crmService.updateLead(id!, { contactPhone: v || null }); reload(); }}
+              />
+            </div>
+            {/* Estimated Value — number inline edit */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">payments</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Estimated Value</span>
+              <InlineEdit
+                value={lead.estimatedValue}
+                type="number"
+                display={formatCurrency(lead.estimatedValue)}
+                onSave={async (v) => { await crmService.updateLead(id!, { estimatedValue: v ? Number(v) : null }); reload(); }}
+              />
+            </div>
+            {/* Owner — select inline edit */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">manage_accounts</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Owner</span>
+              <InlineEdit
+                value={lead.owner?.id ?? null}
+                display={lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}` : '—'}
+                type="select"
+                options={crmUsers.map(u => ({ label: `${u.firstName} ${u.lastName}`, value: u.id }))}
+                editable={hasPermission(user, 'crm:admin')}
+                onSave={async (v) => { await crmService.updateLead(id!, { ownerId: v }); reload(); }}
+              />
+            </div>
+            {/* Follow-up Date — date inline edit */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">event</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Follow-up Date</span>
+              <InlineEdit
+                value={lead.followUpDate ? lead.followUpDate.slice(0, 10) : null}
+                type="date"
+                display={lead.followUpDate ? formatDate(lead.followUpDate) : '—'}
+                onSave={async (v) => { await crmService.updateLead(id!, { followUpDate: v || null }); reload(); }}
+              />
+            </div>
+            {/* Created — read-only */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">calendar_today</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Created</span>
+              <span className="text-sm text-text-primary">{formatDate(lead.createdAt)}</span>
+            </div>
+            {/* Converted At — read-only */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">check_circle</span>
+              <span className="text-xs text-text-secondary w-28 shrink-0">Converted At</span>
+              <span className="text-sm text-text-secondary">{lead.convertedAt ? formatDate(lead.convertedAt) : '—'}</span>
+            </div>
           </div>
           {lead.description && (
             <div className="mt-4 pt-4 border-t border-border">

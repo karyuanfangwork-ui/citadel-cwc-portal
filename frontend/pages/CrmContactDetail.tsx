@@ -10,6 +10,7 @@ import ConfirmDialog from '../src/components/ConfirmDialog';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateContact, validateBeneficiary, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
+import InlineEdit from '../src/components/crm/InlineEdit';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -780,6 +781,13 @@ const CrmContactDetail = () => {
     setLoadedTabs(prev => new Set([...prev, tab]));
   };
 
+  // ── Inline edit handler ─────────────────────────────────────────────
+  const handleInlineSave = async (fieldName: string, value: string) => {
+    if (!id) return;
+    const updated = await crmService.updateContact(id, { [fieldName]: value });
+    setContact(updated);
+  };
+
   if (loading) return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '2rem' }}>
       {[...Array(4)].map((_, i) => (
@@ -876,20 +884,56 @@ const CrmContactDetail = () => {
         <div className="bg-bg-surface border border-border rounded-xl p-5">
           <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Contact Info</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
+            {/* Editable fields */}
             {[
-              { label: 'Email',       value: contact.email,            icon: 'mail' },
-              { label: 'Phone',       value: contact.phone,            icon: 'call' },
-              { label: 'Mobile',      value: contact.mobile,           icon: 'smartphone' },
-              { label: 'Department',  value: contact.department,       icon: 'corporate_fare' },
-              { label: 'Account',     value: contact.account?.name,    icon: 'business' },
-              { label: 'Created',     value: formatDate(contact.createdAt), icon: 'calendar_today' },
-            ].map(f => f.value && (
-              <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              { label: 'First Name', fieldName: 'firstName', value: contact.firstName, icon: 'badge' },
+              { label: 'Last Name',  fieldName: 'lastName',  value: contact.lastName,  icon: 'badge' },
+              { label: 'Email',       fieldName: 'email',     value: contact.email,      icon: 'mail' },
+              { label: 'Phone',       fieldName: 'phone',    value: contact.phone,     icon: 'call' },
+              { label: 'Mobile',      fieldName: 'mobile',   value: contact.mobile,    icon: 'smartphone' },
+              { label: 'Job Title',   fieldName: 'jobTitle', value: contact.jobTitle,  icon: 'work' },
+              { label: 'Department',  fieldName: 'department', value: contact.department, icon: 'corporate_fare' },
+            ].map(f => (
+              <div key={f.fieldName} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
                 <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
                 <span className="text-xs text-text-secondary w-24 shrink-0">{f.label}</span>
-                <span className="text-sm text-text-primary">{f.value}</span>
+                <InlineEdit
+                  value={f.value ?? ''}
+                  type="text"
+                  onSave={(val) => handleInlineSave(f.fieldName, val)}
+                />
               </div>
             ))}
+            {/* Read-only: Account (link) */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">business</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Account</span>
+              {contact.account ? (
+                <Link to={`/crm/accounts/${contact.account.id}`} className="text-sm text-brand-700 hover:underline">
+                  {contact.account.name}
+                </Link>
+              ) : (
+                <span className="text-sm text-text-secondary">—</span>
+              )}
+            </div>
+            {/* Read-only: Is Primary */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">star</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Is Primary</span>
+              <span className="text-sm text-text-primary">{contact.isPrimary ? 'Yes' : 'No'}</span>
+            </div>
+            {/* Read-only: Active */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">check_circle</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Active</span>
+              <span className="text-sm text-text-primary">{contact.isActive !== false ? 'Yes' : 'No'}</span>
+            </div>
+            {/* Read-only: Created date */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">calendar_today</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Created</span>
+              <span className="text-sm text-text-primary">{formatDate(contact.createdAt)}</span>
+            </div>
           </div>
           {contact.description && (
             <div className="mt-4 pt-4 border-t border-border">

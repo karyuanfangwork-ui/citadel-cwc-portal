@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmStageHistory, CrmPipeline, CrmPipelineStage, CrmAccount } from '../src/services/crm.service';
+import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmStageHistory, CrmPipeline, CrmPipelineStage, CrmAccount, CrmUser } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import StateBadge from '../src/components/ui/StateBadge';
@@ -11,6 +11,7 @@ import { validateOpportunity, ValidationError } from '../src/utils/crmValidation
 import { hasPermission } from '../src/utils/permissions';
 import EmptyState from '../src/components/ui/EmptyState';
 import { useAuth } from '../src/context/AuthContext';
+import InlineEdit from '../src/components/crm/InlineEdit';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -191,6 +192,9 @@ const CrmOpportunityDetail = () => {
   };
 
   useEffect(() => { reload(); }, [id]);
+
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
 
   const handleMoveStage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -399,19 +403,76 @@ const CrmOpportunityDetail = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-bg-surface border border-border rounded-xl p-5">
             <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Deal Info</h3>
-            {[
-              { label: 'Pipeline', value: opp.pipeline?.name, icon: 'account_tree' },
-              { label: 'Stage', value: opp.stage?.name, icon: 'flag' },
-              { label: 'Owner', value: opp.owner ? `${opp.owner.firstName} ${opp.owner.lastName}` : '—', icon: 'manage_accounts' },
-              { label: 'Created', value: formatDate(opp.createdAt), icon: 'calendar_today' },
-              { label: 'Won At', value: opp.wonAt ? formatDate(opp.wonAt) : null, icon: 'emoji_events' },
-            ].map(f => f.value && (
-              <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
-                <span className="text-xs text-text-secondary w-16 shrink-0">{f.label}</span>
-                <span className="text-sm text-text-primary">{f.value}</span>
-              </div>
-            ))}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">title</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Name</span>
+              <InlineEdit
+                value={opp.name}
+                type="text"
+                onSave={async (v) => { await crmService.updateOpportunity(id!, { name: v }); reload(); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">payments</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Value</span>
+              <InlineEdit
+                value={opp.value}
+                type="number"
+                display={formatCurrency(opp.value)}
+                onSave={async (v) => { await crmService.updateOpportunity(id!, { value: Number(v) }); reload(); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">percent</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Probability</span>
+              <InlineEdit
+                value={opp.probability}
+                type="number"
+                onSave={async (v) => { await crmService.updateOpportunity(id!, { probability: Number(v) }); reload(); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">calendar_today</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Close Date</span>
+              <InlineEdit
+                value={opp.expectedCloseDate ? opp.expectedCloseDate.slice(0, 10) : null}
+                type="date"
+                display={opp.expectedCloseDate ? formatDate(opp.expectedCloseDate) : '—'}
+                onSave={async (v) => { await crmService.updateOpportunity(id!, { expectedCloseDate: v || null }); reload(); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">account_tree</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Pipeline</span>
+              <span className="text-sm text-text-primary">{opp.pipeline?.name ?? '—'}</span>
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">flag</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Stage</span>
+              <span className="text-sm text-text-primary">{opp.stage?.name ?? '—'}</span>
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">manage_accounts</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Owner</span>
+              <InlineEdit
+                value={opp.ownerId}
+                type="select"
+                options={crmUsers.map(u => ({ label: `${u.firstName} ${u.lastName}`, value: u.id }))}
+                display={opp.owner ? `${opp.owner.firstName} ${opp.owner.lastName}` : '—'}
+                editable={hasPermission(user, 'crm:admin')}
+                onSave={async (v) => { await crmService.updateOpportunity(id!, { ownerId: v }); reload(); }}
+              />
+            </div>
+            <div className="flex items-center gap-3 py-2 border-b border-border">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">calendar_today</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Created</span>
+              <span className="text-sm text-text-primary">{formatDate(opp.createdAt)}</span>
+            </div>
+            <div className="flex items-center gap-3 py-2">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">emoji_events</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">Won At</span>
+              <span className="text-sm text-text-primary">{opp.wonAt ? formatDate(opp.wonAt) : '—'}</span>
+            </div>
           </div>
           {opp.description && (
             <div className="bg-bg-surface border border-border rounded-xl p-5">
