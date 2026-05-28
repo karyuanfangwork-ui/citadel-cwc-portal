@@ -2,13 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import ConfirmDialog from '../src/components/ConfirmDialog';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
+import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 const formatDate = (d: string | null) =>
   d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+
+const SkeletonLine = ({ mb = 12 }: { mb?: number }) => (
+  <div style={{ height: 18, marginBottom: mb, borderRadius: 6, background: 'var(--bg-subtle)', animation: 'pulse 1.5s infinite' }} />
+);
 
 const ACTIVITY_ICONS: Record<CrmActivityType, string> = {
   CALL: 'call', EMAIL: 'mail', MEETING: 'groups', NOTE: 'sticky_note_2', TASK: 'task_alt', FOLLOW_UP: 'notifications',
@@ -27,6 +33,22 @@ const CrmAccountDetail = () => {
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
   const [noteContent, setNoteContent] = useState('');
   const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState<CrmNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [showDelete, setShowDelete] = useState(false);
+
+  const loadNotes = () => {
+    if (!id) return;
+    setNotesLoading(true);
+    crmService.listNotes({ accountId: id })
+      .then(res => setNotes(res.notes))
+      .catch(() => {})
+      .finally(() => setNotesLoading(false));
+  };
+
+  useEffect(() => { loadNotes(); }, [id]);
 
   useEffect(() => {
     if (!id) return;
@@ -57,10 +79,56 @@ const CrmAccountDetail = () => {
     try {
       setSaving(true);
       await crmService.createNote({ content: noteContent, accountId: id });
-      const updated = await crmService.getAccount(id);
-      setAccount(updated);
+      loadNotes(); // refresh notes list
       setShowAddNote(false);
       setNoteContent('');
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const openEdit = () => {
+    if (!account) return;
+    setEditForm({
+      name: account.name ?? '',
+      registrationNumber: account.registrationNumber ?? '',
+      taxNumber: account.taxNumber ?? '',
+      industry: account.industry ?? '',
+      companySize: account.companySize ?? '',
+      website: account.website ?? '',
+      email: account.email ?? '',
+      phone: account.phone ?? '',
+      annualRevenue: account.annualRevenue ?? '',
+      bankAccount: account.bankAccount ?? '',
+      address: account.address ?? '',
+      city: account.city ?? '',
+      state: account.state ?? '',
+      postalCode: account.postalCode ?? '',
+      country: account.country ?? '',
+      description: account.description ?? '',
+    });
+    setShowEdit(true);
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    try {
+      setSaving(true);
+      const payload = cleanFormPayload(editForm, NUMERIC_KEYS.account);
+      await crmService.updateAccount(id, payload);
+      setShowEdit(false);
+      const updated = await crmService.getAccount(id);
+      setAccount(updated);
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      setSaving(true);
+      await crmService.deleteAccount(id);
+      navigate('/crm/accounts');
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
   };
@@ -103,6 +171,18 @@ const CrmAccountDetail = () => {
               style={{ textDecoration: 'none' }}>
               <span className="material-symbols-outlined text-base">open_in_new</span> Website
             </a>
+          )}
+          <button onClick={openEdit}
+            className="flex items-center gap-2 border border-brand-200 text-brand-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-50 transition-colors"
+            style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+            <span className="material-symbols-outlined text-base">edit</span> Edit
+          </button>
+          {hasPermission(user, 'crm:delete') && (
+            <button onClick={() => setShowDelete(true)}
+              className="flex items-center gap-2 text-danger px-3 py-2 rounded-lg text-sm font-bold hover:bg-danger/10 transition-colors"
+              style={{ background: 'none', border: '1px solid var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              <span className="material-symbols-outlined text-base">delete</span> Delete
+            </button>
           )}
           <button onClick={() => setShowAddActivity(true)}
             className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
@@ -239,8 +319,11 @@ const CrmAccountDetail = () => {
       {/* Notes tab */}
       {activeTab === 'notes' && (
         <div className="space-y-3">
-          {(account.notes ?? []).length === 0 && <p className="text-text-secondary text-sm">No notes yet.</p>}
-          {(account.notes ?? []).map(n => (
+          {notesLoading ? (
+            <div className="space-y-3">{[...Array(2)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>
+          ) : notes.length === 0 ? (
+            <p className="text-text-secondary text-sm">No notes yet.</p>
+          ) : notes.map(n => (
             <div key={n.id} className={`bg-bg-surface border rounded-xl p-4 ${n.isPinned ? 'border-yellow-300' : 'border-border'}`}>
               {n.isPinned && <span className="flex items-center gap-1 text-xs text-yellow-600 mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
               <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{n.content}</p>
@@ -355,6 +438,130 @@ const CrmAccountDetail = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Account modal */}
+      {showEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEdit(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
+              <h2 className="text-lg font-extrabold text-text-primary">Edit Account</h2>
+              <button onClick={() => setShowEdit(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+            </div>
+            <form onSubmit={handleEditSave} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Name *</label>
+                <input required value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Registration No.</label>
+                  <input value={editForm.registrationNumber ?? ''} onChange={e => setEditForm(f => ({ ...f, registrationNumber: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Tax No.</label>
+                  <input value={editForm.taxNumber ?? ''} onChange={e => setEditForm(f => ({ ...f, taxNumber: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Industry</label>
+                  <input value={editForm.industry ?? ''} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Company Size</label>
+                  <input value={editForm.companySize ?? ''} onChange={e => setEditForm(f => ({ ...f, companySize: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Website</label>
+                  <input value={editForm.website ?? ''} onChange={e => setEditForm(f => ({ ...f, website: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Annual Revenue (MYR)</label>
+                  <input type="number" min="0" value={editForm.annualRevenue ?? ''} onChange={e => setEditForm(f => ({ ...f, annualRevenue: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Email</label>
+                  <input type="email" value={editForm.email ?? ''} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Phone</label>
+                  <input value={editForm.phone ?? ''} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Bank Account</label>
+                <input value={editForm.bankAccount ?? ''} onChange={e => setEditForm(f => ({ ...f, bankAccount: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Address</label>
+                  <input value={editForm.address ?? ''} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">City</label>
+                  <input value={editForm.city ?? ''} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">State</label>
+                  <input value={editForm.state ?? ''} onChange={e => setEditForm(f => ({ ...f, state: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Postal Code</label>
+                  <input value={editForm.postalCode ?? ''} onChange={e => setEditForm(f => ({ ...f, postalCode: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Country</label>
+                  <input value={editForm.country ?? ''} onChange={e => setEditForm(f => ({ ...f, country: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
+                <textarea rows={3} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowEdit(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-bg-subtle" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Account"
+        message={`Are you sure you want to delete "${account?.name}"? This action cannot be undone.`}
+        confirmVariant="danger"
+        loading={saving}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDelete(false)}
+      />
     </div>
     </>
   );

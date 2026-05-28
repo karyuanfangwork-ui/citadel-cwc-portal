@@ -4,6 +4,9 @@ import crmService, { CrmLead, CrmUser, CrmPipeline, CrmActivity, CrmNote, CrmAct
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import StateBadge from '../src/components/ui/StateBadge';
+import ConfirmDialog from '../src/components/ConfirmDialog';
+import { useAuth } from '../src/context/AuthContext';
+import { hasPermission } from '../src/utils/permissions';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -18,6 +21,7 @@ const ACTIVITY_ICONS: Record<CrmActivityType, string> = {
 const CrmLeadDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [lead, setLead] = useState<CrmLead | null>(null);
   const [loading, setLoading] = useState(true);
   const [showConvert, setShowConvert] = useState(false);
@@ -34,6 +38,7 @@ const CrmLeadDetail = () => {
   const [savingOwner, setSavingOwner] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [showDelete, setShowDelete] = useState(false);
 
   // ── AI state ─────────────────────────────────────────────────────
   // Note Analyzer (Task 5)
@@ -45,16 +50,19 @@ const CrmLeadDetail = () => {
     suggestedFollowUpDays?: number | null;
   } | null>>({});
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+   const [noteAnalysisError, setNoteAnalysisError] = useState<string | null>(null);
 
   // Draft Message (Task 6)
   const [draftModal, setDraftModal] = useState(false);
   const [draftConfig, setDraftConfig] = useState<{ channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' }>({ channel: 'whatsapp', tone: 'friendly' });
   const [draftResult, setDraftResult] = useState<{ subject: string | null; body: string } | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
+   const [draftError, setDraftError] = useState<string | null>(null);
 
   // Lead Summary (Task 7)
   const [summary, setSummary] = useState<{ statusSummary: string; keyFacts: string; recommendedNextStep: string } | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+   const [summaryError, setSummaryError] = useState<string | null>(null);
 
   // Lead Score (Task 8)
   const scoreColor = (score: number) =>
@@ -68,11 +76,12 @@ const CrmLeadDetail = () => {
   // ── AI handlers ─────────────────────────────────────────────────────
   const handleAnalyzeNote = async (activityId: string) => {
     setAnalyzingId(activityId);
+    setNoteAnalysisError(null);
     try {
       const result = await crmService.analyzeActivityNote(activityId);
       setAnalyzedNotes((prev) => ({ ...prev, [activityId]: result }));
-    } catch {
-      // fail silently — AI is optional
+    } catch (err) {
+      setNoteAnalysisError(err instanceof Error ? err.message : 'AI feature unavailable');
     } finally {
       setAnalyzingId(null);
     }
@@ -82,11 +91,12 @@ const CrmLeadDetail = () => {
     if (!lead) return;
     setDraftLoading(true);
     setDraftResult(null);
+    setDraftError(null);
     try {
       const result = await crmService.draftLeadMessage(lead.id, draftConfig);
       setDraftResult(result);
-    } catch {
-      // fail silently
+    } catch (err) {
+      setDraftError(err instanceof Error ? err.message : 'AI feature unavailable');
     } finally {
       setDraftLoading(false);
     }
@@ -95,11 +105,12 @@ const CrmLeadDetail = () => {
   const handleGetSummary = async () => {
     if (!lead) return;
     setSummaryLoading(true);
+    setSummaryError(null);
     try {
       const result = await crmService.getLeadSummary(lead.id);
       setSummary(result);
-    } catch {
-      // fail silently
+    } catch (err) {
+      setSummaryError(err instanceof Error ? err.message : 'AI feature unavailable');
     } finally {
       setSummaryLoading(false);
     }
@@ -107,15 +118,17 @@ const CrmLeadDetail = () => {
 
   const [scoreData, setScoreData] = useState<{ score: number; reason: string } | null>(null);
   const [scoreLoading, setScoreLoading] = useState(false);
+  const [scoreError, setScoreError] = useState<string | null>(null);
 
   const handleGetScore = async () => {
     if (!lead) return;
     setScoreLoading(true);
+    setScoreError(null);
     try {
       const result = await crmService.getLeadScore(lead.id);
       setScoreData(result);
-    } catch {
-      // fail silently
+    } catch (err) {
+      setScoreError(err instanceof Error ? err.message : 'AI feature unavailable');
     } finally {
       setScoreLoading(false);
     }
@@ -268,6 +281,16 @@ const CrmLeadDetail = () => {
     finally { setSaving(false); }
   };
 
+  const handleDelete = async () => {
+    if (!id) return;
+    try {
+      setSaving(true);
+      await crmService.deleteLead(id);
+      navigate('/crm/leads');
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
   // Type guard for activities/notes - backend returns them when included
   const activities = (lead as any)?.activities ?? [];
   const notes = (lead as any)?.notes ?? [];
@@ -317,14 +340,21 @@ const CrmLeadDetail = () => {
                 {scoreData?.score ?? lead.aiScore}/100
               </span>
             ) : (
-              <button
-                onClick={handleGetScore}
-                disabled={scoreLoading}
-                className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs text-text-tertiary hover:bg-brand-100 hover:text-brand-700 disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-xs">auto_awesome</span>
-                {scoreLoading ? '…' : 'Score'}
-              </button>
+              <span className="inline-flex items-center gap-1">
+                <button
+                  onClick={handleGetScore}
+                  disabled={scoreLoading}
+                  className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs text-text-tertiary hover:bg-brand-100 hover:text-brand-700 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-xs">auto_awesome</span>
+                  {scoreLoading ? '…' : 'Score'}
+                </button>
+                {scoreError && (
+                  <span className="text-xs text-danger" title={scoreError}>
+                    <span className="material-symbols-outlined text-xs align-middle">error</span>
+                  </span>
+                )}
+              </span>
             )}
           </div>
           <p className="text-text-secondary text-sm">{lead.companyName || ''}{lead.contactName ? ` · ${lead.contactName}` : ''}</p>
@@ -335,6 +365,13 @@ const CrmLeadDetail = () => {
             style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
             <span className="material-symbols-outlined text-base">edit</span> Edit
           </button>
+          {hasPermission(user, 'crm:delete') && (
+            <button onClick={() => setShowDelete(true)}
+              className="flex items-center gap-2 text-danger px-3 py-2.5 rounded-lg text-sm font-bold hover:bg-danger/10 transition-colors"
+              style={{ background: 'none', border: '1px solid var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              <span className="material-symbols-outlined text-base">delete</span> Delete
+            </button>
+          )}
           {!isConverted && !isLost && (
             <button onClick={openConvert}
               className="flex items-center gap-2 bg-success text-white px-4 py-2.5 rounded-lg text-sm font-bold hover:bg-success/90 transition-colors"
@@ -466,6 +503,7 @@ const CrmLeadDetail = () => {
             <AiInsightCard
               title="AI Summary"
               loading={summaryLoading}
+              error={summaryError}
               onRefresh={handleGetSummary}
             >
               {!summary ? (
@@ -505,16 +543,21 @@ const CrmLeadDetail = () => {
                 {['CALL', 'MEETING', 'WHATSAPP'].includes(a.activityType) && (
                   <div className="mt-2">
                     {!analyzedNotes[a.id] ? (
-                      <button
-                        onClick={() => handleAnalyzeNote(a.id)}
-                        disabled={analyzingId === a.id}
-                        className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                        {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
-                      </button>
+                      <div>
+                        <button
+                          onClick={() => handleAnalyzeNote(a.id)}
+                          disabled={analyzingId === a.id}
+                          className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 disabled:opacity-50"
+                        >
+                          <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                          {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
+                        </button>
+                        {noteAnalysisError && !analyzedNotes[a.id] && (
+                          <p className="text-xs text-danger mt-1">{noteAnalysisError}</p>
+                        )}
+                      </div>
                     ) : (
-                      <AiInsightCard title="Note Analysis" className="mt-1">
+                      <AiInsightCard title="Note Analysis" className="mt-1" error={noteAnalysisError} loading={analyzingId === a.id} onRefresh={() => handleAnalyzeNote(a.id)}>
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
                             <span className={`material-symbols-outlined text-sm ${
@@ -829,6 +872,12 @@ const CrmLeadDetail = () => {
               </div>
             </div>
 
+            {draftError && (
+              <div className="mb-4 rounded-md bg-danger/10 border border-danger/30 px-3 py-2 text-sm text-danger">
+                {draftError}
+              </div>
+            )}
+
             {draftResult && (
               <div className="space-y-3">
                 {draftResult.subject && (
@@ -954,6 +1003,17 @@ const CrmLeadDetail = () => {
       >
         <span className="material-symbols-outlined text-2xl">add</span>
       </button>
+
+      {/* Delete confirmation dialog */}
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Lead"
+        message={`Are you sure you want to delete "${lead?.title}"? This action cannot be undone.`}
+        confirmVariant="danger"
+        loading={saving}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDelete(false)}
+      />
     </div>
     </>
   );

@@ -4,6 +4,10 @@ import crmService, { CrmOpportunity, Pagination } from '../src/services/crm.serv
 import CrmNav from '../src/components/CrmNav';
 import StateBadge from '../src/components/ui/StateBadge';
 import { STATUS_COLORS } from '../src/components/ui/StateBadge';
+import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import ConfirmDialog from '../src/components/ConfirmDialog';
+import { hasPermission } from '../src/utils/permissions';
+import { useAuth } from '../src/context/AuthContext';
 
 const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -19,6 +23,7 @@ const CrmOpportunities = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParam = searchParams.get('filter') || '';
+  const { user } = useAuth();
   const [opportunities, setOpportunities] = useState<CrmOpportunity[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -30,6 +35,11 @@ const CrmOpportunities = () => {
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
   const [pipelines, setPipelines] = useState<{ id: string; name: string; stages?: { id: string; name: string; probability: number }[] }[]>([]);
   const [saving, setSaving] = useState(false);
+  const [editingItem, setEditingItem] = useState<CrmOpportunity | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<CrmOpportunity | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchOpportunities = useCallback(async (page = 1) => {
     try { setLoading(true);
@@ -68,6 +78,45 @@ const CrmOpportunities = () => {
     }
     try { setSaving(true); await crmService.createOpportunity(payload); setShowCreate(false); setForm({}); fetchOpportunities(); }
     catch (e) { console.error(e); } finally { setSaving(false); }
+  };
+
+  const openEdit = async (opp: CrmOpportunity) => {
+    setEditingItem(opp);
+    setForm({
+      name: opp.name ?? '',
+      accountId: opp.accountId ?? '',
+      pipelineId: opp.pipelineId ?? '',
+      stageId: opp.stageId ?? '',
+      value: opp.value ?? 0,
+      probability: opp.probability ?? 0,
+      expectedCloseDate: opp.expectedCloseDate ? opp.expectedCloseDate.split('T')[0] : '',
+      description: opp.description ?? '',
+    });
+    setShowEdit(true);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+    try {
+      setSaving(true);
+      const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.opportunity);
+      await crmService.updateOpportunity(editingItem.id, payload);
+      setShowEdit(false); setEditingItem(null); setForm({});
+      fetchOpportunities();
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteItem) return;
+    try {
+      setDeleting(true);
+      await crmService.deleteOpportunity(deleteItem.id);
+      setShowDelete(false);
+      setDeleteItem(null);
+      fetchOpportunities();
+    } catch (e) { console.error(e); } finally { setDeleting(false); }
   };
 
   return (
@@ -140,13 +189,14 @@ const CrmOpportunities = () => {
               <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Probability</th>
               <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Close Date</th>
               <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Owner</th>
+              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {loading ? [0,1,2,3,4].map(i => (
-              <tr key={i}><td colSpan={7} className="px-5 py-8"><div style={{ height: 14, width: '80%', background: 'var(--color-border)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} /></td></tr>
+              <tr key={i}><td colSpan={8} className="px-5 py-8"><div style={{ height: 14, width: '80%', background: 'var(--color-border)', borderRadius: 4, animation: 'pulse 1.5s ease-in-out infinite' }} /></td></tr>
             )) : opportunities.length === 0 ? (
-              <tr><td colSpan={7} className="px-5 py-16 text-center text-text-secondary">
+              <tr><td colSpan={8} className="px-5 py-16 text-center text-text-secondary">
                 <span className="material-symbols-outlined text-5xl mb-3 block opacity-30">folder_open</span>
                 <p className="font-bold">No opportunities found</p>
                 <p className="text-sm mt-1">{filterParam === 'overdue' ? 'No overdue deals — great work!' : 'Create your first opportunity to start tracking deals'}</p>
@@ -199,6 +249,23 @@ const CrmOpportunities = () => {
                       <span className="text-sm text-text-secondary">{opp.owner.firstName}</span>
                     </div>
                   ) : '—'}
+                </td>
+                <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
+                  <div className="flex items-center gap-2">
+                    <button onClick={(e) => { e.stopPropagation(); openEdit(opp); }}
+                      className="text-xs font-semibold text-brand-700 hover:text-brand-800 transition-colors"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                      Edit
+                    </button>
+                    {hasPermission(user, 'crm:delete') && (
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteItem(opp); setShowDelete(true); }}
+                        className="text-xs font-semibold text-danger hover:text-red-700 transition-colors"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                        <span className="material-symbols-outlined text-sm align-middle">delete</span>
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -289,7 +356,91 @@ const CrmOpportunities = () => {
           </div>
         </div>
       )}
+
+      {showEdit && editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <h2 className="text-lg font-extrabold text-text-primary">Edit Opportunity</h2>
+              <button onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+            </div>
+            <form onSubmit={handleEdit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Opportunity Name *</label>
+                <input value={(form as any).name || ''} onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))} required
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Account *</label>
+                <select value={(form as any).accountId || ''} onChange={e => setForm(prev => ({ ...prev, accountId: e.target.value }))} required
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                  <option value="">Select Account</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Pipeline *</label>
+                  <select value={(form as any).pipelineId || ''} onChange={e => { const p = pipelines.find(x => x.id === e.target.value); const firstStage = p?.stages?.[0]; setForm(prev => ({ ...prev, pipelineId: e.target.value, stageId: firstStage?.id, probability: firstStage?.probability ?? 0 })); }} required
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    <option value="">Select Pipeline</option>
+                    {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Stage *</label>
+                  <select value={(form as any).stageId || ''} onChange={e => { const selP = pipelines.find(p => p.id === form.pipelineId); const selS = selP?.stages?.find(s => s.id === e.target.value); setForm(prev => ({ ...prev, stageId: e.target.value, probability: selS?.probability ?? prev.probability ?? 0 })); }} required
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                    <option value="">Select Stage</option>
+                    {pipelines.find(p => p.id === form.pipelineId)?.stages?.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Value (MYR)</label>
+                  <input type="number" value={(form as any).value || ''} onChange={e => setForm(prev => ({ ...prev, value: Number(e.target.value) }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">Probability (%)</label>
+                  <input type="number" min={0} max={100} value={(form as any).probability ?? 0} onChange={e => setForm(prev => ({ ...prev, probability: Number(e.target.value) }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Expected Close Date</label>
+                <input type="date" value={(form as any).expectedCloseDate || ''} onChange={e => setForm(prev => ({ ...prev, expectedCloseDate: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
+                <textarea value={(form as any).description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={3}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-surface-muted" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
+
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Opportunity"
+        message={`Are you sure you want to delete "${deleteItem?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => { setShowDelete(false); setDeleteItem(null); }}
+        loading={deleting}
+      />
     </>
   );
 };

@@ -75,6 +75,7 @@ router.patch('/activities/:id', requirePermission('crm:write'), validate(updateA
 router.delete('/activities/:id', requirePermission('crm:delete'), crmController.deleteActivity);
 
 // ======== NOTES ========
+router.get('/notes', requirePermission('crm:read'), crmController.listNotes);
 router.post('/notes', requirePermission('crm:write'), validate(createNoteSchema), crmController.createNote);
 router.patch('/notes/:id', requirePermission('crm:write'), validate(updateNoteSchema), crmController.updateNote);
 router.delete('/notes/:id', requirePermission('crm:write'), crmController.deleteNote);

@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import crmService, { CrmLead, CrmUser, Pagination, LeadStatus, LeadSource } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import ConfirmDialog from '../src/components/ConfirmDialog';
+import { hasPermission } from '../src/utils/permissions';
+import { useAuth } from '../src/context/AuthContext';
 
 const STATUS_STYLES: Record<string, { bg: string; text: string; icon: string }> = {
   NEW: { bg: 'var(--color-it-50)', text: 'var(--color-it-500)', icon: 'fiber_new' },
@@ -67,6 +71,7 @@ const CrmLeads = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParam = searchParams.get('filter') || '';
   const [prioritySort, setPrioritySort] = useState(false);
+  const { user } = useAuth();
 
   const [leads, setLeads] = useState<CrmLead[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
@@ -79,6 +84,11 @@ const CrmLeads = () => {
   const [saving, setSaving] = useState(false);
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<CrmLead | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<CrmLead | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const checkDuplicateLead = async (field: 'contactEmail' | 'contactPhone', value: string) => {
     if (!value.trim()) { setDuplicateWarning(null); return; }
@@ -145,6 +155,54 @@ const CrmLeads = () => {
     }
     try { setSaving(true); await crmService.createLead(payload); setShowCreate(false); setForm({}); setDuplicateWarning(null); fetchLeads(); }
     catch (e) { console.error(e); } finally { setSaving(false); }
+  };
+
+  const openEdit = (lead: CrmLead) => {
+    setEditingItem(lead);
+    setForm({
+      title: lead.title,
+      contactName: lead.contactName || '',
+      contactEmail: lead.contactEmail || '',
+      contactPhone: lead.contactPhone || '',
+      companyName: lead.companyName || '',
+      ownerId: lead.ownerId,
+      source: lead.source,
+      estimatedValue: lead.estimatedValue ?? undefined,
+    });
+    setDuplicateWarning(null);
+    setShowEdit(true);
+  };
+
+  const closeEdit = () => {
+    setShowEdit(false);
+    setEditingItem(null);
+    setForm({});
+    setDuplicateWarning(null);
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+    const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.lead);
+    // Never allow status change through the edit modal
+    delete payload.status;
+    try {
+      setSaving(true);
+      await crmService.updateLead(editingItem.id, payload);
+      closeEdit();
+      fetchLeads();
+    } catch (e) { console.error(e); } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteItem) return;
+    try {
+      setDeleting(true);
+      await crmService.deleteLead(deleteItem.id);
+      setShowDelete(false);
+      setDeleteItem(null);
+      fetchLeads();
+    } catch (e) { console.error(e); } finally { setDeleting(false); }
   };
 
   return (
@@ -298,7 +356,26 @@ const CrmLeads = () => {
               )}
 
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
-                <span className="text-sm font-bold text-brand-600">{formatCurrency(lead.estimatedValue)}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-bold text-brand-600">{formatCurrency(lead.estimatedValue)}</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openEdit(lead); }}
+                    className="text-xs text-brand-700 hover:text-brand-900 font-semibold transition-colors"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', padding: 0 }}
+                  >
+                    Edit
+                  </button>
+                  {hasPermission(user, 'crm:delete') && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setDeleteItem(lead); setShowDelete(true); }}
+                      className="text-xs text-danger hover:text-red-700 font-semibold transition-colors"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', padding: 0 }}
+                    >
+                      <span className="material-symbols-outlined text-sm align-middle">delete</span>
+                      Delete
+                    </button>
+                  )}
+                </div>
                 {lead.owner && (
                   <div className="flex items-center gap-1.5">
                     {lead.owner.avatarUrl ? (
@@ -432,7 +509,124 @@ const CrmLeads = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+      {showEdit && editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={closeEdit}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-lg font-extrabold text-text-primary">Edit Lead</h2>
+              <button onClick={closeEdit} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
+            </div>
+            <form onSubmit={handleEdit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Lead Title *</label>
+                <input
+                  required type="text"
+                  value={(form as any).title || ''}
+                  onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Contact Name</label>
+                <input
+                  type="text"
+                  value={(form as any).contactName || ''}
+                  onChange={e => setForm(prev => ({ ...prev, contactName: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Contact Email</label>
+                <input
+                  type="email"
+                  value={(form as any).contactEmail || ''}
+                  onChange={e => setForm(prev => ({ ...prev, contactEmail: e.target.value }))}
+                  onBlur={e => checkDuplicateLead('contactEmail', e.target.value)}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Contact Phone</label>
+                <input
+                  type="text"
+                  value={(form as any).contactPhone || ''}
+                  onChange={e => setForm(prev => ({ ...prev, contactPhone: e.target.value }))}
+                  onBlur={e => checkDuplicateLead('contactPhone', e.target.value)}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Company Name</label>
+                <input
+                  type="text"
+                  value={(form as any).companyName || ''}
+                  onChange={e => setForm(prev => ({ ...prev, companyName: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Owner</label>
+                <select value={(form as any).ownerId || ''} onChange={e => setForm(prev => ({ ...prev, ownerId: e.target.value || undefined }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                  <option value="">Myself (default)</option>
+                  {crmUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Source</label>
+                <select value={(form as any).source || 'OTHER'} onChange={e => setForm(prev => ({ ...prev, source: e.target.value as LeadSource }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none" style={{ fontFamily: 'var(--font-sans)' }}>
+                  {['WEBSITE','REFERRAL','COLD_CALL','TRADE_SHOW','LINKEDIN','ADVERTISEMENT','PARTNER','OTHER'].map(s => (
+                    <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Estimated Value (MYR)</label>
+                <input type="number" value={(form as any).estimatedValue || ''} onChange={e => setForm(prev => ({ ...prev, estimatedValue: Number(e.target.value) }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                {duplicateWarning && (
+                  <div className="flex-1 flex items-start gap-2 p-3 bg-warning/10 border border-warning rounded-lg text-sm text-warning">
+                    <span className="material-symbols-outlined text-base shrink-0 mt-0.5">warning</span>
+                    <div className="flex-1">{duplicateWarning}</div>
+                    <button
+                      type="button"
+                      onClick={() => setDuplicateWarning(null)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                      className="text-warning hover:text-warning shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-base">close</span>
+                    </button>
+                  </div>
+                )}
+                <button type="button" onClick={closeEdit} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
+
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Lead"
+        message={`Are you sure you want to delete "${deleteItem?.title}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => { setShowDelete(false); setDeleteItem(null); }}
+        loading={deleting}
+      />
     </>
   );
 };

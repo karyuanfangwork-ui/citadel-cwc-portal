@@ -12,17 +12,20 @@ export type NoteAnalysis = {
 export function useAnalyzeNote() {
   const [results, setResults] = useState<Record<string, NoteAnalysis>>({});
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const analyze = useCallback(async (activityId: string) => {
     setLoadingId(activityId);
+    setError(null);
     try {
       const result = await crmService.analyzeActivityNote(activityId);
       setResults((prev) => ({ ...prev, [activityId]: result }));
-    } catch { /* fail silently */ }
-    finally { setLoadingId(null); }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'AI feature unavailable');
+    } finally { setLoadingId(null); }
   }, []);
 
-  return { results, loadingId, analyze };
+  return { results, loadingId, error, analyze };
 }
 
 // ── Draft Message ─────────────────────────────────────────────────────────────
@@ -31,14 +34,15 @@ export type DraftResult = { subject: string | null; body: string };
 export function useDraftMessage() {
   const [result, setResult] = useState<DraftResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const draftForLead = useCallback(async (
     leadId: string,
     payload: { channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' },
   ) => {
-    setLoading(true); setResult(null);
+    setLoading(true); setResult(null); setError(null);
     try { setResult(await crmService.draftLeadMessage(leadId, payload)); }
-    catch { /* fail silently */ }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
     finally { setLoading(false); }
   }, []);
 
@@ -46,13 +50,13 @@ export function useDraftMessage() {
     contactId: string,
     payload: { channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' },
   ) => {
-    setLoading(true); setResult(null);
+    setLoading(true); setResult(null); setError(null);
     try { setResult(await crmService.draftContactMessage(contactId, payload)); }
-    catch { /* fail silently */ }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
     finally { setLoading(false); }
   }, []);
 
-  return { result, loading, draftForLead, draftForContact };
+  return { result, loading, error, draftForLead, draftForContact };
 }
 
 // ── Lead Summary ──────────────────────────────────────────────────────────────
@@ -61,15 +65,16 @@ export type LeadSummary = { statusSummary: string; keyFacts: string; recommended
 export function useLeadSummary() {
   const [summary, setSummary] = useState<LeadSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async (leadId: string) => {
-    setLoading(true);
+    setLoading(true); setError(null);
     try { setSummary(await crmService.getLeadSummary(leadId)); }
-    catch { /* fail silently */ }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
     finally { setLoading(false); }
   }, []);
 
-  return { summary, loading, fetch };
+  return { summary, loading, error, fetch };
 }
 
 // ── Lead Score ────────────────────────────────────────────────────────────────
@@ -78,15 +83,16 @@ export type LeadScore = { score: number; reason: string };
 export function useLeadScore() {
   const [scoreData, setScoreData] = useState<LeadScore | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async (leadId: string) => {
-    setLoading(true);
+    setLoading(true); setError(null);
     try { setScoreData(await crmService.getLeadScore(leadId)); }
-    catch { /* fail silently */ }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
     finally { setLoading(false); }
   }, []);
 
-  return { scoreData, loading, fetch };
+  return { scoreData, loading, error, fetch };
 }
 
 // ── Win Probability ───────────────────────────────────────────────────────────
@@ -95,15 +101,16 @@ export type WinProbability = { probability: number; confidence: 'high' | 'medium
 export function useWinProbability() {
   const [data, setData] = useState<WinProbability | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async (opportunityId: string) => {
-    setLoading(true);
+    setLoading(true); setError(null);
     try { setData(await crmService.getWinProbability(opportunityId)); }
-    catch { /* fail silently */ }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
     finally { setLoading(false); }
   }, []);
 
-  return { data, loading, fetch };
+  return { data, loading, error, fetch };
 }
 
 // ── Daily Briefing ────────────────────────────────────────────────────────────
@@ -134,15 +141,16 @@ export type KycGaps = {
 export function useKycGaps() {
   const [data, setData] = useState<KycGaps | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async (contactId: string) => {
-    setLoading(true);
+    setLoading(true); setError(null);
     try { setData(await crmService.getKycGaps(contactId)); }
-    catch { /* fail silently */ }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
     finally { setLoading(false); }
   }, []);
 
-  return { data, loading, fetch };
+  return { data, loading, error, fetch };
 }
 
 // ── Risk Profile ──────────────────────────────────────────────────────────────
@@ -151,15 +159,16 @@ export type RiskProfile = { suggestedRiskTier: 'Low' | 'Medium' | 'High'; justif
 export function useRiskProfile() {
   const [data, setData] = useState<RiskProfile | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async (contactId: string) => {
-    setLoading(true);
+    setLoading(true); setError(null);
     try { setData(await crmService.getRiskProfile(contactId)); }
-    catch { /* fail silently */ }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
     finally { setLoading(false); }
   }, []);
 
-  return { data, loading, fetch };
+  return { data, loading, error, fetch };
 }
 
 // ── Document Checklist ────────────────────────────────────────────────────────
@@ -171,13 +180,14 @@ export type DocumentChecklist = {
 export function useDocumentChecklist() {
   const [data, setData] = useState<DocumentChecklist | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetch = useCallback(async (trustProductId: string) => {
-    setLoading(true);
+    setLoading(true); setError(null);
     try { setData(await crmService.getDocumentChecklist(trustProductId)); }
-    catch { /* fail silently */ }
+    catch (err) { setError(err instanceof Error ? err.message : 'AI feature unavailable'); }
     finally { setLoading(false); }
   }, []);
 
-  return { data, loading, fetch };
+  return { data, loading, error, fetch };
 }

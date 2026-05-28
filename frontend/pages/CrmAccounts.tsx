@@ -2,12 +2,17 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmAccount, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import ConfirmDialog from '../src/components/ConfirmDialog';
+import { hasPermission } from '../src/utils/permissions';
+import { useAuth } from '../src/context/AuthContext';
 
 const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 const CrmAccounts = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -16,6 +21,11 @@ const CrmAccounts = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<Partial<CrmAccount>>({});
   const [saving, setSaving] = useState(false);
+  const [editingItem, setEditingItem] = useState<CrmAccount | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<CrmAccount | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchAccounts = useCallback(async (page = 1) => {
     try {
@@ -40,6 +50,58 @@ const CrmAccounts = () => {
     try { setSaving(true); await crmService.createAccount(payload); setShowCreate(false); setForm({}); fetchAccounts(); }
     catch (e) { console.error(e); }
     finally { setSaving(false); }
+  };
+
+  const openEdit = (acc: CrmAccount) => {
+    setEditingItem(acc);
+    setForm({
+      name: acc.name,
+      registrationNumber: acc.registrationNumber || '',
+      taxNumber: acc.taxNumber || '',
+      industry: acc.industry || '',
+      companySize: acc.companySize || '',
+      website: acc.website || '',
+      email: acc.email || '',
+      phone: acc.phone || '',
+      annualRevenue: acc.annualRevenue ?? undefined,
+      bankAccount: acc.bankAccount || '',
+      address: acc.address || '',
+      city: acc.city || '',
+      state: acc.state || '',
+      postalCode: acc.postalCode || '',
+      country: acc.country || '',
+      description: acc.description || '',
+    });
+    setShowEdit(true);
+  };
+
+  const closeEdit = () => {
+    setShowEdit(false);
+    setEditingItem(null);
+    setForm({});
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
+    const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.account);
+    try {
+      setSaving(true);
+      await crmService.updateAccount(editingItem.id, payload);
+      closeEdit();
+      fetchAccounts();
+    } catch (e) { console.error(e); } finally { setSaving(false); }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteItem) return;
+    try {
+      setDeleting(true);
+      await crmService.deleteAccount(deleteItem.id);
+      setShowDelete(false);
+      setDeleteItem(null);
+      fetchAccounts();
+    } catch (e) { console.error(e); } finally { setDeleting(false); }
   };
 
   return (
@@ -115,6 +177,23 @@ const CrmAccounts = () => {
                       <div>
                         <div>
                           <span className="text-sm font-bold text-text-primary">{acc.name}</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openEdit(acc); }}
+                            className="ml-2 text-xs text-brand-700 hover:text-brand-900 font-semibold transition-colors"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', padding: 0 }}
+                          >
+                            Edit
+                          </button>
+                          {hasPermission(user, 'crm:delete') && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setDeleteItem(acc); setShowDelete(true); }}
+                              className="ml-2 text-xs text-danger hover:text-red-700 font-semibold transition-colors"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', padding: 0 }}
+                            >
+                              <span className="material-symbols-outlined text-sm align-middle">delete</span>
+                              Delete
+                            </button>
+                          )}
                         </div>
                         {acc.website && <div className="text-xs text-text-tertiary truncate max-w-[200px]">{acc.website}</div>}
                       </div>
@@ -196,7 +275,70 @@ const CrmAccounts = () => {
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+      {showEdit && editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={closeEdit}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <h2 className="text-lg font-extrabold text-text-primary">Edit Account</h2>
+              <button onClick={closeEdit} className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleEdit} className="p-6 space-y-4">
+              {[
+                { key: 'name', label: 'Company Name *', required: true },
+                { key: 'registrationNumber', label: 'Registration No. (SSM)' },
+                { key: 'taxNumber', label: 'Tax No. (GST/SST)' },
+                { key: 'industry', label: 'Industry' },
+                { key: 'companySize', label: 'Company Size' },
+                { key: 'website', label: 'Website' },
+                { key: 'email', label: 'Email', type: 'email' },
+                { key: 'phone', label: 'Phone' },
+                { key: 'annualRevenue', label: 'Annual Revenue (MYR)', type: 'number' },
+                { key: 'bankAccount', label: 'Bank Account' },
+                { key: 'address', label: 'Address' },
+                { key: 'city', label: 'City' },
+                { key: 'state', label: 'State' },
+                { key: 'postalCode', label: 'Postcode' },
+                { key: 'country', label: 'Country' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label className="block text-sm font-semibold text-text-primary mb-1">{f.label}</label>
+                  <input value={(form as any)[f.key] || ''} onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                    required={f.required} type={f.type || 'text'}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                </div>
+              ))}
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Description</label>
+                <textarea value={form.description || ''} onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} rows={3}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={closeEdit} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100 transition-colors" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
+
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Account"
+        message={`Are you sure you want to delete "${deleteItem?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => { setShowDelete(false); setDeleteItem(null); }}
+        loading={deleting}
+      />
     </>
   );
 };

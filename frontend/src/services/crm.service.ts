@@ -346,6 +346,10 @@ const crmService = {
   async deleteActivity(id: string) { await api.delete(`/crm/activities/${id}`); },
 
   // Notes
+  async listNotes(params?: Record<string, string>) {
+    const res = await api.get('/crm/notes', { params });
+    return res.data.data as { notes: CrmNote[]; pagination: Pagination };
+  },
   async createNote(data: Partial<CrmNote>) {
     const res = await api.post('/crm/notes', data);
     return res.data.data.note as CrmNote;

@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmStageHistory } from '../src/services/crm.service';
+import crmService, { CrmOpportunity, CrmActivity, CrmActivityType, CrmStageHistory, CrmPipeline, CrmPipelineStage, CrmAccount } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import StateBadge from '../src/components/ui/StateBadge';
 import { STATUS_COLORS } from '../src/components/ui/StateBadge';
+import ConfirmDialog from '../src/components/ConfirmDialog';
+import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import { hasPermission } from '../src/utils/permissions';
+import { useAuth } from '../src/context/AuthContext';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -19,6 +23,7 @@ const ACTIVITY_ICONS: Record<CrmActivityType, string> = {
 const CrmOpportunityDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [opp, setOpp] = useState<CrmOpportunity | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'notes' | 'history'>('overview');
@@ -31,11 +36,26 @@ const CrmOpportunityDetail = () => {
   const [noteContent, setNoteContent] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // ── Edit modal state ─────────────────────────────────────────────────
+  const [showEdit, setShowEdit] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [editPipelines, setEditPipelines] = useState<CrmPipeline[]>([]);
+  const [editStages, setEditStages] = useState<CrmPipelineStage[]>([]);
+  const [editAccounts, setEditAccounts] = useState<CrmAccount[]>([]);
+  const [loadingEditDeps, setLoadingEditDeps] = useState(false);
+
+  // ── Delete state ─────────────────────────────────────────────────────
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   // ── AI state (Task 9) ─────────────────────────────────────────────────
   const [winData, setWinData] = useState<{ probability: number; confidence: 'high' | 'medium' | 'low'; reason: string } | null>(null);
   const [winLoading, setWinLoading] = useState(false);
+  const [winError, setWinError] = useState<string | null>(null);
   const [analyzedNotes, setAnalyzedNotes] = useState<Record<string, { sentiment: string; nextAction: string; suggestedStatusChange: string | null; keyFacts: string[] } | null>>({});
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [noteAnalysisError, setNoteAnalysisError] = useState<string | null>(null);
 
   // ── AI Win/Loss Debrief state ──────────────────────────────────────────
   const [debrief, setDebrief] = useState<{
@@ -43,34 +63,115 @@ const CrmOpportunityDetail = () => {
     lessonsLearned: string[]; followOnActions: string[];
   } | null>(null);
   const [debriefLoading, setDebriefLoading] = useState(false);
+  const [debriefError, setDebriefError] = useState<string | null>(null);
 
   const handleGetDebrief = async () => {
     if (!id) return;
     setDebriefLoading(true);
+    setDebriefError(null);
     try {
       const result = await crmService.getWinLossDebrief(id);
       setDebrief(result);
-    } catch { /* fail silently */ }
-    finally { setDebriefLoading(false); }
+    } catch (err) {
+      setDebriefError(err instanceof Error ? err.message : 'AI feature unavailable');
+    } finally {
+      setDebriefLoading(false);
+    }
+  };
+
+  // ── Edit modal handlers ───────────────────────────────────────────────
+  const openEdit = async (o: CrmOpportunity) => {
+    setEditForm({
+      name: o.name ?? '',
+      accountId: o.accountId ?? '',
+      pipelineId: o.pipelineId ?? '',
+      stageId: o.stageId ?? '',
+      value: o.value?.toString() ?? '',
+      probability: o.probability?.toString() ?? '',
+      expectedCloseDate: o.expectedCloseDate ? o.expectedCloseDate.slice(0, 10) : '',
+      description: o.description ?? '',
+    });
+    setShowEdit(true);
+    // Load pipelines/accounts for dropdowns
+    setLoadingEditDeps(true);
+    try {
+      const [pipesRes, accsRes] = await Promise.all([
+        crmService.listPipelines(),
+        crmService.listAccounts({ limit: 200 }),
+      ]);
+      setEditPipelines(pipesRes);
+      setEditAccounts(accsRes.accounts);
+      // Set stages for currently selected pipeline
+      const currentPipeline = pipesRes.find((p: CrmPipeline) => p.id === o.pipelineId);
+      setEditStages(currentPipeline?.stages ?? []);
+    } catch (err) {
+      console.error('Failed to load edit dependencies', err);
+    } finally {
+      setLoadingEditDeps(false);
+    }
+  };
+
+  const handleEditPipelineChange = (pipelineId: string) => {
+    setEditForm(f => ({ ...f, pipelineId, stageId: '' }));
+    const pipe = editPipelines.find(p => p.id === pipelineId);
+    setEditStages(pipe?.stages ?? []);
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setSavingEdit(true);
+    try {
+      const payload = cleanFormPayload(editForm, NUMERIC_KEYS.opportunity);
+      const updated = await crmService.updateOpportunity(id, payload);
+      setOpp(updated);
+      setShowEdit(false);
+    } catch (err) {
+      console.error('Failed to update opportunity', err);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // ── Delete handler ─────────────────────────────────────────────────────
+  const handleDelete = async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await crmService.deleteOpportunity(id);
+      navigate('/crm/opportunities');
+    } catch (err) {
+      console.error('Failed to delete opportunity', err);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleWinProbability = async () => {
     if (!id) return;
     setWinLoading(true);
+    setWinError(null);
     try {
       const result = await crmService.getWinProbability(id);
       setWinData(result);
-    } catch { /* fail silently */ }
-    finally { setWinLoading(false); }
+    } catch (err) {
+      setWinError(err instanceof Error ? err.message : 'AI feature unavailable');
+    } finally {
+      setWinLoading(false);
+    }
   };
 
   const handleAnalyzeNote = async (activityId: string) => {
     setAnalyzingId(activityId);
+    setNoteAnalysisError(null);
     try {
       const result = await crmService.analyzeActivityNote(activityId);
       setAnalyzedNotes((prev) => ({ ...prev, [activityId]: result }));
-    } catch { /* fail silently */ }
-    finally { setAnalyzingId(null); }
+    } catch (err) {
+      setNoteAnalysisError(err instanceof Error ? err.message : 'AI feature unavailable');
+    } finally {
+      setAnalyzingId(null);
+    }
   };
 
   const confidenceColor = (c: string) =>
@@ -161,6 +262,18 @@ const CrmOpportunityDetail = () => {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <button onClick={() => openEdit(opp)}
+            className="text-sm text-brand-600 hover:underline flex items-center gap-1"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+            <span className="material-symbols-outlined text-base">edit</span>Edit
+          </button>
+          {hasPermission(user, 'crm:delete') && (
+            <button onClick={() => setShowDelete(true)}
+              className="text-sm text-red-600 hover:underline flex items-center gap-1"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              <span className="material-symbols-outlined text-base">delete</span>Delete
+            </button>
+          )}
           <button onClick={() => { setSelectedStageId(opp.stageId); setShowMoveStage(true); }}
             className="flex items-center gap-2 border border-border px-4 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors"
             style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
@@ -240,15 +353,22 @@ const CrmOpportunityDetail = () => {
               <span className="text-xs opacity-70">({winData.confidence})</span>
             </div>
           ) : (
-            <button
-              onClick={handleWinProbability}
-              disabled={winLoading}
-              className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2 rounded-xl text-sm font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-50"
-              style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-            >
-              <span className="material-symbols-outlined text-base">auto_awesome</span>
-              {winLoading ? 'Predicting…' : 'AI Win %'}
-            </button>
+            <span className="inline-flex items-center gap-2">
+              <button
+                onClick={handleWinProbability}
+                disabled={winLoading}
+                className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2 rounded-xl text-sm font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-50"
+                style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              >
+                <span className="material-symbols-outlined text-base">auto_awesome</span>
+                {winLoading ? 'Predicting…' : 'AI Win %'}
+              </button>
+              {winError && (
+                <span className="text-xs text-danger" title={winError}>
+                  <span className="material-symbols-outlined text-xs align-middle">error</span>
+                </span>
+              )}
+            </span>
           )
         )}
       </div>
@@ -297,6 +417,7 @@ const CrmOpportunityDetail = () => {
           <AiInsightCard
             title={`AI ${isWon ? 'Win' : 'Loss'} Debrief`}
             loading={debriefLoading}
+            error={debriefError}
             onRefresh={handleGetDebrief}
           >
             {!debrief ? (
@@ -349,17 +470,22 @@ const CrmOpportunityDetail = () => {
                 {['CALL', 'MEETING', 'WHATSAPP'].includes(a.activityType) && (
                   <div className="mt-2">
                     {!analyzedNotes[a.id] ? (
-                      <button
-                        onClick={() => handleAnalyzeNote(a.id)}
-                        disabled={analyzingId === a.id}
-                        className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 disabled:opacity-50"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-                      >
-                        <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                        {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
-                      </button>
+                      <div>
+                        <button
+                          onClick={() => handleAnalyzeNote(a.id)}
+                          disabled={analyzingId === a.id}
+                          className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-800 disabled:opacity-50"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                        >
+                          <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                          {analyzingId === a.id ? 'Analyzing…' : 'AI Analyze'}
+                        </button>
+                        {noteAnalysisError && !analyzedNotes[a.id] && (
+                          <p className="text-xs text-danger mt-1">{noteAnalysisError}</p>
+                        )}
+                      </div>
                     ) : (
-                      <AiInsightCard title="Note Analysis" className="mt-1">
+                      <AiInsightCard title="Note Analysis" className="mt-1" error={noteAnalysisError} loading={analyzingId === a.id} onRefresh={() => handleAnalyzeNote(a.id)}>
                         <div className="space-y-1 text-sm">
                           <div className="flex items-center gap-1">
                             <span className={`material-symbols-outlined text-sm ${
@@ -528,6 +654,93 @@ const CrmOpportunityDetail = () => {
                   className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving…' : 'Add Note'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete dialog */}
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Opportunity"
+        message={`Are you sure you want to delete "${opp?.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setShowDelete(false)}
+        loading={deleting}
+      />
+
+      {/* Edit Opportunity modal */}
+      {showEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEdit(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-text-primary mb-4">Edit Opportunity</h2>
+            <form onSubmit={handleEditSave} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Name *</label>
+                <input required value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Account</label>
+                <select value={editForm.accountId ?? ''} onChange={e => setEditForm(f => ({ ...f, accountId: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" disabled={loadingEditDeps}>
+                  <option value="">— None —</option>
+                  {editAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Pipeline</label>
+                  <select value={editForm.pipelineId ?? ''} onChange={e => handleEditPipelineChange(e.target.value)}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" disabled={loadingEditDeps}>
+                    <option value="">— Select —</option>
+                    {editPipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Stage</label>
+                  <select value={editForm.stageId ?? ''} onChange={e => setEditForm(f => ({ ...f, stageId: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" disabled={loadingEditDeps || !editForm.pipelineId}>
+                    <option value="">— Select —</option>
+                    {editStages.map(s => <option key={s.id} value={s.id}>{s.name} ({s.probability}%)</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Value (MYR)</label>
+                  <input type="number" step="0.01" value={editForm.value ?? ''} onChange={e => setEditForm(f => ({ ...f, value: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Probability (%)</label>
+                  <input type="number" min="0" max="100" value={editForm.probability ?? ''} onChange={e => setEditForm(f => ({ ...f, probability: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Expected Close Date</label>
+                <input type="date" value={editForm.expectedCloseDate ?? ''} onChange={e => setEditForm(f => ({ ...f, expectedCloseDate: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
+                <textarea rows={3} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary resize-none" />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowEdit(false)}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={savingEdit}
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {savingEdit ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
             </form>

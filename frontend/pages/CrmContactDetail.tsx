@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, {
-  CrmContact, CrmOpportunity, CrmKycRecord, CrmNote,
+  CrmContact, CrmOpportunity, CrmKycRecord, CrmNote, CrmAccount,
 } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import StateBadge from '../src/components/ui/StateBadge';
+import ConfirmDialog from '../src/components/ConfirmDialog';
+import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import { hasPermission } from '../src/utils/permissions';
+import { useAuth } from '../src/context/AuthContext';
 
 // ── Formatters ────────────────────────────────────────────────────
 const fmt = new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 });
@@ -207,12 +211,10 @@ const NotesTab = ({ contactId }: { contactId: string }) => {
 
   useEffect(() => {
     setLoading(true);
-    crmService.listActivities({ contactId, activityType: 'NOTE' })
-      .then(() => {}) // activities, not notes — use note list via listActivities
-      .catch(() => {});
-    // Notes are included in contact; we fetch separately via a note create/list pattern
-    // Since there's no listNotes endpoint, initialize empty and populate on create
-    setLoading(false);
+    crmService.listNotes({ contactId })
+      .then(res => setNotes(res.notes))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [contactId]);
 
   const handleAdd = async () => {
@@ -274,10 +276,22 @@ const NotesTab = ({ contactId }: { contactId: string }) => {
 const CrmContactDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [contact, setContact] = useState<CrmContact | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [loadedTabs, setLoadedTabs] = useState<Set<Tab>>(new Set(['overview']));
+
+  // ── Edit modal state ───────────────────────────────────────────────
+  const [showEdit, setShowEdit] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [accounts, setAccounts] = useState<CrmAccount[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(false);
+
+  // ── Delete state ───────────────────────────────────────────────────
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // ── AI state (Task 5/6/11/12) ───────────────────────────────────────
   // Draft Message
@@ -285,6 +299,7 @@ const CrmContactDetail = () => {
   const [draftConfig, setDraftConfig] = useState<{ channel: 'whatsapp' | 'email'; tone: 'formal' | 'friendly' }>({ channel: 'whatsapp', tone: 'friendly' });
   const [draftResult, setDraftResult] = useState<{ subject: string | null; body: string } | null>(null);
   const [draftLoading, setDraftLoading] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
 
   // KYC Gap Detector
   const [kycGaps, setKycGaps] = useState<{
@@ -293,6 +308,7 @@ const CrmContactDetail = () => {
     isCompliant: boolean;
   } | null>(null);
   const [kycLoading, setKycLoading] = useState(false);
+  const [kycError, setKycError] = useState<string | null>(null);
 
   // Risk Profile
   const [riskProfile, setRiskProfile] = useState<{
@@ -301,6 +317,7 @@ const CrmContactDetail = () => {
     regulatoryBasis: string;
   } | null>(null);
   const [riskLoading, setRiskLoading] = useState(false);
+  const [riskError, setRiskError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -327,11 +344,12 @@ const CrmContactDetail = () => {
     if (!contact) return;
     setDraftLoading(true);
     setDraftResult(null);
+    setDraftError(null);
     try {
       const result = await crmService.draftContactMessage(contact.id, draftConfig);
       setDraftResult(result);
-    } catch {
-      // fail silently
+    } catch (err) {
+      setDraftError(err instanceof Error ? err.message : 'AI feature unavailable');
     } finally {
       setDraftLoading(false);
     }
@@ -340,11 +358,12 @@ const CrmContactDetail = () => {
   const handleKycCheck = async () => {
     if (!contact) return;
     setKycLoading(true);
+    setKycError(null);
     try {
       const result = await crmService.getKycGaps(contact.id);
       setKycGaps(result);
-    } catch {
-      // fail silently
+    } catch (err) {
+      setKycError(err instanceof Error ? err.message : 'AI feature unavailable');
     } finally {
       setKycLoading(false);
     }
@@ -353,13 +372,64 @@ const CrmContactDetail = () => {
   const handleRiskProfile = async () => {
     if (!contact) return;
     setRiskLoading(true);
+    setRiskError(null);
     try {
       const result = await crmService.getRiskProfile(contact.id);
       setRiskProfile(result);
-    } catch {
-      // fail silently
+    } catch (err) {
+      setRiskError(err instanceof Error ? err.message : 'AI feature unavailable');
     } finally {
       setRiskLoading(false);
+    }
+  };
+
+  // ── Edit modal handlers ───────────────────────────────────────────────
+  const openEdit = (c: CrmContact) => {
+    setEditForm({
+      firstName: c.firstName ?? '',
+      lastName: c.lastName ?? '',
+      email: c.email ?? '',
+      phone: c.phone ?? '',
+      mobile: c.mobile ?? '',
+      jobTitle: c.jobTitle ?? '',
+      department: c.department ?? '',
+      accountId: c.accountId ?? '',
+      isPrimary: c.isPrimary ?? false,
+    });
+    setShowEdit(true);
+    if (accounts.length === 0) {
+      setLoadingAccounts(true);
+      crmService.listAccounts({ limit: 200 }).then(res => setAccounts(res.accounts)).catch(() => {}).finally(() => setLoadingAccounts(false));
+    }
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setSavingEdit(true);
+    try {
+      const payload = cleanFormPayload(editForm, NUMERIC_KEYS.contact);
+      const updated = await crmService.updateContact(id, payload);
+      setContact(updated);
+      setShowEdit(false);
+    } catch (err) {
+      console.error('Failed to update contact', err);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // ── Delete handler ───────────────────────────────────────────────────
+  const handleDelete = async () => {
+    if (!id) return;
+    setDeleting(true);
+    try {
+      await crmService.deleteContact(id);
+      navigate('/crm/contacts');
+    } catch (err) {
+      console.error('Failed to delete contact', err);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -417,8 +487,12 @@ const CrmContactDetail = () => {
             ) : ''}
           </p>
         </div>
-        {/* Draft Message button (Task 6) */}
-        <div className="ml-auto">
+        {/* Edit & Delete buttons */}
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => openEdit(contact)} className="text-sm text-brand-600 hover:underline flex items-center gap-1"><span className="material-symbols-outlined text-base">edit</span>Edit</button>
+          {hasPermission(user, 'crm:delete') && (
+            <button onClick={() => setShowDelete(true)} className="text-sm text-red-600 hover:underline flex items-center gap-1"><span className="material-symbols-outlined text-base">delete</span>Delete</button>
+          )}
           <button
             onClick={() => { setDraftModal(true); setDraftResult(null); }}
             className="flex items-center gap-2 border border-brand-300 bg-brand-50 px-4 py-2 rounded-lg text-sm font-bold text-brand-700 hover:bg-brand-100 transition-colors"
@@ -481,7 +555,7 @@ const CrmContactDetail = () => {
         <div className="space-y-4">
           <KycTab contactId={id} />
           {/* AI KYC Gap Detector (Task 11) */}
-          <AiInsightCard title="AI KYC Compliance Check" loading={kycLoading} onRefresh={handleKycCheck}>
+          <AiInsightCard title="AI KYC Compliance Check" loading={kycLoading} error={kycError} onRefresh={handleKycCheck}>
             {!kycGaps ? (
               <button onClick={handleKycCheck} className="text-sm text-brand-600 hover:underline">
                 <span className="material-symbols-outlined text-sm">refresh</span>
@@ -509,7 +583,7 @@ const CrmContactDetail = () => {
           </AiInsightCard>
 
           {/* AI Risk Profile Classifier (Task 12) */}
-          <AiInsightCard title="AI Risk Classification" loading={riskLoading} onRefresh={handleRiskProfile}>
+          <AiInsightCard title="AI Risk Classification" loading={riskLoading} error={riskError} onRefresh={handleRiskProfile}>
             {!riskProfile ? (
               <button onClick={handleRiskProfile} className="text-sm text-brand-600 hover:underline">
                 <span className="material-symbols-outlined text-sm">refresh</span>
@@ -609,6 +683,9 @@ const CrmContactDetail = () => {
                 </button>
               </div>
             </div>
+            {draftError && (
+              <div className="mb-4 rounded-md bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-600">{draftError}</div>
+            )}
             {draftResult && (
               <div className="space-y-3">
                 {draftResult.subject && (
@@ -629,6 +706,93 @@ const CrmContactDetail = () => {
                 <p className="text-xs text-text-tertiary">Edit as needed before sending. AI-generated — review before use.</p>
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {/* Confirm Delete dialog */}
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Contact"
+        message={`Are you sure you want to delete ${contact?.firstName} ${contact?.lastName}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => setShowDelete(false)}
+        loading={deleting}
+      />
+
+      {/* Edit Contact modal */}
+      {showEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowEdit(false)}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-text-primary mb-4">Edit Contact</h2>
+            <form onSubmit={handleEditSave} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
+                  <input required value={editForm.firstName ?? ''} onChange={e => setEditForm(f => ({ ...f, firstName: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
+                  <input required value={editForm.lastName ?? ''} onChange={e => setEditForm(f => ({ ...f, lastName: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Email</label>
+                <input type="email" value={editForm.email ?? ''} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Phone</label>
+                  <input value={editForm.phone ?? ''} onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Mobile</label>
+                  <input value={editForm.mobile ?? ''} onChange={e => setEditForm(f => ({ ...f, mobile: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Job Title</label>
+                  <input value={editForm.jobTitle ?? ''} onChange={e => setEditForm(f => ({ ...f, jobTitle: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Department</label>
+                  <input value={editForm.department ?? ''} onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Account</label>
+                <select value={editForm.accountId ?? ''} onChange={e => setEditForm(f => ({ ...f, accountId: e.target.value }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" disabled={loadingAccounts}>
+                  <option value="">— None —</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" checked={!!editForm.isPrimary} onChange={e => setEditForm(f => ({ ...f, isPrimary: e.target.checked }))}
+                  className="w-4 h-4 accent-brand-600" />
+                <span className="text-sm text-text-primary font-medium">Primary Contact</span>
+              </label>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowEdit(false)}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={savingEdit}
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 transition-colors"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {savingEdit ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

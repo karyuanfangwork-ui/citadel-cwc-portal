@@ -2,6 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmContact, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
+import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
+import ConfirmDialog from '../src/components/ConfirmDialog';
+import { hasPermission } from '../src/utils/permissions';
+import { useAuth } from '../src/context/AuthContext';
 
 const isTodayDate = (d: string) => new Date(d).toDateString() === new Date().toDateString();
 const isOverdueDate = (d: string) => new Date(d) < new Date(new Date().toDateString());
@@ -19,6 +23,7 @@ const getContactUrgencyBadge = (c: CrmContact): ContactUrgencyBadge => {
 
 const CrmContacts = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [contacts, setContacts] = useState<CrmContact[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
@@ -28,6 +33,11 @@ const CrmContacts = () => {
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+  const [editingItem, setEditingItem] = useState<CrmContact | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<CrmContact | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const checkDuplicateContact = async (field: 'email' | 'phone', value: string) => {
     if (!value.trim()) { setDuplicateWarning(null); return; }
@@ -78,6 +88,50 @@ const CrmContacts = () => {
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
   };
+ 
+   const openEdit = async (c: CrmContact) => {
+     try {
+       const data = await crmService.listAccounts({ limit: 9999 });
+       setAccounts(data.accounts.map(a => ({ id: a.id, name: a.name })));
+     } catch (e) { console.error(e); }
+     setEditingItem(c);
+     setForm({
+       firstName: c.firstName ?? '',
+       lastName: c.lastName ?? '',
+       email: c.email ?? '',
+       phone: c.phone ?? '',
+       mobile: c.mobile ?? '',
+       jobTitle: c.jobTitle ?? '',
+       department: c.department ?? '',
+       accountId: c.accountId ?? '',
+       isPrimary: c.isPrimary ?? false,
+     });
+     setShowEdit(true);
+   };
+ 
+   const handleEdit = async (e: React.FormEvent) => {
+     e.preventDefault();
+     if (!editingItem) return;
+     try {
+       setSaving(true);
+       const payload = cleanFormPayload(form as Record<string, any>, NUMERIC_KEYS.contact);
+       await crmService.updateContact(editingItem.id, payload);
+       setShowEdit(false); setEditingItem(null); setForm({});
+       fetchContacts();
+     } catch (e) { console.error(e); }
+     finally { setSaving(false); }
+   };
+
+  const handleDelete = async () => {
+    if (!deleteItem) return;
+    try {
+      setDeleting(true);
+      await crmService.deleteContact(deleteItem.id);
+      setShowDelete(false);
+      setDeleteItem(null);
+      fetchContacts();
+    } catch (e) { console.error(e); } finally { setDeleting(false); }
+  };
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -113,7 +167,7 @@ const CrmContacts = () => {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--color-surface-muted)' }}>
-                {['Name', 'Email', 'Phone', 'Job Title', 'Company', 'Primary'].map(h => (
+                {['Name', 'Email', 'Phone', 'Job Title', 'Company', 'Primary', ''].map(h => (
                   <th key={h} style={{ padding: 'var(--space-3) var(--space-5)', textAlign: 'left', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
                 ))}
               </tr>
@@ -128,7 +182,7 @@ const CrmContacts = () => {
                   ))}
                 </tr>
               )) : contacts.length === 0 ? (
-                <tr><td colSpan={6} className="text-center py-12 text-text-secondary">
+                <tr><td colSpan={7} className="text-center py-12 text-text-secondary">
                   <span className="material-symbols-outlined text-5xl mb-3 block opacity-30">person</span>
                   <p className="font-bold">No contacts found</p>
                   <p className="text-sm mt-1">Start by adding your first contact</p>
@@ -172,6 +226,23 @@ const CrmContacts = () => {
                   </td>
                   <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
                     {c.isPrimary && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-success/10 text-success text-xs font-bold"><span className="material-symbols-outlined text-xs">star</span>Primary</span>}
+                  </td>
+                  <td style={{ padding: 'var(--space-4) var(--space-5)' }}>
+                    <div className="flex items-center gap-2">
+                      <button onClick={(e) => { e.stopPropagation(); openEdit(c); }}
+                        className="text-xs font-semibold text-brand-700 hover:text-brand-800 transition-colors"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                        Edit
+                      </button>
+                      {hasPermission(user, 'crm:delete') && (
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteItem(c); setShowDelete(true); }}
+                          className="text-xs font-semibold text-danger hover:text-red-700 transition-colors"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                          <span className="material-symbols-outlined text-sm align-middle">delete</span>
+                          Delete
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -291,7 +362,103 @@ const CrmContacts = () => {
           </div>
         </div>
       )}
+
+      {showEdit && editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+          onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-md mx-4 max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 pb-4 border-b border-border shrink-0">
+              <h2 className="text-lg font-black text-text-primary">Edit Contact</h2>
+              <button onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-text-tertiary hover:text-text-secondary hover:bg-surface-muted transition-colors"
+                style={{ border: 'none', cursor: 'pointer', background: 'none' }}>
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleEdit} className="p-6 pt-4 space-y-3 overflow-y-auto flex-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">First Name *</label>
+                  <input required value={form.firstName ?? ''} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))}
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Last Name *</label>
+                  <input required value={form.lastName ?? ''} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))}
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Email</label>
+                <input type="email" value={form.email ?? ''} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Phone</label>
+                  <input value={form.phone ?? ''} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Mobile</label>
+                  <input value={form.mobile ?? ''} onChange={e => setForm(f => ({ ...f, mobile: e.target.value }))}
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Job Title</label>
+                  <input value={form.jobTitle ?? ''} onChange={e => setForm(f => ({ ...f, jobTitle: e.target.value }))}
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Department</label>
+                  <input value={form.department ?? ''} onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
+                    className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Account</label>
+                <select value={form.accountId ?? ''} onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}
+                  className="w-full bg-surface-muted border border-border rounded-lg px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" style={{ fontFamily: 'var(--font-sans)' }}>
+                  <option value="">Select account...</option>
+                  {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="editIsPrimary" checked={form.isPrimary ?? false}
+                  onChange={e => setForm(f => ({ ...f, isPrimary: e.target.checked }))}
+                  className="w-4 h-4 rounded border-border accent-brand-700" />
+                <label htmlFor="editIsPrimary" className="text-sm text-text-primary">Primary contact</label>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setShowEdit(false); setEditingItem(null); setForm({}); }}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border text-text-secondary hover:bg-surface-muted transition-colors"
+                  style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
+
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Contact"
+        message={`Are you sure you want to delete "${deleteItem ? `${deleteItem.firstName} ${deleteItem.lastName}` : ''}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDelete}
+        onCancel={() => { setShowDelete(false); setDeleteItem(null); }}
+        loading={deleting}
+      />
     </>
   );
 };

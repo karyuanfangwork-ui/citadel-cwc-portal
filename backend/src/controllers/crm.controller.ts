@@ -565,6 +565,34 @@ class CrmController {
   });
 
   // ======== NOTES ========
+  listNotes = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = parseInt((req.query.page as string) || '1', 10);
+    const limit = parseInt((req.query.limit as string) || '20', 10);
+    const accountId = req.query.accountId as string | undefined;
+    const contactId = req.query.contactId as string | undefined;
+    const leadId = req.query.leadId as string | undefined;
+    const opportunityId = req.query.opportunityId as string | undefined;
+
+    const where: any = {};
+    if (accountId) where.accountId = accountId;
+    if (contactId) where.contactId = contactId;
+    if (leadId) where.leadId = leadId;
+    if (opportunityId) where.opportunityId = opportunityId;
+
+    const [notes, total] = await Promise.all([
+      prisma.crmNote.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: { author: { select: userSelect } },
+      }),
+      prisma.crmNote.count({ where }),
+    ]);
+
+    res.json({ status: 'success', data: { notes, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
+  });
+
   createNote = asyncHandler(async (req: AuthRequest, res: Response) => {
     const note = await prisma.crmNote.create({
       data: { ...req.body, authorId: req.user!.id },
