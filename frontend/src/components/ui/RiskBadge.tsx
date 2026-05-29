@@ -49,6 +49,8 @@ const RiskBadge: React.FC<RiskBadgeProps> = ({
         isSm ? 'text-[10px] px-1.5 py-0.5' : 'text-[11px] px-2 py-0.5'
       } ${className}`}
       style={{ background: colors.bg, color: colors.text }}
+      role="status"
+      aria-label={`Risk rating: ${label}`}
     >
       {label}
     </span>

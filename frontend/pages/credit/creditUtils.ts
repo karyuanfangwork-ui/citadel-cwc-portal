@@ -83,7 +83,7 @@ export function getFacilityTypes(islamicEnabled: boolean): { value: FacilityType
 
 export const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD'] as const;
 
-export type DetailTab = 'header' | 'summary' | 'facilities' | 'risk-rating' | 'payment-capability' | 'security' | 'profitability' | 'counterparties' | 'conduct' | 'credit-checks' | 'industry' | 'risk' | 'esg' | 'sicr' | 'signoff' | 'parties' | 'documents' | 'approvals' | 'audit' | 'collateral' | 'conditions';
+export type DetailTab = 'header' | 'summary' | 'facilities' | 'risk-rating' | 'payment-capability' | 'security' | 'profitability' | 'counterparties' | 'conduct' | 'credit-checks' | 'industry' | 'risk' | 'forward-looking-risk' | 'signoff' | 'parties' | 'documents' | 'approvals' | 'audit' | 'collateral' | 'conditions';
 
 export interface TabDefinition {
   id: DetailTab;
@@ -99,21 +99,21 @@ export interface TabGroup {
 export const TAB_GROUPS: TabGroup[] = [
   {
     id: 'phase1',
-    label: 'Phase 1: Header & Background',
+    label: 'Header & Background',
     tabs: [
       { id: 'header', label: 'Header' }
     ]
   },
   {
     id: 'phase2',
-    label: 'Phase 2: Facilities & Requests',
+    label: 'Facilities & Requests',
     tabs: [
       { id: 'facilities', label: 'Facilities' }
     ]
   },
   {
     id: 'phase3',
-    label: 'Phase 3: Risk Rating & ECL',
+    label: 'Risk Rating & ECL',
     tabs: [
       { id: 'risk-rating', label: 'Risk & ECL' },
       { id: 'payment-capability', label: 'Payment Capability' }
@@ -121,7 +121,7 @@ export const TAB_GROUPS: TabGroup[] = [
   },
   {
     id: 'phase4',
-    label: 'Phase 4: Security & Guarantees',
+    label: 'Security & Guarantees',
     tabs: [
       { id: 'security', label: 'Security' },
       { id: 'collateral', label: 'Collateral' },
@@ -132,19 +132,18 @@ export const TAB_GROUPS: TabGroup[] = [
   },
   {
     id: 'phase5',
-    label: 'Phase 5: Credit Checks',
+    label: 'Credit Checks',
     tabs: [
       { id: 'credit-checks', label: 'Bureau Checks' },
       { id: 'industry', label: 'Industry Outlook' },
       { id: 'risk', label: 'Risk & Mitigators' },
-      { id: 'esg', label: 'ESG' },
-      { id: 'sicr', label: 'SICR' },
+      { id: 'forward-looking-risk', label: 'Forward-Looking Risk' },
       { id: 'signoff', label: 'Sign-off' }
     ]
   },
   {
     id: 'phase6',
-    label: 'Phase 6: Summary & Conditions',
+    label: 'Summary & Conditions',
     tabs: [
       { id: 'summary', label: 'Summary' },
       { id: 'conditions', label: 'Conditions' }
@@ -241,4 +240,96 @@ export function getNextIncompleteTab(completion: Record<string, PhaseStatus>): D
     }
   }
   return null;
+}
+
+// ── §3.9 Smart Defaults ─────────────────────────────────────────
+
+/** Default tenor (months) by product type */
+const PRODUCT_DEFAULT_TENOR: Record<string, number> = {
+  TERM_LOAN: 60,
+  REVOLVING_CREDIT: 12,
+  TRADE_FINANCE: 6,
+  PROJECT_FINANCE: 84,
+  SYNDICATED: 60,
+  BRIDGE_LOAN: 12,
+  OVERDRAFT: 12,
+  LETTER_OF_CREDIT: 6,
+  BANK_GUARANTEE: 12,
+};
+
+/** Common borrower home currency by country code (ISO 3166-1 alpha-2) */
+const COUNTRY_DEFAULT_CURRENCY: Record<string, string> = {
+  MY: 'MYR',
+  SG: 'SGD',
+  GB: 'GBP',
+  US: 'USD',
+  AU: 'AUD',
+  CN: 'CNY',
+  JP: 'JPY',
+  TH: 'THB',
+  ID: 'IDR',
+  HK: 'HKD',
+};
+
+export interface SmartDefaultOptions {
+  /** Borrower profile object (for currency, domicile) */
+  borrower?: {
+    homeCurrency?: string | null;
+    countryOfRegistration?: string | null;
+    countryOfResidence?: string | null;
+  } | null;
+  /** Selected product type (for tenor) */
+  productType?: string | null;
+  /** Current user (for RM default) */
+  currentUser?: {
+    id: string;
+    roles?: string[];
+  } | null;
+  /** Users with approval permission (for reviewer suggestion) */
+  approvalUsers?: { id: string; name: string }[] | null;
+}
+
+export interface SmartDefaults {
+  /** Suggested currency based on borrower domicile */
+  currency: string;
+  /** Suggested tenor in months based on product type */
+  tenorMonths: number;
+  /** Suggested assigned RM ID (current user if they're an RM, otherwise null) */
+  assignedRmId: string | null;
+  /** Suggested reviewer name from approval users (excluding current user) */
+  suggestedReviewer: string | null;
+}
+
+/**
+ * §3.9 Smart Defaults
+ *
+ * Computes default values for new credit application forms:
+ * - Currency → borrower home currency (or MYR fallback)
+ * - Tenor → product default (or 60 months fallback)
+ * - Assigned RM → current user if they're an RM
+ * - Suggested reviewer → first approval user who isn't the current maker
+ */
+export function getSmartDefaults(options: SmartDefaultOptions): SmartDefaults {
+  const { borrower, productType, currentUser, approvalUsers } = options;
+
+  // Currency: borrower's home currency, or infer from country, or fallback MYR
+  const currency =
+    borrower?.homeCurrency ||
+    (borrower?.countryOfRegistration && COUNTRY_DEFAULT_CURRENCY[borrower.countryOfRegistration]) ||
+    (borrower?.countryOfResidence && COUNTRY_DEFAULT_CURRENCY[borrower.countryOfResidence]) ||
+    'MYR';
+
+  // Tenor: product default or 60 months
+  const tenorMonths = (productType && PRODUCT_DEFAULT_TENOR[productType]) || 60;
+
+  // Assigned RM: current user if they have credit:rm role
+  const isRm = currentUser?.roles?.some(r => r === 'credit:rm' || r === 'CREDIT_RM') ?? false;
+  const assignedRmId = isRm ? currentUser!.id : null;
+
+  // Suggested reviewer: first approval user who isn't the current user
+  const suggestedReviewer = (approvalUsers && currentUser)
+    ? approvalUsers.find(u => u.id !== currentUser.id)?.name ?? null
+    : null;
+
+  return { currency, tenorMonths, assignedRmId, suggestedReviewer };
 }

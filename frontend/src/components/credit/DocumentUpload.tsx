@@ -259,6 +259,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                       className="flex items-center justify-center w-7 h-7 rounded-lg text-text-secondary hover:bg-red-50 hover:text-red-600 transition-colors"
                       style={{ border: 'none', cursor: 'pointer', background: 'none' }}
                       title="Delete document"
+                      aria-label="Delete document"
                     >
                       <span className="material-symbols-outlined text-sm">delete</span>
                     </button>

@@ -256,6 +256,18 @@ const AddFacilityForm: React.FC<AddFacilityFormProps> = ({ applicationId, facili
 
 // ─── Main tab component ───────────────────────────────────────────────────────
 
+// Filter options for the consolidated view
+type FacilityFilter = 'ALL' | 'FACILITIES' | CaRequestType;
+
+const FACILITY_FILTER_OPTIONS: { value: FacilityFilter; label: string }[] = [
+  { value: 'ALL', label: 'All' },
+  { value: 'FACILITIES', label: 'Facilities' },
+  { value: 'FACILITY_RENEWAL', label: 'Renewal' },
+  { value: 'VARIATION', label: 'Variation' },
+  { value: 'POLICY_BREACH_RATIFICATION', label: 'Policy Breach' },
+  { value: 'SICR_IMPAIRMENT', label: 'SICR / Impairment' },
+];
+
 const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) => {
   const readOnly = application.state !== 'DRAFT';
   const appId = application.id;
@@ -266,6 +278,7 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) 
   const [exposure, setExposure] = useState<Partial<ExposureSummary>>({});
   const [loading, setLoading] = useState(true);
   const [showAddFacility, setShowAddFacility] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FacilityFilter>('ALL');
   const exposureDirty = useRef<Set<keyof ExposureSummary>>(new Set());
   // Also keep a ref to the latest exposure for the autosave saveFn closure
   const exposureRef = useRef<Partial<ExposureSummary>>({});
@@ -284,6 +297,31 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) 
     if (islamicEnabled) Object.assign(base, ISLAMIC_FACILITY_TYPE_LABELS);
     return base;
   }, [islamicEnabled]);
+
+  // Computed filtered lists
+  const filteredFacilities = useMemo(() => {
+    if (activeFilter === 'ALL') return facilities;
+    if (activeFilter === 'FACILITIES') return facilities;
+    // When filtering by request type, hide facilities (they don't have requestType)
+    return [];
+  }, [facilities, activeFilter]);
+
+  const filteredRequestItems = useMemo(() => {
+    if (activeFilter === 'ALL') return requestItems;
+    if (activeFilter === 'FACILITIES') return [];
+    return requestItems.filter(item => item.requestType === activeFilter);
+  }, [requestItems, activeFilter]);
+
+  // Badge style per request type
+  const requestTypeBadgeClass = (type: CaRequestType): string => {
+    switch (type) {
+      case 'FACILITY_RENEWAL': return 'bg-blue-100 text-blue-700';
+      case 'VARIATION': return 'bg-amber-100 text-amber-700';
+      case 'POLICY_BREACH_RATIFICATION': return 'bg-red-100 text-red-700';
+      case 'SICR_IMPAIRMENT': return 'bg-purple-100 text-purple-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -376,7 +414,36 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) 
   return (
     <CaMemoSection title="Facilities" phase="Phase 1" readOnly={readOnly} saving={autosave.saving} savedAt={autosave.savedAt} error={autosave.error}>
       <div className="space-y-8">
-      {/* Section 3a — Facilities Table */}
+      {/* Filter bar — request type chips */}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by type">
+        {FACILITY_FILTER_OPTIONS.map(opt => {
+          const count = opt.value === 'ALL'
+            ? facilities.length + requestItems.length
+            : opt.value === 'FACILITIES'
+              ? facilities.length
+              : requestItems.filter(r => r.requestType === opt.value).length;
+          return (
+            <button
+              key={opt.value}
+              onClick={() => setActiveFilter(opt.value)}
+              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                activeFilter === opt.value
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              }`}
+              aria-pressed={activeFilter === opt.value}
+            >
+              {opt.label}
+              <span className={`text-[10px] ${activeFilter === opt.value ? 'text-blue-200' : 'text-gray-400'}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Section 3a — Facilities Table (hidden when filtering by request type only) */}
+      {(activeFilter === 'ALL' || activeFilter === 'FACILITIES') && (
       <section>
         {!readOnly && !showAddFacility && (
           <div className="mb-3">
@@ -404,7 +471,7 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) 
               </tr>
             </thead>
             <tbody>
-              {facilities.map(f => (
+              {filteredFacilities.map(f => (
                 <FacilityRow
                   key={f.id}
                   facility={f}
@@ -424,15 +491,18 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) 
                   onCancel={() => setShowAddFacility(false)}
                 />
               )}
-              {facilities.length === 0 && !showAddFacility && (
+              {filteredFacilities.length === 0 && !showAddFacility && (
                 <tr>
-                  <td colSpan={9} className="p-4 text-center text-gray-400 text-sm">No facilities added yet.</td>
+                  <td colSpan={9} className="p-4 text-center text-gray-400 text-sm">
+                    {activeFilter !== 'ALL' && activeFilter !== 'FACILITIES' ? 'No facilities match this filter.' : 'No facilities added yet.'}
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </section>
+      )}
 
       {/* Section 3b — Exposure Summary */}
       <section>
@@ -477,13 +547,14 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) 
         </div>
       </section>
 
-      {/* Section 3c — Request Items */}
+      {/* Section 3c — Request Items (hidden when filtering to Facilities only) */}
+      {activeFilter !== 'FACILITIES' && (
       <section>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-            Request Items ({requestItems.length}/4)
+            Request Items ({filteredRequestItems.length}{activeFilter !== 'ALL' ? ` of ${requestItems.length}` : ''}/4)
           </h3>
-          {!readOnly && requestItems.length < 4 && (
+          {!readOnly && requestItems.length < 4 && (activeFilter === 'ALL' || activeFilter === 'FACILITY_RENEWAL') && (
             <button
               onClick={handleAddRequestItem}
               className="text-xs text-blue-600 border border-blue-300 px-3 py-1 rounded hover:bg-blue-50"
@@ -492,25 +563,34 @@ const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) 
             </button>
           )}
         </div>
-        {requestItems.length === 0 ? (
-          <p className="text-sm text-gray-400">No request items added yet.</p>
+        {filteredRequestItems.length === 0 ? (
+          <p className="text-sm text-gray-400">
+            {activeFilter !== 'ALL'
+              ? 'No request items match this filter.'
+              : 'No request items added yet.'}
+          </p>
         ) : (
           <div className="space-y-3">
-            {requestItems.map((item, idx) => (
-              <RequestItemCard
-                key={item.id}
-                item={item}
-                index={idx}
-                readOnly={readOnly}
-                onChange={handleRequestItemChange}
-                onDelete={handleDeleteRequestItem}
-                autosave={autosave}
-                dirtyKeys={(() => { if (!requestItemDirtyMap.current.has(item.id)) requestItemDirtyMap.current.set(item.id, new Set()); return requestItemDirtyMap.current.get(item.id)!; })()}
-              />
+            {filteredRequestItems.map((item, idx) => (
+              <div key={item.id} className="relative">
+                <span className={`absolute -top-2 -left-2 inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${requestTypeBadgeClass(item.requestType)}`}>
+                  {CA_REQUEST_TYPE_LABELS[item.requestType] || item.requestType}
+                </span>
+                <RequestItemCard
+                  item={item}
+                  index={requestItems.indexOf(item)}
+                  readOnly={readOnly}
+                  onChange={handleRequestItemChange}
+                  onDelete={handleDeleteRequestItem}
+                  autosave={autosave}
+                  dirtyKeys={(() => { if (!requestItemDirtyMap.current.has(item.id)) requestItemDirtyMap.current.set(item.id, new Set()); return requestItemDirtyMap.current.get(item.id)!; })()}
+                />
+              </div>
             ))}
           </div>
         )}
       </section>
+      )}
       </div>
     </CaMemoSection>
   );

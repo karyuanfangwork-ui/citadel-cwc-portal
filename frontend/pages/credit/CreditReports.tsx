@@ -4,6 +4,8 @@ import CreditNav from '../../src/components/CreditNav';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
 import RiskBadge from '../../src/components/ui/RiskBadge';
+import ProgressOverlay from '../../src/components/credit/ProgressOverlay';
+import { useProgressOverlay } from '../../src/hooks/useProgressOverlay';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -227,6 +229,8 @@ const CreditReports: React.FC = () => {
   const [exposure, setExposure] = useState<ExposureReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const progress = useProgressOverlay();
 
   // Pipeline date filters
   const [dateFrom, setDateFrom] = useState('');
@@ -267,6 +271,7 @@ const CreditReports: React.FC = () => {
   }, [fetchReport]);
 
   const handleExportCsv = async () => {
+    setExporting(true);
     try {
       if (activeTab === 'pipeline') {
         const res = await reportsApi.getPipelineReport({
@@ -298,6 +303,8 @@ const CreditReports: React.FC = () => {
       }
     } catch (err: any) {
       toast.error(friendlyMessage(err, 'Failed to export CSV'));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -318,11 +325,16 @@ const CreditReports: React.FC = () => {
           </div>
           <button
             onClick={handleExportCsv}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
-            style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ border: 'none', cursor: exporting ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)' }}
+            aria-label="Export report as CSV"
           >
-            <span className="material-symbols-outlined text-base">download</span>
-            Export CSV
+            {exporting ? (
+              <><span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" style={{ animation: 'spin 0.8s linear infinite' }} /> Exporting…</>
+            ) : (
+              <><span className="material-symbols-outlined text-base">download</span> Export CSV</>
+            )}
           </button>
         </div>
 

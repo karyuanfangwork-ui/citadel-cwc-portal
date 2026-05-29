@@ -9,6 +9,8 @@ import { BUREAU_PROVIDER_OPTIONS, bureauProviderLabel } from '../../../src/const
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import ProgressOverlay from '../../../src/components/credit/ProgressOverlay';
+import { useProgressOverlay } from '../../../src/hooks/useProgressOverlay';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
 
@@ -137,19 +139,55 @@ const CheckCard: React.FC<{ check: CreditBureauCheck; appId: string; readOnly: b
 const CreditChecksTab: React.FC<Props> = ({ application }) => {
   const readOnly = application.state !== 'DRAFT';
   const [checks, setChecks] = useState<CreditBureauCheck[]>([]);
+  const [loadingChecks, setLoadingChecks] = useState(true);
+  const progress = useProgressOverlay();
 
   useEffect(() => {
-    bureauCheckApi.list(application.id).then(setChecks).catch((e) => { console.error(e); toast.error(friendlyMessage(e, 'Failed to load bureau checks')); });
+    setLoadingChecks(true);
+    bureauCheckApi.list(application.id)
+      .then(setChecks)
+      .catch((e) => { console.error(e); toast.error(friendlyMessage(e, 'Failed to load bureau checks')); })
+      .finally(() => setLoadingChecks(false));
   }, [application.id]);
 
+  const handleAddCheck = async (c: CreditBureauCheck) => {
+    // Bureau check creation may hit external API for real providers
+    const saved = await progress.wrap(
+      () => bureauCheckApi.create(application.id, {
+        provider: c.provider,
+        subjectName: c.subjectName,
+        runDate: c.runDate,
+        hasHits: c.hasHits,
+        findings: c.findings,
+      }),
+      'Running bureau check…',
+      'This may take a few seconds for external providers'
+    );
+    setChecks(cs => [saved, ...cs]);
+    toast.success('Bureau check added');
+    return saved;
+  };
+
   return (
-    <CaMemoSection title="Credit Bureau Checks — Section 14" readOnly={readOnly}>
-      {checks.map(c => (
-        <CheckCard key={c.id} check={c} appId={application.id} readOnly={readOnly} onRemoved={() => setChecks(cs => cs.filter(x => x.id !== c.id))} />
-      ))}
-      {checks.length === 0 && <p className="text-sm text-gray-400 italic">No bureau checks recorded.</p>}
-      {!readOnly && <AddCheckForm appId={application.id} onAdded={c => setChecks(cs => [c, ...cs])} />}
-    </CaMemoSection>
+    <>
+      {progress.visible && <ProgressOverlay message={progress.message} subMessage={progress.subMessage} />}
+      <CaMemoSection title="Credit Bureau Checks — Section 14" readOnly={readOnly}>
+        {loadingChecks ? (
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <span className="inline-block w-4 h-4 border-2 border-gray-200 border-t-blue-600 rounded-full" style={{ animation: 'spin 0.8s linear infinite' }} />
+            Loading bureau checks…
+          </div>
+        ) : (
+          <>
+            {checks.map(c => (
+              <CheckCard key={c.id} check={c} appId={application.id} readOnly={readOnly} onRemoved={() => setChecks(cs => cs.filter(x => x.id !== c.id))} />
+            ))}
+            {checks.length === 0 && <p className="text-sm text-gray-400 italic">No bureau checks recorded.</p>}
+          </>
+        )}
+        {!readOnly && <AddCheckForm appId={application.id} onAdded={c => setChecks(cs => [c, ...cs])} />}
+      </CaMemoSection>
+    </>
   );
 };
 

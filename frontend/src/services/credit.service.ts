@@ -858,6 +858,19 @@ const creditService = {
     return res;
   },
 
+  // Approval Pack Preview (Wave 3)
+  getApprovalPackUrl(applicationId: string, format: 'html' | 'pdf' = 'html'): string {
+    const base = (apiClient as any).defaults?.baseURL || '';
+    return `${base}/credit/applications/${applicationId}/approval-pack?format=${format}`;
+  },
+
+  async downloadApprovalPackPdf(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/approval-pack?format=pdf`, {
+      responseType: 'blob',
+    });
+    return res;
+  },
+
   // Credit Scoring (Phase 4C)
   async listScoreRuns(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/scores`);

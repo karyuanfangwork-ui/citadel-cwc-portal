@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Link, useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, {
   CreditApplication, CreditFacility, ApplicationTransition, ApplicationState, dashboardApi,
 } from '../src/services/credit.service';
@@ -11,6 +11,7 @@ import { friendlyMessage } from '../src/utils/errorMessages';
 import { useDirtyFormGuard } from '../src/hooks/useDirtyFormGuard';
 import HeaderBackgroundTab from './credit/tabs/HeaderBackgroundTab';
 import FacilitiesTab from './credit/tabs/FacilitiesTab';
+import RequestsFacilitiesTab from './credit/tabs/RequestsFacilitiesTab';
 import RiskRatingEclTab from './credit/tabs/RiskRatingEclTab';
 import PaymentCapabilityTab from './credit/tabs/PaymentCapabilityTab';
 import SecurityGuaranteesTab from './credit/tabs/SecurityGuaranteesTab';
@@ -20,8 +21,7 @@ import AccountConductTab from './credit/tabs/AccountConductTab';
 import CreditChecksTab from './credit/tabs/CreditChecksTab';
 import IndustryOutlookTab from './credit/tabs/IndustryOutlookTab';
 import RiskMitigatorsTab from './credit/tabs/RiskMitigatorsTab';
-import EsgTab from './credit/tabs/EsgTab';
-import SicrTab from './credit/tabs/SicrTab';
+import ForwardLookingRiskTab from './credit/tabs/ForwardLookingRiskTab';
 import SignoffTab from './credit/tabs/SignoffTab';
 import SummaryTab from './credit/tabs/SummaryTab';
 import PartiesTab from './credit/tabs/PartiesTab';
@@ -44,10 +44,14 @@ import {
   getIncompletePhaseCount,
   getNextIncompleteTab,
 } from './credit/creditUtils';
+import CreditApplicationWizard from './credit/CreditApplicationWizard';
+import { LEGACY_TAB_MAP } from './credit/tabRegistry';
 
 const CreditApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const wizardMode = searchParams.get('mode') === 'wizard';
   const { user } = useAuth();
 
   // Dirty form guard — warns on tab change / navigation if any tab has unsaved changes
@@ -215,17 +219,90 @@ const CreditApplicationDetail: React.FC = () => {
   const isPastStage = (idx: number) => idx < currentStageIdx;
   const isCurrentStage = (idx: number) => idx === currentStageIdx;
 
+  // §3.6 — Render a tab by ID (shared between classic and wizard views)
+  const renderTab = (tabId: DetailTab): React.ReactNode => {
+    switch (tabId) {
+      case 'header': return <HeaderBackgroundTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />;
+      case 'summary': return <SummaryTab app={app!} facilities={facilities} transitions={transitions} canWrite={canWrite} canApprove={canApprove} onTransition={handleTransition} onRefresh={fetchApp} />;
+      case 'facilities': return <RequestsFacilitiesTab application={app!} onDirtyChange={setDirty} />;
+      case 'risk-rating': return <RiskRatingEclTab application={app!} onDirtyChange={setDirty} />;
+      case 'payment-capability': return <PaymentCapabilityTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'security': return <SecurityGuaranteesTab application={app!} onUpdated={setApp} />;
+      case 'profitability': return <ProfitabilityWalletTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'counterparties': return <CounterpartiesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'conduct': return <AccountConductTab application={app!} onUpdated={setApp} />;
+      case 'credit-checks': return <CreditChecksTab application={app!} onUpdated={setApp} />;
+      case 'industry': return <IndustryOutlookTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'risk': return <RiskMitigatorsTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'forward-looking-risk': return <ForwardLookingRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'signoff': return <SignoffTab application={app!} onUpdated={setApp} />;
+      case 'parties': return <PartiesTab app={app!} />;
+      case 'documents': return <DocumentsTab app={app!} />;
+      case 'approvals': return <ApprovalsTab app={app!} onRefresh={fetchApp} />;
+      case 'collateral': return <CollateralTab />;
+      case 'conditions': return <ConditionsTab />;
+      case 'audit': return <AuditTab />;
+      default: return null;
+    }
+  };
+
+  // §3.6 — Wizard mode: uses CreditApplicationWizard shell instead of classic tab layout
+  if (wizardMode) {
+    return (
+      <>
+        <CreditNav />
+        <div className="flex items-center justify-between px-4 sm:px-8 py-3 bg-white border-b border-gray-200">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Link to="/credit" className="hover:text-blue-600">Credit</Link>
+            <span>/</span>
+            <Link to="/credit/applications" className="hover:text-blue-600">Applications</Link>
+            <span>/</span>
+            <span className="font-semibold text-gray-900">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}</span>
+          </div>
+          <Link
+            to={`/credit/applications/${id}`}
+            className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800"
+            title="Switch to classic view"
+          >
+            <span className="material-symbols-outlined text-lg">view_agenda</span>
+            Classic View
+          </Link>
+        </div>
+        <CreditApplicationWizard
+          app={app!}
+          onRefresh={fetchApp}
+          renderTab={renderTab}
+        />
+      </>
+    );
+  }
+
   return (
     <>
+      {/* §3.7 — Skip-to-content link for keyboard users */}
+      <a href="#credit-detail-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[9999] focus:px-3 focus:py-1 focus:bg-blue-600 focus:text-white focus:rounded focus:text-sm focus:font-bold">
+        Skip to content
+      </a>
       <CreditNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+      <div id="credit-detail-content" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
-          <Link to="/credit" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Credit</Link>
-          <span>/</span>
-          <Link to="/credit/applications" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Applications</Link>
-          <span>/</span>
-          <span className="font-semibold text-text-primary">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}</span>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+          <div className="flex items-center gap-2 text-sm text-text-secondary">
+            <Link to="/credit" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Credit</Link>
+            <span>/</span>
+            <Link to="/credit/applications" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Applications</Link>
+            <span>/</span>
+            <span className="font-semibold text-text-primary">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}</span>
+          </div>
+          {/* §3.6 — Wizard mode toggle */}
+          <Link
+            to={`/credit/applications/${id}?mode=wizard`}
+            className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800"
+            title="Switch to wizard view"
+          >
+            <span className="material-symbols-outlined text-lg">view_sidebar</span>
+            Wizard View
+          </Link>
         </div>
 
         {/* Header */}
@@ -419,20 +496,25 @@ const CreditApplicationDetail: React.FC = () => {
         {/* Layout Wrapper */}
         <div className="flex flex-col md:flex-row gap-6 mb-6 relative">
           {/* Sidebar Tabs — desktop only */}
-          <div className="hidden md:flex md:w-72 shrink-0 flex-col gap-3 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden pr-1 pb-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
-            {TAB_GROUPS.map((group) => {
+          <nav aria-label="Application sections" className="hidden md:flex md:w-72 shrink-0 flex-col sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden pr-1 pb-4 bg-bg-surface border border-border rounded-xl shadow-sm" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
+            {TAB_GROUPS.map((group, groupIdx) => {
               const groupStatus = phaseCompletion[group.id];
               const isGroupComplete = groupStatus === 'complete';
               const isOptional = groupStatus === 'optional';
+              const phaseMatch = /^phase(\d+)$/.exec(group.id);
+              const phaseLabel = phaseMatch ? `P${phaseMatch[1]}` : null;
+              const dotClass = isGroupComplete ? 'bg-green-500' : isOptional ? 'bg-gray-300' : 'bg-amber-500';
+              const dotTitle = isGroupComplete ? 'Complete' : isOptional ? 'Optional' : 'Incomplete';
               return (
-                <div key={group.id} className="bg-bg-surface border border-border rounded-xl overflow-hidden shadow-sm">
-                  <div className="relative px-3 py-2 bg-gray-50/80 border-b border-border">
-                    <span className="block text-[11px] font-bold text-text-secondary uppercase tracking-wide pr-7 leading-normal">{group.label}</span>
-                    <span className={`material-symbols-outlined text-[16px] absolute right-2.5 top-1/2 -translate-y-1/2 ${isGroupComplete ? 'text-green-500' : isOptional ? 'text-gray-400' : 'text-amber-500'}`}>
-                      {isGroupComplete ? 'check_circle' : isOptional ? 'radio_button_unchecked' : 'error'}
-                    </span>
+                <div key={group.id} className={groupIdx === 0 ? 'pt-2' : 'pt-3'}>
+                  <div className="flex items-center gap-2 px-3 py-1.5">
+                    {phaseLabel && (
+                      <span className="text-[10px] font-semibold text-text-tertiary bg-gray-100 border border-border rounded px-1.5 py-0.5 shrink-0">{phaseLabel}</span>
+                    )}
+                    <span className="text-[11px] font-semibold text-text-tertiary uppercase truncate min-w-0 flex-1" title={group.label}>{group.label}</span>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} title={dotTitle} aria-label={dotTitle} />
                   </div>
-                  <div className="flex flex-col py-1" role="tablist" aria-label={group.label}>
+                  <div className="flex flex-col" role="tablist" aria-label={group.label}>
                     {group.tabs.map((tab) => {
                       const isActive = activeTab === tab.id;
                       return (
@@ -443,12 +525,15 @@ const CreditApplicationDetail: React.FC = () => {
                           id={`tab-${tab.id}`}
                           tabIndex={isActive ? 0 : -1}
                           onKeyDown={(e) => handleTabKeyDown(e, tab.id)}
-                          className={`text-left px-4 py-2 text-sm font-semibold transition-all flex items-center justify-between group ${
-                            isActive ? 'bg-brand-50 text-brand-700 border-l-4 border-brand-700' : 'text-text-secondary hover:bg-gray-50 hover:text-text-primary border-l-4 border-transparent'
+                          title={tab.label}
+                          className={`relative text-left pl-6 pr-3 py-1.5 text-sm transition-colors flex items-center min-w-0 ${
+                            isActive
+                              ? 'bg-brand-50 text-brand-700 font-semibold'
+                              : 'text-text-primary font-medium hover:bg-gray-50'
                           }`}
-                          style={{ cursor: 'pointer', outline: 'none', background: isActive ? 'var(--brand-50)' : 'transparent', borderTop: 'none', borderRight: 'none', borderBottom: 'none' }}>
-                          {tab.label}
-                          {isActive && <span className="material-symbols-outlined text-[18px]">chevron_right</span>}
+                          style={{ cursor: 'pointer', outline: 'none', border: 'none', background: isActive ? 'var(--brand-50)' : 'transparent' }}>
+                          {isActive && <span aria-hidden="true" className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-brand-700" />}
+                          <span className="truncate min-w-0">{tab.label}</span>
                         </button>
                       );
                     })}
@@ -456,7 +541,7 @@ const CreditApplicationDetail: React.FC = () => {
                 </div>
               );
             })}
-          </div>
+          </nav>
 
           {/* Main Content Area */}
           <div className="flex-1 min-w-0 bg-white border border-border rounded-xl shadow-sm overflow-hidden flex flex-col">
@@ -558,17 +643,10 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
         )}
 
-        {/* ESG Tab — CA Memo Phase 5 */}
-        {activeTab === 'esg' && (
-          <div role="tabpanel" id="panel-esg" aria-labelledby="tab-esg" tabIndex={0}>
-            <EsgTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* SICR Tab — CA Memo Phase 5 */}
-        {activeTab === 'sicr' && (
-          <div role="tabpanel" id="panel-sicr" aria-labelledby="tab-sicr" tabIndex={0}>
-            <SicrTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
+        {/* Forward-Looking Risk (ESG + SICR merged) — §3.5 */}
+        {activeTab === 'forward-looking-risk' && (
+          <div role="tabpanel" id="panel-forward-looking-risk" aria-labelledby="tab-forward-looking-risk" tabIndex={0}>
+            <ForwardLookingRiskTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
           </div>
         )}
 

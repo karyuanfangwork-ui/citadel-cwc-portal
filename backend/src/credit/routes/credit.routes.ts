@@ -56,6 +56,7 @@ import securityRoutes from './security.routes';
 
 // CA Memo Phase 5
 import { generateCaMemo } from '../controllers/caMemoPdf.controller';
+import { getApprovalPack } from '../controllers/approvalPack.controller';
 import bureauCheckRoutes from './bureauCheck.routes';
 import industryAssessmentRoutes from './industryAssessment.routes';
 import riskAssessmentRoutes from './riskAssessment.routes';
@@ -184,6 +185,7 @@ router.use('/security', securityRoutes);
 
 // CA Memo Phase 5
 router.get('/applications/:appId/ca-memo', authenticate, requirePermission('credit:read'), generateCaMemo);
+router.get('/applications/:appId/approval-pack', authenticate, requirePermission('credit:read'), getApprovalPack);
 router.use('/applications', bureauCheckRoutes);
 router.use('/applications', industryAssessmentRoutes);
 router.use('/applications', riskAssessmentRoutes);

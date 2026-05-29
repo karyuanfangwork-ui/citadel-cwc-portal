@@ -13,6 +13,7 @@ import { formatDateTime } from '../creditUtils';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import StateBadge from '../../../src/components/ui/StateBadge';
 import { STATUS_COLORS } from '../../../src/components/ui/StateBadge';
+import ApprovalPackPreview from '../../../src/components/credit/ApprovalPackPreview';
 
 interface ApprovalsTabProps {
   app: CreditApplication;
@@ -28,6 +29,7 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
   const [approvalDecision, setApprovalDecision] = useState<ApprovalDecision | ''>('');
   const [approvalComment, setApprovalComment] = useState('');
   const [submittingApproval, setSubmittingApproval] = useState(false);
+  const [showPackPreview, setShowPackPreview] = useState(false);
 
   const fetchApprovals = useCallback(async () => {
     if (!id) return;
@@ -58,6 +60,17 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
 
   return (
     <div className="space-y-6">
+      {/* Approval Pack Preview Button */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Approvals</h3>
+        <button
+          onClick={() => setShowPackPreview(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+        >
+          📄 Preview Approval Pack
+        </button>
+      </div>
+
       <CaMemoSection title="Approval History" phase="Phase 3" readOnly>
         {approvals.length === 0 ? (
           <p className="text-sm text-text-secondary">No approvals yet.</p>
@@ -94,7 +107,7 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-semibold text-text-primary mb-2">Decision *</label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Approval decision">
                 {(['APPROVED', 'REJECTED', 'RETURNED', 'ESCALATED'] as ApprovalDecision[]).map(d => {
                   const colors: Record<string, string> = {
                     APPROVED: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100',
@@ -104,6 +117,8 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
                   };
                   return (
                     <button key={d} onClick={() => setApprovalDecision(d)}
+                      role="radio"
+                      aria-checked={approvalDecision === d}
                       className={`px-3 py-2 rounded-lg text-sm font-bold border transition-colors ${
                         approvalDecision === d ? 'ring-2 ring-brand-300 ' + colors[d] : colors[d]
                       }`} style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
@@ -126,6 +141,15 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
             </button>
           </div>
         </CaMemoSection>
+      )}
+
+      {/* Approval Pack Preview Modal */}
+      {showPackPreview && id && (
+        <ApprovalPackPreview
+          applicationId={id}
+          applicationNo={app.applicationNo ?? id}
+          onClose={() => setShowPackPreview(false)}
+        />
       )}
     </div>
   );
