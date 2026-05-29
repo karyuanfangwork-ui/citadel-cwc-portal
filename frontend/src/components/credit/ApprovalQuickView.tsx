@@ -289,6 +289,25 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
                   Return
                 </button>
               </div>
+              {/* §1.10 — CA Memo Preview */}
+              {fullApp && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await creditService.downloadCaMemo(fullApp.id);
+                      const blob = res.data ?? res;
+                      const url = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob], { type: 'application/pdf' }));
+                      window.open(url, '_blank');
+                    } catch (e) {
+                      console.error('Failed to generate CA Memo preview', e);
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-1.5 bg-brand-700 hover:bg-brand-800 text-white rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base">description</span>
+                  Preview CA Memo
+                </button>
+              )}
               <a
                 href={`/credit/applications/${app.id}?tab=approvals`}
                 onClick={(e) => { e.preventDefault(); onClose(); window.location.href = `/credit/applications/${app.id}?tab=approvals`; }}

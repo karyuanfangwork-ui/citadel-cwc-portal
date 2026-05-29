@@ -163,6 +163,10 @@ model User {
   resolvedSignals       EarlyWarningSignal[]
   // PII Read Log Relations
   piiReadLogs           PiiReadLog[]
+  // §1.5 Export audit & §1.6 Score override
+  creditExportEvents    CreditExportEvent[]
+  scoreOverrideFirst    ScoreOverrideApproval[] @relation("ScoreOverride_FirstApprover")
+  scoreOverrideSecond   ScoreOverrideApproval[] @relation("ScoreOverride_SecondApprover")
 
   @@index([email])
   @@index([managerId])
@@ -2560,6 +2564,8 @@ enum SignalType {
   PAYMENT_OVERDUE
   REVIEW_OVERDUE
   FINANCIAL_DETERIORATION
+  COLLATERAL_VALUATION_STALE
+  INSURANCE_EXPIRY
   OTHER
 }
 
@@ -2891,6 +2897,7 @@ model CreditApplication {
   esgAssessment           EsgAssessment?
   sicrAssessments         SicrAssessment[]
   signoffs                ApplicationSignoff[]
+  scoreOverrides          ScoreOverrideApproval[]
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -3973,6 +3980,68 @@ model PiiReadLog {
   @@index([resourceType, resourceId])
   @@index([createdAt])
   @@map("pii_read_logs")
+}
+
+// ============================================================================
+// §1.5 — Credit Export Event — logs every CSV / PDF export for DLP audit
+// ============================================================================
+model CreditExportEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  reportType  String   @map("report_type") @db.VarChar(50)   // e.g. "borrower_list", "exposure_report", "application_detail"
+  filters     String?  @db.Text                             // JSON-encoded filter params
+  rowCount    Int?     @map("row_count")
+  format      String   @db.VarChar(10)                      // "csv", "pdf", "xlsx"
+  ip          String?  @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([reportType])
+  @@index([createdAt])
+  @@map("credit_export_events")
+}
+
+// ============================================================================
+// §1.6 — Score Override Approval — dual-approval for score overrides ≥ 2 notches
+// ============================================================================
+model ScoreOverrideApproval {
+  id              String   @id @default(uuid()) @db.Uuid
+  applicationId   String   @map("application_id") @db.Uuid
+
+  originalRating  String   @map("original_rating") @db.VarChar(20)   // e.g. "BBB+"
+  overrideRating  String   @map("override_rating") @db.VarChar(20)   // e.g. "A-"
+  notchDelta      Int      @map("notch_delta")                       // absolute delta (always ≥ 2)
+
+  justification   String   @db.Text                                 // RM's reason for override
+  firstApproverId String   @map("first_approver_id") @db.Uuid       // first credit:admin approver
+  firstApprovedAt DateTime @map("first_approved_at") @db.Timestamp(6)
+
+  secondApproverId String?  @map("second_approver_id") @db.Uuid     // second credit:admin approver (null until approved)
+  secondApprovedAt DateTime? @map("second_approved_at") @db.Timestamp(6)
+
+  status          ScoreOverrideStatus @default(PENDING_SECOND_APPROVAL)
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  firstApprover   User       @relation("ScoreOverride_FirstApprover", fields: [firstApproverId], references: [id])
+  secondApprover  User?      @relation("ScoreOverride_SecondApprover", fields: [secondApproverId], references: [id])
+
+  @@index([applicationId])
+  @@index([status])
+  @@index([firstApproverId])
+  @@index([secondApproverId])
+  @@map("score_override_approvals")
+}
+
+enum ScoreOverrideStatus {
+  PENDING_SECOND_APPROVAL
+  APPROVED
+  REJECTED
 }
 
 // ============================================================================

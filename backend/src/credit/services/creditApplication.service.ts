@@ -2,6 +2,8 @@ import prisma from '../../utils/prisma';
 import { Prisma, ApplicationState } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
 import { creditNotificationService, CreditEventType } from './creditNotification.service';
+import { deriveAndSetConnectedPartyFlag } from './connectedParty.service';
+import { validateSubmissionReadiness } from './submissionReadiness.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -586,6 +588,29 @@ class CreditApplicationService {
       throw new Error(`Reason is required for action '${action}'`);
     }
 
+    // §1.7 — Submission-readiness hard gate: block submit if validation fails
+    if (action === 'submit') {
+      const readiness = await validateSubmissionReadiness(id);
+      if (!readiness.ready) {
+        const errorMessages = readiness.errors.map((e) => `${e.field}: ${e.message}`).join('; ');
+        throw new Error(`Submission blocked — ${errorMessages}`);
+      }
+    }
+
+    // §1.3 — Hard-block: disallow ACTIVE/DISBURSED if tangible collateral valuation > 12 months
+    if (action === 'activate' || action === 'disburse') {
+      const { hasStaleCollateralValuations } = await import('../jobs/collateralInsuranceMonitor.job');
+      const freshness = await hasStaleCollateralValuations(id);
+      if (freshness.blocked) {
+        const details = freshness.staleCollaterals
+          .map((c: { type: string; ageMonths: number | null }) => `${c.type}: valuation ${c.ageMonths ?? 'N/A'} months old`)
+          .join('; ');
+        throw new Error(
+          `Cannot ${action}: stale collateral valuations (>12 months). ${details}. Please update valuations before proceeding.`,
+        );
+      }
+    }
+
     // Build update data
     const updateData: Prisma.CreditApplicationUpdateInput = {
       state: transition.to,
@@ -625,6 +650,16 @@ class CreditApplicationService {
     await this.createAuditEvent(id, actorId, action, existing.state, transition.to, {
       reason: reason ?? null,
     });
+
+    // §1.2 — On submit, derive connected-party flag from RelatedPartyGroup membership
+    if (action === 'submit') {
+      try {
+        await deriveAndSetConnectedPartyFlag(id, actorId ?? undefined);
+      } catch (err: any) {
+        // Non-blocking: flag derivation failure must not prevent submission
+        console.error(`[ConnectedParty] Failed to derive flag for ${id}: ${err.message}`);
+      }
+    }
 
     // Dispatch notification based on the action — failures must never block the transition
     try {

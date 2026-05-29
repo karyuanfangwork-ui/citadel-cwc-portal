@@ -210,6 +210,11 @@ async function main() {
         update: {},
         create: { name: 'CREDIT_ADMIN', description: 'Credit Administrator — full credit module configuration and management' }
     });
+    await prisma.role.upsert({
+        where: { name: 'CREDIT_OPS' },
+        update: {},
+        create: { name: 'CREDIT_OPS', description: 'Credit Operations — disbursement and post-disbursement operations' }
+    });
 
     // Group-level executive roles
     await prisma.role.upsert({
@@ -260,6 +265,7 @@ async function main() {
         { name: 'credit:spread', resource: 'credit', action: 'spread', description: 'Enter and review financial spreading' },
         { name: 'credit:analyze', resource: 'credit', action: 'analyze', description: 'Access credit analytics and dashboards' },
         { name: 'credit:admin', resource: 'credit', action: 'admin', description: 'Configure credit module settings' },
+        { name: 'credit:disburse', resource: 'credit', action: 'disburse', description: 'Disburse approved credit facilities (SOD: separated from admin)' },
         { name: 'credit:compliance', resource: 'credit', action: 'compliance', description: 'Access credit compliance and AML functions' },
         { name: 'credit:risk', resource: 'credit', action: 'risk', description: 'Access credit risk management functions' },
         { name: 'credit:export', resource: 'credit', action: 'export', description: 'Export credit data with reason capture' },
@@ -313,7 +319,7 @@ async function main() {
         'announcement:read', 'announcement:write', 'announcement:admin',
         'credit:read', 'credit:write', 'credit:delete', 'credit:approve',
         'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze',
-        'credit:admin', 'credit:compliance', 'credit:risk', 'credit:export',
+        'credit:admin', 'credit:disburse', 'credit:compliance', 'credit:risk', 'credit:export',
         'credit:override', 'credit:monitor', 'credit:document',
     ];
 
@@ -369,6 +375,7 @@ async function main() {
         CREDIT_SENIOR: ['credit:read', 'credit:write', 'credit:approve', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
         CREDIT_COMMITTEE: ['credit:read', 'credit:committee', 'credit:analyze', 'credit:risk', 'credit:monitor'],
         CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:delete', 'credit:approve', 'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:admin', 'credit:compliance', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
+        CREDIT_OPS: ['credit:read', 'credit:write', 'credit:disburse', 'credit:monitor', 'credit:document'],
     };
 
     // Upsert RolePermission records: only add seed-default assignments,

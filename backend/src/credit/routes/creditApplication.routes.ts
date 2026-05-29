@@ -25,7 +25,7 @@ const TRANSITION_PERMISSIONS: Record<string, string> = {
   make_offer: 'credit:approve',
   accept_offer: 'credit:write',
   decline_offer: 'credit:approve',
-  disburse: 'credit:admin',
+  disburse: 'credit:disburse',
   activate: 'credit:admin',
   close: 'credit:admin',
   withdraw: 'credit:write',
@@ -34,9 +34,10 @@ const TRANSITION_PERMISSIONS: Record<string, string> = {
 /**
  * Middleware that checks the user's permission based on the transition action
  * in the request body. Each action maps to a specific permission tier:
- *   - credit:write  → RM/operator actions (submit, start_kyc, etc.)
- *   - credit:approve → approval/decision actions (approve, reject, etc.)
- *   - credit:admin   → operational/admin actions (disburse, activate, close)
+ *   - credit:write    → RM/operator actions (submit, start_kyc, etc.)
+ *   - credit:approve  → approval/decision actions (approve, reject, etc.)
+ *   - credit:disburse → disbursement actions (disburse only — SOD separation from admin)
+ *   - credit:admin    → operational/admin actions (activate, close)
  *
  * Unknown actions default to the stricter credit:approve tier.
  */
@@ -116,10 +117,11 @@ router.delete(
  * POST /applications/:id/transition
  * Transition application state (action in body)
  * Permission tier depends on the action:
- *   credit:write   — submit, start_kyc, approve_kyc, resubmit, start_underwriting,
+ *   credit:write    — submit, start_kyc, approve_kyc, resubmit, start_underwriting,
  *                    start_assessment, submit_to_committee, accept_offer, withdraw
- *   credit:approve — approve, reject, reject_kyc, decline_offer, make_offer
- *   credit:admin   — disburse, activate, close
+ *   credit:approve  — approve, reject, reject_kyc, decline_offer, make_offer
+ *   credit:disburse — disburse only (SOD: separated from admin)
+ *   credit:admin    — activate, close
  */
 router.post(
   '/:id/transition',
@@ -148,6 +150,28 @@ router.get(
   '/:id/audit',
   requirePermission('credit:read'),
   creditApplicationController.getAuditTrail,
+);
+
+/**
+ * GET /applications/:id/readiness
+ * Check submission readiness (hard-gate validation)
+ * Requires: credit:read
+ */
+router.get(
+  '/:id/readiness',
+  requirePermission('credit:read'),
+  creditApplicationController.checkReadiness,
+);
+
+/**
+ * PATCH /applications/:id/connected-party-flag
+ * Override the connected-party flag (manual override with audit trail)
+ * Requires: credit:admin
+ */
+router.patch(
+  '/:id/connected-party-flag',
+  requirePermission('credit:admin'),
+  creditApplicationController.overrideConnectedPartyFlag,
 );
 
 export default router;

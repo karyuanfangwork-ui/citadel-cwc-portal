@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./src/styles/tokens.css";
 @import "./src/styles/editor.css";
+@import "./src/styles/credit-tables.css";
 
 @theme {
   /* ── BRAND ── */

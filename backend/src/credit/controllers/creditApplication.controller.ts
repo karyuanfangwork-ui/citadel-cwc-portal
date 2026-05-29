@@ -3,6 +3,8 @@ import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { creditApplicationService } from '../services/creditApplication.service';
 import { requireUser } from '../utils/requireUser';
+import { validateSubmissionReadiness } from '../services/submissionReadiness.service';
+import { overrideConnectedPartyFlag } from '../services/connectedParty.service';
 import prisma from '../../utils/prisma';
 
 class CreditApplicationController {
@@ -207,6 +209,39 @@ class CreditApplicationController {
     }
 
     const result = await creditApplicationService.getAuditTrail(id, page, limit);
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * PATCH /applications/:id/connected-party-flag
+   * Override the connected-party flag with audit trail
+   */
+  overrideConnectedPartyFlag = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const user = requireUser(req);
+    const { connectedPartyFlag, reason } = req.body;
+
+    if (typeof connectedPartyFlag !== 'boolean') {
+      throw new AppError('connectedPartyFlag must be a boolean', 400);
+    }
+
+    // Verify application exists
+    const application = await creditApplicationService.getApplication(id);
+    if (!application) {
+      throw new AppError('Credit application not found', 404);
+    }
+
+    const result = await overrideConnectedPartyFlag(id, connectedPartyFlag, user.id, reason);
+    res.json({ status: 'success', data: { connectedPartyFlag: result } });
+  });
+
+  /**
+   * GET /applications/:id/readiness — Check submission readiness
+   * Requires: credit:read
+   */
+  checkReadiness = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await validateSubmissionReadiness(id);
     res.json({ status: 'success', data: result });
   });
 }

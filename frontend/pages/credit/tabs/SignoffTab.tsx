@@ -5,6 +5,7 @@ import {
   SignoffRole,
   signoffApi,
 } from '../../../src/services/credit.service';
+import creditService from '../../../src/services/credit.service';
 import { useAuth } from '../../../src/context/AuthContext';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
@@ -148,6 +149,21 @@ const SignoffTab: React.FC<Props> = ({ application, onUpdated }) => {
               CA Memo Fully Signed — {new Date(application.concurredAt!).toLocaleDateString('en-GB')}
             </span>
           )}
+          {/* §1.10 — CA Memo Preview */}
+          <button
+            onClick={async () => {
+              try {
+                const res = await creditService.downloadCaMemo(application.id);
+                const blob = res.data ?? res;
+                const url = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob], { type: 'application/pdf' }));
+                window.open(url, '_blank');
+              } catch (e) { console.error('Failed to generate CA Memo preview', e); }
+            }}
+            className="flex items-center gap-1.5 bg-brand-700 hover:bg-brand-800 text-white rounded-lg px-4 py-2 text-sm font-bold transition-colors"
+          >
+            <span className="material-symbols-outlined text-base">description</span>
+            Preview CA Memo
+          </button>
         </div>
 
         {isConcurred && (

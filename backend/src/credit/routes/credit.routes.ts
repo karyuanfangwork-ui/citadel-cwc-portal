@@ -70,6 +70,9 @@ import walletShareRoutes from './walletShare.routes';
 import keyCounterpartyRoutes from './keyCounterparty.routes';
 import accountUtilisationRoutes from './accountUtilisation.routes';
 
+// §1.6 — Score Override Approval
+import scoreOverrideRoutes from './scoreOverride.routes';
+
 const router = Router();
 
 // Feature flag admin routes (outside feature flag gate)
@@ -185,5 +188,8 @@ router.use('/applications', profitabilityRoutes);
 router.use('/applications', walletShareRoutes);
 router.use(keyCounterpartyRoutes);
 router.use('/applications', accountUtilisationRoutes);
+
+// §1.6 — Score Override Approval
+router.use('/score-overrides', scoreOverrideRoutes);
 
 export default router;
