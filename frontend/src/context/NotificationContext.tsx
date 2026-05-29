@@ -12,7 +12,7 @@ interface Toast {
 
 export interface CrmUpdateEvent {
   type: string;
-  entityType: 'lead' | 'opportunity' | 'activity' | 'note' | 'account' | 'contact';
+  entityType: 'lead' | 'opportunity' | 'activity' | 'note' | 'account' | 'contact' | 'duplicate';
   id: string;
   changedBy: string;
 }

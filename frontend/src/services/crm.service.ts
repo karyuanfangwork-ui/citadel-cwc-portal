@@ -201,6 +201,20 @@ export interface CrmKycRecord {
   updatedAt: string;
 }
 
+export interface CrmDuplicateMatch {
+  id: string;
+  entityType: 'LEAD' | 'CONTACT';
+  entityAId: string;
+  entityBId: string;
+  matchFields: string[];
+  confidence: number;
+  status: 'OPEN' | 'MERGED' | 'DISMISSED';
+  resolvedBy?: string | null;
+  resolvedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ── CRM API Service ─────────────────────────────────────────────
 
 const crmService = {
