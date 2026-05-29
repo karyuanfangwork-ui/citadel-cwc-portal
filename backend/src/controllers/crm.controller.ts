@@ -15,6 +15,7 @@ import * as workflowService from '../services/crm-workflow.service';
 import * as emailSyncService from '../services/crm-email-sync.service';
 import * as anomalyService from '../services/crm-anomaly.service';
 import * as customFieldsService from '../services/crm-custom-fields.service';
+import { broadcast } from '../utils/sseClients';
 
 const prisma = new PrismaClient();
 
@@ -109,6 +110,7 @@ class CrmController {
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmAccount', resourceId: account.id, newValues: { ...req.body, bankAccount: req.body.bankAccount ? '****' : undefined } } });
     res.status(201).json({ status: 'success', data: { account: maskBankAccount(account) } });
+    broadcast('crm_update', { type: 'account.created', entityType: 'account', id: account.id, changedBy: req.user!.id });
   });
 
   updateAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -117,6 +119,7 @@ class CrmController {
     const account = await prisma.crmAccount.update({ where: { id: req.params.id as string }, data: req.body, include: { owner: { select: userSelect } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmAccount', resourceId: account.id, oldValues: existing as any, newValues: { ...req.body, bankAccount: req.body.bankAccount ? '****' : undefined } } });
     res.json({ status: 'success', data: { account: maskBankAccount(account) } });
+    broadcast('crm_update', { type: 'account.updated', entityType: 'account', id: account.id, changedBy: req.user!.id });
   });
 
   deleteAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -125,6 +128,7 @@ class CrmController {
     await prisma.crmAccount.update({ where: { id: req.params.id as string }, data: { isActive: false, deletedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmAccount', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Account deactivated' });
+    broadcast('crm_update', { type: 'account.deleted', entityType: 'account', id: req.params.id as string, changedBy: req.user!.id });
   });
 
   // ======== CONTACTS ========
@@ -193,6 +197,7 @@ class CrmController {
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmContact', resourceId: contact.id, newValues: req.body } });
     res.status(201).json({ status: 'success', data: { contact } });
+    broadcast('crm_update', { type: 'contact.created', entityType: 'contact', id: contact.id, changedBy: req.user!.id });
   });
 
   updateContact = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -206,6 +211,7 @@ class CrmController {
     const contact = await prisma.crmContact.update({ where: { id: req.params.id as string }, data, include: { account: { select: { id: true, name: true } } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmContact', resourceId: contact.id, oldValues: existing as any, newValues: req.body } });
     res.json({ status: 'success', data: { contact } });
+    broadcast('crm_update', { type: 'contact.updated', entityType: 'contact', id: contact.id, changedBy: req.user!.id });
   });
 
   deleteContact = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -214,6 +220,7 @@ class CrmController {
     await prisma.crmContact.update({ where: { id: req.params.id as string }, data: { isActive: false, deletedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmContact', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Contact deactivated' });
+    broadcast('crm_update', { type: 'contact.deleted', entityType: 'contact', id: req.params.id as string, changedBy: req.user!.id });
   });
 
   // ======== LEADS ========
@@ -306,6 +313,7 @@ class CrmController {
           include: { owner: { select: userSelect }, account: { select: { id: true, name: true } } },
         });
         res.status(201).json({ status: 'success', data: { lead: refreshed } });
+        broadcast('crm_update', { type: 'lead.created', entityType: 'lead', id: lead.id, changedBy: req.user!.id });
         const leadIdToScore = lead.id;
         setImmediate(() => {
           scoreLead(leadIdToScore).catch((err: unknown) =>
@@ -320,6 +328,7 @@ class CrmController {
     }
 
     res.status(201).json({ status: 'success', data: { lead } });
+    broadcast('crm_update', { type: 'lead.created', entityType: 'lead', id: lead.id, changedBy: req.user!.id });
     const leadIdToScore = lead.id;
     setImmediate(() => {
       scoreLead(leadIdToScore).catch((err: unknown) =>
@@ -345,6 +354,7 @@ class CrmController {
       emitWorkflowEvent('lead.status.changed', 'LEAD', lead.id, { ...lead, previousStatus: existing.status });
     }
     res.json({ status: 'success', data: { lead } });
+    broadcast('crm_update', { type: 'lead.updated', entityType: 'lead', id: lead.id, changedBy: req.user!.id });
   });
 
   convertLead = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -359,6 +369,7 @@ class CrmController {
     await prisma.crmLead.update({ where: { id: req.params.id as string }, data: { deletedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmLead', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Lead deleted' });
+    broadcast('crm_update', { type: 'lead.deleted', entityType: 'lead', id: req.params.id as string, changedBy: req.user!.id });
   });
 
   // ======== OPPORTUNITIES ========
@@ -451,6 +462,7 @@ class CrmController {
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmOpportunity', resourceId: opportunity.id, newValues: req.body } });
     res.status(201).json({ status: 'success', data: { opportunity } });
+    broadcast('crm_update', { type: 'opportunity.created', entityType: 'opportunity', id: opportunity.id, changedBy: req.user!.id });
   });
 
   updateOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -467,6 +479,7 @@ class CrmController {
       emitWorkflowEvent('opportunity.stage.changed', 'OPPORTUNITY', opportunity.id, { ...opportunity, previousStageId: existing.stageId });
     }
     res.json({ status: 'success', data: { opportunity } });
+    broadcast('crm_update', { type: 'opportunity.updated', entityType: 'opportunity', id: opportunity.id, changedBy: req.user!.id });
   });
 
   moveStage = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -474,6 +487,7 @@ class CrmController {
     const opportunity = await crmService.moveOpportunityStage(req.params.id as string, req.body.stageId, req.user!.id, req.body.lostReason);
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: req.params.id as string, oldValues: existing ? { stageId: (existing as any).stageId } as any : undefined, newValues: { stageId: req.body.stageId } } });
     res.json({ status: 'success', data: { opportunity } });
+    broadcast('crm_update', { type: 'opportunity.stage_moved', entityType: 'opportunity', id: req.params.id as string, changedBy: req.user!.id });
 
     // Fire-and-forget AI win probability after stage move
     const oppId = req.params.id as string;
@@ -490,6 +504,7 @@ class CrmController {
     await prisma.crmOpportunity.update({ where: { id: req.params.id as string }, data: { deletedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmOpportunity', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Opportunity deleted' });
+    broadcast('crm_update', { type: 'opportunity.deleted', entityType: 'opportunity', id: req.params.id as string, changedBy: req.user!.id });
   });
 
   // ======== PIPELINES ========
@@ -575,6 +590,7 @@ class CrmController {
     const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
     emitWorkflowEvent('activity.created', 'ACTIVITY', activity.id, { ...activity });
     res.status(201).json({ status: 'success', data: { activity } });
+    broadcast('crm_update', { type: 'activity.created', entityType: 'activity', id: activity.id, changedBy: req.user!.id });
   });
 
   updateActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -587,12 +603,14 @@ class CrmController {
     const activity = await prisma.crmActivity.update({ where: { id: req.params.id as string }, data });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmActivity', resourceId: activity.id, oldValues: existing as any, newValues: req.body } });
     res.json({ status: 'success', data: { activity } });
+    broadcast('crm_update', { type: 'activity.updated', entityType: 'activity', id: activity.id, changedBy: req.user!.id });
   });
 
   deleteActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
     await prisma.crmActivity.delete({ where: { id: req.params.id as string } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmActivity', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Activity deleted' });
+    broadcast('crm_update', { type: 'activity.deleted', entityType: 'activity', id: req.params.id as string, changedBy: req.user!.id });
   });
 
   remindActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -680,6 +698,7 @@ class CrmController {
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmNote', resourceId: note.id, newValues: req.body } });
     res.status(201).json({ status: 'success', data: { note } });
+    broadcast('crm_update', { type: 'note.created', entityType: 'note', id: note.id, changedBy: req.user!.id });
   });
 
   updateNote = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -689,6 +708,7 @@ class CrmController {
     const note = await prisma.crmNote.update({ where: { id: req.params.id as string }, data: req.body });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmNote', resourceId: note.id, oldValues: existing as any, newValues: req.body } });
     res.json({ status: 'success', data: { note } });
+    broadcast('crm_update', { type: 'note.updated', entityType: 'note', id: note.id, changedBy: req.user!.id });
   });
 
   deleteNote = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -698,6 +718,7 @@ class CrmController {
     await prisma.crmNote.delete({ where: { id: req.params.id as string } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmNote', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Note deleted' });
+    broadcast('crm_update', { type: 'note.deleted', entityType: 'note', id: req.params.id as string, changedBy: req.user!.id });
   });
 
   // ======== TEAM PERFORMANCE ========
