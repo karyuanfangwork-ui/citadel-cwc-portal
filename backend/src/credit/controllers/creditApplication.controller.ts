@@ -5,15 +5,16 @@ import { creditApplicationService } from '../services/creditApplication.service'
 import { requireUser } from '../utils/requireUser';
 import { validateSubmissionReadiness } from '../services/submissionReadiness.service';
 import { overrideConnectedPartyFlag } from '../services/connectedParty.service';
+import { RmScopedRequest } from '../middleware/rmScope.middleware';
 import prisma from '../../utils/prisma';
 
 class CreditApplicationController {
   /**
    * GET /applications — List credit applications with pagination & filters
-   * Applies data-level access control based on user role:
-   * - Admin: sees all applications
-   * - Agent (RM/analyst): sees only applications assigned to them
-   * - End user (borrower): sees only their own applications
+   * §2.4 — Now uses rmScopeFilter from middleware for row-level access control.
+   * The applyRmScope() middleware injects req.rmScopeFilter for non-admin users,
+   * which is AND-combined with query filters in the service layer.
+   * Admin/senior roles have no rmScopeFilter (see all applications).
    */
   list = asyncHandler(async (req: AuthRequest, res: Response) => {
     const page = parseInt(req.query.page as string, 10) || 1;
@@ -25,54 +26,19 @@ class CreditApplicationController {
     const assignedAnalystId = req.query.assignedAnalystId as string | undefined;
     const search = req.query.search as string | undefined;
 
-    // Data-level access control
-    const user = req.user;
-    const isAdmin = user?.roles?.some(r => ['ADMIN', 'CREDIT_ADMIN'].includes(r));
-    const isAgent = user?.roles?.some(r => ['CREDIT_RM', 'CREDIT_ANALYST', 'IT', 'HR', 'FINANCE'].includes(r));
-
-    let effectiveAssignedRmId = assignedRmId;
-    let effectiveAssignedAnalystId = assignedAnalystId;
-    let effectiveBorrowerProfileId = borrowerProfileId;
-
-    if (!isAdmin) {
-      if (isAgent) {
-        // Agent: can only see applications they're assigned to
-        if (!effectiveAssignedRmId && !effectiveAssignedAnalystId) {
-          effectiveAssignedRmId = user?.id;
-        }
-      } else {
-        // End user / borrower: look up their borrower profile(s) via CRM link
-        const borrowerProfiles = await prisma.borrowerProfile.findMany({
-          where: {
-            isActive: true,
-            OR: [
-              // Individual borrower: contact → account → owner
-              { contact: { account: { ownerId: user?.id } } },
-              // Corporate borrower: account → owner
-              { account: { ownerId: user?.id } },
-            ],
-          },
-          select: { id: true },
-        });
-        const borrowerProfileIds = borrowerProfiles.map(bp => bp.id);
-
-        if (borrowerProfileIds.length > 0) {
-          effectiveBorrowerProfileId = borrowerProfileIds[0]; // use first match
-          // If multiple profiles, could use OR filter but current service only supports single borrowerProfileId
-          // For now use the first — most users have one profile
-        }
-      }
-    }
+    // §2.4 — Row-level access: use rmScopeFilter from middleware
+    const rmScopeFilter = (req as RmScopedRequest).rmScopeFilter;
 
     const result = await creditApplicationService.listApplications({
       page,
       limit,
       state,
       productType,
-      borrowerProfileId: effectiveBorrowerProfileId,
-      assignedRmId: effectiveAssignedRmId,
-      assignedAnalystId: effectiveAssignedAnalystId,
+      borrowerProfileId,
+      assignedRmId,
+      assignedAnalystId,
       search,
+      rmScopeFilter,
     });
 
     res.json({ status: 'success', data: result });
@@ -80,6 +46,7 @@ class CreditApplicationController {
 
   /**
    * GET /applications/:id — Get a single credit application
+   * §2.4 — Audit-logs PII access for non-admin users.
    */
   getOne = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
@@ -87,6 +54,32 @@ class CreditApplicationController {
 
     if (!application) {
       throw new AppError('Credit application not found', 404);
+    }
+
+    // §2.4 — Audit log: non-admin direct-ID PII access
+    // If the user had an rmScopeFilter (i.e. they are NOT a bypass role),
+    // log this single-record access for compliance.
+    const rmScopeFilter = (req as RmScopedRequest).rmScopeFilter;
+    if (rmScopeFilter && req.user?.id) {
+      // Fire-and-forget audit log (don't block the response)
+      // Serialize rmScopeFilter to plain JSON for Prisma's Json type
+      const scopeMeta = JSON.parse(JSON.stringify(rmScopeFilter));
+      prisma.creditAuditEvent.create({
+        data: {
+          applicationId: id,
+          eventType: 'PII_ACCESS',
+          actorId: req.user.id,
+          action: 'READ',
+          newState: application.state,
+          metadata: {
+            accessType: 'direct_id',
+            endpoint: `/api/v1/credit/applications/${id}`,
+            rmScopeFilter: scopeMeta,
+          },
+        },
+      }).catch(() => {
+        // Silently swallow audit log failures — don't block the read
+      });
     }
 
     res.json({ status: 'success', data: { application } });
@@ -107,9 +100,10 @@ class CreditApplicationController {
   update = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
     const actorId = requireUser(req).id;
+    const expectedVersion = req.body.version !== undefined ? Number(req.body.version) : undefined;
 
     try {
-      const application = await creditApplicationService.updateApplication(id, req.body, actorId);
+      const application = await creditApplicationService.updateApplication(id, req.body, actorId, expectedVersion);
 
       if (!application) {
         throw new AppError('Credit application not found', 404);
@@ -119,6 +113,10 @@ class CreditApplicationController {
     } catch (err: any) {
       if (err.message.includes('DRAFT state')) {
         throw new AppError(err.message, 400);
+      }
+      // §2.3 — Propagate version conflict errors (AppError with statusCode 409)
+      if (err.statusCode === 409) {
+        throw err;
       }
       throw err;
     }

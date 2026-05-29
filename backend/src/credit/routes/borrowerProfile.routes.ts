@@ -3,11 +3,15 @@ import { borrowerProfileController } from '../controllers/borrowerProfile.contro
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import { createBorrowerProfileSchema, updateBorrowerProfileSchema } from '../validators/borrowerProfile.validator';
+import { encryptBorrowerFields, decryptBorrowerFields } from '../middleware/fieldEncryption.middleware';
 
 const router = Router();
 
 // All routes require authentication
 router.use(authenticate);
+
+// §2.9 — Decrypt encrypted fields on all GET responses
+router.use(decryptBorrowerFields());
 
 /**
  * GET /borrowers
@@ -34,11 +38,13 @@ router.get(
 /**
  * POST /borrowers
  * Create a new borrower profile
+ * §2.9 — Encrypt sensitive fields before creation
  * Requires: credit:write
  */
 router.post(
   '/',
   requirePermission('credit:write'),
+  encryptBorrowerFields(),
   validate(createBorrowerProfileSchema),
   borrowerProfileController.create,
 );
@@ -46,11 +52,13 @@ router.post(
 /**
  * PATCH /borrowers/:id
  * Update a borrower profile
+ * §2.9 — Encrypt sensitive fields before update
  * Requires: credit:write
  */
 router.patch(
   '/:id',
   requirePermission('credit:write'),
+  encryptBorrowerFields(),
   validate(updateBorrowerProfileSchema),
   borrowerProfileController.update,
 );

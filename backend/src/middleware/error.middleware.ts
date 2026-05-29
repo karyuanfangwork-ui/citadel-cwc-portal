@@ -4,11 +4,13 @@ import { logger } from '../utils/logger';
 export class AppError extends Error {
     statusCode: number;
     isOperational: boolean;
+    details?: unknown;
 
-    constructor(message: string, statusCode: number = 500) {
+    constructor(message: string, statusCode: number = 500, details?: unknown) {
         super(message);
         this.statusCode = statusCode;
         this.isOperational = true;
+        if (details) this.details = details;
 
         Error.captureStackTrace(this, this.constructor);
     }
@@ -53,6 +55,8 @@ export const errorHandler = (
         status: 'error',
         statusCode,
         message: safeMessage,
+        // §2.3 — Include structured details for version conflicts and other rich errors
+        ...(err instanceof AppError && err.details ? { details: err.details } : {}),
         ...(process.env.NODE_ENV === 'development' && {
             stack: err.stack,
         }),

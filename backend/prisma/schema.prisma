@@ -75,6 +75,12 @@ model User {
   delegationEnabled  Boolean        @default(false) @map("delegation_enabled")
   delegatedToId      String?        @map("delegated_to_id") @db.Uuid
 
+  // §2.1 — MFA/TOTP for privileged credit roles
+  mfaEnabled         Boolean        @default(false) @map("mfa_enabled")
+  mfaSecret          String?        @map("mfa_secret") @db.VarChar(255)  // TOTP secret (encrypted)
+  mfaBackupCodes     String[]       @map("mfa_backup_codes")              // Hashed backup codes
+  mfaVerifiedAt      DateTime?      @map("mfa_verified_at") @db.Timestamp(6)  // Last TOTP verification timestamp
+
   // Delegation
   delegatedTo              User?                  @relation("UserDelegate", fields: [delegatedToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   delegatingFrom           User[]                 @relation("UserDelegate")
@@ -2642,6 +2648,13 @@ model BorrowerProfile {
   employer          String?       @db.VarChar(255)
   annualIncome      Decimal?      @map("annual_income") @db.Decimal(15, 2)
   netWorth          Decimal?      @map("net_worth") @db.Decimal(15, 2)
+
+  // §2.9 — Encrypted PII fields (AES-256-GCM)
+  // These store the encrypted versions of annualIncome, netWorth, and sourceOfWealth.
+  // The plaintext fields above are retained for backward compatibility during migration.
+  annualIncomeEncrypted  String?  @map("annual_income_encrypted") @db.VarChar(255)
+  netWorthEncrypted      String?  @map("net_worth_encrypted") @db.VarChar(255)
+  sourceOfWealthEncrypted String? @map("source_of_wealth_encrypted") @db.VarChar(255)
   
   isActive          Boolean      @default(true) @map("is_active")
   deletedAt         DateTime?    @map("deleted_at") @db.Timestamp(6)
@@ -2858,6 +2871,9 @@ model CreditApplication {
   reviewedAt  DateTime? @map("reviewed_at") @db.Timestamp(6)
   concurredAt DateTime? @map("concurred_at") @db.Timestamp(6)
 
+  // §2.3 — Optimistic concurrency control
+  version         Int              @default(1) @map("version")
+
   // Internal
   deletedAt       DateTime?        @map("deleted_at") @db.Timestamp(6)
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamp(6)
@@ -2879,6 +2895,7 @@ model CreditApplication {
   documents        CreditDocument[]
   documentRequirements DocumentRequirement[]
   auditEvents      CreditAuditEvent[]
+  slaBreaches      CreditSlaBreach[]
   conditions       Condition[]
   decisions        CreditDecision[]
   scoreRuns        CreditScoreRun[]
@@ -3239,6 +3256,67 @@ model CreditAuditEvent {
   @@index([createdAt])
   @@index([applicationId, eventType, createdAt])
   @@map("credit_audit_events")
+}
+
+// ============================================================================
+// §2.2 — Credit SLA Policies & Breach Tracking
+// ============================================================================
+
+model CreditSlaPolicy {
+  id              String   @id @default(uuid()) @db.Uuid
+  name            String   @db.VarChar(100)
+  description     String? @db.Text
+
+  // Which application state this SLA targets
+  targetState     String   @map("target_state") @db.VarChar(30)
+
+  // Business hours from application entering targetState until SLA breach
+  slaHours        Int      @map("sla_hours")
+
+  // Escalation: notify these role codes on breach (e.g. ["CREDIT_MANAGER", "CREDIT_ADMIN"])
+  notifyRoles     String[] @map("notify_roles")
+
+  // Auto-escalation: after additional business hours, advance state automatically
+  // Null means no auto-escalation
+  escalateAfterHours Int?   @map("escalate_after_hours")
+  escalateToState   String? @map("escalate_to_state") @db.VarChar(30)
+
+  // Product-specific override: null means applies to all product types
+  productType     String?  @map("product_type") @db.VarChar(30)
+
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  breaches       CreditSlaBreach[]
+
+  @@index([targetState])
+  @@index([isActive])
+  @@map("credit_sla_policies")
+}
+
+model CreditSlaBreach {
+  id              String   @id @default(uuid()) @db.Uuid
+  applicationId   String   @map("application_id") @db.Uuid
+  policyId       String   @map("policy_id") @db.Uuid
+  breachedAt      DateTime @map("breached_at") @db.Timestamp(6)
+  acknowledgedAt  DateTime? @map("acknowledged_at") @db.Timestamp(6)
+  resolvedAt      DateTime? @map("resolved_at") @db.Timestamp(6)
+
+  // Escalation tracking
+  escalationNotifiedAt DateTime? @map("escalation_notified_at") @db.Timestamp(6)
+  escalatedAt     DateTime? @map("escalated_at") @db.Timestamp(6)
+
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  policy          CreditSlaPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+  @@index([policyId])
+  @@index([breachedAt])
+  @@unique([applicationId, policyId])
+  @@map("credit_sla_breaches")
 }
 
 // ============================================================================
@@ -4066,6 +4144,7 @@ enum BureauProvider {
   PEP_WATCHLIST
   IF_ACTIVA
   PUBLIC_DOMAIN
+  AML_RESCREEN                // §2.7 — quarterly AML re-screening (PEP + sanctions)
 }
 
 enum RiskCategory {

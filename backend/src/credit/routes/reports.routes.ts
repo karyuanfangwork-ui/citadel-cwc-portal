@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { creditExportLimiter } from '../../middleware/rateLimit.middleware';
 import { dashboardService } from '../services/dashboard.service';
 
 const router = Router();
@@ -7,7 +8,8 @@ const router = Router();
 router.use(authenticate);
 
 // Pipeline report — aggregated counts by state, SLA breach info, CSV export
-router.get('/pipeline', requirePermission('credit:read'), async (req, res) => {
+// §2.8 — Export endpoints are rate-limited to prevent bulk PII extraction
+router.get('/pipeline', creditExportLimiter, requirePermission('credit:read'), async (req, res) => {
   const format = (req.query.format as string) || 'json';
   const data = await dashboardService.getPipelineDashboard({
     dateFrom: req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined,
@@ -27,7 +29,8 @@ router.get('/pipeline', requirePermission('credit:read'), async (req, res) => {
 });
 
 // Exposure report — top borrowers, sector breakdown, rating distribution
-router.get('/exposure', requirePermission('credit:read'), async (req, res) => {
+// §2.8 — Export endpoints are rate-limited
+router.get('/exposure', creditExportLimiter, requirePermission('credit:read'), async (req, res) => {
   const format = (req.query.format as string) || 'json';
   const data = await dashboardService.getExposureDashboard({
     topN: req.query.topN ? Number(req.query.topN) : undefined,

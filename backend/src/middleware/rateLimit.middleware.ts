@@ -1,6 +1,7 @@
 import rateLimit from 'express-rate-limit';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { AuthRequest } from './auth.middleware';
 
 // General API rate limiter
 export const apiLimiter = rateLimit({
@@ -75,6 +76,108 @@ export const passwordResetLimiter = rateLimit({
             ip: _req.ip,
             path: _req.path,
             userAgent: _req.headers['user-agent'],
+        });
+        res.status(options.statusCode).json(options.message);
+    },
+});
+
+// §2.8 — Credit-specific per-endpoint rate limits
+
+/**
+ * Bureau check rate limiter — 5 requests per minute per user.
+ * Bureau API calls are expensive and rate-limited by the vendor.
+ */
+export const creditBureauLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: process.env.NODE_ENV === 'development' ? 100 : 5,
+    message: {
+        status: 'error',
+        statusCode: 429,
+        message: 'Bureau check rate limit exceeded. Please wait before making another check.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => (req as AuthRequest).user?.id || req.ip!,
+    handler: (_req, res, _next, options) => {
+        logger.warn('Credit bureau rate limit exceeded', {
+            userId: (_req as AuthRequest).user?.id,
+            ip: _req.ip,
+            path: _req.path,
+        });
+        res.status(options.statusCode).json(options.message);
+    },
+});
+
+/**
+ * Data export rate limiter — 5 requests per minute per user.
+ * CSV/PDF exports contain PII and are audit-logged; burst protection required.
+ */
+export const creditExportLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: process.env.NODE_ENV === 'development' ? 100 : 5,
+    message: {
+        status: 'error',
+        statusCode: 429,
+        message: 'Export rate limit exceeded. Please wait before exporting again.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => (req as AuthRequest).user?.id || req.ip!,
+    handler: (_req, res, _next, options) => {
+        logger.warn('Credit export rate limit exceeded', {
+            userId: (_req as AuthRequest).user?.id,
+            ip: _req.ip,
+            path: _req.path,
+        });
+        res.status(options.statusCode).json(options.message);
+    },
+});
+
+/**
+ * PII read rate limiter — 10 requests per minute per user.
+ * Prevents bulk PII scraping through repeated queries.
+ */
+export const creditPiiReadLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: process.env.NODE_ENV === 'development' ? 200 : 10,
+    message: {
+        status: 'error',
+        statusCode: 429,
+        message: 'PII access rate limit exceeded. Please slow down your requests.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => (req as AuthRequest).user?.id || req.ip!,
+    handler: (_req, res, _next, options) => {
+        logger.warn('Credit PII read rate limit exceeded', {
+            userId: (_req as AuthRequest).user?.id,
+            ip: _req.ip,
+            path: _req.path,
+        });
+        res.status(options.statusCode).json(options.message);
+    },
+});
+
+/**
+ * Score override rate limiter — 5 requests per minute per user.
+ * Score overrides are sensitive actions requiring dual approval; prevent brute-force.
+ */
+export const creditScoreOverrideLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: process.env.NODE_ENV === 'development' ? 100 : 5,
+    message: {
+        status: 'error',
+        statusCode: 429,
+        message: 'Score override rate limit exceeded. Please wait before submitting another override.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => (req as AuthRequest).user?.id || req.ip!,
+    handler: (_req, res, _next, options) => {
+        logger.warn('Credit score override rate limit exceeded', {
+            userId: (_req as AuthRequest).user?.id,
+            ip: _req.ip,
+            path: _req.path,
         });
         res.status(options.statusCode).json(options.message);
     },

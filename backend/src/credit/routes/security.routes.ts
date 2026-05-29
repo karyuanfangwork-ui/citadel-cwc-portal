@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
+import { creditPiiReadLimiter, creditExportLimiter } from '../../middleware/rateLimit.middleware';
 import { securityController } from '../controllers/security.controller';
 import { clamAvController } from '../controllers/clamav.controller';
 import {
@@ -31,9 +32,11 @@ router.post(
  * GET /credit/security/pii-logs
  * Get PII read-access logs with filters and pagination.
  * Requires: credit:admin
+ * Rate-limited: 10/min/user (creditPiiReadLimiter)
  */
 router.get(
   '/pii-logs',
+  creditPiiReadLimiter,
   requirePermission('credit:admin'),
   validate(piiLogsQuerySchema),
   securityController.getPiiLogs,
@@ -43,9 +46,11 @@ router.get(
  * POST /credit/security/export
  * Request a PII data export with permission check and reason capture.
  * Requires: credit:export
+ * Rate-limited: 5/min/user (creditExportLimiter)
  */
 router.post(
   '/export',
+  creditExportLimiter,
   requirePermission('credit:export'),
   validate(exportRequestSchema),
   securityController.requestExport,

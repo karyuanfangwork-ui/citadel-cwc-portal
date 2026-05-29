@@ -73,6 +73,15 @@ import accountUtilisationRoutes from './accountUtilisation.routes';
 // §1.6 — Score Override Approval
 import scoreOverrideRoutes from './scoreOverride.routes';
 
+// §2.6 — Delegation
+import delegationRoutes from './delegation.routes';
+
+// §2.2 — Credit SLA
+import creditSlaRoutes from './creditSla.routes';
+
+// §2.5 — DLP (exports + tokens)
+import dlpRoutes from './dlp.routes';
+
 const router = Router();
 
 // Feature flag admin routes (outside feature flag gate)
@@ -191,5 +200,14 @@ router.use('/applications', accountUtilisationRoutes);
 
 // §1.6 — Score Override Approval
 router.use('/score-overrides', scoreOverrideRoutes);
+
+// §2.6 — Delegation
+router.use('/delegation', delegationRoutes);
+
+// §2.2 — Credit SLA
+router.use('/sla', creditSlaRoutes);
+
+// §2.5 — DLP (export tokens + protected export endpoints)
+router.use('/', dlpRoutes);
 
 export default router;

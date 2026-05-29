@@ -2,6 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import { creditApplicationController } from '../controllers/creditApplication.controller';
 import { authenticate, requirePermission, AuthRequest } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
+import { applyRmScope } from '../middleware/rmScope.middleware';
 import {
   createCreditApplicationSchema,
   updateCreditApplicationSchema,
@@ -60,17 +61,20 @@ router.use(authenticate);
 router.get(
   '/',
   requirePermission('credit:read'),
+  applyRmScope(), // §2.4 — Row-level access: injects rmScopeFilter for non-admin users
   creditApplicationController.list,
 );
 
 /**
  * GET /applications/:id
  * Get a single credit application
+ * §2.4 — applyRmScope() attaches scope info for audit logging on non-admin reads
  * Requires: credit:read
  */
 router.get(
   '/:id',
   requirePermission('credit:read'),
+  applyRmScope(),
   creditApplicationController.getOne,
 );
 

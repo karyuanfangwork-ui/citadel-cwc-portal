@@ -96,6 +96,10 @@ export interface ListCreditApplicationsOptions {
   assignedRmId?: string;
   assignedAnalystId?: string;
   search?: string;
+  /** §2.4 — Row-level access: Prisma where clause injected by rmScope middleware.
+   *  When present, this OR filter is AND-combined with the other filters,
+   *  ensuring non-admin users only see their own applications. */
+  rmScopeFilter?: Prisma.CreditApplicationWhereInput;
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +362,7 @@ class CreditApplicationService {
       assignedRmId,
       assignedAnalystId,
       search,
+      rmScopeFilter,
     } = options;
 
     const skip = (page - 1) * limit;
@@ -386,6 +391,33 @@ class CreditApplicationService {
         { applicationNo: { contains: search, mode: 'insensitive' } },
         { purpose: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    // §2.4 — Row-level access: AND-combine the RM scope filter
+    // This ensures non-admin users can only see applications assigned to them,
+    // even if they try to filter by another RM's ID.
+    if (rmScopeFilter) {
+      // Merge scope filter as an AND condition with the existing where clause
+      // Prisma's AND allows combining filters; the rmScopeFilter is typically
+      // an OR like: [{ assignedRmId: userId }, { assignedAnalystId: userId }]
+      if (where.AND) {
+        // If AND already exists (array), append the scope filter
+        const existingAnd = Array.isArray(where.AND) ? where.AND : [where.AND];
+        (where.AND as Prisma.CreditApplicationWhereInput[]) = [
+          ...existingAnd,
+          rmScopeFilter,
+        ];
+      } else {
+        where.AND = [rmScopeFilter];
+      }
+
+      // If rmScopeFilter narrows to assignedRmId, also clear any explicit assignedRmId
+      // that would conflict (the scope filter takes precedence)
+      if (rmScopeFilter.OR) {
+        // The scope is an OR of assignedRmId/assignedAnalystId — allow the user's
+        // explicit filter to further narrow within their own scope
+        // No action needed: SQL AND will naturally combine both
+      }
     }
 
     const [applications, total] = await Promise.all([
@@ -485,7 +517,7 @@ class CreditApplicationService {
   /**
    * Update an existing credit application (only in DRAFT state).
    */
-  async updateApplication(id: string, data: UpdateCreditApplicationData, actorId?: string) {
+  async updateApplication(id: string, data: UpdateCreditApplicationData, actorId?: string, expectedVersion?: number) {
     const existing = await prisma.creditApplication.findFirst({
       where: { id, deletedAt: null },
     });
@@ -495,6 +527,17 @@ class CreditApplicationService {
     // Only allow updates in DRAFT state
     if (existing.state !== ApplicationState.DRAFT) {
       throw new Error('Application can only be edited in DRAFT state');
+    }
+
+    // §2.3 — Optimistic concurrency check
+    if (expectedVersion !== undefined && existing.version !== expectedVersion) {
+      const { versionConflictError } = await import('../../middleware/occ.middleware');
+      throw versionConflictError(existing.version, {
+        id: existing.id,
+        version: existing.version,
+        state: existing.state,
+        updatedAt: existing.updatedAt,
+      });
     }
 
     const updateData: Prisma.CreditApplicationUpdateInput = {};
@@ -511,6 +554,9 @@ class CreditApplicationService {
       (updateData as any).assignedAnalystId = data.assignedAnalystId;
     }
     applyCaMemoFields(updateData as Record<string, unknown>, data);
+
+    // §2.3 — Auto-increment version on every update
+    (updateData as any).version = { increment: 1 };
 
     const application = await prisma.creditApplication.update({
       where: { id },
@@ -628,6 +674,9 @@ class CreditApplicationService {
     if (action === 'withdraw') {
       updateData.withdrawalReason = reason ?? null;
     }
+
+    // §2.3 — Auto-increment version on every state transition
+    (updateData as any).version = { increment: 1 };
 
     const application = await prisma.creditApplication.update({
       where: { id },
