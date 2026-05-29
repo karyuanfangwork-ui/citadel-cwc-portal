@@ -5,24 +5,28 @@ import {
   BureauProvider,
   bureauCheckApi,
 } from '../../../src/services/credit.service';
+import { BUREAU_PROVIDER_OPTIONS, bureauProviderLabel } from '../../../src/constants/creditEnums';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
 
-const PROVIDERS: BureauProvider[] = ['CCRIS', 'CTOS', 'EXPERIAN', 'PEP_WATCHLIST', 'IF_ACTIVA', 'PUBLIC_DOMAIN'];
-const PROVIDER_LABELS: Record<BureauProvider, string> = {
-  CCRIS: 'CCRIS',
-  CTOS: 'CTOS',
-  EXPERIAN: 'Experian',
-  PEP_WATCHLIST: 'PEP / Watchlist',
-  IF_ACTIVA: 'IF Activa',
-  PUBLIC_DOMAIN: 'Public Domain',
-};
+/* Selectable providers for new manual entries — CCRIS excluded (historical only) */
+const PROVIDERS: BureauProvider[] = [
+  'CCRIS_BORROWER_UPLOAD',
+  'CTOS',
+  'EXPERIAN',
+  'CBM',
+  'SSM_EINFO',
+  'BANK_STATEMENT_ANALYSIS',
+  'PEP_WATCHLIST',
+  'IF_ACTIVA',
+  'PUBLIC_DOMAIN',
+];
 
 const AddCheckForm: React.FC<{ appId: string; onAdded: (c: CreditBureauCheck) => void }> = ({ appId, onAdded }) => {
-  const [form, setForm] = useState({ provider: 'CCRIS' as BureauProvider, subjectName: '', runDate: '', hasHits: '', findings: '' });
+  const [form, setForm] = useState({ provider: 'CCRIS_BORROWER_UPLOAD' as BureauProvider, subjectName: '', runDate: '', hasHits: '', findings: '' });
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
@@ -37,7 +41,7 @@ const AddCheckForm: React.FC<{ appId: string; onAdded: (c: CreditBureauCheck) =>
       });
       toast.success('Bureau check added');
       onAdded(saved);
-      setForm({ provider: 'CCRIS', subjectName: '', runDate: '', hasHits: '', findings: '' });
+      setForm({ provider: 'CCRIS_BORROWER_UPLOAD', subjectName: '', runDate: '', hasHits: '', findings: '' });
     } catch (e) {
       console.error(e);
       toast.error(friendlyMessage(e, 'Failed to add bureau check'));
@@ -51,7 +55,7 @@ const AddCheckForm: React.FC<{ appId: string; onAdded: (c: CreditBureauCheck) =>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Provider</label>
           <select className="border rounded px-2 py-1 text-sm w-full" value={form.provider} onChange={e => setForm(f => ({ ...f, provider: e.target.value as BureauProvider }))}>
-            {PROVIDERS.map(p => <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>)}
+            {PROVIDERS.map(p => <option key={p} value={p}>{bureauProviderLabel(p)}</option>)}
           </select>
         </div>
         <div>
@@ -74,6 +78,12 @@ const AddCheckForm: React.FC<{ appId: string; onAdded: (c: CreditBureauCheck) =>
           <label className="block text-xs text-gray-500 mb-1">Findings</label>
           <textarea className="border rounded px-2 py-1 text-sm w-full resize-none h-20" value={form.findings} onChange={e => setForm(f => ({ ...f, findings: e.target.value }))} placeholder="Summary of findings…" />
         </div>
+        {form.provider === 'CCRIS_BORROWER_UPLOAD' && (
+          <p className="text-xs text-amber-600 col-span-2">
+            Borrower must upload their eCCRIS PDF as a <code>CREDIT_BUREAU_REPORT</code> document
+            before this check can be relied upon. See the Documents tab.
+          </p>
+        )}
       </div>
       <button onClick={submit} disabled={saving} className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
         {saving ? 'Saving…' : 'Add Check'}
@@ -96,11 +106,16 @@ const CheckCard: React.FC<{ check: CreditBureauCheck; appId: string; readOnly: b
     }
   };
 
+  const isLegacy = check.provider === 'CCRIS';
+
   return (
     <div className={`border rounded-lg p-4 ${check.hasHits === true ? 'border-red-300 bg-red-50' : check.hasHits === false ? 'border-green-300 bg-green-50' : ''}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-sm font-semibold">{PROVIDER_LABELS[check.provider]}</span>
+          <span className="text-sm font-semibold">
+            {bureauProviderLabel(check.provider)}
+            {isLegacy && <span className="ml-1 text-[10px] text-amber-600 font-normal">(legacy)</span>}
+          </span>
           {check.hasHits === true && <span className="text-[10px] font-bold bg-red-600 text-white px-2 py-0.5 rounded-full">HITS FOUND</span>}
           {check.hasHits === false && <span className="text-[10px] font-bold bg-green-600 text-white px-2 py-0.5 rounded-full">CLEAR</span>}
           {check.hasHits == null && <span className="text-[10px] font-bold bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">PENDING</span>}

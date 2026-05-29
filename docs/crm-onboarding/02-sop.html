@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>SOP Documentation | CWC 2.0 CRM</title>
+<title>SOP Documentation | CWC CRM</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 <style>
@@ -83,7 +83,7 @@
 <div id="sidebar">
   <div class="brand">
     <h1>CRM Documentation</h1>
-    <p>CWC 2.0 — Citadel Group</p>
+    <p>CWC — Citadel Group</p>
   </div>
   <nav>
     <div class="nav-section-label">SOP Documentation</div>
@@ -96,6 +96,10 @@
     <a class="nav-link-item" data-section="s-sop6"><i class="fa fa-exclamation-circle"></i> SOP-006 Customer Complaint</a>
     <a class="nav-link-item" data-section="s-sop7"><i class="fa fa-database"></i> SOP-007 Data Quality</a>
     <a class="nav-link-item" data-section="s-sop8"><i class="fa fa-chart-pie"></i> SOP-008 Reporting</a>
+    <a class="nav-link-item" data-section="s-sop9"><i class="fa fa-sliders-h"></i> SOP-009 Custom Fields</a>
+    <a class="nav-link-item" data-section="s-sop10"><i class="fa fa-file-import"></i> SOP-010 Data Import</a>
+    <a class="nav-link-item" data-section="s-sop11"><i class="fa fa-copy"></i> SOP-011 Duplicate Merge</a>
+    <a class="nav-link-item" data-section="s-sop12"><i class="fa fa-envelope"></i> SOP-012 Email Integration</a>
   </nav>
   <div style="padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.1);margin-top:auto">
     <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:.5rem">Documentation Suite</div>
@@ -105,6 +109,9 @@
     <a href="04-business-rules.html" class="suite-nav-link">&#8227; Business Rules</a>
     <a href="05-role-guides.html" class="suite-nav-link">&#8227; Role-Based Guides</a>
     <a href="06-reporting-kpi.html" class="suite-nav-link">&#8227; Reporting &amp; KPI</a>
+    <a href="07-advanced-features.html" class="suite-nav-link">&#8227; Advanced Features</a>
+    <a href="08-data-governance.html" class="suite-nav-link">&#8227; Data Governance &amp; AI</a>
+    <a href="09-territory-mobile.html" class="suite-nav-link">&#8227; Territory, Quota &amp; Mobile</a>
   </div>
 </div>
 
@@ -116,8 +123,8 @@
     <span style="font-size:.875rem;font-weight:600;color:#1e293b">SOP Documentation</span>
   </div>
   <div style="display:flex;align-items:center;gap:.75rem">
-    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 2 of 6</span>
-    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC 2.0</span>
+    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 2 of 9</span>
+    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC</span>
   </div>
 </div>
 
@@ -132,7 +139,7 @@
         <h2>Standard Operating Procedures — Overview</h2>
       </div>
       <div class="alert-box alert-info" style="margin-bottom:1.5rem">
-        This document contains <strong>8 enterprise-grade SOPs</strong> governing core CRM operations. All staff must follow these SOPs. Deviation without documented exception constitutes an operational risk event.
+        This document contains <strong>12 enterprise-grade SOPs</strong> governing core CRM operations. All staff must follow these SOPs. Deviation without documented exception constitutes an operational risk event.
       </div>
       <table style="margin-bottom:1.5rem">
         <thead><tr><th>SOP ID</th><th>Title</th><th>Owner</th><th>Frequency</th><th>KPI Link</th><th>Risk Level</th></tr></thead>
@@ -145,12 +152,16 @@
           <tr><td><span class="sop-id-badge">SOP-CRM-006</span></td><td>Customer Complaint</td><td>Customer Service</td><td>Per event</td><td>Resolution Rate, Resolution Time</td><td><span class="risk-h">High</span></td></tr>
           <tr><td><span class="sop-id-badge">SOP-CRM-007</span></td><td>CRM Data Quality</td><td>CRM Admin</td><td>Weekly</td><td>Data Completeness %, Duplicate Rate</td><td><span class="risk-m">Medium</span></td></tr>
           <tr><td><span class="sop-id-badge">SOP-CRM-008</span></td><td>Reporting &amp; Dashboard</td><td>Sales Manager / Management</td><td>Weekly / Monthly</td><td>Reporting Accuracy, On-Time Rate</td><td><span class="risk-l">Low</span></td></tr>
+          <tr><td><span class="sop-id-badge">SOP-CRM-009</span></td><td>Custom Fields Management</td><td>CRM Admin</td><td>Per change</td><td>Data Completeness %</td><td><span class="risk-l">Low</span></td></tr>
+          <tr><td><span class="sop-id-badge">SOP-CRM-010</span></td><td>Data Import</td><td>CRM Admin / Manager</td><td>Per event</td><td>Data Completeness %, Duplicate Rate</td><td><span class="risk-m">Medium</span></td></tr>
+          <tr><td><span class="sop-id-badge">SOP-CRM-011</span></td><td>Duplicate Merge</td><td>Sales Manager / CRM Admin</td><td>Per event</td><td>Duplicate Rate</td><td><span class="risk-m">Medium</span></td></tr>
+          <tr><td><span class="sop-id-badge">SOP-CRM-012</span></td><td>Email Integration</td><td>Sales Rep / Manager / CRM Admin</td><td>Per setup</td><td>Activity Completion Rate</td><td><span class="risk-l">Low</span></td></tr>
         </tbody>
       </table>
       <div class="row g-3">
         <div class="col-md-4">
           <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:1rem;text-align:center">
-            <div style="font-size:2rem;font-weight:800;color:var(--brand-success)">8</div>
+            <div style="font-size:2rem;font-weight:800;color:var(--brand-success)">12</div>
             <div style="font-size:.8rem;color:#065f46;font-weight:600">Standard Operating Procedures</div>
           </div>
         </div>
@@ -905,9 +916,118 @@
       </div>
     </div>
 
+  <!-- ══════════════════════════════════
+       SOP-009: CUSTOM FIELDS MANAGEMENT
+  ══════════════════════════════════ -->
+  <div class="content-section" id="s-sop9" style="scroll-margin-top:80px">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-sliders-h fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2><span class="sop-id">SOP-009</span> Custom Fields Management</h2>
+      </div>
+      <div class="alert-box alert-info"><strong>Purpose:</strong> Define and maintain custom fields to extend the CRM data model for business-specific requirements without code changes.</div>
+      <div class="role-resp">
+        <span class="badge-role" style="background:#fef2f2;color:#991b1b;font-size:.72rem">CRM Admin — Create / Edit / Delete</span>
+        <span class="badge-role" style="background:#eff6ff;color:#1e40af;font-size:.72rem">All Users — View &amp; Fill</span>
+      </div>
+      <h6 style="font-weight:700;margin:1rem 0 .5rem">Step-by-Step Procedure</h6>
+      <div class="step-list">
+        <div class="step-item"><div class="step-num">1</div><div><strong>Navigate to Custom Fields</strong> — CRM Admin goes to <em>Settings &gt; Custom Fields</em></div></div>
+        <div class="step-item"><div class="step-num">2</div><div><strong>Click "Add Field"</strong> — Select entity type (Lead / Account / Contact / Opportunity / Activity)</div></div>
+        <div class="step-item"><div class="step-num">3</div><div><strong>Choose Field Type</strong> — Text, Number, Date, Boolean, Dropdown, or Multi-select</div></div>
+        <div class="step-item"><div class="step-num">4</div><div><strong>Configure Details</strong> — Enter label, set Required flag, add dropdown options (if applicable)</div></div>
+        <div class="step-item"><div class="step-num">5</div><div><strong>Save &amp; Publish</strong> — Field key auto-generated, label displayed on entity forms immediately</div></div>
+        <div class="step-item"><div class="step-num">6</div><div><strong>Verify</strong> — Open the target entity form and confirm the new field appears correctly</div></div>
+      </div>
+      <div class="alert-box alert-warn" style="margin-top:1rem"><strong>Compliance Note:</strong> Custom fields containing personal data (IC, address, etc.) must comply with PDPA — see <a href="04-business-rules.html" style="color:var(--brand-secondary);font-weight:600">BR-14 PDPA Rules</a>. Field keys are immutable after creation.</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       SOP-010: DATA IMPORT
+  ══════════════════════════════════ -->
+  <div class="content-section" id="s-sop10" style="scroll-margin-top:80px">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-file-import fa-lg" style="color:var(--brand-success)"></i>
+        <h2><span class="sop-id">SOP-010</span> Data Import</h2>
+      </div>
+      <div class="alert-box alert-info"><strong>Purpose:</strong> Bulk-import leads, contacts, or accounts from external CSV files while maintaining data quality and preventing duplicates.</div>
+      <div class="role-resp">
+        <span class="badge-role" style="background:#fef2f2;color:#991b1b;font-size:.72rem">CRM Admin / Manager — Execute Import</span>
+      </div>
+      <h6 style="font-weight:700;margin:1rem 0 .5rem">Step-by-Step Procedure</h6>
+      <div class="step-list">
+        <div class="step-item"><div class="step-num">1</div><div><strong>Download Template</strong> — Go to <em>CRM &gt; Import/Export</em>, select entity, download CSV template</div></div>
+        <div class="step-item"><div class="step-num">2</div><div><strong>Prepare Data</strong> — Populate CSV preserving header row. Max 10,000 rows per batch</div></div>
+        <div class="step-item"><div class="step-num">3</div><div><strong>Upload File</strong> — Drag or browse to upload CSV</div></div>
+        <div class="step-item"><div class="step-num">4</div><div><strong>Map Columns</strong> — System auto-detects; adjust mapping if needed</div></div>
+        <div class="step-item"><div class="step-num">5</div><div><strong>Validate</strong> — Click "Validate" for dry-run. Review errors in error report</div></div>
+        <div class="step-item"><div class="step-num">6</div><div><strong>Fix Errors</strong> — Correct data in CSV for failed rows, re-upload if needed</div></div>
+        <div class="step-item"><div class="step-num">7</div><div><strong>Execute Import</strong> — Click "Import". Error rows are skipped; valid rows processed</div></div>
+        <div class="step-item"><div class="step-num">8</div><div><strong>Review Results</strong> — Check Created / Updated / Skipped / Error counts. All imports are audit-logged</div></div>
+      </div>
+      <div class="alert-box alert-warn" style="margin-top:1rem"><strong>Compliance Note:</strong> Imported data must comply with PDPA consent requirements. See <a href="04-business-rules.html" style="color:var(--brand-secondary);font-weight:600">BR-13 Import Rules</a> and <a href="04-business-rules.html" style="color:var(--brand-secondary);font-weight:600">BR-14 PDPA Rules</a>.</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       SOP-011: DUPLICATE MERGE
+  ══════════════════════════════════ -->
+  <div class="content-section" id="s-sop11" style="scroll-margin-top:80px">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-copy fa-lg" style="color:var(--brand-accent)"></i>
+        <h2><span class="sop-id">SOP-011</span> Duplicate Merge</h2>
+      </div>
+      <div class="alert-box alert-info"><strong>Purpose:</strong> Review and resolve duplicate CRM records detected by the system's matching engine.</div>
+      <div class="role-resp">
+        <span class="badge-role" style="background:#eff6ff;color:#1e40af;font-size:.72rem">Sales Manager — Review &amp; Merge</span>
+        <span class="badge-role" style="background:#fef2f2;color:#991b1b;font-size:.72rem">CRM Admin — Override &amp; All Entity Types</span>
+      </div>
+      <h6 style="font-weight:700;margin:1rem 0 .5rem">Step-by-Step Procedure</h6>
+      <div class="step-list">
+        <div class="step-item"><div class="step-num">1</div><div><strong>Open Duplicates</strong> — Navigate to <em>CRM &gt; Duplicates</em> page</div></div>
+        <div class="step-item"><div class="step-num">2</div><div><strong>Review Matches</strong> — System lists potential duplicates with confidence scores (95-100% exact, 80-94% strong, 60-79% possible)</div></div>
+        <div class="step-item"><div class="step-num">3</div><div><strong>Select Primary Record</strong> — Choose which record to keep as the master</div></div>
+        <div class="step-item"><div class="step-num">4</div><div><strong>Resolve Field Conflicts</strong> — For conflicting fields, choose which value to retain</div></div>
+        <div class="step-item"><div class="step-num">5</div><div><strong>Execute Merge</strong> — Click "Merge". Secondary record is soft-deleted; audit trail preserved</div></div>
+        <div class="step-item"><div class="step-num">6</div><div><strong>Or Dismiss</strong> — If not a duplicate, click "Dismiss" and provide reason. Dismissal is logged</div></div>
+      </div>
+      <div class="alert-box alert-warn" style="margin-top:1rem"><strong>Cross-reference:</strong> See <a href="08-data-governance.html" style="color:var(--brand-secondary);font-weight:600">Data Governance &amp; AI Guide</a> for confidence score thresholds and <a href="03-workflows.html" style="color:var(--brand-secondary);font-weight:600">WF-06 Duplicate Detection Workflow</a>.</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       SOP-012: EMAIL INTEGRATION
+  ══════════════════════════════════ -->
+  <div class="content-section" id="s-sop12" style="scroll-margin-top:80px">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-envelope fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2><span class="sop-id">SOP-012</span> Email Integration</h2>
+      </div>
+      <div class="alert-box alert-info"><strong>Purpose:</strong> Connect Google or Outlook email to CRM for automatic activity logging of customer communications.</div>
+      <div class="role-resp">
+        <span class="badge-role" style="background:#eff6ff;color:#1e40af;font-size:.72rem">Sales Rep / Manager — Connect own email, configure preferences</span>
+        <span class="badge-role" style="background:#fef2f2;color:#991b1b;font-size:.72rem">CRM Admin — Manage org-wide integration settings</span>
+      </div>
+      <h6 style="font-weight:700;margin:1rem 0 .5rem">Step-by-Step Procedure</h6>
+      <div class="step-list">
+        <div class="step-item"><div class="step-num">1</div><div><strong>Open Integrations</strong> — Navigate to <em>CRM &gt; Integrations</em></div></div>
+        <div class="step-item"><div class="step-num">2</div><div><strong>Choose Provider</strong> — Click "Connect Google" or "Connect Outlook"</div></div>
+        <div class="step-item"><div class="step-num">3</div><div><strong>OAuth Consent</strong> — Grant CRM read access to email and calendar on the consent screen</div></div>
+        <div class="step-item"><div class="step-num">4</div><div><strong>Configure Sync</strong> — Set sync direction (incoming/outgoing/both), folder filters, frequency (default 15 min)</div></div>
+        <div class="step-item"><div class="step-num">5</div><div><strong>Enable Calendar (Optional)</strong> — Toggle calendar sync to auto-log meeting activities</div></div>
+        <div class="step-item"><div class="step-num">6</div><div><strong>Verify</strong> — Send a test email to a CRM contact; confirm it appears in the Email Thread Viewer within one sync cycle</div></div>
+      </div>
+      <div class="alert-box alert-warn" style="margin-top:1rem"><strong>Privacy:</strong> Only emails from/to CRM-linked contacts are synced. Personal emails are never captured. See <a href="07-advanced-features.html" style="color:var(--brand-secondary);font-weight:600">Advanced Features Guide</a> for full setup details.</div>
+    </div>
+  </div>
+
     <!-- Footer -->
     <div style="text-align:center;padding:2rem 0 3rem;color:#94a3b8;font-size:.8rem">
-      <p style="margin:0">SOP Documentation &middot; Part 2 of 6 &middot; CWC 2.0 &mdash; Citadel Group Technologies Sdn Bhd</p>
+      <p style="margin:0">SOP Documentation &middot; Part 2 of 9 &middot; CWC &mdash; Citadel Group Technologies Sdn Bhd</p>
       <p style="margin:.25rem 0 0">All SOPs are effective immediately. Deviations require documented exception approved by the relevant SOP owner.</p>
       <div style="margin-top:1rem;display:flex;justify-content:center;gap:2rem;flex-wrap:wrap">
         <a href="01-quick-start.html" style="color:#94a3b8;text-decoration:none"><i class="fa fa-arrow-left"></i>&nbsp; Quick Start Guide</a>
@@ -921,7 +1041,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
   // Sidebar scroll-spy
-  const sections = ['s-overview','s-sop1','s-sop2','s-sop3','s-sop4','s-sop5','s-sop6','s-sop7','s-sop8'];
+  const sections = ['s-overview','s-sop1','s-sop2','s-sop3','s-sop4','s-sop5','s-sop6','s-sop7','s-sop8','s-sop9','s-sop10','s-sop11','s-sop12'];
   const navItems = {};
   sections.forEach(id => {
     navItems[id] = document.querySelector(`.nav-link-item[data-section="${id}"]`);

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Territory, Quota & Mobile Guide | CWC CRM</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<style>
+  :root {
+    --brand-primary: #1e3a5f;
+    --brand-secondary: #2563eb;
+    --brand-accent: #0ea5e9;
+    --brand-success: #059669;
+    --brand-warning: #d97706;
+    --brand-danger: #dc2626;
+    --sidebar-w: 280px;
+    --header-h: 64px;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f8fafc; color: #1e293b; margin: 0; }
+  #sidebar {
+    position: fixed; top: 0; left: 0; width: var(--sidebar-w);
+    height: 100vh; background: var(--brand-primary); overflow-y: auto;
+    z-index: 1000; display: flex; flex-direction: column;
+  }
+  #sidebar .brand { padding: 1.25rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,.1); background: rgba(0,0,0,.2); }
+  #sidebar .brand h1 { font-size: .85rem; font-weight: 700; color: #93c5fd; letter-spacing: .08em; text-transform: uppercase; margin: 0; }
+  #sidebar .brand p { font-size: .7rem; color: rgba(255,255,255,.5); margin: .15rem 0 0; }
+  #sidebar nav { flex: 1; padding: .75rem 0; }
+  .nav-section-label { font-size: .65rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.35); padding: .75rem 1.5rem .25rem; }
+  .nav-link-item { display: flex; align-items: center; gap: .65rem; padding: .5rem 1.5rem; color: rgba(255,255,255,.7); text-decoration: none; font-size: .8rem; font-weight: 500; transition: all .15s; border-left: 3px solid transparent; cursor: pointer; }
+  .nav-link-item:hover { background: rgba(255,255,255,.08); color: #fff; border-left-color: var(--brand-accent); }
+  .nav-link-item.active { background: rgba(14,165,233,.15); color: #7dd3fc; border-left-color: #7dd3fc; }
+  .nav-link-item i { width: 16px; text-align: center; opacity: .7; font-size: .78rem; }
+  #topbar {
+    position: fixed; top: 0; left: var(--sidebar-w); right: 0;
+    height: var(--header-h); background: #fff; border-bottom: 1px solid #e2e8f0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; z-index: 900;
+  }
+  #main { margin-left: var(--sidebar-w); padding-top: var(--header-h); min-height: 100vh; }
+  .content-section { padding: 2.5rem 2.5rem 1rem; max-width: 1100px; }
+  .section-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 2rem; margin-bottom: 1.5rem; }
+  .section-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 2px solid #f1f5f9; }
+  .section-header h2 { font-size: 1.2rem; font-weight: 700; color: var(--brand-primary); margin: 0; }
+  .badge-role { display: inline-flex; align-items: center; gap: .3rem; padding: .18rem .6rem; border-radius: 99px; font-size: .71rem; font-weight: 600; }
+  .alert-box { padding: .9rem 1.15rem; border-radius: 8px; margin: .75rem 0; font-size: .875rem; line-height: 1.55; }
+  .alert-info   { background: #eff6ff; border-left: 4px solid var(--brand-secondary); }
+  .alert-warn   { background: #fffbeb; border-left: 4px solid var(--brand-warning); }
+  .alert-danger { background: #fef2f2; border-left: 4px solid var(--brand-danger); }
+  .alert-success{ background: #f0fdf4; border-left: 4px solid var(--brand-success); }
+  table { width: 100%; border-collapse: collapse; font-size: .855rem; }
+  th { background: var(--brand-primary); color: #fff; padding: .6rem 1rem; text-align: left; font-weight: 600; font-size: .78rem; }
+  td { padding: .55rem 1rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tr:hover td { background: #f8fafc; }
+  .rule-id { display: inline-flex; align-items: center; padding: .12rem .55rem; border-radius: 4px; font-size: .7rem; font-weight: 700; background: var(--brand-primary); color: #93c5fd; letter-spacing: .05em; margin-right: .4rem; }
+  .example-good { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: .5rem .85rem; font-size: .83rem; display: flex; align-items: flex-start; gap: .5rem; margin: .35rem 0; }
+  .example-bad  { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: .5rem .85rem; font-size: .83rem; display: flex; align-items: flex-start; gap: .5rem; margin: .35rem 0; }
+  .rule-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.1rem; margin-bottom: .85rem; }
+  .rule-card h6 { font-weight: 700; color: var(--brand-primary); margin-bottom: .5rem; font-size: .875rem; }
+  .suite-nav-link { display: block; color: rgba(255,255,255,.5); font-size: .75rem; padding: .25rem 0; text-decoration: none; transition: color .15s; }
+  .suite-nav-link:hover { color: #fff; }
+  .suite-nav-link.current { color: #7dd3fc; font-weight: 600; }
+  .enforcement-pill { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .65rem; border-radius: 6px; font-size: .75rem; font-weight: 600; margin: .2rem; }
+  .enforce-system { background: #dbeafe; color: #1e40af; }
+  .enforce-policy { background: #fef9c3; color: #713f12; }
+  .enforce-admin  { background: #fdf4ff; color: #581c87; }
+  .section-divider { height: 2px; background: linear-gradient(90deg, var(--brand-secondary), transparent); border: none; margin: 2rem 0 1.5rem; border-radius: 2px; }
+  .kpi-mini { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .65rem; border-radius: 6px; font-size: .8rem; font-weight: 700; }
+  .kpi-green { background: #f0fdf4; color: #059669; border: 1px solid #bbf7d0; }
+  .kpi-amber { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+  .kpi-red   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  ol.steps { counter-reset: step; padding-left: 0; list-style: none; }
+  ol.steps > li { counter-increment: step; position: relative; padding-left: 2.5rem; margin-bottom: .65rem; font-size: .855rem; line-height: 1.55; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 1.75rem; height: 1.75rem; background: var(--brand-secondary); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: .75rem; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- ═══ SIDEBAR ═══ -->
+<div id="sidebar">
+  <div class="brand">
+    <h1>CRM Documentation</h1>
+    <p>CWC — Citadel Group</p>
+  </div>
+  <nav>
+    <div class="nav-section-label">Territory, Quota &amp; Mobile</div>
+    <a class="nav-link-item active" data-section="s-overview"><i class="fa fa-map-marked-alt"></i> Overview</a>
+    <a class="nav-link-item" data-section="s-territory"><i class="fa fa-map"></i> Territory Management</a>
+    <a class="nav-link-item" data-section="s-quota"><i class="fa fa-bullseye"></i> Quota Management</a>
+    <a class="nav-link-item" data-section="s-mobile"><i class="fa fa-mobile-alt"></i> Mobile Interface</a>
+    <a class="nav-link-item" data-section="s-personal"><i class="fa fa-user-cog"></i> Personal Tools</a>
+  </nav>
+  <div style="padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.1);margin-top:auto">
+    <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:.5rem">Documentation Suite</div>
+    <a href="01-quick-start.html" class="suite-nav-link">&#8227; Quick Start Guide</a>
+    <a href="02-sop.html" class="suite-nav-link">&#8227; SOP Documentation</a>
+    <a href="03-workflows.html" class="suite-nav-link">&#8227; Workflow Documentation</a>
+    <a href="04-business-rules.html" class="suite-nav-link">&#8227; Business Rules</a>
+    <a href="05-role-guides.html" class="suite-nav-link">&#8227; Role-Based Guides</a>
+    <a href="06-reporting-kpi.html" class="suite-nav-link">&#8227; Reporting &amp; KPI</a>
+    <a href="07-advanced-features.html" class="suite-nav-link">&#8227; Advanced Features</a>
+    <a href="08-data-governance.html" class="suite-nav-link">&#8227; Data Governance &amp; AI</a>
+    <a href="09-territory-mobile.html" class="suite-nav-link current">&#8227; Territory, Quota &amp; Mobile</a>
+  </div>
+</div>
+
+<!-- ═══ TOPBAR ═══ -->
+<div id="topbar">
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <span style="font-size:.8rem;color:#94a3b8">CRM Documentation Suite</span>
+    <span style="color:#cbd5e1">›</span>
+    <span style="font-size:.875rem;font-weight:600;color:#1e293b">Territory, Quota &amp; Mobile Guide</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 9 of 9</span>
+    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC</span>
+  </div>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div id="main">
+
+  <!-- ══════════ OVERVIEW ══════════ -->
+  <div class="content-section" id="s-overview">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-map-marked-alt fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Territory, Quota &amp; Mobile Guide — Overview</h2>
+      </div>
+      <div class="alert-box alert-info" style="margin-bottom:1.5rem">
+        This guide covers <strong>territory-based CRM management, sales quota tracking, mobile interface, and personal productivity tools</strong>. These features support organisational scale and field operations.
+      </div>
+
+      <table style="margin-bottom:1.5rem">
+        <thead><tr><th>Feature</th><th>Purpose</th><th>Primary User</th><th>Module Location</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Territory Management</strong></td><td>Geographic/industry segmentation for lead routing and pipeline accountability</td><td>Sales Manager / Admin</td><td>/crm/territories</td></tr>
+          <tr><td><strong>Quota Management</strong></td><td>Sales revenue targets per rep and territory, tracked against closed-won revenue</td><td>Sales Manager / Admin</td><td>/crm/quotas</td></tr>
+          <tr><td><strong>Mobile Interface</strong></td><td>Fully responsive mobile CRM for field reps away from their desk</td><td>Sales Rep (Field)</td><td>Responsive layout (auto)</td></tr>
+          <tr><td><strong>Personal Tools</strong></td><td>Self-service KPI dashboard, activity reminders, and activity management</td><td>All CRM Users</td><td>/my-stats, /activities</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <hr class="section-divider"/>
+
+  <!-- ══════════ TERRITORY MANAGEMENT ══════════ -->
+  <div class="content-section" id="s-territory">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-map fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Territory Management</h2>
+      </div>
+
+      <div class="alert-box alert-info" style="margin-bottom:1.25rem">
+        Territories define <strong>geographic or industry segments</strong> for lead routing and pipeline accountability. Each territory has assigned members, routing rules, and an optional hierarchy for rollup reporting.
+      </div>
+
+      <!-- Mermaid Flowchart -->
+      <h6 style="font-weight:700;margin-bottom:1rem">Territory Lead Routing Flow</h6>
+      <div class="mermaid" style="margin-bottom:1.5rem">
+flowchart TD
+    A[New Lead Created] --> B[Territory Routing Rules]
+    B --> B1[Industry + Location]
+    B1 --> C[Matched Territory]
+    C --> D[Auto-assign to Territory Member]
+    D --> D1[Round-robin or Capacity-weighted]
+    D1 --> E[Rep Notified]
+      </div>
+
+      <!-- Territory Structure -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Territory Structure</h6>
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-sitemap" style="color:var(--brand-secondary)"></i> Territory Entity Fields</h6>
+        <p style="font-size:.855rem;margin:0">Each territory record contains the following key fields:</p>
+        <ul style="font-size:.855rem;margin:.5rem 0 0">
+          <li><strong>Name</strong> — descriptive label (e.g., "Sabah Geographic")</li>
+          <li><strong>Type</strong> — Geographic / Industry / Hybrid</li>
+          <li><strong>Parent Territory</strong> — optional nesting for hierarchy rollup</li>
+          <li><strong>Members</strong> — users assigned to this territory</li>
+          <li><strong>Routing Rules</strong> — conditions that match incoming leads to this territory</li>
+        </ul>
+      </div>
+
+      <!-- Territory CRUD -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Territory CRUD Workflow</h6>
+      <ol class="steps" style="margin-bottom:1.5rem">
+        <li><strong>Admin creates territory</strong> — defines name, type, and optional parent</li>
+        <li><strong>Assigns members</strong> — adds users with Owner, Member, or Read-Only roles</li>
+        <li><strong>Configures routing rules</strong> — sets conditions based on industry, location, lead source, or deal value</li>
+        <li><strong>Territory appears in CRM nav</strong> — for all assigned members, the territory is visible and actionable</li>
+      </ol>
+
+      <!-- Territory Member Roles -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Territory Member Roles</h6>
+      <table style="margin-bottom:1.5rem">
+        <thead><tr><th>Role</th><th>Access</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-crown"></i> Owner</span></td><td>Full read/write on territory records, manage members</td><td>Can add/remove territory members, modify routing rules, and owns pipeline accountability for the territory</td></tr>
+          <tr><td><span class="badge-role" style="background:#dcfce7;color:#059669"><i class="fa fa-user"></i> Member</span></td><td>Read/write on assigned records</td><td>Can create, edit, and progress leads/opportunities assigned within the territory</td></tr>
+          <tr><td><span class="badge-role" style="background:#f1f5f9;color:#64748b"><i class="fa fa-eye"></i> Read-Only</span></td><td>View only</td><td>Can view territory records and pipeline but cannot create or edit; typically used for cross-territory visibility or executive oversight</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Routing Rules -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Routing Rules</h6>
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-route" style="color:var(--brand-accent)"></i> Routing Rule Conditions</h6>
+        <p style="font-size:.855rem;margin:0">Routing rules determine which territory a new lead is assigned to. Conditions are evaluated based on:</p>
+        <ul style="font-size:.855rem;margin:.5rem 0 0">
+          <li><strong>Account Industry</strong> — e.g., Timber, Finance, Construction</li>
+          <li><strong>Account State/Region</strong> — e.g., Sabah, Sarawak, Selangor</li>
+          <li><strong>Lead Source</strong> — e.g., Referral, Website, Event</li>
+          <li><strong>Deal Value Threshold</strong> — e.g., &gt;MYR 500,000 routes to Enterprise territory</li>
+        </ul>
+      </div>
+
+      <!-- Territory Hierarchy -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Territory Hierarchy</h6>
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-project-diagram" style="color:var(--brand-primary)"></i> Nesting Support</h6>
+        <p style="font-size:.855rem;margin:0">Territories support optional parent-child nesting for hierarchical rollup reporting. Example hierarchy:</p>
+        <div style="margin:.5rem 0 0;font-size:.855rem;color:var(--brand-primary);font-weight:600">
+          Malaysia<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;└─ Klang Valley<br/>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;└─ KL City
+        </div>
+      </div>
+
+      <!-- Good/Bad Examples -->
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="example-good"><i class="fa fa-check-circle" style="color:var(--brand-success);margin-top:2px"></i><div><strong>Good:</strong> Lead from Sabah with timber industry → matches Sabah Geographic + Timber Industry territories → assigned to Sabah rep specializing in timber.</div></div>
+        </div>
+        <div class="col-md-6">
+          <div class="example-bad"><i class="fa fa-times-circle" style="color:var(--brand-danger);margin-top:2px"></i><div><strong>Bad:</strong> All leads assigned to one senior rep regardless of location → Rep overwhelmed, other territories under-served.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider"/>
+
+  <!-- ══════════ QUOTA MANAGEMENT ══════════ -->
+  <div class="content-section" id="s-quota">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-bullseye fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Quota Management</h2>
+      </div>
+
+      <div class="alert-box alert-info" style="margin-bottom:1.25rem">
+        Quotas define <strong>sales revenue targets per rep and territory</strong>, tracked against actual closed-won revenue. Quotas are set quarterly by Management and entered by CRM Admin.
+      </div>
+
+      <!-- Quota Dashboard -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Quota Dashboard</h6>
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-tachometer-alt" style="color:var(--brand-secondary)"></i> /crm/quotas</h6>
+        <p style="font-size:.855rem;margin:0">The Quota Dashboard at <strong>/crm/quotas</strong> displays:</p>
+        <ul style="font-size:.855rem;margin:.5rem 0 0">
+          <li>Current quarter targets per rep and territory</li>
+          <li>Attainment percentage with colour-coded indicators</li>
+          <li>Trend charts showing quota progress over the quarter</li>
+        </ul>
+      </div>
+
+      <!-- Quota CRUD Table -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Quota CRUD Fields</h6>
+      <table style="margin-bottom:1.5rem">
+        <thead><tr><th>Field</th><th>Description</th><th>Example</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Period</strong></td><td>Quarterly target period</td><td>Q1 2026, Q2 2026, Q3 2026, Q4 2026</td></tr>
+          <tr><td><strong>Target Amount</strong></td><td>Revenue target in MYR</td><td>MYR 2,500,000</td></tr>
+          <tr><td><strong>Assigned To</strong></td><td>User or territory receiving the quota</td><td>Ahmad Razali / Klang Valley Territory</td></tr>
+          <tr><td><strong>Quota Type</strong></td><td>What is being measured</td><td>Revenue / Deal Count / New Accounts</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Quota Attainment -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Quota Attainment Calculation</h6>
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-calculator" style="color:var(--brand-accent)"></i> Formula</h6>
+        <p style="font-size:.855rem;margin:0">
+          <strong>Attainment %</strong> = (Closed Won Value in Period &divide; Quota Target Amount) &times; 100
+        </p>
+        <p style="font-size:.855rem;margin:.5rem 0 0;color:#64748b">
+          Example: Closed Won = MYR 2,250,000 / Target = MYR 2,500,000 → Attainment = 90%
+        </p>
+      </div>
+
+      <!-- Attainment Tracking -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Attainment Tracking</h6>
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-sync-alt" style="color:var(--brand-success)"></i> Real-Time Updates</h6>
+        <p style="font-size:.855rem;margin:0">Attainment is calculated in real-time from <strong>Closed Won</strong> opportunities. The percentage auto-updates every time a deal is closed — no manual refresh or recalculation required.</p>
+      </div>
+
+      <!-- Manager View -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Manager View</h6>
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-users-cog" style="color:var(--brand-warning)"></i> Team-Level Insights</h6>
+        <p style="font-size:.855rem;margin:0">Managers have access to:</p>
+        <ul style="font-size:.855rem;margin:.5rem 0 0">
+          <li><strong>Team-level quota rollup</strong> — aggregate attainment across all team members</li>
+          <li><strong>Individual rep attainment</strong> — side-by-side comparison of each rep's progress</li>
+          <li><strong>Territory-level aggregation</strong> — combined attainment for all reps in a territory</li>
+        </ul>
+      </div>
+
+      <!-- KPI Card Examples -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Attainment Colour Coding</h6>
+      <div class="row g-3" style="margin-bottom:1.5rem">
+        <div class="col-md-4">
+          <div class="kpi-mini kpi-green" style="font-size:.9rem;padding:.5rem 1rem"><i class="fa fa-check-circle"></i> &ge;90% — On Track</div>
+        </div>
+        <div class="col-md-4">
+          <div class="kpi-mini kpi-amber" style="font-size:.9rem;padding:.5rem 1rem"><i class="fa fa-exclamation-circle"></i> 70–89% — At Risk</div>
+        </div>
+        <div class="col-md-4">
+          <div class="kpi-mini kpi-red" style="font-size:.9rem;padding:.5rem 1rem"><i class="fa fa-times-circle"></i> &lt;70% — Behind</div>
+        </div>
+      </div>
+
+      <div class="alert-box alert-warn">
+        <strong>Important:</strong> Quota targets are set by <strong>Management quarterly</strong>. CRM Admin enters the targets. <strong>Reps cannot modify their own quotas.</strong>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider"/>
+
+  <!-- ══════════ MOBILE INTERFACE ══════════ -->
+  <div class="content-section" id="s-mobile">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-mobile-alt fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Mobile Interface</h2>
+      </div>
+
+      <div class="alert-box alert-info" style="margin-bottom:1.25rem">
+        The CRM provides a <strong>fully responsive mobile interface</strong> for field reps who need access away from their desk. The interface automatically adapts to the device screen size, providing an optimised experience at every breakpoint.
+      </div>
+
+      <!-- Mobile Components -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Mobile Components</h6>
+      <div class="row g-3" style="margin-bottom:1.5rem">
+        <div class="col-md-4">
+          <div class="rule-card" style="border-left:3px solid var(--brand-secondary)">
+            <h6><i class="fa fa-bars" style="color:var(--brand-secondary)"></i> CrmMobileNav</h6>
+            <p style="font-size:.855rem;margin:0">Bottom navigation bar with core module icons. Replaces the sidebar on mobile devices for thumb-friendly access.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="rule-card" style="border-left:3px solid var(--brand-accent)">
+            <h6><i class="fa fa-columns" style="color:var(--brand-accent)"></i> CrmMobilePipeline</h6>
+            <p style="font-size:.855rem;margin:0">Swipeable kanban cards for opportunity stage management. Swipe left/right to advance or regress pipeline stages.</p>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="rule-card" style="border-left:3px solid var(--brand-success)">
+            <h6><i class="fa fa-list" style="color:var(--brand-success)"></i> CrmMobileList</h6>
+            <p style="font-size:.855rem;margin:0">Touch-optimised list views with pull-to-refresh. Tappable rows with large hit areas for easy navigation.</p>
+          </div>
+        </div>
+      </div>
+      <div class="row g-3" style="margin-bottom:1.5rem">
+        <div class="col-md-6">
+          <div class="rule-card" style="border-left:3px solid var(--brand-warning)">
+            <h6><i class="fa fa-edit" style="color:var(--brand-warning)"></i> CrmMobileForm</h6>
+            <p style="font-size:.855rem;margin:0">Large tap targets and simplified layout for data entry on mobile. Fields are stacked vertically with ample spacing for fat-finger-friendly input.</p>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="rule-card" style="border-left:3px solid var(--brand-primary)">
+            <h6><i class="fa fa-desktop" style="color:var(--brand-primary)"></i> CrmResponsiveLayout</h6>
+            <p style="font-size:.855rem;margin:0">Auto-switches layout between desktop, tablet, and mobile at defined breakpoints. Ensures optimal UI for every device size.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Breakpoints Table -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Responsive Breakpoints</h6>
+      <table style="margin-bottom:1.5rem">
+        <thead><tr><th>Breakpoint</th><th>Layout</th><th>Nav Style</th><th>Available Features</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Desktop</strong> (&ge;1024px)</td><td>Full sidebar + topbar</td><td>Left sidebar navigation</td><td>All features</td></tr>
+          <tr><td><strong>Tablet</strong> (768–1023px)</td><td>Collapsed sidebar + overlay</td><td>Hamburger menu + slide-out sidebar</td><td>All features</td></tr>
+          <tr><td><strong>Mobile</strong> (&lt;768px)</td><td>Bottom nav bar</td><td>Bottom icon navigation</td><td>Core features (Dashboard, Leads, Pipeline, Activities, Contacts)</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Mobile Bottom Nav -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Mobile Bottom Nav Items</h6>
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-th" style="color:var(--brand-accent)"></i> Bottom Navigation Tabs</h6>
+        <p style="font-size:.855rem;margin:0">The mobile bottom navigation provides quick access to:</p>
+        <ul style="font-size:.855rem;margin:.5rem 0 0">
+          <li><strong>Dashboard</strong> — personal KPIs and team overview</li>
+          <li><strong>Leads</strong> — lead list, creation, and management</li>
+          <li><strong>Pipeline</strong> — swipeable opportunity kanban</li>
+          <li><strong>Activities</strong> — today's tasks and upcoming activities</li>
+          <li><strong>More</strong> — Accounts, Contacts, Reports (overflow menu)</li>
+        </ul>
+      </div>
+
+      <!-- Mobile Best Practices -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Mobile Best Practices</h6>
+      <ol class="steps" style="margin-bottom:1.5rem">
+        <li><strong>Log activities immediately</strong> after customer meetings using the mobile form — don't wait until you return to the office</li>
+        <li><strong>Use pipeline kanban swipe</strong> to quickly update opportunity stages on the go — much faster than desktop for simple stage changes</li>
+        <li><strong>Pull-to-refresh</strong> on list views to get the latest data — ensures you're always working with current information</li>
+        <li><strong>Use "Call" button</strong> on Contact detail to dial directly from CRM — tap the phone icon to initiate a call without switching apps</li>
+        <li><strong>Avoid bulk operations on mobile</strong> — use desktop for import/export and mass updates; mobile is optimised for single-record actions</li>
+      </ol>
+
+      <!-- Good/Bad Examples -->
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="example-good"><i class="fa fa-check-circle" style="color:var(--brand-success);margin-top:2px"></i><div><strong>Good:</strong> Field rep visits client, uses mobile CRM to log meeting activity and update opportunity stage on the spot.</div></div>
+        </div>
+        <div class="col-md-6">
+          <div class="example-bad"><i class="fa fa-times-circle" style="color:var(--brand-danger);margin-top:2px"></i><div><strong>Bad:</strong> Field rep waits until end of day to log 5 customer meetings from memory → data quality suffers and SLA clock already expired.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider"/>
+
+  <!-- ══════════ PERSONAL TOOLS ══════════ -->
+  <div class="content-section" id="s-personal">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-user-cog fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2>Personal Tools</h2>
+      </div>
+
+      <!-- ── My Stats ── -->
+      <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-chart-bar" style="color:var(--brand-secondary)"></i> My Stats</h6>
+
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-tachometer-alt" style="color:var(--brand-accent)"></i> GET /my-stats</h6>
+        <p style="font-size:.855rem;margin:0">Self-service dashboard showing <strong>personal KPIs</strong> — no manager intervention needed. Every CRM user can view their own performance metrics at any time.</p>
+      </div>
+
+      <table style="margin-bottom:1.25rem">
+        <thead><tr><th>KPI Metric</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Lead Response Time</strong></td><td>Average time from lead creation to first activity logged</td></tr>
+          <tr><td><strong>Win Rate</strong></td><td>Percentage of opportunities that reach Closed Won</td></tr>
+          <tr><td><strong>Pipeline Value</strong></td><td>Total value of active opportunities in current pipeline</td></tr>
+          <tr><td><strong>Activity Completion</strong></td><td>Percentage of activities completed on time</td></tr>
+          <tr><td><strong>SLA Compliance</strong></td><td>Percentage of SLA-critical activities resolved within SLA window</td></tr>
+        </tbody>
+      </table>
+
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1.5rem">
+        <span class="enforcement-pill enforce-system"><i class="fa fa-clock"></i> Refreshed hourly (same cache as main dashboard)</span>
+        <span class="enforcement-pill enforce-policy"><i class="fa fa-eye"></i> Available to all CRM users</span>
+      </div>
+
+      <hr class="section-divider"/>
+
+      <!-- ── Activity Reminders ── -->
+      <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-bell" style="color:var(--brand-warning)"></i> Activity Reminders</h6>
+
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-paper-plane" style="color:var(--brand-secondary)"></i> POST /activities/:id/remind</h6>
+        <p style="font-size:.855rem;margin:0">Sends an email reminder to the assigned user for a specific activity.</p>
+      </div>
+
+      <h6 style="font-weight:700;margin-bottom:.75rem">Reminder Types</h6>
+      <table style="margin-bottom:1.5rem">
+        <thead><tr><th>Type</th><th>Trigger</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Auto-Reminder</strong></td><td>System-generated</td><td>System automatically sends a reminder <strong>1 hour before</strong> the scheduled activity due time</td></tr>
+          <tr><td><strong>Manual Reminder</strong></td><td>User or Manager action</td><td>User or manager can trigger the <strong>"Remind"</strong> action on any activity at any time</td></tr>
+        </tbody>
+      </table>
+
+      <div class="rule-card" style="margin-bottom:1.5rem">
+        <h6><i class="fa fa-database" style="color:var(--brand-primary)"></i> Tracking Field</h6>
+        <p style="font-size:.855rem;margin:0">The <code>reminderSent</code> boolean field on the Activity model tracks whether a reminder has been dispatched. Once set to <code>true</code>, auto-reminders will not re-fire for the same activity.</p>
+      </div>
+
+      <hr class="section-divider"/>
+
+      <!-- ── Activity Edit & Delete ── -->
+      <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-edit" style="color:var(--brand-danger)"></i> Activity Edit &amp; Delete</h6>
+
+      <div class="row g-3" style="margin-bottom:1.5rem">
+        <div class="col-md-6">
+          <div class="rule-card" style="border-left:3px solid var(--brand-secondary)">
+            <h6><i class="fa fa-pen" style="color:var(--brand-secondary)"></i> PATCH /activities/:id</h6>
+            <p style="font-size:.855rem;margin:0">Update any activity field: type, subject, notes, due date, status. Changes are logged in the audit trail.</p>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="rule-card" style="border-left:3px solid var(--brand-danger)">
+            <h6><i class="fa fa-trash-alt" style="color:var(--brand-danger)"></i> DELETE /activities/:id</h6>
+            <p style="font-size:.855rem;margin:0">Soft-delete — activity is marked deleted and retained in audit trail per BNM retention requirements. Not permanently removed.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Restrictions -->
+      <h6 style="font-weight:700;margin-bottom:.75rem">Restrictions</h6>
+      <table style="margin-bottom:1.5rem">
+        <thead><tr><th>Restriction</th><th>Enforcement</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Cannot delete complaint activities</strong></td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">System</span></td><td>The system blocks deletion of any activity with type <code>complaint</code>. This is a hard system enforcement — no bypass.</td></tr>
+          <tr><td><strong>Managers can edit any team member's activity</strong></td><td><span class="enforcement-pill enforce-policy" style="font-size:.7rem">Policy</span></td><td>Managers have edit access to all activities within their team scope for oversight and correction.</td></tr>
+          <tr><td><strong>Reps can only edit own activities</strong></td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">System</span></td><td>Sales reps are restricted to editing activities they created or are assigned to. Cannot modify other reps' activities.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="alert-box alert-warn">
+        <strong>Warning:</strong> Deleted activities are <strong>not removed from the database</strong>. They are soft-deleted and retained for <strong>7 years</strong> per BNM audit requirements. Deleting a complaint activity is <strong>blocked by the system</strong>.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ FOOTER ═══ -->
+  <div style="text-align:center;padding:2rem 2.5rem 3rem;color:#94a3b8;font-size:.8rem">
+    <p style="margin:0">Territory, Quota &amp; Mobile Guide &middot; Part 9 of 9 &middot; CWC &mdash; Citadel Group Technologies Sdn Bhd</p>
+    <p style="margin:.25rem 0 0">Territory, quota, or mobile questions? Contact CRM Admin or your Sales Manager.</p>
+    <div style="margin-top:1rem;display:flex;justify-content:center;gap:2rem;flex-wrap:wrap">
+      <a href="08-data-governance.html" style="color:#94a3b8;text-decoration:none"><i class="fa fa-arrow-left"></i>&nbsp; Data Governance</a>
+      <a href="01-quick-start.html" style="color:var(--brand-secondary);font-weight:600;text-decoration:none"><i class="fa fa-arrow-right"></i>&nbsp; Next: Quick Start Guide</a>
+    </div>
+  </div>
+
+</div><!-- /#main -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  // ── Mermaid initialization ──
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#dbeafe',
+      primaryTextColor: '#1e3a5f',
+      primaryBorderColor: '#93c5fd',
+      lineColor: '#2563eb',
+      secondaryColor: '#f0fdf4',
+      tertiaryColor: '#fffbeb',
+      fontSize: '13px'
+    },
+    sequence: {
+      actorMargin: 60,
+      messageMargin: 40
+    }
+  });
+
+  // ── Sidebar scroll-spy ──
+  const sections = ['s-overview','s-territory','s-quota','s-mobile','s-personal'];
+  const navItems = {};
+  sections.forEach(id => { navItems[id] = document.querySelector(`.nav-link-item[data-section="${id}"]`); });
+
+  document.querySelectorAll('.nav-link-item[data-section]').forEach(el => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.nav-link-item').forEach(x => x.classList.remove('active'));
+      el.classList.add('active');
+      const target = document.getElementById(el.dataset.section);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        sections.forEach(id => navItems[id] && navItems[id].classList.remove('active'));
+        navItems[entry.target.id] && navItems[entry.target.id].classList.add('active');
+      }
+    });
+  }, { rootMargin: '-64px 0px -50% 0px' });
+
+  sections.forEach(id => { const el = document.getElementById(id); if (el) observer.observe(el); });
+</script>
+</body>
+</html>

@@ -48,3 +48,11 @@ Every recommendation in this document set is grounded in an audit of the existin
 **Out of scope (v1):** Retail unsecured lending decisioning, full general ledger / core banking integration (handled by external CBS via API), treasury / market-risk capital computation, IFRS 9 ECL model engine (consumed from existing analytics if available), Islamic finance product structures (separate phase).
 
 **Assumptions:** Booking of disbursed facilities flows to an external Core Banking System (CBS) or G/L; this module is the **origination, sanctioning and credit-monitoring system of record**, not the loan ledger.
+
+---
+
+## Bureau / Integration status
+
+> **CCRIS access:** Citadel CWC is a non-bank SME lender and does **not** have direct CCRIS pull access (restricted to BNM-licensed entities). The `CCRIS` enum value in `BureauProvider` is retained for **historical rows only**; new manual bureau checks default to `CCRIS_BORROWER_UPLOAD` (borrower self-pull via eccris.bnm.gov.my).
+>
+> The bureau-check surface was aligned with this reality in [doc 29 — Bureau Placeholder Cleanup](./29-bureau-placeholder-cleanup-plan.md). Future vendor wiring: CTOS (Wave 4.3), AML/sanctions (Wave 4.5) — see [doc 27 — Implementation Plan](./27-implementation-plan-2026-05-29.md) §4.

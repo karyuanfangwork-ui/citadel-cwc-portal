@@ -2388,6 +2388,10 @@ enum ApplicationType {
   VARIATION
 }
 
+// BNM-aligned portfolio classification.
+// NON_CCRIS_RR / CCRIS_RR refer to the regulatory CCRIS-reportability of
+// Restructured & Rescheduled accounts. These are internal portfolio labels
+// and do NOT imply Citadel performs direct CCRIS pulls (it does not).
 enum AccountClassification {
   PERFORMING
   EARLY_CARE
@@ -3975,10 +3979,21 @@ model PiiReadLog {
 // CA Memo Phase 5 enums
 // ============================================================================
 
+// Bureau-check provider tag for CreditBureauCheck rows.
+// Citadel CWC is a non-bank SME lender and does NOT pull CCRIS directly
+// (CCRIS access is restricted to BNM-licensed entities). The CCRIS value
+// is RETAINED for historical rows only; new manual entries must use
+// CCRIS_BORROWER_UPLOAD (borrower self-pulls via eccris.bnm.gov.my and
+// uploads the PDF as a CreditDocument). See:
+//   docs/credit-assessment/27-implementation-plan-2026-05-29.md §4.1
 enum BureauProvider {
-  CCRIS
+  CCRIS                       // historical only — do not select for new checks
+  CCRIS_BORROWER_UPLOAD       // borrower self-pull from eCCRIS (free, legal)
   CTOS
   EXPERIAN
+  CBM                         // Credit Bureau Malaysia (optional)
+  SSM_EINFO                   // company verification
+  BANK_STATEMENT_ANALYSIS     // internal cash-flow assessment
   PEP_WATCHLIST
   IF_ACTIVA
   PUBLIC_DOMAIN

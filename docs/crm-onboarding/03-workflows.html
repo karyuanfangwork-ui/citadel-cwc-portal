@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Workflow Documentation | CWC 2.0 CRM</title>
+<title>Workflow Documentation | CWC CRM</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
@@ -79,7 +79,7 @@
 <div id="sidebar">
   <div class="brand">
     <h1>CRM Documentation</h1>
-    <p>CWC 2.0 — Citadel Group</p>
+    <p>CWC — Citadel Group</p>
   </div>
   <nav>
     <div class="nav-section-label">Workflow Documentation</div>
@@ -89,6 +89,9 @@
     <a class="nav-link-item" data-section="s-wf3"><i class="fa fa-exclamation-triangle"></i> WF-03 Escalation</a>
     <a class="nav-link-item" data-section="s-wf4"><i class="fa fa-check-double"></i> WF-04 Approval</a>
     <a class="nav-link-item" data-section="s-wf5"><i class="fa fa-chart-pie"></i> WF-05 Reporting</a>
+    <a class="nav-link-item" data-section="s-wf6"><i class="fa fa-copy"></i> WF-06 Duplicate Detection</a>
+    <a class="nav-link-item" data-section="s-wf7"><i class="fa fa-file-import"></i> WF-07 Data Import</a>
+    <a class="nav-link-item" data-section="s-wf8"><i class="fa fa-envelope"></i> WF-08 Email Sync</a>
   </nav>
   <div style="padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.1);margin-top:auto">
     <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:.5rem">Documentation Suite</div>
@@ -98,6 +101,9 @@
     <a href="04-business-rules.html" class="suite-nav-link">&#8227; Business Rules</a>
     <a href="05-role-guides.html" class="suite-nav-link">&#8227; Role-Based Guides</a>
     <a href="06-reporting-kpi.html" class="suite-nav-link">&#8227; Reporting &amp; KPI</a>
+    <a href="07-advanced-features.html" class="suite-nav-link">&#8227; Advanced Features</a>
+    <a href="08-data-governance.html" class="suite-nav-link">&#8227; Data Governance &amp; AI</a>
+    <a href="09-territory-mobile.html" class="suite-nav-link">&#8227; Territory, Quota &amp; Mobile</a>
   </div>
 </div>
 
@@ -109,8 +115,8 @@
     <span style="font-size:.875rem;font-weight:600;color:#1e293b">Workflow Documentation</span>
   </div>
   <div style="display:flex;align-items:center;gap:.75rem">
-    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 3 of 6</span>
-    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC 2.0</span>
+    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 3 of 9</span>
+    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC</span>
   </div>
 </div>
 
@@ -685,10 +691,175 @@ flowchart TD
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       WF-06: DUPLICATE DETECTION & MERGE WORKFLOW
+  ══════════════════════════════════ -->
+  <div class="content-section" id="s-wf6">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-copy fa-lg" style="color:var(--brand-accent)"></i>
+        <h2><span class="workflow-id">WF-06</span> Duplicate Detection &amp; Merge Workflow</h2>
+      </div>
+
+      <div class="alert-box alert-info">
+        <strong>Objective:</strong> Detect and resolve duplicate CRM records before they fragment the customer view. The system automatically flags potential duplicates; users review and decide to merge or dismiss.
+      </div>
+
+      <h6 style="font-weight:700;margin:1.25rem 0 .5rem">End-to-End Flow Diagram</h6>
+      <div class="mermaid-wrap">
+        <div class="mermaid">
+flowchart TD
+    A([📝 Record Created or Updated]) --> B[Matching Engine\nName + IC + Phone + Email]
+    B --> C{Potential\nMatch Found?}
+    C -->|No| D([✅ Record Stored\nNo duplicate flag])
+    C -->|Yes| E[CrmDuplicateMatch Created\nwith confidence score]
+    E --> F[Alert appears in\nDuplicate Detection page]
+    F --> G{User Decision}
+    G -->|Merge| H[Select Primary Record\nResolve field conflicts]
+    H --> I[Merged Record\nSecondary soft-deleted]
+    I --> J([✅ Single unified record])
+    G -->|Dismiss| K[Mark 'Not a duplicate'\nReason required]
+    K --> L([✅ Dismissal logged\nBoth records retained])
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h6 style="font-weight:700;margin-bottom:.5rem">Decision Points</h6>
+          <div class="decision-point"><i class="fa fa-question-circle" style="color:var(--brand-warning)"></i> Confidence ≥ 95%? → Strong match, merge recommended</div><br/>
+          <div class="decision-point"><i class="fa fa-question-circle" style="color:var(--brand-warning)"></i> Same IC/Passport? → Exact match, merge required</div><br/>
+          <div class="decision-point"><i class="fa fa-question-circle" style="color:var(--brand-warning)"></i> Merge or Dismiss? → Unified record vs. keep separate with reason</div>
+        </div>
+        <div class="col-md-6">
+          <h6 style="font-weight:700;margin-bottom:.5rem">Automation Triggers</h6>
+          <div class="automation-pill"><i class="fa fa-robot"></i> Matching engine runs on every record create/update</div>
+          <div class="automation-pill"><i class="fa fa-robot"></i> IC/Passport exact match → auto-flag at 100% confidence</div>
+          <div class="automation-pill"><i class="fa fa-robot"></i> Name + phone proximity match → flag at 80%+</div>
+          <span class="kpi-badge" style="margin-top:.5rem"><i class="fa fa-copy"></i> Duplicate Rate</span>
+          <span class="kpi-badge"><i class="fa fa-check"></i> Merge Resolution Time</span>
+        </div>
+      </div>
+
+      <div class="alert-box alert-warn" style="margin-top:1rem"><strong>Cross-reference:</strong> See <a href="08-data-governance.html" style="color:var(--brand-secondary);font-weight:600">Data Governance &amp; AI Guide</a> for confidence score thresholds, merge conflict resolution, and CrmDuplicateMatch model details.</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       WF-07: DATA IMPORT WORKFLOW
+  ══════════════════════════════════ -->
+  <div class="content-section" id="s-wf7">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-file-import fa-lg" style="color:var(--brand-success)"></i>
+        <h2><span class="workflow-id">WF-07</span> Data Import Workflow</h2>
+      </div>
+
+      <div class="alert-box alert-info">
+        <strong>Objective:</strong> Bulk-import CRM records from external sources using a validated CSV template, ensuring data quality and duplicate prevention at every step.
+      </div>
+
+      <h6 style="font-weight:700;margin:1.25rem 0 .5rem">End-to-End Flow Diagram</h6>
+      <div class="mermaid-wrap">
+        <div class="mermaid">
+flowchart TD
+    A([📥 Import Request]) --> B[Download CSV Template\nfor target entity]
+    B --> C[Populate data\npreserving header row]
+    C --> D[Upload CSV file\nMax 10,000 rows]
+    D --> E[System Analyzes Headers\nMap columns to CRM fields]
+    E --> F{All columns\nmapped?}
+    F -->|No| G[Adjust field mapping\nmanually]
+    G --> E
+    F -->|Yes| H[Click Validate\nDry-run check]
+    H --> I{Validation\npassed?}
+    I -->|Errors| J[Review error report\nFix data in CSV]
+    J --> D
+    I -->|Pass| K[Click Execute Import]
+    K --> L[Import Results\nCreated / Updated / Skipped / Errors]
+    L --> M([✅ Import logged\nin audit trail])
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h6 style="font-weight:700;margin-bottom:.5rem">Decision Points</h6>
+          <div class="decision-point"><i class="fa fa-question-circle" style="color:var(--brand-warning)"></i> Headers match template? → If No: mapping step required</div><br/>
+          <div class="decision-point"><i class="fa fa-question-circle" style="color:var(--brand-warning)"></i> Validation pass? → If No: fix CSV errors before import</div><br/>
+          <div class="decision-point"><i class="fa fa-question-circle" style="color:var(--brand-warning)"></i> Duplicates detected? → Flagged for review, not auto-created</div>
+        </div>
+        <div class="col-md-6">
+          <h6 style="font-weight:700;margin-bottom:.5rem">Automation Triggers</h6>
+          <div class="automation-pill"><i class="fa fa-robot"></i> Auto-detect column types from CSV headers</div>
+          <div class="automation-pill"><i class="fa fa-robot"></i> Mandatory field validation on every row</div>
+          <div class="automation-pill"><i class="fa fa-robot"></i> Duplicate check (IC + name) on every candidate row</div>
+          <div class="automation-pill"><i class="fa fa-robot"></i> Error rows skipped — partial import proceeds</div>
+          <span class="kpi-badge" style="margin-top:.5rem"><i class="fa fa-file-import"></i> Import Success Rate</span>
+          <span class="kpi-badge"><i class="fa fa-clock"></i> Import Duration</span>
+        </div>
+      </div>
+
+      <div class="alert-box alert-warn" style="margin-top:1rem"><strong>Cross-reference:</strong> See <a href="04-business-rules.html" style="color:var(--brand-secondary);font-weight:600">Business Rules Guide (BR-13)</a> for import data rules, and <a href="07-advanced-features.html" style="color:var(--brand-secondary);font-weight:600">Advanced Features Guide</a> for the step-by-step import UI walkthrough.</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       WF-08: EMAIL SYNC WORKFLOW
+  ══════════════════════════════════ -->
+  <div class="content-section" id="s-wf8">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-envelope fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2><span class="workflow-id">WF-08</span> Email Sync &amp; Activity Auto-Log Workflow</h2>
+      </div>
+
+      <div class="alert-box alert-info">
+        <strong>Objective:</strong> Connect email (Google/Outlook) to CRM so that customer communications are automatically captured as activities. Reduces manual logging burden and ensures no customer interaction is missed.
+      </div>
+
+      <h6 style="font-weight:700;margin:1.25rem 0 .5rem">End-to-End Flow Diagram</h6>
+      <div class="mermaid-wrap">
+        <div class="mermaid">
+flowchart TD
+    A([🔗 User Connects Email]) --> B[CRM > Integrations\nClick Connect Google/Outlook]
+    B --> C[OAuth Consent Screen\nGrant CRM read access]
+    C --> D{Consent\ngranted?}
+    D -->|No| E([❌ Sync not enabled\nManual logging only])
+    D -->|Yes| F[Configure sync preferences\nDirection / Folders / Frequency]
+    F --> G[Sync Engine activated\nper configured schedule]
+    G --> H[New email received\nfor CRM-linked contact]
+    H --> I{Contact\nmatches?}
+    I -->|Yes| J[Auto-create Email activity\nlinked to Contact + Account]
+    J --> K[Email visible in\nEmail Thread Viewer]
+    I -->|No| L([⏭️ Email skipped\nNot CRM-linked])
+    K --> M([📊 Activity logged\nwithin compliance SLA])
+        </div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <h6 style="font-weight:700;margin-bottom:.5rem">Decision Points</h6>
+          <div class="decision-point"><i class="fa fa-question-circle" style="color:var(--brand-warning)"></i> OAuth consent granted? → No sync without user authorisation</div><br/>
+          <div class="decision-point"><i class="fa fa-question-circle" style="color:var(--brand-warning)"></i> Sender/recipient matches CRM contact? → Only linked contacts' emails are captured</div><br/>
+          <div class="decision-point"><i class="fa fa-question-circle" style="color:var(--brand-warning)"></i> Calender sync enabled? → Calendar events also synced if configured</div>
+        </div>
+        <div class="col-md-6">
+          <h6 style="font-weight:700;margin-bottom:.5rem">Automation Triggers</h6>
+          <div class="automation-pill"><i class="fa fa-robot"></i> Sync engine runs per configured frequency (15 min default)</div>
+          <div class="automation-pill"><i class="fa fa-robot"></i> Auto-create Email activity for matched contacts</div>
+          <div class="automation-pill"><i class="fa fa-robot"></i> Privacy boundary: only CRM-linked contacts' emails synced</div>
+          <span class="kpi-badge" style="margin-top:.5rem"><i class="fa fa-envelope"></i> Sync Coverage</span>
+          <span class="kpi-badge"><i class="fa fa-clock"></i> Activity Logging SLA</span>
+        </div>
+      </div>
+
+      <div class="alert-box alert-warn" style="margin-top:1rem"><strong>Cross-reference:</strong> See <a href="07-advanced-features.html" style="color:var(--brand-secondary);font-weight:600">Advanced Features Guide</a> for full email integration setup steps, sync preferences, and privacy boundary details.</div>
+    </div>
+  </div>
 
     <!-- Footer -->
     <div style="text-align:center;padding:2rem 0 3rem;color:#94a3b8;font-size:.8rem">
-      <p style="margin:0">Workflow Documentation &middot; Part 3 of 6 &middot; CWC 2.0 &mdash; Citadel Group Technologies Sdn Bhd</p>
+      <p style="margin:0">Workflow Documentation &middot; Part 3 of 9 &middot; CWC &mdash; Citadel Group Technologies Sdn Bhd</p>
       <div style="margin-top:1rem;display:flex;justify-content:center;gap:2rem;flex-wrap:wrap">
         <a href="02-sop.html" style="color:#94a3b8;text-decoration:none"><i class="fa fa-arrow-left"></i>&nbsp; SOP Documentation</a>
         <a href="04-business-rules.html" style="color:var(--brand-secondary);font-weight:600;text-decoration:none"><i class="fa fa-arrow-right"></i>&nbsp; Next: Business Rules</a>
@@ -715,7 +886,7 @@ flowchart TD
   });
 
   // Sidebar scroll-spy
-  const sections = ['s-overview','s-wf1','s-wf2','s-wf3','s-wf4','s-wf5'];
+  const sections = ['s-overview','s-wf1','s-wf2','s-wf3','s-wf4','s-wf5','s-wf6','s-wf7','s-wf8'];
   const navItems = {};
   sections.forEach(id => {
     navItems[id] = document.querySelector(`.nav-link-item[data-section="${id}"]`);

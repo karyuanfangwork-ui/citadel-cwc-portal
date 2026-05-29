@@ -72,7 +72,13 @@ export interface BureauReport {
   retrievedAt: Date;
 }
 
-/** Credit bureau provider (CTOS/CCRIS/RAM) */
+/**
+ * Credit bureau provider.
+ *
+ * Real implementations: CTOS (primary, see Wave 4.3), Experian RAMCI,
+ * CBM. CCRIS is NOT in scope — Citadel is a non-bank lender and uses
+ * the borrower-uploaded eCCRIS workflow instead (Wave 4.1).
+ */
 export interface IBureauProvider {
   getIndividualReport(params: {
     nricPassport: string;

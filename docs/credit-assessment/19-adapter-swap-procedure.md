@@ -253,7 +253,39 @@ If ClamAV needs to be replaced with an alternative (e.g., Sophos, Windows Defend
 
 ---
 
-## 4. Future Adapters to Plan For
+## 4. Current Adapter Registry (as implemented)
+
+The actual adapter registry lives in `backend/src/credit/adapters/registry.ts`. The current
+implementation uses lazy singletons wired through provider-specific factory functions:
+
+| Factory function | No-op implementation | Status |
+|---|---|---|
+| `getAmlProvider()` | `PlaceholderAmlProvider` | Placeholder — no real vendor yet |
+| `getOcrProvider()` | `PlaceholderOcrProvider` | Placeholder — no real vendor yet |
+| `getBureauProvider()` | **`NoopBureauProvider`** | No-op with boot-time guard (see §4.1 below) |
+| `getCbsProvider()` | `PlaceholderCbsProvider` | Placeholder — no real vendor yet |
+| `getEsignProvider()` | `PlaceholderEsignProvider` | Placeholder — no real vendor yet |
+
+> **Note:** `PlaceholderBureauProvider` was renamed to `NoopBureauProvider` (in
+> `bureau.noop.ts`) as part of the bureau-check surface cleanup. See
+> [doc 29 — Bureau Placeholder Cleanup](./29-bureau-placeholder-cleanup-plan.md).
+
+### 4.1 Bureau Provider — Boot-Time Guard
+
+`getBureauProvider()` includes a production-safety guard:
+
+| `NODE_ENV` | `credit:bureau_checks` flag | Real provider? | Behaviour |
+|---|---|---|---|
+| development / test | any | any | Returns `NoopBureauProvider`, debug log |
+| production | `false` (default) | no | Returns `NoopBureauProvider`, **warning** once at boot |
+| production | `true` | no | **Throws** — refuses to serve mocks when flag claims bureau is live |
+| production | `true` | yes | Returns real provider |
+
+To wire a real bureau vendor (e.g. CTOS), implement `IBureauProvider`, set `BUREAU_PROVIDER=ctos` in env, and update the `loadRealProvider()` stub in `registry.ts`. See Wave 4.3 in [doc 27 — Implementation Plan](./27-implementation-plan-2026-05-29.md).
+
+---
+
+## 5. Future Adapters to Plan For
 
 | Adapter | Interface | Method(s) | Env Var | Priority |
 |---|---|---|---|---|
@@ -294,7 +326,7 @@ src/credit/adapters/
 
 ---
 
-## 5. Verification Checklist
+## 6. Verification Checklist
 
 ### ClamAV (current)
 
@@ -324,7 +356,7 @@ src/credit/adapters/
 
 ---
 
-## 6. Notes & Open Questions
+## 7. Notes & Open Questions
 
 1. **Runtime swap** — Can adapters be swapped at runtime without restart? Current design requires restart. Consider config-reload mechanism for zero-downtime swaps.
 2. **Health checks** — Each real adapter should expose a health check endpoint. The application `/health` endpoint should aggregate all adapter healths.

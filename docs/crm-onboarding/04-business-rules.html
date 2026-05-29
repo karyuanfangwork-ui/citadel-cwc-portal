@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Business Rules Guide | CWC 2.0 CRM</title>
+<title>Business Rules Guide | CWC CRM</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 <style>
@@ -78,7 +78,7 @@
 <div id="sidebar">
   <div class="brand">
     <h1>CRM Documentation</h1>
-    <p>CWC 2.0 — Citadel Group</p>
+    <p>CWC — Citadel Group</p>
   </div>
   <nav>
     <div class="nav-section-label">Business Rules Guide</div>
@@ -94,6 +94,9 @@
     <a class="nav-link-item" data-section="s-dataquality"><i class="fa fa-database"></i> Data Quality</a>
     <a class="nav-link-item" data-section="s-duplicate"><i class="fa fa-copy"></i> Duplicate Prevention</a>
     <a class="nav-link-item" data-section="s-reporting"><i class="fa fa-chart-bar"></i> Reporting Rules</a>
+    <a class="nav-link-item" data-section="s-customfields"><i class="fa fa-sliders-h"></i> Custom Field Rules</a>
+    <a class="nav-link-item" data-section="s-import"><i class="fa fa-file-import"></i> Import Rules</a>
+    <a class="nav-link-item" data-section="s-pdpa"><i class="fa fa-user-lock"></i> PDPA Rules</a>
   </nav>
   <div style="padding:1rem 1.5rem;border-top:1px solid rgba(255,255,255,.1);margin-top:auto">
     <div style="font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:.5rem">Documentation Suite</div>
@@ -103,6 +106,9 @@
     <a href="04-business-rules.html" class="suite-nav-link current">&#8227; Business Rules</a>
     <a href="05-role-guides.html" class="suite-nav-link">&#8227; Role-Based Guides</a>
     <a href="06-reporting-kpi.html" class="suite-nav-link">&#8227; Reporting &amp; KPI</a>
+    <a href="07-advanced-features.html" class="suite-nav-link">&#8227; Advanced Features</a>
+    <a href="08-data-governance.html" class="suite-nav-link">&#8227; Data Governance &amp; AI</a>
+    <a href="09-territory-mobile.html" class="suite-nav-link">&#8227; Territory, Quota &amp; Mobile</a>
   </div>
 </div>
 
@@ -114,8 +120,8 @@
     <span style="font-size:.875rem;font-weight:600;color:#1e293b">CRM Business Rules Guide</span>
   </div>
   <div style="display:flex;align-items:center;gap:.75rem">
-    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 4 of 6</span>
-    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC 2.0</span>
+    <span class="badge-role" style="background:#dbeafe;color:#1d4ed8"><i class="fa fa-book-open"></i>&nbsp;Part 4 of 9</span>
+    <span style="font-size:.75rem;color:#94a3b8">Citadel Group Technologies Sdn Bhd &middot; CWC</span>
   </div>
 </div>
 
@@ -130,7 +136,7 @@
         <h2>CRM Business Rules — Overview</h2>
       </div>
       <div class="alert-box alert-info" style="margin-bottom:1.5rem">
-        This guide defines <strong>11 categories of business rules</strong> governing how the CRM must be used. Rules are not optional guidelines — they are operational standards enforced by the system, policy, or both. Violations are tracked in the audit log and reported weekly.
+        This guide defines <strong>14 categories of business rules</strong> governing how the CRM must be used. Rules are not optional guidelines — they are operational standards enforced by the system, policy, or both. Violations are tracked in the audit log and reported weekly.
       </div>
       <table style="margin-bottom:1.5rem">
         <thead><tr><th>#</th><th>Rule Category</th><th>Enforcement</th><th>Risk if Violated</th><th>Owner</th></tr></thead>
@@ -146,6 +152,9 @@
           <tr><td>9</td><td>Data Quality Rules</td><td><span class="enforcement-pill enforce-admin">Admin-enforced</span></td><td><span class="risk-m">Medium</span> — Bad reporting, pipeline distortion</td><td>CRM Admin</td></tr>
           <tr><td>10</td><td>Duplicate Prevention Rules</td><td><span class="enforcement-pill enforce-system">System + Policy</span></td><td><span class="risk-m">Medium</span> — Fragmented customer view</td><td>All Users / Admin</td></tr>
           <tr><td>11</td><td>Reporting Rules</td><td><span class="enforcement-pill enforce-policy">Policy + Audit</span></td><td><span class="risk-m">Medium</span> — Data leak, compliance failure</td><td>Manager / Admin</td></tr>
+          <tr><td>12</td><td>Custom Field Rules</td><td><span class="enforcement-pill enforce-system">System (RBAC)</span></td><td><span class="risk-m">Medium</span> — Schema inconsistency, bad reporting</td><td>CRM Admin</td></tr>
+          <tr><td>13</td><td>Import Data Rules</td><td><span class="enforcement-pill enforce-system">System validates</span></td><td><span class="risk-h">High</span> — Bulk data corruption</td><td>CRM Admin / Manager</td></tr>
+          <tr><td>14</td><td>PDPA Consent Rules</td><td><span class="enforcement-pill enforce-policy">Policy + System tracking</span></td><td><span class="risk-h">High</span> — Regulatory violation, legal liability</td><td>All Users / Admin</td></tr>
         </tbody>
       </table>
       <div class="row g-2">
@@ -617,6 +626,45 @@
           <div class="alert-box alert-danger"><strong>Penalty:</strong> Creating 3+ duplicate records in a single week triggers a data quality flag for that user in the weekly report, reviewed by the Sales Manager.</div>
         </div>
       </div>
+
+      <div class="section-divider"></div>
+
+      <h6 style="font-weight:700;margin-bottom:.75rem"><i class="fa fa-object-group" style="color:var(--brand-secondary)"></i> Duplicate Detection &amp; Merge UI</h6>
+      <div class="alert-box alert-info">The system now provides a dedicated <strong>Duplicate Detection</strong> page at <code>/crm/duplicates</code>. This page lists all detected duplicate pairs, grouped by confidence level, and provides actions for merge or dismiss directly from the UI.</div>
+
+      <h6 style="font-weight:700;margin-bottom:.75rem">Confidence Scoring</h6>
+      <table style="margin-bottom:1.25rem">
+        <thead><tr><th>Match Level</th><th>Criteria</th><th>Confidence Range</th><th>Required Action</th></tr></thead>
+        <tbody>
+          <tr><td><span style="background:#fef2f2;color:#7f1d1d;padding:.2rem .55rem;border-radius:6px;font-weight:700;font-size:.78rem">Exact Match</span></td><td>Same IC / Passport number</td><td>95 – 100%</td><td>Merge required</td></tr>
+          <tr><td><span style="background:#fffbeb;color:#713f12;padding:.2rem .55rem;border-radius:6px;font-weight:700;font-size:.78rem">Strong Match</span></td><td>Name + Phone match</td><td>80 – 94%</td><td>Review recommended</td></tr>
+          <tr><td><span style="background:#f1f5f9;color:#475569;padding:.2rem .55rem;border-radius:6px;font-weight:700;font-size:.78rem">Possible Match</span></td><td>Partial name match</td><td>60 – 79%</td><td>Review optional</td></tr>
+        </tbody>
+      </table>
+
+      <div class="row g-3">
+        <div class="col-md-6">
+          <div class="rule-card">
+            <h6><i class="fa fa-code-merge" style="color:var(--brand-secondary)"></i> Merge Process</h6>
+            <ul style="font-size:.855rem;padding-left:1.3rem;line-height:1.75;margin:0">
+              <li><strong>Primary selection:</strong> User selects which record becomes the primary (surviving) record. The secondary record is absorbed.</li>
+              <li><strong>Field conflict resolution:</strong> Where both records have data in the same field, the primary record's value takes precedence. User may manually override individual fields.</li>
+              <li><strong>Audit history:</strong> All merged fields and the secondary record ID are preserved in the audit log. The merge is reversible by Admin within 30 days.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="rule-card">
+            <h6><i class="fa fa-ban" style="color:var(--brand-warning)"></i> Dismiss Action</h6>
+            <ul style="font-size:.855rem;padding-left:1.3rem;line-height:1.75;margin:0">
+              <li><strong>Mark as not duplicate:</strong> User can dismiss a detected pair as "Not a Duplicate" with a required reason (e.g., "Different person — same company").</li>
+              <li><strong>Dismissal logged:</strong> Every dismissal is permanently recorded with user, timestamp, and reason. Dismissed pairs are excluded from future detection runs unless re-activated by Admin.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="alert-box alert-warn" style="margin-top:1rem"><strong>Cross-reference:</strong> See <a href="08-data-governance.html" style="color:var(--brand-secondary);font-weight:600">Data Governance &amp; AI Guide</a> for the full duplicate detection workflow.</div>
     </div>
   </div>
 
@@ -651,10 +699,87 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- ══════════════════════════════════
+       BR-12: CUSTOM FIELD RULES
+  ══════════════════════════════════ -->
+  <div class="content-section" id="s-customfields">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-sliders-h fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2><span class="rule-id">BR-12</span> Custom Field Rules</h2>
+      </div>
+      <div class="alert-box alert-info"><strong>Rationale:</strong> Custom fields extend the CRM data model without code changes. They allow organisations to capture business-specific data points that standard fields do not cover. Rules ensure consistency and prevent abuse.</div>
+
+      <table style="margin-bottom:1.25rem">
+        <thead><tr><th>Rule</th><th>Detail</th><th>Enforcement</th><th>Risk if Violated</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Admin-Only Creation</strong></td><td>Only CRM Admin can create, modify, or delete custom field definitions</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">RBAC enforced</span></td><td><span class="risk-h">High</span> — Uncontrolled schema changes</td></tr>
+          <tr><td><strong>Required Custom Fields</strong></td><td>A custom field marked Required blocks record save if empty — same behaviour as standard mandatory fields</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">Form validation</span></td><td><span class="risk-m">Medium</span> — Incomplete records</td></tr>
+          <tr><td><strong>Field Key Immutability</strong></td><td>Auto-generated field keys cannot be changed after creation. Labels may be renamed.</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">System</span></td><td><span class="risk-m">Medium</span> — Broken integrations</td></tr>
+          <tr><td><strong>Applies-To Scope</strong></td><td>Custom fields are scoped to specific entity types (Lead, Account, Contact, Opportunity, Activity). Cannot be applied system-wide.</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">System</span></td><td><span class="risk-l">Low</span> — Cluttered forms</td></tr>
+          <tr><td><strong>Dropdown Options Admin-Managed</strong></td><td>Dropdown custom field options are maintained by CRM Admin. Reps select from list only.</td><td><span class="enforcement-pill enforce-admin" style="font-size:.7rem">Admin</span></td><td><span class="risk-m">Medium</span> — Inconsistent data</td></tr>
+        </tbody>
+      </table>
+
+      <div class="alert-box alert-warn"><strong>Cross-reference:</strong> See <a href="07-advanced-features.html" style="color:var(--brand-secondary);font-weight:600">Advanced Features Guide</a> for the full custom field setup workflow and field type reference.</div>
+    </div>
+  </div>
+
+  <div class="content-section" id="s-import">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-file-import fa-lg" style="color:var(--brand-secondary)"></i>
+        <h2><span class="rule-id">BR-13</span> Import Data Rules</h2>
+      </div>
+      <div class="alert-box alert-info"><strong>Rationale:</strong> Data imports allow bulk onboarding of records from external systems. Rules ensure data quality is maintained and prevent duplicate or corrupt data from entering the CRM.</div>
+
+      <table style="margin-bottom:1.25rem">
+        <thead><tr><th>Rule</th><th>Detail</th><th>Enforcement</th><th>Risk if Violated</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Template Required</strong></td><td>All imports must use the official CSV template downloaded from the Import/Export module. Template headers must not be modified.</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">System validates</span></td><td><span class="risk-h">High</span> — Mapping failures</td></tr>
+          <tr><td><strong>Mandatory Fields Enforced</strong></td><td>Rows missing mandatory fields (Lead Name, Source, etc.) are rejected during validation</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">Validation step</span></td><td><span class="risk-h">High</span> — Incomplete records</td></tr>
+          <tr><td><strong>Duplicate Check on Import</strong></td><td>System checks IC/Passport and name against existing records before creating. Duplicates flagged, not auto-created.</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">Match engine</span></td><td><span class="risk-m">Medium</span> — Fragmented data</td></tr>
+          <tr><td><strong>Max 10,000 Rows</strong></td><td>Each import batch is limited to 10,000 rows. Larger datasets must be split into multiple imports.</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">Upload limit</span></td><td><span class="risk-l">Low</span> — Performance impact</td></tr>
+          <tr><td><strong>Error Rows Skipped</strong></td><td>Rows with validation errors are skipped (not blocking the entire import). Error report generated.</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">System</span></td><td><span class="risk-l">Low</span> — Partial import</td></tr>
+          <tr><td><strong>Audit Trail</strong></td><td>All imports are permanently logged with user, timestamp, row counts, and file name</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">System logs</span></td><td><span class="risk-h">High</span> — Untraceable data changes</td></tr>
+        </tbody>
+      </table>
+
+      <div class="alert-box alert-warn"><strong>Cross-reference:</strong> See <a href="07-advanced-features.html" style="color:var(--brand-secondary);font-weight:600">Advanced Features Guide</a> for the step-by-step import workflow.</div>
+    </div>
+  </div>
+
+  <div class="content-section" id="s-pdpa">
+    <div class="section-card">
+      <div class="section-header">
+        <i class="fa fa-user-lock fa-lg" style="color:var(--brand-accent)"></i>
+        <h2><span class="rule-id">BR-14</span> PDPA Consent Rules</h2>
+      </div>
+      <div class="alert-box alert-danger"><strong>Rationale:</strong> The Personal Data Protection Act (PDPA) requires explicit consent before collecting, using, or disclosing personal data. Non-compliance exposes the organisation to regulatory penalties and legal liability. These rules complement BNM sector-specific guidelines.</div>
+
+      <table style="margin-bottom:1.25rem">
+        <thead><tr><th>Rule</th><th>Detail</th><th>Enforcement</th><th>Risk if Violated</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Consent Before Collection</strong></td><td>Personal data (IC, phone, email, address) must not be entered into CRM without obtaining the individual's consent</td><td><span class="enforcement-pill enforce-policy" style="font-size:.7rem">Policy</span></td><td><span class="risk-h">High</span> — PDPA violation</td></tr>
+          <tr><td><strong>pdpaConsent Flag</strong></td><td>Contact record has pdpaConsent boolean. Must be set to true when consent obtained, with pdpaConsentDate recorded</td><td><span class="enforcement-pill enforce-system" style="font-size:.7rem">System tracks</span></td><td><span class="risk-h">High</span> — No consent audit trail</td></tr>
+          <tr><td><strong>Marketing Opt-In Separate</strong></td><td>Marketing communications require a separate marketingOptIn consent. Default is false.</td><td><span class="enforcement-pill enforce-policy" style="font-size:.7rem">Policy</span></td><td><span class="risk-h">High</span> — Unsolicited marketing</td></tr>
+          <tr><td><strong>Consent Withdrawal</strong></td><td>If a contact withdraws consent, pdpaConsent must be set to false within 10 business days. Further data collection stops.</td><td><span class="enforcement-pill enforce-policy" style="font-size:.7rem">Policy</span></td><td><span class="risk-m">Medium</span> — Extended violation</td></tr>
+          <tr><td><strong>KYC Compliance Report Flag</strong></td><td>Contacts without pdpaConsent=true appear as flagged items in the monthly KYC Compliance Report</td><td><span class="enforcement-pill enforce-admin" style="font-size:.7rem">Weekly audit</span></td><td><span class="risk-m">Medium</span> — Delayed detection</td></tr>
+        </tbody>
+      </table>
+
+      <div class="example-good"><i class="fa fa-check-circle" style="color:var(--brand-success);margin-top:2px"></i><div><strong>Good:</strong> Rep explains data usage to new prospect at first meeting, obtains verbal consent, records pdpaConsent=true and pdpaConsentDate=today in CRM.</div></div>
+      <div class="example-bad"><i class="fa fa-times-circle" style="color:var(--brand-danger);margin-top:2px"></i><div><strong>Bad:</strong> Rep sends marketing email to a Contact with pdpaConsent=false and marketingOptIn=false. This is a PDPA violation regardless of existing business relationship.</div></div>
+
+      <div class="alert-box alert-warn" style="margin-top:1rem"><strong>Cross-reference:</strong> See <a href="08-data-governance.html" style="color:var(--brand-secondary);font-weight:600">Data Governance &amp; AI Guide</a> for the full PDPA consent workflow and relationship between PDPA and BNM compliance.</div>
+    </div>
+  </div>
 
     <!-- Footer -->
     <div style="text-align:center;padding:2rem 0 3rem;color:#94a3b8;font-size:.8rem">
-      <p style="margin:0">Business Rules Guide &middot; Part 4 of 6 &middot; CWC 2.0 &mdash; Citadel Group Technologies Sdn Bhd</p>
+      <p style="margin:0">Business Rules Guide &middot; Part 4 of 9 &middot; CWC &mdash; Citadel Group Technologies Sdn Bhd</p>
       <p style="margin:.25rem 0 0">These rules are effective immediately and apply to all CRM users. Violations are tracked in the system audit log.</p>
       <div style="margin-top:1rem;display:flex;justify-content:center;gap:2rem;flex-wrap:wrap">
         <a href="03-workflows.html" style="color:#94a3b8;text-decoration:none"><i class="fa fa-arrow-left"></i>&nbsp; Workflow Documentation</a>
@@ -667,7 +792,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  const sections = ['s-overview','s-naming','s-classification','s-stages','s-mandatory','s-sla','s-escalation','s-approval','s-access','s-dataquality','s-duplicate','s-reporting'];
+  const sections = ['s-overview','s-naming','s-classification','s-stages','s-mandatory','s-sla','s-escalation','s-approval','s-access','s-dataquality','s-duplicate','s-reporting','s-customfields','s-import','s-pdpa'];
   const navItems = {};
   sections.forEach(id => { navItems[id] = document.querySelector(`.nav-link-item[data-section="${id}"]`); });
 

@@ -1674,7 +1674,17 @@ export const keyCounterpartyApi = {
 
 // ── Phase 5: Types ─────────────────────────────────────────
 
-export type BureauProvider = 'CCRIS' | 'CTOS' | 'EXPERIAN' | 'PEP_WATCHLIST' | 'IF_ACTIVA' | 'PUBLIC_DOMAIN';
+export type BureauProvider =
+  | 'CCRIS'                       // historical only
+  | 'CCRIS_BORROWER_UPLOAD'
+  | 'CTOS'
+  | 'EXPERIAN'
+  | 'CBM'
+  | 'SSM_EINFO'
+  | 'BANK_STATEMENT_ANALYSIS'
+  | 'PEP_WATCHLIST'
+  | 'IF_ACTIVA'
+  | 'PUBLIC_DOMAIN';
 export type RiskCategory = 'PROJECT' | 'PERFORMANCE' | 'PACKAGING' | 'PAYMENT' | 'OTHER';
 export type EsgGuidingPrinciple = 'GP1' | 'GP2' | 'GP3' | 'GP4' | 'GP5';
 export type EsgCategory = 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6';
