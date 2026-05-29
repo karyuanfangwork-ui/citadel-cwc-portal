@@ -15,6 +15,7 @@ import * as workflowService from '../services/crm-workflow.service';
 import * as emailSyncService from '../services/crm-email-sync.service';
 import * as anomalyService from '../services/crm-anomaly.service';
 import * as customFieldsService from '../services/crm-custom-fields.service';
+import * as duplicateService from '../services/crm-duplicate.service';
 import { broadcast } from '../utils/sseClients';
 
 const prisma = new PrismaClient();
@@ -198,6 +199,12 @@ class CrmController {
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmContact', resourceId: contact.id, newValues: req.body } });
     res.status(201).json({ status: 'success', data: { contact } });
     broadcast('crm_update', { type: 'contact.created', entityType: 'contact', id: contact.id, changedBy: req.user!.id });
+    // Background duplicate check for new contact
+    setImmediate(() => {
+      duplicateService.checkContactDuplicates(contact.id).catch((err: unknown) =>
+        logger.warn(`[CRM] Duplicate check failed for contact ${contact.id}`, { error: err }),
+      );
+    });
   });
 
   updateContact = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -323,6 +330,12 @@ class CrmController {
         // Emit workflow event for lead creation (auto-assigned path)
         const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
         emitWorkflowEvent('lead.created', 'LEAD', lead.id, { ...refreshed });
+        // Background duplicate check for new lead
+        setImmediate(() => {
+          duplicateService.checkLeadDuplicates(lead.id).catch((err: unknown) =>
+            logger.warn(`[CRM] Duplicate check failed for lead ${lead.id}`, { error: err }),
+          );
+        });
         return;
       }
     }
@@ -338,6 +351,12 @@ class CrmController {
     // Emit workflow event for lead creation (normal path)
     const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
     emitWorkflowEvent('lead.created', 'LEAD', lead.id, { ...lead });
+    // Background duplicate check for new lead
+    setImmediate(() => {
+      duplicateService.checkLeadDuplicates(lead.id).catch((err: unknown) =>
+        logger.warn(`[CRM] Duplicate check failed for lead ${lead.id}`, { error: err }),
+      );
+    });
   });
 
   updateLead = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -1592,6 +1611,27 @@ class CrmController {
   deleteCustomFieldDefinition = asyncHandler(async (req: AuthRequest, res: Response) => {
     const definition = await customFieldsService.deleteDefinition(String(req.params.id));
     res.json({ status: 'success', data: definition });
+  });
+
+  // ======== DUPLICATES ========
+  listDuplicates = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const entityType = req.query.entityType as string | undefined;
+    const status = req.query.status as string | undefined;
+    const duplicates = await duplicateService.listDuplicates(entityType, status);
+    res.json({ status: 'success', data: { duplicates } });
+  });
+
+  mergeDuplicates = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { masterEntityId, fieldSelections } = req.body;
+    if (!masterEntityId) throw new AppError('masterEntityId is required', 400);
+    await duplicateService.mergeDuplicates(req.params.id as string, masterEntityId, fieldSelections ?? {}, req.user!.id);
+    broadcast('crm_update', { type: 'duplicate.merged', entityType: 'lead', id: req.params.id as string, changedBy: req.user!.id });
+    res.json({ status: 'success', message: 'Records merged' });
+  });
+
+  dismissDuplicate = asyncHandler(async (req: AuthRequest, res: Response) => {
+    await duplicateService.dismissDuplicate(req.params.id as string, req.user!.id);
+    res.json({ status: 'success', message: 'Duplicate dismissed' });
   });
 }
 

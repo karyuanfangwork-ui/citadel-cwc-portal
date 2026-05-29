@@ -22,6 +22,9 @@ const CrmTerritoryDetail = () => {
   const [memberUserId, setMemberUserId] = useState('');
   const [memberRole, setMemberRole] = useState('MEMBER');
   const [savingMember, setSavingMember] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [allUsers, setAllUsers] = useState<{ id: string; firstName: string; lastName: string; email: string }[]>([]);
+  const [userSearchOpen, setUserSearchOpen] = useState(false);
 
   // ── Remove Member Dialog ──────
   const [removeMember, setRemoveMember] = useState<any>(null);
@@ -96,6 +99,12 @@ const CrmTerritoryDetail = () => {
     }
   };
 
+  // ── Load users when Add Member modal opens ──────
+  useEffect(() => {
+    if (!showAddMember) return;
+    crmService.listCrmUsers().then(setAllUsers).catch(() => {});
+  }, [showAddMember]);
+
   // ── Add Member ──────
   const handleAddMember = async () => {
     if (!id || !memberUserId.trim()) return;
@@ -104,6 +113,7 @@ const CrmTerritoryDetail = () => {
       await crmService.addTerritoryMember(id, memberUserId.trim(), memberRole);
       setShowAddMember(false);
       setMemberUserId('');
+      setUserSearch('');
       setMemberRole('MEMBER');
       setToast('Member added');
       fetchTerritory();
@@ -406,20 +416,60 @@ const CrmTerritoryDetail = () => {
 
       {/* ── Add Member Modal ────── */}
       {showAddMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowAddMember(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowAddMember(false); setUserSearch(''); setMemberUserId(''); setUserSearchOpen(false); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <h2 className="text-lg font-extrabold text-text-primary">Add Member</h2>
-              <button onClick={() => setShowAddMember(false)} className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              <button onClick={() => { setShowAddMember(false); setUserSearch(''); setMemberUserId(''); setUserSearchOpen(false); }} className="text-text-secondary hover:text-text-primary transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">User ID *</label>
-                <input value={memberUserId} onChange={e => setMemberUserId(e.target.value)} placeholder="Enter user ID"
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+              <div style={{ position: 'relative' }}>
+                <label className="block text-sm font-semibold text-text-primary mb-1">User *</label>
+                <input
+                  value={userSearch}
+                  onChange={e => { setUserSearch(e.target.value); setMemberUserId(''); setUserSearchOpen(true); }}
+                  onFocus={() => setUserSearchOpen(true)}
+                  placeholder="Search by name or email…"
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                  autoComplete="off"
+                />
+                {memberUserId && (
+                  <span className="absolute right-3 top-8 text-success" style={{ fontSize: 18 }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 18, verticalAlign: 'middle' }}>check_circle</span>
+                  </span>
+                )}
+                {userSearchOpen && userSearch.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, background: 'white', border: '1px solid var(--color-border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.12)', maxHeight: 220, overflowY: 'auto', marginTop: 2 }}>
+                    {allUsers
+                      .filter(u => {
+                        const q = userSearch.toLowerCase();
+                        return `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+                      })
+                      .map(u => (
+                        <div key={u.id}
+                          onMouseDown={() => { setMemberUserId(u.id); setUserSearch(`${u.firstName} ${u.lastName}`); setUserSearchOpen(false); }}
+                          style={{ padding: '8px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
+                          className="hover:bg-gray-50">
+                          <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--color-brand-100)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, color: 'var(--color-brand-700)', flexShrink: 0 }}>
+                            {u.firstName[0]}{u.lastName[0]}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>{u.firstName} {u.lastName}</div>
+                            <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{u.email}</div>
+                          </div>
+                        </div>
+                      ))}
+                    {allUsers.filter(u => {
+                      const q = userSearch.toLowerCase();
+                      return `${u.firstName} ${u.lastName}`.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+                    }).length === 0 && (
+                      <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--color-text-tertiary)', textAlign: 'center' }}>No users found</div>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Role</label>
@@ -430,8 +480,8 @@ const CrmTerritoryDetail = () => {
                 </select>
               </div>
               <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setShowAddMember(false)} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100 transition-colors" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button onClick={handleAddMember} disabled={savingMember || !memberUserId.trim()} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                <button onClick={() => { setShowAddMember(false); setUserSearch(''); setMemberUserId(''); setUserSearchOpen(false); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-gray-100 transition-colors" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button onClick={handleAddMember} disabled={savingMember || !memberUserId} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {savingMember ? 'Adding...' : 'Add Member'}
                 </button>
               </div>

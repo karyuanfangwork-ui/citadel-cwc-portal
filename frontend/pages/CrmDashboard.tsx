@@ -24,6 +24,11 @@ const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
 const CrmDashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { layout } = useDashboardLayout();
+  const isVisible = (widgetId: string) => {
+    const w = layout.find(l => l.widgetId === widgetId);
+    return !w || w.visible; // default visible if not in layout yet
+  };
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -233,7 +238,7 @@ const CrmDashboard = () => {
       )}
 
       {/* Today's Priorities */}
-      {!error && (
+      {!error && isVisible('today_priorities') && (
         <div className="mb-6">
           <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">Today's Priorities</h2>
           <div className="grid grid-cols-3 gap-4">
@@ -265,6 +270,7 @@ const CrmDashboard = () => {
       )}
 
       {/* AI Daily Briefing (Task 10) */}
+      {isVisible('ai_briefing') && (
       <div className="mb-6">
         <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">AI Daily Briefing</h2>
         <AiInsightCard
@@ -310,6 +316,7 @@ const CrmDashboard = () => {
           )}
         </AiInsightCard>
       </div>
+      )}
 
       {/* AI Suggested Actions — prompt to visit detail pages */}
       <div className="mb-6">
@@ -353,7 +360,7 @@ const CrmDashboard = () => {
       </div>
 
       {/* Won/Lost Summary */}
-      {stats && (
+      {stats && isVisible('won_lost') && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <div onClick={() => navigate('/crm/opportunities?filter=won')} className="group bg-surface border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
             <div className="flex items-center gap-2 mb-3">
@@ -377,7 +384,7 @@ const CrmDashboard = () => {
       )}
 
       {/* My Performance */}
-      {!myStatsLoading && myStats && (
+      {!myStatsLoading && myStats && isVisible('my_performance') && (
         <div className="mb-6">
           <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">My Performance</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -420,7 +427,7 @@ const CrmDashboard = () => {
       )}
 
       {/* Recent Activity */}
-      <div className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden">
+      {isVisible('recent_activity') && <div className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden">
         <div className="flex items-center justify-between p-5 border-b border-border">
           <h2 className="text-lg font-extrabold text-text-primary">Recent Activity</h2>
           <Link to="/crm/accounts" className="text-sm font-bold text-brand-700" style={{ textDecoration: 'none' }}>View all →</Link>
@@ -460,7 +467,7 @@ const CrmDashboard = () => {
             ))}
           </div>
         )}
-      </div>
+      </div>}
     </div>
     {showCustomize && <WidgetPicker onClose={() => setShowCustomize(false)} />}
     </>

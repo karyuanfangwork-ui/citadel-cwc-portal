@@ -198,4 +198,9 @@ router.post('/custom-fields', requirePermission('crm:admin'), validate(createCus
 router.put('/custom-fields/:id', requirePermission('crm:admin'), validate(updateCustomFieldSchema), crmController.updateCustomFieldDefinition);
 router.delete('/custom-fields/:id', requirePermission('crm:admin'), crmController.deleteCustomFieldDefinition);
 
+// ======== DUPLICATE DETECTION & MERGE ========
+router.get('/duplicates', requirePermission('crm:read'), crmController.listDuplicates);
+router.post('/duplicates/:id/merge', requirePermission('crm:write'), crmController.mergeDuplicates);
+router.post('/duplicates/:id/dismiss', requirePermission('crm:write'), crmController.dismissDuplicate);
+
 export default router;
