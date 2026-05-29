@@ -8,6 +8,7 @@ import { validateLead, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmCardSkeleton from '../src/components/crm/CrmCardSkeleton';
+import { useCrmUpdate } from '../src/hooks/useCrmUpdate';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -196,6 +197,11 @@ const CrmLeads = () => {
   }, [search, statusFilter, sourceFilter, filterParam, ownerIdParam]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  // Auto-refresh when another user creates/updates/deletes a lead
+  useCrmUpdate(['lead'], () => {
+    fetchLeads();
+  });
 
   // ── Apply client-side filters (server handles stale/followup) ──
   const displayedLeads = useMemo(() => {

@@ -12,6 +12,7 @@ import EmptyState from '../src/components/ui/EmptyState';
 import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
+import { useCrmUpdate } from '../src/hooks/useCrmUpdate';
 
 const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
 const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -141,6 +142,11 @@ const CrmOpportunities = () => {
   }, []);
 
   useEffect(() => { fetchOpportunities(); fetchAccounts(); fetchPipelines(); }, [fetchOpportunities, fetchAccounts, fetchPipelines]);
+
+  // Auto-refresh when another user creates/updates/deletes an opportunity
+  useCrmUpdate(['opportunity'], () => {
+    fetchOpportunities();
+  });
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
