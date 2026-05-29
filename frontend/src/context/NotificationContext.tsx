@@ -10,12 +10,20 @@ interface Toast {
   relatedRequestId: string | null;
 }
 
+export interface CrmUpdateEvent {
+  type: string;
+  entityType: 'lead' | 'opportunity' | 'activity' | 'note' | 'account' | 'contact';
+  id: string;
+  changedBy: string;
+}
+
 interface NotificationContextType {
   unreadCount: number;
   setUnreadCount: React.Dispatch<React.SetStateAction<number>>;
   recentNotification: Notification | null;
   toast: Toast | null;
   dismissToast: () => void;
+  lastCrmEvent: CrmUpdateEvent | null;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -28,6 +36,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentNotification, setRecentNotification] = useState<Notification | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  const [lastCrmEvent, setLastCrmEvent] = useState<CrmUpdateEvent | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -68,6 +77,11 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId);
     });
 
+    es.addEventListener('crm_update', (e: MessageEvent) => {
+      const data = JSON.parse(e.data) as CrmUpdateEvent;
+      setLastCrmEvent(data);
+    });
+
     es.onerror = () => {
       // Browser auto-reconnects on error; nothing to do here
     };
@@ -84,7 +98,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
   }, []);
 
   return (
-    <NotificationContext.Provider value={{ unreadCount, setUnreadCount, recentNotification, toast, dismissToast }}>
+    <NotificationContext.Provider value={{ unreadCount, setUnreadCount, recentNotification, toast, dismissToast, lastCrmEvent }}>
       {children}
     </NotificationContext.Provider>
   );
