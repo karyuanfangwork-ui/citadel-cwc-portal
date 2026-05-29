@@ -29,6 +29,7 @@ const CRM_NAV_ITEMS: CrmNavItem[] = [
   { to: '/crm/integrations', label: 'Integrations', icon: 'sync', permission: 'crm:read' },
   { to: '/crm/anomalies', label: 'AI Alerts', icon: 'psychology', permission: 'crm:admin' },
   { to: '/crm/custom-fields', label: 'Custom Fields', icon: 'tune', permission: 'crm:admin' },
+  { to: '/crm/duplicates', label: 'Duplicates', icon: 'content_copy', permission: 'crm:admin' },
 ];
 
 // Primary items always shown as tabs; secondary items go into "More" dropdown

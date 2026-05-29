@@ -75,6 +75,7 @@ import CrmWorkflowDetail from './pages/CrmWorkflowDetail';
 import CrmIntegrationsSettings from './pages/CrmIntegrationsSettings';
 import CrmAnomalyConfigPage from './pages/CrmAnomalyConfig';
 import CrmCustomFieldAdmin from './pages/CrmCustomFieldAdmin';
+import CrmDuplicates from './pages/CrmDuplicates';
 import CreditDashboard from './pages/credit/CreditDashboard';
 import CreditReports from './pages/credit/CreditReports';
 import BorrowerProfileList from './pages/BorrowerProfileList';
@@ -269,6 +270,7 @@ const AppShell = () => {
               <Route path="/crm/integrations" element={<ProtectedRoute requirePermission="crm:read"><CrmIntegrationsSettings /></ProtectedRoute>} />
               <Route path="/crm/anomalies" element={<ProtectedRoute requirePermission="crm:admin"><CrmAnomalyConfigPage /></ProtectedRoute>} />
               <Route path="/crm/custom-fields" element={<ProtectedRoute requirePermission="crm:admin"><CrmCustomFieldAdmin /></ProtectedRoute>} />
+              <Route path="/crm/duplicates" element={<ProtectedRoute requirePermission="crm:admin"><CrmDuplicates /></ProtectedRoute>} />
               {/* Credit Module routes */}
               <Route path="/credit" element={<ProtectedRoute requirePermission="credit:read"><CreditDashboard /></ProtectedRoute>} />
               <Route path="/credit/borrowers" element={<ProtectedRoute requirePermission="credit:read"><BorrowerProfileList /></ProtectedRoute>} />
