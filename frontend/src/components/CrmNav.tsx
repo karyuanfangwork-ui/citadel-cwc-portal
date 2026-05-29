@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { hasPermission } from '../utils/permissions';
+import { useCrmUpdate } from '../hooks/useCrmUpdate';
 import Drawer from './ui/Drawer';
 
 interface CrmNavItem {
@@ -53,6 +54,9 @@ const CrmNav: React.FC = () => {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
 
+  // Tracks which entity tabs have unseen remote changes
+  const [changedTabs, setChangedTabs] = useState<Set<string>>(new Set());
+
   // Determine active tab
   const isActive = (path: string) => {
     if (path === '/crm') return location.pathname === '/crm';
@@ -74,6 +78,21 @@ const CrmNav: React.FC = () => {
 
   const canWrite = hasPermission(user, 'crm:write');
 
+  // Mark a tab as changed when a remote CRM update arrives for another user
+  useCrmUpdate([], (event) => {
+    if (event.changedBy === user?.id) return; // own mutations don't badge
+    const tabMap: Record<string, string> = {
+      lead: '/crm/leads',
+      opportunity: '/crm/opportunities',
+      account: '/crm/accounts',
+      contact: '/crm/contacts',
+    };
+    const tab = tabMap[event.entityType];
+    if (tab) {
+      setChangedTabs((prev) => new Set([...prev, tab]));
+    }
+  });
+
   // Close "More" dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -87,9 +106,16 @@ const CrmNav: React.FC = () => {
     }
   }, [moreOpen]);
 
-  // Close More on navigation
+  // Close More on navigation + clear badge for current path
   useEffect(() => {
     setMoreOpen(false);
+    setChangedTabs((prev) => {
+      const next = new Set(prev);
+      next.delete(location.pathname);
+      // Also clear for sub-paths (e.g. /crm/leads/123 clears /crm/leads)
+      prev.forEach((tab) => { if (location.pathname.startsWith(tab)) next.delete(tab); });
+      return next;
+    });
   }, [location.pathname]);
 
   return (
@@ -102,7 +128,7 @@ const CrmNav: React.FC = () => {
             <Link
               key={item.to}
               to={item.to}
-              className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+              className={`relative flex items-center gap-1.5 whitespace-nowrap px-3 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                 isActive(item.to)
                   ? 'text-brand-700 border-brand-700'
                   : 'text-text-secondary border-transparent hover:text-brand-700 hover:border-brand-700/30'
@@ -111,6 +137,9 @@ const CrmNav: React.FC = () => {
             >
               <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
               {item.label}
+              {changedTabs.has(item.to) && (
+                <span className="absolute top-2 right-1 w-2 h-2 rounded-full bg-brand-500" aria-label="new changes" />
+              )}
             </Link>
           ))}
 
