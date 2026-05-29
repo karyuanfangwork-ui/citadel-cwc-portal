@@ -810,6 +810,24 @@ const crmService = {
     const res = await api.delete(`/crm/custom-fields/${id}`);
     return res.data.data;
   },
+
+  // ── Duplicate Detection & Merge ────────────────────────
+  async listDuplicates(entityType?: string, status?: string) {
+    const params = new URLSearchParams();
+    if (entityType) params.set('entityType', entityType);
+    if (status) params.set('status', status);
+    const qs = params.toString();
+    const res = await api.get(`/crm/duplicates${qs ? `?${qs}` : ''}`);
+    return res.data.data.duplicates as any[];
+  },
+  async mergeDuplicates(id: string, masterEntityId: string, fieldSelections: Record<string, string>) {
+    const res = await api.post(`/crm/duplicates/${id}/merge`, { masterEntityId, fieldSelections });
+    return res.data;
+  },
+  async dismissDuplicate(id: string) {
+    const res = await api.post(`/crm/duplicates/${id}/dismiss`);
+    return res.data;
+  },
 };
 
 export default crmService;
