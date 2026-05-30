@@ -56,6 +56,9 @@ async function seedFlags() {
     { key: 'credit:ai',             description: 'AI advisory features (v2 - deferred)',                   enabled: true,  category: 'credit' },
     // §0.4 / §4.10 — OFF until bureau adapter is live. Compliance constraint.
     { key: 'credit:bureau_checks',  description: 'Bureau & AML adapter calls (OFF until adapter live)',   enabled: false, category: 'credit' },
+    // Wave E — CA Memo Redesign: section visibility flags
+    { key: 'credit:advanced_memo',    description: 'Enables bank-grade CA Memo sections (ECL, ESG, SICR, Sensitivity, CommitteeMeeting, Profitability, WalletShare, AccountUtilisation)', enabled: false, category: 'credit' },
+    { key: 'credit:committee_formal', description: 'Enables full CommitteeMeeting formal vote flow inside the approval tab', enabled: false, category: 'credit' },
   ];
 
   for (const flag of creditFlags) {
@@ -337,44 +340,98 @@ async function seedApprovals() {
 async function clearCreditData() {
   console.log('🧹 Clearing all Credit Module data...');
 
+  // FK-safe deletion order: children before parents.
+  // All models that belong to the Credit module are included.
+  // CRM-module models (CrmAccount, CrmContact, CrmLead, CrmPipeline, etc.) are excluded.
   const deletes: [string, () => Promise<number>][] = [
-    ['covenant tests',              () => prisma.covenantTest.deleteMany({}).then(r => r.count)],
-    ['covenant definitions',        () => prisma.covenantDefinition.deleteMany({}).then(r => r.count)],
-    ['payment events',              () => prisma.paymentEvent.deleteMany({}).then(r => r.count)],
-    ['early warning signals',       () => prisma.earlyWarningSignal.deleteMany({}).then(r => r.count)],
-    ['facility health records',     () => prisma.facilityHealth.deleteMany({}).then(r => r.count)],
-    ['committee votes',             () => prisma.committeeVote.deleteMany({}).then(r => r.count)],
-    ['committee agenda items',      () => prisma.committeeAgendaItem.deleteMany({}).then(r => r.count)],
-    ['committee members',           () => prisma.committeeMember.deleteMany({}).then(r => r.count)],
-    ['committee meetings',           () => prisma.committeeMeeting.deleteMany({}).then(r => r.count)],
-    ['score runs',                  () => prisma.creditScoreRun.deleteMany({}).then(r => r.count)],
-    ['scorecard versions',          () => prisma.creditScorecardVersion.deleteMany({}).then(r => r.count)],
-    ['scorecards',                  () => prisma.creditScorecard.deleteMany({}).then(r => r.count)],
-    ['request approvals',           () => prisma.requestApproval.deleteMany({}).then(r => r.count)],
-    ['approval matrix versions',    () => prisma.creditApprovalMatrixVersion.deleteMany({}).then(r => r.count)],
-    ['approval matrices',           () => prisma.creditApprovalMatrix.deleteMany({}).then(r => r.count)],
-    ['application signoffs',        () => prisma.applicationSignoff.deleteMany({}).then(r => r.count)],
-    ['ECL snapshots',               () => prisma.eclSnapshot.deleteMany({}).then(r => r.count)],
-    ['ECL forecasts',               () => prisma.eclForecast.deleteMany({}).then(r => r.count)],
-    ['conditions',                  () => prisma.condition.deleteMany({}).then(r => r.count)],
-    ['risk assessments',            () => prisma.riskAssessment.deleteMany({}).then(r => r.count)],
-    ['credit document versions',    () => prisma.creditDocumentVersion.deleteMany({}).then(r => r.count)],
-    ['credit documents',            () => prisma.creditDocument.deleteMany({}).then(r => r.count)],
-    ['insurance covers',            () => prisma.insuranceCover.deleteMany({}).then(r => r.count)],
-    ['collateral liens',             () => prisma.collateralLien.deleteMany({}).then(r => r.count)],
-    ['collateral valuations',       () => prisma.collateralValuation.deleteMany({}).then(r => r.count)],
-    ['collaterals',                  () => prisma.collateral.deleteMany({}).then(r => r.count)],
-    ['guarantees',                  () => prisma.guarantee.deleteMany({}).then(r => r.count)],
-    ['facilities',                   () => prisma.applicationFacility.deleteMany({}).then(r => r.count)],
-    ['request items',                () => prisma.requestItem.deleteMany({}).then(r => r.count)],
-    ['application parties',          () => prisma.applicationParty.deleteMany({}).then(r => r.count)],
-    ['financial line items',        () => prisma.financialLineItem.deleteMany({}).then(r => r.count)],
-    ['financial statements',        () => prisma.financialStatement.deleteMany({}).then(r => r.count)],
-    ['financial ratios',             () => prisma.financialRatio.deleteMany({}).then(r => r.count)],
-    ['borrower profiles',           () => prisma.borrowerProfile.deleteMany({}).then(r => r.count)],
-    ['audit events',                 () => prisma.creditAuditEvent.deleteMany({}).then(r => r.count)],
-    ['applications',                 () => prisma.creditApplication.deleteMany({}).then(r => r.count)],
-    ['related party groups',         () => prisma.relatedPartyGroup.deleteMany({}).then(r => r.count)],
+    // ── Deepest leaves (no credit-module children) ──────────────────────
+    ['committee votes',                () => prisma.committeeVote.deleteMany({}).then(r => r.count)],
+    ['projection line items',          () => prisma.projectionLineItem.deleteMany({}).then(r => r.count)],
+    ['profitability lines',            () => prisma.profitabilityLine.deleteMany({}).then(r => r.count)],
+    ['collateral liens',               () => prisma.collateralLien.deleteMany({}).then(r => r.count)],
+    ['collateral valuations',          () => prisma.collateralValuation.deleteMany({}).then(r => r.count)],
+    ['insurance covers',               () => prisma.insuranceCover.deleteMany({}).then(r => r.count)],
+    ['covenant tests',                 () => prisma.covenantTest.deleteMany({}).then(r => r.count)],
+    ['credit document versions',       () => prisma.creditDocumentVersion.deleteMany({}).then(r => r.count)],
+    ['financial line items',           () => prisma.financialLineItem.deleteMany({}).then(r => r.count)],
+    ['financial ratios',               () => prisma.financialRatio.deleteMany({}).then(r => r.count)],
+    ['credit SLA breaches',            () => prisma.creditSlaBreach.deleteMany({}).then(r => r.count)],
+    ['score override approvals',       () => prisma.scoreOverrideApproval.deleteMany({}).then(r => r.count)],
+    ['credit export events',           () => prisma.creditExportEvent.deleteMany({}).then(r => r.count)],
+
+    // ── Committee (agenda items + members reference meeting) ────────────
+    ['committee agenda items',          () => prisma.committeeAgendaItem.deleteMany({}).then(r => r.count)],
+    ['committee members',              () => prisma.committeeMember.deleteMany({}).then(r => r.count)],
+
+    // ── Application-level children (all FK → CreditApplication) ────────
+    ['ECL forecasts',                  () => prisma.eclForecast.deleteMany({}).then(r => r.count)],
+    ['ECL snapshots',                  () => prisma.eclSnapshot.deleteMany({}).then(r => r.count)],
+    ['exposure summaries',             () => prisma.exposureSummary.deleteMany({}).then(r => r.count)],
+    ['external ratings',               () => prisma.externalRating.deleteMany({}).then(r => r.count)],
+    ['sensitivity scenarios',           () => prisma.sensitivityScenario.deleteMany({}).then(r => r.count)],
+    ['cashflow projections',           () => prisma.cashflowProjection.deleteMany({}).then(r => r.count)],
+    ['account profitabilities',        () => prisma.accountProfitability.deleteMany({}).then(r => r.count)],
+    ['wallet shares',                  () => prisma.walletShare.deleteMany({}).then(r => r.count)],
+    ['account utilisation snapshots',  () => prisma.accountUtilisationSnapshot.deleteMany({}).then(r => r.count)],
+    ['credit bureau checks',           () => prisma.creditBureauCheck.deleteMany({}).then(r => r.count)],
+    ['industry assessments',            () => prisma.industryAssessment.deleteMany({}).then(r => r.count)],
+    ['risk assessments',               () => prisma.riskAssessment.deleteMany({}).then(r => r.count)],
+    ['RMD issues',                     () => prisma.rmdIssue.deleteMany({}).then(r => r.count)],
+    ['ESG assessments',                () => prisma.esgAssessment.deleteMany({}).then(r => r.count)],
+    ['SICR assessments',               () => prisma.sicrAssessment.deleteMany({}).then(r => r.count)],
+    ['application signoffs',           () => prisma.applicationSignoff.deleteMany({}).then(r => r.count)],
+    ['credit decisions',               () => prisma.creditDecision.deleteMany({}).then(r => r.count)],
+    ['document requirements',          () => prisma.documentRequirement.deleteMany({}).then(r => r.count)],
+    ['credit audit events',            () => prisma.creditAuditEvent.deleteMany({}).then(r => r.count)],
+    ['conditions',                     () => prisma.condition.deleteMany({}).then(r => r.count)],
+    ['early warning signals',           () => prisma.earlyWarningSignal.deleteMany({}).then(r => r.count)],
+    ['facility health records',        () => prisma.facilityHealth.deleteMany({}).then(r => r.count)],
+    ['payment events',                 () => prisma.paymentEvent.deleteMany({}).then(r => r.count)],
+    ['covenant definitions',           () => prisma.covenantDefinition.deleteMany({}).then(r => r.count)],
+    ['credit documents',               () => prisma.creditDocument.deleteMany({}).then(r => r.count)],
+    ['application parties',            () => prisma.applicationParty.deleteMany({}).then(r => r.count)],
+
+    // ── Facility-level (depend on ApplicationFacility) ──────────────────
+    ['collaterals',                    () => prisma.collateral.deleteMany({}).then(r => r.count)],
+    ['guarantees',                     () => prisma.guarantee.deleteMany({}).then(r => r.count)],
+
+    // ── Request items → then facilities ─────────────────────────────────
+    ['request items',                   () => prisma.requestItem.deleteMany({}).then(r => r.count)],
+    ['facilities',                      () => prisma.applicationFacility.deleteMany({}).then(r => r.count)],
+
+    // ── Borrower profile children ──────────────────────────────────────
+    ['directors',                      () => prisma.director.deleteMany({}).then(r => r.count)],
+    ['shareholders',                    () => prisma.shareholder.deleteMany({}).then(r => r.count)],
+    ['ultimate beneficial owners',     () => prisma.ultimateBeneficialOwner.deleteMany({}).then(r => r.count)],
+    ['key counterparties',             () => prisma.keyCounterparty.deleteMany({}).then(r => r.count)],
+    ['related party members',          () => prisma.relatedPartyMember.deleteMany({}).then(r => r.count)],
+
+    // ── Financial statements (after line items & ratios) ────────────────
+    ['financial statements',           () => prisma.financialStatement.deleteMany({}).then(r => r.count)],
+
+    // ── Score runs → then score-related parents ─────────────────────────
+    ['score runs',                      () => prisma.creditScoreRun.deleteMany({}).then(r => r.count)],
+    ['scorecard versions',              () => prisma.creditScorecardVersion.deleteMany({}).then(r => r.count)],
+    ['scorecards',                      () => prisma.creditScorecard.deleteMany({}).then(r => r.count)],
+
+    // ── Committee meetings (after agenda items & members) ───────────────
+    ['committee meetings',              () => prisma.committeeMeeting.deleteMany({}).then(r => r.count)],
+
+    // ── SLA policies (after breaches) ───────────────────────────────────
+    ['credit SLA policies',             () => prisma.creditSlaPolicy.deleteMany({}).then(r => r.count)],
+
+    // ── Approval matrices (after versions) ──────────────────────────────
+    ['approval matrix versions',        () => prisma.creditApprovalMatrixVersion.deleteMany({}).then(r => r.count)],
+    ['approval matrices',               () => prisma.creditApprovalMatrix.deleteMany({}).then(r => r.count)],
+
+    // ── Request approvals (service-desk credit approvals) ───────────────
+    ['request approvals',               () => prisma.requestApproval.deleteMany({}).then(r => r.count)],
+
+    // ── Top-level parents ───────────────────────────────────────────────
+    ['applications',                     () => prisma.creditApplication.deleteMany({}).then(r => r.count)],
+    ['borrower profiles',               () => prisma.borrowerProfile.deleteMany({}).then(r => r.count)],
+    ['related party groups',            () => prisma.relatedPartyGroup.deleteMany({}).then(r => r.count)],
+    ['credit app counters',             () => prisma.creditAppCounter.deleteMany({}).then(r => r.count)],
   ];
 
   for (const [label, fn] of deletes) {
