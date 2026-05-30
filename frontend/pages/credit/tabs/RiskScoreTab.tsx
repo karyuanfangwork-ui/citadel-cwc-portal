@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import QualitativeAssessmentTab from './QualitativeAssessmentTab';
 import creditService, {
   CreditApplication,
   CreditScoreRun,
@@ -295,6 +296,14 @@ const RiskScoreTab: React.FC<Props> = ({ application, onUpdated }) => {
           </div>
         </CaMemoSection>
       )}
+
+      {/* ── Qualitative Assessment ──────────────── */}
+      <CaMemoSection title="Qualitative Factors" phase="S4">
+        <QualitativeAssessmentTab
+          applicationId={application.id}
+          readOnly={!canWrite || application.state !== 'DRAFT'}
+        />
+      </CaMemoSection>
     </div>
   );
 };

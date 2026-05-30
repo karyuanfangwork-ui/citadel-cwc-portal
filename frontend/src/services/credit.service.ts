@@ -629,11 +629,30 @@ const creditService = {
     return res.data.data.documents as CreditDocument[];
   },
 
+  async listApplicationDocuments(applicationId: string) {
+    const res = await apiClient.get(`/credit/credit-documents`, { params: { applicationId } });
+    return res.data.data.documents as CreditDocument[];
+  },
+
   async uploadDocument(borrowerProfileId: string, formData: FormData) {
     const res = await apiClient.post(`/credit/borrowers/${borrowerProfileId}/documents`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return res.data.data.document as CreditDocument;
+  },
+
+  async uploadApplicationDocument(borrowerProfileId: string, applicationId: string, formData: FormData) {
+    formData.append('borrowerProfileId', borrowerProfileId);
+    formData.append('applicationId', applicationId);
+    const res = await apiClient.post(`/credit/credit-documents/upload`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data.data.document as CreditDocument;
+  },
+
+  async getDocumentDownloadUrl(documentId: string): Promise<string> {
+    const res = await apiClient.get(`/credit/credit-documents/${documentId}/download`);
+    return res.data.data.downloadUrl as string;
   },
 
   async verifyDocument(documentId: string) {
@@ -1948,6 +1967,25 @@ export const piiRevealApi = {
   ubo: async (id: string): Promise<string> => {
     const res = await apiClient.get(`/credit/ubos/${id}/nric-reveal`);
     return res.data.data.nric as string;
+  },
+};
+
+export const qualitativeAssessmentApi = {
+  get: async (applicationId: string) => {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/qualitative-assessment`);
+    return res.data.data as {
+      managementScore: number;
+      relationshipScore: number;
+      industryScore: number;
+      collateralScore: number;
+    } | null;
+  },
+  upsert: async (
+    applicationId: string,
+    scores: { managementScore: number; relationshipScore: number; industryScore: number; collateralScore: number },
+  ) => {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/qualitative-assessment`, scores);
+    return res.data.data;
   },
 };
 
