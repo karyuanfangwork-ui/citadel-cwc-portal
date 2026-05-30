@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import { Prisma, RiskRating } from '@prisma/client';
 import { FACTOR_GROUPS, FactorWeights } from './scorecard.service';
 import { AppError } from '../../middleware/error.middleware';
+import { getQualitativeAssessment, toFactorScores } from './qualitativeAssessment.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -225,6 +226,17 @@ class ScoringService {
     // Step 5: Compute factor scores
     const factorWeights: FactorWeights = scorecardVersion.factorWeights as any;
 
+    // Load qualitative assessments if available (Wave 1)
+    const qa = await getQualitativeAssessment(applicationId);
+    const qualScores = qa
+      ? toFactorScores({
+          managementScore: qa.managementScore,
+          relationshipScore: qa.relationshipScore,
+          industryScore: qa.industryScore,
+          collateralScore: qa.collateralScore,
+        })
+      : { management: 50, relationship: 50, industry: 50, collateral: 50 };
+
     const factorScores: FactorScores = {
       financial_performance: {
         weight: factorWeights.financial_performance,
@@ -248,22 +260,22 @@ class ScoringService {
       },
       management: {
         weight: factorWeights.management,
-        score: PLACEHOLDER_SCORE,
+        score: qualScores.management,
         weightedScore: 0,
       },
       industry: {
         weight: factorWeights.industry,
-        score: PLACEHOLDER_SCORE,
+        score: qualScores.industry,
         weightedScore: 0,
       },
       collateral: {
         weight: factorWeights.collateral,
-        score: PLACEHOLDER_SCORE,
+        score: qualScores.collateral,
         weightedScore: 0,
       },
       relationship: {
         weight: factorWeights.relationship,
-        score: PLACEHOLDER_SCORE,
+        score: qualScores.relationship,
         weightedScore: 0,
       },
       market_conditions: {
