@@ -81,7 +81,7 @@ const MobileApprovalInbox: React.FC = () => {
 
   const handleQuickDecision = async (d: ApprovalDecision) => {
     if (!selectedId || !canApprove) return;
-    if (d === 'REJECTED') {
+    if (d === 'REJECT') {
       setDecision(d);
       setShowRejectModal(true);
       return;
@@ -89,7 +89,7 @@ const MobileApprovalInbox: React.FC = () => {
     setSubmitting(true);
     try {
       await creditService.submitApproval(selectedId, { decision: d });
-      toast.success(d === 'APPROVED' ? 'Approved' : 'Deferred');
+      toast.success(d === 'APPROVE' ? 'Approved' : 'Deferred');
       setSelectedId(null);
       fetchInbox();
     } catch (e) {
@@ -103,7 +103,7 @@ const MobileApprovalInbox: React.FC = () => {
     if (!selectedId || !comment.trim()) return;
     setSubmitting(true);
     try {
-      await creditService.submitApproval(selectedId, { decision: 'REJECTED', comment: comment.trim() });
+      await creditService.submitApproval(selectedId, { decision: 'REJECT', comment: comment.trim() });
       toast.success('Rejected');
       setShowRejectModal(false);
       setComment('');
@@ -261,7 +261,7 @@ const MobileApprovalInbox: React.FC = () => {
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Approval decision">
                     <button
-                      onClick={() => handleQuickDecision('APPROVED')}
+                      onClick={() => handleQuickDecision('APPROVE')}
                       disabled={submitting}
                       className="flex items-center justify-center gap-1.5 py-3 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 active:bg-green-800 disabled:opacity-50 min-h-[44px]"
                       aria-label="Approve this application"
@@ -270,7 +270,7 @@ const MobileApprovalInbox: React.FC = () => {
                       Approve
                     </button>
                     <button
-                      onClick={() => handleQuickDecision('REJECTED')}
+                      onClick={() => handleQuickDecision('REJECT')}
                       disabled={submitting}
                       className="flex items-center justify-center gap-1.5 py-3 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-700 active:bg-red-800 disabled:opacity-50 min-h-[44px]"
                       aria-label="Reject this application"
@@ -280,7 +280,7 @@ const MobileApprovalInbox: React.FC = () => {
                     </button>
                   </div>
                   <button
-                    onClick={() => handleQuickDecision('RETURNED')}
+                    onClick={() => handleQuickDecision('RETURN')}
                     disabled={submitting}
                     className="w-full flex items-center justify-center gap-1.5 py-3 rounded-xl border border-gray-300 bg-gray-50 text-gray-700 font-bold text-sm hover:bg-gray-100 active:bg-gray-200 disabled:opacity-50 min-h-[44px]"
                     aria-label="Defer this application"

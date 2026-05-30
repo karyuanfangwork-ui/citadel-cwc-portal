@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import creditService from '../../services/credit.service';
 
 /**
  * Section anchors matching the IDs in the approval-pack HTML template.
@@ -29,16 +30,39 @@ interface ApprovalPackPreviewProps {
 
 const ApprovalPackPreview: React.FC<ApprovalPackPreviewProps> = ({ applicationId, applicationNo, onClose }) => {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [htmlUrl, setHtmlUrl] = useState<string>('');
+  const blobUrlRef = useRef<string>('');
 
   useEffect(() => {
-    // Use the approval-pack endpoint directly as iframe src
-    const apiBase = (import.meta as any).env?.VITE_API_URL || '';
-    const url = `${apiBase}/api/v1/credit/applications/${applicationId}/approval-pack?format=html`;
-    setHtmlUrl(url);
-    setLoading(false);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    creditService.getApprovalPackHtml(applicationId)
+      .then((html) => {
+        if (cancelled) return;
+        const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
+        setHtmlUrl(url);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err?.response?.data?.message || 'Failed to load approval pack');
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = '';
+      }
+    };
   }, [applicationId]);
 
   const scrollToSection = useCallback((sectionId: string) => {
@@ -49,17 +73,26 @@ const ApprovalPackPreview: React.FC<ApprovalPackPreviewProps> = ({ applicationId
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     } catch {
-      // Cross-origin fallback: update iframe src with hash
-      const apiBase = (import.meta as any).env?.VITE_API_URL || '';
-      setHtmlUrl(`${apiBase}/api/v1/credit/applications/${applicationId}/approval-pack?format=html#${sectionId}`);
+      // Blob URL fallback: append fragment to trigger scroll via hash
+      if (blobUrlRef.current) {
+        setHtmlUrl(`${blobUrlRef.current}#${sectionId}`);
+      }
     }
   }, [applicationId]);
 
-  const handleDownloadPdf = () => {
-    const apiBase = (import.meta as any).env?.VITE_API_URL || '';
-    const url = `${apiBase}/api/v1/credit/applications/${applicationId}/approval-pack?format=pdf`;
-    // Open in new tab for download (browser will handle Content-Disposition)
-    window.open(url, '_blank');
+  const handleDownloadPdf = async () => {
+    try {
+      const res = await creditService.downloadApprovalPackPdf(applicationId);
+      const blob = new Blob([res.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${applicationNo}-approval-pack.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // swallow — user can retry
+    }
   };
 
   const handlePrint = () => {
@@ -193,6 +226,10 @@ const ApprovalPackPreview: React.FC<ApprovalPackPreviewProps> = ({ applicationId
             {loading ? (
               <div className="flex items-center justify-center h-full text-gray-400 text-sm">
                 Loading approval pack…
+              </div>
+            ) : error ? (
+              <div className="flex items-center justify-center h-full text-red-500 text-sm">
+                {error}
               </div>
             ) : (
               <iframe

@@ -333,7 +333,7 @@ export const RiskRatingKpiCards: React.FC<{
       return `${s.replace('_', ' ')}: RM ${fmt(stageEcl)}`;
     }).join(' · ');
     cards.push({
-      icon: 'layer_stack',
+      icon: 'layers',
       label: 'ECL by Stage',
       value: `${stages.size} stage${stages.size !== 1 ? 's' : ''}`,
       sub: stageSummary,

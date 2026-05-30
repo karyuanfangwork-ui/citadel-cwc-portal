@@ -9,27 +9,35 @@ import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
 import { useDirtyFormGuard } from '../src/hooks/useDirtyFormGuard';
-import HeaderBackgroundTab from './credit/tabs/HeaderBackgroundTab';
-import FacilitiesTab from './credit/tabs/FacilitiesTab';
-import RequestsFacilitiesTab from './credit/tabs/RequestsFacilitiesTab';
-import RiskRatingEclTab from './credit/tabs/RiskRatingEclTab';
+
+// ── New 7-Section Tabs ───────────────────────────────────
+import LoanRequestTab from './credit/tabs/LoanRequestTab';
+import BorrowerProfileTab from './credit/tabs/BorrowerProfileTab';
+import FinancialsTab from './credit/tabs/FinancialsTab';
+import RiskScoreTab from './credit/tabs/RiskScoreTab';
 import PaymentCapabilityTab from './credit/tabs/PaymentCapabilityTab';
-import SecurityGuaranteesTab from './credit/tabs/SecurityGuaranteesTab';
-import ProfitabilityWalletTab from './credit/tabs/ProfitabilityWalletTab';
-import CounterpartiesTab from './credit/tabs/CounterpartiesTab';
-import AccountConductTab from './credit/tabs/AccountConductTab';
 import CreditChecksTab from './credit/tabs/CreditChecksTab';
 import IndustryOutlookTab from './credit/tabs/IndustryOutlookTab';
 import RiskMitigatorsTab from './credit/tabs/RiskMitigatorsTab';
-import ForwardLookingRiskTab from './credit/tabs/ForwardLookingRiskTab';
-import SignoffTab from './credit/tabs/SignoffTab';
-import SummaryTab from './credit/tabs/SummaryTab';
-import PartiesTab from './credit/tabs/PartiesTab';
-import DocumentsTab from './credit/tabs/DocumentsTab';
-import ApprovalsTab from './credit/tabs/ApprovalsTab';
 import CollateralTab from './credit/tabs/CollateralTab';
+import SecurityGuaranteesTab from './credit/tabs/SecurityGuaranteesTab';
+import ApprovalsTab from './credit/tabs/ApprovalsTab';
+import SignoffTab from './credit/tabs/SignoffTab';
 import ConditionsTab from './credit/tabs/ConditionsTab';
+import SummaryTab from './credit/tabs/SummaryTab';
+import DocumentsTab from './credit/tabs/DocumentsTab';
 import AuditTab from './credit/tabs/AuditTab';
+import PartiesTab from './credit/tabs/PartiesTab';
+
+// ── Legacy tabs (bank-grade, behind credit:advanced_memo flag) ──
+import RiskRatingEclTab from './credit/tabs/RiskRatingEclTab';
+import ProfitabilityWalletTab from './credit/tabs/ProfitabilityWalletTab';
+import CounterpartiesTab from './credit/tabs/CounterpartiesTab';
+import AccountConductTab from './credit/tabs/AccountConductTab';
+import ForwardLookingRiskTab from './credit/tabs/ForwardLookingRiskTab';
+import HeaderBackgroundTab from './credit/tabs/HeaderBackgroundTab';
+import FacilitiesTab from './credit/tabs/FacilitiesTab';
+import RequestsFacilitiesTab from './credit/tabs/RequestsFacilitiesTab';
 
 import {
   formatCurrency,
@@ -43,6 +51,7 @@ import {
   getPhaseCompletion,
   getIncompletePhaseCount,
   getNextIncompleteTab,
+  getVisibleTabGroups,
 } from './credit/creditUtils';
 import CreditApplicationWizard from './credit/CreditApplicationWizard';
 import { LEGACY_TAB_MAP } from './credit/tabRegistry';
@@ -59,7 +68,14 @@ const CreditApplicationDetail: React.FC = () => {
 
   const [app, setApp] = useState<CreditApplication | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<DetailTab>('header');
+  const [activeTab, setActiveTab] = useState<DetailTab>('loan-request');
+
+  // Feature flag: credit:advanced_memo — enables bank-only sections
+  // TODO (Wave E): wire to FeatureFlag API. For now, default false.
+  const [advancedMemo, setAdvancedMemo] = useState(false);
+
+  const visibleTabGroups = getVisibleTabGroups(advancedMemo);
+  const visibleTabs = visibleTabGroups.flatMap(g => g.tabs.map(t => t.id));
 
   // Guarded tab switch — prompts if there are unsaved changes
   const handleTabChange = useCallback((tab: DetailTab) => {
@@ -163,25 +179,26 @@ const CreditApplicationDetail: React.FC = () => {
   };
 
   const handleTabKeyDown = (e: React.KeyboardEvent, tab: DetailTab) => {
-    const idx = ALL_TABS.indexOf(tab);
+    const idx = visibleTabs.indexOf(tab);
+    if (idx === -1) return;
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      const next = ALL_TABS[(idx + 1) % ALL_TABS.length];
+      const next = visibleTabs[(idx + 1) % visibleTabs.length];
       handleTabChange(next);
       document.getElementById(`tab-${next}`)?.focus();
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      const prev = ALL_TABS[(idx - 1 + ALL_TABS.length) % ALL_TABS.length];
+      const prev = visibleTabs[(idx - 1 + visibleTabs.length) % visibleTabs.length];
       handleTabChange(prev);
       document.getElementById(`tab-${prev}`)?.focus();
     } else if (e.key === 'Home') {
       e.preventDefault();
-      handleTabChange(ALL_TABS[0]);
-      document.getElementById(`tab-${ALL_TABS[0]}`)?.focus();
+      handleTabChange(visibleTabs[0]);
+      document.getElementById(`tab-${visibleTabs[0]}`)?.focus();
     } else if (e.key === 'End') {
       e.preventDefault();
-      handleTabChange(ALL_TABS[ALL_TABS.length - 1]);
-      document.getElementById(`tab-${ALL_TABS[ALL_TABS.length - 1]}`)?.focus();
+      handleTabChange(visibleTabs[visibleTabs.length - 1]);
+      document.getElementById(`tab-${visibleTabs[visibleTabs.length - 1]}`)?.focus();
     }
   };
 
@@ -202,15 +219,19 @@ const CreditApplicationDetail: React.FC = () => {
   const badge = STATE_COLORS[currentState] || STATE_COLORS.DRAFT;
 
   const phaseCompletion = getPhaseCompletion({
-    applicationType: app.applicationType,
-    accountClassification: app.accountClassification,
-    preambleText: app.preambleText,
+    requestedAmount: app.requestedAmount,
+    requestedTenor: app.requestedTenor,
+    productType: app.productType as string | null,
+    purpose: app.purpose,
+    borrowerType: app.borrowerProfile?.borrowerType ?? null,
+    registrationNumber: null,
     riskRating: app.riskRating,
     firstWayOut: app.firstWayOut,
-    purpose: app.purpose,
     preparedAt: app.preparedAt,
+    decisionedAt: app.decisionedAt,
     facilities: facilities,
     parties: app.parties,
+    isSecured: false,
   });
   const incompleteCount = getIncompletePhaseCount(phaseCompletion);
 
@@ -219,29 +240,51 @@ const CreditApplicationDetail: React.FC = () => {
   const isPastStage = (idx: number) => idx < currentStageIdx;
   const isCurrentStage = (idx: number) => idx === currentStageIdx;
 
-  // §3.6 — Render a tab by ID (shared between classic and wizard views)
+  // ── Render tab by ID (7-section + advanced) ───────────────────
   const renderTab = (tabId: DetailTab): React.ReactNode => {
     switch (tabId) {
-      case 'header': return <HeaderBackgroundTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />;
-      case 'summary': return <SummaryTab app={app!} facilities={facilities} transitions={transitions} canWrite={canWrite} canApprove={canApprove} onTransition={handleTransition} onRefresh={fetchApp} />;
-      case 'facilities': return <RequestsFacilitiesTab application={app!} onDirtyChange={setDirty} />;
-      case 'risk-rating': return <RiskRatingEclTab application={app!} onDirtyChange={setDirty} />;
+      // S1 — Loan Request
+      case 'loan-request': return <LoanRequestTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />;
+
+      // S2 — Borrower Profile
+      case 'borrower-profile': return <BorrowerProfileTab application={app!} />;
+      case 'parties': return <PartiesTab app={app!} />;
+
+      // S3 — Financials
+      case 'financials': return <FinancialsTab application={app!} />;
+
+      // S4 — Risk Score
+      case 'risk-score': return <RiskScoreTab application={app!} onUpdated={setApp} />;
       case 'payment-capability': return <PaymentCapabilityTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'security': return <SecurityGuaranteesTab application={app!} onUpdated={setApp} />;
-      case 'profitability': return <ProfitabilityWalletTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'counterparties': return <CounterpartiesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'conduct': return <AccountConductTab application={app!} onUpdated={setApp} />;
+
+      // S5 — Bureau & Compliance
       case 'credit-checks': return <CreditChecksTab application={app!} onUpdated={setApp} />;
       case 'industry': return <IndustryOutlookTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
       case 'risk': return <RiskMitigatorsTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'forward-looking-risk': return <ForwardLookingRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'signoff': return <SignoffTab application={app!} onUpdated={setApp} />;
-      case 'parties': return <PartiesTab app={app!} />;
-      case 'documents': return <DocumentsTab app={app!} />;
-      case 'approvals': return <ApprovalsTab app={app!} onRefresh={fetchApp} />;
+
+      // S6 — Collateral & Guarantees
       case 'collateral': return <CollateralTab />;
+      case 'security': return <SecurityGuaranteesTab application={app!} onUpdated={setApp} />;
+
+      // S7 — Decision
+      case 'approvals': return <ApprovalsTab app={app!} onRefresh={fetchApp} />;
+      case 'signoff': return <SignoffTab application={app!} onUpdated={setApp} />;
       case 'conditions': return <ConditionsTab />;
+      case 'summary': return <SummaryTab app={app!} facilities={facilities} transitions={transitions} canWrite={canWrite} canApprove={canApprove} onTransition={handleTransition} onRefresh={fetchApp} />;
+
+      // META — Operations
+      case 'documents': return <DocumentsTab app={app!} />;
       case 'audit': return <AuditTab />;
+
+      // Bank-only tabs (rendered when credit:advanced_memo is enabled)
+      case 'risk-rating': return <RiskRatingEclTab application={app!} onDirtyChange={setDirty} />;
+      case 'profitability': return <ProfitabilityWalletTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'counterparties': return <CounterpartiesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'conduct': return <AccountConductTab application={app!} onUpdated={setApp} />;
+      case 'forward-looking-risk': return <ForwardLookingRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      case 'header': return <HeaderBackgroundTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />;
+      case 'facilities': return <RequestsFacilitiesTab application={app!} onDirtyChange={setDirty} />;
+
       default: return null;
     }
   };
@@ -259,14 +302,21 @@ const CreditApplicationDetail: React.FC = () => {
             <span>/</span>
             <span className="font-semibold text-gray-900">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}</span>
           </div>
-          <Link
-            to={`/credit/applications/${id}`}
-            className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800"
-            title="Switch to classic view"
-          >
-            <span className="material-symbols-outlined text-lg">view_agenda</span>
-            Classic View
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Advanced Memo toggle */}
+            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
+              <input type="checkbox" checked={advancedMemo} onChange={e => setAdvancedMemo(e.target.checked)} className="rounded border-gray-300" />
+              Advanced Memo
+            </label>
+            <Link
+              to={`/credit/applications/${id}`}
+              className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800"
+              title="Switch to classic view"
+            >
+              <span className="material-symbols-outlined text-lg">view_agenda</span>
+              Classic View
+            </Link>
+          </div>
         </div>
         <CreditApplicationWizard
           app={app!}
@@ -294,15 +344,22 @@ const CreditApplicationDetail: React.FC = () => {
             <span>/</span>
             <span className="font-semibold text-text-primary">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}</span>
           </div>
-          {/* §3.6 — Wizard mode toggle */}
-          <Link
-            to={`/credit/applications/${id}?mode=wizard`}
-            className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800"
-            title="Switch to wizard view"
-          >
-            <span className="material-symbols-outlined text-lg">view_sidebar</span>
-            Wizard View
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Advanced Memo toggle */}
+            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none" title="Show bank-grade ECL, ESG, SICR, Committee sections">
+              <input type="checkbox" checked={advancedMemo} onChange={e => setAdvancedMemo(e.target.checked)} className="rounded border-gray-300" />
+              Advanced Memo
+            </label>
+            {/* §3.6 — Wizard mode toggle */}
+            <Link
+              to={`/credit/applications/${id}?mode=wizard`}
+              className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800"
+              title="Switch to wizard view"
+            >
+              <span className="material-symbols-outlined text-lg">view_sidebar</span>
+              Wizard View
+            </Link>
+          </div>
         </div>
 
         {/* Header */}
@@ -328,13 +385,13 @@ const CreditApplicationDetail: React.FC = () => {
                 {incompleteCount > 0 && (
                   <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
                     <span className="material-symbols-outlined text-[14px]">warning</span>
-                    {incompleteCount} phase{incompleteCount !== 1 ? 's' : ''} incomplete
+                    {incompleteCount} section{incompleteCount !== 1 ? 's' : ''} incomplete
                   </span>
                 )}
                 {incompleteCount === 0 && (
                   <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
                     <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                    All phases complete
+                    All sections complete
                   </span>
                 )}
               </div>
@@ -435,7 +492,7 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* Mobile sticky nav bar — visible only on small screens */}
         {(() => {
-          const activeGroup = TAB_GROUPS.find(g => g.tabs.some(t => t.id === activeTab));
+          const activeGroup = visibleTabGroups.find(g => g.tabs.some(t => t.id === activeTab));
           const activeTabDef = activeGroup?.tabs.find(t => t.id === activeTab);
           const groupStatus = activeGroup ? phaseCompletion[activeGroup.id] : 'optional';
           return (
@@ -461,7 +518,7 @@ const CreditApplicationDetail: React.FC = () => {
 
               {showMobileNav && (
                 <div id="mobile-nav-drawer" className="border-t border-border max-h-[60vh] overflow-y-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-                  {TAB_GROUPS.map((group) => {
+                  {visibleTabGroups.map((group) => {
                     const gStatus = phaseCompletion[group.id];
                     return (
                       <div key={group.id}>
@@ -497,19 +554,20 @@ const CreditApplicationDetail: React.FC = () => {
         <div className="flex flex-col md:flex-row gap-6 mb-6 relative">
           {/* Sidebar Tabs — desktop only */}
           <nav aria-label="Application sections" className="hidden md:flex md:w-72 shrink-0 flex-col sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden pr-1 pb-4 bg-bg-surface border border-border rounded-xl shadow-sm" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
-            {TAB_GROUPS.map((group, groupIdx) => {
+            {visibleTabGroups.map((group, groupIdx) => {
               const groupStatus = phaseCompletion[group.id];
               const isGroupComplete = groupStatus === 'complete';
               const isOptional = groupStatus === 'optional';
-              const phaseMatch = /^phase(\d+)$/.exec(group.id);
-              const phaseLabel = phaseMatch ? `P${phaseMatch[1]}` : null;
+              // Show section label (S1, S2, etc.) or "ADV" for bank-only
+              const sectionMatch = /^s(\d+)$/.exec(group.id);
+              const sectionLabel = sectionMatch ? `S${sectionMatch[1]}` : group.advancedOnly ? 'ADV' : null;
               const dotClass = isGroupComplete ? 'bg-green-500' : isOptional ? 'bg-gray-300' : 'bg-amber-500';
               const dotTitle = isGroupComplete ? 'Complete' : isOptional ? 'Optional' : 'Incomplete';
               return (
                 <div key={group.id} className={groupIdx === 0 ? 'pt-2' : 'pt-3'}>
                   <div className="flex items-center gap-2 px-3 py-1.5">
-                    {phaseLabel && (
-                      <span className="text-[10px] font-semibold text-text-tertiary bg-gray-100 border border-border rounded px-1.5 py-0.5 shrink-0">{phaseLabel}</span>
+                    {sectionLabel && (
+                      <span className="text-[10px] font-semibold text-text-tertiary bg-gray-100 border border-border rounded px-1.5 py-0.5 shrink-0">{sectionLabel}</span>
                     )}
                     <span className="text-[11px] font-semibold text-text-tertiary uppercase truncate min-w-0 flex-1" title={group.label}>{group.label}</span>
                     <span className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} title={dotTitle} aria-label={dotTitle} />
@@ -547,166 +605,178 @@ const CreditApplicationDetail: React.FC = () => {
           <div className="flex-1 min-w-0 bg-white border border-border rounded-xl shadow-sm overflow-hidden flex flex-col">
             <div className="p-6 flex-1">
 
-        {/* Header Tab (CA Memo Phase 1) */}
-        {activeTab === 'header' && (
-          <div role="tabpanel" id="panel-header" aria-labelledby="tab-header" tabIndex={0}>
-            <HeaderBackgroundTab
-              application={app}
-              onUpdated={(updated) => setApp(updated)}
-              onDirtyChange={setDirty}
-            />
+        {/* S1 — Loan Request */}
+        {activeTab === 'loan-request' && (
+          <div role="tabpanel" id="panel-loan-request" aria-labelledby="tab-loan-request" tabIndex={0}>
+            <LoanRequestTab application={app} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />
           </div>
         )}
 
-        {/* Summary Tab */}
-        {activeTab === 'summary' && (
-          <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary" tabIndex={0}>
-            <SummaryTab
-              app={app}
-              facilities={facilities}
-              transitions={transitions}
-              canWrite={canWrite}
-              canApprove={canApprove}
-              onTransition={handleTransition}
-              onRefresh={fetchApp}
-            />
+        {/* S2 — Borrower Profile */}
+        {activeTab === 'borrower-profile' && (
+          <div role="tabpanel" id="panel-borrower-profile" aria-labelledby="tab-borrower-profile" tabIndex={0}>
+            <BorrowerProfileTab application={app} />
           </div>
         )}
 
-        {/* Facilities Tab — CA Memo Phase 2 */}
-        {activeTab === 'facilities' && (
-          <div role="tabpanel" id="panel-facilities" aria-labelledby="tab-facilities" tabIndex={0}>
-            <FacilitiesTab application={app} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* Risk Rating & ECL Tab — CA Memo Phase 3 */}
-        {activeTab === 'risk-rating' && (
-          <div role="tabpanel" id="panel-risk-rating" aria-labelledby="tab-risk-rating" tabIndex={0}>
-            <RiskRatingEclTab application={app} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* Payment Capability Tab — CA Memo Phase 3 */}
-        {activeTab === 'payment-capability' && (
-          <div role="tabpanel" id="panel-payment-capability" aria-labelledby="tab-payment-capability" tabIndex={0}>
-            <PaymentCapabilityTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* Security & Guarantees Tab — CA Memo Phase 4 */}
-        {activeTab === 'security' && (
-          <div role="tabpanel" id="panel-security" aria-labelledby="tab-security" tabIndex={0}>
-            <SecurityGuaranteesTab application={app} onUpdated={setApp} />
-          </div>
-        )}
-
-        {/* Profitability & Wallet Share Tab — CA Memo Phase 4 */}
-        {activeTab === 'profitability' && (
-          <div role="tabpanel" id="panel-profitability" aria-labelledby="tab-profitability" tabIndex={0}>
-            <ProfitabilityWalletTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* Counterparties Tab — CA Memo Phase 4 */}
-        {activeTab === 'counterparties' && (
-          <div role="tabpanel" id="panel-counterparties" aria-labelledby="tab-counterparties" tabIndex={0}>
-            <CounterpartiesTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* Account Conduct Tab — CA Memo Phase 4 */}
-        {activeTab === 'conduct' && (
-          <div role="tabpanel" id="panel-conduct" aria-labelledby="tab-conduct" tabIndex={0}>
-            <AccountConductTab application={app} onUpdated={setApp} />
-          </div>
-        )}
-
-        {/* Credit Bureau Checks Tab — CA Memo Phase 5 */}
-        {activeTab === 'credit-checks' && (
-          <div role="tabpanel" id="panel-credit-checks" aria-labelledby="tab-credit-checks" tabIndex={0}>
-            <CreditChecksTab application={app} onUpdated={setApp} />
-          </div>
-        )}
-
-        {/* Industry Outlook Tab — CA Memo Phase 5 */}
-        {activeTab === 'industry' && (
-          <div role="tabpanel" id="panel-industry" aria-labelledby="tab-industry" tabIndex={0}>
-            <IndustryOutlookTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* Risk & Mitigators Tab — CA Memo Phase 5 */}
-        {activeTab === 'risk' && (
-          <div role="tabpanel" id="panel-risk" aria-labelledby="tab-risk" tabIndex={0}>
-            <RiskMitigatorsTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* Forward-Looking Risk (ESG + SICR merged) — §3.5 */}
-        {activeTab === 'forward-looking-risk' && (
-          <div role="tabpanel" id="panel-forward-looking-risk" aria-labelledby="tab-forward-looking-risk" tabIndex={0}>
-            <ForwardLookingRiskTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* Sign-off Tab — CA Memo Phase 5 */}
-        {activeTab === 'signoff' && (
-          <div role="tabpanel" id="panel-signoff" aria-labelledby="tab-signoff" tabIndex={0}>
-            <SignoffTab application={app} onUpdated={setApp} />
-          </div>
-        )}
-
-        {/* Parties Tab */}
+        {/* S2 — Parties (Directors & UBOs) */}
         {activeTab === 'parties' && (
           <div role="tabpanel" id="panel-parties" aria-labelledby="tab-parties" tabIndex={0}>
             <PartiesTab app={app} />
           </div>
         )}
 
-        {/* Documents Tab */}
-        {activeTab === 'documents' && (
-          <div role="tabpanel" id="panel-documents" aria-labelledby="tab-documents" tabIndex={0}>
-            <DocumentsTab app={app} />
+        {/* S3 — Financials */}
+        {activeTab === 'financials' && (
+          <div role="tabpanel" id="panel-financials" aria-labelledby="tab-financials" tabIndex={0}>
+            <FinancialsTab application={app} />
           </div>
         )}
 
-        {/* Approvals Tab */}
-        {activeTab === 'approvals' && (
-          <div role="tabpanel" id="panel-approvals" aria-labelledby="tab-approvals" tabIndex={0}>
-            <ApprovalsTab app={app} onRefresh={fetchApp} />
+        {/* S4 — Risk Score */}
+        {activeTab === 'risk-score' && (
+          <div role="tabpanel" id="panel-risk-score" aria-labelledby="tab-risk-score" tabIndex={0}>
+            <RiskScoreTab application={app} onUpdated={setApp} />
           </div>
         )}
 
-        {/* Collateral Tab */}
+        {/* S4 — Payment Capability */}
+        {activeTab === 'payment-capability' && (
+          <div role="tabpanel" id="panel-payment-capability" aria-labelledby="tab-payment-capability" tabIndex={0}>
+            <PaymentCapabilityTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
+          </div>
+        )}
+
+        {/* S5 — Bureau Checks */}
+        {activeTab === 'credit-checks' && (
+          <div role="tabpanel" id="panel-credit-checks" aria-labelledby="tab-credit-checks" tabIndex={0}>
+            <CreditChecksTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* S5 — Industry Outlook */}
+        {activeTab === 'industry' && (
+          <div role="tabpanel" id="panel-industry" aria-labelledby="tab-industry" tabIndex={0}>
+            <IndustryOutlookTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
+          </div>
+        )}
+
+        {/* S5 — Risk & Mitigators */}
+        {activeTab === 'risk' && (
+          <div role="tabpanel" id="panel-risk" aria-labelledby="tab-risk" tabIndex={0}>
+            <RiskMitigatorsTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
+          </div>
+        )}
+
+        {/* S6 — Collateral */}
         {activeTab === 'collateral' && (
           <div role="tabpanel" id="panel-collateral" aria-labelledby="tab-collateral" tabIndex={0}>
             <CollateralTab />
           </div>
         )}
 
-        {/* Conditions Tab */}
+        {/* S6 — Security & Guarantees */}
+        {activeTab === 'security' && (
+          <div role="tabpanel" id="panel-security" aria-labelledby="tab-security" tabIndex={0}>
+            <SecurityGuaranteesTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* S7 — Approvals */}
+        {activeTab === 'approvals' && (
+          <div role="tabpanel" id="panel-approvals" aria-labelledby="tab-approvals" tabIndex={0}>
+            <ApprovalsTab app={app} onRefresh={fetchApp} />
+          </div>
+        )}
+
+        {/* S7 — Sign-off */}
+        {activeTab === 'signoff' && (
+          <div role="tabpanel" id="panel-signoff" aria-labelledby="tab-signoff" tabIndex={0}>
+            <SignoffTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {/* S7 — Conditions */}
         {activeTab === 'conditions' && (
           <div role="tabpanel" id="panel-conditions" aria-labelledby="tab-conditions" tabIndex={0}>
             <ConditionsTab />
           </div>
         )}
 
-        {/* Audit Tab */}
+        {/* S7 — Summary */}
+        {activeTab === 'summary' && (
+          <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary" tabIndex={0}>
+            <SummaryTab app={app} facilities={facilities} transitions={transitions} canWrite={canWrite} canApprove={canApprove} onTransition={handleTransition} onRefresh={fetchApp} />
+          </div>
+        )}
+
+        {/* META — Documents */}
+        {activeTab === 'documents' && (
+          <div role="tabpanel" id="panel-documents" aria-labelledby="tab-documents" tabIndex={0}>
+            <DocumentsTab app={app} />
+          </div>
+        )}
+
+        {/* META — Audit Trail */}
         {activeTab === 'audit' && (
           <div role="tabpanel" id="panel-audit" aria-labelledby="tab-audit" tabIndex={0}>
             <AuditTab />
           </div>
         )}
+
+        {/* ── Bank-only tabs (rendered when advancedMemo is true) ── */}
+
+        {activeTab === 'risk-rating' && (
+          <div role="tabpanel" id="panel-risk-rating" aria-labelledby="tab-risk-rating" tabIndex={0}>
+            <RiskRatingEclTab application={app} onDirtyChange={setDirty} />
+          </div>
+        )}
+
+        {activeTab === 'profitability' && (
+          <div role="tabpanel" id="panel-profitability" aria-labelledby="tab-profitability" tabIndex={0}>
+            <ProfitabilityWalletTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
+          </div>
+        )}
+
+        {activeTab === 'counterparties' && (
+          <div role="tabpanel" id="panel-counterparties" aria-labelledby="tab-counterparties" tabIndex={0}>
+            <CounterpartiesTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
+          </div>
+        )}
+
+        {activeTab === 'conduct' && (
+          <div role="tabpanel" id="panel-conduct" aria-labelledby="tab-conduct" tabIndex={0}>
+            <AccountConductTab application={app} onUpdated={setApp} />
+          </div>
+        )}
+
+        {activeTab === 'forward-looking-risk' && (
+          <div role="tabpanel" id="panel-forward-looking-risk" aria-labelledby="tab-forward-looking-risk" tabIndex={0}>
+            <ForwardLookingRiskTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
+          </div>
+        )}
+
+        {activeTab === 'header' && (
+          <div role="tabpanel" id="panel-header" aria-labelledby="tab-header" tabIndex={0}>
+            <HeaderBackgroundTab application={app} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />
+          </div>
+        )}
+
+        {activeTab === 'facilities' && (
+          <div role="tabpanel" id="panel-facilities" aria-labelledby="tab-facilities" tabIndex={0}>
+            <RequestsFacilitiesTab application={app} onDirtyChange={setDirty} />
+          </div>
+        )}
+
             </div>
           </div>
         </div>
 
-        {/* Floating Action Button — jump to next incomplete phase */}
+        {/* Floating Action Button — jump to next incomplete section */}
         {(() => {
           const nextTab = getNextIncompleteTab(phaseCompletion);
           if (!nextTab || nextTab === activeTab) return null;
-          const nextGroup = TAB_GROUPS.find(g => g.tabs.some(t => t.id === nextTab));
+          const nextGroup = visibleTabGroups.find(g => g.tabs.some(t => t.id === nextTab));
           return (
             <div className="fixed bottom-8 right-8 z-50">
               <button

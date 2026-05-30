@@ -83,7 +83,56 @@ export function getFacilityTypes(islamicEnabled: boolean): { value: FacilityType
 
 export const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD'] as const;
 
-export type DetailTab = 'header' | 'summary' | 'facilities' | 'risk-rating' | 'payment-capability' | 'security' | 'profitability' | 'counterparties' | 'conduct' | 'credit-checks' | 'industry' | 'risk' | 'forward-looking-risk' | 'signoff' | 'parties' | 'documents' | 'approvals' | 'audit' | 'collateral' | 'conditions';
+// ── CA Memo Redesign: 7-Section Structure ──────────────────────
+//
+// S1  Loan Request          — amount, tenor, product, purpose, currency
+// S2  Borrower Profile      — identity, KYC, directors, UBOs, shareholders
+// S3  Financials            — 3-year P&L + BS, ratios
+// S4  Risk Score             — scorecard run, internal rating, DSR stress
+// S5  Bureau & Compliance   — CCRIS, CTOS, SSM eInfo, AML/PEP
+// S6  Collateral & Guarantees — collateral, valuation, FSV, guarantees
+// S7  Decision              — approve/reject, terms, conditions, sign-off
+// META — cross-cutting operations (documents, audit trail)
+//
+// Bank-only tabs (ECL, SICR, ESG, Profitability, WalletShare, AccountConduct,
+// Counterparties, ForwardLookingRisk, Sensitivity, CashflowProjection) are
+// hidden from the default nav. They can be restored via the
+// `credit:advanced_memo` feature flag (Wave E).
+
+export type DetailTab =
+  // S1 — Loan Request
+  | 'loan-request'
+  // S2 — Borrower Profile
+  | 'borrower-profile'
+  | 'parties'
+  // S3 — Financials
+  | 'financials'
+  // S4 — Risk Score
+  | 'risk-score'
+  | 'payment-capability'
+  // S5 — Bureau & Compliance
+  | 'credit-checks'
+  | 'industry'
+  | 'risk'
+  // S6 — Collateral & Guarantees
+  | 'collateral'
+  | 'security'
+  // S7 — Decision
+  | 'approvals'
+  | 'signoff'
+  | 'conditions'
+  | 'summary'
+  // META — Operations
+  | 'documents'
+  | 'audit'
+  // Bank-only tabs (hidden by default, restored via credit:advanced_memo flag)
+  | 'risk-rating'
+  | 'profitability'
+  | 'counterparties'
+  | 'conduct'
+  | 'forward-looking-risk'
+  | 'facilities'
+  | 'header';
 
 export interface TabDefinition {
   id: DetailTab;
@@ -94,76 +143,122 @@ export interface TabGroup {
   id: string;
   label: string;
   tabs: TabDefinition[];
+  /** Whether this group is only visible with credit:advanced_memo flag */
+  advancedOnly?: boolean;
 }
 
 export const TAB_GROUPS: TabGroup[] = [
   {
-    id: 'phase1',
-    label: 'Header & Background',
+    id: 's1',
+    label: 'S1 · Loan Request',
     tabs: [
-      { id: 'header', label: 'Header' }
-    ]
+      { id: 'loan-request', label: 'Loan Request' },
+    ],
   },
   {
-    id: 'phase2',
-    label: 'Facilities & Requests',
+    id: 's2',
+    label: 'S2 · Borrower Profile',
     tabs: [
-      { id: 'facilities', label: 'Facilities' }
-    ]
+      { id: 'borrower-profile', label: 'Profile & KYC' },
+      { id: 'parties', label: 'Directors & UBOs' },
+    ],
   },
   {
-    id: 'phase3',
-    label: 'Risk Rating & ECL',
+    id: 's3',
+    label: 'S3 · Financials',
     tabs: [
-      { id: 'risk-rating', label: 'Risk & ECL' },
-      { id: 'payment-capability', label: 'Payment Capability' }
-    ]
+      { id: 'financials', label: 'Financials' },
+    ],
   },
   {
-    id: 'phase4',
-    label: 'Security & Guarantees',
+    id: 's4',
+    label: 'S4 · Risk Score',
     tabs: [
-      { id: 'security', label: 'Security' },
-      { id: 'collateral', label: 'Collateral' },
-      { id: 'profitability', label: 'Profitability' },
-      { id: 'counterparties', label: 'Counterparties' },
-      { id: 'conduct', label: 'Account Conduct' }
-    ]
+      { id: 'risk-score', label: 'Scorecard & Rating' },
+      { id: 'payment-capability', label: 'Payment Capability' },
+    ],
   },
   {
-    id: 'phase5',
-    label: 'Credit Checks',
+    id: 's5',
+    label: 'S5 · Bureau & Compliance',
     tabs: [
       { id: 'credit-checks', label: 'Bureau Checks' },
       { id: 'industry', label: 'Industry Outlook' },
       { id: 'risk', label: 'Risk & Mitigators' },
-      { id: 'forward-looking-risk', label: 'Forward-Looking Risk' },
-      { id: 'signoff', label: 'Sign-off' }
-    ]
+    ],
   },
   {
-    id: 'phase6',
-    label: 'Summary & Conditions',
+    id: 's6',
+    label: 'S6 · Collateral & Guarantees',
     tabs: [
+      { id: 'collateral', label: 'Collateral' },
+      { id: 'security', label: 'Security & Guarantees' },
+    ],
+  },
+  {
+    id: 's7',
+    label: 'S7 · Decision',
+    tabs: [
+      { id: 'approvals', label: 'Approvals' },
+      { id: 'signoff', label: 'Sign-off' },
+      { id: 'conditions', label: 'Conditions' },
       { id: 'summary', label: 'Summary' },
-      { id: 'conditions', label: 'Conditions' }
-    ]
+    ],
   },
   {
     id: 'meta',
-    label: 'Meta & Operations',
+    label: 'Operations',
     tabs: [
-      { id: 'parties', label: 'Parties' },
       { id: 'documents', label: 'Documents' },
-      { id: 'approvals', label: 'Approvals' },
-      { id: 'audit', label: 'Audit Trail' }
-    ]
-  }
+      { id: 'audit', label: 'Audit Trail' },
+    ],
+  },
+  // ── Bank-only groups (hidden unless credit:advanced_memo flag is set) ──
+  {
+    id: 'adv-risk-rating',
+    label: 'Risk Rating & ECL',
+    tabs: [
+      { id: 'risk-rating', label: 'Risk & ECL' },
+    ],
+    advancedOnly: true,
+  },
+  {
+    id: 'adv-financial-analysis',
+    label: 'Bank Financial Analysis',
+    tabs: [
+      { id: 'profitability', label: 'Profitability' },
+      { id: 'counterparties', label: 'Counterparties' },
+      { id: 'conduct', label: 'Account Conduct' },
+    ],
+    advancedOnly: true,
+  },
+  {
+    id: 'adv-forward-risk',
+    label: 'Forward-Looking Risk',
+    tabs: [
+      { id: 'forward-looking-risk', label: 'ESG / SICR / FL Risk' },
+    ],
+    advancedOnly: true,
+  },
+  {
+    id: 'adv-legacy',
+    label: 'Legacy Sections',
+    tabs: [
+      { id: 'header', label: 'Header & Background' },
+      { id: 'facilities', label: 'Facilities (Legacy)' },
+    ],
+    advancedOnly: true,
+  },
 ];
 
 export const ALL_TABS: DetailTab[] = TAB_GROUPS.flatMap(g => g.tabs.map(t => t.id));
 
-// ── Phase Completion Logic ────────────────────────────────────
+/** Return the default tab groups (S1-S7 + meta), optionally including bank-only groups */
+export function getVisibleTabGroups(advancedMemo: boolean): TabGroup[] {
+  return TAB_GROUPS.filter(g => !g.advancedOnly || advancedMemo);
+}
+
+// ── Section Completion Logic (7-section model) ─────────────────
 
 export type PhaseStatus = 'complete' | 'incomplete' | 'optional';
 
@@ -173,68 +268,85 @@ export interface PhaseCompletion {
 }
 
 /**
- * Determines completion status for each TAB_GROUP based on fields present
- * on the CreditApplication object and its related arrays.
+ * Determines completion status for each of the 7 sections based on
+ * the CreditApplication data.
  *
- * Rules per phase:
- *  phase1  — applicationType + accountClassification + preambleText all filled
- *  phase2  — at least one facility exists
- *  phase3  — riskRating + firstWayOut both filled
- *  phase4  — at least one party linked (guarantors / co-borrowers)
- *  phase5  — preparedAt timestamp set (sign-off section completed)
- *  phase6  — purpose filled
- *  meta    — always optional (no completion gate)
+ * S1  Loan Request     — requestedAmount + requestedTenor + productType + purpose
+ * S2  Borrower Profile — borrowerType + (registrationNumber OR individualId) + ≥1 director
+ * S3  Financials       — ≥1 FinancialStatement with ≥1 FinancialLineItem
+ * S4  Risk Score       — riskRating filled (≥1 CreditScoreRun linked)
+ * S5  Bureau           — ≥1 CreditBureauCheck (CCRIS or CTOS)
+ * S6  Collateral       — optional (unsecured lending path); required if secured product
+ * S7  Decision         — ≥1 CreditDecision record (decisionedAt set)
+ * META — always optional (no completion gate)
  */
 export function getPhaseCompletion(app: {
-  applicationType?: string | null;
-  accountClassification?: string | null;
-  preambleText?: string | null;
+  requestedAmount?: number | string | null;
+  requestedTenor?: number | string | null;
+  productType?: string | null;
+  purpose?: string | null;
+  borrowerType?: string | null;
+  registrationNumber?: string | null;
   riskRating?: string | null;
   firstWayOut?: string | null;
-  purpose?: string | null;
   preparedAt?: string | null;
+  decisionedAt?: string | null;
   facilities?: unknown[];
   parties?: unknown[];
+  financialStatements?: unknown[];
+  creditBureauChecks?: unknown[];
+  creditDecisions?: unknown[];
+  isSecured?: boolean;
 }): Record<string, PhaseStatus> {
   const hasValue = (v: unknown) => v != null && String(v).trim() !== '';
 
   return {
-    phase1: (
-      hasValue(app.applicationType) &&
-      hasValue(app.accountClassification) &&
-      hasValue(app.preambleText)
+    s1: (
+      hasValue(app.requestedAmount) &&
+      hasValue(app.requestedTenor) &&
+      hasValue(app.productType) &&
+      hasValue(app.purpose)
     ) ? 'complete' : 'incomplete',
 
-    phase2: (app.facilities && app.facilities.length > 0)
-      ? 'complete' : 'incomplete',
-
-    phase3: (
-      hasValue(app.riskRating) &&
-      hasValue(app.firstWayOut)
+    s2: (
+      hasValue(app.borrowerType) &&
+      (hasValue(app.registrationNumber)) &&
+      (app.parties && app.parties.length > 0)
     ) ? 'complete' : 'incomplete',
 
-    phase4: (app.parties && app.parties.length > 0)
+    s3: (app.financialStatements && app.financialStatements.length > 0)
       ? 'complete' : 'incomplete',
 
-    phase5: hasValue(app.preparedAt) ? 'complete' : 'incomplete',
+    s4: (
+      hasValue(app.riskRating)
+    ) ? 'complete' : 'incomplete',
 
-    phase6: hasValue(app.purpose) ? 'complete' : 'incomplete',
+    s5: (app.creditBureauChecks && app.creditBureauChecks.length > 0)
+      ? 'complete' : 'incomplete',
+
+    s6: app.isSecured
+      ? ((app.facilities && app.facilities.length > 0) ? 'complete' : 'incomplete')
+      : 'optional',
+
+    s7: hasValue(app.decisionedAt) ? 'complete' : 'incomplete',
 
     meta: 'optional',
   };
 }
 
-/** Returns number of required phases that are incomplete. */
+/** Returns number of required sections that are incomplete. */
 export function getIncompletePhaseCount(completion: Record<string, PhaseStatus>): number {
   return Object.values(completion).filter(s => s === 'incomplete').length;
 }
 
 /**
- * Returns the first tab ID belonging to the first incomplete (non-optional) phase,
- * or null if all phases are complete.
+ * Returns the first tab ID belonging to the first incomplete (non-optional) section,
+ * or null if all sections are complete.
  */
 export function getNextIncompleteTab(completion: Record<string, PhaseStatus>): DetailTab | null {
   for (const group of TAB_GROUPS) {
+    // Skip advanced-only groups for default next-incomplete logic
+    if (group.advancedOnly) continue;
     if (completion[group.id] === 'incomplete') {
       return group.tabs[0].id;
     }

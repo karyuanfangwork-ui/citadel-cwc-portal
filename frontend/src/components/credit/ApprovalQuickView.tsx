@@ -235,8 +235,8 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
                   <div className="relative space-y-0">
                     {approvals.map((a, idx) => {
                       const name = a.approver ? `${a.approver.firstName} ${a.approver.lastName}` : 'Approver';
-                      const isApprove = a.decision === 'APPROVED';
-                      const isReject = a.decision === 'REJECTED';
+                      const isApprove = a.decision === 'APPROVE';
+                      const isReject = a.decision === 'REJECT';
                       return (
                         <div key={a.id} className="flex gap-3 pb-3">
                           <div className="flex flex-col items-center">
@@ -268,21 +268,21 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
               <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Your Decision</h4>
               <div className="flex gap-2">
                 <button
-                  onClick={() => setShowDecision('APPROVED')}
+                  onClick={() => setShowDecision('APPROVE')}
                   className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
                 >
                   <span className="material-symbols-outlined text-base">check_circle</span>
                   Approve
                 </button>
                 <button
-                  onClick={() => setShowDecision('REJECTED')}
+                  onClick={() => setShowDecision('REJECT')}
                   className="flex-1 flex items-center justify-center gap-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
                 >
                   <span className="material-symbols-outlined text-base">cancel</span>
                   Reject
                 </button>
                 <button
-                  onClick={() => setShowDecision('RETURNED')}
+                  onClick={() => setShowDecision('RETURN')}
                   className="flex items-center justify-center gap-1.5 bg-gray-100 hover:bg-amber-50 border border-gray-200 rounded-lg px-4 py-2.5 text-sm font-bold text-gray-700 transition-colors"
                 >
                   <span className="material-symbols-outlined text-base">undo</span>
@@ -320,15 +320,15 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-gray-600">
-                {showDecision === 'APPROVED' && 'Approve this application'}
-                {showDecision === 'REJECTED' && 'Reject this application — a reason is required'}
-                {showDecision === 'RETURNED' && 'Return to analyst for more work — a reason is required'}
+                {showDecision === 'APPROVE' && 'Approve this application'}
+                {showDecision === 'REJECT' && 'Reject this application — a reason is required'}
+                {showDecision === 'RETURN' && 'Return to analyst for more work — a reason is required'}
               </p>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder={
-                  showDecision === 'APPROVED'
+                  showDecision === 'APPROVE'
                     ? 'Optional conditions or comments...'
                     : 'Reason for decision (required)...'
                 }
@@ -338,10 +338,10 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
               <div className="flex gap-2">
                 <button
                   onClick={() => handleSubmitDecision(showDecision)}
-                  disabled={decisionLoading || (showDecision !== 'APPROVED' && !comment.trim())}
+                  disabled={decisionLoading || (showDecision !== 'APPROVE' && !comment.trim())}
                   className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 ${
-                    showDecision === 'APPROVED' ? 'bg-green-600 hover:bg-green-700' :
-                    showDecision === 'REJECTED' ? 'bg-red-600 hover:bg-red-700' :
+                    showDecision === 'APPROVE' ? 'bg-green-600 hover:bg-green-700' :
+                    showDecision === 'REJECT' ? 'bg-red-600 hover:bg-red-700' :
                     'bg-amber-600 hover:bg-amber-700'
                   }`}
                 >
@@ -349,10 +349,10 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
                     <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
                   ) : (
                     <span className="material-symbols-outlined text-base">
-                      {showDecision === 'APPROVED' ? 'check_circle' : showDecision === 'REJECTED' ? 'cancel' : 'undo'}
+                      {showDecision === 'APPROVE' ? 'check_circle' : showDecision === 'REJECT' ? 'cancel' : 'undo'}
                     </span>
                   )}
-                  Confirm {showDecision === 'APPROVED' ? 'Approve' : showDecision === 'REJECTED' ? 'Reject' : 'Return'}
+                  Confirm {showDecision === 'APPROVE' ? 'Approve' : showDecision === 'REJECT' ? 'Reject' : 'Return'}
                 </button>
                 <button
                   onClick={() => { setShowDecision(null); setComment(''); }}

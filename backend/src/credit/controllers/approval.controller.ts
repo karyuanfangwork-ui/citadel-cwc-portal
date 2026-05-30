@@ -138,7 +138,24 @@ class ApprovalController {
   getApplicationApprovals = asyncHandler(async (req: AuthRequest, res: Response) => {
     const applicationId = String(req.params.id);
     const decisions = await approvalActionService.getApplicationApprovals(applicationId);
-    res.json({ status: 'success', data: { decisions } });
+    // Prevent 304 caching — approval data must always be fresh
+    res.set('Cache-Control', 'no-store');
+    // Map Prisma shape → frontend CreditApproval shape
+    const mapped = decisions.map((d: any) => ({
+      id: d.id,
+      applicationId: d.applicationId,
+      approverId: d.decisionById,
+      decision: d.decisionType,                // APPROVE / REJECT / RETURN / ESCALATE
+      comment: d.comments ?? null,
+      isCommitteeVote: false,
+      decidedAt: d.decisionAt ?? d.createdAt,
+      createdAt: d.createdAt,
+      authorityLevel: d.authorityLevel ?? null,
+      approver: d.decidedBy
+        ? { id: d.decidedBy.id, firstName: d.decidedBy.firstName, lastName: d.decidedBy.lastName, department: d.decidedBy.department }
+        : null,
+    }));
+    res.json({ status: 'success', data: { decisions: mapped } });
   });
 }
 
