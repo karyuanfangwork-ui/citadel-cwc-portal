@@ -493,7 +493,7 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
       data: { applicationId: leanB.id, decisionType: 'APPROVE' as any, authorityLevel: 'CREDIT_MANAGER', decisionById: analystId, decisionAt: new Date('2026-05-12'), comments: 'Stage 2 approved. Conditions: quarterly financial statements required within 30 days of quarter end.' },
     });
     await prisma.condition.create({
-      data: { applicationId: leanB.id, conditionType: 'PRECEDENT' as any, description: 'Submit latest 3 months bank statements prior to first drawdown.', dueDate: new Date('2026-06-01'), isSatisfied: false, createdById: adminId },
+      data: { applicationId: leanB.id, title: 'Submit latest 3 months bank statements prior to first drawdown.', category: 'PRE_DISBURSEMENT' as any, conditionType: 'PRECEDENT' as any, description: 'Submit latest 3 months bank statements prior to first drawdown.', dueDate: new Date('2026-06-01'), status: 'PENDING' as any },
     });
     createdApps.push(leanB);
     console.log('  ✅ Lean App B: CA-LEAN-002 (RM1.2M term loan, APPROVED, 2-stage chain)');
@@ -1134,21 +1134,33 @@ async function seedCollateral(apps: any[], profiles: any[], adminId: string) {
 // ---------------------------------------------------------------------------
 async function seedConditions(apps: any[], adminId: string) {
   const conditionDefs = [
-    { stateIdx: 5, type: 'PRECEDENT' as any, desc: 'Submission of signed letter of offer and acceptance', dueDate: '2026-05-20', fulfilled: true, fulfilledAt: '2026-05-19', notes: 'Signed offer letter received and verified.' },
-    { stateIdx: 5, type: 'PRECEDENT' as any, desc: 'Registration of first charge over property HS(D) 12345', dueDate: '2026-05-30', fulfilled: true, fulfilledAt: '2026-05-28', notes: 'Charge registered with Land Office.' },
-    { stateIdx: 5, type: 'SUBSEQUENT' as any, desc: 'Quarterly submission of management accounts within 30 days of quarter end', dueDate: '2026-06-30', fulfilled: false },
-    { stateIdx: 5, type: 'SUBSEQUENT' as any, desc: 'Maintain minimum DSCR of 1.25x throughout facility tenure', dueDate: null, fulfilled: false },
-    { stateIdx: 5, type: 'SUBSEQUENT' as any, desc: 'Annual property valuation by independent valuer', dueDate: '2027-03-31', fulfilled: false },
+    { stateIdx: 5, type: 'PRECEDENT' as any, cat: 'PRE_DISBURSEMENT' as any, title: 'Submission of signed letter of offer and acceptance', desc: 'Submission of signed letter of offer and acceptance', dueDate: '2026-05-20', fulfilled: true, fulfilledAt: '2026-05-19', notes: 'Signed offer letter received and verified.' },
+    { stateIdx: 5, type: 'PRECEDENT' as any, cat: 'PRE_DISBURSEMENT' as any, title: 'Registration of first charge over property HS(D) 12345', desc: 'Registration of first charge over property HS(D) 12345', dueDate: '2026-05-30', fulfilled: true, fulfilledAt: '2026-05-28', notes: 'Charge registered with Land Office.' },
+    { stateIdx: 5, type: 'SUBSEQUENT' as any, cat: 'POST_DISBURSEMENT' as any, title: 'Quarterly submission of management accounts', desc: 'Quarterly submission of management accounts within 30 days of quarter end', dueDate: '2026-06-30', fulfilled: false },
+    { stateIdx: 5, type: 'SUBSEQUENT' as any, cat: 'FINANCIAL_COVENANT' as any, title: 'Maintain minimum DSCR of 1.25x', desc: 'Maintain minimum DSCR of 1.25x throughout facility tenure', dueDate: null, fulfilled: false },
+    { stateIdx: 5, type: 'SUBSEQUENT' as any, cat: 'REPORTING' as any, title: 'Annual property valuation by independent valuer', desc: 'Annual property valuation by independent valuer', dueDate: '2027-03-31', fulfilled: false },
   ];
 
   let condCount = 0;
   for (const cd of conditionDefs) {
     if (cd.stateIdx >= apps.length) continue;
     const app = apps[cd.stateIdx];
-    const existing = await findExisting(prisma.condition, { applicationId: app.id, description: cd.desc });
+    const existing = await findExisting(prisma.condition, { applicationId: app.id, title: cd.title });
     if (!existing) {
       await prisma.condition.create({
-        data: { applicationId: app.id, conditionType: cd.type, description: cd.desc, dueDate: cd.dueDate ? new Date(cd.dueDate) : null, isFulfilled: cd.fulfilled, fulfilledAt: cd.fulfilledAt ? new Date(cd.fulfilledAt) : null, fulfilledById: cd.fulfilled ? adminId : null, fulfilmentNotes: cd.notes || null },
+        data: {
+          applicationId: app.id,
+          title: cd.title,
+          category: cd.cat,
+          conditionType: cd.type,
+          description: cd.desc,
+          status: cd.fulfilled ? 'COMPLETED' as any : 'PENDING' as any,
+          dueDate: cd.dueDate ? new Date(cd.dueDate) : null,
+          isFulfilled: cd.fulfilled,
+          fulfilledAt: cd.fulfilledAt ? new Date(cd.fulfilledAt) : null,
+          fulfilledById: cd.fulfilled ? adminId : null,
+          fulfilmentNotes: cd.notes || null,
+        },
       });
       condCount++;
     }

@@ -173,6 +173,9 @@ model User {
   creditExportEvents    CreditExportEvent[]
   scoreOverrideFirst    ScoreOverrideApproval[] @relation("ScoreOverride_FirstApprover")
   scoreOverrideSecond   ScoreOverrideApproval[] @relation("ScoreOverride_SecondApprover")
+  // Condition Relations
+  conditionsFulfilled   Condition[]             @relation("ConditionFulfilledBy")
+  conditionsWaived      Condition[]             @relation("ConditionWaivedBy")
 
   @@index([email])
   @@index([managerId])
@@ -2525,6 +2528,23 @@ enum ConditionType {
   SUBSEQUENT
 }
 
+// Condition categories — aligns with frontend ConditionCategory
+enum ConditionCategory {
+  PRE_DISBURSEMENT
+  POST_DISBURSEMENT
+  FINANCIAL_COVENANT
+  REPORTING
+  OTHER
+}
+
+// Condition statuses — aligns with frontend ConditionStatus
+enum ConditionStatus {
+  PENDING
+  COMPLETED
+  WAIVED
+  EXPIRED
+}
+
 // Approval decision types
 enum ApprovalDecisionType {
   APPROVE
@@ -3589,24 +3609,37 @@ model CreditDecision {
 // Condition — precedent and subsequent
 // ============================================================================
 model Condition {
-  id              String         @id @default(uuid()) @db.Uuid
-  applicationId   String         @map("application_id") @db.Uuid
+  id              String            @id @default(uuid()) @db.Uuid
+  applicationId   String            @map("application_id") @db.Uuid
   
-  conditionType   ConditionType  @map("condition_type")
-  description     String         @db.Text
-  dueDate         DateTime?      @map("due_date") @db.Date
-  isFulfilled     Boolean        @default(false) @map("is_fulfilled")
-  fulfilledAt     DateTime?      @map("fulfilled_at") @db.Timestamp(6)
-  fulfilledById   String?        @map("fulfilled_by_id") @db.Uuid
-  fulfilmentNotes String?        @map("fulfilment_notes") @db.Text
+  title           String            @db.VarChar(255)
+  description     String?           @db.Text
+  category        ConditionCategory @default(PRE_DISBURSEMENT) @map("category")
+  conditionType   ConditionType     @default(PRECEDENT) @map("condition_type")
+  status          ConditionStatus   @default(PENDING) @map("status")
+  dueDate         DateTime?         @map("due_date") @db.Date
   
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
-  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
+  // Completion fields
+  isFulfilled     Boolean           @default(false) @map("is_fulfilled")
+  fulfilledAt     DateTime?         @map("fulfilled_at") @db.Timestamp(6)
+  fulfilledById   String?           @map("fulfilled_by_id") @db.Uuid
+  fulfilmentNotes String?           @map("fulfilment_notes") @db.Text
+  
+  // Waiver fields
+  waiverReason    String?           @map("waiver_reason") @db.Text
+  waivedAt        DateTime?         @map("waived_at") @db.Timestamp(6)
+  waivedById      String?           @map("waived_by_id") @db.Uuid
+  
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamp(6)
   
   application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  fulfilledBy     User?             @relation("ConditionFulfilledBy", fields: [fulfilledById], references: [id])
+  waivedBy        User?             @relation("ConditionWaivedBy", fields: [waivedById], references: [id])
   
   @@index([applicationId])
   @@index([conditionType])
+  @@index([status])
   @@map("conditions")
 }
 

@@ -1498,7 +1498,7 @@ export const conditionApi = {
   },
 
   async waiveCondition(id: string, data: { reason: string }) {
-    const res = await apiClient.post(`/credit/conditions/${id}/waive`, data);
+    const res = await apiClient.post(`/credit/conditions/${id}/waive`, { waiverReason: data.reason });
     return res.data.data.condition as ConditionPrecedent;
   },
 

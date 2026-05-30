@@ -54,7 +54,11 @@ class ConditionController {
    */
   complete = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const condition = await conditionService.completeCondition(id, req.body);
+    const userId = req.user?.id;
+    const condition = await conditionService.completeCondition(id, {
+      ...req.body,
+      fulfilledById: userId,
+    });
     if (!condition) {
       throw new AppError('Condition not found', 404);
     }
@@ -66,7 +70,11 @@ class ConditionController {
    */
   waive = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const condition = await conditionService.waiveCondition(id, req.body);
+    const userId = req.user?.id;
+    const condition = await conditionService.waiveCondition(id, {
+      ...req.body,
+      waivedById: userId,
+    });
     if (!condition) {
       throw new AppError('Condition not found', 404);
     }

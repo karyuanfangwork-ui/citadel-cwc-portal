@@ -1,44 +1,95 @@
 import prisma from '../../utils/prisma';
-import { Prisma } from '@prisma/client';
+import { Prisma, ConditionStatus as PrismaConditionStatus } from '@prisma/client';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — aligned with frontend ConditionPrecedent / CpCompletionStatus
 // ---------------------------------------------------------------------------
 
-export type ConditionType = 'PRECEDENT' | 'SUBSEQUENT';
+export type ConditionTypeLabel = 'PRECEDENT' | 'SUBSEQUENT';
+export type ConditionCategoryLabel = 'PRE_DISBURSEMENT' | 'POST_DISBURSEMENT' | 'FINANCIAL_COVENANT' | 'REPORTING' | 'OTHER';
+export type ConditionStatusLabel = 'PENDING' | 'COMPLETED' | 'WAIVED' | 'EXPIRED';
 
 export interface CreateConditionData {
   applicationId: string;
-  conditionType: ConditionType;
-  description: string;
+  title: string;
+  description?: string;
+  category?: ConditionCategoryLabel;
+  conditionType?: ConditionTypeLabel;
   dueDate?: Date | string | null;
-  isFulfilled?: boolean;
-  fulfilmentNotes?: string | null;
 }
 
 export interface UpdateConditionData {
-  conditionType?: ConditionType;
+  title?: string;
   description?: string;
+  category?: ConditionCategoryLabel;
+  conditionType?: ConditionTypeLabel;
+  status?: ConditionStatusLabel;
   dueDate?: Date | string | null;
 }
 
 export interface CompleteConditionData {
   fulfilledById?: string;
   fulfilmentNotes?: string;
-  evidenceDocumentUrl?: string;  // stored in fulfilmentNotes if no dedicated field
 }
 
 export interface WaiveConditionData {
   waiverReason: string;
-  approvedById?: string;
+  waivedById?: string;
 }
 
+// Frontend-aligned CP completion shape
 export interface CpCompletionResult {
-  allCompleted: boolean;
-  total: number;
-  fulfilled: number;
-  unfulfilled: number;
-  overdue: number;
+  applicationId: string;
+  totalConditions: number;
+  completedCount: number;
+  waivedCount: number;
+  pendingCount: number;
+  isComplete: boolean;
+}
+
+// Shape returned by list/get — aligned with frontend ConditionPrecedent
+export interface ConditionDto {
+  id: string;
+  applicationId: string;
+  title: string;
+  description: string | null;
+  category: ConditionCategoryLabel;
+  status: ConditionStatusLabel;
+  dueDate: string | null;
+  completedAt: string | null;
+  completedBy: string | null;
+  waiverReason: string | null;
+  waivedAt: string | null;
+  waivedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  completer?: { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null } | null;
+  waiver?: { id: string; firstName: string; lastName: string; email: string; avatarUrl: string | null } | null;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function toDto(c: any): ConditionDto {
+  return {
+    id: c.id,
+    applicationId: c.applicationId,
+    title: c.title,
+    description: c.description,
+    category: c.category,
+    status: c.status,
+    dueDate: c.dueDate ? c.dueDate.toISOString() : null,
+    completedAt: c.fulfilledAt ? c.fulfilledAt.toISOString() : null,
+    completedBy: c.fulfilledById ?? null,
+    waiverReason: c.waiverReason ?? null,
+    waivedAt: c.waivedAt ? c.waivedAt.toISOString() : null,
+    waivedBy: c.waivedById ?? null,
+    createdAt: c.createdAt.toISOString(),
+    updatedAt: c.updatedAt.toISOString(),
+    completer: c.fulfilledBy ? { id: c.fulfilledBy.id, firstName: c.fulfilledBy.firstName, lastName: c.fulfilledBy.lastName, email: c.fulfilledBy.email, avatarUrl: c.fulfilledBy.avatarUrl ?? null } : null,
+    waiver: c.waivedBy ? { id: c.waivedBy.id, firstName: c.waivedBy.firstName, lastName: c.waivedBy.lastName, email: c.waivedBy.email, avatarUrl: c.waivedBy.avatarUrl ?? null } : null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -49,119 +100,168 @@ class ConditionService {
   /**
    * List conditions for an application, optionally filtered by type.
    */
-  async listConditions(applicationId: string, filters?: { conditionType?: ConditionType }) {
+  async listConditions(applicationId: string, filters?: { conditionType?: ConditionTypeLabel }): Promise<ConditionDto[]> {
     const where: Prisma.ConditionWhereInput = { applicationId };
     if (filters?.conditionType) {
       where.conditionType = filters.conditionType;
     }
 
-    return prisma.condition.findMany({
+    const rows = await prisma.condition.findMany({
       where,
       orderBy: { createdAt: 'desc' },
+      include: {
+        fulfilledBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+        waivedBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+      },
     });
+
+    return rows.map(toDto);
   }
 
   /**
    * Get a single condition by ID.
    */
-  async getCondition(id: string) {
-    return prisma.condition.findUnique({ where: { id } });
+  async getCondition(id: string): Promise<ConditionDto | null> {
+    const row = await prisma.condition.findUnique({
+      where: { id },
+      include: {
+        fulfilledBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+        waivedBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+      },
+    });
+    return row ? toDto(row) : null;
   }
 
   /**
    * Create a new condition.
    */
-  async createCondition(data: CreateConditionData) {
+  async createCondition(data: CreateConditionData): Promise<ConditionDto> {
     const createData: Prisma.ConditionCreateInput = {
-      conditionType: data.conditionType,
-      description: data.description,
+      title: data.title,
+      description: data.description ?? null,
+      category: data.category ?? 'PRE_DISBURSEMENT',
+      conditionType: data.conditionType ?? 'PRECEDENT',
+      status: 'PENDING',
+      isFulfilled: false,
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
-      isFulfilled: data.isFulfilled ?? false,
-      fulfilmentNotes: data.fulfilmentNotes ?? undefined,
       application: { connect: { id: data.applicationId } },
     };
 
-    return prisma.condition.create({ data: createData });
+    const row = await prisma.condition.create({
+      data: createData,
+      include: {
+        fulfilledBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+        waivedBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+      },
+    });
+
+    return toDto(row);
   }
 
   /**
    * Update an existing condition.
    */
-  async updateCondition(id: string, data: UpdateConditionData) {
+  async updateCondition(id: string, data: UpdateConditionData): Promise<ConditionDto | null> {
     const existing = await prisma.condition.findUnique({ where: { id } });
     if (!existing) return null;
 
     const updateData: Prisma.ConditionUpdateInput = {};
 
-    if (data.conditionType !== undefined) updateData.conditionType = data.conditionType;
+    if (data.title !== undefined) updateData.title = data.title;
     if (data.description !== undefined) updateData.description = data.description;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.conditionType !== undefined) updateData.conditionType = data.conditionType;
+    if (data.status !== undefined) updateData.status = data.status;
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate ? new Date(data.dueDate) : null;
 
-    return prisma.condition.update({ where: { id }, data: updateData });
+    const row = await prisma.condition.update({
+      where: { id },
+      data: updateData,
+      include: {
+        fulfilledBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+        waivedBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+      },
+    });
+
+    return toDto(row);
   }
 
   /**
    * Complete (fulfill) a condition.
-   * Sets isFulfilled=true, fulfilledAt=now, and optionally stores who fulfilled it and notes.
+   * Sets status=COMPLETED, isFulfilled=true, fulfilledAt=now.
    */
-  async completeCondition(id: string, data?: CompleteConditionData) {
+  async completeCondition(id: string, data?: CompleteConditionData): Promise<ConditionDto | null> {
     const existing = await prisma.condition.findUnique({ where: { id } });
     if (!existing) return null;
 
-    if (existing.isFulfilled) {
-      return existing; // already fulfilled
+    if (existing.status === 'COMPLETED') {
+      return toDto(existing);
     }
 
     const updateData: Prisma.ConditionUpdateInput = {
+      status: PrismaConditionStatus.COMPLETED,
       isFulfilled: true,
       fulfilledAt: new Date(),
     };
 
     if (data?.fulfilledById) {
-      updateData.fulfilledById = data.fulfilledById;
+      updateData.fulfilledBy = { connect: { id: data.fulfilledById } };
     }
-    if (data?.fulfilmentNotes || data?.evidenceDocumentUrl) {
-      const notes: string[] = [];
-      if (data.fulfilmentNotes) notes.push(data.fulfilmentNotes);
-      if (data.evidenceDocumentUrl) notes.push(`Evidence: ${data.evidenceDocumentUrl}`);
-      updateData.fulfilmentNotes = notes.join(' | ');
+    if (data?.fulfilmentNotes) {
+      updateData.fulfilmentNotes = data.fulfilmentNotes;
     }
 
-    return prisma.condition.update({ where: { id }, data: updateData });
+    const row = await prisma.condition.update({
+      where: { id },
+      data: updateData,
+      include: {
+        fulfilledBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+        waivedBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+      },
+    });
+
+    return toDto(row);
   }
 
   /**
    * Waive a condition.
-   * Sets isFulfilled=true, fulfilledAt=now, and records waiver reason + approver in fulfilmentNotes.
-   * Since there is no ConditionWaiver table, waiver info is stored in fulfilmentNotes.
+   * Sets status=WAIVED, isFulfilled=true, waivedAt=now, records reason + who waived.
    */
-  async waiveCondition(id: string, data: WaiveConditionData) {
+  async waiveCondition(id: string, data: WaiveConditionData): Promise<ConditionDto | null> {
     const existing = await prisma.condition.findUnique({ where: { id } });
     if (!existing) return null;
 
-    if (existing.isFulfilled) {
-      return existing; // already fulfilled
-    }
-
-    const notes: string[] = [];
-    notes.push(`[WAIVED] Reason: ${data.waiverReason}`);
-    if (data.approvedById) {
-      notes.push(`Approved by: ${data.approvedById}`);
+    if (existing.status === 'WAIVED' || existing.status === 'COMPLETED') {
+      return toDto(existing);
     }
 
     const updateData: Prisma.ConditionUpdateInput = {
+      status: PrismaConditionStatus.WAIVED,
       isFulfilled: true,
       fulfilledAt: new Date(),
-      fulfilmentNotes: notes.join(' | '),
+      waiverReason: data.waiverReason,
+      waivedAt: new Date(),
     };
 
-    return prisma.condition.update({ where: { id }, data: updateData });
+    if (data.waivedById) {
+      updateData.waivedBy = { connect: { id: data.waivedById } };
+    }
+
+    const row = await prisma.condition.update({
+      where: { id },
+      data: updateData,
+      include: {
+        fulfilledBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+        waivedBy: { select: { id: true, firstName: true, lastName: true, email: true, avatarUrl: true } },
+      },
+    });
+
+    return toDto(row);
   }
 
   /**
    * Check CP (Conditions Precedent) completion for an application.
-   * Returns a summary: if all PRECEDENT conditions are fulfilled, allCompleted=true.
-   * This serves as a gate for advancing the application state.
+   * Returns frontend-aligned CpCompletionStatus shape.
    */
   async checkCpCompletion(applicationId: string): Promise<CpCompletionResult> {
     const conditions = await prisma.condition.findMany({
@@ -172,20 +272,17 @@ class ConditionService {
     });
 
     const total = conditions.length;
-    const fulfilled = conditions.filter((c) => c.isFulfilled).length;
-    const unfulfilled = conditions.filter((c) => !c.isFulfilled).length;
-
-    const now = new Date();
-    const overdue = conditions.filter(
-      (c) => !c.isFulfilled && c.dueDate && new Date(c.dueDate) < now,
-    ).length;
+    const completedCount = conditions.filter((c) => c.status === 'COMPLETED').length;
+    const waivedCount = conditions.filter((c) => c.status === 'WAIVED').length;
+    const pendingCount = conditions.filter((c) => c.status === 'PENDING').length;
 
     return {
-      allCompleted: total > 0 && unfulfilled === 0,
-      total,
-      fulfilled,
-      unfulfilled,
-      overdue,
+      applicationId,
+      totalConditions: total,
+      completedCount,
+      waivedCount,
+      pendingCount,
+      isComplete: total > 0 && pendingCount === 0,
     };
   }
 }
