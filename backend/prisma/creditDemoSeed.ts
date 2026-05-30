@@ -417,6 +417,125 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
   }
 
   console.log(`  ✅ ${createdApps.length} credit applications (with facilities & parties)`);
+
+  // ── Lean S1–S7 Demo Applications (Wave D — no bank-grade data) ──────────
+
+  // App A: Individual borrower, RM80K personal loan, straight-through scoring, APPROVED
+  const leanAppAExists = await findExisting(prisma.creditApplication, { applicationNo: 'CA-LEAN-001' });
+  if (!leanAppAExists && profiles.length > 3) {
+    const bp = profiles[3]; // High Net Worth Individual
+    const leanA = await prisma.creditApplication.create({
+      data: {
+        applicationNo: 'CA-LEAN-001',
+        borrowerProfileId: bp.id,
+        productType: 'TERM_LOAN' as any,
+        requestedAmount: 80000,
+        requestedTenor: 36,
+        currency: 'MYR' as any,
+        purpose: 'Personal term loan for home renovation and furniture purchase',
+        state: 'APPROVED' as any,
+        riskRating: 'BB',
+        rmId: adminId,
+        analystId,
+        submittedAt: new Date('2026-05-01'),
+        decisionedAt: new Date('2026-05-03'),
+        firstWayOut: 'SALARY',
+      },
+    });
+    await prisma.creditFacility.create({
+      data: { applicationId: leanA.id, facilityType: 'TERM_LOAN' as any, currency: 'MYR' as any, amount: 80000, tenorMonths: 36, ratePct: 6.5, purpose: 'Home renovation', approvedAmount: 80000, approvedTenor: 36, approvedRate: 6.5 },
+    });
+    await prisma.creditBureauCheck.create({
+      data: { applicationId: leanA.id, provider: 'CCRIS_BORROWER_UPLOAD' as any, subjectName: 'High Net Worth Individual', runDate: new Date('2026-05-01'), runById: adminId, hasHits: false, findings: 'CCRIS clean — no adverse credit history. No existing credit facilities.' },
+    });
+    await prisma.creditDecision.create({
+      data: { applicationId: leanA.id, decisionType: 'APPROVE' as any, authorityLevel: 'CREDIT_RM', decisionById: adminId, decisionAt: new Date('2026-05-03'), comments: 'Straight-through approval — score 78/100, BB rating, clean bureau, adequate income coverage.' },
+    });
+    createdApps.push(leanA);
+    console.log('  ✅ Lean App A: CA-LEAN-001 (RM80K personal loan, APPROVED)');
+  }
+
+  // App B: SME RM1.2M term loan, 2-approver chain, APPROVED with conditions
+  const leanAppBExists = await findExisting(prisma.creditApplication, { applicationNo: 'CA-LEAN-002' });
+  if (!leanAppBExists && profiles.length > 0) {
+    const bp = profiles[0]; // SME Manufacturing Sdn Bhd
+    const leanB = await prisma.creditApplication.create({
+      data: {
+        applicationNo: 'CA-LEAN-002',
+        borrowerProfileId: bp.id,
+        productType: 'TERM_LOAN' as any,
+        requestedAmount: 1200000,
+        requestedTenor: 60,
+        currency: 'MYR' as any,
+        purpose: 'Working capital facility to support production line upgrade and raw material purchase',
+        state: 'APPROVED' as any,
+        riskRating: 'BBB',
+        rmId: adminId,
+        analystId,
+        submittedAt: new Date('2026-05-05'),
+        decisionedAt: new Date('2026-05-12'),
+        firstWayOut: 'OPERATING_CASHFLOW',
+      },
+    });
+    await prisma.creditFacility.create({
+      data: { applicationId: leanB.id, facilityType: 'TERM_LOAN' as any, currency: 'MYR' as any, amount: 1200000, tenorMonths: 60, ratePct: 5.5, purpose: 'Production line upgrade', approvedAmount: 1200000, approvedTenor: 60, approvedRate: 5.5 },
+    });
+    await prisma.creditBureauCheck.create({
+      data: { applicationId: leanB.id, provider: 'CCRIS_BORROWER_UPLOAD' as any, subjectName: 'SME Manufacturing Sdn Bhd', runDate: new Date('2026-05-05'), runById: adminId, hasHits: true, findings: 'CCRIS shows 2 existing facilities, total outstanding RM4.8M. All facilities current. No adverse findings.' },
+    });
+    await prisma.creditBureauCheck.create({
+      data: { applicationId: leanB.id, provider: 'CTOS' as any, subjectName: 'SME Manufacturing Sdn Bhd', runDate: new Date('2026-05-05'), runById: adminId, hasHits: false, findings: 'CTOS clean. No litigation, no bankruptcy proceedings.' },
+    });
+    await prisma.creditDecision.create({
+      data: { applicationId: leanB.id, decisionType: 'APPROVE' as any, authorityLevel: 'CREDIT_RM', decisionById: adminId, decisionAt: new Date('2026-05-08'), comments: 'Stage 1 approved. DSCR 1.72x, BBB rating.' },
+    });
+    await prisma.creditDecision.create({
+      data: { applicationId: leanB.id, decisionType: 'APPROVE' as any, authorityLevel: 'CREDIT_MANAGER', decisionById: analystId, decisionAt: new Date('2026-05-12'), comments: 'Stage 2 approved. Conditions: quarterly financial statements required within 30 days of quarter end.' },
+    });
+    await prisma.condition.create({
+      data: { applicationId: leanB.id, conditionType: 'PRECEDENT' as any, description: 'Submit latest 3 months bank statements prior to first drawdown.', dueDate: new Date('2026-06-01'), isSatisfied: false, createdById: adminId },
+    });
+    createdApps.push(leanB);
+    console.log('  ✅ Lean App B: CA-LEAN-002 (RM1.2M term loan, APPROVED, 2-stage chain)');
+  }
+
+  // App C: SME RM6M project finance, 3-approver chain, COMMITTEE_REVIEW pending
+  const leanAppCExists = await findExisting(prisma.creditApplication, { applicationNo: 'CA-LEAN-003' });
+  if (!leanAppCExists && profiles.length > 0) {
+    const bp = profiles[0]; // SME Manufacturing Sdn Bhd
+    const leanC = await prisma.creditApplication.create({
+      data: {
+        applicationNo: 'CA-LEAN-003',
+        borrowerProfileId: bp.id,
+        productType: 'PROJECT_FINANCE' as any,
+        requestedAmount: 6000000,
+        requestedTenor: 84,
+        currency: 'MYR' as any,
+        purpose: 'Greenfield factory Phase 3 — 30,000 sqft facility for precision aerospace components',
+        state: 'COMMITTEE_REVIEW' as any,
+        riskRating: 'BB',
+        rmId: adminId,
+        analystId,
+        submittedAt: new Date('2026-05-10'),
+        firstWayOut: 'PROJECT_REVENUE',
+      },
+    });
+    await prisma.creditFacility.create({
+      data: { applicationId: leanC.id, facilityType: 'PROJECT_FINANCE' as any, currency: 'MYR' as any, amount: 6000000, tenorMonths: 84, ratePct: 6.0, purpose: 'Greenfield factory Phase 3' },
+    });
+    await prisma.creditBureauCheck.create({
+      data: { applicationId: leanC.id, provider: 'CCRIS_BORROWER_UPLOAD' as any, subjectName: 'SME Manufacturing Sdn Bhd', runDate: new Date('2026-05-10'), runById: adminId, hasHits: true, findings: 'CCRIS shows 3 existing facilities, total outstanding RM9.8M. All current. No adverse conduct.' },
+    });
+    await prisma.creditBureauCheck.create({
+      data: { applicationId: leanC.id, provider: 'CTOS' as any, subjectName: 'SME Manufacturing Sdn Bhd', runDate: new Date('2026-05-10'), runById: adminId, hasHits: false, findings: 'CTOS clean.' },
+    });
+    await prisma.creditDecision.create({
+      data: { applicationId: leanC.id, decisionType: 'APPROVE' as any, authorityLevel: 'CREDIT_RM', decisionById: adminId, decisionAt: new Date('2026-05-14'), comments: 'Stage 1 approved. Strong project fundamentals. Escalating to CREDIT_MANAGER for stage 2.' },
+    });
+    createdApps.push(leanC);
+    console.log('  ✅ Lean App C: CA-LEAN-003 (RM6M project finance, COMMITTEE_REVIEW, 3-stage chain 1/3 done)');
+  }
+
   return createdApps;
 }
 
