@@ -9,6 +9,20 @@ import prisma from '../../utils/prisma';
 import { hasStaleCollateralValuations } from '../jobs/collateralInsuranceMonitor.job';
 import { hasPendingScoreOverride } from './scoreOverride.service';
 
+function getRequiredDocuments(borrowerType: string): string[] {
+  switch (borrowerType) {
+    case 'INDIVIDUAL':
+      return ['NRIC_PASSPORT', 'PAYSLIP', 'BANK_STATEMENT'];
+    case 'SOLE_PROPRIETOR':
+      return ['NRIC_PASSPORT', 'SSM_CERT', 'BANK_STATEMENT'];
+    case 'JOINT':
+      return ['JV_AGREEMENT', 'AUDITED_FINANCIALS'];
+    case 'CORPORATE':
+    default:
+      return ['SSM_CERT', 'AUDITED_FINANCIALS', 'MOA_AOA'];
+  }
+}
+
 export interface ReadinessIssue {
   field: string;
   message: string;
@@ -28,7 +42,7 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
   const application = await prisma.creditApplication.findUnique({
     where: { id: applicationId },
     include: {
-      borrowerProfile: true,
+      borrowerProfile: { select: { accountId: true, contactId: true, borrowerType: true } },
       facilities: { select: { id: true, facilityType: true, amount: true } },
       documents: { select: { id: true, classification: true } },
       parties: { select: { id: true, role: true, borrowerProfileId: true } },
@@ -62,14 +76,14 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
     });
   }
 
-  // ---- Check 3: Mandatory documents ----
-  const mandatoryClasses = ['NRIC_PASSPORT', 'AUDITED_FINANCIALS'];
+  // ---- Check 3: Mandatory documents (per borrower type) ----
+  const mandatoryClasses = getRequiredDocuments(application.borrowerProfile.borrowerType as string);
   for (const docClass of mandatoryClasses) {
     const hasDoc = application.documents.some((d) => d.classification === docClass);
     if (!hasDoc) {
       errors.push({
         field: 'documents',
-        message: `Required document missing: ${docClass.replace('_', ' ')}`,
+        message: `Required document missing: ${docClass.replace(/_/g, ' ')}`,
         severity: 'error',
       });
     }
