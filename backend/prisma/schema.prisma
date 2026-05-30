@@ -176,6 +176,7 @@ model User {
   // Condition Relations
   conditionsFulfilled   Condition[]             @relation("ConditionFulfilledBy")
   conditionsWaived      Condition[]             @relation("ConditionWaivedBy")
+  qualitativeAssessments QualitativeAssessment[]
 
   @@index([email])
   @@index([managerId])
@@ -2935,6 +2936,7 @@ model CreditApplication {
   sicrAssessments         SicrAssessment[]
   signoffs                ApplicationSignoff[]
   scoreOverrides          ScoreOverrideApproval[]
+  qualitativeAssessment   QualitativeAssessment?
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -3858,6 +3860,27 @@ model CreditScoreRun {
   @@index([applicationId])
   @@index([scorecardVersionId])
   @@map("credit_score_runs")
+}
+
+// ============================================================================
+// Qualitative Assessment — Wave 1 (non-bank lending)
+// ============================================================================
+model QualitativeAssessment {
+  id                 String   @id @default(uuid()) @db.Uuid
+  applicationId      String   @unique @map("application_id") @db.Uuid
+  managementScore    Int      @default(3) @map("management_score")
+  relationshipScore  Int      @default(3) @map("relationship_score")
+  industryScore      Int      @default(3) @map("industry_score")
+  collateralScore    Int      @default(3) @map("collateral_score")
+  assessedById       String   @map("assessed_by_id") @db.Uuid
+  assessedAt         DateTime @default(now()) @map("assessed_at") @db.Timestamp(6)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application  CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  assessedBy   User              @relation(fields: [assessedById], references: [id])
+
+  @@map("qualitative_assessments")
 }
 
 // ============================================================================
