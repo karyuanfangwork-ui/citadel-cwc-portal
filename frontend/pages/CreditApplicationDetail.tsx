@@ -61,6 +61,7 @@ const CreditApplicationDetail: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const wizardMode = searchParams.get('mode') === 'wizard';
+  const isNewApplication = searchParams.get('new') === '1';
   const { user } = useAuth();
 
   // Dirty form guard — warns on tab change / navigation if any tab has unsaved changes
@@ -73,6 +74,19 @@ const CreditApplicationDetail: React.FC = () => {
   // Feature flag: credit:advanced_memo — enables bank-only sections
   // TODO (Wave E): wire to FeatureFlag API. For now, default false.
   const [advancedMemo, setAdvancedMemo] = useState(false);
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(isNewApplication);
+
+  // Feature flag: credit:advanced_memo — gate Advanced Memo toggle behind API
+  const [advancedMemoFlag, setAdvancedMemoFlag] = useState(false);
+
+  useEffect(() => {
+    creditService.listFeatureFlags()
+      .then(flags => {
+        const flag = flags.find(f => f.key === 'credit:advanced_memo');
+        if (flag?.enabled) setAdvancedMemoFlag(true);
+      })
+      .catch(() => { /* non-admin — stays false */ });
+  }, []);
 
   const visibleTabGroups = getVisibleTabGroups(advancedMemo);
   const visibleTabs = visibleTabGroups.flatMap(g => g.tabs.map(t => t.id));
@@ -84,6 +98,12 @@ const CreditApplicationDetail: React.FC = () => {
   }, [isDirty, confirmTabSwitch]);
   const [transitions, setTransitions] = useState<ApplicationTransition[]>([]);
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
+  const [readiness, setReadiness] = useState<{
+    ready: boolean;
+    errors: { field: string; message: string; severity: string }[];
+    warnings: { field: string; message: string; severity: string }[];
+  } | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [transitionReason, setTransitionReason] = useState('');
   const [showTransitionDialog, setShowTransitionDialog] = useState<string | null>(null);
@@ -131,6 +151,17 @@ const CreditApplicationDetail: React.FC = () => {
   useEffect(() => { if (id) fetchTransitions(); }, [fetchTransitions]);
   useEffect(() => { if (activeTab === 'facilities') fetchFacilities(); }, [activeTab, fetchFacilities]);
 
+  // Fetch readiness check when application is in DRAFT state
+  useEffect(() => {
+    if (!id || !app) return;
+    if ((app.state || app.status) !== 'DRAFT') return;
+    setReadinessLoading(true);
+    creditService.checkReadiness(id)
+      .then(r => setReadiness(r))
+      .catch(() => { /* non-critical — panel stays hidden */ })
+      .finally(() => setReadinessLoading(false));
+  }, [id, app]);
+
   // Auto-focus cancel button when dialog opens
   useEffect(() => {
     if (showTransitionDialog && transitionDialogCancelRef.current) {
@@ -156,6 +187,8 @@ const CreditApplicationDetail: React.FC = () => {
       transitionTriggerRef.current?.focus();
       fetchApp();
       fetchTransitions();
+      // Re-check readiness if we returned to DRAFT (e.g. after KYC rejection)
+      setReadiness(null);
     } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to transition application')); }
     finally { setTransitioning(false); }
   };
@@ -164,7 +197,7 @@ const CreditApplicationDetail: React.FC = () => {
     if (!app) return;
     try {
       const response = await creditService.downloadCaMemo(app.id);
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', `CA-Memo-${app.applicationNo || app.id}.pdf`);
@@ -174,7 +207,7 @@ const CreditApplicationDetail: React.FC = () => {
       window.URL.revokeObjectURL(url);
       toast.success('CA Memo downloaded');
     } catch (e) {
-      toast.error(friendlyMessage(e, 'Failed to download CA Memo'));
+      toast.error(friendlyMessage(e, 'Failed to export CA Memo'));
     }
   };
 
@@ -304,10 +337,12 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             {/* Advanced Memo toggle */}
+            {advancedMemoFlag && (
             <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
               <input type="checkbox" checked={advancedMemo} onChange={e => setAdvancedMemo(e.target.checked)} className="rounded border-gray-300" />
               Advanced Memo
             </label>
+            )}
             <Link
               to={`/credit/applications/${id}`}
               className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800"
@@ -346,10 +381,12 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
           <div className="flex items-center gap-3">
             {/* Advanced Memo toggle */}
+            {advancedMemoFlag && (
             <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none" title="Show bank-grade ECL, ESG, SICR, Committee sections">
               <input type="checkbox" checked={advancedMemo} onChange={e => setAdvancedMemo(e.target.checked)} className="rounded border-gray-300" />
               Advanced Memo
             </label>
+            )}
             {/* §3.6 — Wizard mode toggle */}
             <Link
               to={`/credit/applications/${id}?mode=wizard`}
@@ -451,6 +488,66 @@ const CreditApplicationDetail: React.FC = () => {
             </div>
           ))}
         </div>
+
+        {/* Onboarding banner — shown once for newly created applications */}
+        {showOnboardingBanner && currentState === 'DRAFT' && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+            <span className="material-symbols-outlined text-indigo-500 text-xl mt-0.5">info</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-indigo-800 mb-1">Application created — complete all 7 sections to submit</p>
+              <p className="text-xs text-indigo-700">
+                Start with <strong>S1 Loan Request</strong> (already pre-filled), then work through S2–S7.
+                When all sections are green, use <strong>Submit for KYC Review</strong> below.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowOnboardingBanner(false)}
+              aria-label="Dismiss"
+              className="text-indigo-400 hover:text-indigo-600 transition-colors"
+              style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              <span className="material-symbols-outlined text-lg">close</span>
+            </button>
+          </div>
+        )}
+
+        {/* Readiness pre-flight panel — DRAFT only */}
+        {currentState === 'DRAFT' && (readiness || readinessLoading) && (
+          <div className="bg-bg-surface border border-border rounded-xl p-4 mb-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="material-symbols-outlined text-base text-text-secondary">checklist</span>
+              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Submission Readiness</h3>
+              {readinessLoading && <span className="text-xs text-text-secondary ml-auto">Checking…</span>}
+              {!readinessLoading && readiness && (
+                <span className={`text-xs font-bold ml-auto px-2 py-0.5 rounded-full ${readiness.ready ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {readiness.ready ? 'Ready to submit' : `${readiness.errors.length} issue${readiness.errors.length !== 1 ? 's' : ''} blocking`}
+                </span>
+              )}
+            </div>
+            {readiness && (
+              <ul className="space-y-1.5">
+                {readiness.errors.map((e, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-red-700">
+                    <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">cancel</span>
+                    {e.message}
+                  </li>
+                ))}
+                {readiness.warnings.map((w, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-amber-700">
+                    <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">warning</span>
+                    {w.message}
+                  </li>
+                ))}
+                {readiness.ready && readiness.warnings.length === 0 && (
+                  <li className="flex items-center gap-2 text-xs text-green-700">
+                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                    All checks passed — application is ready to submit.
+                  </li>
+                )}
+              </ul>
+            )}
+          </div>
+        )}
 
         {/* CA Memo Export */}
         <div className="flex justify-end mb-2">

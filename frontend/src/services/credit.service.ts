@@ -675,6 +675,20 @@ const creditService = {
     await apiClient.delete(`/credit/applications/${id}`);
   },
 
+  async checkReadiness(id: string): Promise<{
+    ready: boolean;
+    errors: { field: string; message: string; severity: 'error' | 'warning' }[];
+    warnings: { field: string; message: string; severity: 'error' | 'warning' }[];
+  }> {
+    const res = await apiClient.get(`/credit/applications/${id}/readiness`);
+    return res.data.data;
+  },
+
+  async listFeatureFlags(): Promise<{ key: string; enabled: boolean }[]> {
+    const res = await apiClient.get('/credit/feature-flags');
+    return res.data.data.flags as { key: string; enabled: boolean }[];
+  },
+
   // State Machine Transitions
   async transitionApplication(id: string, data: { action: string; reason?: string }) {
     const res = await apiClient.post(`/credit/applications/${id}/transition`, data);

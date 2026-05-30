@@ -483,6 +483,8 @@ class CreditApplicationService {
   async createApplication(data: CreateCreditApplicationData, actorId?: string) {
     const applicationNo = await generateApplicationNo();
 
+    const effectiveRmId = data.assignedRmId ?? actorId;  // ← auto-assign creating user as RM when none specified
+
     const createData: Prisma.CreditApplicationCreateInput = {
       applicationNo,
       state: ApplicationState.DRAFT,
@@ -492,7 +494,7 @@ class CreditApplicationService {
       requestedAmount: new Prisma.Decimal(data.requestedAmount),
       requestedTenor: data.requestedTenor ?? undefined,
       currency: (data.currency as any) ?? 'MYR',
-      ...(data.assignedRmId && { assignedRm: { connect: { id: data.assignedRmId } } }),
+      ...(effectiveRmId && { assignedRm: { connect: { id: effectiveRmId } } }),
       ...(data.assignedAnalystId && { assignedAnalyst: { connect: { id: data.assignedAnalystId } } }),
     };
     applyCaMemoFields(createData as Record<string, unknown>, data);

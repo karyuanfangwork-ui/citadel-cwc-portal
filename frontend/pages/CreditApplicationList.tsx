@@ -143,7 +143,7 @@ const CreditApplicationList: React.FC = () => {
       setShowCreate(false);
       setForm({ currency: 'MYR' as any, productType: 'TERM_LOAN' });
       // Navigate to the new application's Header tab for CA Memo entry
-      navigate(`/credit/applications/${newApp.id}`);
+      navigate(`/credit/applications/${newApp.id}?new=1`);
     } catch (e) {
       console.error(e);
       toast.error(friendlyMessage(e, 'Failed to create application'));
@@ -409,6 +409,18 @@ const CreditApplicationList: React.FC = () => {
                         </option>
                       ))}
                     </select>
+                    {borrowerProfiles.length === 0 && !borrowerFilter && (
+                      <p className="mt-1.5 text-xs text-text-secondary">
+                        No borrower profiles yet.{' '}
+                        <Link
+                          to="/credit/borrowers/new"
+                          className="text-brand-700 font-semibold hover:underline"
+                          onClick={() => setShowCreate(false)}
+                        >
+                          Create a borrower profile first
+                        </Link>
+                      </p>
+                    )}
                   </div>
                   </div>
                   <div>
