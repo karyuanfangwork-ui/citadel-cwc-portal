@@ -28,7 +28,7 @@ export type CaRequestType =
 
 export type CurrencyCode = 'MYR' | 'USD' | 'SGD' | 'GBP' | 'EUR' | 'JPY' | 'CNY' | 'THB' | 'IDR' | 'AUD' | 'HKD';
 
-export type ApprovalDecision = 'APPROVED' | 'REJECTED' | 'RETURNED' | 'ESCALATED';
+export type ApprovalDecision = 'APPROVE' | 'REJECT' | 'RETURN' | 'ESCALATE';
 
 
 // CA Memo Phase 1 — header classification enums
@@ -387,7 +387,8 @@ export interface CreditApproval {
   isCommitteeVote: boolean;
   decidedAt: string | null;
   createdAt: string;
-  approver?: CreditUserRef;
+  authorityLevel: string | null;
+  approver?: { id: string; firstName: string; lastName: string; department: string | null } | null;
 }
 
 export interface ApprovalMatrix {
@@ -430,6 +431,8 @@ export interface ApprovalMatrixLookup {
   authorityLevel: string;
   approverIds: string[];
   matrixId: string;
+  requiredApproverCount: number;
+  matrixName?: string;
 }
 
 export interface Pagination {
@@ -862,6 +865,13 @@ const creditService = {
   getApprovalPackUrl(applicationId: string, format: 'html' | 'pdf' = 'html'): string {
     const base = (apiClient as any).defaults?.baseURL || '';
     return `${base}/credit/applications/${applicationId}/approval-pack?format=${format}`;
+  },
+
+  async getApprovalPackHtml(applicationId: string): Promise<string> {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/approval-pack?format=html`, {
+      responseType: 'text',
+    });
+    return res.data as string;
   },
 
   async downloadApprovalPackPdf(applicationId: string) {
