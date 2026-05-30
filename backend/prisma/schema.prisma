@@ -2368,6 +2368,14 @@ enum BorrowerType {
   INDIVIDUAL
   CORPORATE
   JOINT
+  SOLE_PROPRIETOR
+}
+
+enum EmploymentType {
+  SALARIED
+  SELF_EMPLOYED
+  COMMISSION_BASED
+  PENSIONER
 }
 
 // Risk ratings
@@ -2508,6 +2516,10 @@ enum DocumentClass {
   GUARANTEE_LETTER
   PLEDGE_AGREEMENT
   SECURITY_DOCUMENT
+  PAYSLIP
+  SSM_CERT
+  MOA_AOA
+  JV_AGREEMENT
   OTHER
 }
 
@@ -2937,6 +2949,7 @@ model CreditApplication {
   signoffs                ApplicationSignoff[]
   scoreOverrides          ScoreOverrideApproval[]
   qualitativeAssessment   QualitativeAssessment?
+  retailIncome            RetailIncome?
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -3881,6 +3894,30 @@ model QualitativeAssessment {
   assessedBy   User              @relation(fields: [assessedById], references: [id])
 
   @@map("qualitative_assessments")
+}
+
+// ============================================================================
+// Retail Income — Wave 2 (individual borrower DSR assessment)
+// ============================================================================
+model RetailIncome {
+  id                      String         @id @default(uuid()) @db.Uuid
+  applicationId           String         @unique @map("application_id") @db.Uuid
+  employmentType          EmploymentType @map("employment_type")
+  employerName            String?        @map("employer_name") @db.VarChar(255)
+  monthlyGrossIncome      Decimal        @map("monthly_gross_income") @db.Decimal(15, 2)
+  epfMonthlyAmount        Decimal?       @map("epf_monthly_amount") @db.Decimal(15, 2)
+  hirePurchaseCommitment  Decimal        @default(0) @map("hire_purchase_commitment") @db.Decimal(15, 2)
+  creditCardCommitment    Decimal        @default(0) @map("credit_card_commitment") @db.Decimal(15, 2)
+  existingLoanCommitment  Decimal        @default(0) @map("existing_loan_commitment") @db.Decimal(15, 2)
+  otherCommitments        Decimal        @default(0) @map("other_commitments") @db.Decimal(15, 2)
+  proposedInstalment      Decimal?       @map("proposed_instalment") @db.Decimal(15, 2)
+  dsrPercent              Decimal?       @map("dsr_percent") @db.Decimal(5, 2)
+  createdAt               DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt               DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("retail_incomes")
 }
 
 // ============================================================================
