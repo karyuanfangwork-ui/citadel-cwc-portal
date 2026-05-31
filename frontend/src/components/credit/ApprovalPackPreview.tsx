@@ -83,8 +83,7 @@ const ApprovalPackPreview: React.FC<ApprovalPackPreviewProps> = ({ applicationId
   const handleDownloadPdf = async () => {
     try {
       const res = await creditService.downloadApprovalPackPdf(applicationId);
-      const blob = new Blob([res.data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const a = document.createElement('a');
       a.href = url;
       a.download = `${applicationNo}-approval-pack.pdf`;
@@ -92,16 +91,6 @@ const ApprovalPackPreview: React.FC<ApprovalPackPreviewProps> = ({ applicationId
       URL.revokeObjectURL(url);
     } catch {
       // swallow — user can retry
-    }
-  };
-
-  const handlePrint = () => {
-    if (!iframeRef.current?.contentWindow) return;
-    try {
-      iframeRef.current.contentWindow.print();
-    } catch {
-      // Cross-origin fallback: open in new tab for printing
-      window.open(htmlUrl, '_blank');
     }
   };
 
@@ -149,7 +138,7 @@ const ApprovalPackPreview: React.FC<ApprovalPackPreviewProps> = ({ applicationId
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-black/50" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Approval Pack Preview — ${applicationNo}`}>
+    <div className="fixed inset-0 z-[80] flex bg-black/50" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Approval Pack Preview — ${applicationNo}`}>
       <div
         id="approval-pack-modal"
         className="flex w-full max-w-[95vw] h-[90vh] mx-auto my-[5vh] bg-white rounded-xl shadow-2xl overflow-hidden"
@@ -195,14 +184,6 @@ const ApprovalPackPreview: React.FC<ApprovalPackPreviewProps> = ({ applicationId
               <p className="text-xs text-gray-500">Preview document for approval review</p>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={handlePrint}
-                className="px-3 py-1.5 text-xs border border-gray-300 rounded hover:bg-gray-50 text-gray-700"
-                title="Print"
-                aria-label="Print approval pack"
-              >
-                🖨 Print
-              </button>
               <button
                 onClick={handleDownloadPdf}
                 className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"

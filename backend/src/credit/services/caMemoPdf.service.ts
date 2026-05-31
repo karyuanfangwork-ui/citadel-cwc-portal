@@ -31,6 +31,8 @@ export async function getCaMemoData(applicationId: string) {
       esgAssessment: true,
       sicrAssessments: { orderBy: { triggerType: 'asc' } },
       signoffs: { include: { signedBy: { select: { firstName: true, lastName: true } } }, orderBy: { signedAt: 'asc' } },
+      conditions: { orderBy: [{ conditionType: 'asc' }, { createdAt: 'asc' }] },
+      scoreRuns: { orderBy: { createdAt: 'desc' }, take: 1 },
     },
   });
 

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { getCaMemoData } from '../services/caMemoPdf.service';
+import { htmlToPdf } from '../services/htmlToPdf.service';
 
 const fmt = (v: any) => (v != null ? Number(v).toLocaleString('en-MY', { maximumFractionDigits: 2 }) : '—');
 const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
@@ -113,9 +114,10 @@ export async function generateCaMemo(req: Request, res: Response, next: NextFunc
     const app = await getCaMemoData(String(req.params.appId));
     const title = `CA Memo — ${app.applicationNo}`;
     const html = buildHtml(app, title);
+    const pdf = await htmlToPdf(html);
 
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.setHeader('Content-Disposition', `inline; filename="${app.applicationNo}-ca-memo.html"`);
-    res.send(html);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${app.applicationNo}-ca-memo.pdf"`);
+    res.send(pdf);
   } catch (e) { next(e); }
 }

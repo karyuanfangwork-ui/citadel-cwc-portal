@@ -61,7 +61,9 @@
       "Bash(npm test *)",
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
       "Bash(echo \"EXIT $?\")",
-      "Bash(grep -E \"navigate\\\\\\(/request/|navigate\\\\\\(\\\\`/request/\")"
+      "Bash(grep -E \"navigate\\\\\\(/request/|navigate\\\\\\(\\\\`/request/\")",
+      "Bash(npx jest *)",
+      "Bash(node -e \"require\\('./src/credit/routes/credit.routes.ts'\\)\")"
     ]
   }
 }

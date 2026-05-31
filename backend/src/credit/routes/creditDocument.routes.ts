@@ -4,7 +4,6 @@ import { authenticate, requirePermission } from '../../middleware/auth.middlewar
 import { validate } from '../../middleware/validate.middleware';
 import {
   listCreditDocumentsSchema,
-  uploadCreditDocumentSchema,
   updateCreditDocumentSchema,
   replaceCreditDocumentSchema,
   updateAvStatusSchema,
@@ -54,7 +53,6 @@ router.get(
 router.post(
   '/credit-documents/upload',
   requirePermission('credit:write'),
-  validate(uploadCreditDocumentSchema),
   ...creditDocumentController.upload,
 );
 

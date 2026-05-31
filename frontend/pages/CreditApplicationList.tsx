@@ -70,6 +70,7 @@ const CreditApplicationList: React.FC = () => {
   const [form, setForm] = useState<Partial<CreditApplication>>({ currency: 'MYR' as any, productType: 'TERM_LOAN' });
   const [saving, setSaving] = useState(false);
   const [borrowerProfiles, setBorrowerProfiles] = useState<BorrowerProfile[]>([]);
+  const [loadingBorrowers, setLoadingBorrowers] = useState(false);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const { isCollapsed, toggle: toggleCollapse } = useCollapsedColumns('credit-applications');
 
@@ -110,7 +111,11 @@ const CreditApplicationList: React.FC = () => {
   // Fetch borrower profiles when create modal opens
   useEffect(() => {
     if (showCreate && borrowerProfiles.length === 0) {
-      creditService.listBorrowerProfiles({ limit: 200 }).then(res => setBorrowerProfiles(res.profiles)).catch((e) => { console.error(e); toast.error(friendlyMessage(e, 'Failed to load borrower profiles')); });
+      setLoadingBorrowers(true);
+      creditService.listBorrowerProfiles({ limit: 200 })
+        .then(res => setBorrowerProfiles(res.profiles))
+        .catch((e) => { console.error(e); toast.error(friendlyMessage(e, 'Failed to load borrower profiles')); })
+        .finally(() => setLoadingBorrowers(false));
     }
   }, [showCreate]);
 
@@ -409,15 +414,15 @@ const CreditApplicationList: React.FC = () => {
                         </option>
                       ))}
                     </select>
-                    {borrowerProfiles.length === 0 && !borrowerFilter && (
+                    {!loadingBorrowers && borrowerProfiles.length === 0 && !borrowerFilter && (
                       <p className="mt-1.5 text-xs text-text-secondary">
                         No borrower profiles yet.{' '}
                         <Link
-                          to="/credit/borrowers/new"
+                          to="/credit/borrowers"
                           className="text-brand-700 font-semibold hover:underline"
                           onClick={() => setShowCreate(false)}
                         >
-                          Create a borrower profile first
+                          Go to Borrower Profiles to create one
                         </Link>
                       </p>
                     )}

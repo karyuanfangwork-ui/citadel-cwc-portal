@@ -65,6 +65,7 @@
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "pdf-parse": "^2.4.5",
+    "puppeteer-core": "^25.1.0",
     "rate-limit-redis": "^4.3.1",
     "resend": "^6.12.2",
     "validator": "^13.15.35",

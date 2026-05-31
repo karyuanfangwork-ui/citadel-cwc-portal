@@ -26,18 +26,19 @@ export const APPROVAL_PACK_SECTIONS = [
  * approval-specific data.
  */
 export function buildApprovalPackHtml(app: CaMemoData): string {
-  const borrower = app.borrowerProfile?.account?.name ?? app.borrowerProfile?.contact
-    ? `${app.borrowerProfile.contact?.firstName} ${app.borrowerProfile.contact?.lastName}`
-    : 'Unknown Borrower';
+  const borrower = app.borrowerProfile?.account?.name
+    ?? (app.borrowerProfile?.contact
+      ? `${app.borrowerProfile.contact.firstName ?? ''} ${app.borrowerProfile.contact.lastName ?? ''}`.trim()
+      : 'Unknown Borrower');
 
   const signoffs = app.signoffs ?? [];
   const prepared = signoffs.find((s: any) => s.role === 'PREPARED_BY');
   const reviewed = signoffs.find((s: any) => s.role === 'REVIEWED_BY');
   const concurred = signoffs.find((s: any) => s.role === 'CONCURRED_BY');
 
-  const sigRow = (_label: string, s: any) => s
-    ? `<td><strong>${s.signedBy?.firstName} ${s.signedBy?.lastName}</strong><br/><small>${s.designationSnapshot}</small><br/><small>${fmtDate(s.signedAt)}</small></td>`
-    : `<td><em style="color:#aaa">Unsigned</em></td>`;
+  const sigRow = (s: any) => s
+    ? `<td><strong>${s.signedBy?.firstName ?? ''} ${s.signedBy?.lastName ?? ''}</strong></td><td>${s.designationSnapshot ?? '—'}</td><td>${fmtDate(s.signedAt)}</td>`
+    : `<td><em style="color:#aaa">Unsigned</em></td><td>—</td><td>—</td>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -101,10 +102,10 @@ ${app.exposureSummary ? `<h3>Exposure Summary</h3><table>
 </table>` : ''}
 
 <h2 id="scoring">Section 4 — Scoring</h2>
-${app.riskAssessments && app.riskAssessments.length > 0 ? `<table>
-  <tr><th>Risk Category</th><th>Description</th><th>Mitigation</th></tr>
-  ${app.riskAssessments.map((r: any) => `<tr><td>${r.riskCategory}</td><td>${r.description ?? '—'}</td><td>${r.mitigation ?? '—'}</td></tr>`).join('')}
-</table>` : '<p>—</p>'}
+${(app as any).scoreRuns && (app as any).scoreRuns.length > 0 ? `<table>
+  <tr><th>Total Score</th><th>Risk Rating</th><th>Score Date</th></tr>
+  ${(app as any).scoreRuns.map((r: any) => `<tr><td>${r.totalScore ?? '—'}</td><td>${r.riskRating ?? '—'}</td><td>${fmtDate(r.createdAt)}</td></tr>`).join('')}
+</table>` : '<p>No score runs recorded.</p>'}
 
 <h2 id="ecl">Section 5 — ECL</h2>
 ${app.eclSnapshots && app.eclSnapshots.length > 0 ? `<table>
@@ -126,7 +127,10 @@ ${app.facilities?.some((f: any) => f.collaterals && f.collaterals.length > 0) ? 
 </table>
 
 <h2 id="conditions">Section 8 — Conditions</h2>
-<p>—</p>
+${(app as any).conditions && (app as any).conditions.length > 0 ? `<table>
+  <tr><th>Type</th><th>Category</th><th>Title</th><th>Status</th></tr>
+  ${(app as any).conditions.map((c: any) => `<tr><td>${c.conditionType ?? '—'}</td><td>${c.category ?? '—'}</td><td>${c.title ?? c.description ?? '—'}</td><td>${c.status ?? '—'}</td></tr>`).join('')}
+</table>` : '<p>No conditions recorded.</p>'}
 
 <h2 id="credit-bureau">Section 14 — Credit Bureau Checks</h2>
 <table>
@@ -162,9 +166,9 @@ ${app.esgAssessment ? `<table>
 <h2 id="signoff">Section 19 — Signoff</h2>
 <table>
   <tr><th>Role</th><th>Signee</th><th>Designation</th><th>Date</th></tr>
-  <tr><td>Prepared By</td>${sigRow('Prepared By', prepared)}</tr>
-  <tr><td>Reviewed By</td>${sigRow('Reviewed By', reviewed)}</tr>
-  <tr><td>Concurred By</td>${sigRow('Concurred By', concurred)}</tr>
+  <tr><td>Prepared By</td>${sigRow(prepared)}</tr>
+  <tr><td>Reviewed By</td>${sigRow(reviewed)}</tr>
+  <tr><td>Concurred By</td>${sigRow(concurred)}</tr>
 </table>
 
 </body>
