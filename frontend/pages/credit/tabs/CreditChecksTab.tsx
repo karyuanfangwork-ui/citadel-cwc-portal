@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { bureauChecklistApi } from '../../../src/services/credit.service';
 import {
   CreditApplication,
   CreditBureauCheck,
@@ -96,6 +97,23 @@ const AddCheckForm: React.FC<{ appId: string; onAdded: (c: CreditBureauCheck) =>
 
 const CheckCard: React.FC<{ check: CreditBureauCheck; appId: string; readOnly: boolean; onRemoved: () => void }> = ({ check, appId, readOnly, onRemoved }) => {
   const [expanded, setExpanded] = useState(false);
+  const [structuredData, setStructuredData] = useState<Record<string, unknown>>({});
+  const [savingStructured, setSavingStructured] = useState(false);
+
+  const isCcris = check.provider.startsWith('CCRIS');
+  const isCtos = check.provider.startsWith('CTOS');
+
+  const handleSaveStructured = async () => {
+    setSavingStructured(true);
+    try {
+      await bureauChecklistApi.updateCheckStructured(appId, check.id, structuredData);
+      toast.success('Bureau check updated');
+    } catch (e) {
+      toast.error(friendlyMessage(e, 'Failed to save structured data'));
+    } finally {
+      setSavingStructured(false);
+    }
+  };
 
   const handleRemove = async () => {
     try {
@@ -129,10 +147,131 @@ const CheckCard: React.FC<{ check: CreditBureauCheck; appId: string; readOnly: b
           {!readOnly && <button onClick={handleRemove} className="text-red-400 hover:text-red-600 text-xs">✕</button>}
         </div>
       </div>
-      {expanded && check.findings && (
-        <p className="mt-2 text-sm text-gray-600 whitespace-pre-wrap">{check.findings}</p>
+      {expanded && (
+        <div className="mt-3 space-y-3">
+          {check.findings && (
+            <p className="text-sm text-gray-600 whitespace-pre-wrap border-t pt-2">{check.findings}</p>
+          )}
+          {(isCcris || isCtos) && !readOnly && (
+            <div className="border-t pt-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Structured Data</p>
+              {isCcris && (
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <label className="flex items-center gap-2 col-span-2">
+                    <input type="checkbox" checked={Boolean(structuredData.ccrisSaaFlag)} onChange={e => setStructuredData(p => ({ ...p, ccrisSaaFlag: e.target.checked }))} />
+                    SAA Account Present
+                  </label>
+                  <div>
+                    <span className="text-xs text-gray-500 block mb-1">Missed Payments (12mo)</span>
+                    <input type="number" min={0} max={12} value={(structuredData.ccrisMissedPayments12Months as number) ?? ''} onChange={e => setStructuredData(p => ({ ...p, ccrisMissedPayments12Months: Number(e.target.value) }))} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500 block mb-1">CCRIS Report Date</span>
+                    <input type="date" value={(structuredData.ccrisReportDate as string) ?? ''} onChange={e => setStructuredData(p => ({ ...p, ccrisReportDate: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={Boolean(structuredData.ccrisBankruptcyFlag)} onChange={e => setStructuredData(p => ({ ...p, ccrisBankruptcyFlag: e.target.checked }))} />
+                    Bankruptcy Flag
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={Boolean(structuredData.ccrisLegalActionFlag)} onChange={e => setStructuredData(p => ({ ...p, ccrisLegalActionFlag: e.target.checked }))} />
+                    Legal Action Flag
+                  </label>
+                </div>
+              )}
+              {isCtos && (
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-xs text-gray-500 block mb-1">CTOS Score (0–1000)</span>
+                    <input type="number" min={0} max={1000} value={(structuredData.ctosScore as number) ?? ''} onChange={e => setStructuredData(p => ({ ...p, ctosScore: Number(e.target.value) }))} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500 block mb-1">CTOS Report Date</span>
+                    <input type="date" value={(structuredData.ctosReportDate as string) ?? ''} onChange={e => setStructuredData(p => ({ ...p, ctosReportDate: e.target.value }))} className="w-full border rounded px-2 py-1 text-sm" />
+                  </div>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={Boolean(structuredData.ctosAdverseFlag)} onChange={e => setStructuredData(p => ({ ...p, ctosAdverseFlag: e.target.checked }))} />
+                    Adverse Record
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={Boolean(structuredData.ctosBankruptcyFlag)} onChange={e => setStructuredData(p => ({ ...p, ctosBankruptcyFlag: e.target.checked }))} />
+                    Bankruptcy Flag
+                  </label>
+                </div>
+              )}
+              <button onClick={handleSaveStructured} disabled={savingStructured} className="mt-2 px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+                {savingStructured ? 'Saving…' : 'Save Structured Data'}
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
+  );
+};
+
+const CHECKLIST_ITEMS = [
+  { key: 'ccrisUploaded', label: 'CCRIS report uploaded (dated within 90 days)' },
+  { key: 'ctosUploaded', label: 'CTOS report uploaded (dated within 90 days)' },
+  { key: 'amlScreeningDone', label: 'AML / sanctions name-screening completed' },
+  { key: 'noAdverseRecord', label: 'No unresolved adverse records (or exception documented below)' },
+] as const;
+
+const BureauChecklistPanel: React.FC<{ appId: string; readOnly: boolean }> = ({ appId, readOnly }) => {
+  const [checklist, setChecklist] = useState({ ccrisUploaded: false, ctosUploaded: false, noAdverseRecord: false, adverseExceptionReason: '', amlScreeningDone: false });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    bureauChecklistApi.get(appId).then(data => {
+      if (data) setChecklist({ ccrisUploaded: data.ccrisUploaded, ctosUploaded: data.ctosUploaded, noAdverseRecord: data.noAdverseRecord, adverseExceptionReason: data.adverseExceptionReason ?? '', amlScreeningDone: data.amlScreeningDone });
+      setLoading(false);
+    });
+  }, [appId]);
+
+  const save = (updated: typeof checklist) => {
+    if (!readOnly) bureauChecklistApi.upsert(appId, updated).catch(() => toast.error('Failed to save checklist'));
+  };
+
+  if (loading) return null;
+
+  return (
+    <CaMemoSection title="S5 Completion Checklist" phase="S5">
+      <div className="space-y-2">
+        {CHECKLIST_ITEMS.map(item => (
+          <label key={item.key} className="flex items-start gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={checklist[item.key]}
+              disabled={readOnly}
+              onChange={e => {
+                const updated = { ...checklist, [item.key]: e.target.checked };
+                setChecklist(updated);
+                save(updated);
+              }}
+              className="mt-0.5"
+            />
+            <span className={checklist[item.key] ? 'text-gray-700' : 'text-gray-500'}>{item.label}</span>
+          </label>
+        ))}
+        {!checklist.noAdverseRecord && (
+          <div className="mt-2 pl-5">
+            <label className="block text-xs text-gray-500 mb-1">Exception reason (required if adverse record present)</label>
+            <textarea
+              value={checklist.adverseExceptionReason}
+              disabled={readOnly}
+              onChange={e => setChecklist(prev => ({ ...prev, adverseExceptionReason: e.target.value }))}
+              onBlur={() => save(checklist)}
+              rows={2}
+              className="w-full border rounded px-3 py-1.5 text-sm"
+              placeholder="Document the exception and approver details…"
+            />
+          </div>
+        )}
+        {CHECKLIST_ITEMS.every(i => checklist[i.key]) && (
+          <p className="text-xs text-green-600 font-medium mt-2">✓ Bureau checklist complete — S5 section ready</p>
+        )}
+      </div>
+    </CaMemoSection>
   );
 };
 
@@ -187,6 +326,7 @@ const CreditChecksTab: React.FC<Props> = ({ application }) => {
         )}
         {!readOnly && <AddCheckForm appId={application.id} onAdded={c => setChecks(cs => [c, ...cs])} />}
       </CaMemoSection>
+      <BureauChecklistPanel appId={application.id} readOnly={readOnly} />
     </>
   );
 };

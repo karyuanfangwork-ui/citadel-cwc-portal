@@ -1970,6 +1970,27 @@ export const piiRevealApi = {
   },
 };
 
+export const bureauChecklistApi = {
+  get: async (applicationId: string) => {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/bureau-checklist`);
+    return res.data.data as {
+      ccrisUploaded: boolean;
+      ctosUploaded: boolean;
+      noAdverseRecord: boolean;
+      adverseExceptionReason?: string | null;
+      amlScreeningDone: boolean;
+    } | null;
+  },
+  upsert: async (applicationId: string, data: Record<string, unknown>) => {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/bureau-checklist`, data);
+    return res.data.data;
+  },
+  updateCheckStructured: async (applicationId: string, checkId: string, data: Record<string, unknown>) => {
+    const res = await apiClient.patch(`/credit/applications/${applicationId}/bureau-checks/${checkId}/structured`, data);
+    return res.data.data;
+  },
+};
+
 export const retailIncomeApi = {
   get: async (applicationId: string) => {
     const res = await apiClient.get(`/credit/applications/${applicationId}/retail-income`);
