@@ -3,6 +3,7 @@ import { Prisma, RiskRating } from '@prisma/client';
 import { FACTOR_GROUPS, FactorWeights } from './scorecard.service';
 import { AppError } from '../../middleware/error.middleware';
 import { getQualitativeAssessment, toFactorScores } from './qualitativeAssessment.service';
+import { getBureauCapsForApplication, applyBureauCaps } from './bureauCheck.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -31,6 +32,8 @@ export interface ScoreResult {
   factorScores: FactorScores;
   totalScore: number;
   riskRating: RiskRating;
+  baseRiskRating: RiskRating;
+  bureauCapsApplied: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -297,7 +300,11 @@ class ScoringService {
     totalScore = Math.round(totalScore * 100) / 100;
 
     // Step 8: Map totalScore to RiskRating
-    const riskRating = mapTotalScoreToRiskRating(totalScore);
+    const baseRiskRating = mapTotalScoreToRiskRating(totalScore);
+
+    // Step 8b: Apply bureau rating caps
+    const bureauCaps = await getBureauCapsForApplication(applicationId);
+    const { effectiveRating: riskRating, capsApplied: bureauCapsApplied } = applyBureauCaps(baseRiskRating, bureauCaps);
 
     // Step 9: Create CreditScoreRun record
     const scoreRun = await prisma.creditScoreRun.create({
@@ -307,6 +314,8 @@ class ScoringService {
         factorScores: factorScores as any,
         totalScore: new Prisma.Decimal(totalScore),
         riskRating,
+        baseRiskRating,
+        bureauCapsApplied: bureauCapsApplied.length > 0 ? bureauCapsApplied : Prisma.JsonNull,
         isOverride: false,
         runAt: new Date(),
       },
@@ -329,6 +338,8 @@ class ScoringService {
       factorScores,
       totalScore,
       riskRating,
+      baseRiskRating,
+      bureauCapsApplied,
     };
   }
 
