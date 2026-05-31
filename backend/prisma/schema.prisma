@@ -3829,7 +3829,8 @@ model CreditScorecardVersion {
   id            String   @id @default(uuid()) @db.Uuid
   scorecardId   String   @map("scorecard_id") @db.Uuid
   version       Int
-  factorWeights Json
+  factorWeights        Json
+  retailFactorWeights  Json? @map("retail_factor_weights")
   isActive      Boolean  @default(false) @map("is_active")
   effectiveFrom DateTime @map("effective_from") @db.Timestamp(6)
   approvedById  String?  @map("approved_by_id") @db.Uuid

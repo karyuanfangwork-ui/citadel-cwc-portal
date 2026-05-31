@@ -199,7 +199,10 @@ class ScoringService {
     // Step 2: Get the application's borrowerProfileId
     const application = await prisma.creditApplication.findUnique({
       where: { id: applicationId },
-      select: { borrowerProfileId: true },
+      select: {
+        borrowerProfileId: true,
+        borrowerProfile: { select: { borrowerType: true } },
+      },
     });
     if (!application) {
       throw new Error('Credit application not found');
@@ -226,8 +229,12 @@ class ScoringService {
       }
     }
 
-    // Step 5: Compute factor scores
-    const factorWeights: FactorWeights = scorecardVersion.factorWeights as any;
+    // Step 5: Compute factor scores (retail borrowers use alternate weight set if configured)
+    const isRetail = application.borrowerProfile?.borrowerType === 'INDIVIDUAL' ||
+                     application.borrowerProfile?.borrowerType === 'SOLE_PROPRIETOR';
+    const factorWeights: FactorWeights = (isRetail && scorecardVersion.retailFactorWeights)
+      ? (scorecardVersion.retailFactorWeights as any)
+      : (scorecardVersion.factorWeights as any);
 
     // Load qualitative assessments if available (Wave 1)
     const qa = await getQualitativeAssessment(applicationId);
