@@ -153,6 +153,7 @@ export const TAB_GROUPS: TabGroup[] = [
     label: 'S1 · Loan Request',
     tabs: [
       { id: 'loan-request', label: 'Loan Request' },
+      { id: 'facilities', label: 'Facilities' },
     ],
   },
   {
@@ -297,6 +298,7 @@ export function getPhaseCompletion(app: {
   creditBureauChecks?: unknown[];
   creditDecisions?: unknown[];
   isSecured?: boolean;
+  retailIncome?: { monthlyGrossIncome?: unknown } | null;
 }): Record<string, PhaseStatus> {
   const hasValue = (v: unknown) => v != null && String(v).trim() !== '';
 
@@ -305,7 +307,8 @@ export function getPhaseCompletion(app: {
       hasValue(app.requestedAmount) &&
       hasValue(app.requestedTenor) &&
       hasValue(app.productType) &&
-      hasValue(app.purpose)
+      hasValue(app.purpose) &&
+      (app.facilities && app.facilities.length > 0)
     ) ? 'complete' : 'incomplete',
 
     s2: (
@@ -314,8 +317,11 @@ export function getPhaseCompletion(app: {
       (app.parties && app.parties.length > 0)
     ) ? 'complete' : 'incomplete',
 
-    s3: (app.financialStatements && app.financialStatements.length > 0)
-      ? 'complete' : 'incomplete',
+    s3: (
+      (app.borrowerType === 'INDIVIDUAL' || app.borrowerType === 'SOLE_PROPRIETOR')
+        ? (app.retailIncome != null && app.retailIncome.monthlyGrossIncome != null)
+        : (app.financialStatements && app.financialStatements.length > 0)
+    ) ? 'complete' : 'incomplete',
 
     s4: (
       hasValue(app.riskRating)

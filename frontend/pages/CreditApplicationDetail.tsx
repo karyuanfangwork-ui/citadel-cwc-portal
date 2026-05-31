@@ -264,6 +264,9 @@ const CreditApplicationDetail: React.FC = () => {
     decisionedAt: app.decisionedAt,
     facilities: facilities,
     parties: app.parties,
+    financialStatements: (app as any).financialStatements ?? [],
+    creditBureauChecks: (app as any).creditBureauChecks ?? [],
+    retailIncome: (app as any).retailIncome ?? null,
     isSecured: false,
   });
   const incompleteCount = getIncompletePhaseCount(phaseCompletion);
@@ -306,7 +309,7 @@ const CreditApplicationDetail: React.FC = () => {
       case 'summary': return <SummaryTab app={app!} facilities={facilities} transitions={transitions} canWrite={canWrite} canApprove={canApprove} onTransition={handleTransition} onRefresh={fetchApp} />;
 
       // META — Operations
-      case 'documents': return <DocumentsTab app={app!} />;
+      case 'documents': return <DocumentsTab app={app!} canApprove={canApprove} />;
       case 'audit': return <AuditTab />;
 
       // Bank-only tabs (rendered when credit:advanced_memo is enabled)
@@ -810,7 +813,7 @@ const CreditApplicationDetail: React.FC = () => {
         {/* META — Documents */}
         {activeTab === 'documents' && (
           <div role="tabpanel" id="panel-documents" aria-labelledby="tab-documents" tabIndex={0}>
-            <DocumentsTab app={app} />
+            <DocumentsTab app={app} canApprove={canApprove} />
           </div>
         )}
 

@@ -5,6 +5,7 @@ import creditService, {
   financialApi,
 } from '../../../src/services/credit.service';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import RetailIncomeTab from './RetailIncomeTab';
 
 // S3 · Financials — Financial spreading for non-bank SME lending.
 // Shows financial statements, key ratios (DSCR, current ratio, gearing).
@@ -37,6 +38,16 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
           <div key={i} className="h-20 rounded-lg bg-gray-100 animate-pulse" />
         ))}
       </div>
+    );
+  }
+
+  // Retail borrowers use DSR income form instead of financial spreader
+  const borrowerType = application.borrowerProfile?.borrowerType;
+  if (borrowerType === 'INDIVIDUAL' || borrowerType === 'SOLE_PROPRIETOR') {
+    return (
+      <CaMemoSection title="Retail Income Assessment" phase="S3">
+        <RetailIncomeTab applicationId={application.id} />
+      </CaMemoSection>
     );
   }
 

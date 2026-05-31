@@ -1970,6 +1970,29 @@ export const piiRevealApi = {
   },
 };
 
+export const retailIncomeApi = {
+  get: async (applicationId: string) => {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/retail-income`);
+    return res.data.data as {
+      employmentType: string;
+      employerName?: string;
+      monthlyGrossIncome: string;
+      epfMonthlyAmount?: string;
+      hirePurchaseCommitment: string;
+      creditCardCommitment: string;
+      existingLoanCommitment: string;
+      otherCommitments: string;
+      proposedInstalment?: string;
+      dsrPercent?: string;
+      dsrStatus?: 'pass' | 'warning' | 'fail';
+    } | null;
+  },
+  upsert: async (applicationId: string, data: Record<string, unknown>) => {
+    const res = await apiClient.put(`/credit/applications/${applicationId}/retail-income`, data);
+    return res.data.data;
+  },
+};
+
 export const qualitativeAssessmentApi = {
   get: async (applicationId: string) => {
     const res = await apiClient.get(`/credit/applications/${applicationId}/qualitative-assessment`);
