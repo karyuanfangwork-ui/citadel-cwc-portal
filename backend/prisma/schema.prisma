@@ -177,6 +177,7 @@ model User {
   conditionsFulfilled   Condition[]             @relation("ConditionFulfilledBy")
   conditionsWaived      Condition[]             @relation("ConditionWaivedBy")
   qualitativeAssessments QualitativeAssessment[]
+  bureauChecklists       BureauChecklist[]
 
   @@index([email])
   @@index([managerId])
@@ -2950,6 +2951,7 @@ model CreditApplication {
   scoreOverrides          ScoreOverrideApproval[]
   qualitativeAssessment   QualitativeAssessment?
   retailIncome            RetailIncome?
+  bureauChecklist         BureauChecklist?
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -3860,6 +3862,8 @@ model CreditScoreRun {
   overrideReason       String?    @map("override_reason") @db.Text
   overrideApprovedById String?    @map("override_approved_by_id") @db.Uuid
   overrideApprovedAt   DateTime?  @map("override_approved_at") @db.Timestamp(6)
+  baseRiskRating       RiskRating? @map("base_risk_rating")
+  bureauCapsApplied    Json?      @map("bureau_caps_applied")
   runAt                DateTime   @default(now()) @map("run_at") @db.Timestamp(6)
 
   createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamp(6)
@@ -4292,6 +4296,24 @@ model CreditBureauCheck {
   findings      String?        @db.Text
   attachedDocId String?        @map("attached_doc_id") @db.Uuid
 
+  // CCRIS structured fields (Wave 3)
+  ccrisOutstandingFacilities   Int?      @map("ccris_outstanding_facilities")
+  ccrisTotalOutstandingBalance Decimal?  @map("ccris_total_outstanding_balance") @db.Decimal(15, 2)
+  ccrisSaaFlag                 Boolean   @default(false) @map("ccris_saa_flag")
+  ccrisSaaCount                Int?      @map("ccris_saa_count")
+  ccrisMissedPayments12Months  Int?      @map("ccris_missed_payments_12_months")
+  ccrisBankruptcyFlag          Boolean   @default(false) @map("ccris_bankruptcy_flag")
+  ccrisLegalActionFlag         Boolean   @default(false) @map("ccris_legal_action_flag")
+  ccrisReportDate              DateTime? @map("ccris_report_date") @db.Date
+
+  // CTOS structured fields (Wave 3)
+  ctosScore          Int?      @map("ctos_score")
+  ctosAdverseFlag    Boolean   @default(false) @map("ctos_adverse_flag")
+  ctosAdverseDetails String?   @map("ctos_adverse_details") @db.Text
+  ctosBankruptcyFlag Boolean   @default(false) @map("ctos_bankruptcy_flag")
+  ctosDirectorshipsCount Int?  @map("ctos_directorships_count")
+  ctosReportDate     DateTime? @map("ctos_report_date") @db.Date
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
@@ -4300,6 +4322,28 @@ model CreditBureauCheck {
 
   @@index([applicationId])
   @@map("credit_bureau_checks")
+}
+
+// ============================================================================
+// Bureau Checklist — Wave 3 (S5 completion gate)
+// ============================================================================
+model BureauChecklist {
+  id                     String    @id @default(uuid()) @db.Uuid
+  applicationId          String    @unique @map("application_id") @db.Uuid
+  ccrisUploaded          Boolean   @default(false) @map("ccris_uploaded")
+  ctosUploaded           Boolean   @default(false) @map("ctos_uploaded")
+  noAdverseRecord        Boolean   @default(false) @map("no_adverse_record")
+  adverseExceptionReason String?   @map("adverse_exception_reason") @db.Text
+  amlScreeningDone       Boolean   @default(false) @map("aml_screening_done")
+  tickedById             String?   @map("ticked_by_id") @db.Uuid
+  tickedAt               DateTime? @map("ticked_at") @db.Timestamp(6)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  tickedBy    User?              @relation(fields: [tickedById], references: [id])
+
+  @@map("bureau_checklists")
 }
 
 // ============================================================================
