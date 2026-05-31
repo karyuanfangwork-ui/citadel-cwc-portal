@@ -299,6 +299,13 @@ export function getPhaseCompletion(app: {
   creditDecisions?: unknown[];
   isSecured?: boolean;
   retailIncome?: { monthlyGrossIncome?: unknown } | null;
+  bureauChecklist?: {
+    ccrisUploaded?: boolean;
+    ctosUploaded?: boolean;
+    noAdverseRecord?: boolean;
+    adverseExceptionReason?: string | null;
+    amlScreeningDone?: boolean;
+  } | null;
 }): Record<string, PhaseStatus> {
   const hasValue = (v: unknown) => v != null && String(v).trim() !== '';
 
@@ -327,8 +334,16 @@ export function getPhaseCompletion(app: {
       hasValue(app.riskRating)
     ) ? 'complete' : 'incomplete',
 
-    s5: (app.creditBureauChecks && app.creditBureauChecks.length > 0)
-      ? 'complete' : 'incomplete',
+    s5: (() => {
+      const cl = app.bureauChecklist;
+      if (!cl) return false;
+      return (
+        Boolean(cl.ccrisUploaded) &&
+        Boolean(cl.ctosUploaded) &&
+        Boolean(cl.amlScreeningDone) &&
+        (Boolean(cl.noAdverseRecord) || Boolean(cl.adverseExceptionReason))
+      );
+    })() ? 'complete' : 'incomplete',
 
     s6: app.isSecured
       ? ((app.facilities && app.facilities.length > 0) ? 'complete' : 'incomplete')

@@ -267,6 +267,7 @@ const CreditApplicationDetail: React.FC = () => {
     financialStatements: (app as any).financialStatements ?? [],
     creditBureauChecks: (app as any).creditBureauChecks ?? [],
     retailIncome: (app as any).retailIncome ?? null,
+    bureauChecklist: (app as any).bureauChecklist ?? null,
     isSecured: false,
   });
   const incompleteCount = getIncompletePhaseCount(phaseCompletion);

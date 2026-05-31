@@ -60,6 +60,7 @@ import { getApprovalPack } from '../controllers/approvalPack.controller';
 import bureauCheckRoutes from './bureauCheck.routes';
 import qualitativeAssessmentRoutes from './qualitativeAssessment.routes';
 import retailIncomeRoutes from './retailIncome.routes';
+import bureauChecklistRoutes from './bureauChecklist.routes';
 import industryAssessmentRoutes from './industryAssessment.routes';
 import riskAssessmentRoutes from './riskAssessment.routes';
 import rmdIssueRoutes from './rmdIssue.routes';
@@ -191,6 +192,7 @@ router.get('/applications/:appId/approval-pack', authenticate, requirePermission
 router.use('/applications', bureauCheckRoutes);
 router.use('/applications', qualitativeAssessmentRoutes);
 router.use('/applications', retailIncomeRoutes);
+router.use('/applications', bureauChecklistRoutes);
 router.use('/applications', industryAssessmentRoutes);
 router.use('/applications', riskAssessmentRoutes);
 router.use('/applications', rmdIssueRoutes);

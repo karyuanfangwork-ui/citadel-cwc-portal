@@ -8,6 +8,7 @@
 import prisma from '../../utils/prisma';
 import { hasStaleCollateralValuations } from '../jobs/collateralInsuranceMonitor.job';
 import { hasPendingScoreOverride } from './scoreOverride.service';
+import { isBureauCheckFresh, isBureauChecklistComplete } from './bureauCheck.service';
 
 function getRequiredDocuments(borrowerType: string): string[] {
   switch (borrowerType) {
@@ -131,6 +132,26 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
     warnings.push({
       field: 'financials',
       message: 'No financial statements uploaded — review may be delayed',
+      severity: 'warning',
+    });
+  }
+
+  // ---- Check 8: Bureau report freshness (90 days) ----
+  const freshnessCheck = await isBureauCheckFresh(applicationId);
+  if (!freshnessCheck.fresh) {
+    errors.push({
+      field: 'bureauChecks',
+      message: `Bureau reports are older than 90 days and must be refreshed: ${freshnessCheck.staleProviders.join(', ')}`,
+      severity: 'error',
+    });
+  }
+
+  // ---- Check 9: Bureau checklist completion ----
+  const bureauComplete = await isBureauChecklistComplete(applicationId);
+  if (!bureauComplete) {
+    warnings.push({
+      field: 'bureauChecklist',
+      message: 'Bureau checklist incomplete — all items should be ticked before submission',
       severity: 'warning',
     });
   }
