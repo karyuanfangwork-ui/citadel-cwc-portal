@@ -14,9 +14,10 @@ import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 interface PartiesTabProps {
   app: CreditApplication;
+  borrowerType?: string | null;
 }
 
-const PartiesTab: React.FC<PartiesTabProps> = ({ app }) => {
+const PartiesTab: React.FC<PartiesTabProps> = ({ app, borrowerType }) => {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const canWrite = hasPermission(user, 'credit:write');
@@ -86,6 +87,12 @@ const PartiesTab: React.FC<PartiesTabProps> = ({ app }) => {
 
   return (
     <>
+      {(borrowerType === 'INDIVIDUAL' || borrowerType === 'SOLE_PROPRIETOR') && (
+        <div className="flex items-start gap-3 p-4 mb-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+          <span className="material-symbols-outlined text-blue-500 text-xl mt-0.5 shrink-0">info</span>
+          <p>For individual borrowers, Directors and Shareholders do not apply. Use this section to add <strong>guarantors</strong>, <strong>co-borrowers</strong>, or <strong>sponsors</strong> linked to this application.</p>
+        </div>
+      )}
       <CaMemoSection title="Parties" phase="Phase 2" readOnly={!canWrite} actions={canWrite ? (
         <button onClick={() => setShowPartyForm(true)} className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
           <span className="material-symbols-outlined text-base">person_add</span> Add Party
