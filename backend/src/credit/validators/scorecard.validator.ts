@@ -65,6 +65,7 @@ export const listScorecardsQuerySchema = z.object({
 export const createVersionSchema = z.object({
   body: z.object({
     factorWeights: factorWeightsSchema,
+    retailFactorWeights: factorWeightsSchema.optional(),
     approvedById: z.string().uuid().optional(),
   }),
 });

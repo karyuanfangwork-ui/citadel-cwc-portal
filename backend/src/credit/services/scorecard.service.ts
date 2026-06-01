@@ -44,6 +44,7 @@ export interface UpdateScorecardData {
 
 export interface CreateVersionData {
   factorWeights: FactorWeights;
+  retailFactorWeights?: FactorWeights;
   approvedById?: string;
 }
 
@@ -194,6 +195,9 @@ class ScorecardService {
     }
 
     validateFactorWeights(data.factorWeights);
+    if (data.retailFactorWeights) {
+      validateFactorWeights(data.retailFactorWeights);
+    }
 
     // Determine next version number
     const latestVersion = await prisma.creditScorecardVersion.findFirst({
@@ -209,6 +213,7 @@ class ScorecardService {
         scorecardId,
         version: nextVersion,
         factorWeights: data.factorWeights as any,
+        retailFactorWeights: data.retailFactorWeights ? data.retailFactorWeights as any : undefined,
         effectiveFrom: new Date(),
         ...(data.approvedById ? { approvedById: data.approvedById, approvedAt: new Date() } : {}),
       },
