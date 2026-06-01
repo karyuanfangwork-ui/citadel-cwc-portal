@@ -10,13 +10,22 @@ export async function getCaMemoData(applicationId: string) {
           contact: { select: { id: true, firstName: true, lastName: true, email: true } },
           directors: { orderBy: { createdAt: 'asc' } },
           shareholders: { orderBy: { shareholdingPct: 'desc' } },
+          financialStatements: { include: { lineItems: { orderBy: { displayOrder: 'asc' } } }, orderBy: { fiscalYearEnd: 'desc' } },
         },
       },
+      // RM & Analyst
+      assignedRm: { select: { id: true, firstName: true, lastName: true, email: true } },
+      assignedAnalyst: { select: { id: true, firstName: true, lastName: true, email: true } },
       facilities: {
-        include: { collaterals: true, guarantees: { include: { guarantorProfile: { include: { account: true } } } } },
+        include: {
+          collaterals: true,
+          guarantees: { include: { guarantorProfile: { include: { account: true, contact: true } } } },
+        },
         orderBy: { createdAt: 'asc' },
       },
       requestItems: { orderBy: { createdAt: 'asc' } },
+      // Parties (directors/UBOs at application level)
+      parties: { include: { borrowerProfile: { include: { account: { select: { name: true } }, contact: { select: { firstName: true, lastName: true } } } } }, orderBy: { createdAt: 'asc' } },
       exposureSummary: true,
       externalRatings: { orderBy: { fiscalYear: 'desc' } },
       eclSnapshots: { orderBy: { createdAt: 'desc' } },
@@ -31,8 +40,15 @@ export async function getCaMemoData(applicationId: string) {
       esgAssessment: true,
       sicrAssessments: { orderBy: { triggerType: 'asc' } },
       signoffs: { include: { signedBy: { select: { firstName: true, lastName: true } } }, orderBy: { signedAt: 'asc' } },
-      conditions: { orderBy: [{ conditionType: 'asc' }, { createdAt: 'asc' }] },
+      conditions: {
+        include: {
+          fulfilledBy: { select: { firstName: true, lastName: true } },
+          waivedBy: { select: { firstName: true, lastName: true } },
+        },
+        orderBy: [{ conditionType: 'asc' }, { createdAt: 'asc' }],
+      },
       scoreRuns: { orderBy: { createdAt: 'desc' }, take: 1 },
+      decisions: { include: { decidedBy: { select: { firstName: true, lastName: true } } }, orderBy: { createdAt: 'desc' } },
     },
   });
 
