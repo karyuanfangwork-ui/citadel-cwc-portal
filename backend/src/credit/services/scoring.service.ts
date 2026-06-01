@@ -4,6 +4,7 @@ import { FACTOR_GROUPS, FactorWeights } from './scorecard.service';
 import { AppError } from '../../middleware/error.middleware';
 import { getQualitativeAssessment, toFactorScores } from './qualitativeAssessment.service';
 import { getBureauCapsForApplication, applyBureauCaps } from './bureauCheck.service';
+import { getRetailIncome } from './retailIncome.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -143,6 +144,25 @@ function computeCashflowScore(ratioMap: Record<string, number>): number {
   return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 50;
 }
 
+/**
+ * Convert a DSR percentage to a 0-100 cashflow score.
+ * DSR 0% → 100, DSR 60% → 80, DSR 70% → 20, DSR ≥80% → 0
+ * Uses a two-segment linear scale: 0-60% maps to 80-100, 60-70% maps to 20-80, >70% clamps at 0.
+ */
+export function computeDsrCashflowScore(dsrPercent: number): number {
+  if (dsrPercent <= 0) return 100;
+  if (dsrPercent <= 60) {
+    // Linear: 0% → 100, 60% → 80
+    return 100 - (dsrPercent / 60) * 20;
+  }
+  if (dsrPercent <= 70) {
+    // Linear: 60% → 80, 70% → 20
+    return 80 - ((dsrPercent - 60) / 10) * 60;
+  }
+  // >70%: linear to 0 at 80%, clamp at 0
+  return Math.max(0, 20 - ((dsrPercent - 70) / 10) * 20);
+}
+
 // Qualitative factors — placeholder scores
 const PLACEHOLDER_SCORE = 50;
 
@@ -232,9 +252,18 @@ class ScoringService {
     // Step 5: Compute factor scores (retail borrowers use alternate weight set if configured)
     const isRetail = application.borrowerProfile?.borrowerType === 'INDIVIDUAL' ||
                      application.borrowerProfile?.borrowerType === 'SOLE_PROPRIETOR';
-    const factorWeights: FactorWeights = (isRetail && scorecardVersion.retailFactorWeights)
+    const factorWeights: FactorWeights = (isRetail && (scorecardVersion as any).retailFactorWeights)
       ? (scorecardVersion.retailFactorWeights as any)
       : (scorecardVersion.factorWeights as any);
+
+    // Step 5a: For retail borrowers, fetch DSR for cashflow scoring
+    let dsrPercent: number | null = null;
+    if (isRetail) {
+      const retailIncome = await getRetailIncome(applicationId);
+      if (retailIncome) {
+        dsrPercent = Number(retailIncome.dsrPercent);
+      }
+    }
 
     // Load qualitative assessments if available (Wave 1)
     const qa = await getQualitativeAssessment(applicationId);
@@ -265,7 +294,9 @@ class ScoringService {
       },
       cashflow: {
         weight: factorWeights.cashflow,
-        score: computeCashflowScore(ratioMap),
+        score: (isRetail && dsrPercent !== null)
+          ? computeDsrCashflowScore(dsrPercent)
+          : computeCashflowScore(ratioMap),
         weightedScore: 0,
       },
       management: {
