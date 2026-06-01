@@ -272,6 +272,7 @@ async function main() {
         { name: 'credit:override', resource: 'credit', action: 'override', description: 'Override automated credit decisions with justification' },
         { name: 'credit:monitor', resource: 'credit', action: 'monitor', description: 'Access post-disbursement credit monitoring' },
         { name: 'credit:document', resource: 'credit', action: 'document', description: 'Manage credit documents, upload and download' },
+        { name: 'credit:create', resource: 'credit', action: 'create', description: 'Create new credit applications — restricted to RM and ADMIN (maker role only)' },
     ];
 
     for (const perm of permissions) {
@@ -317,7 +318,7 @@ async function main() {
         'asset:read', 'asset:write', 'asset:import', 'asset:delete',
         'crm:read', 'crm:write', 'crm:delete', 'crm:admin',
         'announcement:read', 'announcement:write', 'announcement:admin',
-        'credit:read', 'credit:write', 'credit:delete', 'credit:approve',
+        'credit:read', 'credit:write', 'credit:delete', 'credit:approve', 'credit:create',
         'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze',
         'credit:admin', 'credit:disburse', 'credit:compliance', 'credit:risk', 'credit:export',
         'credit:override', 'credit:monitor', 'credit:document',
@@ -369,12 +370,12 @@ async function main() {
         FINANCE_HEAD: executivePerms,
         SALES_MANAGER: ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'],
         SALES_REP: ['crm:read', 'crm:write'],
-        CREDIT_RM: ['credit:read', 'credit:write', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
+        CREDIT_RM: ['credit:read', 'credit:write', 'credit:create', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
         CREDIT_ANALYST: ['credit:read', 'credit:write', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
         CREDIT_MANAGER: ['credit:read', 'credit:write', 'credit:approve', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
         CREDIT_SENIOR: ['credit:read', 'credit:write', 'credit:approve', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
         CREDIT_COMMITTEE: ['credit:read', 'credit:committee', 'credit:analyze', 'credit:risk', 'credit:monitor'],
-        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:delete', 'credit:approve', 'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:admin', 'credit:compliance', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
+        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:delete', 'credit:approve', 'credit:create', 'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:admin', 'credit:compliance', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
         CREDIT_OPS: ['credit:read', 'credit:write', 'credit:disburse', 'credit:monitor', 'credit:document'],
     };
 
@@ -443,6 +444,30 @@ async function main() {
                 });
                 if (deleted.count > 0) {
                     console.log(`  🧹 Removed stale ${permName} from ${roleName} role`);
+                    cleanedUp += deleted.count;
+                }
+            }
+        }
+    }
+
+    // §2.6 — Cleanup: Remove credit:create from roles that should NOT originate applications.
+    // Only ADMIN, CREDIT_ADMIN, and CREDIT_RM should have credit:create.
+    // Other credit roles (ANALYST, MANAGER, SENIOR, COMMITTEE, OPS) are checkers/processors
+    // and must not create applications per SOD (maker-checker) policy.
+    const creditCreateAllowedRoles = new Set(['ADMIN', 'CREDIT_ADMIN', 'CREDIT_RM']);
+    const creditCreatePermId = permMap.get('credit:create');
+    if (creditCreatePermId) {
+        const allRoleEntries = await prisma.rolePermission.findMany({
+            where: { permissionId: creditCreatePermId },
+            include: { role: { select: { name: true } } },
+        });
+        for (const rp of allRoleEntries) {
+            if (!creditCreateAllowedRoles.has(rp.role.name)) {
+                const deleted = await prisma.rolePermission.deleteMany({
+                    where: { roleId: rp.roleId, permissionId: creditCreatePermId },
+                });
+                if (deleted.count > 0) {
+                    console.log(`  🧹 Removed credit:create from ${rp.role.name} role (SOD: not an originator)`);
                     cleanedUp += deleted.count;
                 }
             }

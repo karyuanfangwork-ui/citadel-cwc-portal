@@ -38,12 +38,14 @@ router.get(
 /**
  * POST /borrowers
  * Create a new borrower profile
+ * §2.6 — Restricted to RM and ADMIN only (maker role). Creating a borrower
+ * profile is the first step in originating credit — same SOD gate as applications.
  * §2.9 — Encrypt sensitive fields before creation
- * Requires: credit:write
+ * Requires: credit:create
  */
 router.post(
   '/',
-  requirePermission('credit:write'),
+  requirePermission('credit:create'),
   encryptBorrowerFields(),
   validate(createBorrowerProfileSchema),
   borrowerProfileController.create,

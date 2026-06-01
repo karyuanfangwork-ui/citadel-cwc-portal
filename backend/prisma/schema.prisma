@@ -3925,6 +3925,8 @@ model RetailIncome {
   otherCommitments        Decimal        @default(0) @map("other_commitments") @db.Decimal(15, 2)
   proposedInstalment      Decimal?       @map("proposed_instalment") @db.Decimal(15, 2)
   dsrPercent              Decimal?       @map("dsr_percent") @db.Decimal(5, 2)
+  financialsVerified      Boolean        @default(false) @map("financials_verified")
+  financialsVerifiedAt    DateTime?      @map("financials_verified_at") @db.Timestamp(6)
   createdAt               DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt               DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
 

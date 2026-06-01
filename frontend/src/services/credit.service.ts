@@ -132,6 +132,7 @@ export interface BorrowerProfile {
   // Legacy compat — may be populated by list endpoints
   documents?: CreditDocument[];
   applications?: CreditApplication[];
+  financialStatements?: FinancialStatement[];
   _count?: { documents: number; applications: number };
 }
 
@@ -154,6 +155,33 @@ export interface CreditDocument {
   createdAt?: string;
   uploader?: CreditUserRef;
   verifier?: CreditUserRef;
+}
+
+/**
+ * Normalize Prisma field names to frontend CreditApplication interface names.
+ * Prisma returns assignedRm / assignedAnalyst / assignedRmId / assignedAnalystId,
+ * but the frontend interface uses rm / analyst / rmId / analystId.
+ */
+function normalizeApplication(raw: any): CreditApplication {
+  if (!raw) return raw;
+  const app = { ...raw };
+  if ('assignedRm' in app) {
+    app.rm = app.assignedRm;
+    delete app.assignedRm;
+  }
+  if ('assignedAnalyst' in app) {
+    app.analyst = app.assignedAnalyst;
+    delete app.assignedAnalyst;
+  }
+  if ('assignedRmId' in app) {
+    app.rmId = app.assignedRmId;
+    delete app.assignedRmId;
+  }
+  if ('assignedAnalystId' in app) {
+    app.analystId = app.assignedAnalystId;
+    delete app.assignedAnalystId;
+  }
+  return app as CreditApplication;
 }
 
 export interface CreditApplication {
@@ -676,22 +704,24 @@ const creditService = {
   // Credit Applications
   async listApplications(params: Record<string, any> = {}) {
     const res = await apiClient.get('/credit/applications', { params });
-    return res.data.data as { applications: CreditApplication[]; pagination: Pagination };
+    const data = res.data.data as { applications: CreditApplication[]; pagination: Pagination };
+    data.applications = data.applications.map(normalizeApplication);
+    return data;
   },
 
   async getApplication(id: string) {
     const res = await apiClient.get(`/credit/applications/${id}`);
-    return res.data.data.application as CreditApplication;
+    return normalizeApplication(res.data.data.application);
   },
 
   async createApplication(data: Partial<CreditApplication>) {
     const res = await apiClient.post('/credit/applications', data);
-    return res.data.data.application as CreditApplication;
+    return normalizeApplication(res.data.data.application);
   },
 
   async updateApplication(id: string, data: Partial<CreditApplication>) {
     const res = await apiClient.patch(`/credit/applications/${id}`, data);
-    return res.data.data.application as CreditApplication;
+    return normalizeApplication(res.data.data.application);
   },
 
   async deleteApplication(id: string) {
@@ -716,7 +746,7 @@ const creditService = {
   // State Machine Transitions
   async transitionApplication(id: string, data: { action: string; reason?: string }) {
     const res = await apiClient.post(`/credit/applications/${id}/transition`, data);
-    return res.data.data.application as CreditApplication;
+    return normalizeApplication(res.data.data.application);
   },
 
   async getApplicationTransitions(id: string) {
@@ -741,12 +771,12 @@ const creditService = {
   },
 
   async updateFacility(id: string, data: Partial<CreditFacility>) {
-    const res = await apiClient.patch(`/credit/facilities/${id}`, data);
+    const res = await apiClient.patch(`/credit/applications/facilities/${id}`, data);
     return res.data.data.facility as CreditFacility;
   },
 
   async deleteFacility(id: string) {
-    await apiClient.delete(`/credit/facilities/${id}`);
+    await apiClient.delete(`/credit/applications/facilities/${id}`);
   },
 
   // Request Items (CA Memo Phase 2)
@@ -2047,11 +2077,17 @@ export const retailIncomeApi = {
       proposedInstalment?: string;
       dsrPercent?: string;
       dsrStatus?: 'pass' | 'warning' | 'fail';
+      financialsVerified?: boolean;
+      financialsVerifiedAt?: string | null;
     } | null;
   },
   upsert: async (applicationId: string, data: Record<string, unknown>) => {
     const res = await apiClient.put(`/credit/applications/${applicationId}/retail-income`, data);
     return res.data.data;
+  },
+  verify: async (applicationId: string, verified: boolean) => {
+    const res = await apiClient.patch(`/credit/applications/${applicationId}/retail-income/verify`, { verified });
+    return res.data.data as { financialsVerified: boolean; financialsVerifiedAt: string | null };
   },
 };
 

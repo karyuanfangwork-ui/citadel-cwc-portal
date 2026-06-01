@@ -72,3 +72,13 @@ export async function upsertRetailIncome(applicationId: string, input: RetailInc
 export async function getRetailIncome(applicationId: string) {
   return prisma.retailIncome.findUnique({ where: { applicationId } });
 }
+
+export async function verifyFinancials(applicationId: string, verified: boolean) {
+  return prisma.retailIncome.update({
+    where: { applicationId },
+    data: {
+      financialsVerified: verified,
+      financialsVerifiedAt: verified ? new Date() : null,
+    },
+  });
+}

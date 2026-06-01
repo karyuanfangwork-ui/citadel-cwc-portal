@@ -81,6 +81,7 @@ const CreditApplicationList: React.FC = () => {
   }, [searchInput]);
 
   const canWrite = hasPermission(user, 'credit:write');
+  const canCreate = hasPermission(user, 'credit:create');
 
   const fetchApplications = useCallback(async () => {
     try {
@@ -183,7 +184,7 @@ const CreditApplicationList: React.FC = () => {
               </span>
             )}</h1>
           </div>
-          {canWrite && (
+          {canCreate && (
             <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
               <span className="material-symbols-outlined text-lg">add</span> New Application
             </button>

@@ -6,6 +6,7 @@ import creditService, {
 import { formatCurrency, formatDate } from '../../../pages/credit/creditUtils';
 import StateBadge from './StateBadge';
 import RiskBadge from './RiskBadge';
+import { useAuth } from '../../context/AuthContext';
 
 interface ApprovalQuickViewProps {
   open: boolean;
@@ -17,6 +18,8 @@ interface ApprovalQuickViewProps {
 const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
   open, onClose, application, onDecision,
 }) => {
+  const { user } = useAuth();
+  const isRmOnApplication = !!(application?.rmId && user && application.rmId === user.id);
   const [fullApp, setFullApp] = useState<CreditApplication | null>(null);
   const [approvals, setApprovals] = useState<CreditApproval[]>([]);
   const [loading, setLoading] = useState(false);
@@ -263,7 +266,17 @@ const ApprovalQuickView: React.FC<ApprovalQuickViewProps> = ({
 
         {/* Bottom Decision Actions — sticky */}
         <div className="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-4 shrink-0">
-          {!showDecision ? (
+          {isRmOnApplication ? (
+            <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <span className="material-symbols-outlined text-amber-500 text-xl mt-0.5">warning</span>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-amber-800 mb-1">Segregation of Duties — Action Restricted</p>
+                <p className="text-xs text-amber-700">
+                  You are the assigned Relationship Manager for this application. Due to SOD policy, you cannot approve your own application. Another authorized approver must submit the decision.
+                </p>
+              </div>
+            </div>
+          ) : !showDecision ? (
             <div className="space-y-3">
               <h4 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Your Decision</h4>
               <div className="flex gap-2">

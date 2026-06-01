@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { upsertRetailIncome, getRetailIncome, getDsrStatus } from '../services/retailIncome.service';
+import { upsertRetailIncome, getRetailIncome, verifyFinancials, getDsrStatus } from '../services/retailIncome.service';
 
 export async function get(req: Request, res: Response, next: NextFunction) {
   try {
@@ -19,6 +19,19 @@ export async function upsert(req: Request, res: Response, next: NextFunction) {
     const income = await upsertRetailIncome(String(req.params.appId), req.body);
     const dsrStatus = getDsrStatus(Number(income.dsrPercent ?? 0));
     res.json({ data: { ...income, dsrStatus } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function verify(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { verified } = req.body;
+    if (typeof verified !== 'boolean') {
+      return res.status(400).json({ error: 'verified (boolean) is required' });
+    }
+    const income = await verifyFinancials(String(req.params.appId), verified);
+    res.json({ data: income });
   } catch (err) {
     next(err);
   }

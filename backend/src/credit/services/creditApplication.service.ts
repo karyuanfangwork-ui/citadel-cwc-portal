@@ -1,9 +1,11 @@
 import prisma from '../../utils/prisma';
-import { Prisma, ApplicationState } from '@prisma/client';
+import { Prisma, ApplicationState, ApprovalDecisionType } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
 import { creditNotificationService, CreditEventType } from './creditNotification.service';
 import { deriveAndSetConnectedPartyFlag } from './connectedParty.service';
 import { validateSubmissionReadiness } from './submissionReadiness.service';
+import { approvalMatrixService } from './approvalMatrix.service';
+import { formatCurrency } from '../utils/formatCurrency';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -466,6 +468,20 @@ class CreditApplicationService {
             borrowerType: true,
             account: { select: { id: true, name: true } },
             contact: { select: { id: true, firstName: true, lastName: true, email: true, nricPassport: true } },
+            // §S3 — Include financial statements for completion check + FinancialsTab
+            financialStatements: {
+              where: { deletedAt: null },
+              select: {
+                id: true,
+                statementType: true,
+                period: true,
+                fiscalYearEnd: true,
+                currency: true,
+                status: true,
+                _count: { select: { lineItems: true, ratios: true } },
+              },
+              orderBy: { fiscalYearEnd: 'desc' as const },
+            },
           },
         },
         assignedRm: { select: { id: true, firstName: true, lastName: true } },
@@ -540,9 +556,26 @@ class CreditApplicationService {
 
     if (!existing) return null;
 
-    // Only allow updates in DRAFT state
-    if (existing.state !== ApplicationState.DRAFT) {
-      throw new Error('Application can only be edited in DRAFT state');
+    // Assignment-only updates (assignedRmId / assignedAnalystId) are allowed in
+    // any non-terminal state so that managers can reassign staff after submission.
+    // All other field changes still require DRAFT state.
+    const TERMINAL_STATES: ApplicationState[] = [
+      ApplicationState.CLOSED,
+      ApplicationState.WITHDRAWN,
+      ApplicationState.ACTIVE,
+      ApplicationState.DISBURSED,
+    ];
+    const isAssignmentOnlyUpdate =
+      Object.keys(data).every(k => k === 'assignedRmId' || k === 'assignedAnalystId');
+
+    if (isAssignmentOnlyUpdate) {
+      if (TERMINAL_STATES.includes(existing.state)) {
+        throw new Error('Cannot reassign RM/Analyst on a terminal application');
+      }
+    } else {
+      if (existing.state !== ApplicationState.DRAFT) {
+        throw new Error('Application can only be edited in DRAFT state');
+      }
     }
 
     // §2.3 — Optimistic concurrency check
@@ -667,6 +700,7 @@ class CreditApplicationService {
     action: string,
     actorId?: string,
     reason?: string,
+    options?: { skipApprovalChainCheck?: boolean },
   ) {
     const existing = await prisma.creditApplication.findFirst({
       where: { id, deletedAt: null },
@@ -693,6 +727,56 @@ class CreditApplicationService {
       if (!readiness.ready) {
         const errorMessages = readiness.errors.map((e) => `${e.field}: ${e.message}`).join('; ');
         throw new Error(`Submission blocked — ${errorMessages}`);
+      }
+    }
+
+    // §2.5 — Approval chain completion gate: block approve/reject from COMMITTEE_REVIEW
+    // unless all required approval decisions have been collected via the
+    // approval actions endpoint. This prevents bypassing multi-approver gating
+    // via simple state machine transitions.
+    // Skipped when called from committee finalization (which has its own
+    // quorum/voting governance) or admin-level bulk operations.
+    if ((action === 'approve' || action === 'reject') && !options?.skipApprovalChainCheck) {
+      const appWithBorrower = await prisma.creditApplication.findUnique({
+        where: { id },
+        include: {
+          borrowerProfile: { select: { creditRiskRating: true, totalExposure: true } },
+        },
+      });
+
+      if (appWithBorrower) {
+        const borrowerRating = appWithBorrower.borrowerProfile?.creditRiskRating ?? 'NR';
+        const totalExposure = formatCurrency(
+          appWithBorrower.borrowerProfile?.totalExposure ?? appWithBorrower.requestedAmount,
+        ) ?? 0;
+
+        const authorityResult = await approvalMatrixService.lookupApprovalAuthority(
+          totalExposure,
+          borrowerRating ?? 'NR',
+        );
+
+        const requiredApproverCount = authorityResult?.requiredApproverCount ?? 1;
+
+        // Count distinct approvers who have submitted APPROVE decisions
+        const approveDecisions = await prisma.creditDecision.findMany({
+          where: {
+            applicationId: id,
+            decisionType: ApprovalDecisionType.APPROVE,
+          },
+          select: { decisionById: true },
+        });
+        const distinctApproverIds = new Set(approveDecisions.map((d) => d.decisionById));
+        const approvalsCollected = distinctApproverIds.size;
+
+        if (approvalsCollected < requiredApproverCount) {
+          throw Object.assign(
+            new Error(
+              `Approval chain incomplete: ${approvalsCollected}/${requiredApproverCount} required approvals collected. ` +
+              `Use the approval actions endpoint to submit approval decisions before transitioning to ${action === 'approve' ? 'APPROVED' : 'REJECTED'}.`,
+            ),
+            { statusCode: 403 },
+          );
+        }
       }
     }
 

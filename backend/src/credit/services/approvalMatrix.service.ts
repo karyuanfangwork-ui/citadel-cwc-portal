@@ -78,7 +78,11 @@ class ApprovalMatrixService {
         minExposure: { lte: exposure },
         maxExposure: { gte: exposure },
       },
-      orderBy: { minExposure: 'asc' },
+      // Order by minExposure DESC so tighter (higher) exposure ranges are
+      // checked first — prevents a "Medium Exposure" matrix (minExposure=0)
+      // from matching before a "High Exposure" matrix (minExposure=500000)
+      // when the exposure falls in both ranges.
+      orderBy: { minExposure: 'desc' },
     });
 
     for (const matrix of matrices) {

@@ -111,7 +111,7 @@ class CreditApplicationController {
 
       res.json({ status: 'success', data: { application } });
     } catch (err: any) {
-      if (err.message.includes('DRAFT state')) {
+      if (err.message.includes('DRAFT state') || err.message.includes('terminal application') || err.message.includes('Cannot reassign')) {
         throw new AppError(err.message, 400);
       }
       // §2.3 — Propagate version conflict errors (AppError with statusCode 409)
@@ -171,8 +171,17 @@ class CreditApplicationController {
 
       res.json({ status: 'success', data: { application } });
     } catch (err: any) {
+      if (err.statusCode === 403) {
+        throw new AppError(err.message, 403);
+      }
       if (err.message.includes('Invalid transition') || err.message.includes('Reason is required')) {
         throw new AppError(err.message, 400);
+      }
+      if (err.message.includes('Submission blocked')) {
+        throw new AppError(err.message, 400);
+      }
+      if (err.message.includes('Approval chain incomplete')) {
+        throw new AppError(err.message, 403);
       }
       throw err;
     }

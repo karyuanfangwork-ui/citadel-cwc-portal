@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { committeeController } from '../controllers/committee.controller';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { enforceCommitteeSOD } from '../middleware/sod.middleware';
 import { validate } from '../../middleware/validate.middleware';
 import {
   createMeetingSchema,
@@ -178,11 +179,12 @@ router.put(
 /**
  * POST /committee/agenda/:itemId/vote
  * Cast a vote on an agenda item
- * Requires: credit:approve
+ * Requires: credit:approve + SOD enforcement
  */
 router.post(
   '/agenda/:itemId/vote',
   requirePermission('credit:approve'),
+  enforceCommitteeSOD(),
   validate(castVoteSchema),
   committeeController.castVote,
 );
@@ -205,11 +207,12 @@ router.get(
 /**
  * POST /committee/agenda/:itemId/finalize
  * Finalize the decision for an agenda item
- * Requires: credit:admin
+ * Requires: credit:admin + SOD enforcement
  */
 router.post(
   '/agenda/:itemId/finalize',
   requirePermission('credit:admin'),
+  enforceCommitteeSOD(),
   committeeController.finalizeDecision,
 );
 

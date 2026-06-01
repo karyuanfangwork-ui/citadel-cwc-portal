@@ -105,7 +105,7 @@ router.post(
 );
 
 /**
- * GET /fac/:id
+ * GET /fac/:id  (also /facilities/:id)
  * Get a single facility by ID (direct access)
  * Requires: credit:read + ownership check
  */
@@ -115,9 +115,15 @@ router.get(
   requireFacilityAccess,
   applicationFacilityController.getOne,
 );
+router.get(
+  '/facilities/:id',
+  requirePermission('credit:read'),
+  requireFacilityAccess,
+  applicationFacilityController.getOne,
+);
 
 /**
- * PATCH /fac/:id
+ * PATCH /fac/:id  (also /facilities/:id)
  * Update a facility by ID (direct access)
  * Requires: credit:write + ownership check
  */
@@ -128,14 +134,27 @@ router.patch(
   validate(updateApplicationFacilitySchema),
   applicationFacilityController.update,
 );
+router.patch(
+  '/facilities/:id',
+  requirePermission('credit:write'),
+  requireFacilityAccess,
+  validate(updateApplicationFacilitySchema),
+  applicationFacilityController.update,
+);
 
 /**
- * DELETE /fac/:id
+ * DELETE /fac/:id  (also /facilities/:id)
  * Delete a facility by ID (direct access)
  * Requires: credit:admin + ownership check
  */
 router.delete(
   '/fac/:id',
+  requirePermission('credit:admin'),
+  requireFacilityAccess,
+  applicationFacilityController.delete,
+);
+router.delete(
+  '/facilities/:id',
   requirePermission('credit:admin'),
   requireFacilityAccess,
   applicationFacilityController.delete,

@@ -81,11 +81,13 @@ router.get(
 /**
  * POST /applications
  * Create a new credit application
- * Requires: credit:write
+ * §2.6 — Restricted to RM and ADMIN only (maker role). Other credit roles
+ * (analyst, manager, senior, committee, ops) cannot originate applications.
+ * Requires: credit:create
  */
 router.post(
   '/',
-  requirePermission('credit:write'),
+  requirePermission('credit:create'),
   validate(createCreditApplicationSchema),
   creditApplicationController.create,
 );

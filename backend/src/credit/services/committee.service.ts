@@ -523,6 +523,8 @@ class CommitteeService {
             application.id,
             'approve',
             actorId,
+            undefined,
+            { skipApprovalChainCheck: true },
           );
         } else if (decisionResult === AgendaItemDecisionType.REJECT) {
           await creditApplicationService.transitionApplication(
@@ -530,6 +532,7 @@ class CommitteeService {
             'reject',
             actorId,
             'Rejected by committee',
+            { skipApprovalChainCheck: true },
           );
         }
         // DEFER: no state change

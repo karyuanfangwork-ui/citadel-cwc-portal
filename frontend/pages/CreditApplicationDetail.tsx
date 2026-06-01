@@ -266,7 +266,7 @@ const CreditApplicationDetail: React.FC = () => {
     decisionedAt: app.decisionedAt,
     facilities: facilities,
     parties: app.parties,
-    financialStatements: (app as any).financialStatements ?? [],
+    financialStatements: app.borrowerProfile?.financialStatements ?? [],
     creditBureauChecks: (app as any).creditBureauChecks ?? [],
     retailIncome: (app as any).retailIncome ?? null,
     bureauChecklist: (app as any).bureauChecklist ?? null,
@@ -497,7 +497,7 @@ const CreditApplicationDetail: React.FC = () => {
             applicationId={app.id}
             field="assignedRmId"
             roleFilters={['CREDIT_RM', 'CREDIT_MANAGER', 'ADMIN']}
-            disabled={app.state !== 'DRAFT'}
+            disabled={['CLOSED', 'WITHDRAWN', 'ACTIVE', 'DISBURSED'].includes(app.state)}
             onUpdated={setApp}
           />
           <UserAssignChip
@@ -506,7 +506,7 @@ const CreditApplicationDetail: React.FC = () => {
             applicationId={app.id}
             field="assignedAnalystId"
             roleFilters={['CREDIT_ANALYST', 'CREDIT_MANAGER', 'ADMIN']}
-            disabled={app.state !== 'DRAFT'}
+            disabled={['CLOSED', 'WITHDRAWN', 'ACTIVE', 'DISBURSED'].includes(app.state)}
             onUpdated={setApp}
           />
         </div>

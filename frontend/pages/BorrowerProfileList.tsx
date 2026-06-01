@@ -76,7 +76,7 @@ const BorrowerProfileList: React.FC = () => {
   const [form, setForm] = useState<Record<string, any>>({ borrowerType: 'CORPORATE' });
   const [saving, setSaving] = useState(false);
 
-  const canCreate = hasPermission(user, 'credit:write');
+  const canCreate = hasPermission(user, 'credit:create');
 
   const fetchProfiles = useCallback(async (page = 1) => {
     try {

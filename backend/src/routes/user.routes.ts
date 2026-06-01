@@ -174,7 +174,7 @@ router.get('/:id', authorize('ADMIN'), userController.getUserById);
  * @desc    Get all users (with pagination and filters)
  * @access  Private (Admin, Agent, CEO, CTO, CFO, GROUP_CEO — agents & executives need this to look up approvers during workflow)
  */
-router.get('/', authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_CEO'), userController.getAllUsers);
+router.get('/', authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_CEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'), userController.getAllUsers);
 router.post('/', authorize('ADMIN'), userController.createUser);
 
 /**

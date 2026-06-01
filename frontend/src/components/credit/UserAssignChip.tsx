@@ -118,9 +118,15 @@ export default function UserAssignChip({
       const res = await apiClient.patch(`/credit/applications/${applicationId}`, {
         [field]: user.id,
       });
-      const updatedApp = res.data?.data?.application ?? res.data?.data;
-      if (updatedApp) {
-        onUpdated(updatedApp);
+      const rawApp = res.data?.data?.application ?? res.data?.data;
+      if (rawApp) {
+        // Normalize Prisma field names (assignedRm → rm, etc.) so parent state stays consistent
+        const normalized = { ...rawApp };
+        if (normalized.assignedRm) { normalized.rm = normalized.assignedRm; delete normalized.assignedRm; }
+        if (normalized.assignedAnalyst) { normalized.analyst = normalized.assignedAnalyst; delete normalized.assignedAnalyst; }
+        if (normalized.assignedRmId !== undefined) { normalized.rmId = normalized.assignedRmId; delete normalized.assignedRmId; }
+        if (normalized.assignedAnalystId !== undefined) { normalized.analystId = normalized.assignedAnalystId; delete normalized.assignedAnalystId; }
+        onUpdated(normalized);
       }
       setEditing(false);
       setQuery('');
@@ -140,9 +146,15 @@ export default function UserAssignChip({
       const res = await apiClient.patch(`/credit/applications/${applicationId}`, {
         [field]: null,
       });
-      const updatedApp = res.data?.data?.application ?? res.data?.data;
-      if (updatedApp) {
-        onUpdated(updatedApp);
+      const rawApp = res.data?.data?.application ?? res.data?.data;
+      if (rawApp) {
+        // Normalize Prisma field names (assignedRm → rm, etc.) so parent state stays consistent
+        const normalized = { ...rawApp };
+        if (normalized.assignedRm) { normalized.rm = normalized.assignedRm; delete normalized.assignedRm; }
+        if (normalized.assignedAnalyst) { normalized.analyst = normalized.assignedAnalyst; delete normalized.assignedAnalyst; }
+        if (normalized.assignedRmId !== undefined) { normalized.rmId = normalized.assignedRmId; delete normalized.assignedRmId; }
+        if (normalized.assignedAnalystId !== undefined) { normalized.analystId = normalized.assignedAnalystId; delete normalized.assignedAnalystId; }
+        onUpdated(normalized);
       }
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to clear');

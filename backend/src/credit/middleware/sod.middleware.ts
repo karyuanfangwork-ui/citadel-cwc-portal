@@ -126,6 +126,110 @@ export function enforceCreditSOD() {
  *
  * Admin users are never considered to have SOD conflicts.
  */
+/**
+ * Middleware that enforces SOD on committee approval actions.
+ * Same rules as enforceCreditSOD(), but resolves the applicationId from
+ * the agenda item (req.params.itemId) since committee routes reference
+ * agenda items rather than applications directly.
+ *
+ * Usage: router.post('/agenda/:itemId/vote', enforceCommitteeSOD(), committeeController)
+ */
+export function enforceCommitteeSOD() {
+  return async (req: AuthRequest, _res: Response, next: NextFunction) => {
+    try {
+      const userId = req.user?.id;
+      const userRoles = req.user?.roles || [];
+      const itemId = req.params.itemId as string;
+
+      if (!userId || !itemId) {
+        return next();
+      }
+
+      // Admin bypass — admins can override SOD
+      const isAdmin = userRoles.some(r => ADMIN_BYPASS_ROLES.includes(r));
+      if (isAdmin) {
+        return next();
+      }
+
+      // Resolve applicationId from agenda item
+      let agendaItem;
+      try {
+        agendaItem = await prisma.committeeAgendaItem.findUnique({
+          where: { id: itemId },
+          select: { applicationId: true },
+        });
+      } catch (dbErr) {
+        logger.error('SOD committee middleware: agenda item query failed — blocking action', { itemId, userId, err: dbErr });
+        return next(new AppError('SoD check unavailable — please try again', 503));
+      }
+
+      if (!agendaItem) {
+        throw new AppError('Agenda item not found', 404);
+      }
+
+      const applicationId = agendaItem.applicationId;
+
+      // Fetch the application with audit trail for maker-checker
+      let application;
+      try {
+        application = await prisma.creditApplication.findUnique({
+          where: { id: applicationId },
+          select: {
+            assignedRmId: true,
+            assignedAnalystId: true,
+          },
+        });
+      } catch (dbErr) {
+        logger.error('SOD committee middleware: application query failed — blocking action', { applicationId, userId, err: dbErr });
+        return next(new AppError('SoD check unavailable — please try again', 503));
+      }
+
+      if (!application) {
+        throw new AppError('Credit application not found', 404);
+      }
+
+      // ── Rule 1: Assigned RM cannot approve their own application ──────────
+      if (application.assignedRmId === userId) {
+        throw new AppError(
+          'Segregation of Duties violation: You cannot vote on an agenda item for an application where you are the assigned Relationship Manager. Please escalate to another committee member.',
+          403,
+        );
+      }
+
+      // ── Rule 2: Maker-checker on state transitions ───────────────────────
+      try {
+        const lastTransition = await prisma.creditAuditEvent.findFirst({
+          where: {
+            applicationId,
+            eventType: { in: ['STATE_TRANSITION', 'SUBMISSION'] },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { actorId: true },
+        });
+
+        if (lastTransition && lastTransition.actorId === userId) {
+          throw new AppError(
+            'Segregation of Duties violation: You cannot approve a state transition that you originated (maker-checker constraint). Another committee member must verify this action.',
+            403,
+          );
+        }
+      } catch (err) {
+        if (err instanceof AppError) throw err;
+        logger.error('SOD committee middleware: audit event query failed — blocking maker-checker check', { applicationId, userId, err });
+        return next(new AppError('SoD check unavailable — please try again', 503));
+      }
+
+      next();
+    } catch (err) {
+      if (err instanceof AppError) {
+        next(err);
+      } else {
+        next(new AppError('SOD check failed', 500));
+      }
+    }
+  };
+}
+
 export async function checkSodConflict(userId: string, applicationId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
