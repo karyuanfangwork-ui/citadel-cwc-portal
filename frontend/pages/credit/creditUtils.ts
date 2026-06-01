@@ -254,9 +254,23 @@ export const TAB_GROUPS: TabGroup[] = [
 
 export const ALL_TABS: DetailTab[] = TAB_GROUPS.flatMap(g => g.tabs.map(t => t.id));
 
-/** Return the default tab groups (S1-S7 + meta), optionally including bank-only groups */
-export function getVisibleTabGroups(advancedMemo: boolean): TabGroup[] {
-  return TAB_GROUPS.filter(g => !g.advancedOnly || advancedMemo);
+/** Return the default tab groups (S1-S7 + meta), optionally including bank-only groups.
+ *  Pass borrowerType to suppress tabs irrelevant for individual/retail borrowers. */
+export function getVisibleTabGroups(advancedMemo: boolean, borrowerType?: string | null): TabGroup[] {
+  const isRetail = borrowerType === 'INDIVIDUAL' || borrowerType === 'SOLE_PROPRIETOR';
+  return TAB_GROUPS
+    .filter(g => !g.advancedOnly || advancedMemo)
+    .map(g => {
+      if (!isRetail) return g;
+      // For retail: hide payment-capability, relabel parties tab
+      const filteredTabs = g.tabs
+        .filter(t => t.id !== 'payment-capability')
+        .map(t => t.id === 'parties' ? { ...t, label: 'Guarantors & Parties' } : t);
+      return filteredTabs.length !== g.tabs.length || filteredTabs.some((t, i) => t.label !== g.tabs[i]?.label)
+        ? { ...g, tabs: filteredTabs }
+        : g;
+    })
+    .filter(g => g.tabs.length > 0);
 }
 
 // ── Section Completion Logic (7-section model) ─────────────────
@@ -318,11 +332,16 @@ export function getPhaseCompletion(app: {
       (app.facilities && app.facilities.length > 0)
     ) ? 'complete' : 'incomplete',
 
-    s2: (
-      hasValue(app.borrowerType) &&
-      (hasValue(app.registrationNumber)) &&
-      (app.parties && app.parties.length > 0)
-    ) ? 'complete' : 'incomplete',
+    s2: (() => {
+      if (!hasValue(app.borrowerType)) return false;
+      const isRetail = app.borrowerType === 'INDIVIDUAL' || app.borrowerType === 'SOLE_PROPRIETOR';
+      if (isRetail) {
+        // For retail: borrowerType set is sufficient (NRIC is on CrmContact, not the application)
+        return true;
+      }
+      // For corporate: need registrationNumber + at least one director/party
+      return hasValue(app.registrationNumber) && (app.parties && app.parties.length > 0);
+    })() ? 'complete' : 'incomplete',
 
     s3: (
       (app.borrowerType === 'INDIVIDUAL' || app.borrowerType === 'SOLE_PROPRIETOR')

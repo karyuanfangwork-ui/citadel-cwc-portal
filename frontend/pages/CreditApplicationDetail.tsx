@@ -88,7 +88,7 @@ const CreditApplicationDetail: React.FC = () => {
       .catch(() => { /* non-admin — stays false */ });
   }, []);
 
-  const visibleTabGroups = getVisibleTabGroups(advancedMemo);
+  const visibleTabGroups = getVisibleTabGroups(advancedMemo, app?.borrowerProfile?.borrowerType);
   const visibleTabs = visibleTabGroups.flatMap(g => g.tabs.map(t => t.id));
 
   // Guarded tab switch — prompts if there are unsaved changes
@@ -102,6 +102,7 @@ const CreditApplicationDetail: React.FC = () => {
     ready: boolean;
     errors: { field: string; message: string; severity: string }[];
     warnings: { field: string; message: string; severity: string }[];
+    satisfied: { field: string; message: string; severity: string }[];
   } | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
@@ -285,7 +286,7 @@ const CreditApplicationDetail: React.FC = () => {
 
       // S2 — Borrower Profile
       case 'borrower-profile': return <BorrowerProfileTab application={app!} />;
-      case 'parties': return <PartiesTab app={app!} />;
+      case 'parties': return <PartiesTab app={app!} borrowerType={app?.borrowerProfile?.borrowerType} />;
 
       // S3 — Financials
       case 'financials': return <FinancialsTab application={app!} />;
@@ -542,7 +543,13 @@ const CreditApplicationDetail: React.FC = () => {
                     {w.message}
                   </li>
                 ))}
-                {readiness.ready && readiness.warnings.length === 0 && (
+                {readiness.satisfied?.map((s, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-blue-700">
+                    <span className="material-symbols-outlined text-[14px] mt-0.5 shrink-0">verified</span>
+                    {s.message}
+                  </li>
+                ))}
+                {readiness.ready && readiness.warnings.length === 0 && (readiness.satisfied?.length ?? 0) === 0 && (
                   <li className="flex items-center gap-2 text-xs text-green-700">
                     <span className="material-symbols-outlined text-[14px]">check_circle</span>
                     All checks passed — application is ready to submit.
