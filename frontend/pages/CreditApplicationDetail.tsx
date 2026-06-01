@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, {
-  CreditApplication, CreditFacility, ApplicationTransition, ApplicationState, dashboardApi,
+  CreditApplication, CreditFacility, ApplicationTransition, ApplicationState, ApplicationSignoff, signoffApi, dashboardApi,
 } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import UserAssignChip from '../src/components/credit/UserAssignChip';
@@ -106,6 +106,7 @@ const CreditApplicationDetail: React.FC = () => {
     satisfied: { field: string; message: string; severity: string }[];
   } | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
+  const [signoffs, setSignoffs] = useState<ApplicationSignoff[]>([]);
   const [transitioning, setTransitioning] = useState(false);
   const [transitionReason, setTransitionReason] = useState('');
   const [showTransitionDialog, setShowTransitionDialog] = useState<string | null>(null);
@@ -152,6 +153,20 @@ const CreditApplicationDetail: React.FC = () => {
   useEffect(() => { fetchApp(); }, [fetchApp]);
   useEffect(() => { if (id) fetchTransitions(); }, [fetchTransitions]);
   useEffect(() => { if (id) fetchFacilities(); }, [fetchFacilities]); // Load facilities on mount for section completion
+
+  // Fetch sign-offs for committee review gate
+  useEffect(() => {
+    if (!id || !app) return;
+    const st = (app.state || app.status) as ApplicationState;
+    if (!['CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW', 'APPROVED'].includes(st)) return;
+    signoffApi.list(id).then(setSignoffs).catch(() => {});
+  }, [id, app]);
+
+  // Derive sign-off completion status
+  const REQUIRED_SIGNOFF_ROLES = ['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as string[];
+  const allSigned = REQUIRED_SIGNOFF_ROLES.every(
+    (role) => signoffs.some((s) => s.role === role && s.signedAt),
+  );
 
   // Fetch readiness check when application is in DRAFT state
   useEffect(() => {
@@ -293,7 +308,7 @@ const CreditApplicationDetail: React.FC = () => {
       case 'financials': return <FinancialsTab application={app!} />;
 
       // S4 — Risk Score
-      case 'risk-score': return <RiskScoreTab application={app!} onUpdated={setApp} />;
+      case 'risk-score': return <RiskScoreTab application={app!} onUpdated={setApp} onRefresh={fetchApp} />;
       case 'payment-capability': return <PaymentCapabilityTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
 
       // S5 — Bureau & Compliance
@@ -309,7 +324,7 @@ const CreditApplicationDetail: React.FC = () => {
       case 'approvals': return <ApprovalsTab app={app!} onRefresh={fetchApp} />;
       case 'signoff': return <SignoffTab application={app!} onUpdated={setApp} />;
       case 'conditions': return <ConditionsTab />;
-      case 'summary': return <SummaryTab app={app!} facilities={facilities} transitions={transitions} canWrite={canWrite} canApprove={canApprove} onTransition={handleTransition} onRefresh={fetchApp} />;
+      case 'summary': return <SummaryTab app={app!} facilities={facilities} onRefresh={fetchApp} />;
 
       // META — Operations
       case 'documents': return <DocumentsTab app={app!} canApprove={canApprove} />;
@@ -592,17 +607,45 @@ const CreditApplicationDetail: React.FC = () => {
         {transitions.length > 0 && canWrite && (
           <div className="bg-bg-surface border border-border rounded-xl p-4 mb-6">
             <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Available Actions</h3>
+
+            {/* §1.1c — Sign-off gate warning banner (CREDIT_ASSESSMENT only) */}
+            {currentState === 'CREDIT_ASSESSMENT' && !allSigned && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-600 text-base mt-0.5 shrink-0">warning</span>
+                <div>
+                  <p className="text-xs font-bold text-amber-800">CA Memo sign-off must be completed before submitting to committee</p>
+                  {/* §1.1d — Sign-off status checkmarks */}
+                  <div className="flex gap-3 mt-1.5">
+                    {(['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as string[]).map(role => {
+                      const isSigned = signoffs.some(s => s.role === role && s.signedAt);
+                      const label = role === 'PREPARED_BY' ? 'Prepared By' : role === 'REVIEWED_BY' ? 'Reviewed By' : 'Concurred By';
+                      return (
+                        <span key={role} className={`text-xs font-semibold flex items-center gap-1 ${isSigned ? 'text-green-700' : 'text-amber-700'}`}>
+                          <span className="material-symbols-outlined text-sm">{isSigned ? 'check_circle' : 'cancel'}</span>
+                          {isSigned ? '✓' : '✗'} {label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
               {transitions.map(t => {
                 const isReject = t.toState === 'REJECTED' || t.toState === 'KYC_REJECTED' || t.toState === 'WITHDRAWN';
                 const isApprove = t.toState === 'APPROVED' || t.toState === 'KYC_APPROVED' || t.toState === 'ACCEPTED';
+                const isSignoffBlocked = t.action === 'submit_to_committee' && !allSigned;
                 return (
-                  <button key={t.action} ref={el => { if (t.action === showTransitionDialog) transitionTriggerRef.current = el; }} onClick={() => setShowTransitionDialog(t.action)}
+                  <button key={t.action} ref={el => { if (t.action === showTransitionDialog) transitionTriggerRef.current = el; }}
+                    onClick={() => !isSignoffBlocked && setShowTransitionDialog(t.action)}
+                    disabled={isSignoffBlocked}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
+                      isSignoffBlocked ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60' :
                       isReject ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100' :
                       isApprove ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100' :
                       'bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100'
-                    }`} style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                    }`} style={{ fontFamily: 'var(--font-sans)', cursor: isSignoffBlocked ? 'not-allowed' : 'pointer' }}>
                     <span className="material-symbols-outlined text-base">{
                       isReject ? 'block' : isApprove ? 'check_circle' : 'arrow_forward'
                     }</span>
@@ -612,6 +655,21 @@ const CreditApplicationDetail: React.FC = () => {
                 );
               })}
             </div>
+
+            {/* §1.1d — Sign-off checkmarks beside buttons when in CREDIT_ASSESSMENT */}
+            {currentState === 'CREDIT_ASSESSMENT' && allSigned && transitions.some(t => t.action === 'submit_to_committee') && (
+              <div className="mt-2 flex gap-3">
+                {(['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as string[]).map(role => {
+                  const label = role === 'PREPARED_BY' ? 'Prepared By' : role === 'REVIEWED_BY' ? 'Reviewed By' : 'Concurred By';
+                  return (
+                    <span key={role} className="text-xs font-semibold text-green-700 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">check_circle</span>
+                      ✓ {label}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -761,7 +819,7 @@ const CreditApplicationDetail: React.FC = () => {
         {/* S4 — Risk Score */}
         {activeTab === 'risk-score' && (
           <div role="tabpanel" id="panel-risk-score" aria-labelledby="tab-risk-score" tabIndex={0}>
-            <RiskScoreTab application={app} onUpdated={setApp} />
+            <RiskScoreTab application={app} onUpdated={setApp} onRefresh={fetchApp} />
           </div>
         )}
 
@@ -831,7 +889,7 @@ const CreditApplicationDetail: React.FC = () => {
         {/* S7 — Summary */}
         {activeTab === 'summary' && (
           <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary" tabIndex={0}>
-            <SummaryTab app={app} facilities={facilities} transitions={transitions} canWrite={canWrite} canApprove={canApprove} onTransition={handleTransition} onRefresh={fetchApp} />
+            <SummaryTab app={app} facilities={facilities} onRefresh={fetchApp} />
           </div>
         )}
 

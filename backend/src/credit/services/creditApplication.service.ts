@@ -1,5 +1,5 @@
 import prisma from '../../utils/prisma';
-import { Prisma, ApplicationState, ApprovalDecisionType } from '@prisma/client';
+import { Prisma, ApplicationState, ApprovalDecisionType, SignoffRole } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
 import { creditNotificationService, CreditEventType } from './creditNotification.service';
 import { deriveAndSetConnectedPartyFlag } from './connectedParty.service';
@@ -727,6 +727,24 @@ class CreditApplicationService {
       if (!readiness.ready) {
         const errorMessages = readiness.errors.map((e) => `${e.field}: ${e.message}`).join('; ');
         throw new Error(`Submission blocked — ${errorMessages}`);
+      }
+    }
+
+    // §1.1b — Sign-off completion gate: block submit_to_committee if CA Memo sign-off incomplete
+    if (action === 'submit_to_committee') {
+      const signoffs = await prisma.applicationSignoff.findMany({
+        where: { applicationId: id },
+        select: { role: true, signedAt: true },
+      });
+      const signed = new Set(signoffs.filter(s => s.signedAt).map(s => s.role));
+      const required: SignoffRole[] = ['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as const;
+      if (!required.every(r => signed.has(r))) {
+        throw Object.assign(
+          new Error(
+            'Cannot submit to committee — CA Memo sign-off incomplete. All sign-off roles (Prepared By, Reviewed By, Concurred By) must sign before committee review.',
+          ),
+          { statusCode: 400 },
+        );
       }
     }
 

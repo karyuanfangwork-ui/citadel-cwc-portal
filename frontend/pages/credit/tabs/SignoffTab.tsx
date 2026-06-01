@@ -108,6 +108,18 @@ const SignoffCard: React.FC<{
 
 // ─── Main Tab ─────────────────────────────────────────────────────────────────
 
+const SIGNOFF_ELIGIBLE_STATES = new Set([
+  'UNDERWRITING',
+  'CREDIT_ASSESSMENT',
+  'COMMITTEE_REVIEW',
+  'APPROVED',
+  'OFFER',
+  'ACCEPTED',
+  'DISBURSED',
+  'ACTIVE',
+  'CLOSED',
+]);
+
 const SignoffTab: React.FC<Props> = ({ application, onUpdated }) => {
   const { user } = useAuth();
   const [signoffs, setSignoffs] = useState<ApplicationSignoff[]>([]);
@@ -117,7 +129,7 @@ const SignoffTab: React.FC<Props> = ({ application, onUpdated }) => {
   }, [application.id]);
 
   const isConcurred = !!application.concurredAt;
-  const readOnly = application.state !== 'DRAFT';
+  const readOnly = !SIGNOFF_ELIGIBLE_STATES.has(application.state);
 
   const byRole = (role: SignoffRole) => signoffs.find(s => s.role === role);
 

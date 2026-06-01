@@ -2,29 +2,19 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   CreditApplication,
   CreditFacility,
-  ApplicationTransition,
   scoringApi,
   CreditScoreRun,
   RiskRating,
 } from '../../../src/services/credit.service';
-import { useAuth } from '../../../src/context/AuthContext';
-import { hasPermission } from '../../../src/utils/permissions';
-import toast from 'react-hot-toast';
-import { friendlyMessage } from '../../../src/utils/errorMessages';
 import { formatCurrency, formatDate, formatDateTime, PRODUCT_LABELS } from '../creditUtils';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 
 interface SummaryTabProps {
   app: CreditApplication;
   facilities: CreditFacility[];
-  transitions: ApplicationTransition[];
-  canWrite: boolean;
-  canApprove: boolean;
-  onTransition: (action: string, reason?: string) => Promise<void>;
   onRefresh: () => void;
 }
 
-const RISK_RATINGS: RiskRating[] = ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D', 'NR'];
 const RISK_COLORS: Record<string, { bg: string; text: string }> = {
   AAA: { bg: '#22c55e20', text: '#16a34a' }, AA: { bg: '#22c55e20', text: '#16a34a' },
   A: { bg: '#22c55e20', text: '#16a34a' }, BBB: { bg: '#3b82f620', text: '#2563eb' },
@@ -34,60 +24,27 @@ const RISK_COLORS: Record<string, { bg: string; text: string }> = {
   NR: { bg: '#6b728020', text: '#6b7280' },
 };
 
-const SummaryTab: React.FC<SummaryTabProps> = ({ app, facilities, transitions, canWrite, canApprove, onTransition, onRefresh }) => {
-  const { user } = useAuth();
+const STRATEGY_COLORS: Record<string, { bg: string; text: string }> = {
+  GROW: { bg: '#22c55e20', text: '#16a34a' },
+  MAINTAIN: { bg: '#f59e0b20', text: '#d97706' },
+  EXIT: { bg: '#ef444420', text: '#dc2626' },
+};
+
+const SummaryTab: React.FC<SummaryTabProps> = ({ app, facilities, onRefresh }) => {
   const appId = app.id;
 
-  // Score Run state
+  // Score Run state (read-only — no Run Score / Override actions)
   const [scoreRuns, setScoreRuns] = useState<CreditScoreRun[]>([]);
-  const [runningScore, setRunningScore] = useState(false);
-  const [showOverrideDialog, setShowOverrideDialog] = useState<string | null>(null);
-  const [overrideRating, setOverrideRating] = useState<RiskRating>('NR');
-  const [overrideReason, setOverrideReason] = useState('');
-  const [overrideApproverId, setOverrideApproverId] = useState('');
-  const [overriding, setOverriding] = useState(false);
 
   const fetchScoreRuns = useCallback(async () => {
     if (!appId) return;
     try {
       const data = await scoringApi.listScores(appId);
       setScoreRuns(data);
-    } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to load score runs')); }
+    } catch (e) { console.error(e); }
   }, [appId]);
 
   useEffect(() => { fetchScoreRuns(); }, [fetchScoreRuns]);
-
-  const handleRunScore = async () => {
-    if (!appId) return;
-    try {
-      setRunningScore(true);
-      await scoringApi.executeScore(appId);
-      toast.success('Credit scoring completed');
-      fetchScoreRuns();
-      onRefresh();
-    } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to run credit score')); }
-    finally { setRunningScore(false); }
-  };
-
-  const handleOverrideScore = async () => {
-    if (!showOverrideDialog) return;
-    try {
-      setOverriding(true);
-      await scoringApi.overrideScore(showOverrideDialog, {
-        rating: overrideRating,
-        reason: overrideReason,
-        approverId: overrideApproverId || user?.id || '',
-      });
-      toast.success('Risk rating overridden');
-      setShowOverrideDialog(null);
-      setOverrideRating('NR');
-      setOverrideReason('');
-      setOverrideApproverId('');
-      fetchScoreRuns();
-      onRefresh();
-    } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to override risk rating')); }
-    finally { setOverriding(false); }
-  };
 
   return (
     <CaMemoSection title="Summary" phase="Phase 6" readOnly={true}>
@@ -139,22 +96,12 @@ const SummaryTab: React.FC<SummaryTabProps> = ({ app, facilities, transitions, c
         </div>
       </div>
 
-      {/* Credit Scoring Section */}
+      {/* Credit Scoring Section — read-only */}
       <div className="mt-6 bg-bg-surface border border-border rounded-xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Credit Scoring</h3>
-          {canWrite && (
-            <button onClick={handleRunScore} disabled={runningScore}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-bold bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100 transition-colors"
-              style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">speed</span>
-              {runningScore ? 'Running...' : 'Run Score'}
-            </button>
-          )}
-        </div>
+        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Credit Scoring</h3>
 
         {scoreRuns.length === 0 ? (
-          <p className="text-sm text-text-secondary text-center py-4">No score runs yet. Click "Run Score" to execute credit scoring.</p>
+          <p className="text-sm text-text-secondary text-center py-4">No score runs yet. Use the S4 Risk Score tab to run credit scoring.</p>
         ) : (
           <div>
             {/* Latest Score Run */}
@@ -174,18 +121,11 @@ const SummaryTab: React.FC<SummaryTabProps> = ({ app, facilities, transitions, c
                         <p className="text-xs text-text-secondary">Total Score</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {latest.overriddenRating && (
-                        <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
-                          Overridden (was {latest.riskRating})
-                        </span>
-                      )}
-                      <button onClick={() => setShowOverrideDialog(latest.id)}
-                        className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors"
-                        style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                        <span className="material-symbols-outlined text-sm">edit</span> Override
-                      </button>
-                    </div>
+                    {latest.overriddenRating && (
+                      <span className="text-xs bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-bold">
+                        Overridden (was {latest.riskRating})
+                      </span>
+                    )}
                   </div>
 
                   {/* Factor Breakdown */}
@@ -228,57 +168,63 @@ const SummaryTab: React.FC<SummaryTabProps> = ({ app, facilities, transitions, c
         )}
       </div>
 
-      {/* Override Score Dialog */}
-      {showOverrideDialog && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center" onClick={() => setShowOverrideDialog(null)}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-black text-text-primary mb-4">Override Risk Rating</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-2">New Rating *</label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {RISK_RATINGS.map(r => (
-                    <button key={r} onClick={() => setOverrideRating(r)}
-                      className={`px-2 py-1.5 rounded-lg text-xs font-bold border transition-colors ${
-                        overrideRating === r ? 'ring-2 ring-brand-300 ' : ''
-                      }`} style={{
-                        cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                        background: (RISK_COLORS[r]?.bg || '#6b728020'),
-                        color: (RISK_COLORS[r]?.text || '#6b7280'),
-                        borderColor: (RISK_COLORS[r]?.text || '#6b7280') + '40',
-                      }}>
-                      {r}
-                    </button>
-                  ))}
-                </div>
+      {/* CA Memo Summary — read-only narrative fields */}
+      <div className="mt-6 bg-bg-surface border border-border rounded-xl p-5">
+        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">CA Memo Summary</h3>
+        <div className="space-y-4">
+          {[
+            { label: 'Preamble', value: (app as any).preambleText, icon: 'article' },
+            { label: 'Matters to Highlight', value: (app as any).mattersToHighlight, icon: 'priority_high' },
+            { label: 'Transaction Details', value: (app as any).transactionDetailsText, icon: 'receipt_long' },
+            { label: 'First Way Out', value: (app as any).firstWayOut, icon: 'exit_to_app' },
+            { label: 'Second Way Out', value: (app as any).secondWayOut, icon: 'exit_to_app' },
+            { label: 'Other Way Out', value: (app as any).otherWayOut, icon: 'exit_to_app' },
+            { label: 'Cross-Selling Initiatives', value: (app as any).crossSellingInitiatives, icon: 'group' },
+          ].filter(f => f.value).map(f => (
+            <div key={f.label} className="border-b border-border last:border-0 pb-3 last:pb-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="material-symbols-outlined text-sm text-text-secondary">{f.icon}</span>
+                <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">{f.label}</span>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Override Reason *</label>
-                <textarea rows={3} value={overrideReason} onChange={e => setOverrideReason(e.target.value)}
-                  placeholder="Provide reason for overriding the risk rating..."
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-text-secondary mb-1">Approver ID</label>
-                <input type="text" value={overrideApproverId} onChange={e => setOverrideApproverId(e.target.value)}
-                  placeholder="Approver user ID (defaults to current user)"
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button onClick={() => setShowOverrideDialog(null)}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button onClick={handleOverrideScore} disabled={!overrideReason || overriding}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {overriding ? 'Overriding...' : 'Override'}
-                </button>
-              </div>
+              <p className="text-sm text-text-primary pl-6 whitespace-pre-wrap">{f.value}</p>
             </div>
+          ))}
+
+          {/* Account Strategy — badge/pill, not paragraph */}
+          <div className="border-b border-border last:border-0 pb-3 last:pb-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="material-symbols-outlined text-sm text-text-secondary">strategy</span>
+              <span className="text-xs font-bold text-text-secondary uppercase tracking-wider">Account Strategy</span>
+            </div>
+            {(app as any).accountStrategy ? (
+              <span
+                className="inline-block ml-6 px-3 py-1 rounded-full text-xs font-bold border"
+                style={{
+                  background: STRATEGY_COLORS[(app as any).accountStrategy]?.bg || '#6b728020',
+                  color: STRATEGY_COLORS[(app as any).accountStrategy]?.text || '#6b7280',
+                  borderColor: (STRATEGY_COLORS[(app as any).accountStrategy]?.text || '#6b7280') + '40',
+                }}
+              >
+                {(app as any).accountStrategy}
+              </span>
+            ) : (
+              <p className="text-sm text-text-tertiary pl-6">Not provided</p>
+            )}
           </div>
+
+          {/* Show "Not provided" placeholder if ALL narrative fields are empty */}
+          {!(app as any).preambleText &&
+           !(app as any).mattersToHighlight &&
+           !(app as any).transactionDetailsText &&
+           !(app as any).firstWayOut &&
+           !(app as any).secondWayOut &&
+           !(app as any).otherWayOut &&
+           !(app as any).crossSellingInitiatives &&
+           !(app as any).accountStrategy && (
+            <p className="text-sm text-text-tertiary text-center py-4">No CA Memo narrative fields have been completed yet.</p>
+          )}
         </div>
-      )}
+      </div>
     </CaMemoSection>
   );
 };

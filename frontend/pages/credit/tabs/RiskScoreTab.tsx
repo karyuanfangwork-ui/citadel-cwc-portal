@@ -66,9 +66,10 @@ type Props = {
   application: CreditApplication;
   onUpdated?: (next: CreditApplication) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onRefresh?: () => void;
 };
 
-const RiskScoreTab: React.FC<Props> = ({ application, onUpdated }) => {
+const RiskScoreTab: React.FC<Props> = ({ application, onUpdated, onRefresh }) => {
   const { user } = useAuth();
   const canWrite = hasPermission(user, 'credit:write');
   const [scoreRuns, setScoreRuns] = useState<CreditScoreRun[]>([]);
@@ -113,7 +114,13 @@ const RiskScoreTab: React.FC<Props> = ({ application, onUpdated }) => {
       const run = await creditService.executeScore(application.id);
       toast.success('Scorecard executed');
       setScoreRuns(prev => [run, ...prev]);
-      onUpdated?.({} as any); // trigger parent refresh
+      // Refresh full application data from server (including updated riskRating)
+      // Don't pass empty object — that crashes every downstream component
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        onUpdated?.({ ...application, riskRating: run.riskRating } as CreditApplication);
+      }
     } catch (e) {
       toast.error(friendlyMessage(e, 'Failed to execute scorecard'));
     } finally { setExecuting(false); }

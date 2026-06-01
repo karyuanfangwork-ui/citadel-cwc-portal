@@ -42,11 +42,15 @@ const DECISION_BUTTONS: { decision: ApprovalDecision; label: string; classes: st
 
 // ── Component ──────────────────────────────────────────────────────
 
+// States where approval submission is allowed (must match backend approvalAction.service.ts)
+const APPROVAL_ELIGIBLE_STATES = new Set(['UNDERWRITING', 'CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW']);
+
 const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, onActionComplete }) => {
   const { user } = useAuth();
   const canApprove = hasPermission(user, 'credit:approve');
   const isRmOnApplication = !!(application.rmId && user && application.rmId === user.id);
-  const canSubmitApproval = canApprove && !isRmOnApplication;
+  const isApprovalEligibleState = APPROVAL_ELIGIBLE_STATES.has(application.state);
+  const canSubmitApproval = canApprove && !isRmOnApplication && isApprovalEligibleState;
 
   const [matrixLookup, setMatrixLookup] = useState<ApprovalMatrixLookup | null>(null);
   const [lookupLoading, setLookupLoading] = useState(true);
@@ -129,6 +133,20 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, onActionC
             <p className="text-sm font-bold text-amber-800 mb-1">Segregation of Duties — Action Restricted</p>
             <p className="text-xs text-amber-700">
               You are the assigned Relationship Manager for this application. Due to SOD policy, you cannot approve your own application. Another authorized approver must submit the decision.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── State-gated notice ────────────────────── */}
+      {canApprove && !isApprovalEligibleState && !isRmOnApplication && (
+        <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <span className="material-symbols-outlined text-blue-500 text-xl mt-0.5">info</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-blue-800 mb-1">Approval Not Available</p>
+            <p className="text-xs text-blue-700">
+              Approval actions are not available while the application is in <span className="font-semibold">{application.state}</span> state.
+              Submit the application for review to enable the approval chain.
             </p>
           </div>
         </div>
