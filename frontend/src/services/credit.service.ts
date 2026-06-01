@@ -125,7 +125,7 @@ export interface BorrowerProfile {
   createdAt: string;
   updatedAt: string;
   account?: { id: string; name: string } | null;
-  contact?: { id: string; firstName: string; lastName: string; email: string | null } | null;
+  contact?: { id: string; firstName: string; lastName: string; email: string | null; phone: string | null; mobile: string | null; jobTitle: string | null; dateOfBirth: string | null; nricPassport: string | null } | null;
   directors?: Director[];
   shareholders?: Shareholder[];
   beneficialOwners?: UltimateBeneficialOwner[];
@@ -139,16 +139,19 @@ export interface CreditDocument {
   id: string;
   borrowerProfileId: string;
   documentType: DocumentType;
+  classification?: string;
   fileName: string;
   filePath: string;
   fileSize: number;
   mimeType: string;
   status: DocumentStatus;
+  verificationStatus: DocumentStatus | null;
   verifiedAt: string | null;
   verifiedBy: string | null;
   rejectionReason: string | null;
   uploadedAt: string;
   uploadedBy: string;
+  createdAt?: string;
   uploader?: CreditUserRef;
   verifier?: CreditUserRef;
 }
@@ -556,6 +559,7 @@ export interface CreditScorecardVersion {
   versionNumber: number;
   isActive: boolean;
   factors: ScorecardFactor[];
+  retailFactors: ScorecardFactor[];
   effectiveFrom: string | null;
   approvedById: string | null;
   approvedAt: string | null;
@@ -656,12 +660,12 @@ const creditService = {
   },
 
   async verifyDocument(documentId: string) {
-    const res = await apiClient.post(`/credit/documents/${documentId}/verify`);
+    const res = await apiClient.post(`/credit/credit-documents/${documentId}/verify`);
     return res.data.data.document as CreditDocument;
   },
 
   async rejectDocument(documentId: string, reason: string) {
-    const res = await apiClient.post(`/credit/documents/${documentId}/reject`, { rejectionReason: reason });
+    const res = await apiClient.post(`/credit/credit-documents/${documentId}/reject`, { rejectionReason: reason });
     return res.data.data.document as CreditDocument;
   },
 
@@ -698,6 +702,7 @@ const creditService = {
     ready: boolean;
     errors: { field: string; message: string; severity: 'error' | 'warning' }[];
     warnings: { field: string; message: string; severity: 'error' | 'warning' }[];
+    satisfied: { field: string; message: string; severity: 'info' }[];
   }> {
     const res = await apiClient.get(`/credit/applications/${id}/readiness`);
     return res.data.data;
@@ -1054,14 +1059,34 @@ export const scorecardApi = {
 
   async listVersions(scorecardId: string) {
     const res = await apiClient.get(`/credit/scorecards/${scorecardId}/versions`);
-    // API returns factorWeights.factors — normalize to flat factors + version→versionNumber
+    // API returns flat factorWeights/retailFactorWeights objects — convert to ScorecardFactor[]
+    const FACTOR_LABELS: Record<string, string> = {
+      financial_performance: 'Financial Performance',
+      leverage: 'Leverage',
+      liquidity: 'Liquidity',
+      cashflow: 'Cash Flow',
+      management: 'Management Quality',
+      industry: 'Industry Risk',
+      collateral: 'Collateral Coverage',
+      relationship: 'Relationship History',
+      market_conditions: 'Market Conditions',
+    };
+    const toFactors = (obj: Record<string, number> | undefined): ScorecardFactor[] => {
+      if (!obj || typeof obj !== 'object') return [];
+      // If stored as {factors: [...]} (legacy), use that; otherwise flat key→weight
+      if (Array.isArray((obj as any).factors)) return (obj as any).factors;
+      return Object.entries(obj)
+        .filter(([k]) => k in FACTOR_LABELS)
+        .map(([key, weight]) => ({ key, label: FACTOR_LABELS[key] || key, weight: Number(weight) }));
+    };
     const raw: any[] = res.data.data.versions;
     const mapped: CreditScorecardVersion[] = raw.map((v: any) => ({
       id: v.id,
       scorecardId: v.scorecardId,
       versionNumber: v.version ?? v.versionNumber ?? 0,
       isActive: v.isActive,
-      factors: v.factorWeights?.factors ?? v.factors ?? [],
+      factors: toFactors(v.factorWeights),
+      retailFactors: toFactors(v.retailFactorWeights),
       effectiveFrom: v.effectiveFrom ?? null,
       approvedById: v.approvedById ?? v.createdBy ?? null,
       approvedAt: v.approvedAt ?? null,
@@ -1072,8 +1097,24 @@ export const scorecardApi = {
     return mapped;
   },
 
-  async createVersion(scorecardId: string, data: { factors: Array<{ key: string; label: string; weight: number }> }) {
-    const res = await apiClient.post(`/credit/scorecards/${scorecardId}/versions`, data);
+  async createVersion(scorecardId: string, data: {
+    factors: Array<{ key: string; label: string; weight: number }>;
+    retailFactors?: Array<{ key: string; label: string; weight: number }>;
+  }) {
+    // Transform factors array to { factorWeights: { key: weight, ... } } for backend
+    const factorWeights: Record<string, number> = {};
+    for (const f of data.factors) {
+      factorWeights[f.key] = f.weight;
+    }
+    const payload: Record<string, unknown> = { factorWeights };
+    if (data.retailFactors) {
+      const retailFactorWeights: Record<string, number> = {};
+      for (const f of data.retailFactors) {
+        retailFactorWeights[f.key] = f.weight;
+      }
+      payload.retailFactorWeights = retailFactorWeights;
+    }
+    const res = await apiClient.post(`/credit/scorecards/${scorecardId}/versions`, payload);
     return res.data.data.version as CreditScorecardVersion;
   },
 

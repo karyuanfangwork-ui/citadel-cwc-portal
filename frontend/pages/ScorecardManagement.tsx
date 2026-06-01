@@ -9,15 +9,27 @@ import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 
 const DEFAULT_FACTORS: ScorecardFactor[] = [
-  { key: 'financial_leverage', label: 'Financial Leverage', weight: 15 },
-  { key: 'debt_service_coverage', label: 'Debt Service Coverage', weight: 15 },
-  { key: 'profitability', label: 'Profitability', weight: 10 },
+  { key: 'financial_performance', label: 'Financial Performance', weight: 15 },
+  { key: 'leverage', label: 'Leverage', weight: 10 },
   { key: 'liquidity', label: 'Liquidity', weight: 10 },
-  { key: 'cash_flow_stability', label: 'Cash Flow Stability', weight: 10 },
-  { key: 'management_quality', label: 'Management Quality', weight: 10 },
-  { key: 'industry_risk', label: 'Industry Risk', weight: 10 },
-  { key: 'collateral_coverage', label: 'Collateral Coverage', weight: 10 },
-  { key: 'relationship_history', label: 'Relationship History', weight: 10 },
+  { key: 'cashflow', label: 'Cash Flow', weight: 20 },
+  { key: 'management', label: 'Management Quality', weight: 10 },
+  { key: 'industry', label: 'Industry Risk', weight: 10 },
+  { key: 'collateral', label: 'Collateral Coverage', weight: 10 },
+  { key: 'relationship', label: 'Relationship History', weight: 10 },
+  { key: 'market_conditions', label: 'Market Conditions', weight: 5 },
+];
+
+const DEFAULT_RETAIL_FACTORS: ScorecardFactor[] = [
+  { key: 'financial_performance', label: 'Financial Performance', weight: 5 },
+  { key: 'leverage', label: 'Leverage', weight: 5 },
+  { key: 'liquidity', label: 'Liquidity', weight: 5 },
+  { key: 'cashflow', label: 'Cash Flow (DSR)', weight: 30 },
+  { key: 'management', label: 'Management Quality', weight: 10 },
+  { key: 'industry', label: 'Industry Risk', weight: 10 },
+  { key: 'collateral', label: 'Collateral Coverage', weight: 10 },
+  { key: 'relationship', label: 'Relationship History', weight: 15 },
+  { key: 'market_conditions', label: 'Market Conditions', weight: 10 },
 ];
 
 const PRODUCT_LABELS: Record<string, string> = {
@@ -45,6 +57,7 @@ const ScorecardManagement: React.FC = () => {
   // Create version dialog
   const [showVersionDialog, setShowVersionDialog] = useState<string | null>(null);
   const [versionFactors, setVersionFactors] = useState<ScorecardFactor[]>([...DEFAULT_FACTORS]);
+  const [retailFactors, setRetailFactors] = useState<ScorecardFactor[]>([...DEFAULT_RETAIL_FACTORS]);
   const [creatingVersion, setCreatingVersion] = useState(false);
 
   const fetchScorecards = useCallback(async () => {
@@ -95,9 +108,10 @@ const ScorecardManagement: React.FC = () => {
     if (!showVersionDialog) return;
     try {
       setCreatingVersion(true);
-      await scorecardApi.createVersion(showVersionDialog, { factors: versionFactors });
+      await scorecardApi.createVersion(showVersionDialog, { factors: versionFactors, retailFactors });
       setShowVersionDialog(null);
       setVersionFactors([...DEFAULT_FACTORS]);
+      setRetailFactors([...DEFAULT_RETAIL_FACTORS]);
       fetchVersions(showVersionDialog);
       fetchScorecards();
     } catch (e) { console.error(e); }
@@ -336,11 +350,45 @@ const ScorecardManagement: React.FC = () => {
                 Total: {totalWeight}% {weightsValid ? '' : `(need ${100 - totalWeight > 0 ? '+' : ''}${100 - totalWeight}%)`}
               </div>
 
+              {/* Retail / Individual Borrower Weight Set */}
+              <h3 className="text-sm font-bold text-text-primary mt-6 mb-2">Retail Borrower Weights <span className="text-xs font-normal text-text-secondary">(INDIVIDUAL / SOLE_PROPRIETOR)</span></h3>
+              <p className="text-xs text-text-secondary mb-3">Used for individual/retail borrowers. Cash Flow weight maps to DSR score.</p>
+              <div className="space-y-3 mb-4">
+                {retailFactors.map((f, idx) => (
+                  <div key={f.key} className="flex items-center gap-3">
+                    <span className="text-sm text-text-primary w-40 shrink-0 truncate">{f.label}</span>
+                    <input type="range" min={0} max={100} value={f.weight}
+                      onChange={e => {
+                        setRetailFactors(prev => {
+                          const updated = [...prev];
+                          updated[idx] = { ...updated[idx], weight: Number(e.target.value) };
+                          return updated;
+                        });
+                      }}
+                      className="flex-1" style={{ accentColor: '#7c3aed' }} />
+                    <input type="number" min={0} max={100} value={f.weight}
+                      onChange={e => {
+                        setRetailFactors(prev => {
+                          const updated = [...prev];
+                          updated[idx] = { ...updated[idx], weight: Number(e.target.value) };
+                          return updated;
+                        });
+                      }}
+                      className="w-16 border border-border rounded px-2 py-1 text-sm text-center" style={{ background: '#fff' }} />
+                    <span className="text-xs text-text-secondary w-4">%</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className={`p-3 rounded-lg text-sm font-bold ${retailFactors.reduce((s, f) => s + f.weight, 0) === 100 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                Retail Total: {retailFactors.reduce((s, f) => s + f.weight, 0)}% {retailFactors.reduce((s, f) => s + f.weight, 0) === 100 ? '' : `(need ${100 - retailFactors.reduce((s, f) => s + f.weight, 0) > 0 ? '+' : ''}${100 - retailFactors.reduce((s, f) => s + f.weight, 0)}%)`}
+              </div>
+
               <div className="flex justify-end gap-3 pt-4">
                 <button type="button" onClick={() => setShowVersionDialog(null)}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
                   style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button onClick={handleCreateVersion} disabled={!weightsValid || creatingVersion}
+                <button onClick={handleCreateVersion} disabled={!weightsValid || retailFactors.reduce((s, f) => s + f.weight, 0) !== 100 || creatingVersion}
                   className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors disabled:opacity-50"
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {creatingVersion ? 'Creating...' : 'Create Version'}
