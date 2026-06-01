@@ -584,10 +584,47 @@ class CreditApplicationService {
       },
     });
 
-    // Create audit event for update
-    await this.createAuditEvent(id, actorId, 'update', existing.state, existing.state, {
-      updatedFields: Object.keys(data),
-    });
+    // Create audit event for update — include assignment change details
+    const auditMeta: Record<string, any> = { updatedFields: Object.keys(data) };
+    if (data.assignedRmId !== undefined) {
+      auditMeta.previousRmId = existing.assignedRmId;
+      auditMeta.newRmId = data.assignedRmId;
+    }
+    if (data.assignedAnalystId !== undefined) {
+      auditMeta.previousAnalystId = existing.assignedAnalystId;
+      auditMeta.newAnalystId = data.assignedAnalystId;
+    }
+    await this.createAuditEvent(id, actorId, 'update', existing.state, existing.state, auditMeta);
+
+    // ── Notify newly assigned RM / Analyst ──
+    if (data.assignedRmId && data.assignedRmId !== existing.assignedRmId) {
+      try {
+        const { notify } = await import('../../services/notification.service');
+        await notify({
+          userId: data.assignedRmId,
+          eventType: 'CREDIT_RM_ASSIGNED',
+          variables: {
+            applicationId: id,
+            applicationNo: application.applicationNo ?? id,
+            assigneeRole: 'RM',
+          },
+        });
+      } catch { /* non-blocking */ }
+    }
+    if (data.assignedAnalystId && data.assignedAnalystId !== existing.assignedAnalystId) {
+      try {
+        const { notify } = await import('../../services/notification.service');
+        await notify({
+          userId: data.assignedAnalystId,
+          eventType: 'CREDIT_ANALYST_ASSIGNED',
+          variables: {
+            applicationId: id,
+            applicationNo: application.applicationNo ?? id,
+            assigneeRole: 'Analyst',
+          },
+        });
+      } catch { /* non-blocking */ }
+    }
 
     return application;
   }

@@ -4,6 +4,7 @@ import creditService, {
   CreditApplication, CreditFacility, ApplicationTransition, ApplicationState, dashboardApi,
 } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
+import UserAssignChip from '../src/components/credit/UserAssignChip';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
@@ -482,8 +483,6 @@ const CreditApplicationDetail: React.FC = () => {
             { label: 'Approved', value: facilities.length > 0 && facilities.some(f => f.approvedAmount != null) ? formatCurrency(Number(facilities.reduce((s, f) => s + Number(f.approvedAmount || 0), 0)), app.currency) : '—', icon: 'check_circle' },
             { label: 'Tenor', value: app.requestedTenor != null ? `${app.requestedTenor} mo` : '—', icon: 'schedule' },
             { label: 'Currency', value: app.currency, icon: 'currency_exchange' },
-            { label: 'RM', value: app.rm ? `${app.rm.firstName} ${app.rm.lastName}` : '—', icon: 'person' },
-            { label: 'Analyst', value: app.analyst ? `${app.analyst.firstName} ${app.analyst.lastName}` : '—', icon: 'analytics' },
             { label: 'Risk', value: app.riskRating || '—', icon: 'speed' },
           ].map(s => (
             <div key={s.label} className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm">
@@ -492,6 +491,24 @@ const CreditApplicationDetail: React.FC = () => {
               <span className="text-text-secondary">{s.label}</span>
             </div>
           ))}
+          <UserAssignChip
+            label="RM"
+            value={app.rm ?? null}
+            applicationId={app.id}
+            field="assignedRmId"
+            roleFilters={['CREDIT_RM', 'CREDIT_MANAGER', 'ADMIN']}
+            disabled={app.state !== 'DRAFT'}
+            onUpdated={setApp}
+          />
+          <UserAssignChip
+            label="Analyst"
+            value={app.analyst ?? null}
+            applicationId={app.id}
+            field="assignedAnalystId"
+            roleFilters={['CREDIT_ANALYST', 'CREDIT_MANAGER', 'ADMIN']}
+            disabled={app.state !== 'DRAFT'}
+            onUpdated={setApp}
+          />
         </div>
 
         {/* Onboarding banner — shown once for newly created applications */}

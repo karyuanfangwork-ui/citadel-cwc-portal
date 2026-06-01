@@ -9,7 +9,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
-import { formatCurrency, formatDate, STATE_COLORS } from './credit/creditUtils';
+import { formatCurrency, formatDate, STATE_COLORS, getSmartDefaults } from './credit/creditUtils';
 import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
 
 const KANBAN_COLUMNS: { key: string; label: string; states: ApplicationState[]; color: string }[] = [
@@ -141,6 +141,9 @@ const CreditApplicationList: React.FC = () => {
       }
     }
     if (borrowerFilter) payload.borrowerProfileId = borrowerFilter;
+    // Auto-assign RM: if current user has CREDIT_RM role, set them as RM
+    const { assignedRmId } = getSmartDefaults({ currentUser: user, productType: form.productType });
+    if (assignedRmId) payload.assignedRmId = assignedRmId;
     try {
       setSaving(true);
       const newApp = await creditService.createApplication(payload);

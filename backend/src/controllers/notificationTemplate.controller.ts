@@ -75,6 +75,10 @@ const EVENT_TYPE_REGISTRY: {
     { eventType: 'crm_stale_deal',         label: 'CRM Stale Deal',               category: 'CRM', recipientDescription: 'Opportunity owner',    availableVariables: ['dealName', 'expectedCloseDate', 'ownerName', 'userName', 'appUrl'] },
     { eventType: 'crm_trust_review_due',   label: 'CRM Trust Review Due',         category: 'CRM', recipientDescription: 'Trust product owner',  availableVariables: ['trustType', 'accountName', 'daysUntilReview', 'nextReviewDate', 'userName', 'appUrl'] },
     { eventType: 'crm_lead_auto_assigned', label: 'CRM Lead Auto-Assigned',       category: 'CRM', recipientDescription: 'Newly assigned user',  availableVariables: ['leadId', 'userName', 'appUrl'] },
+
+    // ── Credit Module ──────────────────────────────────────────────────
+    { eventType: 'CREDIT_RM_ASSIGNED',        label: 'Credit RM Assigned',        category: 'Credit', recipientDescription: 'Newly assigned RM',        availableVariables: ['applicationId', 'applicationNo', 'assigneeRole', 'userName', 'appUrl'] },
+    { eventType: 'CREDIT_ANALYST_ASSIGNED',   label: 'Credit Analyst Assigned',   category: 'Credit', recipientDescription: 'Newly assigned Analyst',   availableVariables: ['applicationId', 'applicationNo', 'assigneeRole', 'userName', 'appUrl'] },
 ];
 
 class NotificationTemplateController {

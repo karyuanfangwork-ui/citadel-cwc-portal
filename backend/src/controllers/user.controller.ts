@@ -198,7 +198,6 @@ class UserController {
             search,
             department,
             isActive,
-            role,
         } = req.query;
 
         const pageNum = parseInt(page as string, 10);
@@ -228,10 +227,13 @@ class UserController {
             where.isActive = isActive === 'true';
         }
 
-        if (role) {
+        // Support both ?role=SINGLE_ROLE (backward compat) and ?roles=ROLE1,ROLE2,ROLE3 (multi-role)
+        const roleParam = (req.query.roles || req.query.role) as string | undefined;
+        if (roleParam) {
+            const roleList = roleParam.split(',').map(r => r.trim());
             where.roles = {
                 some: {
-                    role: { name: { equals: role as string, mode: 'insensitive' } },
+                    role: { name: { in: roleList } },
                 },
             };
         }

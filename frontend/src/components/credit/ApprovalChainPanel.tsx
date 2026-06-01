@@ -119,6 +119,19 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, onActionC
 
   return (
     <div className="space-y-6">
+      {/* ── SOD Warning ────────────────────────────── */}
+      {application.rmId && user && application.rmId === user.id && canApprove && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <span className="material-symbols-outlined text-amber-500 text-xl mt-0.5">warning</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-800 mb-1">Segregation of Duties — Action Restricted</p>
+            <p className="text-xs text-amber-700">
+              You are the assigned Relationship Manager for this application. Due to SOD policy, you cannot approve your own application. Another authorized approver must submit the decision.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Chain header ───────────────────────────── */}
       <div className="flex items-center gap-3">
         <div className="flex-1">
