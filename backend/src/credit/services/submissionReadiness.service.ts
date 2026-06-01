@@ -27,23 +27,37 @@ function getRequiredDocuments(borrowerType: string): string[] {
 export interface ReadinessIssue {
   field: string;
   message: string;
-  severity: 'error' | 'warning';
+  severity: 'error' | 'warning' | 'info';
 }
 
 export interface ReadinessResult {
   ready: boolean;
   errors: ReadinessIssue[];
   warnings: ReadinessIssue[];
+  satisfied: ReadinessIssue[];
 }
+
+// Doc classes that can be satisfied by borrower profile data instead of a file upload
+const PROFILE_SATISFIABLE: Record<string, (bp: { contact?: { nricPassport?: string | null } | null }) => boolean> = {
+  NRIC_PASSPORT: (bp) => !!bp.contact?.nricPassport,
+};
 
 export async function validateSubmissionReadiness(applicationId: string): Promise<ReadinessResult> {
   const errors: ReadinessIssue[] = [];
   const warnings: ReadinessIssue[] = [];
+  const satisfied: ReadinessIssue[] = [];
 
   const application = await prisma.creditApplication.findUnique({
     where: { id: applicationId },
     include: {
-      borrowerProfile: { select: { accountId: true, contactId: true, borrowerType: true } },
+      borrowerProfile: {
+        select: {
+          accountId: true,
+          contactId: true,
+          borrowerType: true,
+          contact: { select: { nricPassport: true } },
+        },
+      },
       facilities: { select: { id: true, facilityType: true, amount: true } },
       documents: { select: { id: true, classification: true } },
       parties: { select: { id: true, role: true, borrowerProfileId: true } },
@@ -55,6 +69,7 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
       ready: false,
       errors: [{ field: 'application', message: 'Application not found', severity: 'error' }],
       warnings: [],
+      satisfied: [],
     };
   }
 
@@ -81,11 +96,20 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
   const mandatoryClasses = getRequiredDocuments(application.borrowerProfile.borrowerType as string);
   for (const docClass of mandatoryClasses) {
     const hasDoc = application.documents.some((d) => d.classification === docClass);
-    if (!hasDoc) {
+    const profileSatisfier = PROFILE_SATISFIABLE[docClass];
+    const satisfiedByProfile = profileSatisfier ? profileSatisfier(application.borrowerProfile as any) : false;
+
+    if (!hasDoc && !satisfiedByProfile) {
       errors.push({
         field: 'documents',
         message: `Required document missing: ${docClass.replace(/_/g, ' ')}`,
         severity: 'error',
+      });
+    } else if (!hasDoc && satisfiedByProfile) {
+      satisfied.push({
+        field: 'documents',
+        message: `NRIC / Passport verified from borrower profile — document upload optional`,
+        severity: 'info',
       });
     }
   }
@@ -156,9 +180,43 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
     });
   }
 
+  // ---- Check 10: Retail DSR warning ----
+  const isRetailBorrower = ['INDIVIDUAL', 'SOLE_PROPRIETOR'].includes(
+    application.borrowerProfile.borrowerType as string
+  );
+  if (isRetailBorrower) {
+    const retailIncome = await prisma.retailIncome.findUnique({
+      where: { applicationId },
+      select: { dsrPercent: true },
+    });
+    if (!retailIncome) {
+      warnings.push({
+        field: 'retailIncome',
+        message: 'Retail income / DSR assessment not completed — required for individual borrowers',
+        severity: 'warning',
+      });
+    } else {
+      const dsr = Number(retailIncome.dsrPercent);
+      if (dsr > 70) {
+        errors.push({
+          field: 'retailIncome',
+          message: `DSR of ${dsr.toFixed(1)}% exceeds 70% threshold — application is high risk`,
+          severity: 'error',
+        });
+      } else if (dsr > 60) {
+        warnings.push({
+          field: 'retailIncome',
+          message: `DSR of ${dsr.toFixed(1)}% is in the warning band (60-70%)`,
+          severity: 'warning',
+        });
+      }
+    }
+  }
+
   return {
     ready: errors.length === 0,
     errors,
     warnings,
+    satisfied,
   };
 }
