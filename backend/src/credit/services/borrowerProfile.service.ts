@@ -137,7 +137,7 @@ class BorrowerProfileService {
       where: { id, deletedAt: null },
       include: {
         account: { select: { id: true, name: true } },
-        contact: { select: { id: true, firstName: true, lastName: true, email: true } },
+        contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true, mobile: true, jobTitle: true, dateOfBirth: true, nricPassport: true } },
         directors: { where: { resignationDate: null }, orderBy: { appointmentDate: 'desc' } },
         shareholders: { orderBy: { shareholdingPct: 'desc' } },
         beneficialOwners: { orderBy: { createdAt: 'desc' } },

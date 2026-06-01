@@ -137,6 +137,28 @@ router.get(
 // ==============================================================================
 
 /**
+ * POST /credit-documents/:id/verify
+ * Mark a document as verified
+ * Requires: credit:write
+ */
+router.post(
+  '/credit-documents/:id/verify',
+  requirePermission('credit:write'),
+  creditDocumentController.verify,
+);
+
+/**
+ * POST /credit-documents/:id/reject
+ * Reject a document with a reason
+ * Requires: credit:write
+ */
+router.post(
+  '/credit-documents/:id/reject',
+  requirePermission('credit:write'),
+  creditDocumentController.reject,
+);
+
+/**
  * PATCH /credit-documents/:id/av-status
  * Update AV scan status of a document
  * Requires: credit:admin

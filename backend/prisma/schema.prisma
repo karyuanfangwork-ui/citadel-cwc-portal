@@ -152,6 +152,7 @@ model User {
   creditApplicationRm      CreditApplication[]     @relation("CreditApplicationRm")
   creditApplicationAnalyst CreditApplication[]     @relation("CreditApplicationAnalyst")
   creditDocumentUploads    CreditDocument[]        @relation("CreditDocumentUpload")
+  creditDocumentVerifications CreditDocument[]    @relation("CreditDocumentVerifier")
   creditDecisions          CreditDecision[]        @relation("CreditDecisionBy")
   bureauChecksRun          CreditBureauCheck[]     @relation("BureauCheckRunBy")
   applicationSignoffs      ApplicationSignoff[]    @relation("ApplicationSignoffBy")
@@ -3204,9 +3205,15 @@ model CreditDocument {
   isAvClean        Boolean?       @map("is_av_clean") // null = not scanned yet
   
   uploadedById     String         @map("uploaded_by_id") @db.Uuid
-  
+
   description      String?        @db.Text
-  
+
+  // Verification
+  verificationStatus String?      @map("verification_status") @db.VarChar(30) // PENDING | VERIFIED | REJECTED
+  verifiedById     String?        @map("verified_by_id") @db.Uuid
+  verifiedAt       DateTime?      @map("verified_at") @db.Timestamp(6)
+  rejectionReason  String?        @map("rejection_reason") @db.Text
+
   deletedAt        DateTime?      @map("deleted_at") @db.Timestamp(6)
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamp(6)
@@ -3214,6 +3221,7 @@ model CreditDocument {
   application      CreditApplication? @relation(fields: [applicationId], references: [id])
   borrowerProfile  BorrowerProfile     @relation(fields: [borrowerProfileId], references: [id])
   uploadedBy       User                @relation("CreditDocumentUpload", fields: [uploadedById], references: [id])
+  verifiedBy       User?               @relation("CreditDocumentVerifier", fields: [verifiedById], references: [id])
   versions         CreditDocumentVersion[]
   
   @@index([applicationId])

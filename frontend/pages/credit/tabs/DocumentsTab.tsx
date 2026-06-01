@@ -114,7 +114,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
     try {
       setVerifying(docId);
       const updated = await creditService.verifyDocument(docId);
-      setDocs(prev => prev.map(d => d.id === docId ? { ...d, status: updated.status } : d));
+      setDocs(prev => prev.map(d => d.id === docId ? { ...d, verificationStatus: 'VERIFIED' as DocumentStatus } : d));
       toast.success('Document verified');
     } catch (e) {
       toast.error(friendlyMessage(e, 'Failed to verify document'));
@@ -128,7 +128,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
     try {
       setVerifying(docId);
       const updated = await creditService.rejectDocument(docId, rejectReason);
-      setDocs(prev => prev.map(d => d.id === docId ? { ...d, status: updated.status } : d));
+      setDocs(prev => prev.map(d => d.id === docId ? { ...d, verificationStatus: 'REJECTED' as DocumentStatus, rejectionReason: rejectReason } : d));
       toast.success('Document rejected');
       setRejectingId(null);
       setRejectReason('');
@@ -143,21 +143,36 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
   const docClasses = getDocClasses(borrowerType);
   const requiredClasses = REQUIRED_BY_TYPE[borrowerType ?? ''] ?? REQUIRED_BY_TYPE['CORPORATE'];
   const uploadedClasses = new Set(docs.map(d => (d as any).classification));
+  const nricFromProfile = !!((app.borrowerProfile as any)?.contact?.nricPassport);
   const missingRequired = requiredClasses.filter(c => !uploadedClasses.has(c));
+  const effectiveMissing = missingRequired.filter(c => !(c === 'NRIC_PASSPORT' && nricFromProfile));
 
   return (
     <div className="space-y-6">
       {/* Required docs status */}
-      {missingRequired.length > 0 && (
+      {effectiveMissing.length > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
           <span className="material-symbols-outlined text-amber-500 text-xl mt-0.5">warning</span>
           <div>
             <p className="text-sm font-bold text-amber-800 mb-1">Required documents missing</p>
             <ul className="text-xs text-amber-700 space-y-0.5">
-              {missingRequired.map(c => (
+              {effectiveMissing.map(c => (
                 <li key={c}>• {LABEL[c]}</li>
               ))}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {/* NRIC verified from borrower profile */}
+      {nricFromProfile && !uploadedClasses.has('NRIC_PASSPORT') && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+          <span className="material-symbols-outlined text-blue-500 text-xl mt-0.5">verified</span>
+          <div>
+            <p className="text-sm font-bold text-blue-800 mb-0.5">NRIC / Passport — Verified from profile</p>
+            <p className="text-xs text-blue-600">
+              Borrower's NRIC / Passport is on file from their profile. A scanned copy can still be uploaded below for your records.
+            </p>
           </div>
         </div>
       )}
@@ -232,7 +247,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
         ) : (
           <ul className="divide-y divide-border">
             {docs.map(doc => {
-              const status = (doc.status ?? 'PENDING') as DocumentStatus;
+              const status = (doc.verificationStatus ?? doc.status ?? 'PENDING') as DocumentStatus;
               const style = STATUS_STYLE[status] ?? STATUS_STYLE.PENDING;
               const classification = (doc as any).classification as string;
               return (

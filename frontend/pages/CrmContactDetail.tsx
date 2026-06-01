@@ -719,6 +719,7 @@ const CrmContactDetail = () => {
       department: c.department ?? '',
       accountId: c.accountId ?? '',
       isPrimary: c.isPrimary ?? false,
+      nricPassport: (c as any).nricPassport ?? '',
     });
     setShowEdit(true);
     if (accounts.length === 0) {
@@ -1008,6 +1009,16 @@ const CrmContactDetail = () => {
                 />
               </div>
             ))}
+            {/* Editable: NRIC / Passport */}
+            <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+              <span className="material-symbols-outlined text-base text-text-secondary w-5">fingerprint</span>
+              <span className="text-xs text-text-secondary w-24 shrink-0">NRIC / Passport</span>
+              <InlineEdit
+                value={(contact as any).nricPassport ?? ''}
+                type="text"
+                onSave={(val) => handleInlineSave('nricPassport', val)}
+              />
+            </div>
             {/* Read-only: Account (link) */}
             <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">business</span>
@@ -1395,6 +1406,12 @@ const CrmContactDetail = () => {
                   <input value={editForm.department ?? ''} onChange={e => setEditForm(f => ({ ...f, department: e.target.value }))}
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">NRIC / Passport</label>
+                <input value={(editForm as any).nricPassport ?? ''} onChange={e => setEditForm(f => ({ ...f, nricPassport: e.target.value }))}
+                  placeholder="e.g. 900101-14-5678"
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-bg-surface text-text-primary font-mono" />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Account</label>

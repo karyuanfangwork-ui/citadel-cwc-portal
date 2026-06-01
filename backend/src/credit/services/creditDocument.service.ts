@@ -486,6 +486,30 @@ class CreditDocumentService {
   }
 
   // ===========================================================================
+  // Document Verification
+  // ===========================================================================
+
+  async verifyDocument(id: string, verifiedById: string) {
+    const existing = await prisma.creditDocument.findFirst({ where: { id, deletedAt: null } });
+    if (!existing) return null;
+    return prisma.creditDocument.update({
+      where: { id },
+      data: { verificationStatus: 'VERIFIED', verifiedById, verifiedAt: new Date(), rejectionReason: null },
+      include: { uploadedBy: { select: { id: true, firstName: true, lastName: true, email: true } } },
+    });
+  }
+
+  async rejectDocument(id: string, verifiedById: string, rejectionReason: string) {
+    const existing = await prisma.creditDocument.findFirst({ where: { id, deletedAt: null } });
+    if (!existing) return null;
+    return prisma.creditDocument.update({
+      where: { id },
+      data: { verificationStatus: 'REJECTED', verifiedById, verifiedAt: new Date(), rejectionReason },
+      include: { uploadedBy: { select: { id: true, firstName: true, lastName: true, email: true } } },
+    });
+  }
+
+  // ===========================================================================
   // Document Download (presigned URL via S3)
   // ===========================================================================
 

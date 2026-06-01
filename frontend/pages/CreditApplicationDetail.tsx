@@ -150,7 +150,7 @@ const CreditApplicationDetail: React.FC = () => {
 
   useEffect(() => { fetchApp(); }, [fetchApp]);
   useEffect(() => { if (id) fetchTransitions(); }, [fetchTransitions]);
-  useEffect(() => { if (activeTab === 'facilities') fetchFacilities(); }, [activeTab, fetchFacilities]);
+  useEffect(() => { if (id) fetchFacilities(); }, [fetchFacilities]); // Load facilities on mount for section completion
 
   // Fetch readiness check when application is in DRAFT state
   useEffect(() => {

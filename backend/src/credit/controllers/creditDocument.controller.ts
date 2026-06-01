@@ -246,6 +246,26 @@ class CreditDocumentController {
   });
 
   // ===========================================================================
+  // Verification
+  // ===========================================================================
+
+  verify = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const doc = await creditDocumentService.verifyDocument(id, req.user!.id);
+    if (!doc) throw new AppError('Document not found', 404);
+    res.json({ status: 'success', data: { document: doc } });
+  });
+
+  reject = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const { rejectionReason } = req.body;
+    if (!rejectionReason) throw new AppError('rejectionReason is required', 400);
+    const doc = await creditDocumentService.rejectDocument(id, req.user!.id, rejectionReason);
+    if (!doc) throw new AppError('Document not found', 404);
+    res.json({ status: 'success', data: { document: doc } });
+  });
+
+  // ===========================================================================
   // Download (presigned URL)
   // ===========================================================================
 

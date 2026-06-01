@@ -222,13 +222,6 @@ const BorrowerProfileDetail: React.FC = () => {
                 <span className="material-symbols-outlined text-base">business</span> View Account
               </Link>
             )}
-            {profile.contact && (
-              <Link to={`/crm/contacts/${profile.contact.id}`}
-                className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
-                style={{ textDecoration: 'none' }}>
-                <span className="material-symbols-outlined text-base">person</span> View Contact
-              </Link>
-            )}
             {canWrite && (
               <Link to={`/credit/applications?create=1&borrowerId=${profile.id}`}
                 className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
@@ -322,16 +315,22 @@ const BorrowerProfileDetail: React.FC = () => {
               )}
               {profile.contact && (
                 <div className="mt-4 pt-4 border-t border-border">
-                  <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Linked Contact</h3>
-                  <Link to={`/crm/contacts/${profile.contact.id}`} style={{ textDecoration: 'none' }}>
-                    <div className="flex items-center gap-3 p-3 bg-bg-subtle border border-border rounded-lg hover:border-brand-300 transition-colors">
-                      <span className="material-symbols-outlined text-brand-700">person</span>
-                      <div>
-                        <p className="text-sm font-bold text-text-primary">{profile.contact.firstName} {profile.contact.lastName}</p>
-                        {profile.contact.email && <p className="text-xs text-text-secondary">{profile.contact.email}</p>}
-                      </div>
+                  <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Contact Details</h3>
+                  {[
+                    { label: 'Full Name', value: `${profile.contact.firstName} ${profile.contact.lastName}`.trim(), icon: 'person' },
+                    { label: 'Job Title', value: profile.contact.jobTitle ?? '—', icon: 'work' },
+                    { label: 'Email', value: profile.contact.email ?? '—', icon: 'mail' },
+                    { label: 'Phone', value: profile.contact.phone ?? '—', icon: 'call' },
+                    { label: 'Mobile', value: profile.contact.mobile ?? '—', icon: 'smartphone' },
+                    { label: 'Date of Birth', value: profile.contact.dateOfBirth ? new Date(profile.contact.dateOfBirth).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—', icon: 'cake' },
+                    { label: 'NRIC / Passport', value: profile.contact.nricPassport ?? '—', icon: 'badge' },
+                  ].filter(f => f.value !== '—' || ['Full Name', 'Email'].includes(f.label)).map(f => (
+                    <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                      <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
+                      <span className="text-xs text-text-secondary w-28 shrink-0">{f.label}</span>
+                      <span className="text-sm text-text-primary">{f.value}</span>
                     </div>
-                  </Link>
+                  ))}
                 </div>
               )}
             </div>

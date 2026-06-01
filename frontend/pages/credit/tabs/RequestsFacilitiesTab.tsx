@@ -11,6 +11,7 @@ import apiClient from '../../../src/services/api';
 import { getFacilityTypes } from '../creditUtils';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import useAutosave from '../../../src/hooks/useAutosave';
+import RetailFacilitiesTab from './RetailFacilitiesTab';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -269,6 +270,12 @@ const FACILITY_FILTER_OPTIONS: { value: FacilityFilter; label: string }[] = [
 ];
 
 const RequestsFacilitiesTab: React.FC<Props> = ({ application, onDirtyChange }) => {
+  // Retail borrowers get a simplified facility form (same pattern as FinancialsTab → RetailIncomeTab)
+  const borrowerType = (application as any).borrowerProfile?.borrowerType;
+  if (borrowerType === 'INDIVIDUAL' || borrowerType === 'SOLE_PROPRIETOR') {
+    return <RetailFacilitiesTab application={application} onDirtyChange={onDirtyChange} />;
+  }
+
   const readOnly = application.state !== 'DRAFT';
   const appId = application.id;
 

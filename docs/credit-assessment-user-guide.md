@@ -23,6 +23,7 @@
 14. [Application State Machine Reference](#14-application-state-machine-reference)
 15. [Malaysia Regulatory & Market Context](#15-malaysia-regulatory--market-context)
 16. [Known Gaps & Roadmap Items](#16-known-gaps--roadmap-items)
+17. [Implemented Features Not in User Journeys](#17-implemented-features-not-in-user-journeys)
 
 ---
 
@@ -46,7 +47,7 @@ Access the Credit module via the CRM navigation bar ("Credit" tab, requires `cre
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────────┐
-│  Dashboard │ Borrowers │ Applications │ My Approvals │ Financials │ Committee │ Collateral │ Scorecards │ Analysis │
+│  Dashboard │ Borrowers │ Applications │ My Approvals │ Financials │ Committee │ Collateral │ Scorecards │ Analysis │ Reports │
 └──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -54,7 +55,7 @@ Access the Credit module via the CRM navigation bar ("Credit" tab, requires `cre
 - The bar is **responsive**: on smaller screens, items overflow into a "More" dropdown
 - Each tab's access level is shown below
 
-| Tab | Route | Requires Permission | Who Sees It |
+|| Tab | Route | Requires Permission | Who Sees It ||
 |-----|-------|-------------------|-------------|
 | Dashboard | `/credit` | credit:read | All credit users |
 | Borrowers | `/credit/borrowers` | credit:read | All credit users |
@@ -65,6 +66,11 @@ Access the Credit module via the CRM navigation bar ("Credit" tab, requires `cre
 | Collateral | `/credit/collateral` | credit:read | All credit users |
 | Scorecards | `/credit/scorecards` | credit:admin | Admins only |
 | Analysis | `/credit/analysis` | credit:read | All credit users |
+| Reports | `/credit/reports` | credit:read | All credit users |
+
+> **Mobile-optimized routes** also exist but are not shown in the main nav:
+> - `/credit/m/approvals` — Mobile Approval Inbox (credit:approve)
+> - `/credit/m/committee/:meetingId` — Mobile Committee Voting (credit:approve)
 
 ---
 
@@ -75,7 +81,7 @@ Access the Credit module via the CRM navigation bar ("Credit" tab, requires `cre
 ### 3.1 Create a Borrower Profile
 
 1. Navigate to **Borrowers** tab → Click **Create** button
-2. Select borrower type: **Individual**, **Corporate**, or **Sole Proprietor**
+2. Select borrower type: **Individual**, **Corporate**, **Joint**, or **Sole Proprietor**
 3. Fill in profile details:
 
    | Field (Individual) | Field (Corporate) |
@@ -93,7 +99,7 @@ Access the Credit module via the CRM navigation bar ("Credit" tab, requires `cre
 5. For corporate borrowers, optionally capture **Bumiputera status** (relevant for SME Bank, MIDF, BNM Fund for SMEs, TEKUN financing eligibility) and **MSIC 2008 sector code** (DOSM standard)
 6. Click **Save** → Profile created in **`DRAFT`** status
 
-> **External bureau checks:** During KYC/Underwriting, the system is designed to pull **CCRIS (Central Credit Reference Information System, BNM)** and **CTOS / Experian RAMCI** reports via the bureau adapter. The integration is currently a placeholder (`bureau.placeholder.ts`) — production deployment requires live adapter wiring.
+> **External bureau checks:** During KYC/Underwriting, the system is designed to pull **CCRIS (Central Credit Reference Information System, BNM)** and **CTOS / Experian RAMCI** reports via the bureau adapter. The integration is currently a **noop stub** (`bureau.noop.ts`) that returns null scores/reports — production deployment requires live adapter wiring (`BUREAU_PROVIDER` env var). A **production guard** will throw at boot if `credit:bureau_checks=true` is set in production without a real provider configured.
 
 ### 3.2 Add Related Parties
 
@@ -123,24 +129,36 @@ On the Borrower detail page, add related entities:
 On the Borrower detail page → **Documents** section (when available):
 
 1. Click **Upload** or drag-and-drop files into the upload area
-2. Select document type from 8 categories:
+2. Select document type from 20 categories:
 
    | Document Type | Description |
    |--------------|-------------|
-   | NRIC | National ID card |
-   | Passport | International passport |
-   | Business Registration | SSM registration (Suruhanjaya Syarikat Malaysia) — Form 9/13/24/49 or Section 14/17/58 documents under Companies Act 2016 |
-   | Tax Return | Tax filing documents |
+   | NRIC / Passport | National ID card or international passport (combined class) |
+   | SSM Certificate | SSM business registration certificate |
+   | Memorandum & Articles | Memorandum and Articles of Association |
+   | MOA / AOA | Memorandum of Association / Articles of Association |
+   | Audited Financials | Audited financial statements |
+   | Management Accounts | Unaudited management accounts |
    | Bank Statement | Bank statements |
-   | Financial Statement | Audited/unaudited financials |
-   | Utility Bill | Proof of address |
+   | Tax Return | Tax filing documents |
+   | Business Plan | Business plan or projection |
+   | Credit Bureau Report | CCRIS / CTOS / bureau reports |
+   | Valuation Report | Property / asset valuation |
+   | Insurance Certificate | Insurance policy documents |
+   | Board Resolution | Board resolution documents |
+   | Authorized Signatory | Signatory verification documents |
+   | Guarantee Letter | Corporate / bank guarantee |
+   | Pledge Agreement | Pledge / charge documents |
+   | Security Document | Security / collateral documents |
+   | Payslip | Salary slips (individual borrowers) |
+   | JV Agreement | Joint venture agreement |
    | Other | Any supporting document |
 
 3. Documents upload with **PENDING** verification status
 4. **Verification workflow:**
    - Click **Verify** → status changes to **VERIFIED** (document accepted)
    - Click **Reject** → enter rejection reason → status changes to **REJECTED**
-5. Each document is automatically scanned by **ClamAV** for viruses
+5. Documents can be virus-scanned via the **ClamAV** integration (triggered separately via the Security endpoint)
 6. Document hash (SHA-256) is stored for integrity verification
 
 ### Walkthrough Demo Script
@@ -161,7 +179,7 @@ On the Borrower detail page → **Documents** section (when available):
    | Field | Description |
    |-------|-------------|
    | Borrower | Select from existing borrower profiles |
-   | Product Type | Term Loan, Revolving Credit, Trade Finance, Overdraft, Project Finance, Syndicated, Bridge Loan, Letter of Credit, Bank Guarantee |
+   | Product Type | Term Loan, Revolving Facility, Trade Finance, Overdraft, Project Finance, Syndicated, Bridging, Hire Purchase |
    | Requested Amount | In currency (e.g., RM5,000,000.00) |
    | Requested Tenor | In months |
    | Currency | MYR, USD, etc. (foreign-currency facilities must comply with BNM **Foreign Exchange Administration (FEA)** rules) |
@@ -691,11 +709,11 @@ Navigate to **Dashboard** tab — 4 widget panels:
 
 - Sensitive fields (NRIC, Passport) on `BorrowerProfile` are **encrypted at rest** (AES-256-CBC via `CreditEncryptionService`, key from `CREDIT_ENCRYPTION_KEY` env var)
 - **Governing statute:** All PII handling is subject to the **Personal Data Protection Act 2010 (PDPA), Malaysia** — consent, purpose limitation, retention, and access logs are mandatory
-- **Known gap:** As of this release, NRIC/Passport on related-party tables (Director / Shareholder / UBO) are stored in plaintext. Encryption parity is on the remediation backlog — see §16.
+- **Encryption parity achieved:** As of the latest release, Director, Shareholder, and UBO `nricPassport` fields now use `nricPassportEncrypted` + `nricPassportHmac` (AES-256-CBC + HMAC-SHA256), matching `BorrowerProfile` encryption. The plaintext `nricPassport` column has been removed from all three models.
 - Every read access to PII fields is **logged** with:
   - Who accessed it, which resource, which field, reason for access
 - Admin can view **PII Read Logs** to audit who has accessed sensitive data
-- **PII Export** requests are permission-gated (`credit:export:pii`) with reason capture
+- **PII Export** requests are permission-gated (`credit:export` — the actual enforced permission; code comments reference `credit:export:pii` but the route middleware checks `credit:export`) with reason capture
 
 ### 12.3 Segregation of Duties (SOD)
 
@@ -705,30 +723,61 @@ Navigate to **Dashboard** tab — 4 widget panels:
 
 ### 12.4 Document Security
 
-- All uploaded documents are **virus-scanned** via ClamAV integration
+- All uploaded documents can be **virus-scanned** via ClamAV integration
+- ClamAV scanning is triggered via `POST /credit/security/scan-document` endpoint (requires `credit:write`) — it is **not** automatically run on upload
+- If ClamAV daemon (`clamdscan`) is not available on the system, scans are **gracefully skipped** with `avClean = null` and `avScanResult = 'SKIPPED: ClamAV not available'`
 - Document **SHA-256 hash** stored for integrity verification
-- Document **versioning** tracks all file replacements
-- Scanning status (`isAvClean`) visible on each document record
+- Document **versioning** tracks all file replacements (`CreditDocumentVersion`)
+- Scanning status (`avClean`, `avScanResult`) visible on each document record
+- **Path-traversal guard** prevents scanning files outside the upload directory
 
 ### 12.5 Feature Flags
 
 - Credit module capabilities can be **toggled on/off** via feature flags
 - Supports **rollout percentage** for gradual deployment
-- Flags follow convention: `credit:<capability>` (e.g., `credit:borrowers`, `credit:applications`)
+- Flags follow convention: `credit:<capability>`
 - All credit routes require the `credit:module` feature flag to be enabled
+
+**Seeded feature flags (11):**
+
+| Flag | Description |
+|------|-------------|
+| `credit:module` | Master toggle — must be enabled for any credit access |
+| `credit:borrowers` | Borrower management features |
+| `credit:applications` | Credit application features |
+| `credit:spreading` | Financial statement spreading |
+| `credit:scoring` | Scorecard engine and scoring |
+| `credit:committee` | Committee meeting management |
+| `credit:collateral` | Collateral and guarantee management |
+| `credit:conditions` | Conditions precedent/subsequent |
+| `credit:monitoring` | Post-disbursement monitoring (health, covenants, signals) |
+| `credit:dashboards` | Dashboard and reporting widgets |
+| `credit:ai` | AI-assisted features |
+
+> **Additional flag in code:** `credit:advanced_memo` exists in `tabRegistry.ts` for bank-only CA Memo sections but is not in the seed data.
 
 ---
 
 ## 13. Permission Reference
 
-| Permission | Description | Who Typically Has It |
+### Enforced Permissions (6 checked by route middleware)
+
+|| Permission | Description | Who Typically Has It ||
 |-----------|-------------|---------------------|
 | `credit:read` | View all credit data, dashboards, reports | All credit team members |
 | `credit:write` | Create/update borrowers, applications, documents, financials | Credit Analysts, RMs |
 | `credit:approve` | Access My Approvals, submit approval decisions | Approvers, Senior Analysts |
 | `credit:admin` | Delete records, manage scorecards, feature flags, PII logs, override scores | Credit Admin, Head of Credit |
-| `credit:export:pii` | Request PII data exports | Compliance, Audit |
-| `credit:module` | Feature flag — must be enabled for any credit access | System-level toggle |
+| `credit:disburse` | Disbursement transitions (SOD-separate from admin) | Disbursement officers |
+| `credit:export` | Request PII data exports and protected exports | Compliance, Audit |
+
+> **Note:** The seed file defines 16 credit permissions. The additional 10 (`credit:delete`, `credit:committee`, `credit:score`, `credit:spread`, `credit:analyze`, `credit:compliance`, `credit:risk`, `credit:override`, `credit:monitor`, `credit:document`) are seeded but not currently enforced by any route middleware. They exist for future fine-grained access control.
+
+### Feature Flag (not a permission)
+
+|| Flag | Description | Scope ||
+|------|-------------|-------|
+| `credit:module` | Must be enabled for any credit access | System-level toggle (enforced via `requireFeatureFlag`, not `requirePermission`) |
 
 ---
 
@@ -756,20 +805,22 @@ Navigate to **Dashboard** tab — 4 widget panels:
 
 ### Product Types
 
-| Code | Description |
+|| Code | Description |
 |------|-------------|
 | TERM_LOAN | Term Loan |
 | OVERDRAFT | Overdraft Facility |
 | TRADE_FINANCE | Trade Finance |
-| REVOLVING_CREDIT | Revolving Credit |
-| SYNDICATED_LOAN | Syndicated Loan |
+| REVOLVING_FACILITY | Revolving Credit Facility |
 | PROJECT_FINANCE | Project Finance |
-| BRIDGING_LOAN | Bridging Loan |
-| GUARANTOR_FACILITY | Guarantor Facility |
+| SYNDICATED | Syndicated Loan |
+| BRIDGING | Bridging Loan |
+| HIRE_PURCHASE | Hire Purchase |
+
+> **Note:** The schema also has a separate `FacilityType` enum (12 values) with more granular sub-types including Letter of Credit (LC), Bank Guarantee (BG), Trust Receipt, Cashline, and Islamic variants (RWC_I, LC_I, BG_I, ICMTD_I). These are used at the facility level within an application.
 
 ### Risk Ratings
 
-| Rating | Risk Level |
+|| Rating | Risk Level |
 |--------|-----------|
 | AAA | Lowest Risk |
 | AA | Very Low Risk |
@@ -781,6 +832,7 @@ Navigate to **Dashboard** tab — 4 widget panels:
 | CC | Near Default |
 | C | Imminent Default |
 | D | Default |
+| NR | Not Rated |
 
 ---
 
@@ -813,7 +865,7 @@ This section consolidates the Malaysia-specific regulatory and market convention
 | **MyKad e-KYC** | JPN / NRD | Identity verification |
 | **SSM e-Info / MyData** | SSM | Real-time company profile pulls |
 
-The adapter layer (`backend/src/credit/adapters/`) exposes interfaces for these — production deployment requires replacing placeholder adapters with live integrations and signed-API credentials.
+The adapter layer (`backend/src/credit/adapters/`) exposes interfaces for these — production deployment requires replacing noop/placeholder adapters with live integrations and signed-API credentials. The bureau noop (`bureau.noop.ts`) has a production guard that throws at boot if enabled without a real `BUREAU_PROVIDER`.
 
 ### 15.3 Sectoral & Borrower Classification
 
@@ -851,14 +903,76 @@ These items are scoped but not yet complete in the current release. They are tra
 
 | # | Area | Gap | Status |
 |---|------|-----|--------|
-| 1 | PII encryption parity | Director / Shareholder / UBO `nricPassport` stored in plaintext; only `BorrowerProfile` fields are encrypted | P0 — remediation in progress |
-| 2 | External bureau adapters | `bureau.placeholder.ts`, `aml.placeholder.ts`, `cbs.placeholder.ts`, `esign.placeholder.ts`, `ocr.placeholder.ts` are stubs | Production wiring pending vendor selection |
-| 3 | Frontend routes | `/credit/reports`, `/credit/reviews`, `/credit/disbursements` are referenced in CreditNav but not yet wired in `App.tsx` | Stub pages to be scaffolded |
+| 1 | ~~PII encryption parity~~ | Director / Shareholder / UBO `nricPassport` now use `nricPassportEncrypted` + `nricPassportHmac` fields (AES-256-CBC + HMAC-SHA256 parity with `BorrowerProfile`). Plaintext `nricPassport` column removed from all three models. | ✅ RESOLVED |
+| 2 | External bureau adapters | `bureau.noop.ts` (not `bureau.placeholder.ts`), `aml.placeholder.ts`, `cbs.placeholder.ts`, `esign.placeholder.ts`, `ocr.placeholder.ts` are stubs. The bureau noop has a production guard (throws if `credit:bureau_checks=true` without `BUREAU_PROVIDER` env var). | Production wiring pending vendor selection |
+| 3 | Frontend routes | `/credit/reports` is now wired (CreditReports page with Pipeline/Exposure tabs). `/credit/reviews` and `/credit/disbursements` remain unimplemented — no components or routes exist. | Partial — 1 of 3 done |
 | 4 | Dashboard pipeline widget | Endpoint returns data but UI surfaces an error on load | Frontend fix scheduled |
 | 5 | Scorecard weight validation | Doc states factor weights "must total 100%" — server-side validator enforcement to be re-confirmed | Verification |
 | 6 | Audit chain verification UI | Hash-chained `CreditAuditEvent` exists; admin-facing verification view to be added | Backlog |
-| 7 | MFRS 9 ECL staging | Internal rating to Stage 1/2/3 mapping not yet materialised on the facility record | Backlog |
+| 7 | MFRS 9 ECL staging | Backend ECL routes exist (`ecl.routes.ts` with snapshot/forecast CRUD), but internal rating to Stage 1/2/3 mapping is not yet surfaced on the facility record UI. | Backend done, UI Backlog |
 | 8 | MSIC / Bumiputera fields | Borrower schema additions for MSIC 2008 sector code and Bumiputera flag | Backlog |
+| 9 | Unenforced permissions | 10 of 16 seeded credit permissions have no route middleware enforcement (`credit:delete`, `credit:committee`, `credit:score`, `credit:spread`, `credit:analyze`, `credit:compliance`, `credit:risk`, `credit:override`, `credit:monitor`, `credit:document`) | Future fine-grained ACL |
+
+---
+
+## 17. Implemented Features Not in User Journeys
+
+The following backend routes/services are implemented but not covered by the main user journey sections above. They are part of CA Memo phases and operational features that extend the core workflow.
+
+### 17.1 CA Memo Sub-Modules
+
+| Feature | Route File | Description |
+|---------|-----------|-------------|
+| Bureau Check | `bureauCheck.routes.ts` | Structured CCRIS/CTOS check fields per applicant |
+| Bureau Checklist | `bureauChecklist.routes.ts` | Completion gate for bureau checks before advancing |
+| External Ratings | `externalRating.routes.ts` | External agency ratings (RAM, MARC, etc.) |
+| ECL Snapshots & Forecasts | `ecl.routes.ts` | MFRS 9 Expected Credit Loss data capture |
+| Cashflow Projections | `projection.routes.ts` | Cash flow projection with line items |
+| Sensitivity Scenarios | `sensitivityScenario.routes.ts` | What-if sensitivity analysis |
+| Profitability Analysis | `profitability.routes.ts` | Account P&L breakdown |
+| Wallet Share | `walletShare.routes.ts` | Wallet share analysis per borrower |
+| Qualitative Assessment | `qualitativeAssessment.routes.ts` | Qualitative scoring factors |
+| Retail Income | `retailIncome.routes.ts` | Individual borrower DSR calculation |
+| Industry Assessment | `industryAssessment.routes.ts` | Sector/industry risk assessment |
+| Risk Assessment | `riskAssessment.routes.ts` | Project/performance/packaging/payment risk |
+| RMD Issues | `rmdIssue.routes.ts` | Risk Management Division issue tracking |
+| ESG Assessment | `esg.routes.ts` | ESG guiding principles and category scoring |
+| SICR Assessment | `sicr.routes.ts` | Significant Increase in Credit Risk trigger assessment |
+| Signoff Tracking | `signoff.routes.ts` | Section 19 sign-off (Prepared By / Reviewed By / Concurred By) |
+| Key Counterparties | `keyCounterparty.routes.ts` | Supplier/buyer counterparty tracking |
+| Account Utilisation | `accountUtilisation.routes.ts` | Monthly account utilisation snapshots |
+
+### 17.2 Operational & Security Extensions
+
+| Feature | Route File | Description |
+|---------|-----------|-------------|
+| Score Override with Dual Approval | `scoreOverride.routes.ts` | Override risk rating requiring separate approver sign-off |
+| Delegation (Approve-on-Behalf) | `delegation.routes.ts` | Authorise another user to approve on your behalf |
+| Credit SLA Management | `creditSla.routes.ts` | SLA policies, breach tracking, automated checker job |
+| DLP / Protected Exports | `dlp.routes.ts` | PII redaction, watermarking, export tokens for controlled data extraction |
+| CA Memo PDF Generation | `caMemoPdf.controller.ts` | Generate Credit Assessment Memorandum as PDF |
+| Approval Pack | `approvalPack.controller.ts` | Bundled application approval package |
+| AML Re-screening | `amlRescreen.service.ts` | Automated AML re-screening job |
+| Document Versioning | `creditDocument.routes.ts` | `CreditDocumentVersion` model tracks file replacements |
+| Document Requirements | `creditDocument.routes.ts` | Per-application document checklist |
+| Request Sub-Types | `requestItem.routes.ts` | Facility renewal, variation, policy breach ratification, SICR impairment |
+
+### 17.3 Application Detail Page Tabs (Frontend)
+
+The Credit Application Detail page renders 28+ tab components, many corresponding to the CA Memo sub-modules above:
+
+| Tab Component | Key Feature |
+|-------------|-------------|
+| `AccountConductTab` | Account classification, strategy, connected party |
+| `SecurityGuaranteesTab` | Collateral and guarantee summary |
+| `CounterpartiesTab` | Key counterparties |
+| `BureauCheckTab` | Bureau check status and checklist |
+| `EsgTab` | ESG assessment |
+| `RetailIncomeTab` | Retail income / DSR |
+| `SignoffTab` | Section 19 sign-off workflow |
+| `QualitativeAssessmentTab` | Qualitative scoring |
+| `ForwardLookingRiskTab` | ECL, cashflow projections, sensitivity |
+| `SicrTab` | SICR trigger assessment |
 
 ---
 

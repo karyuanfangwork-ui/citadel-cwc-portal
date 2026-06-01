@@ -457,7 +457,7 @@ class CreditApplicationService {
    * Get a single credit application by ID.
    */
   async getApplication(id: string) {
-    return prisma.creditApplication.findFirst({
+    const app = await prisma.creditApplication.findFirst({
       where: { id, deletedAt: null },
       include: {
         borrowerProfile: {
@@ -465,7 +465,7 @@ class CreditApplicationService {
             id: true,
             borrowerType: true,
             account: { select: { id: true, name: true } },
-            contact: { select: { id: true, firstName: true, lastName: true, email: true } },
+            contact: { select: { id: true, firstName: true, lastName: true, email: true, nricPassport: true } },
           },
         },
         assignedRm: { select: { id: true, firstName: true, lastName: true } },
@@ -473,8 +473,22 @@ class CreditApplicationService {
         facilities: true,
         parties: { include: { borrowerProfile: { select: { id: true, borrowerType: true } } } },
         documents: { where: { deletedAt: null } },
+        // §2.3 — Include related records needed for section completion checks
+        retailIncome: true,
+        bureauChecklist: true,
+        scoreRuns: { orderBy: { createdAt: 'desc' as const }, take: 1 },
+        bureauChecks: true,
       },
-    });
+    }) as any;
+
+    if (!app) return null;
+
+    // Flatten latest risk rating from score run onto the application object
+    // so the frontend can check `app.riskRating` for section S4 completion
+    const latestScoreRun = app.scoreRuns?.[0];
+    app.riskRating = latestScoreRun?.riskRating ?? null;
+
+    return app;
   }
 
   /**
