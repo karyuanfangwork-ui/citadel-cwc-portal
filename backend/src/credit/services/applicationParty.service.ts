@@ -53,6 +53,7 @@ class ApplicationPartyService {
             select: {
               id: true,
               borrowerType: true,
+              name: true,
               account: { select: { id: true, name: true } },
               contact: { select: { id: true, firstName: true, lastName: true } },
             },
@@ -115,6 +116,7 @@ class ApplicationPartyService {
             select: {
               id: true,
               borrowerType: true,
+              name: true,
               account: { select: { id: true, name: true } },
               contact: { select: { id: true, firstName: true, lastName: true } },
             },
@@ -169,6 +171,7 @@ class ApplicationPartyService {
             select: {
               id: true,
               borrowerType: true,
+              name: true,
               account: { select: { id: true, name: true } },
               contact: { select: { id: true, firstName: true, lastName: true } },
             },

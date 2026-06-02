@@ -374,7 +374,7 @@ async function main() {
         CREDIT_ANALYST: ['credit:read', 'credit:write', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
         CREDIT_MANAGER: ['credit:read', 'credit:write', 'credit:approve', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
         CREDIT_SENIOR: ['credit:read', 'credit:write', 'credit:approve', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
-        CREDIT_COMMITTEE: ['credit:read', 'credit:committee', 'credit:analyze', 'credit:risk', 'credit:monitor'],
+        CREDIT_COMMITTEE: ['credit:read', 'credit:approve', 'credit:committee', 'credit:analyze', 'credit:risk', 'credit:monitor'],
         CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:delete', 'credit:approve', 'credit:create', 'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:admin', 'credit:compliance', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
         CREDIT_OPS: ['credit:read', 'credit:write', 'credit:disburse', 'credit:monitor', 'credit:document'],
     };

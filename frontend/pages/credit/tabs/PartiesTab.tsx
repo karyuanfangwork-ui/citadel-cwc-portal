@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import EmptyState from '../../../src/components/EmptyState';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import NewBorrowerWizard from '../../../src/components/credit/NewBorrowerWizard';
 
 interface PartiesTabProps {
   app: CreditApplication;
@@ -28,6 +29,7 @@ const PartiesTab: React.FC<PartiesTabProps> = ({ app, borrowerType }) => {
   const [borrowerProfiles, setBorrowerProfiles] = useState<BorrowerProfile[]>([]);
   const [savingParty, setSavingParty] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showNewBorrower, setShowNewBorrower] = useState(false);
 
   const validatePartyForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -111,8 +113,8 @@ const PartiesTab: React.FC<PartiesTabProps> = ({ app, borrowerType }) => {
             {parties.map(p => {
               const contact = p.borrowerProfile?.contact;
               const account = p.borrowerProfile?.account;
-              const displayName = contact ? `${contact.firstName} ${contact.lastName}` : account?.name ?? 'Unknown';
-              const initials = contact ? `${contact.firstName?.[0] ?? ''}${contact.lastName?.[0] ?? ''}` : (account?.name?.[0] ?? '?');
+              const displayName = p.borrowerProfile?.name || (contact ? `${contact.firstName} ${contact.lastName}` : account?.name ?? 'Unknown');
+              const initials = contact ? `${contact.firstName?.[0] ?? ''}${contact.lastName?.[0] ?? ''}` : (account?.name?.[0] ?? p.borrowerProfile?.name?.[0] ?? '?');
               const roleLabel = p.role?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) ?? 'Party';
               return (
                 <div key={p.id} className="flex items-center gap-4 bg-bg-surface border border-border rounded-xl p-4">
@@ -156,14 +158,25 @@ const PartiesTab: React.FC<PartiesTabProps> = ({ app, borrowerType }) => {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Borrower Profile *</label>
-                <select required value={partyForm.borrowerProfileId} onChange={e => { setPartyForm(f => ({ ...f, borrowerProfileId: e.target.value })); setErrors(errs => { const { borrowerProfileId: _, ...rest } = errs; return rest; }); }}
-                  className={`w-full border ${errors.borrowerProfileId ? 'border-red-500' : 'border-border'} rounded-lg px-3 py-2 text-sm`} style={{ fontFamily: 'var(--font-sans)' }}>
-                  <option value="">Select a borrower...</option>
-                  {borrowerProfiles.map(bp => {
-                    const name = bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : (bp.account?.name ?? bp.id);
-                    return <option key={bp.id} value={bp.id}>{name} ({bp.borrowerType})</option>;
-                  })}
-                </select>
+                <div className="flex gap-2 items-start">
+                  <select required value={partyForm.borrowerProfileId} onChange={e => { setPartyForm(f => ({ ...f, borrowerProfileId: e.target.value })); setErrors(errs => { const { borrowerProfileId: _, ...rest } = errs; return rest; }); }}
+                    className={`flex-1 border ${errors.borrowerProfileId ? 'border-red-500' : 'border-border'} rounded-lg px-3 py-2 text-sm`} style={{ fontFamily: 'var(--font-sans)' }}>
+                    <option value="">Select a borrower...</option>
+                    {borrowerProfiles.map(bp => {
+                      const name = bp.name || (bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : (bp.account?.name ?? bp.id));
+                      return <option key={bp.id} value={bp.id}>{name} ({bp.borrowerType})</option>;
+                    })}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewBorrower(true)}
+                    className="shrink-0 flex items-center gap-1 px-3 py-2 border border-border rounded-lg text-sm font-semibold text-text-secondary hover:bg-surface-muted transition-colors bg-surface cursor-pointer font-sans"
+                    title="Create new borrower"
+                  >
+                    <span className="material-symbols-outlined text-base">person_add</span>
+                    New
+                  </button>
+                </div>
                 {errors.borrowerProfileId && <p className="text-red-500 text-xs mt-1">{errors.borrowerProfileId}</p>}
               </div>
               <div>
@@ -186,6 +199,17 @@ const PartiesTab: React.FC<PartiesTabProps> = ({ app, borrowerType }) => {
           </div>
         </div>
       )}
+
+      <NewBorrowerWizard
+        isOpen={showNewBorrower}
+        onClose={() => setShowNewBorrower(false)}
+        navigateAfterCreate={false}
+        onCreated={(borrowerId) => {
+          setShowNewBorrower(false);
+          setPartyForm(f => ({ ...f, borrowerProfileId: borrowerId }));
+          fetchBorrowerProfiles();
+        }}
+      />
     </>
   );
 };

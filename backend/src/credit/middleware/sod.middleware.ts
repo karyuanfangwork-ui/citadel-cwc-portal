@@ -85,19 +85,23 @@ export function enforceCreditSOD() {
 
       // ── Rule 2: Maker-checker on state transitions ───────────────────────
       // The person who triggered the current state (maker) should not also be
-      // the one approving it (checker). We look at the most recent state
-      // transition audit event for this application.
+      // the one approving it (checker). We look at the most recent actual
+      // state transition (oldState !== newState) for this application.
+      // Field-only updates (oldState === newState) are excluded so that
+      // editing a field does not block the same user from later approving.
       try {
         const lastTransition = await prisma.creditAuditEvent.findFirst({
           where: {
             applicationId,
             eventType: { in: ['STATE_TRANSITION', 'SUBMISSION'] },
+            oldState: { not: null },
+            newState: { not: null },
           },
           orderBy: { createdAt: 'desc' },
-          select: { actorId: true },
+          select: { actorId: true, oldState: true, newState: true },
         });
 
-        if (lastTransition && lastTransition.actorId === userId) {
+        if (lastTransition && lastTransition.actorId === userId && lastTransition.oldState !== lastTransition.newState) {
           throw new AppError(
             'Segregation of Duties violation: You cannot approve a state transition that you originated (maker-checker constraint). Another approver must verify this action.',
             403,
@@ -197,17 +201,21 @@ export function enforceCommitteeSOD() {
       }
 
       // ── Rule 2: Maker-checker on state transitions ───────────────────────
+      // Only block if the user originated an actual state change (oldState !== newState).
+      // Field-only updates (oldState === newState) do not trigger maker-checker.
       try {
         const lastTransition = await prisma.creditAuditEvent.findFirst({
           where: {
             applicationId,
             eventType: { in: ['STATE_TRANSITION', 'SUBMISSION'] },
+            oldState: { not: null },
+            newState: { not: null },
           },
           orderBy: { createdAt: 'desc' },
-          select: { actorId: true },
+          select: { actorId: true, oldState: true, newState: true },
         });
 
-        if (lastTransition && lastTransition.actorId === userId) {
+        if (lastTransition && lastTransition.actorId === userId && lastTransition.oldState !== lastTransition.newState) {
           throw new AppError(
             'Segregation of Duties violation: You cannot approve a state transition that you originated (maker-checker constraint). Another committee member must verify this action.',
             403,

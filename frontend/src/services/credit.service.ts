@@ -107,6 +107,7 @@ export interface UltimateBeneficialOwner {
 export interface BorrowerProfile {
   id: string;
   borrowerType: string;
+  name?: string | null;
   accountId: string | null;
   contactId: string | null;
   creditRiskRating: string | null;
@@ -134,6 +135,13 @@ export interface BorrowerProfile {
   applications?: CreditApplication[];
   financialStatements?: FinancialStatement[];
   _count?: { documents: number; applications: number };
+}
+
+export interface CreateBorrowerProfilePayload {
+  borrowerType: 'CORPORATE' | 'INDIVIDUAL' | 'SOLE_PROPRIETOR';
+  name?: string | null;
+  accountId?: string | null;
+  contactId?: string | null;
 }
 
 export interface CreditDocument {
@@ -404,6 +412,7 @@ export interface CreditApplicationParty {
   borrowerProfile: {
     id: string;
     borrowerType: string;
+    name?: string | null;
     account: { id: string; name: string } | null;
     contact: { id: string; firstName: string; lastName: string } | null;
   } | null;
@@ -641,9 +650,14 @@ const creditService = {
     return res.data.data.profile as BorrowerProfile;
   },
 
-  async createBorrowerProfile(data: Partial<BorrowerProfile>) {
+  async createBorrowerProfile(data: CreateBorrowerProfilePayload) {
     const res = await apiClient.post('/credit/borrowers', data);
     return res.data.data.profile as BorrowerProfile;
+  },
+
+  async checkDuplicateBorrower(params: { ssm?: string; nric?: string }): Promise<{ exists: boolean; borrowerId?: string }> {
+    const res = await apiClient.get('/credit/borrowers/check-duplicate', { params });
+    return res.data.data as { exists: boolean; borrowerId?: string };
   },
 
   async updateBorrowerProfile(id: string, data: Partial<BorrowerProfile>) {

@@ -2667,7 +2667,10 @@ model BorrowerProfile {
   id                String       @id @default(uuid()) @db.Uuid
   borrowerType      BorrowerType @default(CORPORATE) @map("borrower_type")
   
-  // Link to CRM — exactly one of accountId or contactId must be set
+  // Display name for unlinked profiles (required when accountId and contactId are both null)
+  name              String?      @db.VarChar(255)
+  
+  // Link to CRM — at least one of accountId, contactId, or name must be set
   accountId         String?      @unique @map("account_id") @db.Uuid
   contactId         String?      @unique @map("contact_id") @db.Uuid
   

@@ -5,6 +5,21 @@ import { borrowerProfileService } from '../services/borrowerProfile.service';
 
 class BorrowerProfileController {
   /**
+   * GET /borrowers/check-duplicate — Check if a borrower exists for a given SSM or NRIC
+   */
+  checkDuplicate = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const ssm = req.query.ssm as string | undefined;
+    const nric = req.query.nric as string | undefined;
+
+    if (!ssm && !nric) {
+      throw new AppError('Provide ssm or nric query parameter', 400);
+    }
+
+    const result = await borrowerProfileService.checkDuplicate({ ssm, nric });
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
    * GET /borrowers — List borrower profiles with pagination & filters
    */
   list = asyncHandler(async (req: AuthRequest, res: Response) => {

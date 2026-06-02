@@ -5,6 +5,7 @@ import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import StateBadge from '../src/components/ui/StateBadge';
+import EditBorrowerModal from '../src/components/credit/EditBorrowerModal';
 
 // ── Helpers ──────────────────────────────────────────────────
 const formatCurrency = (val: number | string | null) => {
@@ -77,10 +78,11 @@ const FACILITY_TYPE_LABELS: Record<string, string> = {
 
 type DetailTab = 'overview' | 'directors' | 'shareholders' | 'ubos' | 'applications' | 'exposure' | 'financials';
 
-// Derive display name from account/contact
+// Derive display name from account/contact or profile.name
 const displayName = (p: BorrowerProfile) => {
   if (p.account) return p.account.name;
   if (p.contact) return `${p.contact.firstName} ${p.contact.lastName}`.trim();
+  if (p.name) return p.name;
   return 'Unnamed Borrower';
 };
 
@@ -103,6 +105,8 @@ const BorrowerProfileDetail: React.FC = () => {
   const [loadingApps, setLoadingApps] = useState(false);
   const [exposure, setExposure] = useState<ExposureDashboardSummary | null>(null);
   const [loadingExposure, setLoadingExposure] = useState(false);
+  const [showLinkCrm, setShowLinkCrm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const canWrite = hasPermission(user, 'credit:write');
   const canReview = hasPermission(user, 'credit:approve');
@@ -223,6 +227,16 @@ const BorrowerProfileDetail: React.FC = () => {
               </Link>
             )}
             {canWrite && (
+              <button
+                type="button"
+                onClick={() => setShowEditModal(true)}
+                className="flex items-center gap-1.5 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors font-bold cursor-pointer bg-none"
+                style={{ border: '1.5px solid' }}
+              >
+                <span className="material-symbols-outlined text-base">edit</span> Edit
+              </button>
+            )}
+            {canWrite && (
               <Link to={`/credit/applications?create=1&borrowerId=${profile.id}`}
                 className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
                 style={{ textDecoration: 'none' }}>
@@ -264,6 +278,32 @@ const BorrowerProfileDetail: React.FC = () => {
         {/* Overview tab */}
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Unlinked CRM nudge */}
+            {!profile.accountId && !profile.contactId && (
+              <div className="md:col-span-2 flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl mb-2">
+                <span className="material-symbols-outlined text-amber-600 text-xl mt-0.5 shrink-0">link_off</span>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-amber-800">No CRM Account linked</p>
+                  <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+                    Linking a CRM account pulls in contact details, activities, and notes — and lets you open credit applications from the CRM side.
+                  </p>
+                  <button
+                    onClick={() => setShowLinkCrm(true)}
+                    className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg transition-colors border-none cursor-pointer font-sans"
+                  >
+                    <span className="material-symbols-outlined text-sm">link</span>
+                    Link CRM Account
+                  </button>
+                </div>
+              </div>
+            )}
+            {showLinkCrm && (
+              <div className="md:col-span-2 flex items-center gap-2 text-xs text-text-secondary px-4 py-2">
+                <span className="material-symbols-outlined text-sm">info</span>
+                CRM linking UI coming soon — use the Edit button to set Account ID or Contact ID directly for now.
+                <button onClick={() => setShowLinkCrm(false)} className="ml-auto text-xs text-text-tertiary hover:text-text-primary border-none bg-none cursor-pointer">Dismiss</button>
+              </div>
+            )}
             {/* Credit Risk Card */}
             <div className="bg-bg-surface border border-border rounded-xl p-5">
               <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Credit Risk</h3>
@@ -679,6 +719,16 @@ const BorrowerProfileDetail: React.FC = () => {
               Open Financial Spreading
             </Link>
           </div>
+        )}
+
+        {/* Edit Profile Modal */}
+        {profile && (
+          <EditBorrowerModal
+            profile={profile}
+            isOpen={showEditModal}
+            onClose={() => setShowEditModal(false)}
+            onSaved={(updated) => { setProfile(updated); setShowEditModal(false); }}
+          />
         )}
       </div>
     </>

@@ -71,9 +71,11 @@ export function decryptBorrowerFields() {
       try {
         const data = body?.data;
 
-        // Handle single BorrowerProfile
-        if (data?.annualIncomeEncrypted || data?.netWorthEncrypted || data?.sourceOfWealthEncrypted) {
-          const decrypted = CreditEncryptionService.decryptBorrowerFields(data);
+        // Handle single BorrowerProfile (GET /borrowers/:id returns { data: { profile: ... } })
+        const profile = data?.profile ?? data;
+
+        if (profile?.annualIncomeEncrypted || profile?.netWorthEncrypted || profile?.sourceOfWealthEncrypted) {
+          const decrypted = CreditEncryptionService.decryptBorrowerFields(profile);
 
           // Determine if the user should see full values or masked
           const shouldMask = !req.user?.roles?.some(r =>
@@ -83,20 +85,20 @@ export function decryptBorrowerFields() {
 
           if (shouldMask && shouldMaskPermission) {
             // Mask sensitive values — show asterisks with last chars
-            data.annualIncome = decrypted.annualIncome ? `***${decrypted.annualIncome.slice(-4)}` : null;
-            data.netWorth = decrypted.netWorth ? `***${decrypted.netWorth.slice(-4)}` : null;
-            data.sourceOfWealth = decrypted.sourceOfWealth ?? null;
+            profile.annualIncome = decrypted.annualIncome ? `***${decrypted.annualIncome.slice(-4)}` : null;
+            profile.netWorth = decrypted.netWorth ? `***${decrypted.netWorth.slice(-4)}` : null;
+            profile.sourceOfWealth = decrypted.sourceOfWealth ?? null;
           } else {
             // Full access — show decrypted values
-            data.annualIncome = decrypted.annualIncome;
-            data.netWorth = decrypted.netWorth;
-            data.sourceOfWealth = decrypted.sourceOfWealth;
+            profile.annualIncome = decrypted.annualIncome;
+            profile.netWorth = decrypted.netWorth;
+            profile.sourceOfWealth = decrypted.sourceOfWealth;
           }
 
           // Remove encrypted blobs from response
-          delete data.annualIncomeEncrypted;
-          delete data.netWorthEncrypted;
-          delete data.sourceOfWealthEncrypted;
+          delete profile.annualIncomeEncrypted;
+          delete profile.netWorthEncrypted;
+          delete profile.sourceOfWealthEncrypted;
         }
 
         // Handle list of BorrowerProfiles

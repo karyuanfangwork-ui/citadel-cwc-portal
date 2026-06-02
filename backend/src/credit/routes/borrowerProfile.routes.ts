@@ -14,6 +14,17 @@ router.use(authenticate);
 router.use(decryptBorrowerFields());
 
 /**
+ * GET /borrowers/check-duplicate
+ * Check if a borrower exists for a given SSM or NRIC
+ * Requires: credit:read
+ */
+router.get(
+  '/check-duplicate',
+  requirePermission('credit:read'),
+  borrowerProfileController.checkDuplicate,
+);
+
+/**
  * GET /borrowers
  * List borrower profiles with pagination & filters
  * Requires: credit:read

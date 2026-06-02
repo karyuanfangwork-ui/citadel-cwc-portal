@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const borrowerTypeEnum = z.enum(['INDIVIDUAL', 'CORPORATE', 'JOINT']);
+const borrowerTypeEnum = z.enum(['INDIVIDUAL', 'CORPORATE', 'JOINT', 'SOLE_PROPRIETOR']);
 const riskRatingEnum = z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D', 'NR']);
 const amlRiskTierEnum = z.enum(['LOW', 'MEDIUM', 'HIGH', 'PROHIBITED']);
 
@@ -10,6 +10,7 @@ const decimalField = z.union([z.string(), z.number()]).optional().nullable();
 export const createBorrowerProfileSchema = z.object({
   body: z.object({
     borrowerType: borrowerTypeEnum.default('CORPORATE'),
+    name: z.string().max(255).optional().nullable(),
     accountId: z.string().uuid().optional().nullable(),
     contactId: z.string().uuid().optional().nullable(),
     creditRiskRating: riskRatingEnum.optional().nullable(),
@@ -23,12 +24,17 @@ export const createBorrowerProfileSchema = z.object({
     employer: z.string().max(255).optional().nullable(),
     annualIncome: decimalField,
     netWorth: decimalField,
+    // §2.9 Encrypted fields — set by encryptBorrowerFields middleware
+    annualIncomeEncrypted: z.string().optional().nullable(),
+    netWorthEncrypted: z.string().optional().nullable(),
+    sourceOfWealthEncrypted: z.string().optional().nullable(),
   }),
 });
 
 export const updateBorrowerProfileSchema = z.object({
   body: z.object({
     borrowerType: borrowerTypeEnum.optional(),
+    name: z.string().max(255).optional().nullable(),
     accountId: z.string().uuid().optional().nullable(),
     contactId: z.string().uuid().optional().nullable(),
     creditRiskRating: riskRatingEnum.optional().nullable(),
@@ -43,6 +49,10 @@ export const updateBorrowerProfileSchema = z.object({
     annualIncome: decimalField,
     netWorth: decimalField,
     isActive: z.boolean().optional(),
+    // §2.9 Encrypted fields — set by encryptBorrowerFields middleware
+    annualIncomeEncrypted: z.string().optional().nullable(),
+    netWorthEncrypted: z.string().optional().nullable(),
+    sourceOfWealthEncrypted: z.string().optional().nullable(),
   }),
 });
 

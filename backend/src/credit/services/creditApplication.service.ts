@@ -487,7 +487,7 @@ class CreditApplicationService {
         assignedRm: { select: { id: true, firstName: true, lastName: true } },
         assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
         facilities: true,
-        parties: { include: { borrowerProfile: { select: { id: true, borrowerType: true } } } },
+        parties: { include: { borrowerProfile: { select: { id: true, borrowerType: true, name: true } } } },
         documents: { where: { deletedAt: null } },
         // §2.3 — Include related records needed for section completion checks
         retailIncome: true,

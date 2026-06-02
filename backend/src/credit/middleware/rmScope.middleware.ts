@@ -58,13 +58,28 @@ export function applyRmScope() {
         return next();
       }
 
-      // For RM and other roles: scope to applications where they are assigned
-      (req as any).rmScopeFilter = {
+      // For RM and other roles: scope to applications where they are assigned.
+      // When viewing a specific borrower profile (borrowerProfileId filter),
+      // also allow seeing that borrower's applications — this ensures the
+      // Borrower Profile → Applications tab shows data consistently with
+      // the borrower list (which has no RM scoping).
+      const borrowerProfileId = req.query.borrowerProfileId as string | undefined;
+      const baseScope: Prisma.CreditApplicationWhereInput = {
         OR: [
           { assignedRmId: userId },
           { assignedAnalystId: userId },
         ],
       };
+      if (borrowerProfileId) {
+        (req as any).rmScopeFilter = {
+          OR: [
+            ...baseScope.OR!,
+            { borrowerProfileId },
+          ],
+        };
+      } else {
+        (req as any).rmScopeFilter = baseScope;
+      }
 
       return next();
     } catch (err) {

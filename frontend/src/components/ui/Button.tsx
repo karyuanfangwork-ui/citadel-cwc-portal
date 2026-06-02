@@ -51,6 +51,8 @@ export type ButtonProps = {
   className?: string;
   /** Button content (label text, etc.) */
   children?: React.ReactNode;
+  /** Click handler */
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
 };
 
 // ─── Component ───────────────────────────────────────────────────────────
@@ -65,6 +67,7 @@ const Button: React.FC<ButtonProps> = ({
   type = 'button',
   className = '',
   children,
+  onClick,
 }) => {
   const isDisabled = disabled || loading;
 
@@ -81,6 +84,7 @@ const Button: React.FC<ButtonProps> = ({
     <button
       type={type as 'button' | 'submit' | 'reset'}
       disabled={isDisabled}
+      onClick={onClick}
       className={[
         'inline-flex items-center justify-center font-sans font-semibold',
         'rounded-cwc-md select-none transition-colors',
