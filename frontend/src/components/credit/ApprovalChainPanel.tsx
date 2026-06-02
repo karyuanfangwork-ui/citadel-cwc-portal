@@ -21,6 +21,7 @@ interface ChainStage {
 interface Props {
   application: CreditApplication;
   approvals: CreditApproval[];
+  signoffsComplete?: boolean;
   onActionComplete: () => void;
 }
 
@@ -45,7 +46,7 @@ const DECISION_BUTTONS: { decision: ApprovalDecision; label: string; classes: st
 // States where approval submission is allowed (must match backend approvalAction.service.ts)
 const APPROVAL_ELIGIBLE_STATES = new Set(['UNDERWRITING', 'CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW']);
 
-const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, onActionComplete }) => {
+const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsComplete, onActionComplete }) => {
   const { user } = useAuth();
   const canApprove = hasPermission(user, 'credit:approve');
   const isRmOnApplication = !!(application.rmId && user && application.rmId === user.id);
@@ -134,6 +135,9 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, onActionC
             <p className="text-xs text-amber-700">
               You are the assigned Relationship Manager for this application. Due to SOD policy, you cannot approve your own application. Another authorized approver must submit the decision.
             </p>
+            <p className="text-xs text-amber-600 mt-2">
+              Sign-off (Prepared By) confirms the CA Memo is accurate. Approval is the authority decision on this credit — these are separate gates.
+            </p>
           </div>
         </div>
       )}
@@ -147,6 +151,20 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, onActionC
             <p className="text-xs text-blue-700">
               Approval actions are not available while the application is in <span className="font-semibold">{application.state}</span> state.
               Submit the application for review to enable the approval chain.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sign-off incomplete advisory ──────────── */}
+      {signoffsComplete === false && isApprovalEligibleState && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <span className="material-symbols-outlined text-amber-500 text-xl mt-0.5">info</span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-amber-800 mb-1">CA Memo Sign-off Required</p>
+            <p className="text-xs text-amber-700">
+              CA Memo sign-off must be completed before this application can be submitted to Committee Review.
+              Go to the <strong>Sign-off</strong> tab to complete all 3 signatures (Prepared By → Reviewed By → Concurred By).
             </p>
           </div>
         </div>

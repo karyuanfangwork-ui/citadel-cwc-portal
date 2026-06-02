@@ -568,7 +568,7 @@ const RiskRatingEclTab: React.FC<Props> = ({ application, onDirtyChange }) => {
                             {sr.riskRating}
                           </span>
                         </td>
-                        <td className="p-2 text-gray-500">{new Date(sr.executedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                        <td className="p-2 text-gray-500">{new Date(sr.runAt || sr.executedAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
                         <td className="p-2">
                           {sr.overriddenBy ? (
                             <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">

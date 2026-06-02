@@ -178,8 +178,8 @@ const TRANSITIONS: TransitionDef[] = [
   { from: ApplicationState.ACCEPTED, to: ApplicationState.DISBURSED, action: 'disburse' },
   // Disbursed → Active
   { from: ApplicationState.DISBURSED, to: ApplicationState.ACTIVE, action: 'activate' },
-  // Active → Closed
-  { from: ApplicationState.ACTIVE, to: ApplicationState.CLOSED, action: 'close', timestampField: 'closedAt' },
+  // Active → Closed (reason required — closure type + justification)
+  { from: ApplicationState.ACTIVE, to: ApplicationState.CLOSED, action: 'close', reasonRequired: true, timestampField: 'closedAt' },
   // Any non-terminal → Withdrawn
   { from: ApplicationState.SUBMITTED, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.KYC_REVIEW, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
@@ -433,6 +433,7 @@ class CreditApplicationService {
             select: {
               id: true,
               borrowerType: true,
+              name: true,
               account: { select: { id: true, name: true } },
               contact: { select: { id: true, firstName: true, lastName: true } },
             },
@@ -466,6 +467,7 @@ class CreditApplicationService {
           select: {
             id: true,
             borrowerType: true,
+            name: true,
             account: { select: { id: true, name: true } },
             contact: { select: { id: true, firstName: true, lastName: true, email: true, nricPassport: true } },
             // §S3 — Include financial statements for completion check + FinancialsTab
@@ -532,7 +534,7 @@ class CreditApplicationService {
     const application = await prisma.creditApplication.create({
       data: createData,
       include: {
-        borrowerProfile: { select: { id: true, borrowerType: true } },
+        borrowerProfile: { select: { id: true, borrowerType: true, name: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } } },
         assignedRm: { select: { id: true, firstName: true, lastName: true } },
         assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
       },
@@ -611,7 +613,7 @@ class CreditApplicationService {
       where: { id },
       data: updateData,
       include: {
-        borrowerProfile: { select: { id: true, borrowerType: true } },
+        borrowerProfile: { select: { id: true, borrowerType: true, name: true, account: { select: { id: true, name: true } }, contact: { select: { id: true, firstName: true, lastName: true } } } },
         assignedRm: { select: { id: true, firstName: true, lastName: true } },
         assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
       },
@@ -841,6 +843,7 @@ class CreditApplicationService {
           select: {
             id: true,
             borrowerType: true,
+            name: true,
             account: { select: { id: true, name: true } },
             contact: { select: { id: true, firstName: true, lastName: true } },
           },
@@ -873,7 +876,7 @@ class CreditApplicationService {
           application.borrowerProfile?.account?.name ||
           (application.borrowerProfile?.contact
             ? `${application.borrowerProfile.contact.firstName} ${application.borrowerProfile.contact.lastName}`
-            : undefined);
+            : application.borrowerProfile?.name) || 'Unknown';
 
         await creditNotificationService.onApplicationEvent(
           id,

@@ -293,6 +293,7 @@ type DirtySection = 'wayOut' | 'projection' | 'sensitivity';
 
 const PaymentCapabilityTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange }) => {
   const readOnly = application.state !== 'DRAFT';
+  const isRetail = application.borrowerProfile?.borrowerType === 'INDIVIDUAL' || application.borrowerProfile?.borrowerType === 'SOLE_PROPRIETOR';
   const dirtyKeys = useRef<Set<DirtySection>>(new Set());
 
   // Refs for sub-section state that the saveFn needs to read
@@ -392,8 +393,12 @@ const PaymentCapabilityTab: React.FC<Props> = ({ application, onUpdated, onDirty
     >
       <div className="space-y-8">
         <WayOutSection application={application} readOnly={readOnly} onUpdated={onUpdated} autosave={autosave} onMarkDirty={onMarkDirtyWayOut} syncRef={wayOutRef} />
-        <ProjectionSection appId={application.id} readOnly={readOnly} autosave={autosave} onMarkDirty={onMarkDirtyProjection} syncRef={projectionRef} />
-        <SensitivitySection appId={application.id} readOnly={readOnly} autosave={autosave} onMarkDirty={onMarkDirtySensitivity} syncRef={sensitivityRef} />
+        {!isRetail && (
+          <>
+            <ProjectionSection appId={application.id} readOnly={readOnly} autosave={autosave} onMarkDirty={onMarkDirtyProjection} syncRef={projectionRef} />
+            <SensitivitySection appId={application.id} readOnly={readOnly} autosave={autosave} onMarkDirty={onMarkDirtySensitivity} syncRef={sensitivityRef} />
+          </>
+        )}
       </div>
     </CaMemoSection>
   );

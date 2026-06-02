@@ -133,6 +133,11 @@ const SignoffTab: React.FC<Props> = ({ application, onUpdated }) => {
 
   const byRole = (role: SignoffRole) => signoffs.find(s => s.role === role);
 
+  // §3 — RM contextual message: if current user is the RM and hasn't signed "Prepared By" yet
+  const isRm = !!(application.rmId && user && application.rmId === user.id);
+  const preparedBySigned = !!byRole('PREPARED_BY');
+  const showRmNudge = isRm && !preparedBySigned && !isConcurred && !readOnly;
+
   const handleSign = async (role: SignoffRole, designation: string) => {
     const created = await signoffApi.create(application.id, { role, designationSnapshot: designation });
     setSignoffs(ss => [...ss.filter(s => s.role !== role), created]);
@@ -181,6 +186,20 @@ const SignoffTab: React.FC<Props> = ({ application, onUpdated }) => {
         {isConcurred && (
           <div className="bg-green-50 border border-green-300 rounded-lg p-4 text-sm text-green-800">
             All sections are now read-only. The CA Memo has been signed off and locked.
+          </div>
+        )}
+
+        {/* §3 — RM contextual nudge: explain sign-off vs approval difference */}
+        {showRmNudge && (
+          <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <span className="material-symbols-outlined text-blue-500 text-xl mt-0.5">info</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-blue-800 mb-1">Your Next Step: Sign as Prepared By</p>
+              <p className="text-xs text-blue-700">
+                As the Relationship Manager, you should sign as <strong>Prepared By</strong> to certify the CA Memo is accurate.
+                This is separate from the Approval Chain — signing confirms the memo, while approval is the authority decision on the credit.
+              </p>
+            </div>
           </div>
         )}
 

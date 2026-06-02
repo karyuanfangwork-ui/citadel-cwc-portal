@@ -22,6 +22,10 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
   const [loadingApprovals, setLoadingApprovals] = useState(true);
   const [showPackPreview, setShowPackPreview] = useState(false);
 
+  // §3 — Fetch sign-off completion status to show advisory
+  const [signoffsComplete, setSignoffsComplete] = useState<boolean | undefined>(undefined);
+  const REQUIRED_SIGNOFF_ROLES = ['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as const;
+
   const fetchApprovals = useCallback(async () => {
     if (!id) return;
     setLoadingApprovals(true);
@@ -36,6 +40,19 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
   }, [id]);
 
   useEffect(() => { fetchApprovals(); }, [fetchApprovals]);
+
+  // Fetch sign-off status for the advisory in approval chain panel
+  useEffect(() => {
+    if (!id) return;
+    import('../../../src/services/credit.service').then(m => {
+      m.signoffApi.list(id).then(signoffs => {
+        const complete = REQUIRED_SIGNOFF_ROLES.every(role =>
+          signoffs.some(s => s.role === role && s.signedAt),
+        );
+        setSignoffsComplete(complete);
+      }).catch(() => {});
+    });
+  }, [id]);
 
   const handleActionComplete = () => {
     fetchApprovals();
@@ -68,6 +85,7 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
           <ApprovalChainPanel
             application={app}
             approvals={approvals}
+            signoffsComplete={signoffsComplete}
             onActionComplete={handleActionComplete}
           />
         )}

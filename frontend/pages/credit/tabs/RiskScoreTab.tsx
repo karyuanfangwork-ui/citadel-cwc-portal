@@ -4,6 +4,7 @@ import creditService, {
   CreditApplication,
   CreditScoreRun,
   financialApi,
+  retailIncomeApi,
   FinancialRatio,
 } from '../../../src/services/credit.service';
 import { useAuth } from '../../../src/context/AuthContext';
@@ -89,23 +90,46 @@ const RiskScoreTab: React.FC<Props> = ({ application, onUpdated, onRefresh }) =>
 
   useEffect(() => { fetchRuns(); }, [application.id]);
 
-  // Fetch base DSCR from financial statements to power stress test
+  // Fetch base DSCR to power stress test
+  // For corporate borrowers: from financial statement ratios
+  // For retail (individual/sole-prop) borrowers: from retail income DSR percent
   useEffect(() => {
-    const bpId = application.borrowerProfileId;
-    if (!bpId) return;
-    financialApi.listStatements(bpId).then(statements => {
-      if (!statements || statements.length === 0) return;
-      const allRatios: FinancialRatio[] = statements.flatMap(s => s.ratios || []);
-      const dscrRatio = allRatios.find(r => (r.ratioKey || '').toLowerCase().includes('dscr'));
-      const baseDscr = dscrRatio ? Number(dscrRatio.value) : null;
-      if (baseDscr == null || isNaN(baseDscr) || baseDscr <= 0) return;
-      const facility = application.facilities?.[0];
-      const ratePct = facility?.ratePct != null ? Number(facility.ratePct) : null;
-      const tenor = application.requestedTenor ?? facility?.tenorMonths ?? null;
-      const amount = Number(application.requestedAmount || 0);
-      setDsrStress(computeDsrStress(baseDscr, amount, tenor, ratePct));
-    }).catch(() => {});
-  }, [application.borrowerProfileId, application.requestedAmount, application.requestedTenor]);
+    const isRetail = application.borrowerProfile?.borrowerType === 'INDIVIDUAL'
+      || application.borrowerProfile?.borrowerType === 'SOLE_PROPRIETOR';
+
+    if (isRetail) {
+      // Retail path: use retail income DSR
+      retailIncomeApi.get(application.id).then(data => {
+        if (!data?.dsrPercent) return;
+        // dsrPercent is e.g. 40 (meaning 40% debt/income ratio)
+        // Convert to DSCR approximation: DSCR ≈ 100 / dsrPercent
+        const dsrPct = Number(data.dsrPercent);
+        if (isNaN(dsrPct) || dsrPct <= 0) return;
+        const baseDscr = 100 / dsrPct;
+        const facility = application.facilities?.[0];
+        const ratePct = facility?.ratePct != null ? Number(facility.ratePct) : null;
+        const tenor = application.requestedTenor ?? facility?.tenorMonths ?? null;
+        const amount = Number(application.requestedAmount || 0);
+        setDsrStress(computeDsrStress(baseDscr, amount, tenor, ratePct));
+      }).catch(() => {});
+    } else {
+      // Corporate path: use financial statement DSCR ratio
+      const bpId = application.borrowerProfileId;
+      if (!bpId) return;
+      financialApi.listStatements(bpId).then(statements => {
+        if (!statements || statements.length === 0) return;
+        const allRatios: FinancialRatio[] = statements.flatMap(s => s.ratios || []);
+        const dscrRatio = allRatios.find(r => (r.ratioKey || '').toLowerCase().includes('dscr'));
+        const baseDscr = dscrRatio ? Number(dscrRatio.value) : null;
+        if (baseDscr == null || isNaN(baseDscr) || baseDscr <= 0) return;
+        const facility = application.facilities?.[0];
+        const ratePct = facility?.ratePct != null ? Number(facility.ratePct) : null;
+        const tenor = application.requestedTenor ?? facility?.tenorMonths ?? null;
+        const amount = Number(application.requestedAmount || 0);
+        setDsrStress(computeDsrStress(baseDscr, amount, tenor, ratePct));
+      }).catch(() => {});
+    }
+  }, [application.borrowerProfileId, application.borrowerProfile?.borrowerType, application.requestedAmount, application.requestedTenor]);
 
   const handleExecute = async () => {
     if (!application.id) return;
@@ -180,7 +204,7 @@ const RiskScoreTab: React.FC<Props> = ({ application, onUpdated, onRefresh }) =>
               <div className="bg-gray-50 rounded-lg p-3">
                 <div className="text-xs font-semibold text-gray-500 mb-1">Executed</div>
                 <div className="text-sm font-semibold text-gray-900">
-                  {latestRun.executedAt ? new Date(latestRun.executedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                  {(latestRun.runAt || latestRun.executedAt) ? new Date(latestRun.runAt || latestRun.executedAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
                 </div>
               </div>
             </div>
@@ -196,7 +220,7 @@ const RiskScoreTab: React.FC<Props> = ({ application, onUpdated, onRefresh }) =>
                         <span className="text-xs font-semibold text-gray-700">{f.factorLabel || f.factorKey}</span>
                       </div>
                       <div className="text-xs text-gray-400">Weight: {(f.weight * 100).toFixed(0)}%</div>
-                      <div className="text-sm font-bold text-gray-900 w-12 text-right">{f.score}</div>
+                      <div className="text-sm font-bold text-gray-900 w-12 text-right">{typeof f.score === 'number' ? f.score.toFixed(1) : f.score}</div>
                       <div className="text-xs text-gray-400 w-16 text-right">({f.weightedScore.toFixed(1)})</div>
                     </div>
                   ))}
@@ -279,7 +303,10 @@ const RiskScoreTab: React.FC<Props> = ({ application, onUpdated, onRefresh }) =>
           <div className="text-center py-6 text-gray-400">
             <span className="material-symbols-outlined text-3xl mb-1 block">trending_down</span>
             <p className="text-sm">No DSCR data available.</p>
-            <p className="text-xs mt-1">Complete financial statements (S3) to enable stress testing.</p>
+            {application.borrowerProfile?.borrowerType === 'INDIVIDUAL' || application.borrowerProfile?.borrowerType === 'SOLE_PROPRIETOR'
+              ? <p className="text-xs mt-1">Complete retail income assessment (S3) to enable stress testing.</p>
+              : <p className="text-xs mt-1">Complete financial statements (S3) to enable stress testing.</p>
+            }
           </div>
         )}
       </CaMemoSection>
@@ -296,7 +323,7 @@ const RiskScoreTab: React.FC<Props> = ({ application, onUpdated, onRefresh }) =>
                 </span>
                 <span className="text-gray-500">Score: {run.totalScore}</span>
                 <span className="ml-auto text-gray-400">
-                  {run.executedAt ? new Date(run.executedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}
+                  {(run.runAt || run.executedAt) ? new Date(run.runAt || run.executedAt!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}
                 </span>
               </div>
             ))}

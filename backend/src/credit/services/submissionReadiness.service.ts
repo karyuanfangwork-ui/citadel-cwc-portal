@@ -148,16 +148,23 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
     }
   }
 
-  // ---- Check 7: Financials warning ----
-  const financialCount = await prisma.financialStatement.count({
-    where: { borrowerProfileId: application.borrowerProfileId },
-  });
-  if (financialCount === 0) {
-    warnings.push({
-      field: 'financials',
-      message: 'No financial statements uploaded — review may be delayed',
-      severity: 'warning',
+  // ---- Check 7: Financials warning (corporate/joint only) ----
+  // Retail borrowers (INDIVIDUAL/SOLE_PROPRIETOR) use retail income/DSR instead
+  // of financial statements, so this check does not apply to them.
+  const isRetailBorrower = ['INDIVIDUAL', 'SOLE_PROPRIETOR'].includes(
+    application.borrowerProfile.borrowerType as string
+  );
+  if (!isRetailBorrower) {
+    const financialCount = await prisma.financialStatement.count({
+      where: { borrowerProfileId: application.borrowerProfileId },
     });
+    if (financialCount === 0) {
+      warnings.push({
+        field: 'financials',
+        message: 'No financial statements uploaded — review may be delayed',
+        severity: 'warning',
+      });
+    }
   }
 
   // ---- Check 8: Bureau report freshness (90 days) ----
@@ -181,9 +188,6 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
   }
 
   // ---- Check 10: Retail DSR warning ----
-  const isRetailBorrower = ['INDIVIDUAL', 'SOLE_PROPRIETOR'].includes(
-    application.borrowerProfile.borrowerType as string
-  );
   if (isRetailBorrower) {
     const retailIncome = await prisma.retailIncome.findUnique({
       where: { applicationId },

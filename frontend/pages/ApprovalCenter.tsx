@@ -420,7 +420,7 @@ const ApprovalCenter: React.FC = () => {
       ? (app.borrowerProfile.account?.name ||
         (app.borrowerProfile.contact
           ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}`
-          : 'Unnamed Borrower'))
+          : app.borrowerProfile.name) || 'Unnamed Borrower')
       : app.id.slice(0, 8);
 
     return (

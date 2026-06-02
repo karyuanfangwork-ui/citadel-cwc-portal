@@ -105,7 +105,7 @@ const FinancialAnalysis: React.FC = () => {
               className="border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
               <option value="">Select borrower...</option>
               {borrowers.map(b => (
-                <option key={b.id} value={b.id}>{b.account?.name || (b.contact ? `${b.contact.firstName} ${b.contact.lastName}` : 'Unnamed Borrower')}</option>
+                <option key={b.id} value={b.id}>{b.account?.name || (b.contact ? `${b.contact.firstName} ${b.contact.lastName}` : b.name) || 'Unnamed Borrower'}</option>
               ))}
             </select>
           </div>

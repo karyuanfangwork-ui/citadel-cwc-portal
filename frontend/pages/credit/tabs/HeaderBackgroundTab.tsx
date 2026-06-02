@@ -96,7 +96,7 @@ const HeaderBackgroundTab: React.FC<Props> = ({ application, onUpdated, onDirtyC
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-text-secondary mb-1">Customer Name</label>
-            <input className="w-full rounded border border-gray-200 px-3 py-2 text-sm bg-gray-50 text-text-secondary" disabled value={application.borrowerProfile?.account?.name ?? (application.borrowerProfile?.contact ? `${application.borrowerProfile.contact.firstName} ${application.borrowerProfile.contact.lastName}` : '—')} />
+            <input className="w-full rounded border border-gray-200 px-3 py-2 text-sm bg-gray-50 text-text-secondary" disabled value={application.borrowerProfile?.account?.name ?? (application.borrowerProfile?.contact ? `${application.borrowerProfile.contact.firstName} ${application.borrowerProfile.contact.lastName}` : application.borrowerProfile?.name) ?? '—'} />
           </div>
           {!isIndividual && (
             <AutosaveTextField label="Customer Group" value={form.customerGroupName} onChange={(v) => update('customerGroupName', v)} onSave={() => autosave.save()} disabled={readOnly} />

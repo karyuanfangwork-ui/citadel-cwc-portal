@@ -110,6 +110,19 @@ export default function RetailIncomeTab({ applicationId, readOnly, onSaved }: Pr
         if (data.financialsVerified) setVerified(true);
         savedAtRef.current = (data as any).updatedAt ?? (data as any).createdAt ?? new Date().toISOString();
         setLastSaved(savedAtRef.current);
+      } else {
+        // No existing record — set baseline so dirty detection works when user types
+        originalRef.current = {
+          employmentType: 'SALARIED',
+          employerName: '',
+          monthlyGrossIncome: '',
+          epfMonthlyAmount: '',
+          hirePurchaseCommitment: '',
+          creditCardCommitment: '',
+          existingLoanCommitment: '',
+          otherCommitments: '',
+          proposedInstalment: '',
+        };
       }
       setLoading(false);
     });

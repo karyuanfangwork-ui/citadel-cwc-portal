@@ -978,8 +978,10 @@ type ScoreRunRow = {
   totalScore: number;
   riskRating: string;
   overriddenRating: string | null;
-  executedAt: string;
-  executedBy: string;
+  /** Execution timestamp — API returns 'runAt'; the old field name was 'executedAt' */
+  executedAt?: string;
+  runAt?: string;
+  executedBy?: string;
 };
 
 const RATING_INDEX = (r: string) => {
@@ -990,10 +992,9 @@ const RATING_INDEX = (r: string) => {
 export const ScoreRunHistory: React.FC<{ scoreRuns: ScoreRunRow[] }> = ({ scoreRuns }) => {
   if (!scoreRuns || scoreRuns.length === 0) return <ChartEmpty label="No score runs yet. Click 'Run Score' to generate a credit score." />;
 
-  const sorted = [...scoreRuns].sort((a, b) => new Date(a.executedAt).getTime() - new Date(b.executedAt).getTime());
-
+  const sorted = [...scoreRuns].sort((a, b) => new Date(a.runAt || a.executedAt!).getTime() - new Date(b.runAt || b.executedAt!).getTime());
   const data = sorted.map(sr => ({
-    date: new Date(sr.executedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }),
+    date: new Date(sr.runAt || sr.executedAt!).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' }),
     Score: sr.totalScore,
     Rating: RATING_INDEX(sr.overriddenRating || sr.riskRating),
     ratingLabel: sr.overriddenRating || sr.riskRating,

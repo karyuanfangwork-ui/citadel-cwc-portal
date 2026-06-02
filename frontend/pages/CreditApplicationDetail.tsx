@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, {
-  CreditApplication, CreditFacility, ApplicationTransition, ApplicationState, ApplicationSignoff, signoffApi, dashboardApi,
+  CreditApplication, CreditFacility, CreditApproval, ApplicationTransition, ApplicationState, ApplicationSignoff, signoffApi, dashboardApi,
 } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import UserAssignChip from '../src/components/credit/UserAssignChip';
+import S7ProcessBanner from '../src/components/credit/S7ProcessBanner';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
@@ -107,6 +108,7 @@ const CreditApplicationDetail: React.FC = () => {
   } | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [signoffs, setSignoffs] = useState<ApplicationSignoff[]>([]);
+  const [approvals, setApprovals] = useState<CreditApproval[]>([]);
   const [transitioning, setTransitioning] = useState(false);
   const [transitionReason, setTransitionReason] = useState('');
   const [showTransitionDialog, setShowTransitionDialog] = useState<string | null>(null);
@@ -118,6 +120,7 @@ const CreditApplicationDetail: React.FC = () => {
 
   const canWrite = hasPermission(user, 'credit:write');
   const canApprove = hasPermission(user, 'credit:approve');
+  const canAdmin = hasPermission(user, 'credit:admin');
 
   const fetchApp = useCallback(async () => {
     if (!id) return;
@@ -158,8 +161,9 @@ const CreditApplicationDetail: React.FC = () => {
   useEffect(() => {
     if (!id || !app) return;
     const st = (app.state || app.status) as ApplicationState;
-    if (!['CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW', 'APPROVED'].includes(st)) return;
+    if (!['CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW', 'APPROVED', 'UNDERWRITING'].includes(st)) return;
     signoffApi.list(id).then(setSignoffs).catch(() => {});
+    creditService.listApprovals(id).then(setApprovals).catch(() => {});
   }, [id, app]);
 
   // Derive sign-off completion status
@@ -354,7 +358,7 @@ const CreditApplicationDetail: React.FC = () => {
             <span>/</span>
             <Link to="/credit/applications" className="hover:text-blue-600">Applications</Link>
             <span>/</span>
-            <span className="font-semibold text-gray-900">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}</span>
+            <span className="font-semibold text-gray-900">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : app.id.slice(0, 8)}</span>
           </div>
           <div className="flex items-center gap-3">
             {/* Advanced Memo toggle */}
@@ -398,7 +402,7 @@ const CreditApplicationDetail: React.FC = () => {
             <span>/</span>
             <Link to="/credit/applications" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Applications</Link>
             <span>/</span>
-            <span className="font-semibold text-text-primary">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : app.id.slice(0, 8)}</span>
+            <span className="font-semibold text-text-primary">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : app.id.slice(0, 8)}</span>
           </div>
           <div className="flex items-center gap-3">
             {/* Advanced Memo toggle */}
@@ -428,7 +432,7 @@ const CreditApplicationDetail: React.FC = () => {
             </div>
             <div>
               <h1 className="text-2xl font-black text-text-primary">
-                {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : 'Unnamed Borrower')) : 'Application'}
+                {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : 'Application'}
               </h1>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
@@ -548,6 +552,33 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
         )}
 
+        {/* Status explanation banner — ACTIVE / CLOSED context */}
+        {currentState === 'ACTIVE' && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+            <span className="material-symbols-outlined text-blue-500 text-xl mt-0.5">info</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-blue-800 mb-1">This loan is currently active</p>
+              <p className="text-xs text-blue-700">
+                The borrower has received funds and the facility is in use. The bank is actively exposed.
+                Close this application only when the loan has been <strong>fully repaid, written off, or formally terminated</strong>.
+                Closing is irreversible and will stop all monitoring.
+              </p>
+            </div>
+          </div>
+        )}
+        {currentState === 'CLOSED' && (
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 flex items-start gap-3">
+            <span className="material-symbols-outlined text-gray-500 text-xl mt-0.5">lock</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-gray-800 mb-1">This loan has been closed</p>
+              <p className="text-xs text-gray-600">
+                The loan lifecycle is complete. No further actions can be taken on this application.
+                {app.closedAt && <> Closed on <strong>{new Date(app.closedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</strong>.</>}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Readiness pre-flight panel — DRAFT only */}
         {currentState === 'DRAFT' && (readiness || readinessLoading) && (
           <div className="bg-bg-surface border border-border rounded-xl p-4 mb-4">
@@ -635,18 +666,26 @@ const CreditApplicationDetail: React.FC = () => {
               {transitions.map(t => {
                 const isReject = t.toState === 'REJECTED' || t.toState === 'KYC_REJECTED' || t.toState === 'WITHDRAWN';
                 const isApprove = t.toState === 'APPROVED' || t.toState === 'KYC_APPROVED' || t.toState === 'ACCEPTED';
+                const isTerminal = t.toState === 'CLOSED' || t.toState === 'WITHDRAWN' || t.toState === 'REJECTED' || t.toState === 'KYC_REJECTED';
                 const isSignoffBlocked = t.action === 'submit_to_committee' && !allSigned;
+                const isAdminAction = t.action === 'close';
+                const isAdminBlocked = isAdminAction && !canAdmin;
                 return (
                   <button key={t.action} ref={el => { if (t.action === showTransitionDialog) transitionTriggerRef.current = el; }}
-                    onClick={() => !isSignoffBlocked && setShowTransitionDialog(t.action)}
-                    disabled={isSignoffBlocked}
+                    onClick={() => !isSignoffBlocked && !isAdminBlocked && setShowTransitionDialog(t.action)}
+                    disabled={isSignoffBlocked || isAdminBlocked}
+                    title={isSignoffBlocked ? 'Blocked: Complete all CA Memo sign-offs (Prepared By, Reviewed By, Concurred By) first' :
+                      isAdminBlocked ? 'Admin permission required: Only credit administrators can close a loan' :
+                      t.toState === 'CLOSED' ? 'Irreversible: This will permanently close the loan and stop all monitoring.' : undefined}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                      isSignoffBlocked ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60' :
+                      isSignoffBlocked || isAdminBlocked ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60' :
+                      t.toState === 'CLOSED' ? 'bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100' :
                       isReject ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100' :
                       isApprove ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100' :
                       'bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100'
-                    }`} style={{ fontFamily: 'var(--font-sans)', cursor: isSignoffBlocked ? 'not-allowed' : 'pointer' }}>
+                    }`} style={{ fontFamily: 'var(--font-sans)', cursor: isSignoffBlocked || isAdminBlocked ? 'not-allowed' : 'pointer' }}>
                     <span className="material-symbols-outlined text-base">{
+                      t.toState === 'CLOSED' ? 'lock' :
                       isReject ? 'block' : isApprove ? 'check_circle' : 'arrow_forward'
                     }</span>
                     {t.label || t.action.replace(/_/g, ' ')}
@@ -865,7 +904,18 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
         )}
 
-        {/* S7 — Approvals */}
+        {/* S7 — Decision Process Banner */}
+        {['signoff', 'approvals', 'conditions', 'summary'].includes(activeTab) && (
+          <S7ProcessBanner
+            app={app}
+            signoffs={signoffs}
+            allSigned={allSigned}
+            approvals={approvals}
+            onNavigate={(tab) => handleTabChange(tab as DetailTab)}
+          />
+        )}
+
+        {/* S7 — Approval Chain */}
         {activeTab === 'approvals' && (
           <div role="tabpanel" id="panel-approvals" aria-labelledby="tab-approvals" tabIndex={0}>
             <ApprovalsTab app={app} onRefresh={fetchApp} />
@@ -992,17 +1042,97 @@ const CreditApplicationDetail: React.FC = () => {
               aria-labelledby="transition-dialog-title"
               onClick={e => e.stopPropagation()}
               onKeyDown={e => { if (e.key === 'Escape') { setShowTransitionDialog(null); setTransitionReason(''); setReasonError(false); transitionTriggerRef.current?.focus(); } }}>
-              <h2 id="transition-dialog-title" className="text-lg font-black text-text-primary mb-2">Confirm Action</h2>
+              <h2 id="transition-dialog-title" className="text-lg font-black text-text-primary mb-2">
+                {showTransitionDialog === 'close' ? 'Close This Loan?' : 'Confirm Action'}
+              </h2>
               <p className="text-sm text-text-secondary mb-4">
-                Are you sure you want to <span className="font-bold text-text-primary">{label}</span>?
-                {t && <span className="block mt-1 text-xs text-text-secondary">This will change the application status to <span className="font-semibold">{STATE_LABELS[t.toState] || t.toState}</span>.</span>}
+                {showTransitionDialog === 'close' ? (
+                  <>You are about to permanently close this loan application. This <strong>cannot be undone</strong>.</>
+                ) : (
+                  <>
+                    Are you sure you want to <span className="font-bold text-text-primary">{label}</span>?
+                    {t && <span className="block mt-1 text-xs text-text-secondary">This will change the application status to <span className="font-semibold">{STATE_LABELS[t.toState] || t.toState}</span>.</span>}
+                  </>
+                )}
               </p>
+
+              {/* §4 — Sign-off status in transition dialog */}
+              {showTransitionDialog === 'submit_to_committee' && (
+                <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">CA Memo Sign-off Status</p>
+                  <div className="space-y-1.5">
+                    {(['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as string[]).map(role => {
+                      const label = role === 'PREPARED_BY' ? 'Prepared By' : role === 'REVIEWED_BY' ? 'Reviewed By' : 'Concurred By';
+                      const s = signoffs.find(sf => sf.role === role);
+                      const signed = !!s?.signedAt;
+                      return (
+                        <div key={role} className="flex items-center gap-2 text-xs">
+                          <span className={`material-symbols-outlined text-sm ${signed ? 'text-green-600' : 'text-gray-300'}`}>
+                            {signed ? 'check_circle' : 'radio_button_unchecked'}
+                          </span>
+                          <span className={signed ? 'text-gray-700 font-medium' : 'text-gray-400'}>
+                            {label}
+                          </span>
+                          {signed && s && (
+                            <span className="text-gray-400">
+                              — {s.signedBy ? `${s.signedBy.firstName} ${s.signedBy.lastName}` : 'Signed'}
+                            </span>
+                          )}
+                          {!signed && (
+                            <span className="text-gray-400 italic">(pending)</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {!allSigned && (
+                    <p className="mt-2 text-xs text-red-600 font-medium">
+                      ⛔ All sign-offs must be complete before submitting to Committee Review.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Close-action impact summary */}
+              {showTransitionDialog === 'close' && (
+                <div className="mb-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">This action is irreversible</p>
+                  <p className="text-xs text-amber-700 mb-2">Closing this loan will:</p>
+                  <ul className="space-y-1 text-xs text-amber-800">
+                    <li className="flex items-start gap-1.5">
+                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                      Mark the loan lifecycle as complete
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                      Remove this facility from active exposure tracking
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                      Stop all monitoring (collateral, insurance, covenants)
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                      Set the application to read-only — no further actions possible
+                    </li>
+                    <li className="flex items-start gap-1.5">
+                      <span className="material-symbols-outlined text-sm mt-0.5">check</span>
+                      Record the closure date (today)
+                    </li>
+                  </ul>
+                  <p className="mt-2 text-xs text-amber-700">
+                    Only close when the loan has been <strong>fully repaid, written off, or formally terminated</strong>.
+                  </p>
+                </div>
+              )}
               <div className="mb-4">
                 <label className="block text-xs font-semibold text-text-secondary mb-1">
                   Reason {t?.requiresComment ? <span className="text-red-500">* (required)</span> : <span className="text-text-tertiary">(optional)</span>}
                 </label>
                 <textarea rows={2} value={transitionReason} onChange={e => { setTransitionReason(e.target.value); setReasonError(false); }}
-                  placeholder={t?.requiresComment ? 'A reason is required for this action...' : 'Add a reason or note...'}
+                  placeholder={t?.requiresComment
+                    ? (showTransitionDialog === 'close' ? 'e.g. Fully repaid, Written off, Early settlement...' : 'A reason is required for this action...')
+                    : 'Add a reason or note...'}
                   className={`w-full border rounded-lg px-3 py-2 text-sm resize-none ${t?.requiresComment && !transitionReason.trim() ? 'border-red-300' : 'border-border'}`} style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
                 {t?.requiresComment && reasonError && !transitionReason.trim() && (
                   <p className="text-xs text-red-600 mt-1 font-medium">Reason is required for this action</p>
@@ -1012,12 +1142,14 @@ const CreditApplicationDetail: React.FC = () => {
                 <button ref={transitionDialogCancelRef} onClick={() => { setShowTransitionDialog(null); setTransitionReason(''); setReasonError(false); transitionTriggerRef.current?.focus(); }}
                   className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
                   style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button onClick={() => handleTransition(showTransitionDialog)} disabled={transitioning || (t?.requiresComment && !transitionReason.trim())}
+                <button onClick={() => handleTransition(showTransitionDialog)} disabled={transitioning || (t?.requiresComment && !transitionReason.trim()) || (showTransitionDialog === 'submit_to_committee' && !allSigned)}
                   className={`px-4 py-2 text-sm font-bold rounded-lg text-white transition-colors disabled:opacity-50 ${
+                    showTransitionDialog === 'close' ? 'bg-amber-600 hover:bg-amber-700' :
                     isReject ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-700 hover:bg-brand-800'
                   }`}
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {transitioning ? 'Processing...' : label}
+                  title={showTransitionDialog === 'submit_to_committee' && !allSigned ? 'Complete all CA Memo sign-offs first' : undefined}
+                  style={{ border: 'none', cursor: showTransitionDialog === 'submit_to_committee' && !allSigned ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {transitioning ? 'Processing...' : showTransitionDialog === 'close' ? 'Close Loan →' : label}
                 </button>
               </div>
             </div>

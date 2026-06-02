@@ -618,12 +618,17 @@ export interface CreditScoreRun {
   totalScore: number;
   riskRating: RiskRating;
   factorBreakdown: ScoreFactorResult[];
+  /** Factor scores keyed by factor key — the shape returned by the API */
+  factorScores?: Record<string, { score: number; weight: number; weightedScore: number }>;
   overriddenRating: RiskRating | null;
   overrideReason: string | null;
   overriddenBy: string | null;
   overriddenAt: string | null;
-  executedAt: string;
-  executedBy: string;
+  /** The timestamp when this score run was executed. API field name: runAt */
+  runAt: string;
+  /** @deprecated Use runAt — the API returns runAt, not executedAt */
+  executedAt?: string;
+  executedBy?: string;
   executor?: CreditUserRef;
   overrider?: CreditUserRef;
 }
@@ -634,6 +639,20 @@ export interface ScoreFactorResult {
   score: number;
   weight: number;
   weightedScore: number;
+}
+
+/** Normalize a single CreditScoreRun so that factorBreakdown is always populated */
+function normalizeScoreRun(run: CreditScoreRun): CreditScoreRun {
+  if ((!run.factorBreakdown || run.factorBreakdown.length === 0) && run.factorScores) {
+    run = { ...run, factorBreakdown: Object.entries(run.factorScores).map(([key, val]) => ({
+      factorKey: key,
+      factorLabel: key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      score: Math.round(val.score * 10) / 10,   // round to 1 decimal (e.g. 93.3 instead of 93.333…)
+      weight: val.weight / 100,   // API weight is pct (e.g. 30), interface expects ratio (0.30)
+      weightedScore: Math.round(val.weightedScore * 10) / 10,
+    }))};
+  }
+  return run;
 }
 
 // ── Credit API Service ─────────────────────────────────────────
@@ -966,17 +985,18 @@ const creditService = {
   // Credit Scoring (Phase 4C)
   async listScoreRuns(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/scores`);
-    return res.data.data.scoreRuns as CreditScoreRun[];
+    const runs = res.data.data.scoreRuns as CreditScoreRun[];
+    return runs.map(normalizeScoreRun);
   },
 
   async executeScore(applicationId: string) {
     const res = await apiClient.post(`/credit/applications/${applicationId}/score`);
-    return res.data.data.scoreRun as CreditScoreRun;
+    return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
   },
 
   async overrideScore(scoreRunId: string, data: { rating: RiskRating; reason: string; approverId: string }) {
     const res = await apiClient.post(`/credit/score-runs/${scoreRunId}/override`, data);
-    return res.data.data.scoreRun as CreditScoreRun;
+    return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
   },
 };
 
@@ -1360,17 +1380,17 @@ export interface CpCompletionStatus {
 export const scoringApi = {
   async executeScore(applicationId: string) {
     const res = await apiClient.post(`/credit/applications/${applicationId}/score`);
-    return res.data.data.scoreRun as CreditScoreRun;
+    return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
   },
 
   async listScores(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/scores`);
-    return res.data.data.scoreRuns as CreditScoreRun[];
+    return (res.data.data.scoreRuns as CreditScoreRun[]).map(normalizeScoreRun);
   },
 
   async overrideScore(scoreRunId: string, data: { rating: RiskRating; reason: string; approverId: string }) {
     const res = await apiClient.post(`/credit/score-runs/${scoreRunId}/override`, data);
-    return res.data.data.scoreRun as CreditScoreRun;
+    return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
   },
 };
 

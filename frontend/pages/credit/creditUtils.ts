@@ -200,8 +200,8 @@ export const TAB_GROUPS: TabGroup[] = [
     id: 's7',
     label: 'S7 · Decision',
     tabs: [
-      { id: 'approvals', label: 'Approvals' },
       { id: 'signoff', label: 'Sign-off' },
+      { id: 'approvals', label: 'Approval Chain' },
       { id: 'conditions', label: 'Conditions' },
       { id: 'summary', label: 'Summary' },
     ],
@@ -262,11 +262,11 @@ export function getVisibleTabGroups(advancedMemo: boolean, borrowerType?: string
     .filter(g => !g.advancedOnly || advancedMemo)
     .map(g => {
       if (!isRetail) return g;
-      // For retail: hide payment-capability, relabel parties tab
+      // For retail: relabel parties tab, but keep payment-capability 
+      // (Way Out is universal; Projection/Sensitivity are hidden inside the component)
       const filteredTabs = g.tabs
-        .filter(t => t.id !== 'payment-capability')
         .map(t => t.id === 'parties' ? { ...t, label: 'Guarantors & Parties' } : t);
-      return filteredTabs.length !== g.tabs.length || filteredTabs.some((t, i) => t.label !== g.tabs[i]?.label)
+      return filteredTabs.some((t, i) => t.label !== g.tabs[i]?.label)
         ? { ...g, tabs: filteredTabs }
         : g;
     })
