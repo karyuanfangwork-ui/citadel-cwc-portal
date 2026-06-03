@@ -1,6 +1,8 @@
 import React, { useState, useCallback, lazy, Suspense } from 'react';
 import { isHiringRequest } from '@/src/utils/roleDetection';
+import * as approvalService from '@/src/services/approval.service';
 
+const BatchUploadModal = lazy(() => import('@/src/components/request-detail/BatchUploadModal'));
 const UploadResumeModal = lazy(() => import('@/src/components/request-detail/UploadResumeModal'));
 
 interface User {
@@ -10,22 +12,12 @@ interface User {
   lastName: string;
 }
 
-interface CandidateResume {
-  id: string;
-  candidateName?: string;
-  fileName: string;
-  notes?: string;
-  documentType?: string;
-  uploadedBy: { firstName: string; lastName: string };
-  createdAt: string;
-  fileSize: string;
-  fileUrl?: string;
-}
+type CandidateResume = approvalService.CandidateResume;
 
 interface InterviewSchedule {
   id?: string;
   candidateId?: string;
-  candidateResume?: { id: string; candidateName?: string; fileName?: string };
+  candidate?: { id: string; fullName: string };
   interviewDate: string;
   interviewTime: string;
   meetingLink?: string;
@@ -76,6 +68,10 @@ const DOC_TYPE_CONFIG: Record<string, { label: string; icon: string; color: stri
   TRANSCRIPT: { label: 'Transcripts', icon: 'school', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
 };
 
+const REQUIRED_DOC_TYPES = ['RESUME', 'CERTIFICATE', 'TRANSCRIPT'];
+
+const FILE_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+
 interface HiringWorkflowPanelProps {
   request: {
     id: string;
@@ -84,6 +80,7 @@ interface HiringWorkflowPanelProps {
     customFields?: Record<string, any>;
   };
   resumes: CandidateResume[];
+  candidates?: approvalService.Candidate[];
   interviewDetails: {
     schedule: InterviewSchedule | null;
     feedback: InterviewFeedback | null;
@@ -102,6 +99,7 @@ interface HiringWorkflowPanelProps {
 const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
   request,
   resumes,
+  candidates: candidatesProp,
   interviewDetails,
   screeningDetails,
   loaDetails,
@@ -112,19 +110,37 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
   onShowUploadModal,
 }) => {
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadMode, setUploadMode] = useState<'batch' | 'single'>('batch');
   const isHiring = isHiringRequest(request.serviceDesk?.code || '', request.status);
   const canUpload = request.status === 'JOB_POSTED' && (user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN'));
-  const DOC_TYPES = ['RESUME', 'CERTIFICATE', 'TRANSCRIPT'];
 
-  // Group resumes by candidate name
-  const groupedByCandidate = resumes.reduce<Record<string, CandidateResume[]>>((acc, resume) => {
-    const key = resume.candidateName?.trim() || 'Unnamed Candidate';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(resume);
-    return acc;
-  }, {});
+  // Build candidate-centric view: group resumes by candidateId
+  const candidates = React.useMemo<approvalService.Candidate[]>(() => {
+    if (candidatesProp && candidatesProp.length > 0) {
+      return candidatesProp;
+    }
+    // Fallback: group resumes by candidateName for backwards compatibility
+    const grouped = resumes.reduce<Record<string, CandidateResume[]>>((acc, resume) => {
+      const key = resume.candidateId || resume.candidateName?.trim() || 'Unnamed Candidate';
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(resume);
+      return acc;
+    }, {});
+    return Object.entries(grouped).map(([key, docs]) => ({
+      id: docs[0].candidateId || key,
+      requestId: '',
+      fullName: docs[0].candidateName?.trim() || 'Unnamed Candidate',
+      createdAt: docs[0].createdAt,
+      documents: docs,
+    }));
+  }, [candidatesProp, resumes]);
 
-  const candidateCount = Object.keys(groupedByCandidate).length;
+  // Check completeness: each candidate must have all 3 required doc types
+  const incompleteCandidates = candidates.filter(c => {
+    const typesPresent = new Set(c.documents.map(d => d.documentType || 'RESUME'));
+    return !REQUIRED_DOC_TYPES.every(t => typesPresent.has(t));
+  });
+  const allComplete = candidates.length > 0 && incompleteCandidates.length === 0;
 
   const handleUploadSuccess = useCallback(() => {
     setShowUploadModal(false);
@@ -136,67 +152,84 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
   return (
     <>
       {/* Candidate Documents Section */}
-      {(resumes.length > 0 || canUpload) && (
+      {(candidates.length > 0 || canUpload) && (
         <div className="bg-white p-8 rounded-xl border border-gray-100 mt-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-blue-600 text-xl">folder_open</span>
               <span className="text-xs font-bold text-[#44546f] uppercase tracking-widest">
                 Candidate Documents
-                {candidateCount > 0 && (
-                  <span className="ml-1.5 text-blue-600">({candidateCount} candidate{candidateCount > 1 ? 's' : ''}, {resumes.length} doc{resumes.length > 1 ? 's' : ''})</span>
+                {candidates.length > 0 && (
+                  <span className="ml-1.5 text-blue-600">({candidates.length} candidate{candidates.length > 1 ? 's' : ''}, {resumes.length} doc{resumes.length !== 1 ? 's' : ''})</span>
                 )}
               </span>
             </div>
             {canUpload && (
               <button
-                onClick={() => setShowUploadModal(true)}
+                onClick={() => { setUploadMode('batch'); setShowUploadModal(true); }}
                 className="text-sm font-bold text-[#0052cc] hover:text-blue-700 flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-lg">add</span>
-                Upload Document
+                Upload Documents
               </button>
             )}
           </div>
 
-          {resumes.length === 0 && canUpload && (
+          {/* Completeness warning */}
+          {candidates.length > 0 && !allComplete && (
+            <div className="mb-4 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center gap-2">
+              <span className="material-symbols-outlined text-base">warning</span>
+              <span>
+                {incompleteCandidates.length === candidates.length
+                  ? 'All candidates are missing required documents.'
+                  : `${incompleteCandidates.map(c => c.fullName).join(', ')} — missing documents.`}
+                {' '}All 3 document types (Resume, Certificate, Transcript) are required before routing to Hiring Manager.
+              </span>
+            </div>
+          )}
+
+          {candidates.length === 0 && canUpload && (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <span className="material-symbols-outlined text-5xl text-gray-300 mb-3">cloud_upload</span>
               <p className="text-sm font-semibold text-gray-500">No candidate documents yet</p>
-              <p className="text-xs text-gray-400 mt-1 mb-4">Upload resume, certificates, and transcripts for each candidate (max 5)</p>
+              <p className="text-xs text-gray-400 mt-1 mb-4">Upload resume, certificates, and transcripts for each candidate</p>
               <button
-                onClick={() => setShowUploadModal(true)}
+                onClick={() => { setUploadMode('batch'); setShowUploadModal(true); }}
                 className="px-4 py-2.5 text-sm font-bold text-white bg-[#0052cc] rounded-lg hover:bg-blue-700 flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-lg">upload_file</span>
-                Upload First Document
+                Upload First Documents
               </button>
             </div>
           )}
 
-          {Object.entries(groupedByCandidate).map(([candidateName, docs]) => {
-            // Track which doc types are present
+          {candidates.map(candidate => {
             const docsByType: Record<string, CandidateResume> = {};
-            docs.forEach(d => {
+            candidate.documents.forEach(d => {
               const dt = d.documentType || 'RESUME';
               if (!docsByType[dt]) docsByType[dt] = d;
             });
             const filledCount = Object.keys(docsByType).length;
+            const isComplete = REQUIRED_DOC_TYPES.every(t => docsByType[t]);
 
             return (
-              <div key={candidateName} className="border border-gray-200 rounded-xl overflow-hidden mb-4 last:mb-0">
+              <div key={candidate.id} className="border border-gray-200 rounded-xl overflow-hidden mb-4 last:mb-0">
                 {/* Candidate Header */}
                 <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[#0052cc] text-xl">person</span>
-                    <span className="text-sm font-bold text-[#101418]">{candidateName}</span>
-                    <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-semibold">
-                      {filledCount}/{DOC_TYPES.length} docs
+                    <span className="text-sm font-bold text-[#101418]">{candidate.fullName}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                      isComplete
+                        ? 'text-green-700 bg-green-50'
+                        : 'text-amber-600 bg-amber-50'
+                    }`}>
+                      {filledCount}/{REQUIRED_DOC_TYPES.length} docs
                     </span>
                   </div>
                   {canUpload && (
                     <button
-                      onClick={() => setShowUploadModal(true)}
+                      onClick={() => { setUploadMode('batch'); setShowUploadModal(true); }}
                       className="text-xs font-semibold text-[#0052cc] hover:text-blue-700 flex items-center gap-1"
                     >
                       <span className="material-symbols-outlined text-sm">add</span>
@@ -207,7 +240,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
 
                 {/* Document Type Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4">
-                  {DOC_TYPES.map(dt => {
+                  {REQUIRED_DOC_TYPES.map(dt => {
                     const doc = docsByType[dt];
                     const config = DOC_TYPE_CONFIG[dt] || DOC_TYPE_CONFIG.RESUME;
 
@@ -247,7 +280,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
                             <div className="flex items-center gap-1.5 mt-1.5">
                               {doc.fileUrl && (
                                 <a
-                                  href={`http://localhost:3000/api/v1/files/download/${doc.fileUrl}`}
+                                  href={`${FILE_BASE_URL}/files/download/${doc.fileUrl}`}
                                   target="_blank"
                                   rel="noreferrer"
                                   className={`px-2 py-1 text-[10px] font-bold rounded ${config.color} ${config.bg} hover:opacity-80 transition-opacity`}
@@ -274,11 +307,11 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
                 </div>
 
                 {/* Notes from any doc */}
-                {docs.some(d => d.notes) && (
+                {candidate.documents.some(d => d.notes) && (
                   <div className="px-4 pb-3">
                     <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
                       <span className="text-[10px] font-bold text-gray-500 uppercase">Notes</span>
-                      {docs.filter(d => d.notes).map(d => (
+                      {candidate.documents.filter(d => d.notes).map(d => (
                         <p key={d.id} className="text-xs text-gray-600 mt-1">
                           <span className="font-semibold">{(DOC_TYPE_CONFIG[d.documentType || 'RESUME']?.label || 'Resume')}:</span> {d.notes}
                         </p>
@@ -292,15 +325,24 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
         </div>
       )}
 
-      {/* Upload Modal — managed by this component */}
+      {/* Upload Modal */}
       {showUploadModal && (
         <Suspense fallback={<div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center"><div className="bg-white rounded-xl p-6 text-sm text-gray-600">Loading...</div></div>}>
-          <UploadResumeModal
-            requestId={request.id}
-            onSuccess={handleUploadSuccess}
-            onClose={() => setShowUploadModal(false)}
-            existingCandidateNames={Object.keys(groupedByCandidate)}
-          />
+          {uploadMode === 'batch' ? (
+            <BatchUploadModal
+              requestId={request.id}
+              onSuccess={handleUploadSuccess}
+              onClose={() => setShowUploadModal(false)}
+              existingCandidates={candidates}
+            />
+          ) : (
+            <UploadResumeModal
+              requestId={request.id}
+              onSuccess={handleUploadSuccess}
+              onClose={() => setShowUploadModal(false)}
+              existingCandidateNames={candidates.map(c => c.fullName)}
+            />
+          )}
         </Suspense>
       )}
 
@@ -426,8 +468,8 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
               <h4 className="font-bold text-[#101418] mb-4">Interview Outcomes ({interviewDetails.feedbacks.length} of {interviewDetails.schedules.length} evaluated)</h4>
               <div className="space-y-4">
                 {interviewDetails.schedules.map((sched, idx) => {
-                  const fb = interviewDetails.feedbacks!.find(f => f.candidateId === sched.candidateResume?.id);
-                  const candidateName = (sched as any).candidateResume?.candidateName || `Candidate ${idx + 1}`;
+                  const fb = interviewDetails.feedbacks!.find(f => f.candidateId === sched.candidateId);
+                  const candidateName = sched.candidate?.fullName || `Candidate ${idx + 1}`;
                   return (
                     <div key={sched.candidateId || idx} className={`rounded-xl p-5 ${fb ? (fb.decision === 'PROCEED' ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200') : 'bg-gray-50 border border-gray-200'}`}>
                       <div className="flex items-center justify-between mb-2">
@@ -460,8 +502,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
             <div className="mt-8 pt-8 border-t border-gray-100">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="font-bold text-[#101418]">Interview Outcome</h4>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${interviewDetails.feedback.decision === 'PROCEED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                  }`}>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${interviewDetails.feedback.decision === 'PROCEED' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   {interviewDetails.feedback.decision}
                 </span>
               </div>
@@ -562,7 +603,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
                 </div>
                 <div>
                   <p className="text-sm font-bold text-[#101418]">Draft / Issued LOA</p>
-                  <p className="text-xs text-[#44546f]">{loaDetails.loaFileName} • {(loaDetails.loaFileSize / 1024).toFixed(1)} KB</p>
+                  <p className="text-xs text-[#44546f]">{loaDetails.loaFileName} • {(loaDetails.loaFileSize ? loaDetails.loaFileSize / 1024 : 0).toFixed(1)} KB</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -571,7 +612,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
                 )}
                 {loaDetails.loaFileUrl && (
                   <a
-                    href={`http://localhost:3000/api/v1/files/download/${loaDetails.loaFileUrl}`}
+                    href={`${FILE_BASE_URL}/files/download/${loaDetails.loaFileUrl}`}
                     target="_blank"
                     rel="noreferrer"
                     className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#0052cc] hover:bg-gray-50 transition-colors"
@@ -600,7 +641,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
                   )}
                   {loaDetails.signedLoaFileUrl && (
                     <a
-                      href={`http://localhost:3000/api/v1/files/download/${loaDetails.signedLoaFileUrl}`}
+                      href={`${FILE_BASE_URL}/files/download/${loaDetails.signedLoaFileUrl}`}
                       target="_blank"
                       rel="noreferrer"
                       className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-[#0052cc] hover:bg-gray-50 transition-colors"

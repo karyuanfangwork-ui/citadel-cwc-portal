@@ -44,6 +44,18 @@ router.post(
 router.get('/agents', authorize('ADMIN', 'AGENT'), userController.getAgents);
 
 /**
+ * @route   GET /api/v1/users/executives
+ * @desc    Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_CEO / etc.)
+ *          Used by workflow modals so the routing agent can override the auto-selected approver.
+ * @access  Private (any authenticated user who routes approvals: Agent, Admin, CEO, CTO, CFO, GROUP_CEO)
+ */
+router.get(
+    '/executives',
+    authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_CEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'),
+    userController.getExecutives,
+);
+
+/**
  * @route   GET /api/v1/users/me
  * @desc    Get current user profile
  * @access  Private

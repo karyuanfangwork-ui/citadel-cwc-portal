@@ -6,7 +6,7 @@ import { auditLog } from '../utils/audit';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 import path from 'path';
 import { uploadSingleFile } from '../middleware/upload.middleware';
-import { logger } from '../utils/logger';
+import { reassignToTeam } from '../services/reassign.service';
 
 /** Infer an IT asset category from the hardware name/description. */
 function inferCategoryFromName(name: string): string {
@@ -33,54 +33,6 @@ async function resolveRequestId(idOrRef: string): Promise<string | null> {
     select: { id: true },
   });
   return row?.id ?? null;
-}
-
-/**
- * Reassign a request to the first active agent on the specified team.
- * Creates an activity record and notifies the new assignee.
- */
-async function reassignToTeam(requestId: string, referenceNumber: string, team: string): Promise<void> {
-  const agent = await prisma.user.findFirst({
-    where: {
-      agentTeam: team,
-      isActive: true,
-      roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } },
-    },
-    select: { id: true, firstName: true, lastName: true },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  if (!agent) {
-    logger.warn(`[IT-Workflow] No active ${team} agent found for reassignment of ${referenceNumber}`);
-    return;
-  }
-
-  const agentName = `${agent.firstName} ${agent.lastName}`;
-
-  await prisma.request.update({
-    where: { id: requestId },
-    data: { assignedToId: agent.id, assignedTeam: team },
-  });
-
-  await prisma.requestActivity.create({
-    data: {
-      requestId,
-      authorName: 'System',
-      activityType: 'ASSIGNMENT',
-      message: `Auto-reassigned to ${agentName} (${team} team) — workflow transition`,
-      isSystemGenerated: true,
-      metadata: { autoAssigned: true, assignedToId: agent.id, assignedTeam: team },
-    },
-  });
-
-  await notify({
-    userId: agent.id,
-    eventType: 'REQUEST_ASSIGNED',
-    variables: { referenceNumber, assignedToName: agentName },
-    relatedRequestId: requestId,
-  });
-
-  logger.info(`[IT-Workflow] Request ${referenceNumber} reassigned to ${agentName} (${team})`);
 }
 
 // Shared S3-backed multer — invoice upload
@@ -496,7 +448,7 @@ export async function markSoftwareProvisioned(req: Request, res: Response) {
 export const acknowledgeRequest = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { notes } = req.body;
+    const { notes, ceoId } = req.body as { notes?: string; ceoId?: string };
     const currentUser = (req as any).user;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
@@ -506,10 +458,28 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
     if (!request.serviceDesk || request.serviceDesk.code !== 'IT') return res.status(400).json({ error: 'Request does not belong to IT service desk' });
     if (request.status !== 'SUBMITTED') return res.status(400).json({ error: 'Request must be in SUBMITTED status' });
 
-    // Auto-find the active CEO user
-    const ceoUser = await prisma.user.findFirst({
-      where: { executiveRole: 'CEO', isActive: true },
-    });
+    // Resolve the CEO: prefer agent's manual pick, fall back to auto-route.
+    // Manual pick is validated (active user with executiveRole=CEO) so a bad client
+    // can't route a request to themselves or a non-CEO.
+    let ceoUser: { id: string; firstName: string; lastName: string } | null = null;
+    let approverSource: 'manual' | 'auto' = 'auto';
+
+    if (ceoId) {
+      ceoUser = await prisma.user.findFirst({
+        where: { id: ceoId, isActive: true, executiveRole: 'CEO' },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      if (!ceoUser) {
+        return res.status(400).json({ error: `No active CEO user found with id "${ceoId}". Pick a valid CEO or omit the field to auto-route.` });
+      }
+      approverSource = 'manual';
+    } else {
+      ceoUser = await prisma.user.findFirst({
+        where: { executiveRole: 'CEO', isActive: true },
+        select: { id: true, firstName: true, lastName: true },
+      });
+    }
+
     if (!ceoUser) {
       return res.status(400).json({ error: 'No active CEO user found in the system. Please create a CEO user first.' });
     }
@@ -531,7 +501,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
       data: {
         requestId: id,
         activityType: 'SYSTEM',
-        message: `Request acknowledged and routed to CEO (${ceoUser.firstName} ${ceoUser.lastName}) for approval${notes ? ': ' + notes : ''}`,
+        message: `Request acknowledged and routed to CEO (${ceoUser.firstName} ${ceoUser.lastName}) for approval${approverSource === 'manual' ? ' — manual selection' : ' — auto-selected'}${notes ? ': ' + notes : ''}`,
         authorName: currentUser.firstName || 'Agent',
         authorRole: 'AGENT',
         isSystemGenerated: true,
@@ -544,9 +514,10 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
       status: 'PENDING_CEO_APPROVAL_IT',
       previousStatus: request.status,
       ceoId: ceoUser.id,
+      approverSource,
       notes: notes || null,
     }, { status: request.status });
-    return res.json({ success: true, message: `Request acknowledged and routed to CEO (${ceoUser.firstName} ${ceoUser.lastName})` });
+    return res.json({ success: true, message: `Request acknowledged and routed to CEO (${ceoUser.firstName} ${ceoUser.lastName})${approverSource === 'manual' ? ' [manual selection]' : ''}` });
   } catch (error) {
     console.error('acknowledgeRequest error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -556,7 +527,7 @@ export const acknowledgeRequest = async (req: Request, res: Response) => {
 export const ceoDecision = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { decision, comments } = req.body;
+    const { decision, comments, ctoId } = req.body as { decision: string; comments?: string; ctoId?: string };
     const currentUser = (req as any).user;
 
     if (!currentUser) return res.status(401).json({ error: 'Unauthorized' });
@@ -567,11 +538,28 @@ export const ceoDecision = async (req: Request, res: Response) => {
     if (request.status !== 'PENDING_CEO_APPROVAL_IT') return res.status(400).json({ error: 'Request is not pending CEO approval' });
     if (!hasRole(req, 'CEO')) return res.status(403).json({ error: 'Only the CEO can make this decision' });
 
+    // Resolve the CTO: prefer CEO's manual pick, fall back to auto-route.
+    // Manual pick is validated (active user with executiveRole=CTO).
+    // Hoisted to function scope so the audit log below can read them after the if-block.
+    let ctoUser: { id: string; firstName: string; lastName: string } | null = null;
+    let approverSource: 'manual' | 'auto' = 'auto';
+
     if (decision === 'APPROVED') {
-      // Auto-find the active CTO user
-      const ctoUser = await prisma.user.findFirst({
-        where: { executiveRole: 'CTO', isActive: true },
-      });
+      if (ctoId) {
+        ctoUser = await prisma.user.findFirst({
+          where: { id: ctoId, isActive: true, executiveRole: 'CTO' },
+          select: { id: true, firstName: true, lastName: true },
+        });
+        if (!ctoUser) {
+          return res.status(400).json({ error: `No active CTO user found with id "${ctoId}". Pick a valid CTO or omit the field to auto-route.` });
+        }
+        approverSource = 'manual';
+      } else {
+        ctoUser = await prisma.user.findFirst({
+          where: { executiveRole: 'CTO', isActive: true },
+          select: { id: true, firstName: true, lastName: true },
+        });
+      }
       if (!ctoUser) {
         return res.status(400).json({ error: 'No active CTO user found in the system. Please create a CTO user first.' });
       }
@@ -594,7 +582,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
         data: {
           requestId: id,
           activityType: 'APPROVAL',
-          message: `CEO approved the request — routed to CTO (${ctoUser.firstName} ${ctoUser.lastName})${comments ? ': ' + comments : ''}`,
+          message: `CEO approved the request — routed to CTO (${ctoUser.firstName} ${ctoUser.lastName})${approverSource === 'manual' ? ' — manual selection' : ' — auto-selected'}${comments ? ': ' + comments : ''}`,
           authorName: currentUser.firstName || 'CEO',
           authorRole: 'CEO',
           isSystemGenerated: false,
@@ -604,13 +592,8 @@ export const ceoDecision = async (req: Request, res: Response) => {
       await notify({ userId: ctoUser.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CTO' }, relatedRequestId: id });
     } else {
       // Reassign back to IT agent on CEO rejection
-      const itAgent = await prisma.user.findFirst({
-        where: { agentTeam: 'IT', isActive: true, entityId: request.requester?.entityId },
-      });
-      const rejectData: any = { status: 'CEO_REJECTED_IT' };
-      if (itAgent) rejectData.assignedToId = itAgent.id;
-
-      await prisma.request.update({ where: { id }, data: rejectData });
+      await reassignToTeam(id, request.referenceNumber, 'IT', 'IT-Workflow');
+      await prisma.request.update({ where: { id }, data: { status: 'CEO_REJECTED_IT' } });
       await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'REJECTED', resolvedAt: new Date() } });
 
@@ -640,6 +623,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
       approverType: 'CEO',
       previousStatus: 'PENDING_CEO_APPROVAL_IT',
       comments: comments || null,
+      ...(decision === 'APPROVED' ? { approverSource, ctoId: ctoUser?.id } : {}),
     }, { status: 'PENDING_CEO_APPROVAL_IT' });
     return res.json({ success: true, message: `Request ${decision.toLowerCase()} by CEO` });
   } catch (error) {
@@ -663,16 +647,15 @@ export const ctoDecision = async (req: Request, res: Response) => {
     if (!hasRole(req, 'CTO')) return res.status(403).json({ error: 'Only the CTO can make this decision' });
 
     if (decision === 'APPROVED') {
-      // Reassign back to IT agent after CTO approval
-      const requestWithRequester = await prisma.request.findUnique({ where: { id }, include: { requester: true } });
-      const itAgentAfterCto = requestWithRequester ? await prisma.user.findFirst({
-        where: { agentTeam: 'IT', isActive: true, entityId: requestWithRequester.requester?.entityId },
-      }) : null;
-
-      await prisma.request.update({ where: { id }, data: { status: 'CTO_APPROVED_IT', ...(itAgentAfterCto ? { assignedToId: itAgentAfterCto.id } : {}) } });
+      await prisma.request.update({ where: { id }, data: { status: 'CTO_APPROVED_IT' } });
       await resumeSla(id);
       await prisma.request.update({ where: { id }, data: { status: 'PENDING_INVOICE_IT' } });
       await pauseSla(id);
+
+      // Reassign back to IT agent after CTO approval (uses reassignToTeam for reliable
+      // fallback — entity-scoped lookup was brittle and left the request stuck on CTO
+      // when no IT agent matched the requester's entity)
+      await reassignToTeam(id, request.referenceNumber, 'IT');
 
       await prisma.requestApproval.updateMany({
         where: { requestId: id, approverType: 'CTO', status: 'PENDING' },
@@ -690,10 +673,6 @@ export const ctoDecision = async (req: Request, res: Response) => {
         },
       });
 
-      // Notify the currently assigned agent (reassignToTeam below will reassign & send REQUEST_ASSIGNED)
-      if (request.assignedToId) {
-        await notify({ userId: request.assignedToId, eventType: 'ACTION_REQUIRED', variables: { requestId: id, action: 'pending_invoice' }, relatedRequestId: id });
-      }
       // Notify requester that CTO approved
       if (request.requesterId) {
         await notify({ userId: request.requesterId, eventType: 'STATUS_CHANGED', variables: { requestId: id, newStatus: 'PENDING_INVOICE_IT', changedBy: 'CTO' }, relatedRequestId: id });

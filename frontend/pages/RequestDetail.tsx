@@ -141,13 +141,14 @@ const RequestDetailContainer: React.FC = () => {
                     <HiringWorkflowPanel
                         request={request}
                         resumes={rq.resumes}
+                        candidates={rq.candidates}
                         interviewDetails={rq.interviewDetails}
                         screeningDetails={rq.screeningDetails}
                         loaDetails={rq.loaDetails}
                         user={user}
                         onDeleteResume={rq.handleDeleteResume}
                         onEditInterview={() => rq.setShowEditInterviewModal(true)}
-                        onDocsChanged={() => rq.fetchResumes()}
+                        onDocsChanged={() => { rq.fetchResumes(); rq.fetchCandidates(); }}
                     />
 
                     {/* Onboarding Workflow */}
@@ -224,6 +225,13 @@ const RequestDetailContainer: React.FC = () => {
                     workflowSteps={workflowSteps}
                     approvals={approvals}
                     hasResumes={rq.resumes.length > 0}
+                    allCandidatesComplete={
+                        rq.candidates.length > 0 &&
+                        rq.candidates.every(c => {
+                            const types = new Set((c.documents || []).map((d: any) => d.documentType));
+                            return ['RESUME', 'CERTIFICATE', 'TRANSCRIPT'].every(t => types.has(t));
+                        })
+                    }
                     screeningCompleted={rq.screeningDetails?.overallStatus === 'COMPLETED'}
                     hasLOA={!!rq.loaDetails}
                     hasSignedLOA={!!rq.loaDetails?.signedLoaFileUrl}
@@ -288,18 +296,11 @@ const RequestDetailContainer: React.FC = () => {
                 isOpen={rq.showScheduleInterviewModal}
                 processingAction={rq.processingAction}
                 requestId={request.id}
-                candidates={(() => {
-                    const seen = new Map<string, { id: string; candidateName: string; documentCount: number }>();
-                    for (const r of rq.resumes) {
-                        const name = r.candidateName || 'Unknown';
-                        if (!seen.has(name)) {
-                            seen.set(name, { id: r.id, candidateName: name, documentCount: 1 });
-                        } else {
-                            seen.get(name)!.documentCount++;
-                        }
-                    }
-                    return Array.from(seen.values());
-                })()}
+                candidates={rq.candidates.map(c => ({
+                    id: c.id,
+                    candidateName: c.fullName,
+                    documentCount: c.documents?.length || 0,
+                }))}
                 onClose={() => rq.setShowScheduleInterviewModal(false)}
                 onSubmit={rq.handleScheduleInterview}
             />
@@ -350,7 +351,7 @@ const RequestDetailContainer: React.FC = () => {
             <ManagerDecisionModal
                 isOpen={rq.showManagerDecisionModal}
                 processingAction={rq.processingAction}
-                resumes={rq.resumes}
+                candidates={rq.candidates}
                 onClose={() => rq.setShowManagerDecisionModal(false)}
                 onSubmit={rq.handleManagerDecision}
             />

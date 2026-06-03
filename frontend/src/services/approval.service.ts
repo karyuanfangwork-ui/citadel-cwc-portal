@@ -104,11 +104,13 @@ export const managerDecision = async (
 
 export interface CandidateResume {
     id: string;
+    candidateId: string;
     fileName: string;
     fileUrl: string;
     fileSize: string;
     mimeType: string | null;
     candidateName: string | null;
+    documentType: string;
     notes: string | null;
     uploadedBy: {
         id: string;
@@ -116,7 +118,16 @@ export interface CandidateResume {
         lastName: string;
         email: string;
     };
+    candidate?: { id: string; fullName: string };
     createdAt: string;
+}
+
+export interface Candidate {
+    id: string;
+    requestId: string;
+    fullName: string;
+    createdAt: string;
+    documents: CandidateResume[];
 }
 
 /**
@@ -160,6 +171,73 @@ export const getResumes = async (requestId: string): Promise<CandidateResume[]> 
  */
 export const deleteResume = async (requestId: string, resumeId: string) => {
     const response = await apiClient.delete(`/approvals/requests/${requestId}/resumes/${resumeId}`);
+    return response.data;
+};
+
+/**
+ * Batch upload candidate documents (multiple files per candidate)
+ */
+export const batchUploadDocs = async (
+    requestId: string,
+    files: { file: File; documentType: string }[],
+    candidateName: string,
+    candidateId?: string,
+    notes?: string
+) => {
+    const formData = new FormData();
+    files.forEach(({ file }) => {
+        formData.append('files', file);
+    });
+    formData.append('docTypes', JSON.stringify(files.map(f => f.documentType)));
+    if (candidateId) formData.append('candidateId', candidateId);
+    else formData.append('candidateName', candidateName);
+    if (notes) formData.append('notes', notes);
+
+    const response = await apiClient.post(
+        `/approvals/requests/${requestId}/upload-candidate-docs`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data.data;
+};
+
+/**
+ * Upload a single doc to an existing candidate
+ */
+export const uploadDocToCandidate = async (
+    requestId: string,
+    candidateId: string,
+    file: File,
+    documentType: string,
+    notes?: string
+) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('candidateId', candidateId);
+    formData.append('documentType', documentType);
+    if (notes) formData.append('notes', notes);
+
+    const response = await apiClient.post(
+        `/approvals/requests/${requestId}/upload-resume`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data.data.resume;
+};
+
+/**
+ * Get candidates for a request (with documents)
+ */
+export const getCandidates = async (requestId: string): Promise<Candidate[]> => {
+    const response = await apiClient.get(`/approvals/requests/${requestId}/candidates`);
+    return response.data.data;
+};
+
+/**
+ * Delete a candidate and their documents
+ */
+export const deleteCandidate = async (requestId: string, candidateId: string) => {
+    const response = await apiClient.delete(`/approvals/requests/${requestId}/candidates/${candidateId}`);
     return response.data;
 };
 
@@ -282,8 +360,12 @@ const approvalService = {
     routeToManager,
     managerDecision,
     uploadResume,
+    batchUploadDocs,
+    uploadDocToCandidate,
     getResumes,
+    getCandidates,
     deleteResume,
+    deleteCandidate,
     getPendingApprovals,
     bulkAction,
     getPolicyExplanation,

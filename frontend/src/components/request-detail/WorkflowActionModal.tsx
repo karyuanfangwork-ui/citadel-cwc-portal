@@ -4,6 +4,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import ModalWrapper from '../ModalWrapper';
+import ApproverPicker from './ApproverPicker';
 import { WorkflowModalConfig, WorkflowModalField } from '../../utils/workflowModalConfig';
 
 interface WorkflowActionModalProps {
@@ -216,6 +217,27 @@ const ModalField: React.FC<{
           </div>
         </div>
       );
+
+    case 'approver-picker': {
+      const role = field.approverRole;
+      if (!role) {
+        // Defensive: should never happen because configs set approverRole.
+        return (
+          <div key={field.name} className="text-xs text-red-600">
+            Approver picker misconfigured: missing approverRole.
+          </div>
+        );
+      }
+      return (
+        <ApproverPicker
+          key={field.name}
+          role={role}
+          value={value}
+          onChange={onChange}
+          label={field.label}
+        />
+      );
+    }
 
     case 'text':
     default:

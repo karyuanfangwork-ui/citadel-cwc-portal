@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { requestService } from '../../services/request.service';
-import approvalService from '../../services/approval.service';
+import approvalService, { type Candidate as CandidateType, type CandidateResume as CandidateResumeType } from '../../services/approval.service';
 import interviewService from '../../services/interview.service';
 import screeningService from '../../services/screening.service';
 import loaService from '../../services/loa.service';
@@ -69,17 +69,7 @@ export interface LetterOfAcceptance {
     approvalComments?: string;
 }
 
-export interface CandidateResume {
-    id: string;
-    candidateName?: string;
-    fileName: string;
-    documentType?: string;
-    notes?: string;
-    uploadedBy: { firstName: string; lastName: string };
-    createdAt: string;
-    fileSize: string;
-    fileUrl?: string;
-}
+export type CandidateResume = CandidateResumeType;
 
 export interface InterviewDetails {
     schedule: InterviewSchedule;
@@ -158,6 +148,7 @@ interface UseRequestDetailReturn {
     activities: Activity[];
     setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
     resumes: CandidateResume[];
+    candidates: CandidateType[];
     interviewDetails: InterviewDetails | null;
     screeningDetails: HRScreening | null;
     loaDetails: LetterOfAcceptance | null;
@@ -200,6 +191,7 @@ interface UseRequestDetailReturn {
     setShowUploadSignedLOAModal: (value: boolean) => void;
     fetchRequestData: () => Promise<void>;
     fetchResumes: () => Promise<void>;
+    fetchCandidates: () => Promise<void>;
     handleStatusChange: (newStatus: string) => Promise<void>;
     handleResolutionSubmit: () => Promise<void>;
     handleSkipResolution: () => Promise<void>;
@@ -212,7 +204,7 @@ interface UseRequestDetailReturn {
     handleLOAApprovalDecision: (decision: 'APPROVE' | 'REJECT', comments?: string) => Promise<void>;
     handleMarkLOAIssued: () => Promise<void>;
     handleMarkLOAAccepted: () => Promise<void>;
-    handleCEODecision: (decision: 'APPROVED' | 'REJECTED', comments: string) => Promise<void>;
+    handleCEODecision: (decision: 'APPROVED' | 'REJECTED', comments: string, approverId?: string) => Promise<void>;
     handleManagerDecision: (decision: 'APPROVED' | 'REJECTED', selectedCandidateIds: string[], comments: string) => Promise<void>;
     handleRouteToManager: () => Promise<void>;
     handleAdvanceOnboardingPhase: () => Promise<void>;
@@ -235,6 +227,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
     const [request, setRequest] = useState<Request | null>(null);
     const [activities, setActivities] = useState<Activity[]>([]);
     const [resumes, setResumes] = useState<CandidateResume[]>([]);
+    const [candidates, setCandidates] = useState<CandidateType[]>([]);
     const [interviewDetails, setInterviewDetails] = useState<InterviewDetails | null>(null);
     const [screeningDetails, setScreeningDetails] = useState<HRScreening | null>(null);
     const [loaDetails, setLoaDetails] = useState<LetterOfAcceptance | null>(null);
@@ -317,6 +310,7 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         const relevantStatuses = ['JOB_POSTED', 'PENDING_MANAGER_REVIEW', 'MANAGER_APPROVED', 'INTERVIEW_SCHEDULED', 'INTERVIEW_FEEDBACK_PENDING'];
         if (id && relevantStatuses.includes(request?.status || '')) {
             fetchResumes();
+            fetchCandidates();
         }
     }, [id, request?.status]);
 
@@ -394,6 +388,15 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
             setResumes(await approvalService.getResumes(id));
         } catch (error) {
             console.error('Error fetching resumes:', error);
+        }
+    }, [id]);
+
+    const fetchCandidates = useCallback(async () => {
+        if (!id) return;
+        try {
+            setCandidates(await approvalService.getCandidates(id));
+        } catch (error) {
+            console.error('Error fetching candidates:', error);
         }
     }, [id]);
 
@@ -529,14 +532,14 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
         }
     }, [id, fetchRequestData]);
 
-    const handleCEODecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', comments: string) => {
+    const handleCEODecision = useCallback(async (decision: 'APPROVED' | 'REJECTED', comments: string, approverId?: string) => {
         if (!id) return;
         try {
             setProcessingAction(true);
             // Route to the correct service based on request status
             const isITRequest = request?.status === 'PENDING_CEO_APPROVAL_IT';
             if (isITRequest) {
-                await itWorkflowService.ceoDecision(id, decision, comments);
+                await itWorkflowService.ceoDecision(id, decision, comments, approverId);
             } else {
                 await approvalService.ceoDecision(id, decision, comments);
             }
@@ -714,12 +717,12 @@ export const useRequestDetail = (): UseRequestDetailReturn => {
     }, [id, fetchRequestData]);
 
     return {
-        id, request, setRequest, activities, setActivities, resumes, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
+        id, request, setRequest, activities, setActivities, resumes, candidates, interviewDetails, screeningDetails, loaDetails, loading, error, updatingStatus, processingAction,
         showResolutionModal, showRejectionConfirm, showCompleteOnboardingConfirm, showUploadModal, showJobPostModal, showCEODecisionModal, showManagerDecisionModal, showScheduleInterviewModal, showEditInterviewModal, showInterviewFeedbackModal, showHRScreeningModal, showUploadLOAModal, showLOAApprovalModal, showUploadSignedLOAModal,
         resolutionComment, pendingStatus, rejectionPendingStatus,
         setRejectionPendingStatus,
         setResolutionComment, setShowResolutionModal, setShowRejectionConfirm, setShowCompleteOnboardingConfirm, setShowUploadModal, setShowJobPostModal, setShowCEODecisionModal, setShowManagerDecisionModal, setShowScheduleInterviewModal, setShowEditInterviewModal, setShowInterviewFeedbackModal, setShowHRScreeningModal, setShowUploadLOAModal, setShowLOAApprovalModal, setShowUploadSignedLOAModal,
-        fetchRequestData, fetchResumes, handleStatusChange, handleResolutionSubmit, handleSkipResolution, handleDeleteResume, handleScheduleInterview, handleUpdateInterview, handleSubmitInterviewFeedback, handleStartHRScreening, handleRouteLOAForApproval, handleLOAApprovalDecision, handleMarkLOAIssued, handleMarkLOAAccepted, handleCEODecision, handleManagerDecision, handleRouteToManager, handleAdvanceOnboardingPhase, handleCompleteOnboarding, confirmCompleteOnboarding, handleAdvanceOffboardingPhase, handleCompleteOffboarding, handleReviseAndResubmit, handleReopenForNewCandidates, handleUploadResume, handleMarkJobPosted,
+        fetchRequestData, fetchResumes, fetchCandidates, handleStatusChange, handleResolutionSubmit, handleSkipResolution, handleDeleteResume, handleScheduleInterview, handleUpdateInterview, handleSubmitInterviewFeedback, handleStartHRScreening, handleRouteLOAForApproval, handleLOAApprovalDecision, handleMarkLOAIssued, handleMarkLOAAccepted, handleCEODecision, handleManagerDecision, handleRouteToManager, handleAdvanceOnboardingPhase, handleCompleteOnboarding, confirmCompleteOnboarding, handleAdvanceOffboardingPhase, handleCompleteOffboarding, handleReviseAndResubmit, handleReopenForNewCandidates, handleUploadResume, handleMarkJobPosted,
         updateStatusDirectly,
     };
 };

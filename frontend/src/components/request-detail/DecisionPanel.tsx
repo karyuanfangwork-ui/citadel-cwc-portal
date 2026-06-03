@@ -38,6 +38,7 @@ interface DecisionPanelProps {
   requiresApproval?: boolean;
   agentTeam?: string;
   hasResumes?: boolean;
+  allCandidatesComplete?: boolean;
   screeningCompleted?: boolean;
   hasLOA?: boolean;
   hasSignedLOA?: boolean;
@@ -180,6 +181,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   requiresApproval = true,
   requesterId,
   hasResumes = false,
+  allCandidatesComplete,
   screeningCompleted = false,
   hasLOA = false,
   hasSignedLOA = false,
@@ -222,6 +224,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
     requiresApproval,
     requestTypeCode,
     hasResumes,
+    allCandidatesComplete,
     screeningCompleted,
     hasLOA,
     hasSignedLOA,
@@ -238,6 +241,11 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
         // Map direct actions to their callbacks or service calls
         switch (action) {
           case 'ROUTE_TO_MANAGER':
+            if (allCandidatesComplete === false) {
+              setError('All candidates must have Resume, Certificate, and Transcript uploaded before routing to Manager.');
+              setDirectLoading(false);
+              return;
+            }
             onRouteToManager?.();
             return;
           case 'MANAGER_DECISION':
@@ -371,6 +379,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
           return (
             <button
               key={action.type}
+              type="button"
               onClick={() => handleActionClick(action.type)}
               disabled={directLoading || (action.type === 'ADVANCE_OFFBOARDING_PHASE' && !offboardingPreConditionsMet)}
               className={`w-full text-left border rounded-xl p-4 transition-colors group ${

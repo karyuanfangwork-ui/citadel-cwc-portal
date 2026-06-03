@@ -148,3 +148,8 @@ const uploader = multer({
 // ---------------------------------------------------------------------------
 export const uploadSingleFile = (fieldName: string) => uploader.single(fieldName);
 
+// ---------------------------------------------------------------------------
+// Middleware factory for multiple file upload
+// ---------------------------------------------------------------------------
+export const uploadMultipleFiles = (fieldName: string, maxCount: number) => uploader.array(fieldName, maxCount);
+

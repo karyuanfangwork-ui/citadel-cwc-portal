@@ -17,7 +17,15 @@ import loaService from '../services/loa.service';
 /*  Types                                                              */
 /* ------------------------------------------------------------------ */
 
-export type FieldInputType = 'text' | 'textarea' | 'date' | 'number' | 'select' | 'time-select' | 'file';
+export type FieldInputType =
+  | 'text'
+  | 'textarea'
+  | 'date'
+  | 'number'
+  | 'select'
+  | 'time-select'
+  | 'file'
+  | 'approver-picker';
 
 export interface WorkflowModalField {
   /** Machine key used as the form state property name */
@@ -38,6 +46,8 @@ export interface WorkflowModalField {
   defaultValue?: string;
   /** Number of rows (textarea only) */
   rows?: number;
+  /** Executive role to fetch (only used when type === 'approver-picker') */
+  approverRole?: 'GROUP_CEO' | 'CEO' | 'CTO' | 'CFO' | 'CMO' | 'COO' | 'CHRO';
 }
 
 export type SubmitColor = 'primary' | 'danger' | 'warning' | 'success';
@@ -263,11 +273,18 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
 
   ACKNOWLEDGE_IT: {
     title: 'Acknowledge & Route to CEO',
-    subtitle: 'IT Workflow · CEO will be automatically assigned',
+    subtitle: 'IT Workflow · Pick the CEO or accept the auto-selected default',
     icon: 'task_alt',
     iconBgClass: 'bg-blue-100',
     iconTextClass: 'text-blue-600',
     fields: [
+      {
+        name: 'ceoId',
+        label: 'Route CEO',
+        type: 'approver-picker',
+        approverRole: 'CEO',
+        required: false,
+      },
       {
         name: 'notes',
         label: 'Notes',
@@ -280,12 +297,16 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitLabel: 'Acknowledge & Route',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      itWorkflowService.acknowledgeRequest(requestId, (values.notes as string) || undefined),
+      itWorkflowService.acknowledgeRequest(
+        requestId,
+        (values.notes as string) || undefined,
+        (values.ceoId as string) || undefined,
+      ),
   },
 
   CEO_DECISION_IT: {
     title: 'CEO Decision',
-    subtitle: 'IT Workflow · Approve or reject',
+    subtitle: 'IT Workflow · Approve or reject (on approve, route to CTO)',
     icon: 'gavel',
     iconBgClass: 'bg-amber-100',
     iconTextClass: 'text-amber-600',
@@ -296,6 +317,13 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
         type: 'select',
         required: true,
         options: DECISION_OPTIONS,
+      },
+      {
+        name: 'ctoId',
+        label: 'Route CTO (on Approve)',
+        type: 'approver-picker',
+        approverRole: 'CTO',
+        required: false,
       },
       {
         name: 'notes',
@@ -313,6 +341,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
         requestId,
         (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
         (values.notes as string) || undefined,
+        (values.ctoId as string) || undefined,
       ),
   },
 

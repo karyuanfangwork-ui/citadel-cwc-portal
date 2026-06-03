@@ -14,6 +14,9 @@ import {
     uploadResume,
     getResumes,
     deleteResume,
+    batchUploadDocs,
+    getCandidates,
+    deleteCandidate,
     upload
 } from '../controllers/resume.controller';
 
@@ -88,10 +91,31 @@ router.post('/requests/:id/group-ceo-decision-hr', groupCeoDecisionHr);
 
 /**
  * @route   POST /api/approvals/requests/:id/upload-resume
- * @desc    Upload candidate resume
+ * @desc    Upload single candidate document
  * @access  Private (HR Agent)
  */
 router.post('/requests/:id/upload-resume', upload.single('file'), uploadResume);
+
+/**
+ * @route   POST /api/approvals/requests/:id/upload-candidate-docs
+ * @desc    Batch upload candidate documents (multiple files)
+ * @access  Private (HR Agent)
+ */
+router.post('/requests/:id/upload-candidate-docs', upload.array('files', 5), batchUploadDocs);
+
+/**
+ * @route   GET /api/approvals/requests/:id/candidates
+ * @desc    Get all candidates for a request (with documents)
+ * @access  Private
+ */
+router.get('/requests/:id/candidates', getCandidates);
+
+/**
+ * @route   DELETE /api/approvals/requests/:id/candidates/:candidateId
+ * @desc    Delete a candidate and their documents
+ * @access  Private (HR Agent)
+ */
+router.delete('/requests/:id/candidates/:candidateId', deleteCandidate);
 
 /**
  * @route   GET /api/approvals/requests/:id/resumes

@@ -130,10 +130,15 @@ class RequestController {
 
         // Agents are scoped to their assigned service desk only.
         // An HR agent cannot see IT or Finance tickets, and vice versa.
+        // However, agents CAN see tickets from other service desks that are assigned to their team
+        // (e.g., a FINANCE agent processing payment on an IT ticket via CFO workflow).
         if (hasRole(req, 'AGENT') && !hasRole(req, 'ADMIN')) {
             const agentTeam = (req.user as any)?.agentTeam;
             if (agentTeam) {
-                where.serviceDesk = { code: agentTeam };
+                where.OR = [
+                    { serviceDesk: { code: agentTeam } },
+                    { assignedTeam: agentTeam },
+                ];
             }
         }
 

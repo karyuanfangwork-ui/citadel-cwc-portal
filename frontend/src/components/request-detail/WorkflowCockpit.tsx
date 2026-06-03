@@ -68,6 +68,7 @@ interface WorkflowCockpitProps {
 
   /** Resume/LOA/screening state flags */
   hasResumes?: boolean;
+  allCandidatesComplete?: boolean;
   screeningCompleted?: boolean;
   hasLOA?: boolean;
   hasSignedLOA?: boolean;
@@ -104,6 +105,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
   workflowSteps,
   approvals = [],
   hasResumes = false,
+  allCandidatesComplete,
   screeningCompleted = false,
   hasLOA = false,
   hasSignedLOA = false,
@@ -172,6 +174,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               requiresApproval={request.requiresApproval}
               agentTeam={request.assignedTeam ?? undefined}
               hasResumes={hasResumes}
+              allCandidatesComplete={allCandidatesComplete}
               screeningCompleted={screeningCompleted}
               hasLOA={hasLOA}
               hasSignedLOA={hasSignedLOA}
@@ -308,6 +311,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   requiresApproval={request.requiresApproval}
                   agentTeam={request.assignedTeam ?? undefined}
                   hasResumes={hasResumes}
+                  allCandidatesComplete={allCandidatesComplete}
                   screeningCompleted={screeningCompleted}
                   hasLOA={hasLOA}
                   hasSignedLOA={hasSignedLOA}

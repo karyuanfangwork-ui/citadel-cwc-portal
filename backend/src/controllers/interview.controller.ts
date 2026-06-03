@@ -47,7 +47,7 @@ export const scheduleInterview = async (req: Request, res: Response) => {
         // Get the request
         const request = await prisma.request.findUnique({
             where: { id },
-            include: { candidateResumes: true }
+            include: { candidates: true }
         });
 
         if (!request) {
@@ -65,7 +65,7 @@ export const scheduleInterview = async (req: Request, res: Response) => {
         }
 
         // Verify candidate exists
-        const candidate = request.candidateResumes.find(r => r.id === candidateId);
+        const candidate = request.candidates.find(c => c.id === candidateId);
         if (!candidate) {
             return res.status(404).json({
                 status: 'error',
@@ -80,7 +80,7 @@ export const scheduleInterview = async (req: Request, res: Response) => {
         if (existingSchedule) {
             return res.status(409).json({
                 status: 'error',
-                message: `Interview already scheduled for ${candidate.candidateName || 'this candidate'}. Use edit to update.`
+                message: `Interview already scheduled for ${candidate.fullName}. Use edit to update.`
             });
         }
 
@@ -98,7 +98,7 @@ export const scheduleInterview = async (req: Request, res: Response) => {
                 scheduledBy: userId
             },
             include: {
-                candidateResume: true,
+                candidate: true,
                 scheduledByUser: {
                     select: {
                         id: true,
@@ -136,18 +136,10 @@ export const scheduleInterview = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'SYSTEM',
-                message: `Interview scheduled with ${candidate.candidateName || 'candidate'} on ${interviewDate} at ${interviewTime}`,
+                message: `Interview scheduled with ${candidate.fullName} on ${interviewDate} at ${interviewTime}`,
                 isSystemGenerated: true
             }
         });
-
-        // Transform BigInt to string for JSON serialization
-        if (interviewSchedule && interviewSchedule.candidateResume) {
-            (interviewSchedule as any).candidateResume = {
-                ...interviewSchedule.candidateResume,
-                fileSize: interviewSchedule.candidateResume.fileSize.toString()
-            };
-        }
 
         res.json({
             status: 'success',
@@ -273,9 +265,9 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
         // Get candidate info for activity log
         let candidateLabel = 'candidate';
         if (candidateId) {
-            const candidateResume = await prisma.candidateResume.findUnique({ where: { id: candidateId } });
-            if (candidateResume?.candidateName) {
-                candidateLabel = candidateResume.candidateName;
+            const candidate = await prisma.candidate.findUnique({ where: { id: candidateId } });
+            if (candidate?.fullName) {
+                candidateLabel = candidate.fullName;
             }
         }
 
@@ -301,7 +293,6 @@ export const submitInterviewFeedback = async (req: Request, res: Response) => {
         const activityMessage = decision === 'PROCEED'
             ? `Hiring Manager approved ${candidateLabel} to proceed after interview`
             : `Hiring Manager rejected ${candidateLabel} after interview`;
-
         await prisma.requestActivity.create({
             data: {
                 requestId: id,
@@ -426,7 +417,7 @@ export const getInterviewDetails = async (req: Request, res: Response) => {
             prisma.interviewSchedule.findMany({
                 where: { requestId: id },
                 include: {
-                    candidateResume: true,
+                    candidate: true,
                     scheduledByUser: {
                         select: {
                             id: true,
@@ -454,14 +445,8 @@ export const getInterviewDetails = async (req: Request, res: Response) => {
             })
         ]);
 
-        // Transform BigInt to string and parse interviewers for each schedule
+        // Parse interviewers for each schedule
         for (const schedule of interviewSchedules) {
-            if (schedule.candidateResume) {
-                (schedule as any).candidateResume = {
-                    ...schedule.candidateResume,
-                    fileSize: schedule.candidateResume.fileSize.toString()
-                };
-            }
             if (typeof schedule.interviewers === 'string') {
                 try {
                     (schedule as any).interviewers = JSON.parse(schedule.interviewers);

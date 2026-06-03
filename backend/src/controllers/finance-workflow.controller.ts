@@ -3,6 +3,7 @@ import path from 'path';
 import { PrismaClient, RequestStatus } from '@prisma/client';
 import { notify } from '../services/notification.service';
 import { auditLog } from '../utils/audit';
+import { reassignToTeam } from '../services/reassign.service';
 import { config } from '../config';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
@@ -203,15 +204,8 @@ export const cfoDecision = async (req: Request, res: Response) => {
                 }
             }
         } else {
-            // CFO approved (payment processing) or rejected — reassign back to Finance agent (AGENT/ADMIN role only)
-            const requestWithRequester = await prisma.request.findUnique({ where: { id }, include: { requester: true } });
-            const entityFilter = requestWithRequester?.requester?.entityId ? { entityId: requestWithRequester.requester.entityId } : {};
-            const financeAgent = await prisma.user.findFirst({
-                where: { OR: [{ agentTeam: 'FINANCE' }, { agentTeam: 'Finance' }], isActive: true, ...entityFilter, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
-            });
-            if (financeAgent) {
-                cfoUpdateData.assignedToId = financeAgent.id;
-            }
+            // CFO approved (payment processing) or rejected — reassign back to Finance agent using shared reassignToTeam
+            await reassignToTeam(id, (await prisma.request.findUnique({ where: { id } }))!.referenceNumber, 'FINANCE', 'Finance-Workflow');
         }
 
         const updated = await prisma.request.update({ where: { id }, data: cfoUpdateData });
@@ -295,16 +289,9 @@ export const groupCeoDecision = async (req: Request, res: Response) => {
 
         const newStatus = decision === 'APPROVED' ? RequestStatus.PAYMENT_PROCESSING_FIN : RequestStatus.GROUP_CEO_REJECTED;
 
-        // Reassign back to Finance agent after Group CEO decision (AGENT/ADMIN role only)
-        const requestWithRequester = await prisma.request.findUnique({ where: { id }, include: { requester: true } });
-        const entityFilter = requestWithRequester?.requester?.entityId ? { entityId: requestWithRequester.requester.entityId } : {};
-        const financeAgent = await prisma.user.findFirst({
-            where: { OR: [{ agentTeam: 'FINANCE' }, { agentTeam: 'Finance' }], isActive: true, ...entityFilter, roles: { some: { role: { name: { in: ['AGENT', 'ADMIN'] } } } } },
-        });
+        // Reassign back to Finance agent using shared reassignToTeam (no entity-scoping)
+        await reassignToTeam(id, request.referenceNumber, 'FINANCE', 'Finance-Workflow');
         const gCeoUpdateData: any = { status: newStatus };
-        if (financeAgent) {
-            gCeoUpdateData.assignedToId = financeAgent.id;
-        }
 
         const updated = await prisma.request.update({ where: { id }, data: gCeoUpdateData });
 

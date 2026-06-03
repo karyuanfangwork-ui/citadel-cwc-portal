@@ -560,6 +560,7 @@ model Request {
   notifications        Notification[]
   approvals            RequestApproval[]
   candidateResumes     CandidateResume[]
+  candidates           Candidate[]
   interviewSchedules   InterviewSchedule[]
   interviewFeedbacks   InterviewFeedback[]
   hrScreening          HRScreening?
@@ -809,29 +810,42 @@ model RequestApproval {
   @@map("request_approvals")
 }
 
-model CandidateResume {
-  id        String @id @default(uuid()) @db.Uuid
-  requestId String @map("request_id") @db.Uuid
-
-  fileName String  @map("file_name") @db.VarChar(255)
-  fileUrl  String  @map("file_url") @db.Text
-  fileSize BigInt  @map("file_size")
-  mimeType String? @map("mime_type") @db.VarChar(100)
-
-  uploadedById String @map("uploaded_by_id") @db.Uuid
-
-  candidateName String? @map("candidate_name") @db.VarChar(200)
-  documentType  String  @default("RESUME") @map("document_type") @db.VarChar(50)
-  notes         String? @db.Text
-
+model Candidate {
+  id        String   @id @default(uuid()) @db.Uuid
+  requestId String   @map("request_id") @db.Uuid
+  fullName  String   @map("full_name") @db.VarChar(200)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  request            Request             @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  documents          CandidateResume[]
+  interviewSchedules InterviewSchedule[]
+  interviewFeedbacks InterviewFeedback[]
+
+  @@unique([requestId, fullName], name: "unique_candidate_per_request")
+  @@index([requestId])
+  @@map("candidates")
+}
+
+model CandidateResume {
+  id            String   @id @default(uuid()) @db.Uuid
+  requestId     String   @map("request_id") @db.Uuid
+  candidateId   String   @map("candidate_id") @db.Uuid
+  fileName      String   @map("file_name") @db.VarChar(255)
+  fileUrl       String   @map("file_url") @db.Text
+  fileSize      BigInt   @map("file_size")
+  mimeType      String?  @map("mime_type") @db.VarChar(100)
+  uploadedById  String   @map("uploaded_by_id") @db.Uuid
+  candidateName String?  @map("candidate_name") @db.VarChar(200) // kept for denormalized display
+  documentType  String   @default("RESUME") @map("document_type") @db.VarChar(50)
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
 
   // Relations
   request            Request             @relation(fields: [requestId], references: [id], onDelete: Cascade)
   uploadedBy         User                @relation(fields: [uploadedById], references: [id])
-  interviewSchedules InterviewSchedule[]
-  interviewFeedbacks InterviewFeedback[]
+  candidate          Candidate           @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
+  @@unique([candidateId, documentType], name: "unique_doc_type_per_candidate")
   @@index([requestId])
   @@map("candidate_resumes")
 }
@@ -989,7 +1003,7 @@ model InterviewSchedule {
 
   // Relations
   request         Request         @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  candidateResume CandidateResume @relation(fields: [candidateId], references: [id])
+  candidate       Candidate       @relation(fields: [candidateId], references: [id])
   scheduledByUser User            @relation(fields: [scheduledBy], references: [id])
 
   @@unique([requestId, candidateId])
@@ -1015,7 +1029,7 @@ model InterviewFeedback {
 
   // Relations
   request         Request          @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  candidateResume CandidateResume? @relation(fields: [candidateId], references: [id])
+  candidate       Candidate?       @relation(fields: [candidateId], references: [id])
   submittedByUser User             @relation(fields: [submittedBy], references: [id])
 
   @@index([requestId])

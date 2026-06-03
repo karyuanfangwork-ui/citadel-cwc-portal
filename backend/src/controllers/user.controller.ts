@@ -9,7 +9,7 @@ import { permissionService } from '../services/permission.service';
 import { auditLog } from '../utils/audit';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { tokenService } from '../services/token.service';
-import { validateExecutiveRoleAssignment } from '../utils/executive-role';
+import { EXECUTIVE_HIERARCHY, validateExecutiveRoleAssignment } from '../utils/executive-role';
 import { validatePassword } from '../utils/password';
 import { logger } from '../utils/logger';
 import {
@@ -374,6 +374,49 @@ class UserController {
         });
 
         res.json({ success: true, data: { agents } });
+    });
+
+    /**
+     * Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_CEO / etc.)
+     * Used by workflow modals (AcknowledgeModal, CeoDecisionModal, etc.) to let the
+     * agent override the auto-selected approver before routing.
+     *
+     * Permission: any authenticated user who can route approvals (AGENT, ADMIN, executives).
+     * No PII beyond name/email/role is exposed.
+     */
+    getExecutives = asyncHandler(async (req: AuthRequest, res: Response) => {
+        const role = String(req.query.role || '').toUpperCase().trim();
+
+        if (!role) {
+            throw new AppError('Query param "role" is required (e.g. CEO, CTO, CFO, GROUP_CEO)', 400);
+        }
+        if (!EXECUTIVE_HIERARCHY.includes(role as ExecutiveRole)) {
+            throw new AppError(
+                `Invalid executive role "${role}". Allowed: ${EXECUTIVE_HIERARCHY.join(', ')}`,
+                400,
+            );
+        }
+
+        const executives = await prisma.user.findMany({
+            where: {
+                executiveRole: role as ExecutiveRole,
+                isActive: true,
+            },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                jobTitle: true,
+                executiveRole: true,
+                entity: {
+                    select: { id: true, code: true, name: true },
+                },
+            },
+            orderBy: [{ entity: { code: 'asc' } }, { firstName: 'asc' }],
+        });
+
+        res.json({ success: true, data: { executives } });
     });
 
     /**

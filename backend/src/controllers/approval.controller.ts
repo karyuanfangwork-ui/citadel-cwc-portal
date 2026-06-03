@@ -3,6 +3,7 @@ import { PrismaClient, ApprovalStatus } from '@prisma/client';
 import { auditLog } from '../utils/audit';
 import { notify } from '../services/notification.service';
 import { allEntityApprovalsResolved } from '../services/entityRouting.service';
+import { reassignToTeam } from '../services/reassign.service';
 import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
@@ -202,28 +203,12 @@ export const ceoDecision = async (req: Request, res: Response) => {
 
         // Update request status and reassign back to the original HR agent
         const newStatus = decision === 'APPROVED' ? 'CEO_APPROVED' : 'CEO_REJECTED';
-
-        // Find an HR agent to reassign to — try same entity first, fall back to any active HR agent
-        let hrAgent = await prisma.user.findFirst({
-            where: {
-                agentTeam: 'HR',
-                isActive: true,
-                entityId: request.requester.entityId,
-            }
-        });
-        if (!hrAgent) {
-            hrAgent = await prisma.user.findFirst({
-                where: {
-                    agentTeam: 'HR',
-                    isActive: true,
-                }
-            });
-        }
-
         const updateData: any = { status: newStatus };
-        if (hrAgent && decision !== 'APPROVED') {
-            // Only assign to HR agent if not auto-advancing to Group CEO
-            updateData.assignedToId = hrAgent.id;
+
+        // Reassign back to HR agent — use shared reassignToTeam (no entity-scoping, sets assignedToId + assignedTeam, logs + notifies)
+        if (decision !== 'APPROVED') {
+          // On rejection, reassign back to HR team immediately
+          await reassignToTeam(id, request.referenceNumber, 'HR', 'HR-Approval');
         }
 
         // When CEO approves, auto-advance to Group CEO for HR hiring workflow
@@ -287,20 +272,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
             }
         });
 
-        // Log reassignment back to HR agent
-        if (hrAgent) {
-            await prisma.requestActivity.create({
-                data: {
-                    requestId: id,
-                    authorId: userId,
-                    authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
-                    authorRole: 'CEO',
-                    activityType: 'ASSIGNMENT',
-                    message: `Request reassigned to HR Agent (${hrAgent.firstName} ${hrAgent.lastName}) after CEO decision`,
-                    isSystemGenerated: true
-                }
-            });
-        }
+        // (reassignToTeam already logs the HR reassignment activity)
 
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
@@ -463,10 +435,32 @@ export const routeToManager = async (req: Request, res: Response) => {
             return;
         }
 
-        if ((request as any).candidateResumes.length === 0) {
+        // Check 3-doc completeness per candidate
+        const candidates = await prisma.candidate.findMany({
+            where: { requestId: id },
+            include: { documents: true },
+        });
+
+        if (candidates.length === 0) {
             res.status(400).json({
                 status: 'error',
-                message: 'At least one candidate resume must be uploaded before routing to manager'
+                message: 'At least one candidate must be uploaded before routing to manager'
+            });
+            return;
+        }
+
+        const missingDocs: string[] = [];
+        for (const cand of candidates) {
+            const presentTypes = new Set(cand.documents.map(d => d.documentType));
+            const missing = ['RESUME', 'CERTIFICATE', 'TRANSCRIPT'].filter(t => !presentTypes.has(t));
+            if (missing.length > 0) {
+                missingDocs.push(`${cand.fullName}: missing ${missing.join(', ')}`);
+            }
+        }
+        if (missingDocs.length > 0) {
+            res.status(400).json({
+                status: 'error',
+                message: `All documents required before routing to manager: ${missingDocs.join('; ')}`
             });
             return;
         }
@@ -499,7 +493,7 @@ export const routeToManager = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'ASSIGNMENT',
-                message: `Request routed to ${request.requester.firstName} ${request.requester.lastName} (Hiring Manager) for candidate review. ${(request as any).candidateResumes.length} candidate(s) submitted.${comments ? ' ' + comments : ''}`,
+                message: `Request routed to ${request.requester.firstName} ${request.requester.lastName} (Hiring Manager) for candidate review. ${candidates.length} candidate(s) submitted.${comments ? ' ' + comments : ''}`,
                 isSystemGenerated: true
             }
         });
@@ -521,16 +515,11 @@ export const routeToManager = async (req: Request, res: Response) => {
         relatedRequestId: id,
     });
 
-    // Transform BigInt to string in candidateResumes for JSON serialization
-        const serializedResumes = (request as any).candidateResumes.map((resume: any) => ({
-            ...resume,
-            fileSize: resume.fileSize.toString()
-        }));
-
+    // Transform BigInt to string in serialized data for JSON serialization
         res.json({
             status: 'success',
             data: {
-                request: { ...updatedRequest, candidateResumes: serializedResumes },
+                request: updatedRequest,
                 approval
             }
         });
@@ -666,42 +655,8 @@ export const managerDecision = async (req: Request, res: Response) => {
         // Update request status
         const newStatus = decision === 'APPROVED' ? 'MANAGER_APPROVED' : 'IN_REVIEW';
 
-        // Find an HR agent to reassign back to — try same entity first, fall back to any active HR agent
-        let hrAgent: any = null;
-        if (decision === 'APPROVED') {
-            hrAgent = await prisma.user.findFirst({
-                where: {
-                    agentTeam: 'HR',
-                    isActive: true,
-                    entityId: request.requester?.entityId,
-                }
-            });
-            if (!hrAgent) {
-                hrAgent = await prisma.user.findFirst({
-                    where: {
-                        agentTeam: 'HR',
-                        isActive: true,
-                    }
-                });
-            }
-        } else {
-            // Rejected: reassign to HR agent for re-work
-            hrAgent = await prisma.user.findFirst({
-                where: {
-                    agentTeam: 'HR',
-                    isActive: true,
-                    entityId: request.requester?.entityId,
-                }
-            });
-            if (!hrAgent) {
-                hrAgent = await prisma.user.findFirst({
-                    where: {
-                        agentTeam: 'HR',
-                        isActive: true,
-                    }
-                });
-            }
-        }
+        // Reassign back to HR agent — use shared reassignToTeam (no entity-scoping, sets assignedToId + assignedTeam, logs + notifies)
+        await reassignToTeam(id, request.referenceNumber, 'HR', 'HR-Approval');
 
         // Store selected candidates in customFields
         const customFields = request.customFields as any || {};
@@ -723,9 +678,6 @@ export const managerDecision = async (req: Request, res: Response) => {
             status: newStatus,
             customFields
         };
-        if (hrAgent) {
-            updateData.assignedToId = hrAgent.id;
-        }
 
         const updatedRequest = await prisma.request.update({
             where: { id },
@@ -752,28 +704,7 @@ export const managerDecision = async (req: Request, res: Response) => {
             }
         });
 
-        // Reassignment activity log
-        if (hrAgent) {
-            await prisma.requestActivity.create({
-                data: {
-                    requestId: id,
-                    authorId: userId,
-                    authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
-                    authorRole: 'System',
-                    activityType: 'ASSIGNMENT',
-                    message: `Request reassigned to HR Agent (${hrAgent.firstName} ${hrAgent.lastName}) after Hiring Manager ${decision === 'APPROVED' ? 'approval' : 'rejection'}`,
-                    isSystemGenerated: true
-                }
-            });
-
-            // Notify HR agent
-            await notify({
-                userId: hrAgent.id,
-                eventType: 'REQUEST_ASSIGNED',
-                variables: { requestId: id, role: 'HR_AGENT' },
-                relatedRequestId: id,
-            });
-        }
+        // (reassignToTeam already logs the HR reassignment activity and sends notification)
 
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
@@ -784,16 +715,10 @@ export const managerDecision = async (req: Request, res: Response) => {
 
     await resumeSla(id);
 
-        // Transform BigInt to string in candidateResumes for JSON serialization
-        const serializedResumes = (updatedRequest as any).candidateResumes?.map((resume: any) => ({
-            ...resume,
-            fileSize: resume.fileSize.toString()
-        })) || [];
-
         res.json({
             status: 'success',
             data: {
-                request: { ...updatedRequest, candidateResumes: serializedResumes },
+                request: updatedRequest,
                 approval: updatedApproval
             }
         });
@@ -1093,33 +1018,15 @@ export const groupCeoDecisionHr = async (req: Request, res: Response) => {
 
         const newStatus = decision === 'APPROVED' ? 'GROUP_CEO_APPROVED' : 'GROUP_CEO_REJECTED';
 
-        // Reassign back to HR agent after Group CEO decision — try same entity first, fall back to any
-        let hrAgent = await prisma.user.findFirst({
-            where: {
-                agentTeam: 'HR',
-                isActive: true,
-                entityId: request.requester?.entityId,
-            }
-        });
-        if (!hrAgent) {
-            hrAgent = await prisma.user.findFirst({
-                where: {
-                    agentTeam: 'HR',
-                    isActive: true,
-                }
-            });
-        }
+        // Reassign back to HR agent — use shared reassignToTeam (no entity-scoping, sets assignedToId + assignedTeam, logs + notifies)
+        await reassignToTeam(id, request.referenceNumber, 'HR', 'HR-Approval');
 
         const updateData: any = { status: newStatus };
-        if (hrAgent) {
-            updateData.assignedToId = hrAgent.id;
-        }
 
         const updatedRequest = await prisma.request.update({
             where: { id },
             data: updateData
         });
-
         // Update approval record
         const updatedApproval = await prisma.requestApproval.update({
             where: { id: pendingApproval.id },
@@ -1143,20 +1050,7 @@ export const groupCeoDecisionHr = async (req: Request, res: Response) => {
             }
         });
 
-        // Log reassignment back to HR agent
-        if (hrAgent) {
-            await prisma.requestActivity.create({
-                data: {
-                    requestId: id,
-                    authorId: userId,
-                    authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
-                    authorRole: 'Group CEO',
-                    activityType: 'ASSIGNMENT',
-                    message: `Request reassigned to HR Agent (${hrAgent.firstName} ${hrAgent.lastName}) after Group CEO decision`,
-                    isSystemGenerated: true
-                }
-            });
-        }
+        // (reassignToTeam already logs the HR reassignment activity)
 
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,

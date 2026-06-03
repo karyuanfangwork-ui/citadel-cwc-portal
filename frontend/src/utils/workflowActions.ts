@@ -97,6 +97,7 @@ export function getWorkflowActions(
   requiresApproval = true,
   requestTypeCode = '',
   hasResumes = false,
+  allCandidatesComplete = false,
   screeningCompleted = false,
   hasLOA = false,
   hasSignedLOA = false,

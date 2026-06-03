@@ -21,13 +21,17 @@ const itWorkflowService = {
     const response = await api.post(`/it-workflow/requests/${requestId}/mark-software-provisioned`, data);
     return response.data;
   },
-  async acknowledgeRequest(requestId: string, notes?: string) {
-    const response = await api.post(`/it-workflow/requests/${requestId}/acknowledge`, { notes });
+  async acknowledgeRequest(requestId: string, notes?: string, ceoId?: string) {
+    const payload: Record<string, string | undefined> = {};
+    if (notes) payload.notes = notes;
+    if (ceoId) payload.ceoId = ceoId;
+    const response = await api.post(`/it-workflow/requests/${requestId}/acknowledge`, payload);
     return response.data;
   },
-  async ceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
-    const payload: Record<string, string> = { decision };
+  async ceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string, ctoId?: string) {
+    const payload: Record<string, string | undefined> = { decision };
     if (comments) payload.comments = comments;
+    if (ctoId) payload.ctoId = ctoId;
     const response = await api.post(`/it-workflow/requests/${requestId}/ceo-decision`, payload);
     return response.data;
   },
