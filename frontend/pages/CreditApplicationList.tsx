@@ -9,7 +9,8 @@ import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
-import { formatCurrency, formatDate, STATE_COLORS, getSmartDefaults } from './credit/creditUtils';
+import { sortApplications, type SortColumn, type SortDir } from '../src/utils/creditSort';
+import { formatCurrency, formatDate, STATE_COLORS, STATE_LABELS, getSmartDefaults } from './credit/creditUtils';
 import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
 
 const KANBAN_COLUMNS: { key: string; label: string; states: ApplicationState[]; color: string }[] = [
@@ -51,6 +52,18 @@ function getSLAInfo(createdAt: string, state: ApplicationState): { text: string;
   return { text: `${remaining}d left`, color: '#16a34a' };
 }
 
+function getSLAStrip(apps: CreditApplication[]) {
+  let overdue = 0, urgent = 0, ok = 0;
+  apps.forEach(app => {
+    const state = (app.state || app.status) as ApplicationState;
+    const info = getSLAInfo(app.createdAt, state);
+    if (info.color === '#dc2626') overdue++;
+    else if (info.color === '#ea580c') urgent++;
+    else if (info.color === '#16a34a') ok++;
+  });
+  return { overdue, urgent, ok };
+}
+
 const CreditApplicationList: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -73,6 +86,27 @@ const CreditApplicationList: React.FC = () => {
   const [loadingBorrowers, setLoadingBorrowers] = useState(false);
   const [pendingApprovalCount, setPendingApprovalCount] = useState(0);
   const { isCollapsed, toggle: toggleCollapse } = useCollapsedColumns('credit-applications');
+  const [sortCol, setSortCol] = useState<SortColumn>('sla');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [view, setView] = useState<'table' | 'kanban'>(() => {
+    return (localStorage.getItem('credit-applications-view') as 'table' | 'kanban') ?? 'table';
+  });
+
+  const handleSort = (col: SortColumn) => {
+    if (sortCol === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  };
+
+  const handleViewChange = (v: 'table' | 'kanban') => {
+    setView(v);
+    localStorage.setItem('credit-applications-view', v);
+  };
+
+  const sortedApplications = sortApplications(applications, sortCol, sortDir);
 
   // Debounce search input
   useEffect(() => {
@@ -220,28 +254,189 @@ const CreditApplicationList: React.FC = () => {
             <option value="">All States</option>
             {Object.entries(STATE_COLORS).map(([key]) => <option key={key} value={key}>{key.replace(/_/g, ' ')}</option>)}
           </select>
+          {/* View toggle */}
+          <div className="ml-auto flex gap-1">
+            <button
+              onClick={() => handleViewChange('table')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${view === 'table' ? 'bg-brand-700 text-white border-brand-700' : 'bg-surface border-border text-text-secondary hover:bg-gray-50'}`}
+              style={{ fontFamily: 'var(--font-sans)', cursor: 'pointer' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>table_rows</span> Table
+            </button>
+            <button
+              onClick={() => handleViewChange('kanban')}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border transition-colors ${view === 'kanban' ? 'bg-brand-700 text-white border-brand-700' : 'bg-surface border-border text-text-secondary hover:bg-gray-50'}`}
+              style={{ fontFamily: 'var(--font-sans)', cursor: 'pointer' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 14 }}>view_column</span> Kanban
+            </button>
+          </div>
         </div>
 
-        {/* Kanban Board */}
+        {/* Table / Kanban view */}
         {loading ? (
-          <div aria-busy="true" aria-label="Loading applications" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {KANBAN_COLUMNS.map(col => (
-              <div key={col.key}>
-                <div className="text-sm font-bold text-text-secondary mb-3 uppercase tracking-wider" style={{ color: col.color }}>{col.label}</div>
-                {[1, 2].map(i => (
-                  <div key={i} className="mb-3 p-4 bg-bg-surface border border-border rounded-xl" style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>
-                    <div style={{ height: 12, width: '70%', background: 'var(--color-border)', borderRadius: 4, marginBottom: 8 }} />
-                    <div style={{ height: 12, width: '50%', background: 'var(--color-border)', borderRadius: 4 }} />
-                  </div>
-                ))}
-              </div>
+          <div aria-busy="true" aria-label="Loading applications" className="space-y-2">
+            {[1,2,3,4,5].map(i => (
+              <div key={i} className="h-14 bg-surface-muted rounded-lg" style={{ animation: 'pulse 1.5s ease-in-out infinite' }} />
             ))}
           </div>
+        ) : view === 'table' ? (
+          <>
+            {/* SLA urgency strip */}
+            {(() => {
+              const strip = getSLAStrip(applications);
+              return (
+                <div className="flex items-center gap-4 flex-wrap px-4 py-2 mb-3 rounded-lg text-xs"
+                  style={{ background: '#fff8f0', border: '1px solid #fde8c8' }}>
+                  <span className="font-bold uppercase tracking-wide text-text-secondary" style={{ fontSize: 10 }}>SLA Status</span>
+                  {strip.overdue > 0 && (
+                    <span className="flex items-center gap-1 font-bold px-2.5 py-1 rounded-full"
+                      style={{ background: '#fef2f2', color: 'var(--color-danger)' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span>
+                      {strip.overdue} Overdue
+                    </span>
+                  )}
+                  {strip.urgent > 0 && (
+                    <span className="flex items-center gap-1 font-bold px-2.5 py-1 rounded-full"
+                      style={{ background: '#fff7ed', color: '#c2410c' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: 13 }}>schedule</span>
+                      {strip.urgent} Due within 24h
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-full"
+                    style={{ background: '#f0fdf4', color: 'var(--color-success)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: 13 }}>check_circle</span>
+                    {strip.ok} On track
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Table */}
+            <div className="rounded-xl border border-border overflow-hidden" style={{ boxShadow: 'var(--shadow-sm)' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table className="credit-table w-full" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th>Borrower</th>
+                      <th>Product</th>
+                      <th
+                        onClick={() => handleSort('amount')}
+                        className="cursor-pointer hover:text-brand-700 select-none"
+                      >
+                        Amount
+                        <span className="material-symbols-outlined align-middle ml-0.5"
+                          style={{ fontSize: 12, color: sortCol === 'amount' ? 'var(--color-brand-700)' : undefined }}>
+                          {sortCol === 'amount' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}
+                        </span>
+                      </th>
+                      <th>Stage / Status</th>
+                      <th
+                        onClick={() => handleSort('sla')}
+                        className="cursor-pointer hover:text-brand-700 select-none"
+                      >
+                        SLA
+                        <span className="material-symbols-outlined align-middle ml-0.5"
+                          style={{ fontSize: 12, color: sortCol === 'sla' ? 'var(--color-brand-700)' : undefined }}>
+                          {sortCol === 'sla' ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more'}
+                        </span>
+                      </th>
+                      <th>RM</th>
+                      <th>Created</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedApplications.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="text-center py-10 text-text-secondary">
+                          <span className="material-symbols-outlined text-3xl block opacity-20 mb-2">search_off</span>
+                          No applications found
+                        </td>
+                      </tr>
+                    )}
+                    {sortedApplications.map(app => {
+                      const state = (app.state || app.status) as ApplicationState;
+                      const badge = STATE_COLORS[state] || STATE_COLORS.DRAFT;
+                      const sla = getSLAInfo(app.createdAt, state);
+                      const isOverdue = sla.color === '#dc2626';
+                      const borrowerName = app.borrowerProfile
+                        ? (app.borrowerProfile.account?.name ||
+                           (app.borrowerProfile.contact
+                             ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}`
+                             : app.borrowerProfile.name) ||
+                           'Unnamed Borrower')
+                        : '\u2014';
+                      const daysAgo = Math.floor((Date.now() - new Date(app.createdAt).getTime()) / 86400000);
+                      const createdLabel = daysAgo === 0 ? 'Today' : `${daysAgo}d ago`;
+
+                      return (
+                        <tr
+                          key={app.id}
+                          onClick={() => navigate(`/credit/applications/${app.id}`)}
+                          className={`cursor-pointer${isOverdue ? ' row-overdue' : ''}`}
+                        >
+                          <td>
+                            <div className="font-bold text-text-primary" style={{ fontSize: 12 }}>{borrowerName}</div>
+                            <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+                              #{app.id.slice(-8).toUpperCase()}
+                            </div>
+                          </td>
+                          <td style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}>
+                            {PRODUCT_LABELS[app.productType || app.productName || ''] || '\u2014'}
+                          </td>
+                          <td>
+                            <div className="font-black text-text-primary" style={{ fontSize: 13 }}>
+                              {formatCurrency(app.requestedAmount, app.currency)}
+                            </div>
+                          </td>
+                          <td>
+                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold"
+                              style={{ background: badge.bg, color: badge.text }}>
+                              {(STATE_LABELS[state] || state.replace(/_/g, ' '))}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="font-semibold" style={{ fontSize: 11, color: sla.color }}>
+                              {isOverdue && (
+                                <span className="material-symbols-outlined align-middle mr-0.5" style={{ fontSize: 12 }}>warning</span>
+                              )}
+                              {sla.text}
+                            </span>
+                          </td>
+                          <td>
+                            {app.rm ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[10px] font-semibold"
+                                style={{ background: 'var(--color-brand-50)', color: 'var(--color-brand-700)' }}>
+                                <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-white font-black"
+                                  style={{ background: 'var(--color-brand-500)', fontSize: 8 }}>
+                                  {app.rm.firstName?.[0] ?? '?'}
+                                </span>
+                                {app.rm.firstName}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--color-text-tertiary)', fontSize: 11 }}>\u2014</span>
+                            )}
+                          </td>
+                          <td style={{ color: 'var(--color-text-tertiary)', fontSize: 11 }}>{createdLabel}</td>
+                          <td>
+                            <span className="material-symbols-outlined" style={{ color: 'var(--color-text-tertiary)', fontSize: 18 }}>
+                              chevron_right
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
         ) : (
+          /* ── Kanban (existing) ── */
           <div aria-busy="false" className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory" style={{ alignItems: 'flex-start' }}>
             {grouped.map(col => {
               const collapsed = isCollapsed(col.key);
-
               if (collapsed) {
                 return (
                   <CollapsedColumnPill
@@ -253,7 +448,6 @@ const CreditApplicationList: React.FC = () => {
                   />
                 );
               }
-
               return (
                 <div key={col.key} className="min-w-[260px] md:min-w-[280px] flex-1 snap-start">
                   <div className="flex items-center gap-2 mb-3 group">
@@ -262,41 +456,41 @@ const CreditApplicationList: React.FC = () => {
                     <span className="text-xs font-bold text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded-full ml-auto">{col.items.length}</span>
                     <ColumnCollapseToggle onClick={() => toggleCollapse(col.key)} />
                   </div>
-                <div className="space-y-3">
-                  {col.items.length === 0 && (
-                    <div className="text-center py-4 text-text-secondary">
-                      <span className="material-symbols-outlined text-xl block opacity-20">playlist_add</span>
-                      <p className="text-xs mt-1">Drag or create applications</p>
-                    </div>
-                  )}
-                  {col.items.map(app => {
-                    const state = (app.state || app.status) as ApplicationState;
-                    const badge = STATE_COLORS[state] || STATE_COLORS.DRAFT;
-                    const sla = getSLAInfo(app.createdAt, state);
-                    return (
-                      <div key={app.id} onClick={() => navigate(`/credit/applications/${app.id}`)}
-                        className="bg-bg-surface border border-border rounded-xl p-3.5 cursor-pointer hover:border-brand-300 hover:shadow-sm transition-all"
-                        style={{ borderLeft: `3px solid ${col.color}` }}>
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
-                            {state.replace(/_/g, ' ')}
-                          </span>
-                          <span className="text-[10px] font-semibold ml-auto" style={{ color: sla.color }}>{sla.text}</span>
-                        </div>
-                        <p className="text-sm font-bold text-text-primary truncate mb-0.5">
-                          {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : PRODUCT_LABELS[app.productType || app.productName || ''] || '—'}
-                        </p>
-                        <p className="text-xs text-text-secondary truncate">{PRODUCT_LABELS[app.productType || app.productName || ''] || app.productName || '—'}</p>
-                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
-                          <span className="text-sm font-black text-text-primary">{formatCurrency(app.requestedAmount, app.currency)}</span>
-                          {app.rm && <span className="text-[10px] text-text-secondary">RM: {app.rm.firstName}</span>}
-                        </div>
+                  <div className="space-y-3">
+                    {col.items.length === 0 && (
+                      <div className="text-center py-4 text-text-secondary">
+                        <span className="material-symbols-outlined text-xl block opacity-20">playlist_add</span>
+                        <p className="text-xs mt-1">No applications</p>
                       </div>
-                    );
-                  })}
+                    )}
+                    {col.items.map(app => {
+                      const state = (app.state || app.status) as ApplicationState;
+                      const badge = STATE_COLORS[state] || STATE_COLORS.DRAFT;
+                      const sla = getSLAInfo(app.createdAt, state);
+                      return (
+                        <div key={app.id} onClick={() => navigate(`/credit/applications/${app.id}`)}
+                          className="bg-bg-surface border border-border rounded-xl p-3.5 cursor-pointer hover:border-brand-300 hover:shadow-sm transition-all"
+                          style={{ borderLeft: `3px solid ${col.color}` }}>
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
+                              {state.replace(/_/g, ' ')}
+                            </span>
+                            <span className="text-[10px] font-semibold ml-auto" style={{ color: sla.color }}>{sla.text}</span>
+                          </div>
+                          <p className="text-sm font-bold text-text-primary truncate mb-0.5">
+                            {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : PRODUCT_LABELS[app.productType || app.productName || ''] || '\u2014'}
+                          </p>
+                          <p className="text-xs text-text-secondary truncate">{PRODUCT_LABELS[app.productType || app.productName || ''] || app.productName || '\u2014'}</p>
+                          <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                            <span className="text-sm font-black text-text-primary">{formatCurrency(app.requestedAmount, app.currency)}</span>
+                            {app.rm && <span className="text-[10px] text-text-secondary">RM: {app.rm.firstName}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            );
+              );
             })}
           </div>
         )}

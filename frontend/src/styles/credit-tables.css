@@ -45,3 +45,12 @@
   padding: 0.625rem 1rem;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
 }
+
+/* Overdue row highlight */
+.credit-table tbody tr.row-overdue td {
+  background-color: #fff8f8;
+}
+
+.credit-table tbody tr.row-overdue:hover td {
+  background-color: #fde8e8;
+}
