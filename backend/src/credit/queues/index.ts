@@ -1,6 +1,5 @@
 import { Queue } from 'bullmq';
-import Redis from 'ioredis';
-import { config } from '../../config';
+import { createRedisClient } from '../../utils/redis';
 
 // BullMQ queue names cannot contain colons — use dots as namespace separator
 const QUEUE_NAMES = {
@@ -13,7 +12,7 @@ const QUEUE_NAMES = {
   NOTIFY: 'credit.notify.send',
 } as const;
 
-const connection = new Redis(config.redis.url, { maxRetriesPerRequest: null });
+const connection = createRedisClient({ maxRetriesPerRequest: null });
 
 const defaultJobOptions = {
   removeOnComplete: 1000,

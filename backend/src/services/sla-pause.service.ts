@@ -1,9 +1,8 @@
 import prisma from '../utils/prisma';
-import Redis from 'ioredis';
-import { config } from '../config';
+import { createRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 
-const redis = new Redis(config.redis.url);
+const redis = createRedisClient();
 const CACHE_PREFIX = 'sla:pause_status:';
 const CACHE_TTL_SECONDS = 300; // 5 minutes
 

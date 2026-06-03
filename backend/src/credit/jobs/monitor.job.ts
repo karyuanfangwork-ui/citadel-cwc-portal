@@ -2,13 +2,10 @@ import { Queue, Worker } from 'bullmq';
 import prisma from '../../utils/prisma';
 import { logger } from '../../utils/logger';
 import { JobConfig } from '../../jobs/sla-checker';
+import { getRedisConnectionConfig } from '../../utils/redis';
 // @ts-ignore - Prisma client models may not be reflected until regenerated
 
-const REDIS_CONFIG = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: Number(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD || undefined,
-};
+const REDIS_CONFIG = getRedisConnectionConfig();
 
 const QUEUE_NAME = 'credit.monitor.daily';
 

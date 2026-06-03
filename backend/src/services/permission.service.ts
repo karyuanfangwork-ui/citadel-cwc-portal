@@ -1,9 +1,8 @@
-import Redis from 'ioredis';
 import { PrismaClient } from '@prisma/client';
-import { config } from '../config';
+import { createRedisClient } from '../utils/redis';
 import { logger } from '../utils/logger';
 
-const redis = new Redis(config.redis.url);
+const redis = createRedisClient();
 const prisma = new PrismaClient();
 
 const CACHE_PREFIX = 'rbac:perms:';

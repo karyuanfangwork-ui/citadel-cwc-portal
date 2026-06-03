@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import Redis from 'ioredis';
-import { config } from '../../config';
+import { createRedisClient } from '../../utils/redis';
 
 // ---------------------------------------------------------------------------
 // §2.5 — Data Loss Prevention (DLP) Service
@@ -50,7 +50,7 @@ let redis: Redis | null = null;
 
 function getRedis(): Redis {
   if (!redis) {
-    redis = new Redis(config.redis.url, { maxRetriesPerRequest: 1 });
+    redis = createRedisClient({ maxRetriesPerRequest: 1 });
   }
   return redis;
 }
