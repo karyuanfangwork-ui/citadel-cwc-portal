@@ -2293,17 +2293,26 @@ class RequestController {
 
         const types = await prisma.requestType.findMany({
             where: { id: { in: typeIds } },
-            select: { id: true, name: true, icon: true, description: true, serviceCategoryId: true },
+            select: {
+                id: true, name: true, icon: true, description: true, serviceCategoryId: true,
+                serviceCategory: { select: { serviceDesk: { select: { id: true, code: true } } } },
+            },
         });
 
         const typeMap = new Map(types.map(t => [t.id, t]));
 
         const data = grouped
             .filter(g => g.requestTypeId && typeMap.has(g.requestTypeId))
-            .map(g => ({
-                ...typeMap.get(g.requestTypeId!)!,
-                count: g._count.id,
-            }));
+            .map(g => {
+                const t = typeMap.get(g.requestTypeId!)!;
+                const { serviceCategory, ...rest } = t as any;
+                return {
+                    ...rest,
+                    deskId: serviceCategory?.serviceDesk?.id ?? null,
+                    deskCode: serviceCategory?.serviceDesk?.code ?? null,
+                    count: g._count.id,
+                };
+            });
 
         res.json({ status: 'success', data });
     });

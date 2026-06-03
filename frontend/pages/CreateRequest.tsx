@@ -33,6 +33,13 @@ const CreateRequest = () => {
         wizard.setFormData,
     );
 
+    const handleRestoreDraft = () => {
+        const restored = restoreDraft();
+        if (restored && wizard.selectedRequestType && wizard.step === 'type') {
+            wizard.setStep('details');
+        }
+    };
+
     const handleSubmit = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (!deskId || !wizard.selectedRequestType) return;
@@ -104,7 +111,7 @@ const CreateRequest = () => {
                     <DraftSaveChip
                         hasDraft={hasDraft}
                         lastSaved={lastSaved}
-                        onRestore={restoreDraft}
+                        onRestore={handleRestoreDraft}
                         onClear={clearDraft}
                     />
                 </div>

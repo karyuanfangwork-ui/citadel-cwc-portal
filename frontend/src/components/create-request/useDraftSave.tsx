@@ -19,8 +19,9 @@ export function useDraftSave<T extends Record<string, any>>(
 
   // Save draft with debounce
   useEffect(() => {
-    // Don't save empty/default state
-    const isEmpty = !data.summary && !data.description && Object.keys(data.customFields || {}).length === 0;
+    // Don't save empty/default state — check values, not just keys
+    const hasCustomData = Object.values(data.customFields || {}).some(v => v !== '' && v !== null && v !== undefined);
+    const isEmpty = !data.summary && !data.description && !hasCustomData;
     if (isEmpty) return;
 
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -45,7 +46,8 @@ export function useDraftSave<T extends Record<string, any>>(
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed && (parsed.summary || parsed.description || Object.keys(parsed.customFields || {}).length > 0)) {
+        const hasCustomData = Object.values(parsed.customFields || {}).some((v: any) => v !== '' && v !== null && v !== undefined);
+        if (parsed && (parsed.summary || parsed.description || hasCustomData)) {
           setHasDraft(true);
         }
       }
@@ -59,6 +61,15 @@ export function useDraftSave<T extends Record<string, any>>(
       const saved = localStorage.getItem(storageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
+        // Sanitize customFields: object values (e.g. serialized File) become '' to avoid controlled-input crashes
+        if (parsed.customFields) {
+          Object.keys(parsed.customFields).forEach(k => {
+            const v = parsed.customFields[k];
+            if (v !== null && typeof v === 'object') {
+              parsed.customFields[k] = '';
+            }
+          });
+        }
         setData(parsed);
         setLastSaved(new Date());
         return true;

@@ -8,6 +8,8 @@ interface RecentService {
   icon: string | null;
   description: string | null;
   serviceCategoryId: string;
+  deskId: string | null;
+  deskCode: string | null;
   count: number;
 }
 
@@ -17,7 +19,7 @@ interface RecentServicesProps {
   className?: string;
 }
 
-export default function RecentServices({ deskSlug, className = '' }: RecentServicesProps) {
+export default function RecentServices({ className = '' }: RecentServicesProps) {
   const navigate = useNavigate();
   const [services, setServices] = useState<RecentService[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,8 +48,9 @@ export default function RecentServices({ deskSlug, className = '' }: RecentServi
   if (services.length === 0) return null;
 
   const handleClick = (service: RecentService) => {
-    const base = deskSlug ? `/create-request?desk=${deskSlug}` : '/create-request';
-    navigate(`${base}&type=${service.id}`);
+    if (service.deskCode && service.deskId && service.serviceCategoryId) {
+      navigate(`/${service.deskCode}/${service.deskId}/create/${service.serviceCategoryId}`);
+    }
   };
 
   return (
