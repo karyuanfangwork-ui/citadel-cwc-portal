@@ -97,6 +97,9 @@ interface WorkflowCockpitProps {
 
   /** Offboarding pre-conditions state for gating the Advance button in DecisionPanel */
   offboardingPreConditionsMet?: boolean;
+
+  /** Opens the proper Upload Resume modal (with file picker, candidate name, doc type) */
+  onUploadResume?: () => void;
 }
 
 const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
@@ -126,6 +129,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
   onCompleteOffboarding,
   onResolveRequest,
   offboardingPreConditionsMet = true,
+  onUploadResume,
 }) => {
   const [mobileExpanded, setMobileExpanded] = useState(false);
 
@@ -195,6 +199,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
               onCompleteOffboarding={onCompleteOffboarding}
               onResolveRequest={onResolveRequest}
               offboardingPreConditionsMet={offboardingPreConditionsMet}
+              onUploadResume={onUploadResume}
             />
           </div>
 
@@ -332,6 +337,7 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
                   onCompleteOffboarding={onCompleteOffboarding}
                   onResolveRequest={onResolveRequest}
                   offboardingPreConditionsMet={offboardingPreConditionsMet}
+                  onUploadResume={onUploadResume}
                 />
               </div>
 

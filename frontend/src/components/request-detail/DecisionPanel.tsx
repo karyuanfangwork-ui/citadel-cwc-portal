@@ -63,6 +63,8 @@ interface DecisionPanelProps {
   onCompleteOffboarding?: () => void;
   /** When false, the ADVANCE_OFFBOARDING_PHASE action is disabled (pre-conditions not met) */
   offboardingPreConditionsMet?: boolean;
+  /** Opens the proper Upload Resume modal (with file picker, candidate name, doc type) */
+  onUploadResume?: () => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -160,6 +162,10 @@ const DIRECT_ACTIONS: Set<WorkflowActionType> = new Set([
   'RESUBMIT_REQUEST',
   'SUBMIT_INTERVIEW_FEEDBACK',
   'SET_FINALIZED_AMOUNT',
+  // UPLOAD_RESUME is handled as a direct action so it opens the proper
+  // UploadResumeModal (with file picker, candidate name, doc type) instead
+  // of the generic WorkflowActionModal which only has a notes textarea.
+  'UPLOAD_RESUME',
 ]);
 
 /* ------------------------------------------------------------------ */
@@ -201,6 +207,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
   onAdvanceOffboardingPhase,
   onCompleteOffboarding,
   onResolveRequest,
+  onUploadResume,
   offboardingPreConditionsMet = true,
 }) => {
   const [activeModal, setActiveModal] = useState<string | null>(null);
@@ -278,6 +285,9 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
           case 'RESOLVE_IT':
             onResolveRequest?.();
             return;
+          case 'UPLOAD_RESUME':
+            onUploadResume?.();
+            return;
           default:
             break;
         }
@@ -322,6 +332,7 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
       onAdvanceOffboardingPhase,
       onCompleteOffboarding,
       onResolveRequest,
+      onUploadResume,
     ]
   );
 

@@ -592,6 +592,11 @@ export const managerDecision = async (req: Request, res: Response) => {
                     }
                 },
                 candidateResumes: true,
+                candidates: {
+                    include: {
+                        documents: true,
+                    }
+                },
                 requester: true
             }
         });
@@ -621,10 +626,10 @@ export const managerDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        // Validate that all selected candidates exist in the request's resumes
+        // Validate that all selected candidate IDs exist in the request's Candidate records
         if (candidateIds.length > 0) {
-            const validIds = request.candidateResumes.map((r: any) => r.id);
-            const invalidIds = candidateIds.filter(cid => !validIds.includes(cid));
+            const validCandidateIds = request.candidates.map((c: any) => c.id);
+            const invalidIds = candidateIds.filter(cid => !validCandidateIds.includes(cid));
             if (invalidIds.length > 0) {
                 res.status(400).json({
                     status: 'error',
@@ -665,8 +670,8 @@ export const managerDecision = async (req: Request, res: Response) => {
             customFields.selectedCandidateIds = candidateIds;
             const selectedNames = candidateIds
                 .map(cid => {
-                    const candidate = request.candidateResumes.find((r: any) => r.id === cid);
-                    return candidate?.candidateName || candidate?.fileName || 'Unknown Candidate';
+                    const candidate = request.candidates.find((c: any) => c.id === cid);
+                    return candidate?.fullName || 'Unknown Candidate';
                 });
             customFields.selectedCandidateNames = selectedNames;
             // Legacy single-value compat (first selected candidate)

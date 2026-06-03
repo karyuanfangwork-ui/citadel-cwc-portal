@@ -51,6 +51,7 @@ interface RequestHeaderProps {
   onLOAApproval: () => void;
   onStartHRScreening: () => void;
   onMarkLOAIssued: () => void;
+  onManagerDecision?: () => void;
   onAdvanceOnboardingPhase?: () => void;
   onCompleteOnboarding?: () => void;
   onAdvanceOffboardingPhase?: () => void;
@@ -66,6 +67,7 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
   onLOAApproval,
   onStartHRScreening,
   onMarkLOAIssued,
+  onManagerDecision,
 }) => {
   const currentRole = detectRequestRole({
     userRoles: user?.roles || [],
@@ -76,7 +78,9 @@ const RequestHeader: React.FC<RequestHeaderProps> = ({
   });
 
   const handleActionClick = () => {
-    if (currentRole === 'agent' && request.status === 'MANAGER_APPROVED') {
+    if (currentRole === 'hiring_manager' && request.status === 'PENDING_MANAGER_REVIEW') {
+      onManagerDecision?.();
+    } else if (currentRole === 'agent' && request.status === 'MANAGER_APPROVED') {
       onScheduleInterview();
     } else if (currentRole === 'hiring_manager' && request.status === 'INTERVIEW_SCHEDULED') {
       onInterviewFeedback();

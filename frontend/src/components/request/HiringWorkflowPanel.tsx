@@ -273,7 +273,7 @@ const HiringWorkflowPanel: React.FC<HiringWorkflowPanelProps> = ({
                               {doc.fileName}
                             </p>
                             <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                              <span>{(parseInt(doc.fileSize) / 1024).toFixed(1)} KB</span>
+                              <span>{((typeof doc.fileSize === 'string' ? Number(doc.fileSize.replace(/n$/, '')) : Number(doc.fileSize)) / 1024 || 0).toFixed(1)} KB</span>
                               <span>•</span>
                               <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
                             </div>

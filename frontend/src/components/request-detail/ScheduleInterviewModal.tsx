@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { interviewService } from '../../services/interview.service';
 import * as approvalService from '../../services/approval.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
@@ -6,7 +6,9 @@ import ModalPortal from '../ModalPortal';
 
 interface Resume {
   id: string;
+  candidateId: string;
   candidateName: string;
+  candidate?: { id: string; fullName: string };
 }
 
 interface ScheduleInterviewModalProps {
@@ -45,6 +47,19 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
 
   const allDone = preselectedIds.length > 0 && scheduledIds.length >= preselectedIds.length;
   const remainingIds = preselectedIds.filter(id => !scheduledIds.includes(id));
+
+  // Deduplicate resumes by candidateId so each candidate appears once in dropdown
+  const uniqueCandidates = useMemo(() => {
+    const seen = new Map<string, Resume>();
+    for (const r of resumes) {
+      // Use candidateId if linked, otherwise fall back to resume id (legacy rows)
+      const key = r.candidateId || r.candidate?.id || r.id;
+      if (!seen.has(key)) {
+        seen.set(key, r);
+      }
+    }
+    return Array.from(seen.values());
+  }, [resumes]);
 
   useEffect(() => {
     approvalService.getResumes(requestId).then(setResumes).catch(() => {});
@@ -107,13 +122,18 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
     }
   };
 
+  /** Resolve the stable candidate ID from a resume row */
+  const candId = (r: Resume) => r.candidateId || r.candidate?.id || r.id;
+
   const candidateLabel = (r: Resume) => {
-    const isPreselected = preselectedIds.includes(r.id);
-    const isScheduled = scheduledIds.includes(r.id);
+    const id = candId(r);
+    const isPreselected = preselectedIds.includes(id);
+    const isScheduled = scheduledIds.includes(id);
+    const displayName = r.candidate?.fullName || r.candidateName || 'Unknown';
     let suffix = '';
     if (isPreselected && isScheduled) suffix = ' ✅ Scheduled';
     else if (isPreselected) suffix = ' ★ Selected';
-    return `${r.candidateName}${suffix}`;
+    return `${displayName}${suffix}`;
   };
 
   return (
@@ -151,7 +171,7 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                           className={`h-2 flex-1 rounded-full ${
                             isScheduled ? 'bg-green-500' : isCurrent ? 'bg-blue-500' : 'bg-gray-200'
                           }`}
-                          title={resumes.find(r => r.id === id)?.candidateName || `Candidate ${idx + 1}`}
+                          title={uniqueCandidates.find(r => candId(r) === id)?.candidateName || `Candidate ${idx + 1}`}
                         />
                       );
                     })}
@@ -169,11 +189,14 @@ const ScheduleInterviewModal: React.FC<ScheduleInterviewModalProps> = ({
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc]"
                 >
                   <option value="">-- Select --</option>
-                  {resumes.map(r => (
-                    <option key={r.id} value={r.id} disabled={scheduledIds.includes(r.id)}>
-                      {candidateLabel(r)}
-                    </option>
-                  ))}
+                  {uniqueCandidates.map(r => {
+                    const id = candId(r);
+                    return (
+                      <option key={id} value={id} disabled={scheduledIds.includes(id)}>
+                        {candidateLabel(r)}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">

@@ -19,6 +19,7 @@ import InterviewFeedbackModal from '../src/components/request/modals/InterviewFe
 import LOAApprovalModal from '../src/components/request/modals/LOAApprovalModal';
 import CEODecisionModal from '../src/components/request/modals/CEODecisionModal';
 import ManagerDecisionModal from '../src/components/request/modals/ManagerDecisionModal';
+import UploadResumeModal from '../src/components/request-detail/UploadResumeModal';
 
 const RequestDetailContainer: React.FC = () => {
     const { user } = useAuth();
@@ -97,6 +98,7 @@ const RequestDetailContainer: React.FC = () => {
                 onLOAApproval={() => rq.setShowLOAApprovalModal(true)}
                 onStartHRScreening={rq.handleStartHRScreening}
                 onMarkLOAIssued={rq.handleMarkLOAIssued}
+                onManagerDecision={() => rq.setShowManagerDecisionModal(true)}
             />
 
             {/* Confidentiality Notice */}
@@ -257,6 +259,7 @@ const RequestDetailContainer: React.FC = () => {
                     onAdvanceOffboardingPhase={rq.handleAdvanceOffboardingPhase}
                     onCompleteOffboarding={rq.handleCompleteOffboarding}
                     onResolveRequest={() => rq.handleStatusChange('RESOLVED')}
+                    onUploadResume={() => rq.setShowUploadModal(true)}
                     offboardingPreConditionsMet={offboardingPreConditions.preConditionsMet}
                 />
             </div>
@@ -355,6 +358,15 @@ const RequestDetailContainer: React.FC = () => {
                 onClose={() => rq.setShowManagerDecisionModal(false)}
                 onSubmit={rq.handleManagerDecision}
             />
+
+            {rq.showUploadModal && (
+                <UploadResumeModal
+                    requestId={request.id}
+                    onClose={() => rq.setShowUploadModal(false)}
+                    onSuccess={() => { rq.fetchResumes(); rq.fetchCandidates(); rq.fetchRequestData(); }}
+                    existingCandidateNames={[...new Set(rq.resumes.map(r => r.candidateName?.trim()).filter(Boolean) as string[])]}
+                />
+            )}
         </div>
     );
 };

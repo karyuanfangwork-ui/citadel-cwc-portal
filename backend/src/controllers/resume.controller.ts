@@ -249,7 +249,7 @@ export const getCandidates = async (req: AuthRequest, res: Response): Promise<an
             where: { requestId: id },
             include: {
                 documents: {
-                    select: { id: true, documentType: true, fileName: true, fileUrl: true, createdAt: true },
+                    select: { id: true, documentType: true, fileName: true, fileUrl: true, fileSize: true, createdAt: true },
                 },
             },
             orderBy: { createdAt: 'asc' },
@@ -260,7 +260,7 @@ export const getCandidates = async (req: AuthRequest, res: Response): Promise<an
             ...c,
             documents: c.documents.map(d => ({
                 ...d,
-                // fileUrl may be needed
+                fileSize: d.fileSize?.toString() ?? '0',
             })),
         }));
 
