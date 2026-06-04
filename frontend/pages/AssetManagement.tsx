@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import assetService, { Asset, AssetStatus, AssetCategory, AssetAssignment } from '../src/services/asset.service';
 import api from '../src/services/api';
 import StateBadge from '../src/components/ui/StateBadge';
+import { Button } from '../src/components/ui/Button';
+import Modal from '../src/components/ui/Modal';
+import { Drawer } from '../src/components/ui/Drawer';
+import { Skeleton } from '../src/components/ui/Skeleton';
+import { EmptyState } from '../src/components/ui/EmptyState';
 import { useAuth } from '../src/context/AuthContext';
 import { useToast } from '../src/context/ToastContext';
 
@@ -9,6 +14,11 @@ import { useToast } from '../src/context/ToastContext';
 function hasPermission(permissions: string[] | undefined, perm: string): boolean {
   if (!permissions) return false;
   return permissions.includes(perm) || permissions.includes('*');
+}
+
+/** Humanize enum-style strings: SOFTWARE_LICENSE → Software License */
+function humanize(value: string): string {
+  return value.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 const CATEGORIES: AssetCategory[] = ['LAPTOP','DESKTOP','MONITOR','PERIPHERAL','PHONE','NETWORK','PRINTER','SOFTWARE_LICENSE','OTHER'];
@@ -20,11 +30,11 @@ export default function AssetManagement() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">IT Asset Management</h1>
-        <p className="text-gray-500 mt-1">Track, assign, and manage company IT assets</p>
+        <h1 className="text-2xl font-bold text-text-primary">IT Asset Management</h1>
+        <p className="text-text-secondary mt-1">Track, assign, and manage company IT assets</p>
       </div>
 
-      <div className="border-b border-gray-200 mb-6">
+      <div className="border-b border-cwc-border mb-6">
         <nav className="-mb-px flex gap-6">
           {(['registry', 'employee'] as const).map(tab => (
             <button
@@ -32,8 +42,8 @@ export default function AssetManagement() {
               onClick={() => setActiveTab(tab)}
               className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-brand-600 text-brand-600'
+                  : 'border-transparent text-text-secondary hover:text-text-primary'
               }`}
             >
               {tab === 'registry' ? 'Asset Registry' : 'Employee Assets'}
@@ -56,12 +66,16 @@ function AssetRegistryTab() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [exporting, setExporting] = useState(false);
+  // Pagination
+  const [offset, setOffset] = useState(0);
+  const PAGE_SIZE = 50;
   // Selection & bulk delete
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -70,11 +84,23 @@ function AssetRegistryTab() {
   const canBulkDelete = hasPermission(user?.permissions, 'asset:delete');
   const canImport = hasPermission(user?.permissions, 'asset:import');
 
+  // Debounce search
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(id);
+  }, [search]);
+
+  // Reset offset & assets when filters change
+  useEffect(() => {
+    setOffset(0);
+    setAssets([]);
+  }, [debouncedSearch, filterStatus, filterCategory]);
+
   const handleExportCsv = async () => {
     setExporting(true);
     try {
       await assetService.exportAssetsCsv({
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         status: (filterStatus as AssetStatus) || undefined,
         category: (filterCategory as AssetCategory) || undefined,
       });
@@ -86,23 +112,25 @@ function AssetRegistryTab() {
     }
   };
 
-  const fetchAssets = useCallback(async () => {
+  const fetchAssets = useCallback(async (reset = false) => {
     setLoading(true);
+    const currentOffset = reset ? 0 : offset;
     try {
       const result = await assetService.listAssets({
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         status: (filterStatus as AssetStatus) || undefined,
         category: (filterCategory as AssetCategory) || undefined,
-        limit: 50,
+        limit: PAGE_SIZE,
+        offset: currentOffset,
       });
-      setAssets(result.assets);
+      setAssets(prev => currentOffset === 0 ? result.assets : [...prev, ...result.assets]);
       setTotal(result.total);
     } catch {
       toast.error('Error', 'Failed to load assets');
     } finally {
       setLoading(false);
     }
-  }, [search, filterStatus, filterCategory]);
+  }, [debouncedSearch, filterStatus, filterCategory, offset]);
 
   useEffect(() => { fetchAssets(); }, [fetchAssets]);
 
@@ -125,18 +153,13 @@ function AssetRegistryTab() {
 
   const handleBulkDelete = async () => {
     setBulkDeleting(true);
-    let failed = 0;
-    for (const id of selectedIds) {
-      try {
-        await assetService.deleteAsset(id);
-      } catch {
-        failed++;
-      }
-    }
+    const ids = Array.from(selectedIds);
+    const results = await Promise.allSettled(ids.map(id => assetService.deleteAsset(id)));
+    const failed = results.filter(r => r.status === 'rejected').length;
     if (failed === 0) {
-      toast.success('Deleted', `${selectedIds.size} asset${selectedIds.size !== 1 ? 's' : ''} deleted`);
+      toast.success('Deleted', `${ids.length} asset${ids.length !== 1 ? 's' : ''} deleted`);
     } else {
-      toast.error('Partial Failure', `${selectedIds.size - failed} deleted, ${failed} failed`);
+      toast.error('Partial Failure', `${ids.length - failed} deleted, ${failed} failed`);
     }
     setSelectedIds(new Set());
     setShowBulkDeleteConfirm(false);
@@ -152,81 +175,83 @@ function AssetRegistryTab() {
           placeholder="Search name, tag, serial, employee..."
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-cwc-border rounded-cwc-lg px-3 py-2 text-sm w-72 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
         />
-        <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+        <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="border border-cwc-border rounded-cwc-lg px-3 py-2 text-sm focus:outline-none">
           <option value="">All Categories</option>
-          {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          {CATEGORIES.map(c => <option key={c} value={c}>{humanize(c)}</option>)}
         </select>
-        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none">
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="border border-cwc-border rounded-cwc-lg px-3 py-2 text-sm focus:outline-none">
           <option value="">All Statuses</option>
-          {STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+          {STATUSES.map(s => <option key={s} value={s}>{humanize(s)}</option>)}
         </select>
         <div className="ml-auto flex gap-2">
-          <button onClick={handleExportCsv} disabled={exporting} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5">
-            {exporting ? (
-              <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Exporting...</>
-            ) : (
-              <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Export CSV</>
-            )}
-          </button>
+          <Button variant="secondary" size="sm" icon="download" loading={exporting} onClick={handleExportCsv}>
+            Export CSV
+          </Button>
           {canImport && (
-            <button onClick={() => setShowImportModal(true)} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
-              ↑ Import CSV
-            </button>
+            <Button variant="secondary" size="sm" icon="upload" onClick={() => setShowImportModal(true)}>
+              Import CSV
+            </Button>
           )}
           {hasPermission(user?.permissions, 'asset:write') && (
-            <button onClick={() => setShowCreateModal(true)} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-              + Register Asset
-            </button>
+            <Button variant="primary" size="sm" icon="add" onClick={() => setShowCreateModal(true)}>
+              Register Asset
+            </Button>
           )}
         </div>
       </div>
 
       {/* Bulk action bar */}
       {canBulkDelete && selectedIds.size > 0 && (
-        <div className="mb-3 flex items-center gap-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mb-3 flex items-center gap-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-cwc-lg">
           <span className="text-sm text-red-800 font-medium">{selectedIds.size} selected</span>
-          <button
-            onClick={() => setShowBulkDeleteConfirm(true)}
-            disabled={bulkDeleting}
-            className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-          >
-            {bulkDeleting ? 'Deleting...' : 'Delete Selected'}
-          </button>
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50"
-          >
+          <Button variant="danger" size="sm" loading={bulkDeleting} onClick={() => setShowBulkDeleteConfirm(true)}>
+            Delete Selected
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
             Clear Selection
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Bulk delete confirmation */}
       {showBulkDeleteConfirm && (
-        <div className="mb-3 px-4 py-3 bg-red-100 border border-red-300 rounded-lg">
+        <div className="mb-3 px-4 py-3 bg-red-100 border border-red-300 rounded-cwc-lg">
           <p className="text-sm text-red-800 font-medium">Delete {selectedIds.size} asset{selectedIds.size !== 1 ? 's' : ''}?</p>
           <p className="text-xs text-red-600 mt-1">This will mark all selected assets as DISPOSED. This action cannot be undone.</p>
           <div className="flex gap-2 mt-3">
-            <button onClick={() => setShowBulkDeleteConfirm(false)} className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
-            <button onClick={handleBulkDelete} disabled={bulkDeleting} className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
-              {bulkDeleting ? 'Deleting...' : 'Yes, Delete All'}
-            </button>
+            <Button variant="ghost" size="sm" onClick={() => setShowBulkDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="danger" size="sm" loading={bulkDeleting} onClick={handleBulkDelete}>
+              Yes, Delete All
+            </Button>
           </div>
         </div>
       )}
 
-      <div className="text-sm text-gray-500 mb-3">{total} asset{total !== 1 ? 's' : ''}</div>
+      <div className="text-sm text-text-secondary mb-3">{total} asset{total !== 1 ? 's' : ''}</div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading...</div>
+        <div className="space-y-2">
+          {[...Array(5)].map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" rounded="md" />
+          ))}
+        </div>
       ) : assets.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">No assets found</div>
+        <EmptyState
+          icon="inventory_2"
+          title="No assets found"
+          description={search || filterStatus || filterCategory
+            ? 'Try adjusting your search or filter criteria'
+            : 'Register your first asset to get started'}
+          action={hasPermission(user?.permissions, 'asset:write')
+            ? { label: 'Register Asset', onClick: () => setShowCreateModal(true) }
+            : undefined}
+        />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
+        <div className="overflow-x-auto rounded-cwc-lg border border-cwc-border">
+          <table className="min-w-full divide-y divide-cwc-border text-sm">
+            <thead className="bg-surface-muted">
               <tr>
                 {canBulkDelete && (
                   <th className="px-4 py-3 text-left">
@@ -234,16 +259,16 @@ function AssetRegistryTab() {
                       type="checkbox"
                       checked={assets.length > 0 && selectedIds.size === assets.length}
                       onChange={toggleSelectAll}
-                      className="rounded border-gray-300"
+                      className="rounded border-cwc-border"
                     />
                   </th>
                 )}
                 {['Asset Tag','Name','Category','Status','Assigned To','Updated',''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 bg-white">
+            <tbody className="divide-y divide-cwc-border/50 bg-surface">
               {assets.map(asset => {
                 const assignee = currentAssignee(asset);
                 // Extract last known user from notes for unassigned assets
@@ -255,52 +280,66 @@ function AssetRegistryTab() {
                   ? asset.assignments.find(a => a.returnedAt)?.user
                   : null;
                 return (
-                  <tr key={asset.id} className={`hover:bg-gray-50 ${selectedIds.has(asset.id) ? 'bg-blue-50' : ''}`}>
+                  <tr key={asset.id} className={`hover:bg-surface-muted ${selectedIds.has(asset.id) ? 'bg-brand-50' : ''}`}>
                     {canBulkDelete && (
                       <td className="px-4 py-3">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(asset.id)}
                           onChange={() => toggleSelect(asset.id)}
-                          className="rounded border-gray-300"
+                          className="rounded border-cwc-border"
                         />
                       </td>
                     )}
-                    <td className="px-4 py-3 font-mono font-medium text-gray-900">{asset.assetTag}</td>
-                    <td className="px-4 py-3 text-gray-900">{asset.name}</td>
-                    <td className="px-4 py-3 text-gray-500">{asset.category}</td>
+                    <td className="px-4 py-3 font-mono font-medium text-text-primary">{asset.assetTag}</td>
+                    <td className="px-4 py-3 text-text-primary">{asset.name}</td>
+                    <td className="px-4 py-3 text-text-secondary">{humanize(asset.category)}</td>
                     <td className="px-4 py-3">
                       <StateBadge state={asset.status} size="sm" />
                     </td>
                     <td className="px-4 py-3">
                       {assignee ? (
                         <div>
-                          <p className="text-gray-900 font-medium text-sm">{assignee.firstName} {assignee.lastName}</p>
-                          <p className="text-gray-400 text-xs">{assignee.email}</p>
+                          <p className="text-text-primary font-medium text-sm">{assignee.firstName} {assignee.lastName}</p>
+                          <p className="text-text-tertiary text-xs">{assignee.email}</p>
                         </div>
                       ) : lastUser ? (
                         <div>
-                          <p className="text-gray-500 text-sm italic">{lastUser}</p>
-                          <p className="text-gray-300 text-xs">previous user</p>
+                          <p className="text-text-secondary text-sm italic">{lastUser}</p>
+                          <p className="text-text-tertiary text-xs">previous user</p>
                         </div>
                       ) : lastAssignee ? (
                         <div>
-                          <p className="text-gray-500 text-sm italic">{lastAssignee.firstName} {lastAssignee.lastName}</p>
-                          <p className="text-gray-300 text-xs">{lastAssignee.email}</p>
+                          <p className="text-text-secondary text-sm italic">{lastAssignee.firstName} {lastAssignee.lastName}</p>
+                          <p className="text-text-tertiary text-xs">{lastAssignee.email}</p>
                         </div>
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <span className="text-text-tertiary">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-400">{new Date(asset.updatedAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-text-tertiary">{new Date(asset.updatedAt).toLocaleDateString()}</td>
                     <td className="px-4 py-3">
-                      <button onClick={() => setSelectedAsset(asset)} className="text-blue-600 hover:underline text-sm">View</button>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedAsset(asset)}>View</Button>
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Load more pagination */}
+      {assets.length < total && (
+        <div className="mt-4 flex justify-center">
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={loading}
+            onClick={() => setOffset(prev => prev + PAGE_SIZE)}
+          >
+            Load more ({total - assets.length} remaining)
+          </Button>
         </div>
       )}
 
@@ -435,67 +474,70 @@ function EmployeeAssetsTab() {
           placeholder="Search by employee name or email..."
           value={query}
           onChange={e => setQuery(e.target.value)}
-          className="w-80 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-80 border border-cwc-border rounded-cwc-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
         />
-        <button onClick={handleExportCsv} disabled={exporting} className="px-3 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5">
-          {exporting ? (
-            <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Exporting...</>
-          ) : (
-            <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Export CSV</>
-          )}
-        </button>
+        <Button variant="secondary" size="sm" icon="download" loading={exporting} onClick={handleExportCsv}>
+          Export CSV
+        </Button>
       </div>
 
       {/* Stats */}
-      <div className="mb-4 text-sm text-gray-500">
+      <div className="mb-4 text-sm text-text-secondary">
         {loading ? 'Loading...' : `${total} employee${total !== 1 ? 's' : ''} with active asset assignments`}
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-gray-400">Loading assignments...</div>
-      ) : userAssignments.length === 0 ? (
-        <div className="text-center py-16">
-          <div className="text-gray-300 text-5xl mb-4">📦</div>
-          <p className="text-gray-500 font-medium">No employees with active assignments</p>
-          <p className="text-gray-400 text-sm mt-1">Assets assigned to employees will appear here</p>
+        <div className="space-y-2">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" rounded="lg" />
+          ))}
         </div>
+      ) : userAssignments.length === 0 ? (
+        <EmptyState
+          icon="person_off"
+          title="No employees with active assignments"
+          description="Assets assigned to employees will appear here"
+        />
       ) : (
         <div className="space-y-3">
           {userAssignments.map(({ user, assignments }) => (
-            <div key={user.id} className="rounded-lg border border-gray-200 overflow-hidden">
+            <div key={user.id} className="rounded-cwc-lg border border-cwc-border overflow-hidden">
               {/* User row - clickable to expand */}
               <button
                 onClick={() => viewUserDetail(user.id)}
-                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors text-left"
+                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface-muted transition-colors text-left"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-9 h-9 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-semibold">
+                  <div className="w-9 h-9 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center text-sm font-semibold">
                     {user.firstName[0]}{user.lastName[0]}
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">{user.firstName} {user.lastName}</p>
-                    <p className="text-xs text-gray-500">{user.email}{user.department ? ` · ${user.department}` : ''}</p>
+                    <p className="font-medium text-text-primary text-sm">{user.firstName} {user.lastName}</p>
+                    <p className="text-xs text-text-secondary">{user.email}{user.department ? ` · ${user.department}` : ''}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full">
+                  <span className="bg-brand-50 text-brand-700 text-xs font-medium px-2.5 py-1 rounded-cwc-md">
                     {assignments.length} asset{assignments.length !== 1 ? 's' : ''}
                   </span>
-                  <span className={`text-gray-400 text-xs transition-transform ${expandedUser === user.id ? 'rotate-180' : ''}`}>▼</span>
+                  <span className={`text-text-tertiary text-xs transition-transform ${expandedUser === user.id ? 'rotate-180' : ''}`}>▼</span>
                 </div>
               </button>
 
               {/* Expanded: asset list */}
               {expandedUser === user.id && (
-                <div className="border-t border-gray-100 bg-gray-50/50">
+                <div className="border-t border-cwc-border/50 bg-surface-subtle">
                   {detailLoading ? (
-                    <div className="px-5 py-4 text-sm text-gray-400">Loading...</div>
+                    <div className="px-5 py-4 space-y-2">
+                      <Skeleton className="h-8 w-full" rounded="md" />
+                      <Skeleton className="h-8 w-3/4" rounded="md" />
+                    </div>
                   ) : selectedUserAssignments.length === 0 ? (
-                    <div className="px-5 py-4 text-sm text-gray-400">No active assignments</div>
+                    <div className="px-5 py-4 text-sm text-text-tertiary">No active assignments</div>
                   ) : (
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="text-xs text-gray-500 uppercase">
+                        <tr className="text-xs text-text-secondary uppercase">
                           <th className="px-5 py-2 text-left font-medium">Asset Tag</th>
                           <th className="px-5 py-2 text-left font-medium">Name</th>
                           <th className="px-5 py-2 text-left font-medium">Category</th>
@@ -503,18 +545,18 @@ function EmployeeAssetsTab() {
                           <th className="px-5 py-2 text-right font-medium">Action</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className="divide-y divide-cwc-border/50">
                         {selectedUserAssignments.map(a => (
-                          <tr key={a.id} className="hover:bg-white/60">
-                            <td className="px-5 py-2.5 font-mono text-gray-900 font-medium">{a.asset?.assetTag}</td>
-                            <td className="px-5 py-2.5 text-gray-700">{a.asset?.name}</td>
-                            <td className="px-5 py-2.5 text-gray-500">{a.asset?.category}</td>
-                            <td className="px-5 py-2.5 text-gray-500">{new Date(a.assignedAt).toLocaleDateString()}</td>
+                          <tr key={a.id} className="hover:bg-surface/60">
+                            <td className="px-5 py-2.5 font-mono text-text-primary font-medium">{a.asset?.assetTag}</td>
+                            <td className="px-5 py-2.5 text-text-primary">{a.asset?.name}</td>
+                            <td className="px-5 py-2.5 text-text-secondary">{humanize(a.asset?.category ?? '')}</td>
+                            <td className="px-5 py-2.5 text-text-secondary">{new Date(a.assignedAt).toLocaleDateString()}</td>
                             <td className="px-5 py-2.5 text-right">
                               <button
                                 onClick={(e) => { e.stopPropagation(); handleReturn(a); }}
                                 disabled={returning === a.id}
-                                className="text-xs px-2.5 py-1 border border-gray-300 rounded hover:bg-white disabled:opacity-50 transition-colors"
+                                className="text-xs px-2.5 py-1 border border-cwc-border rounded-cwc-md hover:bg-surface disabled:opacity-50 transition-colors"
                               >
                                 {returning === a.id ? 'Returning...' : 'Return'}
                               </button>
@@ -532,19 +574,16 @@ function EmployeeAssetsTab() {
       )}
 
       {/* User lookup modal trigger (for searching any user, not just those with assets) */}
-      <div className="mt-6 pt-4 border-t border-gray-100">
-        <button
-          onClick={() => setUserSearchMode(true)}
-          className="text-sm text-blue-600 hover:underline"
-        >
+      <div className="mt-6 pt-4 border-t border-cwc-border/50">
+        <Button variant="ghost" size="sm" icon="search" onClick={() => setUserSearchMode(true)}>
           Lookup any employee...
-        </button>
+        </Button>
 
         {userSearchMode && (
-          <div className="mt-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="mt-3 p-4 bg-surface-muted rounded-cwc-lg border border-cwc-border">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-xs font-medium text-gray-500 uppercase">Search any employee</p>
-              <button onClick={() => { setUserSearchMode(false); setUserSearchQuery(''); setSearchUsers([]); }} className="text-gray-400 hover:text-gray-600 text-xs">×</button>
+              <p className="text-xs font-medium text-text-secondary uppercase">Search any employee</p>
+              <button onClick={() => { setUserSearchMode(false); setUserSearchQuery(''); setSearchUsers([]); }} className="text-text-tertiary hover:text-text-primary text-xs" aria-label="Close">×</button>
             </div>
             <div className="relative">
               <input
@@ -552,13 +591,13 @@ function EmployeeAssetsTab() {
                 placeholder="Type name or email..."
                 value={userSearchQuery}
                 onChange={e => setUserSearchQuery(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-cwc-border rounded-cwc-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                 autoFocus
               />
-              {searchLoading && <div className="absolute right-3 top-2.5 text-gray-400 text-xs">Searching...</div>}
+              {searchLoading && <div className="absolute right-3 top-2.5 text-text-tertiary text-xs">Searching...</div>}
             </div>
             {searchUsers.length > 0 && (
-              <div className="mt-2 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+              <div className="mt-2 bg-surface border border-cwc-border rounded-cwc-lg shadow-cwc-lg overflow-hidden">
                 {searchUsers.map(u => (
                   <button
                     key={u.id}
@@ -568,10 +607,10 @@ function EmployeeAssetsTab() {
                       setUserSearchQuery('');
                       setSearchUsers([]);
                     }}
-                    className="w-full text-left px-4 py-2.5 hover:bg-gray-50 text-sm border-b border-gray-100 last:border-0"
+                    className="w-full text-left px-4 py-2.5 hover:bg-surface-muted text-sm border-b border-cwc-border/50 last:border-0"
                   >
                     <span className="font-medium">{u.firstName} {u.lastName}</span>
-                    <span className="text-gray-400 ml-2">{u.email}</span>
+                    <span className="text-text-tertiary ml-2">{u.email}</span>
                   </button>
                 ))}
               </div>
@@ -606,6 +645,19 @@ function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () 
   const [reassignMode, setReassignMode] = useState(false); // true = reassign (return+assign)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Click-outside dismiss for return dropdown
+  const returnMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showReturnMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (returnMenuRef.current && !returnMenuRef.current.contains(e.target as Node)) {
+        setShowReturnMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showReturnMenu]);
 
   const canDelete = hasPermission(user?.permissions, 'asset:delete');
 
@@ -678,7 +730,7 @@ function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () 
     setShowReturnMenu(false);
     try {
       await assetService.returnAsset(assetId, { notes: 'Returned from Asset Registry', newStatus });
-      toast.success('Success', `Asset returned (${newStatus.replace(/_/g, ' ')})`);
+      toast.success('Success', `Asset returned (${humanize(newStatus)})`);
       const updated = await assetService.getAsset(assetId);
       setAsset(updated);
       setForm(updated);
@@ -716,11 +768,14 @@ function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () 
   const isAssigned = asset?.status === 'ASSIGNED';
 
   if (loading) return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex justify-end">
-      <div className="w-full max-w-xl bg-white h-full flex items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
+    <Drawer isOpen onClose={onClose} width="xl" side="right" title="">
+      <div className="space-y-4 p-2">
+        <Skeleton className="h-8 w-2/3" rounded="md" />
+        <Skeleton className="h-6 w-full" rounded="md" />
+        <Skeleton className="h-6 w-full" rounded="md" />
+        <Skeleton className="h-6 w-1/2" rounded="md" />
       </div>
-    </div>
+    </Drawer>
   );
 
   if (!asset) return null;
@@ -737,278 +792,264 @@ function AssetDetailDrawer({ assetId, onClose }: { assetId: string; onClose: () 
   ] as const;
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex justify-end" onClick={onClose}>
-      <div className="w-full max-w-xl bg-white h-full overflow-y-auto shadow-xl" onClick={e => e.stopPropagation()}>
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold text-gray-900">{asset.name}</h2>
-            <p className="text-sm text-gray-500 font-mono">{asset.assetTag}</p>
-          </div>
-          <div className="flex gap-2 items-center">
-            {!editing && canAssign && (
-              <button onClick={() => openAssignModal(false)} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Assign</button>
-            )}
-            {!editing && isAssigned && (
-              <>
-                <button onClick={() => openAssignModal(true)} className="px-3 py-1.5 text-sm bg-amber-600 text-white rounded hover:bg-amber-700">Reassign</button>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowReturnMenu(v => !v)}
-                    disabled={returning}
-                    className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50 disabled:opacity-50"
-                  >
-                    {returning ? 'Returning...' : 'Return'}
-                  </button>
-                  {showReturnMenu && (
-                    <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg py-1 z-10 min-w-[160px]">
-                      <button onClick={() => handleReturn('IN_STOCK')} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">Return → In Stock</button>
-                      <button onClick={() => handleReturn('IN_REPAIR')} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">Return → In Repair</button>
-                      <button onClick={() => handleReturn('PENDING_RETURN')} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">Return → Pending Return</button>
-                    </div>
-                  )}
+    <Drawer isOpen onClose={onClose} width="xl" side="right" title={asset.name}>
+      {/* Action buttons row */}
+      <div className="flex gap-2 items-center flex-wrap mb-4 pb-4 border-b border-cwc-border">
+        <p className="text-sm text-text-tertiary font-mono mr-auto">{asset.assetTag}</p>
+        {!editing && canAssign && (
+          <Button variant="primary" size="sm" onClick={() => openAssignModal(false)}>Assign</Button>
+        )}
+        {!editing && isAssigned && (
+          <>
+            <Button variant="secondary" size="sm" onClick={() => openAssignModal(true)}>Reassign</Button>
+            <div className="relative" ref={returnMenuRef}>
+              <Button variant="ghost" size="sm" className="border border-red-300 text-red-600 hover:bg-red-50" loading={returning} onClick={() => setShowReturnMenu(v => !v)}>
+                Return
+              </Button>
+              {showReturnMenu && (
+                <div className="absolute right-0 top-full mt-1 bg-surface border border-cwc-border rounded-cwc-lg shadow-cwc-lg py-1 z-10 min-w-[160px]">
+                  <button onClick={() => handleReturn('IN_STOCK')} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-muted text-text-primary">Return → In Stock</button>
+                  <button onClick={() => handleReturn('IN_REPAIR')} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-muted text-text-primary">Return → In Repair</button>
+                  <button onClick={() => handleReturn('PENDING_RETURN')} className="w-full text-left px-3 py-2 text-sm hover:bg-surface-muted text-text-primary">Return → Pending Return</button>
                 </div>
-              </>
-            )}
-            {editing ? (
-              <>
-                <button onClick={() => setEditing(false)} className="px-3 py-1.5 text-sm border rounded">Cancel</button>
-                <button onClick={handleSave} disabled={saving} className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded disabled:opacity-50">
-                  {saving ? 'Saving...' : 'Save'}
-                </button>
-              </>
-            ) : (
-              <button onClick={() => setEditing(true)} className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Edit</button>
-            )}
-            {canDelete && !editing && (
-              <button
-                onClick={() => setShowDeleteConfirm(true)}
-                className="px-3 py-1.5 text-sm border border-red-300 text-red-600 rounded hover:bg-red-50"
-              >
-                Delete
-              </button>
-            )}
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600 ml-2 text-xl leading-none">×</button>
+              )}
+            </div>
+          </>
+        )}
+        {editing ? (
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
+            <Button variant="primary" size="sm" loading={saving} onClick={handleSave}>Save</Button>
+          </>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>Edit</Button>
+        )}
+        {canDelete && !editing && (
+          <Button variant="ghost" size="sm" className="border border-red-300 text-red-600 hover:bg-red-50" onClick={() => setShowDeleteConfirm(true)}>
+            Delete
+          </Button>
+        )}
+      </div>
+
+      {/* Delete confirmation */}
+      {showDeleteConfirm && (
+        <div className="mb-4 px-4 py-3 bg-red-50 border border-red-100 rounded-cwc-lg">
+          <p className="text-sm text-red-800 font-medium">Delete this asset?</p>
+          <p className="text-xs text-red-600 mt-1">
+            This will mark <strong>{asset.assetTag} — {asset.name}</strong> as DISPOSED. This action cannot be undone.
+          </p>
+          <div className="flex gap-2 mt-3">
+            <Button variant="ghost" size="sm" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            <Button variant="danger" size="sm" loading={deleting} onClick={handleDelete}>Yes, Delete</Button>
           </div>
         </div>
+      )}
 
-        {/* Delete confirmation */}
-        {showDeleteConfirm && (
-          <div className="px-6 py-3 bg-red-50 border-b border-red-100">
-            <p className="text-sm text-red-800 font-medium">Delete this asset?</p>
-            <p className="text-xs text-red-600 mt-1">
-              This will mark <strong>{asset.assetTag} — {asset.name}</strong> as DISPOSED. This action cannot be undone.
-            </p>
-            <div className="flex gap-2 mt-3">
-              <button onClick={() => setShowDeleteConfirm(false)} className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50">Cancel</button>
-              <button onClick={handleDelete} disabled={deleting} className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50">
-                {deleting ? 'Deleting...' : 'Yes, Delete'}
-              </button>
+      {/* Detail fields */}
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          {fields.map(({ label, field }) => (
+            <div key={field}>
+              <p className="text-xs text-text-tertiary uppercase font-medium mb-1">{label}</p>
+              {editing ? (
+                <input
+                  value={String(form[field as keyof Asset] ?? '')}
+                  onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
+                  className="w-full border rounded-cwc-md px-2 py-1 text-sm"
+                />
+              ) : (
+                <p className="text-text-primary">{String(asset[field as keyof Asset] ?? '—')}</p>
+              )}
             </div>
-          </div>
-        )}
+          ))}
+        </div>
 
-        <div className="px-6 py-5 space-y-4">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            {fields.map(({ label, field }) => (
-              <div key={field}>
-                <p className="text-xs text-gray-400 uppercase font-medium mb-1">{label}</p>
-                {editing ? (
-                  <input
-                    value={String(form[field as keyof Asset] ?? '')}
-                    onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-                    className="w-full border rounded px-2 py-1 text-sm"
-                  />
-                ) : (
-                  <p className="text-gray-900">{String(asset[field as keyof Asset] ?? '—')}</p>
-                )}
-              </div>
-            ))}
-          </div>
+        <div>
+          <p className="text-xs text-text-tertiary uppercase font-medium mb-1">Category</p>
+          {editing ? (
+            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as AssetCategory }))} className="border rounded-cwc-md px-2 py-1 text-sm">
+              {CATEGORIES.map(c => <option key={c} value={c}>{humanize(c)}</option>)}
+            </select>
+          ) : (
+            <p className="text-text-primary">{humanize(asset.category)}</p>
+          )}
+        </div>
 
-          <div>
-            <p className="text-xs text-gray-400 uppercase font-medium mb-1">Category</p>
-            {editing ? (
-              <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value as AssetCategory }))} className="border rounded px-2 py-1 text-sm">
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            ) : (
-              <p className="text-gray-900">{asset.category}</p>
-            )}
-          </div>
+        <div>
+          <p className="text-xs text-text-tertiary uppercase font-medium mb-1">Status</p>
+          {editing ? (
+            <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as AssetStatus }))} className="border rounded-cwc-md px-2 py-1 text-sm">
+              {STATUSES.map(s => <option key={s} value={s}>{humanize(s)}</option>)}
+            </select>
+          ) : (
+            <StateBadge state={asset.status} size="sm" />
+          )}
+        </div>
 
-          <div>
-            <p className="text-xs text-gray-400 uppercase font-medium mb-1">Status</p>
-            {editing ? (
-              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as AssetStatus }))} className="border rounded px-2 py-1 text-sm">
-                {STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-              </select>
-            ) : (
-              <StateBadge state={asset.status} size="sm" />
-            )}
-          </div>
+        {/* Remarks / Notes */}
+        <div>
+          <p className="text-xs text-text-tertiary uppercase font-medium mb-1">Remarks</p>
+          {editing ? (
+            <textarea
+              value={form.notes ?? ''}
+              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+              rows={3}
+              className="w-full border rounded-cwc-md px-2 py-1 text-sm resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              placeholder="Add any remarks or notes about this asset..."
+            />
+          ) : (
+            <p className="text-text-primary text-sm whitespace-pre-wrap">{asset.notes || '—'}</p>
+          )}
+        </div>
 
-          {/* Remarks / Notes */}
-          <div>
-            <p className="text-xs text-gray-400 uppercase font-medium mb-1">Remarks</p>
-            {editing ? (
-              <textarea
-                value={form.notes ?? ''}
-                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                rows={3}
-                className="w-full border rounded px-2 py-1 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="Add any remarks or notes about this asset..."
-              />
-            ) : (
-              <p className="text-gray-900 text-sm whitespace-pre-wrap">{asset.notes || '—'}</p>
-            )}
-          </div>
-
-          {/* Device Metadata (from import / editable) */}
-          {(() => {
-            const metaFields = [
-              { label: 'OS', key: 'os' as const },
-              { label: 'Encrypted', key: 'encrypted' as const },
-              { label: 'SKU Family', key: 'skuFamily' as const },
-              { label: 'Join Type', key: 'joinType' as const },
-              { label: 'Ethernet MAC', key: 'ethernetMac' as const },
-              { label: 'Wi-Fi MAC', key: 'wifiMac' as const },
-              { label: 'Arch', key: 'arch' as const },
-              { label: 'Previous User', key: 'previousUser' as const },
-              { label: 'Entity', key: 'entity' as const },
-            ];
-            const hasMeta = metaFields.some(f => asset[f.key]);
-            if (!editing && !hasMeta) return null;
-            return (
-              <div>
-                <p className="text-xs text-gray-400 uppercase font-medium mb-2">Device Metadata</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm bg-gray-50 rounded-lg p-3">
-                  {metaFields.map(f => (
-                    <div key={f.key}>
-                      <span className="text-xs text-gray-400">{f.label}</span>
-                      {editing ? (
-                        <input
-                          value={String(form[f.key] ?? '')}
-                          onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
-                          className="w-full border rounded px-2 py-1 text-sm"
-                          placeholder={f.label}
-                        />
-                      ) : (
-                        <p className="text-gray-900">{asset[f.key] || '—'}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
-
-          <div>
-            <p className="text-xs text-gray-400 uppercase font-medium mb-2">Assignment History</p>
-            {!asset.assignments || asset.assignments.length === 0 ? (
-              <p className="text-sm text-gray-400">No assignment history</p>
-            ) : (
-              <div className="space-y-2">
-                {asset.assignments.map(a => (
-                  <div key={a.id} className="text-sm p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{a.user?.firstName} {a.user?.lastName}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${a.returnedAt ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700'}`}>
-                        {a.returnedAt ? 'Returned' : 'Active'}
-                      </span>
-                    </div>
-                    <p className="text-gray-500 mt-0.5">
-                      {new Date(a.assignedAt).toLocaleDateString()}
-                      {a.returnedAt ? ` → ${new Date(a.returnedAt).toLocaleDateString()}` : ' → present'}
-                    </p>
-                    {a.reason && <p className="text-gray-400 text-xs mt-0.5">{a.reason}</p>}
+        {/* Device Metadata (from import / editable) */}
+        {(() => {
+          const metaFields = [
+            { label: 'OS', key: 'os' as const },
+            { label: 'Encrypted', key: 'encrypted' as const },
+            { label: 'SKU Family', key: 'skuFamily' as const },
+            { label: 'Join Type', key: 'joinType' as const },
+            { label: 'Ethernet MAC', key: 'ethernetMac' as const },
+            { label: 'Wi-Fi MAC', key: 'wifiMac' as const },
+            { label: 'Arch', key: 'arch' as const },
+            { label: 'Previous User', key: 'previousUser' as const },
+            { label: 'Entity', key: 'entity' as const },
+          ];
+          const hasMeta = metaFields.some(f => asset[f.key]);
+          if (!editing && !hasMeta) return null;
+          return (
+            <div>
+              <p className="text-xs text-text-tertiary uppercase font-medium mb-2">Device Metadata</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm bg-surface-muted rounded-cwc-lg p-3">
+                {metaFields.map(f => (
+                  <div key={f.key}>
+                    <span className="text-xs text-text-tertiary">{f.label}</span>
+                    {editing ? (
+                      <input
+                        value={String(form[f.key] ?? '')}
+                        onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                        className="w-full border rounded-cwc-md px-2 py-1 text-sm"
+                        placeholder={f.label}
+                      />
+                    ) : (
+                      <p className="text-text-primary">{asset[f.key] || '—'}</p>
+                    )}
                   </div>
                 ))}
               </div>
-            )}
+            </div>
+          );
+        })()}
+
+        <div>
+          <p className="text-xs text-text-tertiary uppercase font-medium mb-2">Assignment History</p>
+          {!asset.assignments || asset.assignments.length === 0 ? (
+            <p className="text-sm text-text-tertiary">No assignment history</p>
+          ) : (
+            <div className="space-y-2">
+              {asset.assignments.map(a => (
+                <div key={a.id} className="text-sm p-3 bg-surface-muted rounded-cwc-lg">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{a.user?.firstName} {a.user?.lastName}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-cwc-md ${a.returnedAt ? 'bg-surface-muted text-text-secondary' : 'bg-brand-100 text-brand-700'}`}>
+                      {a.returnedAt ? 'Returned' : 'Active'}
+                    </span>
+                  </div>
+                  <p className="text-text-secondary mt-0.5">
+                    {new Date(a.assignedAt).toLocaleDateString()}
+                    {a.returnedAt ? ` → ${new Date(a.returnedAt).toLocaleDateString()}` : ' → present'}
+                  </p>
+                  {a.reason && <p className="text-text-tertiary text-xs mt-0.5">{a.reason}</p>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Assign / Reassign Modal */}
+      {showAssignModal && (
+        <div className="mt-4 pt-4 border-t border-cwc-border bg-surface-muted rounded-cwc-lg p-4">
+          <h3 className="font-medium text-text-primary text-sm mb-3">
+            {reassignMode ? 'Reassign Asset' : 'Assign Asset'}
+          </h3>
+          {reassignMode && (
+            <p className="text-xs text-amber-600 mb-3">
+              Current assignee will be returned first, then asset will be assigned to new user.
+            </p>
+          )}
+          {/* User search */}
+          <div className="relative mb-3">
+            <input
+              type="text"
+              placeholder="Search employee by name or email..."
+              value={assignQuery}
+              onChange={e => setAssignQuery(e.target.value)}
+              className="w-full border border-cwc-border rounded-cwc-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              autoFocus
+            />
+            {assignLoading && <div className="absolute right-3 top-2.5 text-text-tertiary text-xs">Searching...</div>}
+          </div>
+          {/* Search results */}
+          {assignUsers.length > 0 && (
+            <div className="bg-surface border border-cwc-border rounded-cwc-lg shadow-sm overflow-hidden mb-3 max-h-48 overflow-y-auto">
+              {assignUsers.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => setSelectedUser(u)}
+                  className={`w-full text-left px-4 py-2.5 text-sm border-b border-cwc-border/50 last:border-0 transition-colors ${
+                    selectedUser?.id === u.id ? 'bg-brand-50 border-l-2 border-l-brand-500' : 'hover:bg-surface-muted'
+                  }`}
+                >
+                  <span className="font-medium">{u.firstName} {u.lastName}</span>
+                  <span className="text-text-tertiary ml-2 text-xs">{u.email}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {/* Selected user */}
+          {selectedUser && (
+            <div className="bg-brand-50 border border-brand-200 rounded-cwc-lg px-4 py-3 mb-3 flex items-center justify-between">
+              <div>
+                <p className="font-medium text-sm text-brand-700">{selectedUser.firstName} {selectedUser.lastName}</p>
+                <p className="text-xs text-brand-600">{selectedUser.email}</p>
+              </div>
+              <button onClick={() => setSelectedUser(null)} className="text-brand-400 hover:text-brand-600 text-xs">Change</button>
+            </div>
+          )}
+          {/* Reason */}
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-text-secondary mb-1">Reason (optional)</label>
+            <input
+              type="text"
+              placeholder={reassignMode ? 'Reason for reassignment...' : 'Reason for assignment...'}
+              value={assignReason}
+              onChange={e => setAssignReason(e.target.value)}
+              className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
+            />
+          </div>
+          {/* Actions */}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => { setShowAssignModal(false); setReassignMode(false); }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!selectedUser}
+              loading={assigning}
+              onClick={handleAssign}
+            >
+              {reassignMode ? 'Reassign' : 'Assign'}
+            </Button>
           </div>
         </div>
-
-        {/* Assign / Reassign Modal */}
-        {showAssignModal && (
-          <div className="border-t px-6 py-5 bg-gray-50">
-            <h3 className="font-medium text-gray-900 text-sm mb-3">
-              {reassignMode ? 'Reassign Asset' : 'Assign Asset'}
-            </h3>
-            {reassignMode && (
-              <p className="text-xs text-amber-600 mb-3">
-                Current assignee will be returned first, then asset will be assigned to new user.
-              </p>
-            )}
-            {/* User search */}
-            <div className="relative mb-3">
-              <input
-                type="text"
-                placeholder="Search employee by name or email..."
-                value={assignQuery}
-                onChange={e => setAssignQuery(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                autoFocus
-              />
-              {assignLoading && <div className="absolute right-3 top-2.5 text-gray-400 text-xs">Searching...</div>}
-            </div>
-            {/* Search results */}
-            {assignUsers.length > 0 && (
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-3 max-h-48 overflow-y-auto">
-                {assignUsers.map(u => (
-                  <button
-                    key={u.id}
-                    onClick={() => setSelectedUser(u)}
-                    className={`w-full text-left px-4 py-2.5 text-sm border-b border-gray-100 last:border-0 transition-colors ${
-                      selectedUser?.id === u.id ? 'bg-blue-50 border-l-2 border-l-blue-500' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="font-medium">{u.firstName} {u.lastName}</span>
-                    <span className="text-gray-400 ml-2 text-xs">{u.email}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {/* Selected user */}
-            {selectedUser && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-3 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm text-blue-900">{selectedUser.firstName} {selectedUser.lastName}</p>
-                  <p className="text-xs text-blue-600">{selectedUser.email}</p>
-                </div>
-                <button onClick={() => setSelectedUser(null)} className="text-blue-400 hover:text-blue-600 text-xs">Change</button>
-              </div>
-            )}
-            {/* Reason */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Reason (optional)</label>
-              <input
-                type="text"
-                placeholder={reassignMode ? 'Reason for reassignment...' : 'Reason for assignment...'}
-                value={assignReason}
-                onChange={e => setAssignReason(e.target.value)}
-                className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-            {/* Actions */}
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => { setShowAssignModal(false); setReassignMode(false); }}
-                className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAssign}
-                disabled={!selectedUser || assigning}
-                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-              >
-                {assigning ? (reassignMode ? 'Reassigning...' : 'Assigning...') : (reassignMode ? 'Reassign' : 'Assign')}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      )}
+    </Drawer>
   );
 }
 
@@ -1040,90 +1081,91 @@ function AssetFormModal({ onClose }: { onClose: () => void }) {
   });
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-4 border-b flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Register New Asset</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Register New Asset"
+      size="lg"
+      footer={
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" size="sm" type="button" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" type="submit" form="asset-form" loading={saving}>
+            Register Asset
+          </Button>
         </div>
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Asset Tag *</label>
-              <input {...f('assetTag')} required className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Serial Number</label>
-              <input {...f('serialNumber')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Name *</label>
-              <input {...f('name')} required className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Category *</label>
-              <select {...f('category')} required className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
-              <select {...f('status')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
-                {STATUSES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Brand</label>
-              <input {...f('brand')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Model</label>
-              <input {...f('model')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Vendor</label>
-              <input {...f('vendor')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Purchase Price (RM)</label>
-              <input type="number" step="0.01" {...f('purchasePrice')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Purchase Date</label>
-              <input type="date" {...f('purchaseDate')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Warranty Expiry</label>
-              <input type="date" {...f('warrantyExpiry')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" />
-            </div>
+      }
+    >
+      <form id="asset-form" onSubmit={handleSubmit} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Asset Tag *</label>
+            <input {...f('assetTag')} required className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-            <textarea {...f('notes')} rows={2} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none" />
+            <label className="block text-xs font-medium text-text-secondary mb-1">Serial Number</label>
+            <input {...f('serialNumber')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" />
           </div>
-          <details className="group">
-            <summary className="text-xs font-medium text-gray-500 cursor-pointer hover:text-gray-700">Device Metadata (optional)</summary>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">OS</label><input {...f('os')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Encrypted</label><input {...f('encrypted')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">SKU Family</label><input {...f('skuFamily')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Join Type</label><input {...f('joinType')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Ethernet MAC</label><input {...f('ethernetMac')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Wi-Fi MAC</label><input {...f('wifiMac')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Arch</label><input {...f('arch')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Previous User</label><input {...f('previousUser')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-              <div><label className="block text-xs font-medium text-gray-600 mb-1">Entity</label><input {...f('entity')} className="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500" /></div>
-            </div>
-          </details>
-          <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>
-            <button type="submit" disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
-              {saving ? 'Registering...' : 'Register Asset'}
-            </button>
+          <div className="col-span-2">
+            <label className="block text-xs font-medium text-text-secondary mb-1">Name *</label>
+            <input {...f('name')} required className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" />
           </div>
-        </form>
-      </div>
-    </div>
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Category *</label>
+            <select {...f('category')} required className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+              {CATEGORIES.map(c => <option key={c} value={c}>{humanize(c)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Status</label>
+            <select {...f('status')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+              {STATUSES.map(s => <option key={s} value={s}>{humanize(s)}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Brand</label>
+            <input {...f('brand')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Model</label>
+            <input {...f('model')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Vendor</label>
+            <input {...f('vendor')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Purchase Price (RM)</label>
+            <input type="number" step="0.01" {...f('purchasePrice')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Purchase Date</label>
+            <input type="date" {...f('purchaseDate')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-text-secondary mb-1">Warranty Expiry</label>
+            <input type="date" {...f('warrantyExpiry')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-text-secondary mb-1">Notes</label>
+          <textarea {...f('notes')} rows={2} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none" />
+        </div>
+        <details className="group">
+          <summary className="text-xs font-medium text-text-secondary cursor-pointer hover:text-text-primary">Device Metadata (optional)</summary>
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            <div><label className="block text-xs font-medium text-text-secondary mb-1">OS</label><input {...f('os')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" /></div>
+            <div><label className="block text-xs font-medium text-text-secondary mb-1">Encrypted</label><input {...f('encrypted')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" /></div>
+            <div><label className="block text-xs font-medium text-text-secondary mb-1">SKU Family</label><input {...f('skuFamily')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" /></div>
+            <div><label className="block text-xs font-medium text-text-secondary mb-1">Join Type</label><input {...f('joinType')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" /></div>
+            <div><label className="block text-xs font-medium text-text-secondary mb-1">Ethernet MAC</label><input {...f('ethernetMac')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" /></div>
+            <div><label className="block text-xs font-medium text-text-secondary mb-1">Wi-Fi MAC</label><input {...f('wifiMac')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" /></div>
+            <div><label className="block text-xs font-medium text-text-secondary mb-1">Arch</label><input {...f('arch')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" /></div>
+            <div><label className="block text-xs font-medium text-text-secondary mb-1">Previous User</label><input {...f('previousUser')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" /></div>
+            <div><label className="block text-xs font-medium text-text-secondary mb-1">Entity</label><input {...f('entity')} className="w-full border border-cwc-border rounded-cwc-md px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500" /></div>
+          </div>
+        </details>
+      </form>
+    </Modal>
   );
 }
 
@@ -1233,311 +1275,306 @@ function ImportAssetsModal({ onClose }: { onClose: () => void }) {
     { key: 'notes', label: 'Notes' },
   ];
 
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="px-6 py-4 border-b flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="font-semibold text-gray-900">
-              {phase === 'upload' && 'Import Assets'}
-              {phase === 'preview' && 'Preview & Validate'}
-              {phase === 'result' && 'Import Results'}
-            </h2>
-            {/* Step indicators */}
-            <div className="flex items-center gap-1 text-xs">
-              {['Upload', 'Preview', 'Done'].map((step, i) => (
-                <React.Fragment key={step}>
-                  {i > 0 && <span className="text-gray-300">→</span>}
-                  <span className={`px-2 py-0.5 rounded ${
-                    phase === 'upload' && i === 0 ? 'bg-blue-600 text-white' :
-                    phase === 'preview' && i === 1 ? 'bg-blue-600 text-white' :
-                    phase === 'result' && i === 2 ? 'bg-green-600 text-white' :
-                    'bg-gray-100 text-gray-400'
-                  }`}>{step}</span>
-                </React.Fragment>
-              ))}
-            </div>
-          </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+  const renderFooter = () => {
+    if (phase === 'upload') {
+      return (
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+          <Button variant="primary" size="sm" disabled={!file} loading={parsing} onClick={handleParse}>
+            Parse & Preview
+          </Button>
         </div>
+      );
+    }
+    if (phase === 'preview' && parseResult) {
+      return (
+        <div className="flex justify-end gap-3">
+          <Button variant="ghost" size="sm" onClick={() => setPhase('upload')}>Back</Button>
+          <Button variant="primary" size="sm" loading={committing} onClick={handleCommit}>
+            Import {updateExisting
+              ? parseResult.stats.newRows + parseResult.stats.duplicateRows
+              : parseResult.stats.newRows} Rows
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <div className="flex justify-end">
+        <Button variant="primary" size="sm" onClick={onClose}>Done</Button>
+      </div>
+    );
+  };
 
-        <div className="px-6 py-5">
-          {/* ── Phase 1: Upload ── */}
-          {phase === 'upload' && (
-            <div className="space-y-4">
-              {/* Drop zone */}
-              <div
-                onDragOver={e => e.preventDefault()}
-                onDrop={handleDrop}
-                className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
-                  file ? 'border-green-400 bg-green-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-                }`}
-                onClick={() => document.getElementById('import-file-input')?.click()}
-              >
-                {file ? (
-                  <div>
-                    <svg className="w-10 h-10 text-green-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                    <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
-                  </div>
-                ) : (
-                  <div>
-                    <svg className="w-10 h-10 text-gray-300 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                    <p className="text-sm text-gray-600">Drag & drop a <strong>.csv</strong> or <strong>.xlsx</strong> file here</p>
-                    <p className="text-xs text-gray-400 mt-1">or click to browse</p>
-                  </div>
-                )}
-                <input
-                  id="import-file-input"
-                  type="file"
-                  accept=".csv,.xlsx,.xls"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </div>
-
-              {/* Supported formats info */}
-              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
-                <p className="text-xs font-medium text-blue-800 mb-1">Supported column headers</p>
-                <p className="text-xs text-blue-600">
-                  The importer auto-maps common headers: <em>Device name, Serial number, Manufacturer/Brand, Model, Category, Asset tag, Primary user email address, Wi-Fi MAC, Ethernet MAC, OS, Encrypted, Entities, Remarks/Notes</em>
-                </p>
-                <p className="text-xs text-blue-600 mt-1">
-                  Categories are auto-normalized: <em>Laptop→LAPTOP, Desktop→DESKTOP, Monitor→MONITOR, etc.</em>
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>
-                <button
-                  onClick={handleParse}
-                  disabled={!file || parsing}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {parsing ? 'Parsing...' : 'Parse & Preview'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ── Phase 2: Preview ── */}
-          {phase === 'preview' && parseResult && (
-            <div className="space-y-4">
-              {/* Stats bar */}
-              <div className="flex flex-wrap gap-3 text-sm">
-                <span className="px-3 py-1 bg-gray-100 rounded text-gray-700">Total: {parseResult.stats.totalRows}</span>
-                <span className="px-3 py-1 bg-green-100 rounded text-green-800">{parseResult.stats.newRows} new</span>
-                {parseResult.stats.duplicateRows > 0 && (
-                  <span className="px-3 py-1 bg-blue-100 rounded text-blue-800">{parseResult.stats.duplicateRows} existing (duplicates)</span>
-                )}
-                {parseResult.stats.errorRows > 0 && (
-                  <span className="px-3 py-1 bg-red-100 rounded text-red-800">{parseResult.stats.errorRows} with errors</span>
-                )}
-              </div>
-
-              {/* Import mode selector */}
-              {parseResult.stats.duplicateRows > 0 && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-xs font-medium text-blue-800 mb-2">Duplicate rows detected — choose how to handle them:</p>
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="importMode"
-                        checked={!updateExisting}
-                        onChange={() => setUpdateExisting(false)}
-                        className="accent-blue-600"
-                      />
-                      <div>
-                        <span className="text-sm font-medium text-gray-900">Skip duplicates</span>
-                        <span className="text-xs text-gray-500 ml-1">({parseResult.stats.newRows} rows will be imported)</span>
-                      </div>
-                    </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="importMode"
-                        checked={updateExisting}
-                        onChange={() => setUpdateExisting(true)}
-                        className="accent-blue-600"
-                      />
-                      <div>
-                        <span className="text-sm font-medium text-gray-900">Update existing</span>
-                        <span className="text-xs text-gray-500 ml-1">({parseResult.stats.newRows + parseResult.stats.duplicateRows} rows will be imported/updated)</span>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-              )}
-
-              {/* Errors & Warnings */}
-              {parseResult.stats.errors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-                  <p className="text-xs font-medium text-red-800 mb-1">Errors ({parseResult.stats.errors.length})</p>
-                  {parseResult.stats.errors.slice(0, 100).map((e, i) => (
-                    <p key={i} className="text-xs text-red-600">{e.row}: {e.message}</p>
-                  ))}
-                  {parseResult.stats.errors.length > 100 && (
-                    <p className="text-xs text-red-400 mt-1">...and {parseResult.stats.errors.length - 100} more</p>
-                  )}
-                </div>
-              )}
-              {parseResult.stats.warnings.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-                  <p className="text-xs font-medium text-yellow-800 mb-1">Warnings ({parseResult.stats.warnings.length})</p>
-                  {parseResult.stats.warnings.slice(0, 50).map((w, i) => (
-                    <p key={i} className="text-xs text-yellow-700">{w.row}: {w.message}</p>
-                  ))}
-                  {parseResult.stats.warnings.length > 50 && (
-                    <p className="text-xs text-yellow-500 mt-1">...and {parseResult.stats.warnings.length - 50} more</p>
-                  )}
-                </div>
-              )}
-
-              {/* Column mapping */}
-              {parseResult.columnMapping.length > 0 && (
-                <details className="text-xs">
-                  <summary className="cursor-pointer font-medium text-gray-600 mb-1">Column Mapping ({parseResult.columnMapping.filter(c => c.matched).length}/{parseResult.columnMapping.length} matched)</summary>
-                  <div className="grid grid-cols-3 gap-1 bg-gray-50 p-2 rounded">
-                    {parseResult.columnMapping.map((c, i) => (
-                      <div key={i} className={`px-2 py-1 rounded ${c.matched ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-500'}`}>
-                        {c.header} → {c.dbField}
-                        {!c.matched && ' (unmapped)'}
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-
-              {/* Preview table */}
-              <div className="overflow-x-auto border rounded-lg max-h-80">
-                <table className="text-xs w-full">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      {PREVIEW_FIELDS.map(f => (
-                        <th key={f.key} className="px-2 py-1.5 text-left font-medium text-gray-600 whitespace-nowrap">{f.label}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parseResult.rows.slice(0, 50).map((row, i) => {
-                      const rowErrors: string[] = (row as any)._errors || [];
-                      const rowWarnings: string[] = (row as any)._warnings || [];
-                      const isDuplicate = (row as any)._isDuplicate === 'true';
-                      const isInvalid = row._valid === 'false';
-                      const tooltipParts: string[] = [];
-                      if (rowErrors.length) tooltipParts.push(...rowErrors.map(e => `✕ ${e}`));
-                      if (rowWarnings.length) tooltipParts.push(...rowWarnings.map(w => `⚠ ${w}`));
-                      if (isDuplicate) tooltipParts.push('⟳ Existing asset — will be updated');
-                      const tooltip = tooltipParts.join('\n');
-                      const rowBg = isInvalid ? 'bg-red-50' : isDuplicate ? 'bg-blue-50/50' : i % 2 === 0 ? '' : 'bg-gray-50/50';
-
-                      return (
-                        <tr key={i} className={`border-t ${rowBg}`} title={tooltip || undefined}>
-                          {PREVIEW_FIELDS.map(f => {
-                            const val = row[f.key] || '';
-                            const maxLen = 30;
-                            if (f.key === '_valid') {
-                              return (
-                                <td key={f.key} className={`px-2 py-1 whitespace-nowrap ${val === 'true' ? 'text-green-600' : 'text-red-600'}`}>
-                                  {val === 'true' ? '✓' : '✕'}
-                                </td>
-                              );
-                            }
-                            if (f.key === '_isDuplicate') {
-                              return (
-                                <td key={f.key} className="px-2 py-1 whitespace-nowrap text-blue-600">
-                                  {val === 'true' ? '⟳' : '—'}
-                                </td>
-                              );
-                            }
-                            return (
-                              <td key={f.key} className="px-2 py-1 whitespace-nowrap max-w-[150px] truncate">
-                                {val.length > maxLen ? val.slice(0, maxLen) + '...' : val}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {parseResult.rows.length > 50 && (
-                  <p className="text-xs text-gray-400 text-center py-2">Showing first 50 of {parseResult.rows.length} rows</p>
-                )}
-              </div>
-
-              <div className="flex justify-between items-center">
-                <button onClick={() => { setPhase('upload'); setParseResult(null); setFile(null); }} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">← Back</button>
-                <div className="flex gap-3">
-                  <button onClick={onClose} className="px-4 py-2 text-sm border rounded hover:bg-gray-50">Cancel</button>
-                  <button
-                    onClick={handleCommit}
-                    disabled={committing || (parseResult.stats.newRows === 0 && parseResult.stats.duplicateRows === 0) || (!updateExisting && parseResult.stats.newRows === 0)}
-                    className={`px-4 py-2 text-sm text-white rounded disabled:opacity-50 ${updateExisting ? 'bg-blue-600 hover:bg-blue-700' : 'bg-green-600 hover:bg-green-700'}`}
-                  >
-                    {committing ? 'Importing...' : updateExisting
-                      ? `Import ${parseResult.stats.newRows + parseResult.stats.duplicateRows} rows (update existing)`
-                      : `Import ${parseResult.stats.newRows} new row${parseResult.stats.newRows !== 1 ? 's' : ''}`
-                    }
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── Phase 3: Result ── */}
-          {phase === 'result' && commitResult && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 flex-wrap">
-                {commitResult.imported > 0 && (
-                  <div className="flex items-center gap-2">
-                    <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    <span className="text-lg font-semibold text-green-700">{commitResult.imported} Imported</span>
-                  </div>
-                )}
-                {(commitResult as any).updated > 0 && (
-                  <div className="flex items-center gap-2">
-                    <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    <span className="text-lg font-semibold text-blue-700">{(commitResult as any).updated} Updated</span>
-                  </div>
-                )}
-                {commitResult.skipped > 0 && (
-                  <span className="text-sm text-orange-600">{commitResult.skipped} skipped</span>
-                )}
-              </div>
-
-              {commitResult.warnings.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-                  <p className="text-xs font-medium text-yellow-800 mb-1">Warnings ({commitResult.warnings.length})</p>
-                  {commitResult.warnings.slice(0, 100).map((w, i) => (
-                    <p key={i} className="text-xs text-yellow-700">{w}</p>
-                  ))}
-                  {commitResult.warnings.length > 100 && (
-                    <p className="text-xs text-yellow-500 mt-1">...and {commitResult.warnings.length - 100} more</p>
-                  )}
-                </div>
-              )}
-              {commitResult.errors.length > 0 && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 max-h-48 overflow-y-auto">
-                  <p className="text-xs font-medium text-red-800 mb-1">Errors ({commitResult.errors.length})</p>
-                  {commitResult.errors.slice(0, 100).map((e, i) => (
-                    <p key={i} className="text-xs text-red-600">{e}</p>
-                  ))}
-                  {commitResult.errors.length > 100 && (
-                    <p className="text-xs text-red-400 mt-1">...and {commitResult.errors.length - 100} more</p>
-                  )}
-                </div>
-              )}
-
-              <div className="flex justify-end">
-                <button onClick={onClose} className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700">Done</button>
-              </div>
-            </div>
-          )}
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      size="xl"
+      footer={renderFooter()}
+    >
+      {/* Custom header row with phase stepper */}
+      <div className="flex items-center gap-3 mb-5">
+        <h2 className="font-semibold text-text-primary text-base">
+          {phase === 'upload' && 'Import Assets'}
+          {phase === 'preview' && 'Preview & Validate'}
+          {phase === 'result' && 'Import Results'}
+        </h2>
+        <div className="flex items-center gap-1 text-xs">
+          {['Upload', 'Preview', 'Done'].map((step, i) => (
+            <React.Fragment key={step}>
+              {i > 0 && <span className="text-text-tertiary">→</span>}
+              <span className={`px-2 py-0.5 rounded-cwc-md text-xs font-medium ${
+                phase === 'upload' && i === 0 ? 'bg-brand-700 text-white' :
+                phase === 'preview' && i === 1 ? 'bg-brand-700 text-white' :
+                phase === 'result' && i === 2 ? 'bg-green-600 text-white' :
+                'bg-surface-muted text-text-tertiary'
+              }`}>{step}</span>
+            </React.Fragment>
+          ))}
         </div>
       </div>
-    </div>
+
+      {/* ── Phase 1: Upload ── */}
+      {phase === 'upload' && (
+        <div className="space-y-4">
+          {/* Drop zone */}
+          <div
+            onDragOver={e => e.preventDefault()}
+            onDrop={handleDrop}
+            className={`relative border-2 border-dashed rounded-cwc-lg p-8 text-center transition-colors cursor-pointer ${
+              file ? 'border-green-400 bg-green-50' : 'border-cwc-border hover:border-brand-400 hover:bg-brand-50'
+            }`}
+            onClick={() => document.getElementById('import-file-input')?.click()}
+          >
+            {file ? (
+              <div>
+                <svg className="w-10 h-10 text-green-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="text-sm font-medium text-text-primary">{file.name}</p>
+                <p className="text-xs text-text-secondary">{(file.size / 1024).toFixed(1)} KB</p>
+              </div>
+            ) : (
+              <div>
+                <svg className="w-10 h-10 text-text-tertiary mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                <p className="text-sm text-text-secondary">Drag & drop a <strong>.csv</strong> or <strong>.xlsx</strong> file here</p>
+                <p className="text-xs text-text-tertiary mt-1">or click to browse</p>
+              </div>
+            )}
+            <input
+              id="import-file-input"
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </div>
+
+          {/* Supported formats info */}
+          <div className="bg-brand-50 border border-brand-100 rounded-cwc-lg p-3">
+            <p className="text-xs font-medium text-brand-700 mb-1">Supported column headers</p>
+            <p className="text-xs text-brand-600">
+              The importer auto-maps common headers: <em>Device name, Serial number, Manufacturer/Brand, Model, Category, Asset tag, Primary user email address, Wi-Fi MAC, Ethernet MAC, OS, Encrypted, Entities, Remarks/Notes</em>
+            </p>
+            <p className="text-xs text-brand-600 mt-1">
+              Categories are auto-normalized: <em>Laptop→LAPTOP, Desktop→DESKTOP, Monitor→MONITOR, etc.</em>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Phase 2: Preview ── */}
+      {phase === 'preview' && parseResult && (
+        <div className="space-y-4">
+          {/* Stats bar */}
+          <div className="flex flex-wrap gap-3 text-sm">
+            <span className="px-3 py-1 bg-surface-muted rounded-cwc-md text-text-primary">{parseResult.stats.totalRows} total</span>
+            <span className="px-3 py-1 bg-green-100 rounded-cwc-md text-green-800">{parseResult.stats.newRows} new</span>
+            {parseResult.stats.duplicateRows > 0 && (
+              <span className="px-3 py-1 bg-brand-100 rounded-cwc-md text-brand-700">{parseResult.stats.duplicateRows} existing (duplicates)</span>
+            )}
+            {parseResult.stats.errorRows > 0 && (
+              <span className="px-3 py-1 bg-red-100 rounded-cwc-md text-red-800">{parseResult.stats.errorRows} with errors</span>
+            )}
+          </div>
+
+          {/* Import mode selector */}
+          {parseResult.stats.duplicateRows > 0 && (
+            <div className="bg-brand-50 border border-brand-200 rounded-cwc-lg p-3">
+              <p className="text-xs font-medium text-brand-700 mb-2">Duplicate rows detected — choose how to handle them:</p>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="importMode"
+                    checked={!updateExisting}
+                    onChange={() => setUpdateExisting(false)}
+                    className="accent-brand-600"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-text-primary">Skip duplicates</span>
+                    <span className="text-xs text-text-secondary ml-1">({parseResult.stats.newRows} rows will be imported)</span>
+                  </div>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="importMode"
+                    checked={updateExisting}
+                    onChange={() => setUpdateExisting(true)}
+                    className="accent-brand-600"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-text-primary">Update existing</span>
+                    <span className="text-xs text-text-secondary ml-1">({parseResult.stats.newRows + parseResult.stats.duplicateRows} rows will be imported/updated)</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Errors & Warnings */}
+          {parseResult.stats.errors.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-cwc-lg p-3 max-h-48 overflow-y-auto">
+              <p className="text-xs font-medium text-red-800 mb-1">Errors ({parseResult.stats.errors.length})</p>
+              {parseResult.stats.errors.slice(0, 100).map((e, i) => (
+                <p key={i} className="text-xs text-red-600">{e.row}: {e.message}</p>
+              ))}
+              {parseResult.stats.errors.length > 100 && (
+                <p className="text-xs text-red-400 mt-1">...and {parseResult.stats.errors.length - 100} more</p>
+              )}
+            </div>
+          )}
+          {parseResult.stats.warnings.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-cwc-lg p-3 max-h-48 overflow-y-auto">
+              <p className="text-xs font-medium text-yellow-800 mb-1">Warnings ({parseResult.stats.warnings.length})</p>
+              {parseResult.stats.warnings.slice(0, 50).map((w, i) => (
+                <p key={i} className="text-xs text-yellow-700">{w.row}: {w.message}</p>
+              ))}
+              {parseResult.stats.warnings.length > 50 && (
+                <p className="text-xs text-yellow-500 mt-1">...and {parseResult.stats.warnings.length - 50} more</p>
+              )}
+            </div>
+          )}
+
+          {/* Column mapping */}
+          {parseResult.columnMapping.length > 0 && (
+            <details className="text-xs">
+              <summary className="cursor-pointer font-medium text-text-secondary mb-1">Column Mapping ({parseResult.columnMapping.filter(c => c.matched).length}/{parseResult.columnMapping.length} matched)</summary>
+              <div className="grid grid-cols-3 gap-1 bg-surface-muted p-2 rounded-cwc-md">
+                {parseResult.columnMapping.map((c, i) => (
+                  <div key={i} className={`px-2 py-1 rounded-cwc-md ${c.matched ? 'bg-green-100 text-green-800' : 'bg-surface-muted text-text-tertiary'}`}>
+                    {c.header} → {c.dbField}
+                    {!c.matched && ' (unmapped)'}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {/* Preview table */}
+          <div className="overflow-x-auto border border-cwc-border rounded-cwc-lg max-h-80">
+            <table className="text-xs w-full">
+              <thead className="bg-surface-muted sticky top-0">
+                <tr>
+                  {PREVIEW_FIELDS.map(f => (
+                    <th key={f.key} className="px-2 py-1.5 text-left font-medium text-text-secondary whitespace-nowrap">{f.label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {parseResult.rows.slice(0, 50).map((row, i) => {
+                  const rowErrors: string[] = (row as any)._errors || [];
+                  const rowWarnings: string[] = (row as any)._warnings || [];
+                  const isDuplicate = (row as any)._isDuplicate === 'true';
+                  const isInvalid = row._valid === 'false';
+                  const tooltipParts: string[] = [];
+                  if (rowErrors.length) tooltipParts.push(...rowErrors.map(e => `✕ ${e}`));
+                  if (rowWarnings.length) tooltipParts.push(...rowWarnings.map(w => `⚠ ${w}`));
+                  if (isDuplicate) tooltipParts.push('⟳ Existing asset — will be updated');
+                  const tooltip = tooltipParts.join('\n');
+                  const rowBg = isInvalid ? 'bg-red-50' : isDuplicate ? 'bg-brand-50/50' : i % 2 === 0 ? '' : 'bg-surface-subtle';
+
+                  return (
+                    <tr key={i} className={`border-t ${rowBg}`} title={tooltip || undefined}>
+                      {PREVIEW_FIELDS.map(f => {
+                        const val = row[f.key] || '';
+                        const maxLen = 30;
+                        if (f.key === '_valid') {
+                          return (
+                            <td key={f.key} className={`px-2 py-1 whitespace-nowrap ${val === 'true' ? 'text-green-600' : 'text-red-600'}`}>
+                              {val === 'true' ? '✓' : '✕'}
+                            </td>
+                          );
+                        }
+                        if (f.key === '_isDuplicate') {
+                          return (
+                            <td key={f.key} className="px-2 py-1 whitespace-nowrap text-brand-600">
+                              {val === 'true' ? '⟳' : '—'}
+                            </td>
+                          );
+                        }
+                        return (
+                          <td key={f.key} className="px-2 py-1 whitespace-nowrap max-w-[150px] truncate">
+                            {val.length > maxLen ? val.slice(0, maxLen) + '...' : val}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {parseResult.rows.length > 50 && (
+              <p className="text-xs text-text-tertiary text-center py-2">Showing first 50 of {parseResult.rows.length} rows</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Phase 3: Result ── */}
+      {phase === 'result' && commitResult && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            {commitResult.imported > 0 && (
+              <div className="flex items-center gap-2">
+                <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <span className="text-lg font-semibold text-green-700">{commitResult.imported} Imported</span>
+              </div>
+            )}
+            {(commitResult as any).updated > 0 && (
+              <div className="flex items-center gap-2">
+                <svg className="w-8 h-8 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                <span className="text-lg font-semibold text-brand-700">{(commitResult as any).updated} Updated</span>
+              </div>
+            )}
+            {commitResult.skipped > 0 && (
+              <span className="text-sm text-orange-600">{commitResult.skipped} skipped</span>
+            )}
+          </div>
+
+          {commitResult.warnings.length > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-cwc-lg p-3 max-h-48 overflow-y-auto">
+              <p className="text-xs font-medium text-yellow-800 mb-1">Warnings ({commitResult.warnings.length})</p>
+              {commitResult.warnings.slice(0, 100).map((w, i) => (
+                <p key={i} className="text-xs text-yellow-700">{w}</p>
+              ))}
+              {commitResult.warnings.length > 100 && (
+                <p className="text-xs text-yellow-500 mt-1">...and {commitResult.warnings.length - 100} more</p>
+              )}
+            </div>
+          )}
+          {commitResult.errors.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-cwc-lg p-3 max-h-48 overflow-y-auto">
+              <p className="text-xs font-medium text-red-800 mb-1">Errors ({commitResult.errors.length})</p>
+              {commitResult.errors.slice(0, 100).map((e, i) => (
+                <p key={i} className="text-xs text-red-600">{e}</p>
+              ))}
+              {commitResult.errors.length > 100 && (
+                <p className="text-xs text-red-400 mt-1">...and {commitResult.errors.length - 100} more</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
   );
 }
