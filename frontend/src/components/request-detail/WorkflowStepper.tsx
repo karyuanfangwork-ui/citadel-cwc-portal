@@ -181,6 +181,11 @@ const REJECTED_STATUSES = new Set([
 ]);
 
 // ---------------------------------------------------------------------------
+// Threshold for switching from horizontal to vertical layout
+// ---------------------------------------------------------------------------
+const MANY_STEPS_THRESHOLD = 7;
+
+// ---------------------------------------------------------------------------
 // Helper: build ordered steps from workflowSteps prop or STATUS_TO_STEP fallback
 // ---------------------------------------------------------------------------
 
@@ -271,9 +276,6 @@ function buildSteps(
     }
 
     // Status not in steps — use STATUS_ORDER to infer which steps are completed.
-    // Find the position of the current status in the global order, then mark
-    // all workflow steps whose global order < current status order as "completed"
-    // and insert a synthetic "current" step at the inferred position.
     const currentGlobalIdx = STATUS_ORDER.indexOf(status);
     const statusLabel = STATUS_TO_STEP[status] ?? status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 
@@ -373,10 +375,13 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
     return map;
   }, [approvals]);
 
-  // Collapsible logic: show first 3 + "... + N more" if > 5 steps
-  // When the workflow is completed, auto-expand to show all steps
+  // Layout decision: horizontal for few steps, vertical for many
+  const useVerticalLayout = steps.length > MANY_STEPS_THRESHOLD;
+
+  // Collapsible logic: only applies to horizontal layout
+  // When the workflow is done or using vertical layout, show all steps
   const COLLAPSE_THRESHOLD = 5;
-  const shouldCollapse = steps.length > COLLAPSE_THRESHOLD;
+  const shouldCollapse = !useVerticalLayout && steps.length > COLLAPSE_THRESHOLD;
   const visibleSteps = shouldCollapse && !expanded && !workflowDone ? steps.slice(0, 3) : steps;
   const hiddenCount = shouldCollapse && !expanded && !workflowDone ? steps.length - 3 : 0;
 
@@ -396,229 +401,166 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
     );
   }
 
-  const currentStepIndex = steps.findIndex(s => s.state === 'current');
+  // -------------------------------------------------------------------------
+  // Shared: render an approval inline chip for a step
+  // -------------------------------------------------------------------------
+  const renderApprovalInline = (stepKey: string) => {
+    const approval = approvalMap.get(stepKey);
+    if (!approval) return null;
+    return (
+      <span className="inline-flex items-center gap-1 ml-1.5">
+        <span className={`material-symbols-outlined text-xs ${approval.status === 'APPROVED' ? 'text-emerald-500' : approval.status === 'REJECTED' ? 'text-red-500' : 'text-amber-500'}`} aria-hidden="true">
+          {approval.status === 'APPROVED' ? 'check_circle' : approval.status === 'REJECTED' ? 'cancel' : 'schedule'}
+        </span>
+        <span className="text-[10px] text-gray-500">
+          {approval.approver.firstName} {approval.approver.lastName}
+        </span>
+      </span>
+    );
+  };
 
-  return (
-    <div className="bg-white border border-gray-100 rounded-xl shadow-sm px-5 py-3">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-base text-gray-500" aria-hidden="true">timeline</span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-gray-600">Workflow</span>
-        </div>
-        {/* Workflow completed / rejected badge */}
-        {workflowDone && workflowRejected ? (
-          <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700">
-            <span className="material-symbols-outlined text-sm" aria-hidden="true">cancel</span>
-            Rejected
-          </div>
-        ) : workflowDone ? (
-          <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
-            <span className="material-symbols-outlined text-sm" aria-hidden="true">check_circle</span>
-            Completed
-          </div>
-        ) : slaDueMs !== null && !request.resolvedAt ? (
-          <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
-            isBreached
-              ? 'bg-red-50 text-red-700'
-              : isPaused
-                ? 'bg-gray-100 text-gray-600'
-                : slaDueMs < 3_600_000 * 2
-                  ? 'bg-amber-50 text-amber-700'
-                  : 'bg-emerald-50 text-emerald-700'
-          }`}>
-            <span className="material-symbols-outlined text-sm" aria-hidden="true">
-              {isPaused ? 'pause_circle' : isBreached ? 'error' : 'schedule'}
-            </span>
-            {isPaused
-              ? `Paused — ${formatRemaining(slaDueMs)} remaining`
-              : isBreached
-                ? `Breached by ${formatRemaining(slaDueMs)}`
-                : `${formatRemaining(slaDueMs)} remaining`
-            }
-          </div>
-        ) : null}
+  // -------------------------------------------------------------------------
+  // Shared: SLA timer badge for current step
+  // -------------------------------------------------------------------------
+  const renderSlaBadge = (compact?: boolean) => {
+    if (slaDueMs === null || request.resolvedAt) return null;
+    if (compact) {
+      return (
+        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+          isBreached ? 'bg-red-50 text-red-700' : isPaused ? 'bg-gray-100 text-gray-600' : 'bg-amber-50 text-amber-700'
+        }`}>
+          {isPaused ? 'Paused' : isBreached ? 'Breached' : formatRemaining(slaDueMs)}
+        </span>
+      );
+    }
+    return (
+      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+        isBreached ? 'bg-red-50 text-red-700' : isPaused ? 'bg-gray-100 text-gray-600' : 'bg-emerald-50 text-emerald-700'
+      }`}>
+        {isPaused ? 'Paused' : isBreached ? 'Breached' : formatRemaining(slaDueMs)}
+      </span>
+    );
+  };
+
+  // -------------------------------------------------------------------------
+  // Shared: header with title + badge
+  // -------------------------------------------------------------------------
+  const renderHeader = () => (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2">
+        <span className="material-symbols-outlined text-base text-gray-500" aria-hidden="true">timeline</span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-gray-600">Workflow</span>
+        {useVerticalLayout && steps.length > 0 && (
+          <span className="text-[10px] text-gray-400 font-medium">{steps.filter(s => s.state === 'completed').length}/{steps.length}</span>
+        )}
       </div>
-
-      {/* Desktop: Horizontal stepper */}
-      <div className="hidden md:block">
-        <div className="flex items-start gap-0 relative">
-          {visibleSteps.map((step, idx) => {
-            const isLast = idx === visibleSteps.length - 1;
-            const isPopoverOpen = popoverStep === step.step;
-
-            return (
-              <div key={step.step} className="flex-1 relative min-w-0">
-                {/* Connector line */}
-                {idx > 0 && (
-                  <div className={`absolute top-2.5 -left-[50%] w-full h-0.5 ${
-                    step.state === 'completed' ? 'bg-emerald-400'
-                      : step.state === 'rejected' ? 'bg-red-400'
-                      : step.state === 'current' ? 'bg-emerald-400'
-                      : 'bg-gray-200'
-                  }`} />
-                )}
-
-                {/* Step dot + label */}
-                <div className="flex flex-col items-center relative">
-                  <button
-                    type="button"
-                    onClick={() => setPopoverStep(isPopoverOpen ? null : step.step)}
-                    className="relative z-10 focus:outline-none size-5"
-                    aria-label={`Step ${idx + 1}: ${step.label}`}
-                  >
-                    {step.state === 'completed' ? (
-                      <div className="size-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-white text-xs leading-none" aria-hidden="true">check</span>
-                      </div>
-                    ) : step.state === 'rejected' ? (
-                      <div className="size-5 rounded-full bg-red-500 flex items-center justify-center">
-                        <span className="material-symbols-outlined text-white text-xs leading-none" aria-hidden="true">close</span>
-                      </div>
-                    ) : step.state === 'current' ? (
-                      <div className="size-5 rounded-full bg-[#0052cc] flex items-center justify-center animate-pulse">
-                        <div className="size-2.5 rounded-full bg-white" />
-                      </div>
-                    ) : (
-                      <div className="size-5 rounded-full border-2 border-gray-300 bg-white" />
-                    )}
-                  </button>
-
-                  <span className={`mt-1.5 text-[10px] font-semibold text-center leading-tight max-w-full px-0.5 truncate ${
-                    step.state === 'current'
-                      ? 'text-[#0052cc]'
-                      : step.state === 'completed'
-                        ? 'text-emerald-700'
-                        : step.state === 'rejected'
-                          ? 'text-red-600'
-                          : 'text-gray-400'
-                  }`}>
-                    {step.label}
-                  </span>
-
-                  {/* Popover */}
-                  {isPopoverOpen && (
-                    <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-30 w-56 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-left">
-                      <div className="text-xs font-bold text-gray-800 mb-1">{step.label}</div>
-                      <div className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${
-                        step.state === 'completed' ? 'text-emerald-600' : step.state === 'rejected' ? 'text-red-600' : step.state === 'current' ? 'text-[#0052cc]' : 'text-gray-400'
-                      }`}>
-                        {step.state}
-                      </div>
-                      {(() => {
-                        const approval = approvalMap.get(step.step);
-                        if (approval) {
-                          return (
-                            <div className="space-y-1 text-xs text-gray-600">
-                              <div className="flex items-center gap-1.5">
-                                <div className="size-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[9px] font-bold">
-                                  {approval.approver.firstName[0]}{approval.approver.lastName[0]}
-                                </div>
-                                <span className="font-semibold">{approval.approver.firstName} {approval.approver.lastName}</span>
-                              </div>
-                              {approval.status !== 'PENDING' && (
-                                <div className="flex items-center gap-1">
-                                  <span className={`material-symbols-outlined text-sm ${
-                                    approval.status === 'APPROVED' ? 'text-emerald-500' : 'text-red-500'
-                                  }`}>
-                                    {approval.status === 'APPROVED' ? 'check_circle' : 'cancel'}
-                                  </span>
-                                  <span>{approval.status === 'APPROVED' ? 'Approved' : 'Rejected'}</span>
-                                </div>
-                              )}
-                              {approval.status !== 'PENDING' && (
-                                <div className="text-[10px] text-gray-400">
-                                  {new Date(approval.updatedAt).toLocaleString()}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        }
-                        return <div className="text-[10px] text-gray-400 italic">No approval data</div>;
-                      })()}
-                      {step.state === 'current' && slaDueMs !== null && (
-                        <div className="mt-2 pt-2 border-t border-gray-100 text-xs">
-                          <span className={`font-semibold ${isBreached ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {isPaused ? 'SLA Paused' : isBreached ? 'SLA Breached' : 'SLA Active'}
-                          </span>
-                          <span className="text-gray-500 ml-1">
-                            {formatRemaining(slaDueMs)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+      {/* Workflow completed / rejected badge */}
+      {workflowDone && workflowRejected ? (
+        <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700">
+          <span className="material-symbols-outlined text-sm" aria-hidden="true">cancel</span>
+          Rejected
         </div>
-      </div>
+      ) : workflowDone ? (
+        <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+          <span className="material-symbols-outlined text-sm" aria-hidden="true">check_circle</span>
+          Completed
+        </div>
+      ) : slaDueMs !== null && !request.resolvedAt ? (
+        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+          isBreached
+            ? 'bg-red-50 text-red-700'
+            : isPaused
+              ? 'bg-gray-100 text-gray-600'
+              : slaDueMs < 3_600_000 * 2
+                ? 'bg-amber-50 text-amber-700'
+                : 'bg-emerald-50 text-emerald-700'
+        }`}>
+          <span className="material-symbols-outlined text-sm" aria-hidden="true">
+            {isPaused ? 'pause_circle' : isBreached ? 'error' : 'schedule'}
+          </span>
+          {isPaused
+            ? `Paused — ${formatRemaining(slaDueMs)} remaining`
+            : isBreached
+              ? `Breached by ${formatRemaining(slaDueMs)}`
+              : `${formatRemaining(slaDueMs)} remaining`
+          }
+        </div>
+      ) : null}
+    </div>
+  );
 
-      {/* Mobile: Vertical stepper */}
-      <div className="md:hidden space-y-0">
+  // -------------------------------------------------------------------------
+  // Horizontal stepper (≤7 steps on desktop)
+  // -------------------------------------------------------------------------
+  const renderHorizontalStepper = () => (
+    <div className="hidden md:block">
+      <div className="flex items-start gap-0 relative">
         {visibleSteps.map((step, idx) => {
-          const isLast = idx === visibleSteps.length - 1;
           const isPopoverOpen = popoverStep === step.step;
 
           return (
-            <div key={step.step} className="relative flex gap-3">
-              {/* Timeline line + dot */}
-              <div className="flex flex-col items-center">
+            <div key={step.step} className="flex-1 relative min-w-0">
+              {/* Connector line */}
+              {idx > 0 && (
+                <div className={`absolute top-2.5 -left-[50%] w-full h-0.5 ${
+                  step.state === 'completed' ? 'bg-emerald-400'
+                    : step.state === 'rejected' ? 'bg-red-400'
+                    : step.state === 'current' ? 'bg-emerald-400'
+                    : 'bg-gray-200'
+                }`} />
+              )}
+
+              {/* Step dot + label */}
+              <div className="flex flex-col items-center relative">
                 <button
                   type="button"
                   onClick={() => setPopoverStep(isPopoverOpen ? null : step.step)}
-                  className="relative z-10 focus:outline-none size-6"
+                  className="relative z-10 focus:outline-none size-5"
                   aria-label={`Step ${idx + 1}: ${step.label}`}
                 >
                   {step.state === 'completed' ? (
-                    <div className="size-6 rounded-full bg-emerald-500 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-white text-sm leading-none" aria-hidden="true">check</span>
+                    <div className="size-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-white text-xs leading-none" aria-hidden="true">check</span>
                     </div>
                   ) : step.state === 'rejected' ? (
-                    <div className="size-6 rounded-full bg-red-500 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-white text-sm leading-none" aria-hidden="true">close</span>
+                    <div className="size-5 rounded-full bg-red-500 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-white text-xs leading-none" aria-hidden="true">close</span>
                     </div>
                   ) : step.state === 'current' ? (
-                    <div className="size-6 rounded-full bg-[#0052cc] flex items-center justify-center animate-pulse">
-                      <div className="size-3 rounded-full bg-white" />
+                    <div className="size-5 rounded-full bg-[#0052cc] flex items-center justify-center animate-pulse">
+                      <div className="size-2.5 rounded-full bg-white" />
                     </div>
                   ) : (
-                    <div className="size-6 rounded-full border-2 border-gray-300 bg-white" />
+                    <div className="size-5 rounded-full border-2 border-gray-300 bg-white" />
                   )}
                 </button>
-                {!isLast && (
-                  <div className={`w-0.5 flex-1 min-h-[24px] ${
-                    step.state === 'completed' ? 'bg-emerald-400' : step.state === 'rejected' ? 'bg-red-400' : 'bg-gray-200'
-                  }`} />
-                )}
-              </div>
 
-              {/* Content */}
-              <div className={`pb-4 ${isLast ? '' : ''}`}>
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-semibold ${
-                    step.state === 'current' ? 'text-[#0052cc]' : step.state === 'completed' ? 'text-emerald-700' : step.state === 'rejected' ? 'text-red-600' : 'text-gray-400'
-                  }`}>
-                    {step.label}
-                  </span>
-                  {step.state === 'current' && slaDueMs !== null && !request.resolvedAt && (
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      isBreached ? 'bg-red-50 text-red-700' : isPaused ? 'bg-gray-100 text-gray-600' : 'bg-emerald-50 text-emerald-700'
-                    }`}>
-                      {isPaused ? 'Paused' : isBreached ? 'Breached' : formatRemaining(slaDueMs)}
-                    </span>
-                  )}
-                </div>
+                <span className={`mt-1.5 text-[10px] font-semibold text-center leading-tight max-w-full px-0.5 truncate ${
+                  step.state === 'current'
+                    ? 'text-[#0052cc]'
+                    : step.state === 'completed'
+                      ? 'text-emerald-700'
+                      : step.state === 'rejected'
+                        ? 'text-red-600'
+                        : 'text-gray-400'
+                }`}>
+                  {step.label}
+                </span>
 
-                {/* Popover (mobile uses inline expansion) */}
+                {/* Popover */}
                 {isPopoverOpen && (
-                  <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-600">
+                  <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-30 w-56 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-left">
+                    <div className="text-xs font-bold text-gray-800 mb-1">{step.label}</div>
+                    <div className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${
+                      step.state === 'completed' ? 'text-emerald-600' : step.state === 'rejected' ? 'text-red-600' : step.state === 'current' ? 'text-[#0052cc]' : 'text-gray-400'
+                    }`}>
+                      {step.state}
+                    </div>
                     {(() => {
                       const approval = approvalMap.get(step.step);
                       if (approval) {
                         return (
-                          <div className="space-y-1">
+                          <div className="space-y-1 text-xs text-gray-600">
                             <div className="flex items-center gap-1.5">
                               <div className="size-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[9px] font-bold">
                                 {approval.approver.firstName[0]}{approval.approver.lastName[0]}
@@ -646,11 +588,13 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                       return <div className="text-[10px] text-gray-400 italic">No approval data</div>;
                     })()}
                     {step.state === 'current' && slaDueMs !== null && (
-                      <div className="mt-1.5 pt-1.5 border-t border-gray-200">
+                      <div className="mt-2 pt-2 border-t border-gray-100 text-xs">
                         <span className={`font-semibold ${isBreached ? 'text-red-600' : 'text-emerald-600'}`}>
                           {isPaused ? 'SLA Paused' : isBreached ? 'SLA Breached' : 'SLA Active'}
                         </span>
-                        <span className="text-gray-500 ml-1">{formatRemaining(slaDueMs)}</span>
+                        <span className="text-gray-500 ml-1">
+                          {formatRemaining(slaDueMs)}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -660,8 +604,134 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
           );
         })}
       </div>
+    </div>
+  );
 
-      {/* Collapse / expand toggle — hide when all steps are already visible (e.g. completed workflow auto-expanded) */}
+  // -------------------------------------------------------------------------
+  // Vertical timeline (>7 steps on desktop, always on mobile)
+  // Renders a compact, scannable timeline with step labels fully readable.
+  // -------------------------------------------------------------------------
+  const renderVerticalTimeline = (stepsToRender: StepItem[]) => (
+    <div className="space-y-0">
+      {stepsToRender.map((step, idx) => {
+        const isLast = idx === stepsToRender.length - 1;
+        const isPopoverOpen = popoverStep === step.step;
+
+        return (
+          <div key={step.step} className="relative flex gap-3">
+            {/* Timeline line + dot */}
+            <div className="flex flex-col items-center">
+              <button
+                type="button"
+                onClick={() => setPopoverStep(isPopoverOpen ? null : step.step)}
+                className="relative z-10 focus:outline-none size-6"
+                aria-label={`Step ${idx + 1}: ${step.label}`}
+              >
+                {step.state === 'completed' ? (
+                  <div className="size-6 rounded-full bg-emerald-500 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-white text-sm leading-none" aria-hidden="true">check</span>
+                  </div>
+                ) : step.state === 'rejected' ? (
+                  <div className="size-6 rounded-full bg-red-500 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-white text-sm leading-none" aria-hidden="true">close</span>
+                  </div>
+                ) : step.state === 'current' ? (
+                  <div className="size-6 rounded-full bg-[#0052cc] flex items-center justify-center animate-pulse">
+                    <div className="size-3 rounded-full bg-white" />
+                  </div>
+                ) : (
+                  <div className="size-6 rounded-full border-2 border-gray-300 bg-white" />
+                )}
+              </button>
+              {!isLast && (
+                <div className={`w-0.5 flex-1 min-h-[24px] ${
+                  step.state === 'completed' ? 'bg-emerald-400' : step.state === 'rejected' ? 'bg-red-400' : 'bg-gray-200'
+                }`} />
+              )}
+            </div>
+
+            {/* Content */}
+            <div className={`pb-4 ${isLast ? '' : ''}`}>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-semibold ${
+                  step.state === 'current' ? 'text-[#0052cc]' : step.state === 'completed' ? 'text-emerald-700' : step.state === 'rejected' ? 'text-red-600' : 'text-gray-400'
+                }`}>
+                  {step.label}
+                </span>
+                {step.state === 'current' && !request.resolvedAt && renderSlaBadge()}
+                {renderApprovalInline(step.step)}
+              </div>
+
+              {/* Popover (mobile uses inline expansion) */}
+              {isPopoverOpen && (
+                <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-600">
+                  {(() => {
+                    const approval = approvalMap.get(step.step);
+                    if (approval) {
+                      return (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <div className="size-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-[9px] font-bold">
+                              {approval.approver.firstName[0]}{approval.approver.lastName[0]}
+                            </div>
+                            <span className="font-semibold">{approval.approver.firstName} {approval.approver.lastName}</span>
+                          </div>
+                          {approval.status !== 'PENDING' && (
+                            <div className="flex items-center gap-1">
+                              <span className={`material-symbols-outlined text-sm ${
+                                approval.status === 'APPROVED' ? 'text-emerald-500' : 'text-red-500'
+                              }`}>
+                                {approval.status === 'APPROVED' ? 'check_circle' : 'cancel'}
+                              </span>
+                              <span>{approval.status === 'APPROVED' ? 'Approved' : 'Rejected'}</span>
+                            </div>
+                          )}
+                          {approval.status !== 'PENDING' && (
+                            <div className="text-[10px] text-gray-400">
+                              {new Date(approval.updatedAt).toLocaleString()}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    }
+                    return <div className="text-[10px] text-gray-400 italic">No approval data</div>;
+                  })()}
+                  {step.state === 'current' && slaDueMs !== null && (
+                    <div className="mt-1.5 pt-1.5 border-t border-gray-200">
+                      <span className={`font-semibold ${isBreached ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {isPaused ? 'SLA Paused' : isBreached ? 'SLA Breached' : 'SLA Active'}
+                      </span>
+                      <span className="text-gray-500 ml-1">{formatRemaining(slaDueMs)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-xl shadow-sm px-5 py-3">
+      {renderHeader()}
+
+      {/* Desktop: horizontal stepper for ≤7 steps, vertical for >7 steps */}
+      {useVerticalLayout ? (
+        <div className="hidden md:block">
+          {renderVerticalTimeline(steps)}
+        </div>
+      ) : (
+        renderHorizontalStepper()
+      )}
+
+      {/* Mobile: always vertical timeline */}
+      <div className="md:hidden">
+        {renderVerticalTimeline(steps)}
+      </div>
+
+      {/* Collapse / expand toggle — only for horizontal layout with many steps */}
       {shouldCollapse && hiddenCount > 0 && (
         <button
           type="button"
