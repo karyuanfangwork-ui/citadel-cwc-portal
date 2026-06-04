@@ -1548,6 +1548,7 @@ model CrmAccount {
   purchaseCashTrust  Boolean   @default(false) @map("purchase_cash_trust")
   accountType        String    @default("CORPORATE") @map("account_type") @db.VarChar(20)
   ownerId            String    @map("owner_id") @db.Uuid
+  parentAccountId    String?   @map("parent_account_id") @db.Uuid
   deletedAt          DateTime? @map("deleted_at") @db.Timestamp(6)
   isActive           Boolean   @default(true) @map("is_active")
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
@@ -1562,10 +1563,13 @@ model CrmAccount {
   linkedRequests CrmAccountRequest[]
   trustProducts  CrmTrustProduct[]
   borrowerProfile BorrowerProfile?
+  parent         CrmAccount?         @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
+  children       CrmAccount[]       @relation("AccountHierarchy")
 
   @@index([ownerId])
   @@index([name])
   @@index([industry])
+  @@index([parentAccountId])
   syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailAccount")
   customFields     Json?              @map("custom_fields")
   @@map("crm_accounts")
