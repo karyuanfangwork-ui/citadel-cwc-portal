@@ -52,6 +52,8 @@ export interface CrmLead {
   lostReason: string | null; convertedAt: string | null; convertedToOppId: string | null;
   // AI scoring fields
   aiScore: number | null; aiScoreReason: string | null; aiScoredAt: string | null;
+  // Rule-based scoring
+  ruleScore: number | null;
   createdAt: string; updatedAt: string;
   owner?: UserRef; account?: { id: string; name: string };
   contact?: { id: string; firstName: string; lastName: string; email?: string; phone?: string };
@@ -90,6 +92,17 @@ export interface CrmOpportunity {
   activities?: CrmActivity[]; notes?: CrmNote[];
   stageHistory?: CrmStageHistory[];
   trustProduct?: any;
+}
+
+export interface ScoringRule {
+  id: string;
+  field: string;
+  operator: 'equals' | 'contains' | 'gt' | 'lt' | 'starts_with' | 'not_empty';
+  value: string;
+  points: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CrmActivity {
@@ -474,6 +487,27 @@ const crmService = {
   async getForecastAccuracyReport(params?: { from?: string; to?: string }) {
     const res = await api.get('/crm/reports/forecast-accuracy', { params });
     return res.data.data;
+  },
+
+  // Lead Scoring Rules
+  async listScoringRules() {
+    const res = await api.get('/crm/lead-scoring-rules');
+    return res.data.data.rules as ScoringRule[];
+  },
+  async createScoringRule(data: Omit<ScoringRule, 'id' | 'createdAt' | 'updatedAt'>) {
+    const res = await api.post('/crm/lead-scoring-rules', data);
+    return res.data.data.rule as ScoringRule;
+  },
+  async updateScoringRule(id: string, data: Partial<ScoringRule>) {
+    const res = await api.put(`/crm/lead-scoring-rules/${id}`, data);
+    return res.data.data.rule as ScoringRule;
+  },
+  async deleteScoringRule(id: string) {
+    await api.delete(`/crm/lead-scoring-rules/${id}`);
+  },
+  async recomputeScores() {
+    const res = await api.post('/crm/lead-scoring-rules/recompute');
+    return res.data.data as { count: number };
   },
 
   // My Stats (Self-Service Rep Stats)

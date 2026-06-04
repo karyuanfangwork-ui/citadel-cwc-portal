@@ -14,7 +14,7 @@ import {
   scoreStyle,
 } from './crmConstants';
 
-type SortField = 'title' | 'status' | 'aiScore' | 'estimatedValue' | 'followUpDate' | 'createdAt';
+type SortField = 'title' | 'status' | 'aiScore' | 'ruleScore' | 'estimatedValue' | 'followUpDate' | 'createdAt';
 type SortDirection = 'asc' | 'desc';
 
 export interface SortConfig {
@@ -81,6 +81,7 @@ const TableHeader: React.FC<{
         {sortableCol('Lead Title', 'title')}
         {sortableCol('Status', 'status')}
         {sortableCol('Score', 'aiScore')}
+        {sortableCol('Rule', 'ruleScore')}
         <th className="text-left px-4 py-3 text-xs font-bold text-text-secondary uppercase tracking-wider">Contact</th>
         {sortableCol('Value', 'estimatedValue')}
         {sortableCol('Follow-up', 'followUpDate')}
@@ -173,6 +174,16 @@ const LeadRow: React.FC<{
             </span>
           );
         })() : (
+          <span className="text-xs text-text-tertiary">—</span>
+        )}
+      </td>
+      <td className="px-4 py-2.5">
+        {lead.ruleScore != null ? (
+          <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-700">
+            <span className="material-symbols-outlined text-sm">rule</span>
+            {lead.ruleScore}
+          </span>
+        ) : (
           <span className="text-xs text-text-tertiary">—</span>
         )}
       </td>
