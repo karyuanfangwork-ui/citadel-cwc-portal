@@ -251,6 +251,7 @@ async function main() {
         { name: 'crm:write', resource: 'crm', action: 'write', description: 'Create and edit CRM records' },
         { name: 'crm:delete', resource: 'crm', action: 'delete', description: 'Delete CRM records' },
         { name: 'crm:admin', resource: 'crm', action: 'admin', description: 'Manage CRM pipelines and system settings' },
+        { name: 'crm:read:team', resource: 'crm', action: 'read:team', description: 'View CRM records owned by self, direct/indirect reports, and territory peers' },
         // Announcement permissions
         { name: 'announcement:read', resource: 'announcement', action: 'read', description: 'View announcements' },
         { name: 'announcement:write', resource: 'announcement', action: 'write', description: 'Create and edit announcements' },
@@ -316,7 +317,7 @@ async function main() {
         'workflow:manage',
         'banner:manage',
         'asset:read', 'asset:write', 'asset:import', 'asset:delete',
-        'crm:read', 'crm:write', 'crm:delete', 'crm:admin',
+        'crm:read', 'crm:write', 'crm:delete', 'crm:admin', 'crm:read:team',
         'announcement:read', 'announcement:write', 'announcement:admin',
         'credit:read', 'credit:write', 'credit:delete', 'credit:approve', 'credit:create',
         'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze',
@@ -368,7 +369,7 @@ async function main() {
         GROUP_DCEO: executivePerms,
         HIRING_MANAGER: hiringManagerPerms,
         FINANCE_HEAD: executivePerms,
-        SALES_MANAGER: ['crm:read', 'crm:write', 'crm:delete', 'crm:admin'],
+        SALES_MANAGER: ['crm:read', 'crm:read:team', 'crm:write', 'crm:delete'],
         SALES_REP: ['crm:read', 'crm:write'],
         CREDIT_RM: ['credit:read', 'credit:write', 'credit:create', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
         CREDIT_ANALYST: ['credit:read', 'credit:write', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
@@ -409,6 +410,16 @@ async function main() {
     }
 
     console.log('✅ Role permissions assigned');
+
+    // Phase 1 remediation: SALES_MANAGER no longer holds crm:admin (replaced by crm:read:team)
+    const smRoleId = roleMap.get('SALES_MANAGER');
+    const adminPermId = permMap.get('crm:admin');
+    if (smRoleId && adminPermId) {
+        await prisma.rolePermission.deleteMany({
+            where: { roleId: smRoleId, permissionId: adminPermId },
+        });
+        console.log('  ✅ SALES_MANAGER: removed legacy crm:admin (now uses crm:read:team)');
+    }
 
     // Cleanup: Remove stale asset permissions from AGENT role
     // (Previously AGENT had asset:read/asset:write; now these belong to IT_AGENT only)
