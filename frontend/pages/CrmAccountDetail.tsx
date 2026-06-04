@@ -1,18 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType, CrmTrustProduct, CrmUser } from '../src/services/crm.service';
-import InlineEdit from '../src/components/crm/InlineEdit';
+import crmService, { CrmAccount, CrmActivity, CrmNote, CrmActivityType, CrmUser } from '../src/services/crm.service';
+
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
-import { useDocumentChecklist, DocumentChecklist } from '../src/hooks/useCrmAi';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
-import { validateAccount, validateTrustProduct, ValidationError } from '../src/utils/crmValidation';
+import { validateAccount, ValidationError } from '../src/utils/crmValidation';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmAuditLog from '../src/components/crm/CrmAuditLog';
 import { useNextBestAction } from '../src/hooks/useCrmAi';
+import ReactMarkdown from 'react-markdown';
+import creditService from '../src/services/credit.service';
 
 const formatCurrency = (val: number | null) =>
   val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
@@ -34,7 +35,7 @@ const CrmAccountDetail = () => {
   const { user } = useAuth();
   const [account, setAccount] = useState<CrmAccount | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'activities' | 'notes' | 'credit' | 'trustProducts' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'contacts' | 'deals' | 'activities' | 'notes' | 'credit' | 'audit'>('overview');
   const [showAddActivity, setShowAddActivity] = useState(false);
   const [showAddNote, setShowAddNote] = useState(false);
   const [activityForm, setActivityForm] = useState<Partial<CrmActivity>>({ activityType: 'CALL' });
@@ -47,53 +48,47 @@ const CrmAccountDetail = () => {
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState<CrmNote[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
+  const [editingNote, setEditingNote] = useState<CrmNote | null>(null);
+  const [editNoteContent, setEditNoteContent] = useState('');
+  const [deletingNote, setDeletingNote] = useState<CrmNote | null>(null);
+  const [showDeleteNote, setShowDeleteNote] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showDelete, setShowDelete] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+
+  // Toast
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); } }, [toast]);
+  const showToast = (msg: string) => setToast(msg);
 
   // Activity pagination
   const [activityPage, setActivityPage] = useState(1);
   const [hasMoreActivities, setHasMoreActivities] = useState(true);
   const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<string>('ALL');
+  const [activitySort, setActivitySort] = useState<'newest' | 'oldest'>('newest');
 
   // Validation error states
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
-  const [tpFormErrors, setTpFormErrors] = useState<ValidationError[]>([]);
-
-  // Trust Products state
-  const [trustProducts, setTrustProducts] = useState<CrmTrustProduct[]>([]);
-  const [trustProductsLoading, setTrustProductsLoading] = useState(false);
-  const [showCreateTP, setShowCreateTP] = useState(false);
-  const [showEditTP, setShowEditTP] = useState(false);
-  const [tpForm, setTpForm] = useState<Partial<CrmTrustProduct>>({ trustType: 'TRUST', status: 'ACTIVE', currency: 'MYR' });
-  const [editingTP, setEditingTP] = useState<CrmTrustProduct | null>(null);
-  const [showDeleteTP, setShowDeleteTP] = useState(false);
-  const [deletingTP, setDeletingTP] = useState<CrmTrustProduct | null>(null);
-
-  // Document Checklist (AI)
-  const docChecklist = useDocumentChecklist();
-  const [showChecklist, setShowChecklist] = useState<string | null>(null); // trust product ID
 
   // ── Next Best Action (Task 11) ─────────────────────────────────────
   const nba = useNextBestAction();
 
   // CRM Users for owner select
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+
+  // Credit tab borrower summary
+  const [creditSummary, setCreditSummary] = useState<{ borrowerCount: number; loading: boolean }>({ borrowerCount: 0, loading: true });
+  useEffect(() => {
+    if (activeTab !== 'credit' || !id) return;
+    setCreditSummary(prev => ({ ...prev, loading: true }));
+    creditService.listBorrowerProfiles({ accountId: id, limit: 1 })
+      .then(res => setCreditSummary({ borrowerCount: res.pagination?.total ?? res.profiles?.length ?? 0, loading: false }))
+      .catch(() => setCreditSummary(prev => ({ ...prev, loading: false })));
+  }, [activeTab, id]);
   useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
 
-  const loadTrustProducts = () => {
-    if (!id) return;
-    setTrustProductsLoading(true);
-    crmService.listTrustProducts({ accountId: id })
-      .then(res => setTrustProducts(res.trustProducts ?? []))
-      .catch(() => {})
-      .finally(() => setTrustProductsLoading(false));
-  };
-
-  useEffect(() => {
-    if (activeTab !== 'trustProducts' || !id) return;
-    loadTrustProducts();
-  }, [activeTab, id]);
 
   const loadNotes = () => {
     if (!id) return;
@@ -209,8 +204,44 @@ const CrmAccountDetail = () => {
       loadNotes(); // refresh notes list
       setShowAddNote(false);
       setNoteContent('');
+      showToast('Note added');
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
+  };
+
+  const handleEditNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNote || !editNoteContent.trim()) return;
+    try {
+      setSaving(true);
+      await crmService.updateNote(editingNote.id, { content: editNoteContent });
+      setEditingNote(null);
+      setEditNoteContent('');
+      loadNotes();
+      showToast('Note updated');
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleDeleteNote = async () => {
+    if (!deletingNote) return;
+    try {
+      setSaving(true);
+      await crmService.deleteNote(deletingNote.id);
+      setShowDeleteNote(false);
+      setDeletingNote(null);
+      loadNotes();
+      showToast('Note deleted');
+    } catch (e) { console.error(e); }
+    finally { setSaving(false); }
+  };
+
+  const handleTogglePinNote = async (note: CrmNote) => {
+    try {
+      await crmService.updateNote(note.id, { isPinned: !note.isPinned });
+      loadNotes();
+      showToast(note.isPinned ? 'Note unpinned' : 'Note pinned');
+    } catch (e) { console.error(e); }
   };
 
   const openEdit = () => {
@@ -249,6 +280,7 @@ const CrmAccountDetail = () => {
       setShowEdit(false);
       const updated = await crmService.getAccount(id);
       setAccount(updated);
+      showToast('Account updated successfully');
     } catch (e) { console.error(e); }
     finally { setSaving(false); }
   };
@@ -298,26 +330,8 @@ const CrmAccountDetail = () => {
           <h1 className="text-2xl font-black text-text-primary">{account.name}</h1>
           <p className="text-text-secondary text-sm mt-1">{account.industry || 'No industry'} · {account.city ? `${account.city}, ` : ''}{account.country || ''}</p>
         </div>
-        <div className="flex gap-2">
-          {account.website && (
-            <a href={account.website} target="_blank" rel="noreferrer"
-              className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
-              style={{ textDecoration: 'none' }}>
-              <span className="material-symbols-outlined text-base">open_in_new</span> Website
-            </a>
-          )}
-          <button onClick={openEdit}
-            className="flex items-center gap-2 border border-brand-200 text-brand-700 px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-50 transition-colors"
-            style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-            <span className="material-symbols-outlined text-base">edit</span> Edit
-          </button>
-          {hasPermission(user, 'crm:delete') && (
-            <button onClick={() => setShowDelete(true)}
-              className="flex items-center gap-2 text-danger px-3 py-2 rounded-lg text-sm font-bold hover:bg-danger/10 transition-colors"
-              style={{ background: 'none', border: '1px solid var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">delete</span> Delete
-            </button>
-          )}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Primary actions */}
           <button onClick={() => setShowAddActivity(true)}
             className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
             style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
@@ -328,22 +342,56 @@ const CrmAccountDetail = () => {
             style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
             <span className="material-symbols-outlined text-base">sticky_note_2</span> Add Note
           </button>
+          {/* Secondary actions */}
+          {account.website && (
+            <a href={account.website} target="_blank" rel="noreferrer"
+              className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
+              style={{ textDecoration: 'none' }}>
+              <span className="material-symbols-outlined text-base">open_in_new</span> Website
+            </a>
+          )}
+          <button onClick={openEdit}
+            className="flex items-center gap-2 border border-brand-200 text-brand-700 px-3 py-2 rounded-lg text-sm font-bold hover:bg-brand-50 transition-colors"
+            style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+            <span className="material-symbols-outlined text-base">edit</span> Edit
+          </button>
+          {/* More dropdown (contains Delete) */}
+          <div className="relative" id="more-menu-container">
+            <button onClick={() => setShowMore(prev => !prev)}
+              className="flex items-center gap-1 border border-border px-3 py-2 rounded-lg text-sm font-semibold hover:bg-bg-subtle transition-colors"
+              style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+              <span className="material-symbols-outlined text-base">more_vert</span> More
+            </button>
+            {showMore && (
+              <div className="absolute right-0 top-full mt-1 min-w-[180px] bg-white rounded-xl shadow-lg border border-border py-1 z-50">
+                {hasPermission(user, 'crm:delete') && (
+                  <button onClick={() => { setShowMore(false); setShowDelete(true); }}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm font-medium text-danger hover:bg-red-50 transition-colors"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>
+                    <span className="material-symbols-outlined text-base text-danger">delete</span> Delete Account
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Stat chips */}
       <div className="flex flex-wrap gap-3 mb-6">
         {[
-          { label: 'Contacts', value: account._count?.contacts ?? account.contacts?.length ?? 0, icon: 'person' },
-          { label: 'Deals', value: account._count?.opportunities ?? account.opportunities?.length ?? 0, icon: 'handshake' },
-          { label: 'Leads', value: account._count?.leads ?? account.leads?.length ?? 0, icon: 'trending_up' },
-          { label: 'Revenue', value: formatCurrency(account.annualRevenue), icon: 'payments' },
+          { label: 'Contacts', value: account._count?.contacts ?? account.contacts?.length ?? 0, icon: 'person', tab: 'contacts' as const },
+          { label: 'Deals', value: account._count?.opportunities ?? account.opportunities?.length ?? 0, icon: 'handshake', tab: 'deals' as const },
+          { label: 'Leads', value: account._count?.leads ?? account.leads?.length ?? 0, icon: 'trending_up', tab: 'overview' as const },
+          { label: 'Revenue', value: formatCurrency(account.annualRevenue), icon: 'payments', tab: 'deals' as const },
         ].map(s => (
-          <div key={s.label} className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm">
+          <button key={s.label} onClick={() => setActiveTab(s.tab)}
+            className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm hover:border-brand-300 hover:bg-brand-50 transition-colors cursor-pointer"
+            style={{ background: 'none', border: '1px solid var(--color-border)', fontFamily: 'var(--font-sans)' }}>
             <span className="material-symbols-outlined text-base text-brand-700">{s.icon}</span>
             <span className="font-bold text-text-primary">{s.value}</span>
             <span className="text-text-secondary">{s.label}</span>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -357,158 +405,190 @@ const CrmAccountDetail = () => {
       {nba.data && nba.data.actions?.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap mb-4">
           <span className="text-xs font-semibold text-text-secondary">AI Suggested:</span>
-          {nba.data.actions.map((a, i) => (
-            <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-bg-subtle border border-border" title={a.reason}>
-              <span className={`w-1.5 h-1.5 rounded-full ${a.priority === 'high' ? 'bg-red-500' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`} />
-              {a.action}
-            </span>
-          ))}
+          {nba.data.actions.map((a, i) => {
+            // Wire action keywords to pre-filled activity modal
+            const actionText = a.action.toLowerCase();
+            let activityType: CrmActivityType | null = null;
+            if (actionText.includes('call')) activityType = 'CALL';
+            else if (actionText.includes('email') || actionText.includes('follow-up') || actionText.includes('follow up')) activityType = 'EMAIL';
+            else if (actionText.includes('meeting') || actionText.includes('schedule')) activityType = 'MEETING';
+            else if (actionText.includes('whatsapp')) activityType = 'WHATSAPP';
+            else if (actionText.includes('site visit') || actionText.includes('visit')) activityType = 'SITE_VISIT';
+            const handleClick = activityType
+              ? () => { setActivityForm({ activityType, subject: a.action }); setShowAddActivity(true); }
+              : undefined;
+            return (
+              <span key={i}
+                onClick={handleClick}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-bg-subtle border border-border ${handleClick ? 'cursor-pointer hover:bg-brand-50 hover:border-brand-300 transition-colors' : ''}`}
+                title={a.reason}
+                role={handleClick ? 'button' : undefined}
+                tabIndex={handleClick ? 0 : undefined}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${a.priority === 'high' ? 'bg-red-500' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-gray-400'}`} />
+                {a.action}
+              </span>
+            );
+          })}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border mb-6">
-        {(['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const), 'trustProducts', 'audit'] as const).map(tab => (
-          <button key={tab} onClick={() => setActiveTab(tab)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700' : 'border-transparent text-text-secondary hover:text-text-primary'}`}>
-            {tab === 'trustProducts' ? 'Trust Products' : tab === 'credit' ? 'Credit' : tab === 'audit' ? 'Audit Log' : tab}
-          </button>
-        ))}
+      <div className="flex gap-1 border-b border-border mb-6" role="tablist" aria-label="Account detail tabs">
+        {(['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const), 'audit'] as const).map(tab => {
+          const tabId = `tab-${tab}`;
+          const panelId = `panel-${tab}`;
+          return (
+            <button key={tab} id={tabId} role="tab" aria-selected={activeTab === tab} aria-controls={panelId}
+              onClick={() => setActiveTab(tab)}
+              onKeyDown={(e) => {
+                const tabs = ['overview', 'contacts', 'deals', 'activities', 'notes', ...(hasPermission(user, 'credit:read') ? ['credit' as const] : [] as const), 'audit'] as const;
+                const idx = tabs.indexOf(tab);
+                if (e.key === 'ArrowRight') { e.preventDefault(); setActiveTab(tabs[(idx + 1) % tabs.length]); document.getElementById(`tab-${tabs[(idx + 1) % tabs.length]}`)?.focus(); }
+                else if (e.key === 'ArrowLeft') { e.preventDefault(); setActiveTab(tabs[(idx - 1 + tabs.length) % tabs.length]); document.getElementById(`tab-${tabs[(idx - 1 + tabs.length) % tabs.length]}`)?.focus(); }
+              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', textTransform: 'capitalize' }}
+              className={`px-4 py-2 text-sm border-b-2 transition-colors ${activeTab === tab ? 'border-brand-700 text-brand-700 font-bold' : 'border-transparent text-text-secondary font-semibold hover:text-text-primary'}`}>
+              {tab === 'credit' ? 'Credit' : tab === 'audit' ? 'Audit Log' : tab}
+            </button>
+          );
+        })}
       </div>
 
       {/* Overview tab */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-bg-surface border border-border rounded-xl p-5">
             <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Account Info</h3>
-            {/* Editable fields */}
+            {/* Editable fields — all edits route through the Edit Account modal */}
             <div className="flex items-center gap-3 py-2 border-b border-border">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">badge</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Name</span>
-              <InlineEdit
-                value={account.name}
-                type="text"
-                onSave={async (v) => { await crmService.updateAccount(id!, { name: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
-              />
+              <span className="text-sm text-text-primary">{account.name || '—'}</span>
             </div>
             <div className="flex items-center gap-3 py-2 border-b border-border">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">factory</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Industry</span>
-              <InlineEdit
-                value={account.industry}
-                type="text"
-                onSave={async (v) => { await crmService.updateAccount(id!, { industry: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
-              />
+              <span className="text-sm text-text-primary">{account.industry || '—'}</span>
             </div>
             <div className="flex items-center gap-3 py-2 border-b border-border">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">groups</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Company Size</span>
-              <InlineEdit
-                value={account.companySize}
-                type="text"
-                onSave={async (v) => { await crmService.updateAccount(id!, { companySize: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
-              />
+              <span className="text-sm text-text-primary">{account.companySize || '—'}</span>
             </div>
             <div className="flex items-center gap-3 py-2 border-b border-border">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">language</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Website</span>
-              <InlineEdit
-                value={account.website}
-                type="text"
-                onSave={async (v) => { await crmService.updateAccount(id!, { website: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
-              />
+              {account.website ? (
+                <a href={account.website} target="_blank" rel="noreferrer" className="text-sm text-brand-700 hover:underline">{account.website}</a>
+              ) : (
+                <span className="text-sm text-text-primary">—</span>
+              )}
             </div>
             <div className="flex items-center gap-3 py-2 border-b border-border">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">call</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Phone</span>
-              <InlineEdit
-                value={account.phone}
-                type="text"
-                onSave={async (v) => { await crmService.updateAccount(id!, { phone: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
-              />
+              {account.phone ? (
+                <a href={`tel:${account.phone}`} className="text-sm text-brand-700 hover:underline">{account.phone}</a>
+              ) : (
+                <span className="text-sm text-text-primary">—</span>
+              )}
             </div>
             <div className="flex items-center gap-3 py-2 border-b border-border">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">mail</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Email</span>
-              <InlineEdit
-                value={account.email}
-                type="text"
-                onSave={async (v) => { await crmService.updateAccount(id!, { email: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
-              />
+              {account.email ? (
+                <a href={`mailto:${account.email}`} className="text-sm text-brand-700 hover:underline">{account.email}</a>
+              ) : (
+                <span className="text-sm text-text-primary">—</span>
+              )}
             </div>
             <div className="flex items-center gap-3 py-2 border-b border-border">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">payments</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Annual Revenue</span>
-              <InlineEdit
-                value={account.annualRevenue}
-                type="number"
-                format={formatCurrency}
-                onSave={async (v) => { await crmService.updateAccount(id!, { annualRevenue: Number(v) }); const u = await crmService.getAccount(id!); setAccount(u); }}
-              />
+              <span className="text-sm text-text-primary">{formatCurrency(account.annualRevenue)}</span>
             </div>
-            {/* Owner — select, editable only for crm:admin */}
+            {/* Owner — display only; editable via Edit Account modal (crm:write + crm:admin) */}
             <div className="flex items-center gap-3 py-2 border-b border-border">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">manage_accounts</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Owner</span>
-              <InlineEdit
-                value={account.ownerId ?? ''}
-                type="select"
-                display={account.owner ? `${account.owner.firstName} ${account.owner.lastName}` : '—'}
-                editable={hasPermission(user, 'crm:admin')}
-                options={crmUsers.map(u => ({ label: `${u.firstName} ${u.lastName}`, value: u.id }))}
-                onSave={async (v) => { await crmService.updateAccount(id!, { ownerId: v }); const u = await crmService.getAccount(id!); setAccount(u); }}
-              />
+              <span className="text-sm text-text-primary">{account.owner ? `${account.owner.firstName} ${account.owner.lastName}` : '—'}</span>
             </div>
             {/* Read-only fields */}
-            <div className="flex items-center gap-3 py-2 border-b border-border">
+            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">badge</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Registration No.</span>
-              <span className="text-sm text-text-primary">{account.registrationNumber || '—'}</span>
+              <span className="text-sm text-text-primary flex-1">{account.registrationNumber || '—'}</span>
+              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
             </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
+            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">receipt_long</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Tax No.</span>
-              <span className="text-sm text-text-primary">{account.taxNumber || '—'}</span>
+              <span className="text-sm text-text-primary flex-1">{account.taxNumber || '—'}</span>
+              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
             </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
+            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">account_balance</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Bank Account</span>
-              <span className="text-sm text-text-primary">{account.bankAccount || '—'}</span>
+              <span className="text-sm text-text-primary flex-1">{account.bankAccount || '—'}</span>
+              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
             </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
-              <span className="material-symbols-outlined text-base text-text-secondary w-5">trust</span>
-              <span className="text-xs text-text-secondary w-28 shrink-0">Purchase Cash Trust</span>
-              <span className="text-sm text-text-primary">{account.purchaseCashTrust ? 'Yes' : 'No'}</span>
-            </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
+            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">check_circle</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Active</span>
-              <span className="text-sm text-text-primary">{account.isActive ? 'Yes' : 'No'}</span>
+              <span className="text-sm text-text-primary flex-1">{account.isActive ? 'Yes' : 'No'}</span>
+              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
             </div>
-            <div className="flex items-center gap-3 py-2 border-b border-border">
+            <div className="flex items-center gap-3 py-2 border-b border-border bg-bg-subtle/50 rounded px-1 opacity-80">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">calendar_today</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Created</span>
-              <span className="text-sm text-text-primary">{formatDate(account.createdAt)}</span>
+              <span className="text-sm text-text-primary flex-1">{formatDate(account.createdAt)}</span>
+              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
             </div>
-            <div className="flex items-center gap-3 py-2">
+            <div className="flex items-center gap-3 py-2 bg-bg-subtle/50 rounded px-1 opacity-80">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">update</span>
               <span className="text-xs text-text-secondary w-28 shrink-0">Updated</span>
-              <span className="text-sm text-text-primary">{formatDate(account.updatedAt)}</span>
+              <span className="text-sm text-text-primary flex-1">{formatDate(account.updatedAt)}</span>
+              <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
             </div>
           </div>
-          {account.description && (
-            <div className="bg-bg-surface border border-border rounded-xl p-5">
-              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Description</h3>
+          {/* Address card */}
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Address</h3>
+            {account.address || account.city || account.state || account.postalCode || account.country ? (
+              <div className="text-sm text-text-primary space-y-0.5">
+                {account.address && <p>{account.address}</p>}
+                <p>{[account.city, account.state, account.postalCode].filter(Boolean).join(', ')}</p>
+                {account.country && <p>{account.country}</p>}
+              </div>
+            ) : (
+              <p className="text-sm text-text-secondary italic">No address added — click Edit to add one.</p>
+            )}
+          </div>
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Description</h3>
+            {account.description ? (
               <p className="text-sm text-text-primary leading-relaxed">{account.description}</p>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-text-secondary italic">No description added — click Edit to add one.</p>
+            )}
+          </div>
         </div>
       )}
 
       {/* Contacts tab */}
       {activeTab === 'contacts' && (
-        <div className="space-y-3">
+        <div id="panel-contacts" role="tabpanel" aria-labelledby="tab-contacts" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-text-primary">Contacts</h3>
+            {hasPermission(user, 'crm:write') && (
+              <Link to={`/crm/contacts/new?accountId=${account.id}`}
+                className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+                style={{ textDecoration: 'none' }}>
+                <span className="material-symbols-outlined text-base">person_add</span> Add Contact
+              </Link>
+            )}
+          </div>
           {(account.contacts ?? []).length === 0 && <EmptyState icon="person" title="No contacts yet" description="Add contacts to this account." />}
           {(account.contacts ?? []).map(c => (
             <Link key={c.id} to={`/crm/contacts/${c.id}`} style={{ textDecoration: 'none' }}>
@@ -518,9 +598,9 @@ const CrmAccountDetail = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-text-primary text-sm">{c.firstName} {c.lastName} {c.isPrimary && <span className="ml-1 text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full">Primary</span>}</p>
-                  <p className="text-xs text-text-secondary truncate">{c.jobTitle || ''}{c.jobTitle && c.email ? ' · ' : ''}{c.email || ''}</p>
+                  <p className="text-xs text-text-secondary truncate">{c.jobTitle || ''}{c.jobTitle && c.email ? ' · ' : ''}{c.email ? <a href={`mailto:${c.email}`} onClick={e => e.stopPropagation()} className="hover:underline text-brand-700">{c.email}</a> : ''}</p>
                 </div>
-                {c.phone && <span className="text-xs text-text-secondary hidden sm:block">{c.phone}</span>}
+                {c.phone && <a href={`tel:${c.phone}`} onClick={e => e.stopPropagation()} className="text-xs text-brand-700 hover:underline hidden sm:block">{c.phone}</a>}
               </div>
             </Link>
           ))}
@@ -529,7 +609,17 @@ const CrmAccountDetail = () => {
 
       {/* Deals tab */}
       {activeTab === 'deals' && (
-        <div className="space-y-3">
+        <div id="panel-deals" role="tabpanel" aria-labelledby="tab-deals" className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-text-primary">Deals</h3>
+            {hasPermission(user, 'crm:write') && (
+              <Link to={`/crm/opportunities/new?accountId=${account.id}`}
+                className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+                style={{ textDecoration: 'none' }}>
+                <span className="material-symbols-outlined text-base">add_business</span> Create Opportunity
+              </Link>
+            )}
+          </div>
           {(account.opportunities ?? []).length === 0 && <EmptyState icon="handshake" title="No deals yet" description="Create opportunities for this account." />}
           {(account.opportunities ?? []).map(o => (
             <Link key={o.id} to={`/crm/opportunities/${o.id}`} style={{ textDecoration: 'none' }}>
@@ -550,9 +640,38 @@ const CrmAccountDetail = () => {
 
       {/* Activities tab */}
       {activeTab === 'activities' && (
-        <div className="space-y-3">
-          {(account.activities ?? []).length === 0 && <EmptyState icon="timeline" title="No activities yet" description="Log activities to track interactions." />}
-          {(account.activities ?? []).map(a => (
+        <div id="panel-activities" role="tabpanel" aria-labelledby="tab-activities" className="space-y-3">
+          {/* Filter & Sort */}
+          <div className="flex flex-wrap items-center gap-2 justify-between">
+            <div className="flex flex-wrap gap-1.5">
+              {(['ALL', 'CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as const).map(type => (
+                <button key={type} onClick={() => setActivityFilter(type)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${
+                    activityFilter === type
+                      ? 'bg-brand-700 text-white border-brand-700'
+                      : 'bg-bg-surface text-text-secondary border-border hover:bg-bg-subtle hover:border-brand-300'
+                  }`}
+                  style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {type === 'ALL' ? 'All' : type.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+            <select value={activitySort} onChange={e => setActivitySort(e.target.value as 'newest' | 'oldest')}
+              className="border border-border rounded-lg px-2 py-1.5 text-xs font-semibold text-text-secondary bg-bg-surface"
+              style={{ fontFamily: 'var(--font-sans)' }}>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+          </div>
+          {(() => {
+            let filtered = (account.activities ?? []).slice();
+            if (activityFilter !== 'ALL') filtered = filtered.filter(a => a.activityType === activityFilter);
+            filtered.sort((a, b) => activitySort === 'newest'
+              ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+            if (filtered.length === 0) return <EmptyState icon="timeline" title={activityFilter !== 'ALL' ? `No ${activityFilter.replace('_',' ')} activities` : 'No activities yet'} description="Log activities to track interactions." />;
+            return filtered.map(a => (
             <div key={a.id} className="flex gap-4 bg-bg-surface border border-border rounded-xl p-4">
               <span className="material-symbols-outlined text-brand-700 mt-0.5">{ACTIVITY_ICONS[a.activityType]}</span>
               <div className="flex-1 min-w-0">
@@ -601,7 +720,8 @@ const CrmAccountDetail = () => {
               </div>
               <span className="text-xs text-text-secondary shrink-0">{a.activityType}</span>
             </div>
-          ))}
+          ));
+          })()}
           {hasMoreActivities && (account.activities ?? []).length > 0 && (
             <div className="flex justify-center mt-4">
               <button
@@ -623,16 +743,36 @@ const CrmAccountDetail = () => {
 
       {/* Notes tab */}
       {activeTab === 'notes' && (
-        <div className="space-y-3">
+        <div id="panel-notes" role="tabpanel" aria-labelledby="tab-notes" className="space-y-3">
           {notesLoading ? (
             <div className="space-y-3">{[...Array(2)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>
           ) : notes.length === 0 ? (
             <EmptyState icon="sticky_note_2" title="No notes yet" description="Add notes to keep track of important information." />
           ) : notes.map(n => (
             <div key={n.id} className={`bg-bg-surface border rounded-xl p-4 ${n.isPinned ? 'border-yellow-300' : 'border-border'}`}>
-              {n.isPinned && <span className="flex items-center gap-1 text-xs text-yellow-600 mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
-              <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">{n.content}</p>
-              <p className="text-xs text-text-secondary mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  {n.isPinned && <span className="flex items-center gap-1 text-xs text-yellow-600 mb-2"><span className="material-symbols-outlined text-sm">push_pin</span>Pinned</span>}
+                  <div className="text-sm text-text-primary leading-relaxed prose prose-sm max-w-none">
+                    <ReactMarkdown>{n.content}</ReactMarkdown>
+                  </div>
+                  <p className="text-xs text-text-secondary mt-2">{n.author ? `${n.author.firstName} ${n.author.lastName}` : ''} · {formatDate(n.createdAt)}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => handleTogglePinNote(n)} title={n.isPinned ? 'Unpin note' : 'Pin note'}
+                    className="p-1 rounded hover:bg-yellow-50 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <span className={`material-symbols-outlined text-base ${n.isPinned ? 'text-yellow-500' : 'text-text-secondary'}`}>push_pin</span>
+                  </button>
+                  <button onClick={() => { setEditingNote(n); setEditNoteContent(n.content); }} title="Edit note"
+                    className="p-1 rounded hover:bg-bg-subtle transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <span className="material-symbols-outlined text-base text-text-secondary">edit</span>
+                  </button>
+                  <button onClick={() => { setDeletingNote(n); setShowDeleteNote(true); }} title="Delete note"
+                    className="p-1 rounded hover:bg-red-50 transition-colors" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                    <span className="material-symbols-outlined text-base text-danger">delete</span>
+                  </button>
+                </div>
+              </div>
             </div>
           ))}
         </div>
@@ -640,7 +780,30 @@ const CrmAccountDetail = () => {
 
       {/* Credit tab — deep link to Credit/Borrower Profiles */}
       {activeTab === 'credit' && (
-        <div className="space-y-4">
+        <div id="panel-credit" role="tabpanel" aria-labelledby="tab-credit" className="space-y-4">
+          {/* Borrower Summary */}
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Borrower Summary</h3>
+            {creditSummary.loading ? (
+              <div className="animate-pulse space-y-2">
+                <div className="h-5 bg-gray-200 rounded w-1/3" />
+                <div className="h-4 bg-gray-200 rounded w-2/3" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-6">
+                <div>
+                  <p className="text-2xl font-black text-text-primary">{creditSummary.borrowerCount}</p>
+                  <p className="text-xs text-text-secondary">Borrower profiles</p>
+                </div>
+                <div className="flex-1" />
+                <Link to={`/credit/borrowers?accountId=${account.id}`}
+                  className="flex items-center gap-2 text-sm text-brand-700 font-bold hover:underline"
+                  style={{ textDecoration: 'none' }}>
+                  View all <span className="material-symbols-outlined text-base">arrow_forward</span>
+                </Link>
+              </div>
+            )}
+          </div>
           <div className="bg-bg-surface border border-border rounded-xl p-5">
             <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Credit Module</h3>
             <p className="text-sm text-text-secondary mb-4">View and manage borrower profiles, credit applications, and documents for this account from the Credit module.</p>
@@ -678,284 +841,12 @@ const CrmAccountDetail = () => {
         </div>
       )}
 
-      {/* Trust Products tab */}
-      {activeTab === 'trustProducts' && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold text-text-primary">Trust Products</h3>
-            <button onClick={() => { setTpForm({ trustType: 'TRUST', status: 'ACTIVE', currency: 'MYR' }); setTpFormErrors([]); setShowCreateTP(true); }}
-              className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">add</span> Add Trust Product
-            </button>
-          </div>
-          {trustProductsLoading ? (
-            <div className="space-y-3">{[...Array(3)].map((_, i) => <SkeletonLine key={i} mb={20} />)}</div>
-          ) : trustProducts.length === 0 ? (
-            <p className="text-text-secondary text-sm">No trust products yet. Add one.</p>
-          ) : trustProducts.map(tp => (
-            <div key={tp.id} className="bg-bg-surface border border-border rounded-xl p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="font-bold text-text-primary text-sm">{tp.trustType}{tp.deedRefNumber ? ` · ${tp.deedRefNumber}` : ''}</p>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block"
-                    style={{
-                      background: tp.status === 'ACTIVE' ? '#22c55e20' : tp.status === 'PENDING' ? '#f59e0b20' : tp.status === 'MATURED' ? '#6366f120' : '#ef444420',
-                      color: tp.status === 'ACTIVE' ? '#22c55e' : tp.status === 'PENDING' ? '#f59e0b' : tp.status === 'MATURED' ? '#6366f1' : '#ef4444',
-                    }}>
-                    {tp.status}
-                  </span>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => { docChecklist.fetch(tp.id); setShowChecklist(tp.id); }}
-                    className="flex items-center gap-1 text-purple-700 border border-purple-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-purple-50 transition-colors"
-                    style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    <span className="material-symbols-outlined text-sm">checklist</span> AI Checklist
-                  </button>
-                  <button onClick={() => {
-                    setEditingTP(tp);
-                    setTpFormErrors([]);
-                    setTpForm({
-                      trustType: tp.trustType,
-                      deedRefNumber: tp.deedRefNumber ?? '',
-                      status: tp.status,
-                      assetValue: tp.assetValue ?? undefined,
-                      currency: tp.currency,
-                      assetDescription: tp.assetDescription ?? '',
-                      trusteeName: tp.trusteeName ?? '',
-                      trusteeContact: tp.trusteeContact ?? '',
-                      settlementDate: tp.settlementDate ?? '',
-                      maturityDate: tp.maturityDate ?? '',
-                      nextReviewDate: tp.nextReviewDate ?? '',
-                      ownerId: tp.ownerId ?? '',
-                    });
-                    setShowEditTP(true);
-                  }}
-                    className="flex items-center gap-1 text-brand-700 border border-brand-200 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-brand-50 transition-colors"
-                    style={{ background: 'var(--bg-surface)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                    <span className="material-symbols-outlined text-sm">edit</span> Edit
-                  </button>
-                  {hasPermission(user, 'crm:delete') && (
-                    <button onClick={() => { setDeletingTP(tp); setShowDeleteTP(true); }}
-                      className="flex items-center gap-1 text-danger px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-danger/10 transition-colors"
-                      style={{ background: 'none', border: '1px solid var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                      <span className="material-symbols-outlined text-sm">delete</span> Delete
-                    </button>
-                  )}
-                </div>
-              </div>
-              {/* AI Document Checklist */}
-              {showChecklist === tp.id && (
-                <div className="mt-3 border border-purple-200 rounded-xl p-4 bg-purple-50/50">
-                  {docChecklist.loading && <p className="text-sm text-text-secondary animate-pulse">Generating document checklist…</p>}
-                  {docChecklist.error && <p className="text-sm text-danger">{docChecklist.error}</p>}
-                  {docChecklist.data && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="material-symbols-outlined text-purple-600 text-lg">auto_awesome</span>
-                        <p className="font-bold text-sm text-purple-800">Required Documents</p>
-                        <button onClick={() => setShowChecklist(null)}
-                          className="ml-auto text-xs text-text-secondary hover:text-text-primary"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>✕ Close</button>
-                      </div>
-                      <div className="space-y-2">
-                        {docChecklist.data.documents.map((doc, i) => (
-                          <div key={i} className="flex items-start gap-2 text-sm">
-                            <span className={`material-symbols-outlined text-base mt-0.5 ${doc.required ? 'text-red-500' : 'text-text-secondary'}`}>
-                              {doc.required ? 'priority_high' : 'check_circle'}
-                            </span>
-                            <div>
-                              <p className="font-semibold text-text-primary">{doc.name}{doc.required && <span className="text-red-500 ml-1">*</span>}</p>
-                              {doc.description && <p className="text-xs text-text-secondary">{doc.description}</p>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      {docChecklist.data.notes && (
-                        <p className="text-xs text-text-secondary mt-3 italic border-t border-purple-200 pt-2">{docChecklist.data.notes}</p>
-                      )}
-                    </div>
-                  )}
-                  {!docChecklist.loading && !docChecklist.error && !docChecklist.data && (
-                    <p className="text-sm text-text-secondary">Click "AI Checklist" to generate.</p>
-                  )}
-                </div>
-              )}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-text-secondary">Value</p>
-                  <p className="font-semibold text-text-primary">{formatCurrency(tp.assetValue ?? 0)} {tp.currency}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-secondary">Trustee</p>
-                  <p className="font-semibold text-text-primary">{tp.trusteeName || '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-secondary">Maturity</p>
-                  <p className="font-semibold text-text-primary">{formatDate(tp.maturityDate ?? null)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-secondary">Next Review</p>
-                  <p className="font-semibold text-text-primary">{formatDate(tp.nextReviewDate ?? null)}</p>
-                </div>
-                {tp.assetDescription && (
-                  <div className="col-span-2 sm:col-span-3">
-                    <p className="text-xs text-text-secondary">Description</p>
-                    <p className="text-sm text-text-primary">{tp.assetDescription}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Audit Log tab */}
       {activeTab === 'audit' && account && (
-        <CrmAuditLog entityType="account" entityId={account.id} />
-      )}
-
-      {/* Create/Edit Trust Product modal */}
-      {(showCreateTP || showEditTP) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); setTpFormErrors([]); }}>
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-extrabold text-text-primary">{showEditTP ? 'Edit Trust Product' : 'Create Trust Product'}</h2>
-              <button onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); setTpFormErrors([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
-            </div>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              const errors = validateTrustProduct(tpForm);
-              if (errors.length > 0) { setTpFormErrors(errors); return; }
-              try {
-                setSaving(true);
-                const data = { ...tpForm, accountId: id };
-                if (showEditTP && editingTP) {
-                  await crmService.updateTrustProduct(editingTP.id, data);
-                } else {
-                  await crmService.createTrustProduct(data);
-                }
-                setShowCreateTP(false);
-                setShowEditTP(false);
-                setEditingTP(null);
-                loadTrustProducts();
-              } catch (e) { console.error(e); }
-              finally { setSaving(false); }
-            }} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Trust Type *</label>
-                  <select value={tpForm.trustType ?? ''} onChange={e => setTpForm(f => ({ ...f, trustType: e.target.value }))}
-                    className={`w-full border border-border rounded-lg px-3 py-2 text-sm${tpFormErrors.some(e => e.field === 'trustType') ? ' !border-red-500' : ''}`}
-                    style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
-                    {['TRUST', 'ESTATE', 'WILL', 'CUSTODY', 'OTHER'].map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  {tpFormErrors.some(e => e.field === 'trustType') && (<p className="text-xs text-red-600 mt-1">{tpFormErrors.find(e => e.field === 'trustType')?.message}</p>)}
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Deed Ref Number</label>
-                  <input value={tpForm.deedRefNumber ?? ''} onChange={e => setTpForm(f => ({ ...f, deedRefNumber: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Status *</label>
-                  <select value={tpForm.status ?? ''} onChange={e => setTpForm(f => ({ ...f, status: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
-                    {['ACTIVE', 'PENDING', 'INACTIVE', 'MATURED'].map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Asset Value</label>
-                  <input type="number" value={tpForm.assetValue ?? ''} onChange={e => setTpForm(f => ({ ...f, assetValue: e.target.value ? Number(e.target.value) : undefined }))}
-                    className={`w-full border border-border rounded-lg px-3 py-2 text-sm${tpFormErrors.some(e => e.field === 'assetValue') ? ' !border-red-500' : ''}`}
-                    style={{ background: '#fff' }} />
-                  {tpFormErrors.some(e => e.field === 'assetValue') && (<p className="text-xs text-red-600 mt-1">{tpFormErrors.find(e => e.field === 'assetValue')?.message}</p>)}
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Currency</label>
-                  <input value={tpForm.currency ?? 'MYR'} onChange={e => setTpForm(f => ({ ...f, currency: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Owner ID</label>
-                  <input value={tpForm.ownerId ?? ''} onChange={e => setTpForm(f => ({ ...f, ownerId: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-text-primary mb-1">Asset Description</label>
-                <textarea rows={3} value={tpForm.assetDescription ?? ''} onChange={e => setTpForm(f => ({ ...f, assetDescription: e.target.value }))}
-                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Trustee Name</label>
-                  <input value={tpForm.trusteeName ?? ''} onChange={e => setTpForm(f => ({ ...f, trusteeName: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Trustee Contact</label>
-                  <input value={tpForm.trusteeContact ?? ''} onChange={e => setTpForm(f => ({ ...f, trusteeContact: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Settlement Date</label>
-                  <input type="date" value={tpForm.settlementDate ?? ''} onChange={e => setTpForm(f => ({ ...f, settlementDate: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Maturity Date</label>
-                  <input type="date" value={tpForm.maturityDate ?? ''} onChange={e => setTpForm(f => ({ ...f, maturityDate: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-text-primary mb-1">Next Review Date</label>
-                  <input type="date" value={tpForm.nextReviewDate ?? ''} onChange={e => setTpForm(f => ({ ...f, nextReviewDate: e.target.value }))}
-                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ background: '#fff' }} />
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowCreateTP(false); setShowEditTP(false); setEditingTP(null); setTpFormErrors([]); }}
-                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
-                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
-                <button type="submit" disabled={saving}
-                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
-                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                  {saving ? 'Saving…' : showEditTP ? 'Save Changes' : 'Create'}
-                </button>
-              </div>
-            </form>
-          </div>
+        <div id="panel-audit" role="tabpanel" aria-labelledby="tab-audit">
+          <CrmAuditLog entityType="account" entityId={account.id} />
         </div>
       )}
-
-      {/* Delete Trust Product confirmation */}
-      <ConfirmDialog
-        open={showDeleteTP}
-        title="Delete Trust Product"
-        message={`Are you sure you want to delete this trust product${deletingTP?.deedRefNumber ? ` (${deletingTP.deedRefNumber})` : ''}? This action cannot be undone.`}
-        confirmVariant="danger"
-        loading={saving}
-        onConfirm={async () => {
-          if (!deletingTP) return;
-          try {
-            setSaving(true);
-            await crmService.deleteTrustProduct(deletingTP.id);
-            setShowDeleteTP(false);
-            setDeletingTP(null);
-            loadTrustProducts();
-          } catch (e) { console.error(e); }
-          finally { setSaving(false); }
-        }}
-        onCancel={() => { setShowDeleteTP(false); setDeletingTP(null); }}
-      />
 
       {/* Add Activity modal */}
       {showAddActivity && (
@@ -968,7 +859,7 @@ const CrmAccountDetail = () => {
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
                 <select value={activityForm.activityType} onChange={e => setActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
-                  {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
+                  {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
                 </select>
               </div>
               <div>
@@ -980,6 +871,23 @@ const CrmAccountDetail = () => {
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Description</label>
                 <textarea rows={3} value={activityForm.description ?? ''} onChange={e => setActivityForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Scheduled At</label>
+                  <input type="datetime-local" value={activityForm.scheduledAt ?? ''} onChange={e => setActivityForm(f => ({ ...f, scheduledAt: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary mb-1">Completed At</label>
+                  <input type="datetime-local" value={activityForm.completedAt ?? ''} onChange={e => setActivityForm(f => ({ ...f, completedAt: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Duration (minutes)</label>
+                <input type="number" min={0} value={activityForm.durationMinutes ?? ''} onChange={e => setActivityForm(f => ({ ...f, durationMinutes: e.target.value ? Number(e.target.value) : null }))}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => { setShowAddActivity(false); setActivityForm({ activityType: 'CALL' }); }}
@@ -1007,7 +915,7 @@ const CrmAccountDetail = () => {
                 <label className="block text-xs font-semibold text-text-secondary mb-1">Type</label>
                 <select value={editActivityForm.activityType ?? 'CALL'} onChange={e => setEditActivityForm(f => ({ ...f, activityType: e.target.value as CrmActivityType }))}
                   className="w-full border border-border rounded-lg px-3 py-2 text-sm" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
-                  {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t}</option>)}
+                  {(['CALL', 'EMAIL', 'MEETING', 'NOTE', 'TASK', 'FOLLOW_UP', 'WHATSAPP', 'SITE_VISIT'] as CrmActivityType[]).map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
                 </select>
               </div>
               <div>
@@ -1088,16 +996,55 @@ const CrmAccountDetail = () => {
         </div>
       )}
 
+      {/* Edit Note modal */}
+      {editingNote && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setEditingNote(null); setEditNoteContent(''); }}>
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="text-lg font-black text-text-primary mb-4">Edit Note</h2>
+            <form onSubmit={handleEditNote} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">Note *</label>
+                <textarea required rows={5} value={editNoteContent} onChange={e => setEditNoteContent(e.target.value)}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm resize-none" style={{ fontFamily: 'var(--font-sans)', background: '#fff' }} />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setEditingNote(null); setEditNoteContent(''); }}
+                  className="px-4 py-2 text-sm font-semibold rounded-lg border border-border hover:bg-bg-subtle transition-colors"
+                  style={{ background: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="px-4 py-2 text-sm font-bold rounded-lg bg-brand-700 text-white hover:bg-brand-800 transition-colors"
+                  style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                  {saving ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Note confirmation */}
+      <ConfirmDialog
+        open={showDeleteNote}
+        title="Delete Note"
+        message="Are you sure you want to delete this note? This action cannot be undone."
+        confirmVariant="danger"
+        loading={saving}
+        onConfirm={handleDeleteNote}
+        onCancel={() => { setShowDeleteNote(false); setDeletingNote(null); }}
+      />
+
       {/* Edit Account modal */}
       {showEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => { setShowEdit(false); setFormErrors([]); }}>
           <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-6 border-b border-border-subtle shrink-0">
               <h2 className="text-lg font-extrabold text-text-primary">Edit Account</h2>
               <button onClick={() => { setShowEdit(false); setFormErrors([]); }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><span className="material-symbols-outlined text-text-secondary">close</span></button>
             </div>
-            <form onSubmit={handleEditSave} className="p-6 space-y-4">
+            <form onSubmit={handleEditSave} className="flex flex-col flex-1 min-h-0">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-semibold text-text-primary mb-1">Name *</label>
                 <input required value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
@@ -1119,13 +1066,21 @@ const CrmAccountDetail = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Industry</label>
-                  <input value={editForm.industry ?? ''} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  <select value={editForm.industry ?? ''} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                    style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                    <option value="">Select industry</option>
+                    {['Technology', 'Finance', 'Healthcare', 'Manufacturing', 'Retail', 'Education', 'Construction', 'Real Estate', 'Legal', 'Conglomerate', 'Family Office', 'Other'].map(i => <option key={i} value={i}>{i}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Company Size</label>
-                  <input value={editForm.companySize ?? ''} onChange={e => setEditForm(f => ({ ...f, companySize: e.target.value }))}
-                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all" />
+                  <select value={editForm.companySize ?? ''} onChange={e => setEditForm(f => ({ ...f, companySize: e.target.value }))}
+                    className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+                    style={{ fontFamily: 'var(--font-sans)', background: '#fff' }}>
+                    <option value="">Select size</option>
+                    {['1-10', '11-50', '51-200', '201-500', '501-1000', '1000+'].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1137,7 +1092,12 @@ const CrmAccountDetail = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-text-primary mb-1">Annual Revenue (MYR)</label>
-                  <input type="number" min="0" value={editForm.annualRevenue ?? ''} onChange={e => setEditForm(f => ({ ...f, annualRevenue: e.target.value }))}
+                  <input type="text" inputMode="numeric" placeholder="0"
+                    value={editForm.annualRevenue != null ? new Intl.NumberFormat('en-MY').format(Number(editForm.annualRevenue)) : ''}
+                    onChange={e => {
+                      const raw = e.target.value.replace(/[^0-9]/g, '');
+                      setEditForm(f => ({ ...f, annualRevenue: raw ? raw : null as any }));
+                    }}
                     className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'annualRevenue') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                   {formErrors.some(e => e.field === 'annualRevenue') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'annualRevenue')?.message}</p>)}
                 </div>
@@ -1194,7 +1154,8 @@ const CrmAccountDetail = () => {
                 <textarea rows={3} value={editForm.description ?? ''} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all resize-none" />
               </div>
-              <div className="flex justify-end gap-3 pt-2">
+              </div>{/* end scrollable body */}
+              <div className="sticky bottom-0 bg-white border-t border-border p-4 z-10 flex justify-end gap-3 shrink-0">
                 <button type="button" onClick={() => { setShowEdit(false); setFormErrors([]); }} className="px-5 py-2 rounded-lg text-sm font-bold text-text-secondary hover:bg-bg-subtle" style={{ background: 'none', border: '1px solid var(--color-border)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-2 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 disabled:opacity-50" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   {saving ? 'Saving...' : 'Save Changes'}
@@ -1215,6 +1176,13 @@ const CrmAccountDetail = () => {
         onConfirm={handleDelete}
         onCancel={() => setShowDelete(false)}
       />
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 bg-green-600 text-white px-5 py-3 rounded-xl shadow-lg text-sm font-semibold animate-[fadeInUp_.2s_ease-out]">
+          <span className="material-symbols-outlined text-base">check_circle</span>
+          {toast}
+        </div>
+      )}
     </div>
     </>
   );

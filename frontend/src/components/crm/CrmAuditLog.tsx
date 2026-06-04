@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import crmService from '../../services/crm.service';
 import { AuditLogEntry } from '../../services/auditLog.service';
+import EmptyState from '../ui/EmptyState';
 
 interface CrmAuditLogProps {
   entityType: 'account' | 'contact' | 'lead' | 'opportunity';
@@ -120,10 +121,7 @@ const CrmAuditLog: React.FC<CrmAuditLogProps> = ({ entityType, entityId }) => {
 
   if (logs.length === 0) {
     return (
-      <div className="bg-bg-surface border border-border rounded-xl p-8 text-center">
-        <span className="material-symbols-outlined text-4xl text-text-secondary mb-2 block">history</span>
-        <p className="text-text-secondary text-sm">No audit trail entries yet.</p>
-      </div>
+      <EmptyState icon="history" title="No audit trail entries yet" description="Audit entries will appear when changes are made to this record." />
     );
   }
 

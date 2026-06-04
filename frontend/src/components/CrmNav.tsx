@@ -16,7 +16,7 @@ const CRM_NAV_ITEMS: CrmNavItem[] = [
   { to: '/crm', label: 'Dashboard', icon: 'dashboard' },
   { to: '/crm/leads', label: 'Leads', icon: 'lightbulb' },
   { to: '/crm/opportunities', label: 'Opportunities', icon: 'monetization_on' },
-  { to: '/crm/pipeline', label: 'Pipeline', icon: 'view_kanban' },
+  { to: '/crm/pipeline', label: 'Pipeline', icon: 'trending_up' },
   { to: '/crm/accounts', label: 'Accounts', icon: 'business' },
   { to: '/crm/contacts', label: 'Contacts', icon: 'person' },
   { to: '/crm/team', label: 'Team', icon: 'groups', permission: 'crm:admin' },
@@ -41,7 +41,7 @@ const PRIMARY_ITEMS = [
 // Bottom nav: 5 key items for mobile
 const MOBILE_BOTTOM_ITEMS: CrmNavItem[] = [
   { to: '/crm', label: 'Home', icon: 'dashboard' },
-  { to: '/crm/pipeline', label: 'Pipeline', icon: 'view_kanban' },
+  { to: '/crm/pipeline', label: 'Pipeline', icon: 'trending_up' },
   { to: '__add__', label: 'Add', icon: 'add_circle' },
   { to: '/crm/reports', label: 'Reports', icon: 'bar_chart' },
   { to: '__more__', label: 'More', icon: 'menu' },

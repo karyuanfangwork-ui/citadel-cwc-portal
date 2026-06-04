@@ -8,18 +8,23 @@ import { validateLead, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmCardSkeleton from '../src/components/crm/CrmCardSkeleton';
+import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
+import LeadsTable, { SortConfig } from '../src/components/crm/LeadsTable';
 import { useCrmUpdate } from '../src/hooks/useCrmUpdate';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
-
-const STATUS_STYLES: Record<string, { bg: string; text: string; icon: string }> = {
-  NEW: { bg: 'var(--color-it-50)', text: 'var(--color-it-500)', icon: 'fiber_new' },
-  CONTACTED: { bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'call' },
-  QUALIFIED: { bg: 'var(--color-hr-50)', text: 'var(--color-success)', icon: 'verified' },
-  UNQUALIFIED: { bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'block' },
-  CONVERTED: { bg: 'var(--color-hr-50)', text: 'var(--color-success)', icon: 'swap_horiz' },
-  LOST: { bg: 'var(--color-surface-muted)', text: 'var(--color-text-secondary)', icon: 'cancel' },
-};
+import {
+  STATUS_STYLES,
+  LEAD_SOURCES,
+  formatCurrency,
+  formatDate,
+  formatShortDate,
+  isToday,
+  isOverdue,
+  isStale,
+  type UrgencyBadge,
+  scoreStyle,
+} from '../src/components/crm/crmConstants';
 
 // ── Activity type icons (including WHATSAPP & SITE_VISIT) ──────
 export const ACTIVITY_ICONS: Record<string, { icon: string; color: string }> = {
@@ -33,23 +38,6 @@ export const ACTIVITY_ICONS: Record<string, { icon: string; color: string }> = {
   SITE_VISIT: { icon: 'location_on', color: 'var(--color-danger)' },
 };
 
-const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
-const formatDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-const formatShortDate = (d: string) => new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-
-// ── Urgency badge helpers ──────────────────────────────────────
-const isToday = (d: string) => {
-  const dt = new Date(d); const now = new Date();
-  return dt.getFullYear() === now.getFullYear() && dt.getMonth() === now.getMonth() && dt.getDate() === now.getDate();
-};
-const isOverdue = (d: string) => new Date(d) < new Date(new Date().toDateString());
-const isStale = (updatedAt: string) => {
-  const diff = Date.now() - new Date(updatedAt).getTime();
-  return diff > 7 * 24 * 60 * 60 * 1000; // > 7 days
-};
-
-type UrgencyBadge = { label: string; bg: string; text: string; icon: string } | null;
-
 const getUrgencyBadge = (lead: CrmLead): UrgencyBadge => {
   if (lead.followUpDate) {
     if (isOverdue(lead.followUpDate) && !isToday(lead.followUpDate))
@@ -62,14 +50,6 @@ const getUrgencyBadge = (lead: CrmLead): UrgencyBadge => {
     return { label: 'Stale', bg: 'var(--color-surface-muted)', text: 'var(--color-text-secondary)', icon: 'hourglass_empty' };
   return null;
 };
-
-// AI score colour helper
-const scoreStyle = (score: number) =>
-  score >= 70
-    ? { bg: 'var(--color-hr-50)', text: 'var(--color-success)' }
-    : score >= 40
-    ? { bg: 'var(--color-fin-50)', text: 'var(--color-warning)' }
-    : { bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)' };
 
 const CrmLeads = () => {
   const navigate = useNavigate();
@@ -95,6 +75,35 @@ const CrmLeads = () => {
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
+
+  // ── View mode (table vs card) + sort ───────────────────────────
+  const [viewMode, setViewMode] = useState<'table' | 'card'>(() => {
+    try { return (localStorage.getItem('crm-leads-view') as 'table' | 'card') || 'table'; } catch { return 'table'; }
+  });
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+
+  useEffect(() => { try { localStorage.setItem('crm-leads-view', viewMode); } catch {} }, [viewMode]);
+
+  const handleSort = useCallback((field: SortConfig['field']) => {
+    setSortConfig(prev => {
+      if (prev?.field === field) {
+        return prev.direction === 'asc' ? { field, direction: 'desc' } : prev.direction === 'desc' ? null : { field, direction: 'asc' };
+      }
+      return { field, direction: 'asc' };
+    });
+  }, []);
+
+  // ── Inline status change (optimistic) ─────────────────────────
+  // Note: defined as regular async function because fetchLeads is declared below.
+  // React will hoist the function declaration for us, or we use the pattern below.
+  const handleStatusChange = async (leadId: string, newStatus: LeadStatus) => {
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
+    try {
+      await crmService.updateLead(leadId, { status: newStatus });
+    } catch {
+      fetchLeads(); // Revert on failure
+    }
+  };
 
   // ── Bulk Selection (Sprint 2) ──────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -203,7 +212,7 @@ const CrmLeads = () => {
     fetchLeads();
   });
 
-  // ── Apply client-side filters (server handles stale/followup) ──
+  // ── Apply client-side filters + sort ──
   const displayedLeads = useMemo(() => {
     let result = leads;
     if (prioritySort) {
@@ -214,8 +223,34 @@ const CrmLeads = () => {
         return b.aiScore - a.aiScore;
       });
     }
+    if (sortConfig) {
+      result = [...result].sort((a, b) => {
+        const aVal: any = sortConfig.field === 'followUpDate'
+          ? (a as any).followUpDate
+          : (a as any)[sortConfig.field];
+        const bVal: any = sortConfig.field === 'followUpDate'
+          ? (b as any).followUpDate
+          : (b as any)[sortConfig.field];
+
+        // Nulls last
+        if (aVal == null && bVal == null) return 0;
+        if (aVal == null) return 1;
+        if (bVal == null) return -1;
+
+        let cmp = 0;
+        if (sortConfig.field === 'estimatedValue' || sortConfig.field === 'aiScore') {
+          cmp = (aVal as number) - (bVal as number);
+        } else if (sortConfig.field === 'followUpDate' || sortConfig.field === 'createdAt') {
+          cmp = new Date(aVal).getTime() - new Date(bVal).getTime();
+        } else {
+          cmp = String(aVal).localeCompare(String(bVal));
+        }
+
+        return sortConfig.direction === 'desc' ? -cmp : cmp;
+      });
+    }
     return result;
-  }, [leads, prioritySort]);
+  }, [leads, prioritySort, sortConfig]);
 
   const clearFilterParam = () => {
     searchParams.delete('filter');
@@ -290,7 +325,7 @@ const CrmLeads = () => {
   return (
     <>
       <CrmNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+      <div style={{ maxWidth: viewMode === 'table' ? 1400 : 1200, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
@@ -309,6 +344,31 @@ const CrmLeads = () => {
           </h1>
         </div>
         <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex items-center bg-surface-muted rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode('table')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                viewMode === 'table' ? 'bg-white text-brand-700 shadow-sm' : 'text-text-secondary hover:text-text-primary'
+              }`}
+              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              title="Table view"
+            >
+              <span className="material-symbols-outlined text-base">table_rows</span>
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode('card')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                viewMode === 'card' ? 'bg-white text-brand-700 shadow-sm' : 'text-text-secondary hover:text-text-primary'
+              }`}
+              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+              title="Card view"
+            >
+              <span className="material-symbols-outlined text-base">grid_view</span>
+              Cards
+            </button>
+          </div>
           <button
             onClick={() => setPrioritySort(p => !p)}
             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
@@ -371,7 +431,32 @@ const CrmLeads = () => {
         </select>
       </div>
 
-      {/* Lead cards */}
+      {/* ── Table view ── */}
+      {viewMode === 'table' && (
+        loading ? (
+          <CrmTableSkeleton rows={6} cols={11} />
+        ) : displayedLeads.length === 0 ? (
+          <EmptyState icon="lightbulb" title="No leads yet" description="Create your first lead to start tracking potential customers." action={{ label: 'New Lead', onClick: () => setShowCreate(true) }} />
+        ) : (
+          <LeadsTable
+            leads={displayedLeads}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onSelectAll={selectAll}
+            onClearSelection={clearSelection}
+            onEdit={openEdit}
+            onDelete={(lead) => { setDeleteItem(lead); setShowDelete(true); }}
+            onStatusChange={handleStatusChange}
+            isAllSelected={displayedLeads.length > 0 && displayedLeads.every(l => selectedIds.has(l.id))}
+            user={user}
+          />
+        )
+      )}
+
+      {/* ── Card view (existing) ── */}
+      {viewMode === 'card' && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? [0,1,2,3,4,5].map(i => (
           <CrmCardSkeleton key={i} />
@@ -485,6 +570,7 @@ const CrmLeads = () => {
           );
         })}
       </div>
+      )}
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (

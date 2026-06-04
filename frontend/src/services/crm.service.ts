@@ -19,7 +19,7 @@ export interface CrmAccount {
   country: string | null; postalCode: string | null; description: string | null;
   annualRevenue: number | null; ownerId: string; isActive: boolean;
   registrationNumber: string | null; taxNumber: string | null;
-  bankAccount: string | null; purchaseCashTrust: boolean;
+  bankAccount: string | null;
   createdAt: string; updatedAt: string;
   owner?: UserRef; contacts?: CrmContact[]; opportunities?: CrmOpportunity[];
   leads?: CrmLead[]; activities?: CrmActivity[]; notes?: CrmNote[];

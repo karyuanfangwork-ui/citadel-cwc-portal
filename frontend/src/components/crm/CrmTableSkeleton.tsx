@@ -5,20 +5,30 @@ interface CrmTableSkeletonProps {
   cols?: number;
 }
 
-export const CrmTableSkeleton: React.FC<CrmTableSkeletonProps> = ({ rows = 5, cols = 5 }) => (
-  <div className="bg-bg-surface border border-border rounded-xl overflow-hidden animate-pulse">
-    <div className="flex gap-4 px-5 py-3 border-b border-border bg-bg-subtle">
-      {Array.from({ length: cols }).map((_, i) => (
-        <div key={i} className="h-3 bg-gray-200 rounded flex-1" />
-      ))}
-    </div>
-    {Array.from({ length: rows }).map((_, i) => (
-      <div key={i} className="flex gap-4 px-5 py-4 border-b border-border last:border-0">
-        {Array.from({ length: cols }).map((_, j) => (
-          <div key={j} className="h-3 bg-gray-200 rounded flex-1" style={{ width: `${30 + Math.random() * 50}%` }} />
+const CrmTableSkeleton: React.FC<CrmTableSkeletonProps> = ({ rows = 6, cols = 11 }) => (
+  <div className="w-full overflow-x-auto rounded-xl border border-border">
+    <table className="w-full">
+      <thead>
+        <tr className="border-b border-border">
+          {Array.from({ length: cols }, (_, i) => (
+            <th key={i} className="px-4 py-3">
+              <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: rows }, (_, r) => (
+          <tr key={r} className="border-b border-border last:border-b-0">
+            {Array.from({ length: cols }, (_, c) => (
+              <td key={c} className="px-4 py-2.5">
+                <div className={`h-3 rounded animate-pulse ${c === 0 ? 'w-4' : c === 1 ? 'w-32' : c === 2 ? 'w-20' : 'w-16'} bg-gray-100`} />
+              </td>
+            ))}
+          </tr>
         ))}
-      </div>
-    ))}
+      </tbody>
+    </table>
   </div>
 );
 

@@ -1,11 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import crmService, { CrmPipeline, CrmPipelineStage, CrmOpportunity } from '../src/services/crm.service';
+import crmService, { CrmPipeline, CrmPipelineStage, CrmOpportunity, CrmUser } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import CrmMobilePipeline from '../src/components/crm/CrmMobilePipeline';
 import { formatCurrency, formatShortDate, winProbStyle, stageBadgeColor } from '../src/components/crm/crmConstants';
+import OpportunitiesTable, { SortConfig } from '../src/components/crm/OpportunitiesTable';
+import BulkActionBar, { BulkAction } from '../src/components/crm/BulkActionBar';
+import { useAuth } from '../src/context/AuthContext';
+import { hasPermission } from '../src/utils/permissions';
 
 const CrmPipelineView = () => {
   const navigate = useNavigate();
@@ -28,6 +32,34 @@ const CrmPipelineView = () => {
   // Search & filter
   const [searchQuery, setSearchQuery] = useState('');
   const [ownerFilter, setOwnerFilter] = useState<string>('');
+
+  // View mode: list (default) or kanban
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>(() => {
+    try { return (localStorage.getItem('crm-pipeline-view') as 'list' | 'kanban') || 'list'; }
+    catch { return 'list'; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem('crm-pipeline-view', viewMode); } catch {}
+  }, [viewMode]);
+
+  // Delete confirmation
+  const [deleteItem, setDeleteItem] = useState<CrmOpportunity | null>(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Bulk selection
+  const { user } = useAuth();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkToast, setBulkToast] = useState<string | null>(null);
+  const [showBulkOwnerSelect, setShowBulkOwnerSelect] = useState(false);
+  const [showBulkStageSelect, setShowBulkStageSelect] = useState(false);
+  const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+
+  useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
+
+  // Sort state (3-cycle: asc → desc → none)
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -81,6 +113,143 @@ const CrmPipelineView = () => {
       }),
     }));
   }, [stages, searchQuery, ownerFilter]);
+
+  // Flatten filtered stages → CrmOpportunity[] for list mode
+  const flatOpportunities = useMemo(() => {
+    return filteredStages.flatMap(stage =>
+      (stage.opportunities ?? []).map(opp => ({
+        ...opp,
+        pipelineId: opp.pipelineId || stage.pipelineId,
+        stage: {
+          id: stage.id,
+          name: stage.name,
+          probability: stage.probability,
+          displayOrder: stage.displayOrder,
+          color: stage.color,
+          isWonStage: stage.isWonStage,
+          isLostStage: stage.isLostStage,
+          pipelineId: stage.pipelineId,
+          _count: stage._count,
+        },
+      }))
+    );
+  }, [filteredStages]);
+
+  const handleSort = useCallback((field: SortConfig['field']) => {
+    setSortConfig(prev => {
+      if (!prev || prev.field !== field) return { field, direction: 'asc' };
+      if (prev.direction === 'asc') return { field, direction: 'desc' };
+      return null;
+    });
+  }, []);
+
+  const sortedOpportunities = useMemo(() => {
+    if (!sortConfig) return flatOpportunities;
+    const sorted = [...flatOpportunities];
+    const dir = sortConfig.direction === 'asc' ? 1 : -1;
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      switch (sortConfig.field) {
+        case 'name': cmp = (a.name ?? '').localeCompare(b.name ?? ''); break;
+        case 'stageId': cmp = (a.stage?.name ?? '').localeCompare(b.stage?.name ?? ''); break;
+        case 'value': cmp = (a.value ?? 0) - (b.value ?? 0); break;
+        case 'probability': cmp = (a.probability ?? 0) - (b.probability ?? 0); break;
+        case 'expectedCloseDate':
+          const da = a.expectedCloseDate ? new Date(a.expectedCloseDate).getTime() : 0;
+          const db = b.expectedCloseDate ? new Date(b.expectedCloseDate).getTime() : 0;
+          cmp = da - db; break;
+        case 'createdAt':
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(); break;
+      }
+      return cmp * dir;
+    });
+    return sorted;
+  }, [flatOpportunities, sortConfig]);
+
+  // Bulk selection handlers
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelectedIds(new Set(sortedOpportunities.map(o => o.id)));
+  const clearSelection = () => setSelectedIds(new Set());
+  const isAllSelected = sortedOpportunities.length > 0 && sortedOpportunities.every(o => selectedIds.has(o.id));
+
+  // Re-fetch pipeline data after bulk actions
+  const refetchPipeline = async () => {
+    if (!activePipeline) return;
+    try {
+      const pls = await crmService.listPipelines();
+      setPipelines(pls);
+      const data = await crmService.getPipeline(activePipeline);
+      setStages(data.stages);
+      setTotalValue(data.totalValue);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleBulkAssignOwner = async (newOwnerId: string) => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.updateOpportunity(id, { ownerId: newOwnerId }); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setShowBulkOwnerSelect(false);
+    setBulkProcessing(false);
+    setBulkToast(`Assigned ${count} deal${count > 1 ? 's' : ''} to new owner`);
+    refetchPipeline();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const handleBulkChangeStage = async (stageId: string) => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.moveStage(id, stageId); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setShowBulkStageSelect(false);
+    setBulkProcessing(false);
+    setBulkToast(`Changed stage of ${count} deal${count > 1 ? 's' : ''}`);
+    refetchPipeline();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkProcessing(true);
+    let count = 0;
+    for (const id of selectedIds) {
+      try { await crmService.deleteOpportunity(id); count++; } catch {}
+    }
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    setBulkToast(`Deleted ${count} deal${count > 1 ? 's' : ''}`);
+    refetchPipeline();
+    setTimeout(() => setBulkToast(null), 3000);
+  };
+
+  const bulkActions: BulkAction[] = hasPermission(user, 'crm:admin') ? [
+    { label: 'Assign Owner', icon: 'person_add', onClick: async () => { setShowBulkOwnerSelect(true); } },
+    { label: 'Change Stage', icon: 'swap_horiz', onClick: async () => { setShowBulkStageSelect(true); } },
+    { label: 'Delete', icon: 'delete', variant: 'danger', onClick: handleBulkDelete },
+  ] : [];
+
+  // Delete single opportunity
+  const handleConfirmDelete = async () => {
+    if (!deleteItem) return;
+    setDeleting(true);
+    try {
+      await crmService.deleteOpportunity(deleteItem.id);
+      setShowDelete(false);
+      setDeleteItem(null);
+      refetchPipeline();
+    } catch (e) { console.error(e); }
+    finally { setDeleting(false); }
+  };
 
   // Helper: find which stage an opp belongs to + the opp itself
   const findOppAndSourceStage = (oppId: string, stagesArr: CrmPipelineStage[]) => {
@@ -232,8 +401,8 @@ const CrmPipelineView = () => {
     <div className="h-[calc(100vh-64px)] flex flex-col">
       <CrmNav />
       {/* Header */}
-      <div className="px-4 sm:px-8 py-4 border-b border-border bg-surface shrink-0">
-        <div className="max-w-[1440px] mx-auto flex items-center justify-between flex-wrap gap-4">
+      <div className="px-4 sm:px-8 py-4 sm:py-8" style={{ maxWidth: 1400, margin: '0 auto' }}>
+        <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
           <div>
             <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
               <Link to="/crm" className="hover:text-brand-700 transition-colors" style={{ textDecoration: 'none', color: 'inherit' }}>CRM</Link>
@@ -245,61 +414,72 @@ const CrmPipelineView = () => {
             </div>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Search */}
+            <div className="relative min-w-[200px] max-w-xs">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary text-lg">search</span>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search opportunities..."
+                className="w-full pl-10 pr-4 py-2 bg-surface-muted border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all"
+              />
+            </div>
+            {owners.length > 1 && (
+              <select
+                value={ownerFilter}
+                onChange={e => setOwnerFilter(e.target.value)}
+                className="px-3 py-1.5 bg-surface border border-border rounded-lg text-sm font-medium text-text-primary outline-none cursor-pointer"
+              >
+                <option value="">All owners</option>
+                {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            )}
+            {(searchQuery || ownerFilter) && (
+              <button
+                onClick={() => { setSearchQuery(''); setOwnerFilter(''); }}
+                className="text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors border-0 cursor-pointer bg-transparent"
+              >
+                Clear
+              </button>
+            )}
             {pipelines.length > 1 && (
               <select value={activePipeline} onChange={e => setActivePipeline(e.target.value)}
-                className="px-4 py-2 bg-surface border border-border rounded-lg text-sm font-semibold text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
+                className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
                 {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             )}
             <button onClick={openCreateOpp}
-              className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-              style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-base">add</span> New Opportunity
+              className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors border-0 cursor-pointer"
+              style={{ fontFamily: 'var(--font-sans)' }}>
+              <span className="material-symbols-outlined text-lg">add</span> New Opportunity
             </button>
-            <button onClick={() => navigate('/crm/opportunities')} className="flex items-center gap-2 border border-border bg-surface text-text-primary px-4 py-2 rounded-lg text-sm font-bold hover:bg-bg-subtle transition-colors" style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-              <span className="material-symbols-outlined text-lg">list</span> List View
-            </button>
+            <div className="flex items-center gap-1 border border-border rounded-lg overflow-hidden">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 text-sm border-0 cursor-pointer ${viewMode === 'list' ? 'bg-brand-700 text-white' : 'bg-surface text-text-secondary hover:bg-bg-subtle'}`}
+                title="Table view"
+              >
+                <span className="material-symbols-outlined text-base">view_list</span>
+              </button>
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={`p-2 text-sm border-0 cursor-pointer ${viewMode === 'kanban' ? 'bg-brand-700 text-white' : 'bg-surface text-text-secondary hover:bg-bg-subtle'}`}
+                title="Kanban view"
+              >
+                <span className="material-symbols-outlined text-base">view_kanban</span>
+              </button>
+            </div>
           </div>
-        </div>
-        {/* Search & Filter — visible on sm+ */}
-        <div className="max-w-[1440px] mx-auto mt-3 flex items-center gap-3">
-          <div className="relative flex-1 max-w-xs">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-base">search</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search opportunities..."
-              className="w-full pl-9 pr-3 py-1.5 border border-border rounded-lg text-sm bg-surface-muted outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all"
-              style={{ fontFamily: 'var(--font-sans)' }}
-            />
-          </div>
-          {owners.length > 1 && (
-            <select
-              value={ownerFilter}
-              onChange={e => setOwnerFilter(e.target.value)}
-              className="px-3 py-1.5 bg-surface border border-border rounded-lg text-sm font-medium text-text-primary outline-none cursor-pointer"
-              style={{ fontFamily: 'var(--font-sans)' }}
-            >
-              <option value="">All owners</option>
-              {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
-          )}
-          {(searchQuery || ownerFilter) && (
-            <button
-              onClick={() => { setSearchQuery(''); setOwnerFilter(''); }}
-              className="text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
-              style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              Clear
-            </button>
-          )}
         </div>
       </div>
 
-      {/* Kanban Board */}
-      <div className="flex-1 overflow-x-auto px-4 sm:px-8 py-5" style={{ background: 'var(--color-surface-muted)' }}>
+      {/* Board / Table area */}
+      <div className={`flex-1 overflow-auto px-4 sm:px-8 py-5 ${viewMode === 'kanban' ? 'overflow-x-auto' : ''}`} style={{ background: 'var(--color-surface-muted)' }}>
         {loading ? (
+          viewMode === 'list' ? (
+            <div className="bg-surface rounded-xl border border-border p-8 text-center text-text-secondary text-sm">Loading opportunities...</div>
+          ) : (
           <div className="flex gap-4 h-full">
             {[0,1,2,3,4].map(i => (
               <div key={i} className="w-72 shrink-0 bg-surface border border-border rounded-xl p-4">
@@ -313,6 +493,86 @@ const CrmPipelineView = () => {
               </div>
             ))}
           </div>
+          )
+        ) : viewMode === 'list' ? (
+          <>
+            {/* Bulk action bar */}
+            {selectedIds.size > 0 && (
+              <BulkActionBar
+                selectedCount={selectedIds.size}
+                totalCount={sortedOpportunities.length}
+                onSelectAll={selectAll}
+                onClearSelection={clearSelection}
+                actions={bulkActions}
+                loading={bulkProcessing}
+              />
+            )}
+            {bulkToast && (
+              <div className="mb-3 px-4 py-2 bg-brand-50 text-brand-700 text-sm font-semibold rounded-lg border border-brand-200">
+                {bulkToast}
+              </div>
+            )}
+            <OpportunitiesTable
+              opportunities={sortedOpportunities}
+              pipelines={pipelines.map(p => ({
+                id: p.id,
+                stages: p.stages?.map(s => ({
+                  id: s.id, name: s.name, probability: s.probability,
+                  displayOrder: s.displayOrder, color: s.color,
+                  isWonStage: s.isWonStage, isLostStage: s.isLostStage,
+                })),
+              }))}
+              sortConfig={sortConfig}
+              onSort={handleSort}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+              onSelectAll={selectAll}
+              onClearSelection={clearSelection}
+              onEdit={(opp) => navigate(`/crm/opportunities/${opp.id}`)}
+              onDelete={(opp) => { setDeleteItem(opp); setShowDelete(true); }}
+              onStageChange={handleMobileStageChange}
+              isAllSelected={isAllSelected}
+              user={user}
+            />
+            {/* Bulk owner select modal */}
+            {showBulkOwnerSelect && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkOwnerSelect(false)}>
+                <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+                <div className="relative bg-surface rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-lg font-black text-text-primary mb-4">Assign Owner</h3>
+                  <select
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-surface-muted outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 mb-4"
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                    defaultValue=""
+                    onChange={e => { if (e.target.value) handleBulkAssignOwner(e.target.value); }}
+                  >
+                    <option value="">Select owner...</option>
+                    {crmUsers.map(u => <option key={u.id} value={u.id}>{u.firstName} {u.lastName}</option>)}
+                  </select>
+                  <button onClick={() => setShowBulkOwnerSelect(false)} className="text-sm text-text-secondary hover:text-text-primary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+                </div>
+              </div>
+            )}
+            {/* Bulk stage select modal */}
+            {showBulkStageSelect && selectedPipeline && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setShowBulkStageSelect(false)}>
+                <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+                <div className="relative bg-surface rounded-2xl shadow-2xl ring-1 ring-black/5 w-full max-w-sm mx-4 p-6" onClick={e => e.stopPropagation()}>
+                  <h3 className="text-lg font-black text-text-primary mb-4">Change Stage</h3>
+                  <select
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-surface-muted outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 mb-4"
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                    defaultValue=""
+                    onChange={e => { if (e.target.value) handleBulkChangeStage(e.target.value); }}
+                  >
+                    <option value="">Select stage...</option>
+                    {(selectedPipeline.stages ?? []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                  <button onClick={() => setShowBulkStageSelect(false)} className="text-sm text-text-secondary hover:text-text-primary" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <>
             {/* Desktop: kanban columns — hidden below lg */}
@@ -519,6 +779,17 @@ const CrmPipelineView = () => {
           autoFocus
         />
       </ConfirmDialog>
+
+      {/* Delete opportunity confirmation */}
+      <ConfirmDialog
+        open={showDelete}
+        title="Delete Opportunity"
+        message={`Are you sure you want to delete "${deleteItem?.name ?? 'this opportunity'}"? This action cannot be undone.`}
+        confirmLabel={deleting ? 'Deleting...' : 'Delete'}
+        confirmVariant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => { setShowDelete(false); setDeleteItem(null); }}
+      />
     </div>
   );
 };
