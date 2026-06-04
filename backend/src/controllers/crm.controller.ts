@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
+import { resolveVisibleOwnerIds, applyOwnerScope } from '../services/crm-scope.service';
 import { notify } from '../services/notification.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import crmReportsService from '../services/crm-reports.service';
@@ -55,13 +56,10 @@ class CrmController {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const where: any = { deletedAt: null };
-    // Ownership scoping: non-admin users only see their own records
-    const isAdmin = req.user!.roles.includes('ADMIN') || req.user!.permissions.includes('crm:admin');
-    if (!isAdmin) {
-      where.ownerId = req.user!.id;
-    } else if (ownerId) {
-      where.ownerId = ownerId;
-    }
+    // Team-scoped RBAC: admins see all, managers see own+team, reps see only own
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    Object.assign(where, applyOwnerScope({}, visibleOwnerIds));
+    if (visibleOwnerIds === null && ownerId) where.ownerId = ownerId; // admin may filter to one owner
     if (industry) where.industry = industry;
     if (isActive !== undefined) where.isActive = isActive === 'true';
     if (purchaseCashTrust !== undefined) where.purchaseCashTrust = purchaseCashTrust === 'true';
@@ -141,10 +139,10 @@ class CrmController {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const where: any = { isActive: true, deletedAt: null };
-    // Ownership scoping: non-admin users only see contacts in their own accounts
-    const isAdmin = req.user!.roles.includes('ADMIN') || req.user!.permissions.includes('crm:admin');
-    if (!isAdmin) {
-      where.account = { ownerId: req.user!.id };
+    // Team-scoped RBAC: contacts scoped by parent account ownership
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    if (visibleOwnerIds !== null) {
+      where.account = { ownerId: { in: visibleOwnerIds } };
     }
     if (accountId) where.accountId = accountId;
     if (search) {
@@ -243,13 +241,10 @@ class CrmController {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const where: any = { deletedAt: null };
-    // Ownership scoping: non-admin users only see their own leads
-    const isAdmin = req.user!.roles.includes('ADMIN') || req.user!.permissions.includes('crm:admin');
-    if (!isAdmin) {
-      where.ownerId = req.user!.id;
-    } else if (ownerId) {
-      where.ownerId = ownerId;
-    }
+    // Team-scoped RBAC: admins see all, managers see own+team, reps see only own
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    Object.assign(where, applyOwnerScope({}, visibleOwnerIds));
+    if (visibleOwnerIds === null && ownerId) where.ownerId = ownerId; // admin may filter to one owner
     if (status) where.status = status;
     if (source) where.source = source;
     if (stale) {
@@ -404,13 +399,10 @@ class CrmController {
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
     const where: any = { deletedAt: null };
-    // Ownership scoping: non-admin users only see their own opportunities
-    const isAdmin = req.user!.roles.includes('ADMIN') || req.user!.permissions.includes('crm:admin');
-    if (!isAdmin) {
-      where.ownerId = req.user!.id;
-    } else if (ownerId) {
-      where.ownerId = ownerId;
-    }
+    // Team-scoped RBAC: admins see all, managers see own+team, reps see only own
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    Object.assign(where, applyOwnerScope({}, visibleOwnerIds));
+    if (visibleOwnerIds === null && ownerId) where.ownerId = ownerId; // admin may filter to one owner
     if (pipelineId) where.pipelineId = pipelineId;
     if (stageId) where.stageId = stageId;
     if (accountId) where.accountId = accountId;
