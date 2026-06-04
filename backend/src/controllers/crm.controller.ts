@@ -1706,6 +1706,43 @@ class CrmController {
     await duplicateService.dismissDuplicate(req.params.id as string, req.user!.id);
     res.json({ status: 'success', message: 'Duplicate dismissed' });
   });
+
+  // ======== LEAD SCORING RULES ========
+
+  listScoringRules = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const rules = await prisma.crmLeadScoringRule.findMany({ orderBy: { createdAt: 'asc' } });
+    res.json({ status: 'success', data: { rules } });
+  });
+
+  createScoringRule = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { field, operator, value, points, isActive } = req.body;
+    const rule = await prisma.crmLeadScoringRule.create({
+      data: { field, operator, value, points, isActive: isActive ?? true },
+    });
+    res.status(201).json({ status: 'success', data: { rule } });
+  });
+
+  updateScoringRule = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const existing = await prisma.crmLeadScoringRule.findUnique({ where: { id: req.params.id as string } });
+    if (!existing) throw new AppError('Scoring rule not found', 404);
+    const rule = await prisma.crmLeadScoringRule.update({
+      where: { id: req.params.id as string },
+      data: req.body,
+    });
+    res.json({ status: 'success', data: { rule } });
+  });
+
+  deleteScoringRule = asyncHandler(async (req: AuthRequest, res: Response) => {
+    await prisma.crmLeadScoringRule.delete({ where: { id: req.params.id as string } });
+    res.json({ status: 'success', message: 'Scoring rule deleted' });
+  });
+
+  // Recompute all lead scores
+  recomputeScores = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const { recomputeAllLeadScores } = await import('../services/crm-lead-scoring.service');
+    const result = await recomputeAllLeadScores();
+    res.json({ status: 'success', data: result });
+  });
 }
 
 export const crmController = new CrmController();

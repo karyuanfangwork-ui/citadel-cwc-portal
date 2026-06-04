@@ -205,4 +205,11 @@ router.get('/duplicates', requirePermission('crm:read'), crmController.listDupli
 router.post('/duplicates/:id/merge', requirePermission('crm:write'), crmController.mergeDuplicates);
 router.post('/duplicates/:id/dismiss', requirePermission('crm:write'), crmController.dismissDuplicate);
 
+// Lead Scoring Rules (admin-only)
+router.get('/lead-scoring-rules', requirePermission('crm:admin'), crmController.listScoringRules);
+router.post('/lead-scoring-rules', requirePermission('crm:admin'), crmController.createScoringRule);
+router.put('/lead-scoring-rules/:id', requirePermission('crm:admin'), crmController.updateScoringRule);
+router.delete('/lead-scoring-rules/:id', requirePermission('crm:admin'), crmController.deleteScoringRule);
+router.post('/lead-scoring-rules/recompute', requirePermission('crm:admin'), crmController.recomputeScores);
+
 export default router;
