@@ -1763,6 +1763,34 @@ class CrmController {
     const result = await recomputeAllLeadScores();
     res.json({ status: 'success', data: result });
   });
+
+  // ======== ASSIGNMENT RULES ========
+
+  listAssignmentRules = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const rules = await prisma.crmAssignmentRule.findMany({
+      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
+      include: { territory: { select: { id: true, name: true } } },
+    });
+    res.json({ status: 'success', data: rules });
+  });
+
+  createAssignmentRule = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const rule = await prisma.crmAssignmentRule.create({ data: req.body });
+    res.status(201).json({ status: 'success', data: { rule } });
+  });
+
+  updateAssignmentRule = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const rule = await prisma.crmAssignmentRule.update({
+      where: { id: req.params.id as string },
+      data: req.body,
+    });
+    res.json({ status: 'success', data: { rule } });
+  });
+
+  deleteAssignmentRule = asyncHandler(async (req: AuthRequest, res: Response) => {
+    await prisma.crmAssignmentRule.delete({ where: { id: req.params.id as string } });
+    res.json({ status: 'success', message: 'Assignment rule deleted' });
+  });
 }
 
 export const crmController = new CrmController();

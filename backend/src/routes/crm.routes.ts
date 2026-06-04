@@ -212,4 +212,10 @@ router.put('/lead-scoring-rules/:id', requirePermission('crm:admin'), crmControl
 router.delete('/lead-scoring-rules/:id', requirePermission('crm:admin'), crmController.deleteScoringRule);
 router.post('/lead-scoring-rules/recompute', requirePermission('crm:admin'), crmController.recomputeScores);
 
+// Assignment Rules (admin-only)
+router.get('/assignment-rules', requirePermission('crm:admin'), crmController.listAssignmentRules);
+router.post('/assignment-rules', requirePermission('crm:admin'), crmController.createAssignmentRule);
+router.put('/assignment-rules/:id', requirePermission('crm:admin'), crmController.updateAssignmentRule);
+router.delete('/assignment-rules/:id', requirePermission('crm:admin'), crmController.deleteAssignmentRule);
+
 export default router;
