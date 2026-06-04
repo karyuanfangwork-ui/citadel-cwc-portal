@@ -10,6 +10,10 @@ interface StageOption {
   color?: string;
   isWonStage?: boolean;
   isLostStage?: boolean;
+  requiredFields?: string[];
+  enforceForwardOnly?: boolean;
+  requiresApproval?: boolean;
+  approvalThreshold?: number | null;
 }
 
 interface StageDropdownProps {
@@ -135,6 +139,15 @@ const StageDropdown: React.FC<StageDropdownProps> = ({ currentStage, stages, onC
                 <span className="flex-1" style={{ color: isCurrent ? color : 'var(--color-text-primary)' }}>
                   {stage.name.replace(/_/g, ' ')}
                 </span>
+                {stage.requiresApproval && (
+                  <span className="material-symbols-outlined text-xs text-warning" title="Requires approval">lock</span>
+                )}
+                {stage.enforceForwardOnly && !stage.requiresApproval && (
+                  <span className="material-symbols-outlined text-xs text-text-secondary" title="Forward only">arrow_forward</span>
+                )}
+                {(stage.requiredFields && stage.requiredFields.length > 0) && !stage.requiresApproval && !stage.enforceForwardOnly && (
+                  <span className="material-symbols-outlined text-xs text-text-secondary" title={`Requires: ${stage.requiredFields.join(', ')}`}>checklist</span>
+                )}
                 <span className="text-xs text-text-tertiary">{stage.probability}%</span>
                 {isCurrent && (
                   <span className="material-symbols-outlined text-base ml-1" style={{ color }}>check</span>

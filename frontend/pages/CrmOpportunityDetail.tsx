@@ -187,8 +187,12 @@ const CrmOpportunityDetail = () => {
       reload();
       setShowMoveStage(false);
       setLostReason('');
-    } catch (e) { console.error(e); }
-    finally { setSaving(false); }
+    } catch (e: any) {
+      console.error(e);
+      // Surface stage-gate rejection
+      const gateMsg = e?.response?.data?.error as string | undefined;
+      if (gateMsg) alert(gateMsg);
+    } finally { setSaving(false); }
   };
 
   const handleAddActivity = async (e: React.FormEvent) => {

@@ -83,9 +83,14 @@ const CrmOpportunities = () => {
     try {
       await crmService.moveStage(oppId, stageId, lostReason);
       fetchOpportunities();
-    } catch {
+    } catch (e: any) {
       // Revert on failure
       setOpportunities(opps => opps.map(o => o.id === oppId ? prev : o));
+      // Surface stage-gate rejection
+      const gateMsg = e?.response?.data?.error as string | undefined;
+      if (gateMsg) setBulkToast(gateMsg);
+      else setBulkToast('Stage move failed');
+      setTimeout(() => setBulkToast(null), 5000);
     }
   }, [opportunities, pipelines]);
 

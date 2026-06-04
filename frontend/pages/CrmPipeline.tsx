@@ -315,9 +315,14 @@ const CrmPipelineView = () => {
     setDraggedOpp(null);
     try {
       await crmService.moveStage(oppId, stageId);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       setStages(result.prevStages);
+      // Surface stage-gate rejection
+      const gateMsg = e?.response?.data?.error as string | undefined;
+      if (gateMsg) setBulkToast(gateMsg);
+      else setBulkToast('Stage move failed');
+      setTimeout(() => setBulkToast(null), 5000);
     }
   };
 
@@ -334,9 +339,13 @@ const CrmPipelineView = () => {
     if (!result) return;
     try {
       await crmService.moveStage(oppId, stageId, lostReason || undefined);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       setStages(result.prevStages);
+      const gateMsg = e?.response?.data?.error as string | undefined;
+      if (gateMsg) setBulkToast(gateMsg);
+      else setBulkToast('Stage move failed');
+      setTimeout(() => setBulkToast(null), 5000);
     }
   };
 
@@ -354,9 +363,13 @@ const CrmPipelineView = () => {
     if (!result) return;
     try {
       await crmService.moveStage(oppId, stageId, lostReasonArg);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
       setStages(result.prevStages);
+      const gateMsg = e?.response?.data?.error as string | undefined;
+      if (gateMsg) setBulkToast(gateMsg);
+      else setBulkToast('Stage move failed');
+      setTimeout(() => setBulkToast(null), 5000);
     }
   };
 

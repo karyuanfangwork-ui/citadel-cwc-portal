@@ -65,6 +65,8 @@ export interface CrmPipeline {
 export interface CrmPipelineStage {
   id: string; pipelineId: string; name: string; displayOrder: number;
   probability: number; color: string; isWonStage: boolean; isLostStage: boolean;
+  requiredFields?: string[]; enforceForwardOnly?: boolean;
+  requiresApproval?: boolean; approvalThreshold?: number | null;
   opportunities?: CrmOpportunity[];
   _count?: { opportunities: number };
 }
