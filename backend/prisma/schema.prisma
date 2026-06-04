@@ -1659,6 +1659,9 @@ model CrmLead {
   aiScoreReason String?   @map("ai_score_reason") @db.Text
   aiScoredAt    DateTime? @map("ai_scored_at") @db.Timestamp(6)
 
+  // Rule-based scoring
+  ruleScore     Int?      @map("rule_score")
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
@@ -1677,6 +1680,20 @@ model CrmLead {
   syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailLead")
   customFields     Json?              @map("custom_fields")
   @@map("crm_leads")
+}
+
+// CRM Lead Scoring Rules
+model CrmLeadScoringRule {
+  id        String @id @default(uuid()) @db.Uuid
+  field     String @db.VarChar(100)
+  operator  String @db.VarChar(20) // equals, contains, gt, lt, starts_with, not_empty
+  value     String @db.VarChar(255)
+  points    Int
+  isActive  Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@map("crm_lead_scoring_rules")
 }
 
 // CRM Pipelines — configurable deal pipelines
