@@ -376,6 +376,7 @@ function EmployeeAssetsTab() {
   const [selectedUserAssignments, setSelectedUserAssignments] = useState<AssetAssignment[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [returning, setReturning] = useState<string | null>(null);
+  const [confirmReturn, setConfirmReturn] = useState<AssetAssignment | null>(null);
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
@@ -553,13 +554,21 @@ function EmployeeAssetsTab() {
                             <td className="px-5 py-2.5 text-text-secondary">{humanize(a.asset?.category ?? '')}</td>
                             <td className="px-5 py-2.5 text-text-secondary">{new Date(a.assignedAt).toLocaleDateString()}</td>
                             <td className="px-5 py-2.5 text-right">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleReturn(a); }}
-                                disabled={returning === a.id}
-                                className="text-xs px-2.5 py-1 border border-cwc-border rounded-cwc-md hover:bg-surface disabled:opacity-50 transition-colors"
-                              >
-                                {returning === a.id ? 'Returning...' : 'Return'}
-                              </button>
+                              {confirmReturn?.id === a.id ? (
+                                <div className="flex items-center gap-2 justify-end">
+                                  <span className="text-xs text-red-700 font-medium">Return this asset?</span>
+                                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => setConfirmReturn(null)}>Cancel</Button>
+                                  <Button variant="danger" size="sm" className="text-xs" loading={returning === a.id} onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleReturn(a); setConfirmReturn(null); }}>Confirm</Button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setConfirmReturn(a); }}
+                                  disabled={returning === a.id}
+                                  className="text-xs px-2.5 py-1 border border-cwc-border rounded-cwc-md hover:bg-surface disabled:opacity-50 transition-colors"
+                                >
+                                  {returning === a.id ? 'Returning...' : 'Return'}
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -1089,9 +1098,10 @@ function AssetFormModal({ onClose }: { onClose: () => void }) {
       footer={
         <div className="flex justify-end gap-3">
           <Button variant="ghost" size="sm" type="button" onClick={onClose}>Cancel</Button>
-          <Button variant="primary" size="sm" type="submit" form="asset-form" loading={saving}>
+          <button type="submit" form="asset-form" disabled={saving} className="inline-flex items-center justify-center font-sans font-semibold rounded-cwc-md select-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-brand-500/20 bg-brand-700 text-white hover:bg-brand-600 active:bg-brand-900 text-sm px-3 py-1.5 gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+            {saving && <span className="material-symbols-outlined text-[16px] animate-spin" aria-hidden="true">progress_activity</span>}
             Register Asset
-          </Button>
+          </button>
         </div>
       }
     >
