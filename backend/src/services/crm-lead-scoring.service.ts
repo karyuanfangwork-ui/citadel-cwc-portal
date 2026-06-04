@@ -34,7 +34,6 @@ export function computeRuleScore(lead: LeadLike, rules: ScoringRule[]): number {
 
     switch (rule.operator) {
       case 'equals': {
-        // Case-insensitive string comparison; numeric exact match
         if (raw == null) break;
         if (typeof raw === 'number') {
           matched = raw === Number(ruleValue);
@@ -75,4 +74,44 @@ export function computeRuleScore(lead: LeadLike, rules: ScoringRule[]): number {
   }
 
   return total;
+}
+
+// ============================================================================
+// DB-BOUND RECOMPUTE
+// ============================================================================
+
+import prisma from '../utils/prisma';
+
+/**
+ * Recompute and persist ruleScore for a single lead.
+ */
+export async function recomputeLeadRuleScore(leadId: string): Promise<number> {
+  const [lead, rules] = await Promise.all([
+    prisma.crmLead.findUnique({ where: { id: leadId } }),
+    prisma.crmLeadScoringRule.findMany({ where: { isActive: true } }),
+  ]);
+  if (!lead) return 0;
+
+  const score = computeRuleScore(lead as any, rules as any);
+  await prisma.crmLead.update({ where: { id: leadId }, data: { ruleScore: score } });
+  return score;
+}
+
+/**
+ * Nightly batch: recompute ruleScore for all active leads.
+ */
+export async function recomputeAllLeadScores(): Promise<{ count: number }> {
+  const rules = await prisma.crmLeadScoringRule.findMany({ where: { isActive: true } });
+  const leads = await prisma.crmLead.findMany({
+    where: { deletedAt: null },
+    select: { id: true, source: true, status: true, companyName: true, title: true, estimatedValue: true, contactEmail: true, contactPhone: true, description: true },
+  });
+
+  let count = 0;
+  for (const lead of leads) {
+    const score = computeRuleScore(lead as any, rules as any);
+    await prisma.crmLead.update({ where: { id: lead.id }, data: { ruleScore: score } });
+    count++;
+  }
+  return { count };
 }

@@ -6,6 +6,7 @@ import crmService from '../services/crm.service';
 import { resolveVisibleOwnerIds, applyOwnerScope } from '../services/crm-scope.service';
 import { detectCycle } from '../services/crm-account-hierarchy.service';
 import * as crmForecastService from '../services/crm-forecast.service';
+import { recomputeLeadRuleScore } from '../services/crm-lead-scoring.service';
 import { notify } from '../services/notification.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import crmReportsService from '../services/crm-reports.service';
@@ -392,6 +393,12 @@ class CrmController {
         logger.warn(`[CRM] Duplicate check failed for lead ${lead.id}`, { error: err }),
       );
     });
+    // Recompute rule-based score
+    setImmediate(() => {
+      recomputeLeadRuleScore(lead.id).catch((err: unknown) =>
+        logger.warn(`[CRM] Rule scoring failed for lead ${lead.id}`, { error: err }),
+      );
+    });
   });
 
   updateLead = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -409,6 +416,12 @@ class CrmController {
     }
     res.json({ status: 'success', data: { lead } });
     broadcast('crm_update', { type: 'lead.updated', entityType: 'lead', id: lead.id, changedBy: req.user!.id });
+    // Recompute rule-based score on update
+    setImmediate(() => {
+      recomputeLeadRuleScore(lead.id).catch((err: unknown) =>
+        logger.warn(`[CRM] Rule scoring failed for lead ${lead.id}`, { error: err }),
+      );
+    });
   });
 
   convertLead = asyncHandler(async (req: AuthRequest, res: Response) => {
