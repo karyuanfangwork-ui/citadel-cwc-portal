@@ -1,146 +1,187 @@
-import React, { useState } from 'react';
-
-interface PipelineCard {
-  id: string;
-  name: string;
-  value?: number;
-  contactName?: string;
-  closeDate?: string;
-}
-
-interface Stage {
-  id: string;
-  name: string;
-  color?: string;
-  cards: PipelineCard[];
-}
+import React, { useState, useMemo } from 'react';
+import { CrmPipelineStage, CrmOpportunity } from '../../services/crm.service';
+import { formatCurrency, formatShortDate, winProbStyle, stageBadgeColor } from '../crm/crmConstants';
 
 interface Props {
-  stages: Stage[];
-  onCardClick: (card: PipelineCard) => void;
-  onStageChange?: (cardId: string, newStageId: string) => void;
+  stages: CrmPipelineStage[];
+  onCardClick: (oppId: string) => void;
+  onStageChange?: (oppId: string, stageId: string, lostReason?: string) => void;
+  searchQuery?: string;
 }
 
-export default function CrmMobilePipeline({ stages, onCardClick, onStageChange }: Props) {
+export default function CrmMobilePipeline({ stages, onCardClick, onStageChange, searchQuery }: Props) {
   const [activeStage, setActiveStage] = useState(0);
+  const [touchStartX, setTouchStartX] = useState(0);
+  const [touchStartY, setTouchStartY] = useState(0);
+
   const currentStage = stages[activeStage];
 
-  const formatCurrency = (val?: number) => {
-    if (val == null) return '';
-    return new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
-  };
+  const filteredOpportunities = useMemo(() => {
+    const opps = currentStage?.opportunities ?? [];
+    if (!searchQuery) return opps;
+    const q = searchQuery.toLowerCase();
+    return opps.filter(opp =>
+      opp.name.toLowerCase().includes(q) ||
+      opp.account?.name?.toLowerCase().includes(q) ||
+      (opp.owner && `${opp.owner.firstName} ${opp.owner.lastName}`.toLowerCase().includes(q))
+    );
+  }, [currentStage?.opportunities, searchQuery]);
 
-  const handleSwipeLeft = () => {
-    if (activeStage < stages.length - 1) {
-      setActiveStage(activeStage + 1);
-    }
-  };
-
-  const handleSwipeRight = () => {
-    if (activeStage > 0) {
-      setActiveStage(activeStage - 1);
-    }
-  };
-
-  let touchStartX = 0;
-  let touchStartY = 0;
+  const allOpportunityCount = useMemo(() => {
+    if (!searchQuery) return undefined;
+    return stages.reduce((sum, s) => {
+      const opps = s.opportunities ?? [];
+      const q = searchQuery.toLowerCase();
+      return sum + opps.filter(opp =>
+        opp.name.toLowerCase().includes(q) ||
+        opp.account?.name?.toLowerCase().includes(q) ||
+        (opp.owner && `${opp.owner.firstName} ${opp.owner.lastName}`.toLowerCase().includes(q))
+      ).length;
+    }, 0);
+  }, [stages, searchQuery]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
+    setTouchStartX(e.touches[0].clientX);
+    setTouchStartY(e.touches[0].clientY);
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     const dx = e.changedTouches[0].clientX - touchStartX;
     const dy = e.changedTouches[0].clientY - touchStartY;
-    // Only respond to horizontal swipes
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
-      if (dx < 0) handleSwipeLeft();
-      else handleSwipeRight();
+      if (dx < 0 && activeStage < stages.length - 1) setActiveStage(activeStage + 1);
+      else if (dx > 0 && activeStage > 0) setActiveStage(activeStage - 1);
     }
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="flex flex-col h-full">
       {/* Stage Tabs */}
-      <div style={{
-        display: 'flex', overflowX: 'auto', gap: 0,
-        borderBottom: '2px solid #e5e7eb', background: '#fff',
-        WebkitOverflowScrolling: 'touch',
-      }}>
-        {stages.map((stage, i) => (
-          <button
-            key={stage.id}
-            onClick={() => setActiveStage(i)}
-            style={{
-              flex: '1 0 auto', padding: '10px 8px', border: 'none', background: 'none',
-              cursor: 'pointer', fontSize: 13, fontWeight: i === activeStage ? 600 : 400,
-              color: i === activeStage ? '#2563eb' : '#6b7280',
-              borderBottom: i === activeStage ? `2px solid ${stage.color || '#2563eb'}` : '2px solid transparent',
-              whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent',
-            }}
-          >
-            {stage.name}
-            <span style={{ fontSize: 11, marginLeft: 4, color: '#9ca3af' }}>({stage.cards.length})</span>
-          </button>
-        ))}
+      <div className="flex overflow-x-auto border-b-2 border-border bg-surface"
+        style={{ WebkitOverflowScrolling: 'touch' }}>
+        {stages.map((stage, i) => {
+          const color = stageBadgeColor(stage);
+          const isActive = i === activeStage;
+          return (
+            <button
+              key={stage.id}
+              onClick={() => setActiveStage(i)}
+              className="flex-1 px-2 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors"
+              style={{
+                border: 'none',
+                background: 'none',
+                cursor: 'pointer',
+                color: isActive ? color : 'var(--color-text-secondary)',
+                borderBottom: isActive ? `2px solid ${color}` : '2px solid transparent',
+                WebkitTapHighlightColor: 'transparent',
+                fontWeight: isActive ? 700 : 400,
+              }}
+            >
+              {stage.name}
+              <span className="ml-1 text-text-tertiary" style={{ fontSize: 10 }}>
+                ({(stage.opportunities ?? []).length})
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Stage Info */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-surface">
+        <h3 className="text-sm font-bold" style={{ color: stageBadgeColor(currentStage) }}>
+          {currentStage?.name}
+        </h3>
+        <span className="text-xs text-text-secondary">
+          {filteredOpportunities.length} deal{filteredOpportunities.length !== 1 ? 's' : ''}
+          {currentStage && ` · ${formatCurrency(currentStage.probability * (filteredOpportunities.reduce((s, o) => s + Number(o.value), 0) / 100))} weighted`}
+        </span>
       </div>
 
       {/* Cards Area */}
       <div
-        style={{ flex: 1, overflowY: 'auto', padding: 12 }}
+        className="flex-1 overflow-y-auto p-3 space-y-2"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        style={{ background: 'var(--color-surface-muted)' }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: currentStage?.color || '#111827' }}>
-            {currentStage?.name}
-          </h3>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>{currentStage?.cards.length || 0} deals</span>
-        </div>
-
-        {currentStage?.cards.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 40, color: '#9ca3af', fontSize: 14 }}>
-            No deals in this stage
+        {filteredOpportunities.length === 0 && (
+          <div className="text-center py-10 text-text-tertiary text-sm">
+            {searchQuery ? 'No matching deals' : 'No deals in this stage'}
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {currentStage?.cards.map(card => (
+        {filteredOpportunities.map(opp => {
+          const ws = opp.aiWinProbability != null ? winProbStyle(opp.aiWinProbability) : null;
+          return (
             <div
-              key={card.id}
-              onClick={() => onCardClick(card)}
-              style={{
-                background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10,
-                padding: '10px 14px', cursor: 'pointer',
-                WebkitTapHighlightColor: 'transparent',
-              }}
+              key={opp.id}
+              onClick={() => onCardClick(opp.id)}
+              className="bg-surface border border-border rounded-xl p-3.5 cursor-pointer active:scale-[0.98] transition-transform"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
-              <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>{card.name}</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                {card.value != null && (
-                  <span style={{ fontSize: 13, color: '#2563eb', fontWeight: 500 }}>{formatCurrency(card.value)}</span>
-                )}
-                {card.closeDate && (
-                  <span style={{ fontSize: 12, color: '#9ca3af' }}>Close: {card.closeDate}</span>
+              <div className="text-sm font-bold text-text-primary mb-1 line-clamp-2" title={opp.name}>
+                {opp.name}
+              </div>
+              <div className="text-base font-black text-brand-600 mb-1.5">
+                {formatCurrency(Number(opp.value))}
+              </div>
+
+              {ws && (
+                <span
+                  className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold mb-1.5"
+                  style={{ background: ws.bg, color: ws.text }}
+                  title={opp.aiWinReason ?? 'AI Win Probability'}
+                >
+                  <span className="material-symbols-outlined text-sm">{ws.icon}</span>
+                  AI {opp.aiWinProbability}%
+                </span>
+              )}
+
+              <div className="flex items-center justify-between mt-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-text-tertiary text-sm">business</span>
+                  <span className="text-xs text-text-secondary truncate max-w-[160px]" title={opp.account?.name ?? ''}>
+                    {opp.account?.name || '—'}
+                  </span>
+                </div>
+                {opp.expectedCloseDate && (
+                  <span className="text-xs text-text-tertiary">{formatShortDate(opp.expectedCloseDate)}</span>
                 )}
               </div>
-              {card.contactName && (
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{card.contactName}</div>
+
+              {opp.owner && (
+                <div className="flex items-center gap-1.5 mt-2">
+                  <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center">
+                    <span className="text-[10px] font-bold text-brand-600">
+                      {opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}
+                    </span>
+                  </div>
+                  <span className="text-xs text-text-tertiary" title={`${opp.owner.firstName} ${opp.owner.lastName}`}>
+                    {opp.owner.firstName} {opp.owner.lastName}
+                  </span>
+                </div>
               )}
             </div>
-          ))}
-        </div>
+          );
+        })}
 
-        {/* Stage Navigation Hints */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12 }}>
+        {/* Stage Navigation */}
+        <div className="flex justify-between pt-2 pb-4">
           {activeStage > 0 ? (
-            <button onClick={handleSwipeRight} style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', fontSize: 13, cursor: 'pointer' }}>
+            <button
+              onClick={() => setActiveStage(activeStage - 1)}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-surface text-text-primary hover:bg-bg-subtle transition-colors"
+              style={{ cursor: 'pointer' }}
+            >
               ← {stages[activeStage - 1]?.name}
             </button>
           ) : <div />}
           {activeStage < stages.length - 1 ? (
-            <button onClick={handleSwipeLeft} style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, background: '#fff', fontSize: 13, cursor: 'pointer' }}>
+            <button
+              onClick={() => setActiveStage(activeStage + 1)}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-border bg-surface text-text-primary hover:bg-bg-subtle transition-colors"
+              style={{ cursor: 'pointer' }}
+            >
               {stages[activeStage + 1]?.name} →
             </button>
           ) : <div />}

@@ -1,19 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmPipeline, CrmPipelineStage, CrmOpportunity } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
-import StateBadge from '../src/components/ui/StateBadge';
 import ConfirmDialog from '../src/components/ConfirmDialog';
-
-const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
-const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—';
-const winProbStyle = (prob: number) =>
-  prob >= 70
-    ? { bg: 'var(--color-hr-50)', text: 'var(--color-success)', icon: 'trending_up' }
-    : prob >= 40
-    ? { bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'trending_flat' }
-    : { bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'trending_down' };
+import CrmMobilePipeline from '../src/components/crm/CrmMobilePipeline';
+import { formatCurrency, formatShortDate, winProbStyle, stageBadgeColor } from '../src/components/crm/crmConstants';
 
 const CrmPipelineView = () => {
   const navigate = useNavigate();
@@ -32,6 +24,10 @@ const CrmPipelineView = () => {
   const [showLostReason, setShowLostReason] = useState(false);
   const [lostReason, setLostReason] = useState('');
   const [pendingLostOpp, setPendingLostOpp] = useState<{ oppId: string; stageId: string } | null>(null);
+
+  // Search & filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const [ownerFilter, setOwnerFilter] = useState<string>('');
 
   useEffect(() => {
     const init = async () => {
@@ -58,6 +54,64 @@ const CrmPipelineView = () => {
     fetch();
   }, [activePipeline]);
 
+  // Derive unique owners from all stages for the filter dropdown
+  const owners = useMemo(() => {
+    const map = new Map<string, string>();
+    stages.forEach(s => (s.opportunities ?? []).forEach(o => {
+      if (o.owner && !map.has(o.owner.id)) {
+        map.set(o.owner.id, `${o.owner.firstName} ${o.owner.lastName}`);
+      }
+    }));
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [stages]);
+
+  // Filtered stages (applies search + owner filter)
+  const filteredStages = useMemo(() => {
+    if (!searchQuery && !ownerFilter) return stages;
+    const q = searchQuery.toLowerCase();
+    return stages.map(stage => ({
+      ...stage,
+      opportunities: (stage.opportunities ?? []).filter(opp => {
+        const matchesSearch = !searchQuery ||
+          opp.name.toLowerCase().includes(q) ||
+          opp.account?.name?.toLowerCase().includes(q) ||
+          (opp.owner && `${opp.owner.firstName} ${opp.owner.lastName}`.toLowerCase().includes(q));
+        const matchesOwner = !ownerFilter || opp.ownerId === ownerFilter;
+        return matchesSearch && matchesOwner;
+      }),
+    }));
+  }, [stages, searchQuery, ownerFilter]);
+
+  // Helper: find which stage an opp belongs to + the opp itself
+  const findOppAndSourceStage = (oppId: string, stagesArr: CrmPipelineStage[]) => {
+    for (const stage of stagesArr) {
+      const opp = stage.opportunities?.find(o => o.id === oppId);
+      if (opp) return { opp, sourceStageId: stage.id };
+    }
+    return null;
+  };
+
+  // Optimistic move: update local state immediately, revert on API failure
+  const applyOptimisticMove = (oppId: string, targetStageId: string, lostReasonArg?: string) => {
+    const found = findOppAndSourceStage(oppId, stages);
+    if (!found) return false;
+    const { opp, sourceStageId } = found;
+    if (sourceStageId === targetStageId) return false;
+
+    const prevStages = stages;
+    setStages(prev => prev.map(s => {
+      if (s.id === sourceStageId) {
+        return { ...s, opportunities: (s.opportunities ?? []).filter(o => o.id !== oppId) };
+      }
+      if (s.id === targetStageId) {
+        return { ...s, opportunities: [...(s.opportunities ?? []), { ...opp, stageId: targetStageId }] };
+      }
+      return s;
+    }));
+
+    return { prevStages, opp };
+  };
+
   const handleDragStart = (e: React.DragEvent, oppId: string) => {
     setDraggedOpp(oppId);
     e.dataTransfer.effectAllowed = 'move';
@@ -78,43 +132,63 @@ const CrmPipelineView = () => {
     const oppId = e.dataTransfer.getData('text/plain');
     if (!oppId) return;
 
-    // Find which stage the opp is currently in
-    let currentStageId = '';
-    for (const stage of stages) {
-      if (stage.opportunities?.some(o => o.id === oppId)) {
-        currentStageId = stage.id;
-        break;
-      }
-    }
-    if (currentStageId === stageId) { setDraggedOpp(null); return; }
-
     const targetStage = stages.find(s => s.id === stageId);
     if (targetStage?.isLostStage) {
       setPendingLostOpp({ oppId, stageId });
       setShowLostReason(true);
       setDraggedOpp(null);
-      return; // Don't move yet — wait for modal confirmation
+      return;
     }
 
+    const result = applyOptimisticMove(oppId, stageId);
+    if (!result) { setDraggedOpp(null); return; }
+
+    setDraggedOpp(null);
     try {
       await crmService.moveStage(oppId, stageId);
-      // Re-fetch pipeline data
-      const data = await crmService.getPipeline(activePipeline);
-      setStages(data.stages); setTotalValue(data.totalValue);
-    } catch (e) { console.error(e); }
-    setDraggedOpp(null);
+    } catch (e) {
+      console.error(e);
+      setStages(result.prevStages);
+    }
   };
 
   const handleConfirmLost = async () => {
     if (!pendingLostOpp) return;
-    try {
-      await crmService.moveStage(pendingLostOpp.oppId, pendingLostOpp.stageId, lostReason || undefined);
-      const data = await crmService.getPipeline(activePipeline);
-      setStages(data.stages); setTotalValue(data.totalValue);
-    } catch (e) { console.error(e); }
+    const { oppId, stageId } = pendingLostOpp;
+
+    const result = applyOptimisticMove(oppId, stageId, lostReason || undefined);
+
     setShowLostReason(false);
     setLostReason('');
     setPendingLostOpp(null);
+
+    if (!result) return;
+    try {
+      await crmService.moveStage(oppId, stageId, lostReason || undefined);
+    } catch (e) {
+      console.error(e);
+      setStages(result.prevStages);
+    }
+  };
+
+  // Mobile stage change (from swipe/button in CrmMobilePipeline)
+  const handleMobileStageChange = async (oppId: string, stageId: string, lostReasonArg?: string) => {
+    const targetStage = stages.find(s => s.id === stageId);
+
+    if (targetStage?.isLostStage && !lostReasonArg) {
+      setPendingLostOpp({ oppId, stageId });
+      setShowLostReason(true);
+      return;
+    }
+
+    const result = applyOptimisticMove(oppId, stageId, lostReasonArg);
+    if (!result) return;
+    try {
+      await crmService.moveStage(oppId, stageId, lostReasonArg);
+    } catch (e) {
+      console.error(e);
+      setStages(result.prevStages);
+    }
   };
 
   const selectedPipeline = pipelines.find(p => p.id === activePipeline);
@@ -135,7 +209,6 @@ const CrmPipelineView = () => {
       });
       setShowCreate(false);
       setOppForm({});
-      // reload pipeline data
       const pls = await crmService.listPipelines();
       setPipelines(pls);
       const data = await crmService.getPipeline(activePipeline);
@@ -171,7 +244,7 @@ const CrmPipelineView = () => {
               <span className="text-lg font-bold text-success">{formatCurrency(totalValue)} total</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             {pipelines.length > 1 && (
               <select value={activePipeline} onChange={e => setActivePipeline(e.target.value)}
                 className="px-4 py-2 bg-surface border border-border rounded-lg text-sm font-semibold text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
@@ -187,6 +260,40 @@ const CrmPipelineView = () => {
               <span className="material-symbols-outlined text-lg">list</span> List View
             </button>
           </div>
+        </div>
+        {/* Search & Filter — visible on sm+ */}
+        <div className="max-w-[1440px] mx-auto mt-3 flex items-center gap-3">
+          <div className="relative flex-1 max-w-xs">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary text-base">search</span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search opportunities..."
+              className="w-full pl-9 pr-3 py-1.5 border border-border rounded-lg text-sm bg-surface-muted outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400 transition-all"
+              style={{ fontFamily: 'var(--font-sans)' }}
+            />
+          </div>
+          {owners.length > 1 && (
+            <select
+              value={ownerFilter}
+              onChange={e => setOwnerFilter(e.target.value)}
+              className="px-3 py-1.5 bg-surface border border-border rounded-lg text-sm font-medium text-text-primary outline-none cursor-pointer"
+              style={{ fontFamily: 'var(--font-sans)' }}
+            >
+              <option value="">All owners</option>
+              {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+            </select>
+          )}
+          {(searchQuery || ownerFilter) && (
+            <button
+              onClick={() => { setSearchQuery(''); setOwnerFilter(''); }}
+              className="text-xs font-semibold text-brand-600 hover:text-brand-800 transition-colors"
+              style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -207,103 +314,129 @@ const CrmPipelineView = () => {
             ))}
           </div>
         ) : (
-          <div className="flex gap-4 h-full min-w-max items-stretch">
-            {stages.map(stage => {
-              const opps = stage.opportunities || [];
-              const stageValue = opps.reduce((s, o) => s + Number(o.value), 0);
-              const isOver = dragOverStage === stage.id;
-              const collapsed = isCollapsed(stage.id);
+          <>
+            {/* Desktop: kanban columns — hidden below lg */}
+            <div className="hidden lg:flex gap-4 h-full min-w-max items-stretch">
+              {filteredStages.map(stage => {
+                const opps = stage.opportunities || [];
+                const stageValue = opps.reduce((s, o) => s + Number(o.value), 0);
+                const isOver = dragOverStage === stage.id;
+                const collapsed = isCollapsed(stage.id);
+                const stageColor = stageBadgeColor(stage);
 
-              if (collapsed) {
+                if (collapsed) {
+                  return (
+                    <CollapsedColumnPill
+                      key={stage.id}
+                      label={stage.name}
+                      color={stageColor}
+                      count={opps.length}
+                      onClick={() => toggleCollapse(stage.id)}
+                    />
+                  );
+                }
+
                 return (
-                  <CollapsedColumnPill
+                  <div
                     key={stage.id}
-                    label={stage.name}
-                    color={stage.color || 'var(--color-text-secondary)'}
-                    count={opps.length}
-                    onClick={() => toggleCollapse(stage.id)}
-                  />
-                );
-              }
-
-              return (
-                <div
-                  key={stage.id}
-                  className={`w-72 shrink-0 bg-surface border rounded-xl flex flex-col transition-all ${isOver ? 'border-brand-400 ring-2 ring-brand-200' : 'border-border'}`}
-                  onDragOver={e => handleDragOver(e, stage.id)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={e => handleDrop(e, stage.id)}
-                >
-                  {/* Stage Header */}
-                  <div className="p-4 border-b border-border shrink-0 group">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <StateBadge state={stage.name} size="sm" />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs font-bold bg-surface-muted text-text-secondary px-2 py-0.5 rounded-full">{opps.length}</span>
-                        <ColumnCollapseToggle onClick={() => toggleCollapse(stage.id)} />
-                      </div>
-                    </div>
-                    <div className="text-xs font-semibold text-text-tertiary">{formatCurrency(stageValue)} · {stage.probability}% prob</div>
-                  </div>
-
-                  {/* Cards */}
-                  <div className="flex-1 overflow-y-auto p-3 space-y-2.5" style={{ minHeight: 100 }}>
-                    {opps.length === 0 && (
-                      <div className="text-center py-8 text-text-tertiary text-xs">
-                        {isOver ? <span className="font-bold text-brand-600">Drop here</span> : 'No opportunities'}
-                      </div>
-                    )}
-                    {opps.map(opp => (
-                      <div
-                        key={opp.id}
-                        draggable
-                        onDragStart={e => handleDragStart(e, opp.id)}
-                        onDragEnd={() => setDraggedOpp(null)}
-                        onClick={() => navigate(`/crm/opportunities/${opp.id}`)}
-                        className={`bg-surface border border-border rounded-lg p-3.5 cursor-grab hover:shadow-md hover:border-brand-200 transition-all ${draggedOpp === opp.id ? 'opacity-40 scale-95' : ''}`}
-                        style={{ userSelect: 'none' }}
-                      >
-                        <div className="text-sm font-bold text-text-primary mb-1 line-clamp-2">{opp.name}</div>
-                        <div className="text-lg font-black text-brand-600 mb-2">{formatCurrency(Number(opp.value))}</div>
-                        {opp.aiWinProbability != null && (() => {
-                          const ws = winProbStyle(opp.aiWinProbability);
-                          return (
-                            <span
-                              className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold mb-2"
-                              style={{ background: ws.bg, color: ws.text }}
-                              title={opp.aiWinReason ?? `AI Win Probability`}
-                            >
-                              <span className="material-symbols-outlined text-sm">{ws.icon}</span>
-                              AI {opp.aiWinProbability}%
+                    className={`w-72 shrink-0 bg-surface border rounded-xl flex flex-col transition-all ${isOver ? 'border-brand-400 ring-2 ring-brand-200' : 'border-border'}`}
+                    style={{ borderTop: `3px solid ${stageColor}` }}
+                    onDragOver={e => handleDragOver(e, stage.id)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={e => handleDrop(e, stage.id)}
+                  >
+                    {/* Stage Header */}
+                    <div className="p-4 border-b border-border shrink-0 group">
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="inline-flex items-center gap-1 font-bold rounded-full text-[10px] px-1.5 py-0.5"
+                            style={{
+                              background: `${stageColor}18`,
+                              color: stageColor,
+                            }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 12 }}>
+                              {stage.isWonStage ? 'emoji_events' : stage.isLostStage ? 'trending_down' : 'group'}
                             </span>
-                          );
-                        })()}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-text-tertiary text-sm">business</span>
-                            <span className="text-xs text-text-secondary truncate max-w-[120px]">{opp.account?.name}</span>
+                            {stage.name}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs font-bold bg-surface-muted text-text-secondary px-2 py-0.5 rounded-full">{opps.length}</span>
+                          <ColumnCollapseToggle onClick={() => toggleCollapse(stage.id)} />
+                        </div>
+                      </div>
+                      <div className="text-xs font-semibold text-text-tertiary">{formatCurrency(stageValue)} · {stage.probability}% prob</div>
+                    </div>
+
+                    {/* Cards */}
+                    <div className="flex-1 overflow-y-auto p-3 space-y-2.5" style={{ minHeight: 100 }}>
+                      {opps.length === 0 && (
+                        <div className="text-center py-8 text-text-tertiary text-xs">
+                          {isOver ? <span className="font-bold text-brand-600">Drop here</span> : 'No opportunities'}
+                        </div>
+                      )}
+                      {opps.map(opp => (
+                        <div
+                          key={opp.id}
+                          draggable
+                          onDragStart={e => handleDragStart(e, opp.id)}
+                          onDragEnd={() => setDraggedOpp(null)}
+                          onClick={() => navigate(`/crm/opportunities/${opp.id}`)}
+                          className={`bg-surface border border-border rounded-lg p-3.5 cursor-grab hover:shadow-md hover:border-brand-200 transition-all ${draggedOpp === opp.id ? 'opacity-40 scale-95' : ''}`}
+                          style={{ userSelect: 'none' }}
+                        >
+                          <div className="text-sm font-bold text-text-primary mb-1 line-clamp-2" title={opp.name}>{opp.name}</div>
+                          <div className="text-lg font-black text-brand-600 mb-2">{formatCurrency(Number(opp.value))}</div>
+                          {opp.aiWinProbability != null && (() => {
+                            const ws = winProbStyle(opp.aiWinProbability);
+                            return (
+                              <span
+                                className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold mb-2"
+                                style={{ background: ws.bg, color: ws.text }}
+                                title={opp.aiWinReason ?? 'AI Win Probability'}
+                              >
+                                <span className="material-symbols-outlined text-sm">{ws.icon}</span>
+                                AI {opp.aiWinProbability}%
+                              </span>
+                            );
+                          })()}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-text-tertiary text-sm">business</span>
+                              <span className="text-xs text-text-secondary truncate max-w-[120px]" title={opp.account?.name ?? ''}>{opp.account?.name}</span>
+                            </div>
+                            {opp.expectedCloseDate && (
+                              <span className="text-xs text-text-tertiary">{formatShortDate(opp.expectedCloseDate)}</span>
+                            )}
                           </div>
-                          {opp.expectedCloseDate && (
-                            <span className="text-xs text-text-tertiary">{formatDate(opp.expectedCloseDate)}</span>
+                          {opp.owner && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                              <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center">
+                                <span className="text-[10px] font-bold text-brand-600">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
+                              </div>
+                              <span className="text-xs text-text-tertiary" title={`${opp.owner.firstName} ${opp.owner.lastName}`}>{opp.owner.firstName} {opp.owner.lastName}</span>
+                            </div>
                           )}
                         </div>
-                        {opp.owner && (
-                          <div className="flex items-center gap-1.5 mt-2">
-                            <div className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center">
-                              <span className="text-[10px] font-bold text-brand-600">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
-                            </div>
-                            <span className="text-xs text-text-tertiary">{opp.owner.firstName} {opp.owner.lastName}</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+
+            {/* Mobile: tabbed stage view — hidden above lg */}
+            <div className="lg:hidden h-full">
+              <CrmMobilePipeline
+                stages={filteredStages}
+                onCardClick={(oppId) => navigate(`/crm/opportunities/${oppId}`)}
+                onStageChange={handleMobileStageChange}
+                searchQuery={searchQuery}
+              />
+            </div>
+          </>
         )}
       </div>
 
