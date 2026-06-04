@@ -78,6 +78,7 @@ export interface CrmOpportunity {
   id: string; name: string; accountId: string; contactId: string | null;
   pipelineId: string; stageId: string; ownerId: string;
   value: number; currency: string; probability: number;
+  forecastCategory?: string;
   expectedCloseDate: string | null; description: string | null;
   lostReason: string | null; wonAt: string | null; lostAt: string | null;
   // AI scoring fields
@@ -464,6 +465,14 @@ const crmService = {
   },
   async getKycComplianceReport() {
     const res = await api.get('/crm/reports/kyc-compliance');
+    return res.data.data;
+  },
+  async getForecastCategoriesReport(pipelineId: string) {
+    const res = await api.get('/crm/reports/forecast-categories', { params: { pipelineId } });
+    return res.data.data;
+  },
+  async getForecastAccuracyReport(params?: { from?: string; to?: string }) {
+    const res = await api.get('/crm/reports/forecast-accuracy', { params });
     return res.data.data;
   },
 

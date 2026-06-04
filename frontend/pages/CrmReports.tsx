@@ -139,14 +139,15 @@ const TABS = [
   { id: 'lead-conversion', label: 'Lead Conversion' },
   { id: 'sales-performance', label: 'Sales Performance' },
   { id: 'pipeline-forecast', label: 'Pipeline Forecast' },
+  { id: 'forecast-categories', label: 'Forecast by Category' },
+  { id: 'forecast-accuracy', label: 'Forecast Accuracy' },
   { id: 'activity-summary', label: 'Activity Summary' },
   { id: 'lead-aging', label: 'Lead Aging' },
   { id: 'win-loss', label: 'Win/Loss' },
   { id: 'kyc-compliance', label: 'KYC Compliance' },
 ] as const;
-
 type TabId = typeof TABS[number]['id'];
-const DATE_TABS: TabId[] = ['lead-conversion', 'sales-performance', 'activity-summary', 'win-loss'];
+const DATE_TABS: TabId[] = ['lead-conversion', 'sales-performance', 'activity-summary', 'win-loss', 'forecast-accuracy'];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -872,6 +873,183 @@ function KycCompliancePanel() {
   );
 }
 
+// ── Forecast Categories Panel ─────────────────────────────────────────────────
+
+interface ForecastCategoryBreakdown {
+  totalValue: number;
+  weightedValue: number;
+  dealCount: number;
+}
+interface ForecastByCategory {
+  PIPELINE: ForecastCategoryBreakdown;
+  BEST_CASE: ForecastCategoryBreakdown;
+  COMMIT: ForecastCategoryBreakdown;
+  OMITTED: ForecastCategoryBreakdown;
+}
+interface ForecastCategoriesData {
+  stages: Array<{ stageId: string; stageName: string; probability: number; dealCount: number; totalValue: number; weightedValue: number; categories: ForecastByCategory }>;
+  categoryBreakdown: ForecastByCategory;
+  totalPipelineValue: number;
+  weightedPipelineValue: number;
+  overdueDeals: number;
+  overdueValue: number;
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  PIPELINE: '#6366f1',
+  BEST_CASE: '#f59e0b',
+  COMMIT: '#22c55e',
+  OMITTED: '#94a3b8',
+};
+
+function ForecastCategoriesPanel() {
+  const [pipelines, setPipelines] = React.useState<CrmPipeline[]>([]);
+  const [selectedPipelineId, setSelectedPipelineId] = React.useState<string>('');
+  const [data, setData] = React.useState<ForecastCategoriesData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    crmService.listPipelines().then(pipes => {
+      setPipelines(pipes);
+      if (pipes.length > 0 && !selectedPipelineId) setSelectedPipelineId(pipes[0].id);
+    }).catch(() => {});
+  }, []);
+
+  React.useEffect(() => {
+    if (!selectedPipelineId) return;
+    setLoading(true);
+    crmService.getForecastCategoriesReport(selectedPipelineId)
+      .then(setData)
+      .finally(() => setLoading(false));
+  }, [selectedPipelineId]);
+
+  const handleExport = () => {
+    if (!data) return;
+    const rows = (Object.entries(data.categoryBreakdown) as [string, ForecastCategoryBreakdown][]).map(([cat, b]) => ({
+      Category: cat, Deals: b.dealCount, 'Total Value': b.totalValue, 'Weighted Value': b.weightedValue,
+    }));
+    downloadCsv(rows, 'forecast-by-category.csv');
+  };
+
+  if (loading) return <Skeleton />;
+  if (!data && pipelines.length === 0) return <p className="text-text-secondary text-sm">No pipelines found.</p>;
+
+  const cats = data?.categoryBreakdown;
+  const chartData = cats ? (Object.entries(cats) as [string, ForecastCategoryBreakdown][]).map(([cat, b]) => ({
+    name: cat, Total: b.totalValue, Weighted: b.weightedValue, Deals: b.dealCount,
+  })) : [];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <select value={selectedPipelineId} onChange={e => setSelectedPipelineId(e.target.value)}
+          className="px-3 py-2 border border-border rounded-lg text-sm">
+          {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+        <CsvBtn onClick={handleExport} />
+      </div>
+      {data && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {(Object.entries(data.categoryBreakdown) as [string, ForecastCategoryBreakdown][]).map(([cat, b]) => (
+              <div key={cat} className="bg-bg-surface border border-border rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="w-3 h-3 rounded-full" style={{ background: CATEGORY_COLORS[cat] || '#94a3b8' }} />
+                  <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">{cat.replace('_', ' ')}</span>
+                </div>
+                <p className="text-xl font-black text-text-primary">{myr.format(b.totalValue)}</p>
+                <p className="text-xs text-text-secondary mt-1">{b.dealCount} deal{b.dealCount !== 1 ? 's' : ''} · {myr.format(b.weightedValue)} weighted</p>
+              </div>
+            ))}
+          </div>
+          <div className="bg-bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Category Breakdown</h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip formatter={(v: number) => myr.format(v)} />
+                <Legend />
+                <Bar dataKey="Total" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Weighted" fill="#22c55e" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Forecast Accuracy Panel ───────────────────────────────────────────────────
+
+interface ForecastAccuracyData {
+  commitTotal: number;
+  actualWonTotal: number;
+  accuracyPct: number;
+  period: { from: string; to: string };
+}
+
+function ForecastAccuracyPanel({ from, to }: { from: string; to: string }) {
+  const [data, setData] = React.useState<ForecastAccuracyData | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    setLoading(true);
+    crmService.getForecastAccuracyReport({ from, to })
+      .then(setData)
+      .finally(() => setLoading(false));
+  }, [from, to]);
+
+  if (loading) return <Skeleton />;
+  if (!data) return <p className="text-text-secondary text-sm">No data available for this period.</p>;
+
+  const diff = data.actualWonTotal - data.commitTotal;
+  const diffLabel = diff >= 0 ? `+${myr.format(diff)}` : myr.format(diff);
+  const diffColor = diff >= 0 ? 'text-green-600' : 'text-red-600';
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-bg-surface border border-border rounded-xl p-5 text-center">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Committed Forecast</p>
+          <p className="text-2xl font-black text-text-primary">{myr.format(data.commitTotal)}</p>
+        </div>
+        <div className="bg-bg-surface border border-border rounded-xl p-5 text-center">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Actual Won Revenue</p>
+          <p className="text-2xl font-black text-text-primary">{myr.format(data.actualWonTotal)}</p>
+          <p className={`text-xs mt-1 font-semibold ${diffColor}`}>{diffLabel} vs commit</p>
+        </div>
+        <div className="bg-bg-surface border border-border rounded-xl p-5 text-center">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Forecast Accuracy</p>
+          <p className="text-3xl font-black" style={{ color: data.accuracyPct >= 80 ? '#22c55e' : data.accuracyPct >= 50 ? '#f59e0b' : '#ef4444' }}>
+            {data.accuracyPct}%
+          </p>
+          <p className="text-xs text-text-secondary mt-1">
+            {data.accuracyPct >= 80 ? 'Excellent' : data.accuracyPct >= 50 ? 'Fair' : 'Needs improvement'}
+          </p>
+        </div>
+      </div>
+      <div className="bg-bg-surface border border-border rounded-xl p-5">
+        <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Accuracy Gauge</h3>
+        <div className="w-full bg-gray-200 rounded-full h-6 overflow-hidden">
+          <div className="h-6 rounded-full transition-all duration-500"
+            style={{
+              width: `${Math.min(data.accuracyPct, 100)}%`,
+              background: data.accuracyPct >= 80 ? '#22c55e' : data.accuracyPct >= 50 ? '#f59e0b' : '#ef4444',
+            }} />
+        </div>
+        <div className="flex justify-between text-xs text-text-secondary mt-1">
+          <span>0%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CrmReports() {
@@ -915,6 +1093,10 @@ export default function CrmReports() {
         return <WinLossPanel key={`wl-${refreshKey}`} {...dateProps} />;
       case 'kyc-compliance':
         return <KycCompliancePanel key={`kyc-${refreshKey}`} />;
+      case 'forecast-categories':
+        return <ForecastCategoriesPanel key={`fc-${refreshKey}`} />;
+      case 'forecast-accuracy':
+        return <ForecastAccuracyPanel key={`fa-${refreshKey}`} {...dateProps} />;
     }
   }
 
