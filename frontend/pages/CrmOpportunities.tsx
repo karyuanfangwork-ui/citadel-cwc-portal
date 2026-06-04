@@ -1,28 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import crmService, { CrmOpportunity, CrmUser, Pagination, OpportunityStage } from '../src/services/crm.service';
+import crmService, { CrmOpportunity, CrmUser, Pagination } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import BulkActionBar, { BulkAction } from '../src/components/crm/BulkActionBar';
-import StateBadge from '../src/components/ui/StateBadge';
-import { STATUS_COLORS } from '../src/components/ui/StateBadge';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateOpportunity, ValidationError } from '../src/utils/crmValidation';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import EmptyState from '../src/components/ui/EmptyState';
 import CrmTableSkeleton from '../src/components/crm/CrmTableSkeleton';
+import OpportunitiesTable, { SortConfig } from '../src/components/crm/OpportunitiesTable';
+import { formatCurrency, formatDate } from '../src/components/crm/crmConstants';
 import { hasPermission } from '../src/utils/permissions';
 import { useAuth } from '../src/context/AuthContext';
 import { useCrmUpdate } from '../src/hooks/useCrmUpdate';
-
-const formatCurrency = (val: number | null) => val != null ? new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val) : '—';
-const formatDate = (d: string | null) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
-
-const winProbStyle = (prob: number) =>
-  prob >= 70
-    ? { bg: 'var(--color-hr-50)', text: 'var(--color-success)', icon: 'trending_up' }
-    : prob >= 40
-    ? { bg: 'var(--color-fin-50)', text: 'var(--color-warning)', icon: 'trending_flat' }
-    : { bg: 'rgba(220,38,38,0.06)', text: 'var(--color-danger)', icon: 'trending_down' };
 
 const CrmOpportunities = () => {
   const navigate = useNavigate();
@@ -38,7 +28,7 @@ const CrmOpportunities = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<Partial<CrmOpportunity>>({});
   const [accounts, setAccounts] = useState<{ id: string; name: string }[]>([]);
-  const [pipelines, setPipelines] = useState<{ id: string; name: string; stages?: { id: string; name: string; probability: number }[] }[]>([]);
+  const [pipelines, setPipelines] = useState<{ id: string; name: string; stages?: { id: string; name: string; probability: number; displayOrder?: number; color?: string; isWonStage?: boolean; isLostStage?: boolean }[] }[]>([]);
   const [saving, setSaving] = useState(false);
   const [editingItem, setEditingItem] = useState<CrmOpportunity | null>(null);
   const [showEdit, setShowEdit] = useState(false);
@@ -46,6 +36,58 @@ const CrmOpportunities = () => {
   const [showDelete, setShowDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
+
+  // ── Sort state (3-cycle: asc → desc → none) ─────────────────
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+
+  const handleSort = useCallback((field: SortConfig['field']) => {
+    setSortConfig(prev => {
+      if (!prev || prev.field !== field) return { field, direction: 'asc' };
+      if (prev.direction === 'asc') return { field, direction: 'desc' };
+      return null; // third click clears sort
+    });
+  }, []);
+
+  // Sort opportunities client-side
+  const sortedOpportunities = React.useMemo(() => {
+    if (!sortConfig) return opportunities;
+    const sorted = [...opportunities];
+    const dir = sortConfig.direction === 'asc' ? 1 : -1;
+    sorted.sort((a, b) => {
+      let cmp = 0;
+      switch (sortConfig.field) {
+        case 'name': cmp = (a.name ?? '').localeCompare(b.name ?? ''); break;
+        case 'stageId': cmp = (a.stage?.name ?? '').localeCompare(b.stage?.name ?? ''); break;
+        case 'value': cmp = (a.value ?? 0) - (b.value ?? 0); break;
+        case 'probability': cmp = (a.probability ?? 0) - (b.probability ?? 0); break;
+        case 'expectedCloseDate':
+          const da = a.expectedCloseDate ? new Date(a.expectedCloseDate).getTime() : 0;
+          const db = b.expectedCloseDate ? new Date(b.expectedCloseDate).getTime() : 0;
+          cmp = da - db; break;
+        case 'createdAt':
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(); break;
+      }
+      return cmp * dir;
+    });
+    return sorted;
+  }, [opportunities, sortConfig]);
+
+  // ── Inline stage change with optimistic update ──────────────
+  const handleStageChange = useCallback(async (oppId: string, stageId: string, lostReason?: string) => {
+    const prev = opportunities.find(o => o.id === oppId);
+    if (!prev) return;
+    // Find the stage object for optimistic update
+    const stageObj = pipelines.flatMap(p => p.stages ?? []).find(s => s.id === stageId);
+    // Optimistic update
+    setOpportunities(opps => opps.map(o => o.id === oppId ? { ...o, stageId, stage: stageObj ? { ...stageObj, pipelineId: prev.pipelineId, opportunities: o.stage?.opportunities, _count: o.stage?._count } as any : o.stage } : o));
+    try {
+      await crmService.moveStage(oppId, stageId, lostReason);
+      fetchOpportunities();
+    } catch {
+      // Revert on failure
+      setOpportunities(opps => opps.map(o => o.id === oppId ? prev : o));
+    }
+  }, [opportunities, pipelines]);
 
   // ── Bulk Selection (Sprint 2) ──────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -68,6 +110,9 @@ const CrmOpportunities = () => {
 
   const selectAll = () => setSelectedIds(new Set(opportunities.map(o => o.id)));
   const clearSelection = () => setSelectedIds(new Set());
+
+  // Fixed isAllSelected: every item must be selected, and there must be items
+  const isAllSelected = opportunities.length > 0 && opportunities.every(o => selectedIds.has(o.id));
 
   const handleBulkAssignOwner = async (newOwnerId: string) => {
     setBulkProcessing(true);
@@ -207,7 +252,7 @@ const CrmOpportunities = () => {
   return (
     <>
       <CrmNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+      <div style={{ maxWidth: 1400, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">
@@ -271,115 +316,28 @@ const CrmOpportunities = () => {
         </div>
       )}
 
-      {/* Opportunities Table */}
-      <div className="bg-surface border border-border rounded-xl overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-surface-muted border-b border-border">
-            <tr>
-              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-3 py-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.size > 0 && selectedIds.size === opportunities.length}
-                  onChange={() => selectedIds.size === opportunities.length ? clearSelection() : selectAll()}
-                  className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
-                />
-              </th>
-              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Opportunity</th>
-              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Account</th>
-              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Stage</th>
-              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Value</th>
-              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Probability</th>
-              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Close Date</th>
-              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3">Owner</th>
-              <th className="text-left text-xs font-bold text-text-secondary uppercase tracking-wider px-5 py-3"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {loading ? (
-              <tr><td colSpan={9}><CrmTableSkeleton rows={5} cols={9} /></td></tr>
-            ) : opportunities.length === 0 ? (
-              <tr><td colSpan={9}>
-                <EmptyState icon="monetization_on" title="No opportunities yet" description="Create your first opportunity to start tracking deals." action={{ label: 'New Opportunity', onClick: () => setShowCreate(true) }} />
-              </td></tr>
-            ) : opportunities.map(opp => (
-              <tr key={opp.id} className={`hover:bg-surface-hover cursor-pointer transition-colors ${selectedIds.has(opp.id) ? 'bg-brand-50/50' : ''}`}>
-                <td className="px-3 py-4" onClick={e => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(opp.id)}
-                    onChange={() => toggleSelect(opp.id)}
-                    className="w-4 h-4 rounded border-border text-brand-600 focus:ring-brand-500 cursor-pointer"
-                  />
-                </td>
-                <td className="px-5 py-4">
-                  <div className="text-sm font-bold text-text-primary cursor-pointer hover:text-brand-700" onClick={() => navigate(`/crm/opportunities/${opp.id}`)}>{opp.name}</div>
-                  <div className="text-xs text-text-tertiary mt-0.5">{opp.contact?.firstName ? `${opp.contact.firstName} ${opp.contact.lastName}` : '—'}</div>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="text-sm text-text-secondary">{opp.account?.name || '—'}</div>
-                </td>
-                <td className="px-5 py-4">
-                  <StateBadge state={opp.stage?.name || '—'} size="sm" />
-                </td>
-                <td className="px-5 py-4">
-                  <div className="text-sm font-bold text-brand-600">{formatCurrency(opp.value)}</div>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-surface-muted rounded-full overflow-hidden" style={{ minWidth: 60 }}>
-                      <div className="h-full rounded-full" style={{ width: `${opp.probability}%`, background: STATUS_COLORS[opp.stage?.name?.toUpperCase()]?.text || 'var(--color-it-500)' }} />
-                    </div>
-                    <span className="text-xs font-bold text-text-secondary">{opp.probability}%</span>
-                    {opp.aiWinProbability != null && (() => {
-                      const ws = winProbStyle(opp.aiWinProbability);
-                      return (
-                        <span
-                          className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold ml-2"
-                          style={{ background: ws.bg, color: ws.text }}
-                          title={`AI Win Probability: ${opp.aiWinProbability}%${opp.aiWinReason ? ' — ' + opp.aiWinReason : ''}`}
-                        >
-                          <span className="material-symbols-outlined text-sm">{ws.icon}</span>
-                          AI {opp.aiWinProbability}%
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </td>
-                <td className="px-5 py-4">
-                  <div className="text-sm text-text-secondary">{formatDate(opp.expectedCloseDate)}</div>
-                </td>
-                <td className="px-5 py-4">
-                  {opp.owner ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center">
-                        <span className="text-[10px] font-bold text-brand-600">{opp.owner.firstName?.[0]}{opp.owner.lastName?.[0]}</span>
-                      </div>
-                      <span className="text-sm text-text-secondary">{opp.owner.firstName}</span>
-                    </div>
-                  ) : '—'}
-                </td>
-                <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
-                  <div className="flex items-center gap-2">
-                    <button onClick={(e) => { e.stopPropagation(); openEdit(opp); }}
-                      className="text-xs font-semibold text-brand-700 hover:text-brand-800 transition-colors"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                      Edit
-                    </button>
-                    {hasPermission(user, 'crm:delete') && (
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteItem(opp); setShowDelete(true); }}
-                        className="text-xs font-semibold text-danger hover:text-red-700 transition-colors"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                        <span className="material-symbols-outlined text-sm align-middle">delete</span>
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* Opportunities Table (extracted component) */}
+      {loading ? (
+        <div className="bg-surface border border-border rounded-xl overflow-hidden">
+          <CrmTableSkeleton rows={6} cols={10} />
+        </div>
+      ) : (
+        <OpportunitiesTable
+          opportunities={sortedOpportunities}
+          pipelines={pipelines}
+          sortConfig={sortConfig}
+          onSort={handleSort}
+          selectedIds={selectedIds}
+          onToggleSelect={toggleSelect}
+          onSelectAll={selectAll}
+          onClearSelection={clearSelection}
+          onEdit={openEdit}
+          onDelete={(opp) => { setDeleteItem(opp); setShowDelete(true); }}
+          onStageChange={handleStageChange}
+          isAllSelected={isAllSelected}
+          user={user}
+        />
+      )}
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
