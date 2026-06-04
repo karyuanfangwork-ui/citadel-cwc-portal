@@ -1701,6 +1701,10 @@ model CrmPipelineStage {
   color        String   @default("#0052cc") @db.VarChar(20)
   isWonStage   Boolean  @default(false) @map("is_won_stage")
   isLostStage  Boolean  @default(false) @map("is_lost_stage")
+  requiredFields    String[] @default([]) @map("required_fields")
+  enforceForwardOnly Boolean @default(false) @map("enforce_forward_only")
+  requiresApproval  Boolean  @default(false) @map("requires_approval")
+  approvalThreshold Decimal? @map("approval_threshold") @db.Decimal(15, 2)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
