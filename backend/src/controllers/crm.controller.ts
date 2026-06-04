@@ -102,7 +102,24 @@ class CrmController {
       },
     });
     if (!account) throw new AppError('Account not found', 404);
-    res.json({ status: 'success', data: { account: maskBankAccount(account) } });
+
+    // Optional roll-up: aggregate child-account opportunity values
+    let rollup: { childCount: number; childOpportunityValue: number } | null = null;
+    if (req.query.includeRollup === 'true') {
+      const childIds = account.children?.map((c: any) => c.id) ?? [];
+      if (childIds.length > 0) {
+        const agg = await prisma.crmOpportunity.aggregate({
+          _sum: { value: true },
+          _count: true,
+          where: { accountId: { in: childIds } },
+        });
+        rollup = { childCount: childIds.length, childOpportunityValue: Number(agg._sum?.value ?? 0) };
+      } else {
+        rollup = { childCount: 0, childOpportunityValue: 0 };
+      }
+    }
+
+    res.json({ status: 'success', data: { account: maskBankAccount(account), rollup } });
   });
 
   createAccount = asyncHandler(async (req: AuthRequest, res: Response) => {

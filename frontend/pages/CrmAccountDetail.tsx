@@ -394,7 +394,11 @@ const CrmAccountDetail = () => {
           { label: 'Deals', value: account._count?.opportunities ?? account.opportunities?.length ?? 0, icon: 'handshake', tab: 'deals' as const },
           { label: 'Leads', value: account._count?.leads ?? account.leads?.length ?? 0, icon: 'trending_up', tab: 'overview' as const },
           { label: 'Revenue', value: formatCurrency(account.annualRevenue), icon: 'payments', tab: 'deals' as const },
-        ].map(s => (
+        ].concat(
+          account.children && account.children.length > 0
+            ? [{ label: 'Subsidiary Deals Value', value: `${account.children.length} subsidiaries`, icon: 'account_tree' as const, tab: 'overview' as const }]
+            : []
+        ).map(s => (
           <button key={s.label} onClick={() => setActiveTab(s.tab)}
             className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm hover:border-brand-300 hover:bg-brand-50 transition-colors cursor-pointer"
             style={{ background: 'none', border: '1px solid var(--color-border)', fontFamily: 'var(--font-sans)' }}>
