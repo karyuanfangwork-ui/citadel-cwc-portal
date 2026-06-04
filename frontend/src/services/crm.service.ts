@@ -24,6 +24,9 @@ export interface CrmAccount {
   owner?: UserRef; contacts?: CrmContact[]; opportunities?: CrmOpportunity[];
   leads?: CrmLead[]; activities?: CrmActivity[]; notes?: CrmNote[];
   _count?: { contacts: number; opportunities: number; leads: number; linkedRequests: number };
+  parentAccountId?: string | null;
+  parent?: { id: string; name: string } | null;
+  children?: { id: string; name: string; industry?: string | null }[];
 }
 
 export interface CrmContact {

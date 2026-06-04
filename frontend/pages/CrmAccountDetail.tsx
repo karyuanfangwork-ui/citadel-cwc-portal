@@ -77,6 +77,8 @@ const CrmAccountDetail = () => {
 
   // CRM Users for owner select
   const [crmUsers, setCrmUsers] = useState<CrmUser[]>([]);
+  // Accounts for parent picker
+  const [allAccounts, setAllAccounts] = useState<{ id: string; name: string }[]>([]);
 
   // Credit tab borrower summary
   const [creditSummary, setCreditSummary] = useState<{ borrowerCount: number; loading: boolean }>({ borrowerCount: 0, loading: true });
@@ -88,6 +90,7 @@ const CrmAccountDetail = () => {
       .catch(() => setCreditSummary(prev => ({ ...prev, loading: false })));
   }, [activeTab, id]);
   useEffect(() => { crmService.listCrmUsers().then(setCrmUsers).catch(() => {}); }, []);
+  useEffect(() => { crmService.listAccounts({ limit: 500 }).then(res => setAllAccounts(res.accounts.map((a: any) => ({ id: a.id, name: a.name })))).catch(() => {}); }, []);
 
 
   const loadNotes = () => {
@@ -264,6 +267,7 @@ const CrmAccountDetail = () => {
       postalCode: account.postalCode ?? '',
       country: account.country ?? '',
       description: account.description ?? '',
+      parentAccountId: account.parentAccountId ?? '',
     });
     setShowEdit(true);
   };
@@ -320,6 +324,12 @@ const CrmAccountDetail = () => {
         <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">CRM</Link>
         <span>/</span>
         <Link to="/crm/accounts" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Accounts</Link>
+        {account.parent && (
+          <>
+            <span>/</span>
+            <Link to={`/crm/accounts/${account.parent.id}`} style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">{account.parent.name}</Link>
+          </>
+        )}
         <span>/</span>
         <span className="font-semibold text-text-primary">{account.name}</span>
       </div>
@@ -552,6 +562,35 @@ const CrmAccountDetail = () => {
               <span className="material-symbols-outlined text-xs text-text-secondary" title="Read-only">lock</span>
             </div>
           </div>
+          {/* Parent & Children hierarchy card */}
+          {(account.parent || (account.children && account.children.length > 0)) && (
+            <div className="bg-bg-surface border border-border rounded-xl p-5">
+              <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Hierarchy</h3>
+              {account.parent && (
+                <div className="flex items-center gap-3 py-2 border-b border-border">
+                  <span className="material-symbols-outlined text-base text-text-secondary w-5">account_tree</span>
+                  <span className="text-xs text-text-secondary w-28 shrink-0">Parent</span>
+                  <Link to={`/crm/accounts/${account.parent.id}`} style={{ textDecoration: 'none' }} className="text-sm text-brand-700 hover:underline">{account.parent.name}</Link>
+                </div>
+              )}
+              {account.children && account.children.length > 0 && (
+                <div className="pt-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="material-symbols-outlined text-sm text-text-secondary">family_restroom</span>
+                    <span className="text-xs font-semibold text-text-secondary">Subsidiaries ({account.children.length})</span>
+                  </div>
+                  {account.children.map(c => (
+                    <Link key={c.id} to={`/crm/accounts/${c.id}`} style={{ textDecoration: 'none' }}
+                      className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-bg-subtle transition-colors group">
+                      <span className="material-symbols-outlined text-sm text-text-secondary">business</span>
+                      <span className="text-sm text-text-primary group-hover:text-brand-700">{c.name}</span>
+                      {c.industry && <span className="text-xs text-text-secondary ml-auto">{c.industry}</span>}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {/* Address card */}
           <div className="bg-bg-surface border border-border rounded-xl p-5">
             <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-3">Address</h3>
@@ -1050,6 +1089,16 @@ const CrmAccountDetail = () => {
                 <input required value={editForm.name ?? ''} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
                   className={`w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all${formErrors.some(e => e.field === 'name') ? ' !border-red-500 focus:!ring-red-200' : ''}`} />
                 {formErrors.some(e => e.field === 'name') && (<p className="text-xs text-red-600 mt-1">{formErrors.find(e => e.field === 'name')?.message}</p>)}
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-text-primary mb-1">Parent Account</label>
+                <select value={editForm.parentAccountId ?? ''} onChange={e => setEditForm(f => ({ ...f, parentAccountId: e.target.value || null }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 transition-all">
+                  <option value="">None (top-level)</option>
+                  {allAccounts.filter(a => a.id !== id).map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
