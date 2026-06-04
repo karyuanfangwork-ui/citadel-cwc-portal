@@ -1696,6 +1696,25 @@ model CrmLeadScoringRule {
   @@map("crm_lead_scoring_rules")
 }
 
+// CRM Auto-Assignment Rules
+model CrmAssignmentRule {
+  id            String    @id @default(uuid()) @db.Uuid
+  name          String    @db.VarChar(100)
+  territoryId   String?   @map("territory_id") @db.Uuid
+  sourceMatch   String?   @map("source_match") @db.VarChar(100) // e.g. "source=WEBSITE"
+  roundRobin     Boolean   @default(false) @map("round_robin")
+  isActive      Boolean   @default(true) @map("is_active")
+  priority      Int       @default(0)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  territory     CrmTerritory? @relation(fields: [territoryId], references: [id], onDelete: SetNull)
+
+  @@index([territoryId])
+  @@index([isActive, priority])
+  @@map("crm_assignment_rules")
+}
+
 // CRM Pipelines — configurable deal pipelines
 model CrmPipeline {
   id          String   @id @default(uuid()) @db.Uuid
@@ -2051,6 +2070,7 @@ model CrmTerritory {
   members     CrmTerritoryMember[]
   quotas      CrmQuota[]
   leads       CrmLead[]              @relation("LeadTerritory")
+  assignmentRules CrmAssignmentRule[]
   user        User                    @relation("CrmTerritoryCreator", fields: [createdBy], references: [id])
 
   @@index([createdBy])
