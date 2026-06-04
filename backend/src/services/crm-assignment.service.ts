@@ -93,8 +93,7 @@ export function assignLeadOwner(
 // DB-BOUND RESOLVER
 // ============================================================================
 
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+import prisma from '../utils/prisma';
 
 export async function resolveAssignmentForLead(leadId: string): Promise<string | null> {
   const lead = await prisma.crmLead.findUnique({ where: { id: leadId } });

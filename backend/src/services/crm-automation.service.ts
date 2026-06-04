@@ -1,6 +1,7 @@
 import prisma from '../utils/prisma';
 import { notify } from './notification.service';
 import { logger } from '../utils/logger';
+import { resolveAssignmentForLead } from './crm-assignment.service';
 
 // ---------------------------------------------------------------------------
 // 1. Activity Reminders
@@ -386,22 +387,30 @@ export async function checkKycExpiration(): Promise<void> {
 
 export async function autoAssignLead(leadId: string): Promise<{ id: string; ownerId: string } | null> {
   try {
-    // Fetch active users that have a CRM-related role (CRM_USER, CRM_ADMIN, or ADMIN)
+    // ── Rule-based assignment (Phase 7) ──────────────────────────
+    const assignedId = await resolveAssignmentForLead(leadId);
+    if (assignedId) {
+      const updatedLead = await prisma.crmLead.update({
+        where: { id: leadId },
+        data: { ownerId: assignedId },
+        select: { id: true, ownerId: true },
+      });
+      logger.info(`[CRM][AutoAssign] Lead ${leadId} auto-assigned to user ${assignedId} (rule-based)`);
+      try {
+        await notify({ userId: assignedId, eventType: 'crm_lead_auto_assigned', variables: { leadId } });
+      } catch (notifyErr) {
+        logger.error(`[CRM][AutoAssign] Failed to notify user ${assignedId} for lead ${leadId}`, { error: notifyErr });
+      }
+      return updatedLead;
+    }
+
+    // ── Fallback: simple round-robin (legacy behaviour) ──────────
     const eligibleUsers = await prisma.user.findMany({
       where: {
         isActive: true,
-        roles: {
-          some: {
-            role: {
-              name: { in: ['CRM_USER', 'CRM_ADMIN', 'ADMIN'] },
-            },
-          },
-        },
+        roles: { some: { role: { name: { in: ['CRM_USER', 'CRM_ADMIN', 'ADMIN'] } } } },
       },
-      select: {
-        id: true,
-        createdAt: true,
-      },
+      select: { id: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -410,17 +419,12 @@ export async function autoAssignLead(leadId: string): Promise<{ id: string; owne
       return null;
     }
 
-    // Find the most recently created lead that has an owner from the eligible pool
     const lastAssignedLead = await prisma.crmLead.findFirst({
-      where: {
-        ownerId: { in: eligibleUsers.map((u) => u.id) },
-        deletedAt: null,
-      },
+      where: { ownerId: { in: eligibleUsers.map((u) => u.id) }, deletedAt: null },
       orderBy: { createdAt: 'desc' },
       select: { ownerId: true },
     });
 
-    // Determine next user in round-robin: the one after the last assigned owner
     let nextIndex = 0;
     if (lastAssignedLead) {
       const lastIndex = eligibleUsers.findIndex((u) => u.id === lastAssignedLead.ownerId);
@@ -428,25 +432,15 @@ export async function autoAssignLead(leadId: string): Promise<{ id: string; owne
     }
 
     const assignedUser = eligibleUsers[nextIndex];
-
-    // Update the lead's owner
     const updatedLead = await prisma.crmLead.update({
       where: { id: leadId },
       data: { ownerId: assignedUser.id },
       select: { id: true, ownerId: true },
     });
 
-    logger.info(`[CRM][AutoAssign] Lead ${leadId} auto-assigned to user ${assignedUser.id} (round-robin)`);
-
-    // Notify the assigned user
+    logger.info(`[CRM][AutoAssign] Lead ${leadId} auto-assigned to user ${assignedUser.id} (round-robin fallback)`);
     try {
-      await notify({
-        userId: assignedUser.id,
-        eventType: 'crm_lead_auto_assigned',
-        variables: {
-          leadId,
-        },
-      });
+      await notify({ userId: assignedUser.id, eventType: 'crm_lead_auto_assigned', variables: { leadId } });
     } catch (notifyErr) {
       logger.error(`[CRM][AutoAssign] Failed to notify user ${assignedUser.id} for lead ${leadId}`, { error: notifyErr });
     }
