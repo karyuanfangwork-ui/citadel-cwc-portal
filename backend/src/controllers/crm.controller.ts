@@ -495,18 +495,29 @@ class CrmController {
 
   moveStage = asyncHandler(async (req: AuthRequest, res: Response) => {
     const existing = await prisma.crmOpportunity.findUnique({ where: { id: req.params.id as string } });
-    const opportunity = await crmService.moveOpportunityStage(req.params.id as string, req.body.stageId, req.user!.id, req.body.lostReason);
-    await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: req.params.id as string, oldValues: existing ? { stageId: (existing as any).stageId } as any : undefined, newValues: { stageId: req.body.stageId } } });
-    res.json({ status: 'success', data: { opportunity } });
-    broadcast('crm_update', { type: 'opportunity.stage_moved', entityType: 'opportunity', id: req.params.id as string, changedBy: req.user!.id });
+    try {
+      const opportunity = await crmService.moveOpportunityStage(req.params.id as string, req.body.stageId, req.user!.id, req.body.lostReason);
+      await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: req.params.id as string, oldValues: existing ? { stageId: (existing as any).stageId } as any : undefined, newValues: { stageId: req.body.stageId } } });
+      res.json({ status: 'success', data: { opportunity } });
+      broadcast('crm_update', { type: 'opportunity.stage_moved', entityType: 'opportunity', id: req.params.id as string, changedBy: req.user!.id });
 
-    // Fire-and-forget AI win probability after stage move
-    const oppId = req.params.id as string;
-    setImmediate(() => {
-      predictWinProbability(oppId).catch((err: unknown) =>
-        logger.warn(`[CRM] Background win probability scoring failed for ${oppId}`, { error: err }),
-      );
-    });
+      // Fire-and-forget AI win probability after stage move
+      const oppId = req.params.id as string;
+      setImmediate(() => {
+        predictWinProbability(oppId).catch((err: unknown) =>
+          logger.warn(`[CRM] Background win probability scoring failed for ${oppId}`, { error: err }),
+        );
+      });
+    } catch (err: any) {
+      if (err.gateFailed) {
+        return res.status(err.needsApproval ? 403 : 422).json({
+          status: 'error',
+          error: err.message,
+          needsApproval: !!err.needsApproval,
+        });
+      }
+      throw err;
+    }
   });
 
   deleteOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {

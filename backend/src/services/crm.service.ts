@@ -243,6 +243,8 @@ export async function convertLead(
 // OPPORTUNITY STAGE CHANGE
 // ============================================================================
 
+import { validateStageTransition } from './crm-stage-gate.service';
+
 export async function moveOpportunityStage(
   opportunityId: string,
   stageId: string,
@@ -262,6 +264,15 @@ export async function moveOpportunityStage(
     // Ensure same pipeline
     if (newStage.pipelineId !== opportunity.pipelineId) {
       throw new Error('Stage must belong to the same pipeline');
+    }
+
+    // Stage gate validation
+    const gateResult = validateStageTransition(opportunity, opportunity.stage as any, newStage as any);
+    if (!gateResult.ok) {
+      const err: any = new Error(gateResult.reason);
+      err.needsApproval = !!gateResult.needsApproval;
+      err.gateFailed = true;
+      throw err;
     }
 
     const updateData: Prisma.CrmOpportunityUpdateInput = {
