@@ -69,7 +69,7 @@ const RequestDetailContainer: React.FC = () => {
     const workflowSteps = request.requestType?.workflow?.steps
         ? request.requestType.workflow.steps
               .sort((a: any, b: any) => a.displayOrder - b.displayOrder)
-              .map((s: any) => ({ step: s.status, label: s.label, order: s.displayOrder }))
+              .map((s: any) => ({ step: s.status, label: s.label, order: s.displayOrder, isFinal: !!s.isFinal }))
         : undefined;
 
     // Map approvals for cockpit

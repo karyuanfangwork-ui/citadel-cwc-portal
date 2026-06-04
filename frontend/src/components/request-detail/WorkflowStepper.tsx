@@ -14,7 +14,7 @@ interface WorkflowStepperProps {
     createdAt: string;
     resolvedAt?: string | null;
   };
-  workflowSteps?: { step: string; label: string; order: number }[];
+  workflowSteps?: { step: string; label: string; order: number; isFinal?: boolean }[];
   approvals?: {
     id: string;
     approverId: string;
@@ -28,13 +28,14 @@ interface WorkflowStepperProps {
   }[];
 }
 
-type StepState = 'completed' | 'current' | 'upcoming';
+type StepState = 'completed' | 'current' | 'upcoming' | 'rejected';
 
 interface StepItem {
   step: string;
   label: string;
   order: number;
   state: StepState;
+  isFinal?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +162,25 @@ const formatRemaining = (ms: number): string => {
 };
 
 // ---------------------------------------------------------------------------
+// Terminal statuses — the workflow is done; all steps should show as completed.
+// ---------------------------------------------------------------------------
+const TERMINAL_STATUSES = new Set([
+  'COMPLETED', 'RESOLVED', 'REJECTED',
+  'TICKET_CLOSED_FIN', 'REIMBURSEMENT_CLOSED', 'PAYMENT_COMPLETED',
+  'CHARGEBACK_COMPLETED', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED',
+  'CFO_REJECTED_FIN', 'CEO_REJECTED', 'CEO_REJECTED_IT', 'CTO_REJECTED_IT',
+  'FINANCE_HEAD_REJECTED', 'MANAGER_REJECTED_FIN', 'GROUP_CEO_REJECTED',
+  'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED', 'CANDIDATE_REJECTED_INTERVIEW',
+]);
+
+// Rejected statuses — terminal but ended in rejection (show red "Rejected" badge)
+const REJECTED_STATUSES = new Set([
+  'REJECTED', 'CFO_REJECTED_FIN', 'CEO_REJECTED', 'CEO_REJECTED_IT', 'CTO_REJECTED_IT',
+  'FINANCE_HEAD_REJECTED', 'MANAGER_REJECTED_FIN', 'GROUP_CEO_REJECTED',
+  'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED', 'CANDIDATE_REJECTED_INTERVIEW',
+]);
+
+// ---------------------------------------------------------------------------
 // Helper: build ordered steps from workflowSteps prop or STATUS_TO_STEP fallback
 // ---------------------------------------------------------------------------
 
@@ -212,12 +232,33 @@ const STATUS_ORDER: string[] = [
 
 function buildSteps(
   status: string,
-  workflowSteps?: { step: string; label: string; order: number }[],
+  workflowSteps?: { step: string; label: string; order: number; isFinal?: boolean }[],
+  resolvedAt?: string | null,
 ): StepItem[] {
+  const isTerminal = TERMINAL_STATUSES.has(status);
+  const isResolved = !!resolvedAt;
+
   // If custom steps are provided, use them
   if (workflowSteps && workflowSteps.length > 0) {
     const sorted = [...workflowSteps].sort((a, b) => a.order - b.order);
     const currentIdx = sorted.findIndex(s => s.step === status);
+
+    // ── Terminal / resolved: mark steps appropriately ──
+    if (isTerminal || (isResolved && currentIdx !== -1 && sorted[currentIdx]?.isFinal)) {
+      const isRejected = REJECTED_STATUSES.has(status);
+      const rejectionIdx = isRejected && currentIdx !== -1 ? currentIdx : -1;
+
+      return sorted.map((s, i) => ({
+        step: s.step,
+        label: s.label,
+        order: s.order,
+        state: rejectionIdx !== -1
+          ? i < rejectionIdx ? 'completed' as StepState
+            : i === rejectionIdx ? 'rejected' as StepState
+            : 'upcoming' as StepState
+          : 'completed' as StepState,
+      }));
+    }
 
     if (currentIdx !== -1) {
       // Exact match — straightforward marking
@@ -235,6 +276,28 @@ function buildSteps(
     // and insert a synthetic "current" step at the inferred position.
     const currentGlobalIdx = STATUS_ORDER.indexOf(status);
     const statusLabel = STATUS_TO_STEP[status] ?? status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+
+    // If terminal and not in steps, mark steps appropriately
+    if (isTerminal) {
+      const isRejected = REJECTED_STATUSES.has(status);
+      // Rejection not found in steps → mark all completed, append red rejection step at end
+      if (isRejected) {
+        const items: StepItem[] = sorted.map((s) => ({
+          step: s.step,
+          label: s.label,
+          order: s.order,
+          state: 'completed' as StepState,
+        }));
+        items.push({ step: status, label: statusLabel, order: sorted.length, state: 'rejected' });
+        return items;
+      }
+      return sorted.map((s) => ({
+        step: s.step,
+        label: s.label,
+        order: s.order,
+        state: 'completed' as StepState,
+      }));
+    }
 
     if (currentGlobalIdx === -1) {
       // Unknown status — treat everything up to last step as completed and append current
@@ -272,8 +335,12 @@ function buildSteps(
     return items;
   }
 
-  // Fallback: use a single "In Progress" node if we can't map the status
+  // Fallback: use a single node if we can't map the status
   const label = STATUS_TO_STEP[status] ?? status.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  if (isTerminal) {
+    const state = REJECTED_STATUSES.has(status) ? 'rejected' as StepState : 'completed' as StepState;
+    return [{ step: status, label, order: 0, state }];
+  }
   return [{ step: status, label, order: 0, state: 'current' as StepState }];
 }
 
@@ -285,7 +352,11 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
   const [expanded, setExpanded] = useState(false);
   const [popoverStep, setPopoverStep] = useState<string | null>(null);
 
-  const steps = useMemo(() => buildSteps(request.status, workflowSteps), [request.status, workflowSteps]);
+  const steps = useMemo(() => buildSteps(request.status, workflowSteps, request.resolvedAt), [request.status, workflowSteps, request.resolvedAt]);
+
+  // Whether the entire workflow is in a terminal state (all steps resolved — completed or rejected)
+  const workflowDone = steps.length > 0 && steps.every(s => s.state === 'completed' || s.state === 'rejected');
+  const workflowRejected = REJECTED_STATUSES.has(request.status);
 
   // SLA computation
   const slaDueMs = request.slaDueAt ? new Date(request.slaDueAt).getTime() - Date.now() : null;
@@ -303,10 +374,11 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
   }, [approvals]);
 
   // Collapsible logic: show first 3 + "... + N more" if > 5 steps
+  // When the workflow is completed, auto-expand to show all steps
   const COLLAPSE_THRESHOLD = 5;
   const shouldCollapse = steps.length > COLLAPSE_THRESHOLD;
-  const visibleSteps = shouldCollapse && !expanded ? steps.slice(0, 3) : steps;
-  const hiddenCount = shouldCollapse && !expanded ? steps.length - 3 : 0;
+  const visibleSteps = shouldCollapse && !expanded && !workflowDone ? steps.slice(0, 3) : steps;
+  const hiddenCount = shouldCollapse && !expanded && !workflowDone ? steps.length - 3 : 0;
 
   // Empty state
   if (steps.length === 0) {
@@ -334,8 +406,18 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
           <span className="material-symbols-outlined text-base text-gray-500" aria-hidden="true">timeline</span>
           <span className="text-xs font-semibold uppercase tracking-wider text-gray-600">Workflow</span>
         </div>
-        {/* SLA badge on current step */}
-        {slaDueMs !== null && !request.resolvedAt && (
+        {/* Workflow completed / rejected badge */}
+        {workflowDone && workflowRejected ? (
+          <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-700">
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">cancel</span>
+            Rejected
+          </div>
+        ) : workflowDone ? (
+          <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">check_circle</span>
+            Completed
+          </div>
+        ) : slaDueMs !== null && !request.resolvedAt ? (
           <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
             isBreached
               ? 'bg-red-50 text-red-700'
@@ -355,7 +437,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                 : `${formatRemaining(slaDueMs)} remaining`
             }
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Desktop: Horizontal stepper */}
@@ -370,8 +452,9 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                 {/* Connector line */}
                 {idx > 0 && (
                   <div className={`absolute top-2.5 -left-[50%] w-full h-0.5 ${
-                    step.state === 'completed' || step.state === 'current'
-                      ? 'bg-emerald-400'
+                    step.state === 'completed' ? 'bg-emerald-400'
+                      : step.state === 'rejected' ? 'bg-red-400'
+                      : step.state === 'current' ? 'bg-emerald-400'
                       : 'bg-gray-200'
                   }`} />
                 )}
@@ -388,6 +471,10 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                       <div className="size-5 rounded-full bg-emerald-500 flex items-center justify-center">
                         <span className="material-symbols-outlined text-white text-xs leading-none" aria-hidden="true">check</span>
                       </div>
+                    ) : step.state === 'rejected' ? (
+                      <div className="size-5 rounded-full bg-red-500 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-white text-xs leading-none" aria-hidden="true">close</span>
+                      </div>
                     ) : step.state === 'current' ? (
                       <div className="size-5 rounded-full bg-[#0052cc] flex items-center justify-center animate-pulse">
                         <div className="size-2.5 rounded-full bg-white" />
@@ -402,7 +489,9 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                       ? 'text-[#0052cc]'
                       : step.state === 'completed'
                         ? 'text-emerald-700'
-                        : 'text-gray-400'
+                        : step.state === 'rejected'
+                          ? 'text-red-600'
+                          : 'text-gray-400'
                   }`}>
                     {step.label}
                   </span>
@@ -412,7 +501,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                     <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-30 w-56 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-left">
                       <div className="text-xs font-bold text-gray-800 mb-1">{step.label}</div>
                       <div className={`text-[10px] font-semibold uppercase tracking-wider mb-2 ${
-                        step.state === 'completed' ? 'text-emerald-600' : step.state === 'current' ? 'text-[#0052cc]' : 'text-gray-400'
+                        step.state === 'completed' ? 'text-emerald-600' : step.state === 'rejected' ? 'text-red-600' : step.state === 'current' ? 'text-[#0052cc]' : 'text-gray-400'
                       }`}>
                         {step.state}
                       </div>
@@ -486,6 +575,10 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                     <div className="size-6 rounded-full bg-emerald-500 flex items-center justify-center">
                       <span className="material-symbols-outlined text-white text-sm leading-none" aria-hidden="true">check</span>
                     </div>
+                  ) : step.state === 'rejected' ? (
+                    <div className="size-6 rounded-full bg-red-500 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-white text-sm leading-none" aria-hidden="true">close</span>
+                    </div>
                   ) : step.state === 'current' ? (
                     <div className="size-6 rounded-full bg-[#0052cc] flex items-center justify-center animate-pulse">
                       <div className="size-3 rounded-full bg-white" />
@@ -496,7 +589,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
                 </button>
                 {!isLast && (
                   <div className={`w-0.5 flex-1 min-h-[24px] ${
-                    step.state === 'completed' ? 'bg-emerald-400' : 'bg-gray-200'
+                    step.state === 'completed' ? 'bg-emerald-400' : step.state === 'rejected' ? 'bg-red-400' : 'bg-gray-200'
                   }`} />
                 )}
               </div>
@@ -505,7 +598,7 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
               <div className={`pb-4 ${isLast ? '' : ''}`}>
                 <div className="flex items-center gap-2">
                   <span className={`text-sm font-semibold ${
-                    step.state === 'current' ? 'text-[#0052cc]' : step.state === 'completed' ? 'text-emerald-700' : 'text-gray-400'
+                    step.state === 'current' ? 'text-[#0052cc]' : step.state === 'completed' ? 'text-emerald-700' : step.state === 'rejected' ? 'text-red-600' : 'text-gray-400'
                   }`}>
                     {step.label}
                   </span>
@@ -568,8 +661,8 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
         })}
       </div>
 
-      {/* Collapse / expand toggle */}
-      {shouldCollapse && (
+      {/* Collapse / expand toggle — hide when all steps are already visible (e.g. completed workflow auto-expanded) */}
+      {shouldCollapse && hiddenCount > 0 && (
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
