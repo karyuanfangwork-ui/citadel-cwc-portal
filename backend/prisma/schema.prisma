@@ -1739,6 +1739,7 @@ model CrmOpportunity {
   lostReason  String?   @map("lost_reason") @db.Text
   wonAt       DateTime? @map("won_at") @db.Timestamp(6)
   lostAt      DateTime? @map("lost_at") @db.Timestamp(6)
+  forecastCategory String  @default("PIPELINE") @map("forecast_category") @db.VarChar(20)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamp(6)
 
   // AI scoring
