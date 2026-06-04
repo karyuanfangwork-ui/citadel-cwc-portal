@@ -4,6 +4,7 @@ import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
 import { resolveVisibleOwnerIds, applyOwnerScope } from '../services/crm-scope.service';
+import { detectCycle } from '../services/crm-account-hierarchy.service';
 import { notify } from '../services/notification.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import crmReportsService from '../services/crm-reports.service';
@@ -96,6 +97,8 @@ class CrmController {
         activities: { include: { user: { select: userSelect } }, orderBy: { createdAt: 'desc' }, take: 10 },
         notes: { include: { author: { select: userSelect } }, orderBy: { isPinned: 'desc' }, take: 20 },
         _count: { select: { contacts: true, opportunities: true, leads: true, linkedRequests: true } },
+        parent: { select: { id: true, name: true } },
+        children: { select: { id: true, name: true, industry: true } },
       },
     });
     if (!account) throw new AppError('Account not found', 404);
@@ -103,6 +106,15 @@ class CrmController {
   });
 
   createAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
+    // Cycle guard: validate parentAccountId doesn't create a loop
+    if (req.body.parentAccountId) {
+      const deps = { getParentId: async (id: string) => {
+        const a = await prisma.crmAccount.findUnique({ where: { id }, select: { parentAccountId: true } });
+        return a?.parentAccountId ?? null;
+      }};
+      const cycle = await detectCycle(req.body.id ?? 'new', req.body.parentAccountId, deps);
+      if (!cycle.ok) throw new AppError(cycle.reason!, 422);
+    }
     const account = await prisma.crmAccount.create({
       data: { ...req.body, ownerId: req.user!.id },
       include: { owner: { select: userSelect } },
@@ -115,6 +127,16 @@ class CrmController {
   updateAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
     const existing = await prisma.crmAccount.findUnique({ where: { id: req.params.id as string } });
     if (!existing) throw new AppError('Account not found', 404);
+    // Cycle guard: validate parentAccountId doesn't create a loop
+    if (req.body.parentAccountId !== undefined) {
+      const deps = { getParentId: async (id: string) => {
+        const a = await prisma.crmAccount.findUnique({ where: { id }, select: { parentAccountId: true } });
+        return a?.parentAccountId ?? null;
+      }};
+      // For update, check if the *new* parent chain leads back to the account being updated
+      const cycle = await detectCycle(req.params.id as string, req.body.parentAccountId, deps);
+      if (!cycle.ok) throw new AppError(cycle.reason!, 422);
+    }
     const account = await prisma.crmAccount.update({ where: { id: req.params.id as string }, data: req.body, include: { owner: { select: userSelect } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmAccount', resourceId: account.id, oldValues: existing as any, newValues: { ...req.body, bankAccount: req.body.bankAccount ? '****' : undefined } } });
     res.json({ status: 'success', data: { account: maskBankAccount(account) } });

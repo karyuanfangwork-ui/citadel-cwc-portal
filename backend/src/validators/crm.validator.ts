@@ -40,6 +40,7 @@ const accountBodySchema = z.object({
   bankAccount: z.string().max(100).optional(),
   purchaseCashTrust: z.coerce.boolean().optional(),
   accountType: z.enum(['INDIVIDUAL', 'CORPORATE']).default('CORPORATE'),
+  parentAccountId: z.string().uuid().optional().nullable(),
 });
 
 export const createAccountSchema = z.object({ body: accountBodySchema });
