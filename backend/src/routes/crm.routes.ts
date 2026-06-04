@@ -113,6 +113,8 @@ router.get('/reports/activity-summary', requirePermission('crm:read'), crmContro
 router.get('/reports/lead-aging', requirePermission('crm:read'), crmController.getLeadAgingReport);
 router.get('/reports/win-loss', requirePermission('crm:read'), crmController.getWinLossReport);
 router.get('/reports/kyc-compliance', requirePermission('crm:read'), crmController.getKycComplianceReport);
+router.get('/reports/forecast-categories', requirePermission('crm:read'), crmController.getForecastCategoriesReport);
+router.get('/reports/forecast-accuracy', requirePermission('crm:read'), crmController.getForecastAccuracyReport);
 
 // ======== AI FEATURES ========
 router.use('/ai', crmAiRoutes);

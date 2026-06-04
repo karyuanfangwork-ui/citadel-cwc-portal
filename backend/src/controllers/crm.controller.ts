@@ -5,6 +5,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
 import { resolveVisibleOwnerIds, applyOwnerScope } from '../services/crm-scope.service';
 import { detectCycle } from '../services/crm-account-hierarchy.service';
+import * as crmForecastService from '../services/crm-forecast.service';
 import { notify } from '../services/notification.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import crmReportsService from '../services/crm-reports.service';
@@ -1125,6 +1126,23 @@ class CrmController {
 
   getKycComplianceReport = asyncHandler(async (_req: AuthRequest, res: Response) => {
     const report = await crmReportsService.getKycComplianceReport();
+    res.json({ status: 'success', data: report });
+  });
+
+  getForecastCategoriesReport = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const pipelineId = req.query.pipelineId as string;
+    if (!pipelineId) {
+      res.status(400).json({ status: 'error', message: 'pipelineId query parameter is required' });
+      return;
+    }
+    const report = await crmForecastService.getPipelineForecastWithCategories(pipelineId);
+    res.json({ status: 'success', data: report });
+  });
+
+  getForecastAccuracyReport = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const to = req.query.to ? new Date(req.query.to as string) : new Date();
+    const report = await crmForecastService.getForecastAccuracyReport({ from, to });
     res.json({ status: 'success', data: report });
   });
 
