@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
+import { respondOrCsv } from '../utils/csv-response';
 import { resolveVisibleOwnerIds, applyOwnerScope } from '../services/crm-scope.service';
 import { detectCycle } from '../services/crm-account-hierarchy.service';
 import * as crmForecastService from '../services/crm-forecast.service';
@@ -1097,7 +1098,9 @@ class CrmController {
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const ownerId = req.query.ownerId as string | undefined;
     const report = await crmReportsService.getLeadConversionReport(from, to, ownerId);
-    res.json({ status: 'success', data: report });
+    respondOrCsv(res, report, 'lead-conversion.csv',
+      ['period', 'leads', 'converted', 'conversionRate'], d => d.periods ?? d,
+      req.query.format as string);
   });
 
   getSalesPerformanceReport = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -1105,14 +1108,18 @@ class CrmController {
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const pipelineId = req.query.pipelineId as string | undefined;
     const report = await crmReportsService.getSalesPerformanceReport(from, to, pipelineId);
-    res.json({ status: 'success', data: report });
+    respondOrCsv(res, report, 'sales-performance.csv',
+      ['repId', 'repName', 'leadsCreated', 'opportunitiesCreated', 'wonDeals', 'wonValue', 'totalPipelineValue'], d => d.reps ?? d,
+      req.query.format as string);
   });
 
   getPipelineForecastReport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const pipelineId = req.query.pipelineId as string;
     if (!pipelineId) throw new AppError('pipelineId query parameter is required', 400);
     const report = await crmReportsService.getPipelineForecastReport(pipelineId);
-    res.json({ status: 'success', data: report });
+    respondOrCsv(res, report, 'pipeline-forecast.csv',
+      ['stageId', 'stageName', 'probability', 'dealCount', 'totalValue', 'weightedValue'], d => d.stages ?? d,
+      req.query.format as string);
   });
 
   getActivitySummaryReport = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -1120,13 +1127,17 @@ class CrmController {
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const userId = req.query.userId as string | undefined;
     const report = await crmReportsService.getActivitySummaryReport(from, to, userId);
-    res.json({ status: 'success', data: report });
+    respondOrCsv(res, report, 'activity-summary.csv',
+      ['date', 'calls', 'emails', 'meetings', 'notes'], d => d.daily ?? d,
+      req.query.format as string);
   });
 
   getLeadAgingReport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const ownerId = req.query.ownerId as string | undefined;
     const report = await crmReportsService.getLeadAgingReport(ownerId);
-    res.json({ status: 'success', data: report });
+    respondOrCsv(res, report, 'lead-aging.csv',
+      ['bucket', 'count', 'avgDays', 'totalValue'], d => d.buckets ?? d,
+      (req.query.format as string));
   });
 
   getWinLossReport = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -1134,12 +1145,16 @@ class CrmController {
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const ownerId = req.query.ownerId as string | undefined;
     const report = await crmReportsService.getWinLossReport(from, to, ownerId);
-    res.json({ status: 'success', data: report });
+    respondOrCsv(res, report, 'win-loss.csv',
+      ['reason', 'count', 'totalValue'], d => d.reasons ?? d,
+      req.query.format as string);
   });
 
-  getKycComplianceReport = asyncHandler(async (_req: AuthRequest, res: Response) => {
+  getKycComplianceReport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const report = await crmReportsService.getKycComplianceReport();
-    res.json({ status: 'success', data: report });
+    respondOrCsv(res, report, 'kyc-compliance.csv',
+      ['accountId', 'accountName', 'kycStatus', 'lastReviewDate'], d => d.accounts ?? d,
+      req.query.format as string);
   });
 
   getForecastCategoriesReport = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -1149,14 +1164,19 @@ class CrmController {
       return;
     }
     const report = await crmForecastService.getPipelineForecastWithCategories(pipelineId);
-    res.json({ status: 'success', data: report });
+    respondOrCsv(res, report, 'forecast-categories.csv',
+      ['stageId', 'stageName', 'probability', 'dealCount', 'totalValue', 'weightedValue'], d => d.stages ?? d,
+      req.query.format as string);
   });
 
   getForecastAccuracyReport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const report = await crmForecastService.getForecastAccuracyReport({ from, to });
-    res.json({ status: 'success', data: report });
+    respondOrCsv(res, report, 'forecast-accuracy.csv',
+      [{ key: 'commitTotal', label: 'Committed Forecast' }, { key: 'actualWonTotal', label: 'Actual Won Revenue' }, { key: 'accuracyPct', label: 'Accuracy %' }],
+      d => [d],
+      req.query.format as string);
   });
 
   // ======== GLOBAL SEARCH ========
