@@ -19,7 +19,7 @@ import InterviewFeedbackModal from '../src/components/request/modals/InterviewFe
 import LOAApprovalModal from '../src/components/request/modals/LOAApprovalModal';
 import CEODecisionModal from '../src/components/request/modals/CEODecisionModal';
 import ManagerDecisionModal from '../src/components/request/modals/ManagerDecisionModal';
-import UploadResumeModal from '../src/components/request-detail/UploadResumeModal';
+import BatchUploadModal from '../src/components/request-detail/BatchUploadModal';
 
 const RequestDetailContainer: React.FC = () => {
     const { user } = useAuth();
@@ -360,11 +360,11 @@ const RequestDetailContainer: React.FC = () => {
             />
 
             {rq.showUploadModal && (
-                <UploadResumeModal
+                <BatchUploadModal
                     requestId={request.id}
                     onClose={() => rq.setShowUploadModal(false)}
                     onSuccess={() => { rq.fetchResumes(); rq.fetchCandidates(); rq.fetchRequestData(); }}
-                    existingCandidateNames={[...new Set(rq.resumes.map(r => r.candidateName?.trim()).filter(Boolean) as string[])]}
+                    existingCandidates={rq.candidates}
                 />
             )}
         </div>

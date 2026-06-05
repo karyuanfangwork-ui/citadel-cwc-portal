@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { autoAssignRequest } from './autoAssignment.service';
 
 const prisma = new PrismaClient();
 
@@ -126,6 +127,21 @@ export const createOnboardingFromHiring = async (request: any) => {
                 isSystemGenerated: true,
             },
         });
+
+        // Auto-assign the onboarding ticket to an HR agent (same flow as normal request creation)
+        const assignResult = await autoAssignRequest(onboardingTicket.id);
+        if (assignResult.success && assignResult.assignedToId) {
+            await prisma.requestActivity.create({
+                data: {
+                    requestId: onboardingTicket.id,
+                    authorName: 'System',
+                    authorRole: 'SYSTEM',
+                    activityType: 'SYSTEM',
+                    message: `Auto-assigned to ${assignResult.agentName} via ${assignResult.strategy} assignment.`,
+                    isSystemGenerated: true,
+                },
+            });
+        }
 
         return { onboarding, onboardingTicket };
     } catch (error) {
