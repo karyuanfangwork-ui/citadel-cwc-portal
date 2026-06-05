@@ -105,6 +105,19 @@ export interface ScoringRule {
   updatedAt: string;
 }
 
+export interface AssignmentRule {
+  id: string;
+  name: string;
+  territoryId: string | null;
+  sourceMatch: string | null;
+  roundRobin: boolean;
+  isActive: boolean;
+  priority: number;
+  createdAt: string;
+  updatedAt: string;
+  territory?: { id: string; name: string };
+}
+
 export interface CrmActivity {
   id: string; activityType: CrmActivityType; subject: string; description: string | null;
   userId: string; accountId: string | null; contactId: string | null;
@@ -508,6 +521,23 @@ const crmService = {
   async recomputeScores() {
     const res = await api.post('/crm/lead-scoring-rules/recompute');
     return res.data.data as { count: number };
+  },
+
+  // Assignment Rules
+  async listAssignmentRules() {
+    const res = await api.get('/crm/assignment-rules');
+    return res.data.data as AssignmentRule[];
+  },
+  async createAssignmentRule(data: Omit<AssignmentRule, 'id' | 'createdAt' | 'updatedAt' | 'territory'>) {
+    const res = await api.post('/crm/assignment-rules', data);
+    return res.data.data.rule as AssignmentRule;
+  },
+  async updateAssignmentRule(id: string, data: Partial<AssignmentRule>) {
+    const res = await api.put(`/crm/assignment-rules/${id}`, data);
+    return res.data.data.rule as AssignmentRule;
+  },
+  async deleteAssignmentRule(id: string) {
+    return api.delete(`/crm/assignment-rules/${id}`);
   },
 
   // My Stats (Self-Service Rep Stats)
