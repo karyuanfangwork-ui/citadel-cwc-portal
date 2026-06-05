@@ -1791,6 +1791,35 @@ class CrmController {
     await prisma.crmAssignmentRule.delete({ where: { id: req.params.id as string } });
     res.json({ status: 'success', message: 'Assignment rule deleted' });
   });
+
+  // ======== CONTACT-ACCOUNT ROLES (Multi-account contacts) ========
+
+  addContactAccountRole = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { contactId, accountId, role } = req.body;
+    const entry = await prisma.crmContactAccountRole.create({
+      data: { contactId, accountId, role },
+      include: { contact: { select: { id: true, firstName: true, lastName: true } }, account: { select: { id: true, name: true } } },
+    });
+    res.status(201).json({ status: 'success', data: { role: entry } });
+  });
+
+  removeContactAccountRole = asyncHandler(async (req: AuthRequest, res: Response) => {
+    await prisma.crmContactAccountRole.delete({ where: { id: req.params.id as string } });
+    res.json({ status: 'success', message: 'Contact-account role removed' });
+  });
+
+  getContactAccountRoles = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { contactId, accountId } = req.query;
+    const where: any = {};
+    if (contactId) where.contactId = contactId as string;
+    if (accountId) where.accountId = accountId as string;
+    const roles = await prisma.crmContactAccountRole.findMany({
+      where,
+      include: { contact: { select: { id: true, firstName: true, lastName: true } }, account: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    res.json({ status: 'success', data: roles });
+  });
 }
 
 export const crmController = new CrmController();

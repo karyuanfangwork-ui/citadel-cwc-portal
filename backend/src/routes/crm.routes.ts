@@ -218,4 +218,9 @@ router.post('/assignment-rules', requirePermission('crm:admin'), crmController.c
 router.put('/assignment-rules/:id', requirePermission('crm:admin'), crmController.updateAssignmentRule);
 router.delete('/assignment-rules/:id', requirePermission('crm:admin'), crmController.deleteAssignmentRule);
 
+// Contact-Account Roles (multi-account contacts)
+router.get('/contact-account-roles', requirePermission('crm:read'), crmController.getContactAccountRoles);
+router.post('/contact-account-roles', requirePermission('crm:write'), crmController.addContactAccountRole);
+router.delete('/contact-account-roles/:id', requirePermission('crm:write'), crmController.removeContactAccountRole);
+
 export default router;

@@ -118,6 +118,16 @@ export interface AssignmentRule {
   territory?: { id: string; name: string };
 }
 
+export interface ContactAccountRole {
+  id: string;
+  contactId: string;
+  accountId: string;
+  role: string;
+  createdAt: string;
+  contact?: { id: string; firstName: string; lastName: string };
+  account?: { id: string; name: string };
+}
+
 export interface CrmActivity {
   id: string; activityType: CrmActivityType; subject: string; description: string | null;
   userId: string; accountId: string | null; contactId: string | null;
@@ -538,6 +548,19 @@ const crmService = {
   },
   async deleteAssignmentRule(id: string) {
     return api.delete(`/crm/assignment-rules/${id}`);
+  },
+
+  // Contact-Account Roles (multi-account contacts)
+  async getContactAccountRoles(params?: { contactId?: string; accountId?: string }) {
+    const res = await api.get('/crm/contact-account-roles', { params });
+    return res.data.data as ContactAccountRole[];
+  },
+  async addContactAccountRole(contactId: string, accountId: string, role: string) {
+    const res = await api.post('/crm/contact-account-roles', { contactId, accountId, role });
+    return res.data.data.role as ContactAccountRole;
+  },
+  async removeContactAccountRole(id: string) {
+    return api.delete(`/crm/contact-account-roles/${id}`);
   },
 
   // My Stats (Self-Service Rep Stats)

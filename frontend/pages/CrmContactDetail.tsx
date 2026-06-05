@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, {
   CrmContact, CrmOpportunity, CrmLead, CrmKycRecord, CrmNote, CrmAccount, CrmBeneficiary,
-  CrmActivity, CrmActivityType,
+  CrmActivity, CrmActivityType, ContactAccountRole,
 } from '../src/services/crm.service';
 import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
@@ -636,6 +636,7 @@ const CrmContactDetail = () => {
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
   const [accounts, setAccounts] = useState<CrmAccount[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [contactRoles, setContactRoles] = useState<ContactAccountRole[]>([]);
 
   // ── Delete state ───────────────────────────────────────────────────
   const [showDelete, setShowDelete] = useState(false);
@@ -688,6 +689,8 @@ const CrmContactDetail = () => {
     if (!contact) return;
     kycGapsHook.fetch(contact.id);
     riskProfileHook.fetch(contact.id);
+    // Load contact-account roles (multi-account associations)
+    crmService.getContactAccountRoles({ contactId: contact.id }).then(setContactRoles).catch(() => {});
   }, [contact?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── AI handlers ─────────────────────────────────────────────────────
@@ -1031,6 +1034,26 @@ const CrmContactDetail = () => {
                 <span className="text-sm text-text-secondary">—</span>
               )}
             </div>
+            {/* Also associated with (multi-account) */}
+            {contactRoles.length > 0 && (
+              <div className="mt-1">
+                <span className="text-xs text-text-secondary font-semibold">Also associated with</span>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {contactRoles.map(r => (
+                    <span key={r.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs">
+                      <Link to={`/crm/accounts/${r.accountId}`} className="hover:underline">{r.account?.name ?? r.accountId}</Link>
+                      <span className="text-blue-400">·</span>
+                      <span>{r.role}</span>
+                      <button
+                        className="text-blue-400 hover:text-red-500 ml-0.5"
+                        title="Remove association"
+                        onClick={async () => { await crmService.removeContactAccountRole(r.id); crmService.getContactAccountRoles({ contactId: contact!.id }).then(setContactRoles); }}
+                      >×</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* Read-only: Is Primary */}
             <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">star</span>

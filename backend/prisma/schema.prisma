@@ -1572,6 +1572,7 @@ model CrmAccount {
   @@index([parentAccountId])
   syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailAccount")
   customFields     Json?              @map("custom_fields")
+  contactAccountRoles CrmContactAccountRole[]
   @@map("crm_accounts")
 }
 
@@ -1618,10 +1619,28 @@ model CrmContact {
   shareholders    Shareholder[]
   syncedEmails    CrmSyncedEmail[]   @relation("CrmSyncedEmailContact")
   customFields     Json?              @map("custom_fields")
+  contactRoles     CrmContactAccountRole[]
 
   @@index([accountId])
   @@index([email])
   @@map("crm_contacts")
+}
+
+// Multi-account contact roles (Phase 8)
+model CrmContactAccountRole {
+  id        String   @id @default(uuid()) @db.Uuid
+  contactId String   @map("contact_id") @db.Uuid
+  accountId String   @map("account_id") @db.Uuid
+  role      String   @db.VarChar(50) // e.g. DECISION_MAKER, INFLUENCER, CHAMPION, END_USER
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  contact   CrmContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  account   CrmAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, accountId, role])
+  @@index([contactId])
+  @@index([accountId])
+  @@map("crm_contact_account_roles")
 }
 
 // CRM Leads — pre-qualified prospects
