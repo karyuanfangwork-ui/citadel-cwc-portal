@@ -15,7 +15,7 @@
 | File | What changes |
 |---|---|
 | `backend/src/controllers/it-workflow.controller.ts` | Task 1: fix CTO group blast → require explicit `ctoId` |
-| `backend/src/controllers/finance-workflow.controller.ts` | Task 2: add `notify()` calls for CFO, Finance Head, Group CEO |
+| `backend/src/controllers/finance-workflow.controller.ts` | Task 2: add `notify()` calls for CFO, Finance Head, Group Deputy CEO |
 | `backend/src/controllers/approval.controller.ts` | Task 3: add `notify()` calls for CEO (HR hiring), requester, hiring manager |
 | `backend/src/services/sla.service.ts` | Task 4: deduplicate admin blast — cap to assigned agent + one admin per breach |
 
@@ -101,7 +101,7 @@ git commit -m "fix: require explicit ctoId in ceoDecision — stop blasting all 
 Three transitions route to an approver but never email them:
 1. `setFinalizedAmountAndRouteCfo` → CFO never notified (`PENDING_CFO_APPROVAL_FIN`)
 2. `managerApproveExpense` → Finance Head never notified (`PENDING_FINANCE_HEAD_APPROVAL`)
-3. `cfoDecision` approved → Group CEO never notified when routed to `PENDING_GROUP_CEO_APPROVAL`
+3. `cfoDecision` approved → Group Deputy CEO never notified when routed to `PENDING_GROUP_DCEO_APPROVAL`
 
 ### 2a — Notify CFO in `setFinalizedAmountAndRouteCfo`
 
@@ -159,28 +159,28 @@ if (financeHeadId) {
 
 Note: the `PENDING_FINANCE_HEAD_APPROVAL` maps to approverType `'CFO'` in the `PENDING_APPROVAL_TYPE_MAP` — this lookup is correct.
 
-### 2c — Notify Group CEO in `cfoDecision`
+### 2c — Notify Group Deputy CEO in `cfoDecision`
 
-- [ ] **Step 3: Add Group CEO notify in `cfoDecision` approved branch**
+- [ ] **Step 3: Add Group Deputy CEO notify in `cfoDecision` approved branch**
 
-In `cfoDecision`, find the block that sets `newStatus = ... RequestStatus.PENDING_GROUP_CEO_APPROVAL ...`. After:
+In `cfoDecision`, find the block that sets `newStatus = ... RequestStatus.PENDING_GROUP_DCEO_APPROVAL ...`. After:
 ```typescript
 await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 ```
 
 Add:
 ```typescript
-if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
-  const groupCeoApproval = await prisma.requestApproval.findFirst({
-    where: { requestId: id, approverType: 'GROUP_CEO', status: 'PENDING' },
+if (newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL) {
+  const groupDceoApproval = await prisma.requestApproval.findFirst({
+    where: { requestId: id, approverType: 'GROUP_DCEO', status: 'PENDING' },
     select: { approverId: true },
   });
-  const groupCeoId = groupCeoApproval?.approverId ?? (await prisma.user.findFirst({
-    where: { isActive: true, roles: { some: { role: { name: 'GROUP_CEO' } } } },
+  const groupDceoId = groupDceoApproval?.approverId ?? (await prisma.user.findFirst({
+    where: { isActive: true, roles: { some: { role: { name: 'GROUP_DCEO' } } } },
     select: { id: true },
   }))?.id;
-  if (groupCeoId) {
-    await notify({ userId: groupCeoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group CEO' }, relatedRequestId: id });
+  if (groupDceoId) {
+    await notify({ userId: groupDceoId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
   }
 }
 ```
@@ -196,7 +196,7 @@ Expected: no errors referencing `finance-workflow.controller.ts`.
 
 ```bash
 git add backend/src/controllers/finance-workflow.controller.ts
-git commit -m "fix: notify CFO, Finance Head, and Group CEO on finance approval transitions"
+git commit -m "fix: notify CFO, Finance Head, and Group Deputy CEO on finance approval transitions"
 ```
 
 ---
@@ -399,7 +399,7 @@ git commit -m "perf: hoist admin lookup outside SLA breach loop — O(1) instead
 | CTO group blast | Task 1 — require explicit `ctoId` |
 | Finance CFO not notified | Task 2a |
 | Finance Head not notified | Task 2b |
-| Group CEO not notified | Task 2c |
+| Group Deputy CEO not notified | Task 2c |
 | HR CEO not notified | Task 3a |
 | HR requester not notified of CEO decision | Task 3b |
 | HR hiring manager not notified | Task 3c |

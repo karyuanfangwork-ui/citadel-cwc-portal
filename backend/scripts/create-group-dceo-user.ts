@@ -4,15 +4,15 @@ import * as bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🔧 Creating GROUP_CEO user...\n');
+  console.log('🔧 Creating GROUP_DCEO user...\n');
 
-  // Find GROUP_CEO role
-  const groupCeoRole = await prisma.role.findUnique({
-    where: { name: 'GROUP_CEO' }
+  // Find GROUP_DCEO role
+  const groupDceoRole = await prisma.role.findUnique({
+    where: { name: 'GROUP_DCEO' }
   });
 
-  if (!groupCeoRole) {
-    console.error('❌ GROUP_CEO role not found');
+  if (!groupDceoRole) {
+    console.error('❌ GROUP_DCEO role not found');
     process.exit(1);
   }
 
@@ -24,22 +24,22 @@ async function main() {
   if (existingUser) {
     console.log('⚠️  User groupceo@company.com already exists');
     
-    // Check if already has GROUP_CEO role
+    // Check if already has GROUP_DCEO role
     const existingRole = await prisma.userRole.findFirst({
-      where: { userId: existingUser.id, roleId: groupCeoRole.id }
+      where: { userId: existingUser.id, roleId: groupDceoRole.id }
     });
     
     if (existingRole) {
-      console.log('✅ User already has GROUP_CEO role');
+      console.log('✅ User already has GROUP_DCEO role');
     } else {
-      // Assign GROUP_CEO role
+      // Assign GROUP_DCEO role
       await prisma.userRole.create({
         data: {
           userId: existingUser.id,
-          roleId: groupCeoRole.id
+          roleId: groupDceoRole.id
         }
       });
-      console.log('✅ GROUP_CEO role assigned to existing user');
+      console.log('✅ GROUP_DCEO role assigned to existing user');
     }
     
     console.log('\n📋 Login credentials:');
@@ -62,15 +62,15 @@ async function main() {
     }
   });
 
-  // Assign GROUP_CEO role
+  // Assign GROUP_DCEO role
   await prisma.userRole.create({
     data: {
       userId: user.id,
-      roleId: groupCeoRole.id
+      roleId: groupDceoRole.id
     }
   });
 
-  console.log('✅ GROUP_CEO user created successfully!\n');
+  console.log('✅ GROUP_DCEO user created successfully!\n');
   console.log('📋 Login credentials:');
   console.log('   Email: groupceo@company.com');
   console.log('   Password: groupceo123');

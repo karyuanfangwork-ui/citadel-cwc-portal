@@ -492,7 +492,7 @@ The tab shows:
 2. A list of escalation rules for the selected request type (each showing: trigger hours, roles, label, active toggle, delete button)
 3. An "Add Rule" form at the bottom: `triggerHoursAfterBreach` number input, `notifyRoles` multi-checkbox (ADMIN, AGENT, HR, IT), optional `label` text input, Save button
 
-All ADMIN role names available in the system can be found at `GET /api/v1/users?role=...`. For simplicity, the UI hardcodes the available role options as the 8 known roles: `['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_CEO']`.
+All ADMIN role names available in the system can be found at `GET /api/v1/users?role=...`. For simplicity, the UI hardcodes the available role options as the 8 known roles: `['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_DCEO']`.
 
 - [ ] **Step 1: Add the API service method**
 
@@ -521,7 +521,7 @@ All ADMIN role names available in the system can be found at `GET /api/v1/users?
   import { useState, useEffect, useCallback } from 'react';
   import serviceDeskService from '../../services/serviceDesk.service';
 
-  const AVAILABLE_ROLES = ['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_CEO'];
+  const AVAILABLE_ROLES = ['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_DCEO'];
 
   export default function SLAEscalationTab() {
     const [desks, setDesks] = useState<any[]>([]);

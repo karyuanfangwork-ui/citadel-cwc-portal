@@ -45,13 +45,13 @@ router.get('/agents', authorize('ADMIN', 'AGENT'), userController.getAgents);
 
 /**
  * @route   GET /api/v1/users/executives
- * @desc    Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_CEO / etc.)
+ * @desc    Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_DCEO / etc.)
  *          Used by workflow modals so the routing agent can override the auto-selected approver.
- * @access  Private (any authenticated user who routes approvals: Agent, Admin, CEO, CTO, CFO, GROUP_CEO)
+ * @access  Private (any authenticated user who routes approvals: Agent, Admin, CEO, CTO, CFO, GROUP_DCEO)
  */
 router.get(
     '/executives',
-    authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_CEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'),
+    authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_DCEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'),
     userController.getExecutives,
 );
 
@@ -184,9 +184,9 @@ router.get('/:id', authorize('ADMIN'), userController.getUserById);
 /**
  * @route   GET /api/v1/users
  * @desc    Get all users (with pagination and filters)
- * @access  Private (Admin, Agent, CEO, CTO, CFO, GROUP_CEO — agents & executives need this to look up approvers during workflow)
+ * @access  Private (Admin, Agent, CEO, CTO, CFO, GROUP_DCEO — agents & executives need this to look up approvers during workflow)
  */
-router.get('/', authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_CEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'), userController.getAllUsers);
+router.get('/', authorize('ADMIN', 'AGENT', 'CEO', 'CTO', 'CFO', 'GROUP_DCEO', 'CREDIT_RM', 'CREDIT_ANALYST', 'CREDIT_MANAGER'), userController.getAllUsers);
 router.post('/', authorize('ADMIN'), userController.createUser);
 
 /**

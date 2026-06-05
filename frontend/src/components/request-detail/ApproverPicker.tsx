@@ -13,7 +13,7 @@
 import React, { useEffect, useState } from 'react';
 import api from '../../services/api';
 
-export type ExecutiveRole = 'GROUP_CEO' | 'CEO' | 'CTO' | 'CFO' | 'CMO' | 'COO' | 'CHRO';
+export type ExecutiveRole = 'GROUP_DCEO' | 'CEO' | 'CTO' | 'CFO' | 'CMO' | 'COO' | 'CHRO';
 
 export interface ApproverOption {
     id: string;

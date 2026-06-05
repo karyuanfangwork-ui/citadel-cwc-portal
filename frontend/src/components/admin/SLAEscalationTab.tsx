@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { serviceDeskService } from '../../services/serviceDesk.service';
 import workflowService, { WorkflowStep, WorkflowType } from '../../services/workflow.service';
 
-const AVAILABLE_ROLES = ['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_CEO'];
+const AVAILABLE_ROLES = ['ADMIN', 'AGENT', 'HR', 'IT', 'FINANCE', 'CEO', 'VP', 'GROUP_DCEO'];
 
 interface EscalationRule {
     id: string;

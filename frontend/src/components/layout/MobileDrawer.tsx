@@ -7,7 +7,7 @@ import type { User } from '@/src/context/AuthContext';
 /** Map role strings to display labels and badge colors */
 const ROLE_BADGE: Record<string, { label: string; bg: string; text: string }> = {
   ADMIN:      { label: 'Admin',      bg: '#dc262620', text: '#dc2626' },
-  GROUP_CEO:  { label: 'Group CEO',  bg: '#7c3aed20', text: '#7c3aed' },
+  GROUP_DCEO:  { label: 'Group Deputy CEO',  bg: '#7c3aed20', text: '#7c3aed' },
   CEO:        { label: 'CEO',        bg: '#7c3aed20', text: '#7c3aed' },
   CTO:        { label: 'CTO',        bg: '#7c3aed20', text: '#7c3aed' },
   CFO:        { label: 'CFO',        bg: '#7c3aed20', text: '#7c3aed' },
@@ -18,8 +18,8 @@ const ROLE_BADGE: Record<string, { label: string; bg: string; text: string }> = 
   END_USER:   { label: 'User',       bg: '#6b728020', text: '#6b7280' },
 };
 
-/** Role priority order: ADMIN > GROUP_CEO > CEO > CTO > CFO > AGENT > first role > END_USER */
-const ROLE_PRIORITY = ['ADMIN', 'GROUP_CEO', 'CEO', 'CTO', 'CFO', 'AGENT'];
+/** Role priority order: ADMIN > GROUP_DCEO > CEO > CTO > CFO > AGENT > first role > END_USER */
+const ROLE_PRIORITY = ['ADMIN', 'GROUP_DCEO', 'CEO', 'CTO', 'CFO', 'AGENT'];
 
 function primaryRole(roles: string[] | undefined): string {
   if (!roles?.length) return 'END_USER';

@@ -75,7 +75,7 @@ The Credit Assessment module is a full-lifecycle credit origination and assessme
 | Admin | `admin@test.local` | `abc@123` | Full access (all features) |
 | HR / Analyst | `hr@test.local` | `abc@123` | Read/write access |
 | CEO | `ceo@test.local` | `abc@123` | Approval authority |
-| Group CEO | `groupceo@company.com` | `groupceo123` | Group-level approval |
+| Group Deputy CEO | `groupceo@company.com` | `groupceo123` | Group-level approval |
 
 ### Credit Navigation Bar
 

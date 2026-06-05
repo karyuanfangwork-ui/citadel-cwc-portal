@@ -107,12 +107,12 @@ class RequestController {
                     { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
                     { approvals: { some: { approverId: req.user!.id } } },
                 ];
-            } else if (hasRole(req, 'GROUP_CEO')) {
-                // GROUP_CEO can see their own requests, Finance Purchase Requisitions pending their approval,
+            } else if (hasRole(req, 'GROUP_DCEO')) {
+                // GROUP_DCEO can see their own requests, Finance Purchase Requisitions pending their approval,
                 // chargeback requests where they're involved, and requests assigned to them
                 where.OR = [
                     { requesterId: req.user!.id },
-                    { status: 'PENDING_GROUP_CEO_APPROVAL' },
+                    { status: 'PENDING_GROUP_DCEO_APPROVAL' },
                     { status: 'PENDING_FROM_ENTITY_APPROVAL' },
                     { status: 'PENDING_TO_ENTITY_APPROVAL' },
                     { status: 'CHARGEBACK_FINANCE_REVIEW' },
@@ -328,7 +328,7 @@ class RequestController {
             CEO: ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT', 'PENDING_CEO_APPROVAL_FIN'],
             CTO: ['PENDING_CTO_APPROVAL_IT'],
             CFO: ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN', 'PENDING_FINANCE_HEAD_APPROVAL'],
-            GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
+            GROUP_DCEO: ['PENDING_GROUP_DCEO_APPROVAL'],
             VP: [],
             MANAGER: ['PENDING_MANAGER_APPROVAL_FIN', 'PENDING_MANAGER_REVIEW'],
             HR: ['LOA_PENDING_APPROVAL', 'ONBOARDING_PENDING_HR_APPROVAL'],
@@ -484,8 +484,8 @@ class RequestController {
             // Manager approvals
             PENDING_MANAGER_APPROVAL_FIN: { MANAGER: { approve: 'MANAGER_APPROVED_FIN', reject: 'MANAGER_REJECTED_FIN' } },
             PENDING_MANAGER_REVIEW: { MANAGER: { approve: 'MANAGER_APPROVED', reject: 'IN_REVIEW' } },
-            // Group CEO approvals
-            PENDING_GROUP_CEO_APPROVAL: { GROUP_CEO: { approve: 'GROUP_CEO_APPROVED', reject: 'GROUP_CEO_REJECTED' } },
+            // Group Deputy CEO approvals
+            PENDING_GROUP_DCEO_APPROVAL: { GROUP_DCEO: { approve: 'GROUP_DCEO_APPROVED', reject: 'GROUP_DCEO_REJECTED' } },
             // HR approvals
             LOA_PENDING_APPROVAL: { HR: { approve: 'LOA_APPROVED', reject: 'REJECTED' } },
             ONBOARDING_PENDING_HR_APPROVAL: { HR: { approve: 'ONBOARDING_PRE_ARRIVAL_SETUP', reject: 'REJECTED' } },
@@ -502,7 +502,7 @@ class RequestController {
         // Role display names for activity log
         const ROLE_DISPLAY: Record<string, string> = {
             CEO: 'CEO', CTO: 'CTO', CFO: 'CFO', VP: 'VP',
-            MANAGER: 'Manager', GROUP_CEO: 'Group CEO', HR: 'HR',
+            MANAGER: 'Manager', GROUP_DCEO: 'Group Deputy CEO', HR: 'HR',
             HIRING_MANAGER: 'Hiring Manager',
         };
 
@@ -1491,8 +1491,8 @@ class RequestController {
             'AWAITING_CHARGEBACK_CONFIRMATION',
             'CHARGEBACK_COMPLETED',
         ];
-        const isGroupCeoApprover = hasRole(req, 'GROUP_CEO') && (
-            request.status === 'PENDING_GROUP_CEO_APPROVAL' ||
+        const isGroupDceoApprover = hasRole(req, 'GROUP_DCEO') && (
+            request.status === 'PENDING_GROUP_DCEO_APPROVAL' ||
             chargebackStatuses.includes(request.status) ||
             isDesignatedApprover ||
             request.assignedToId === req.user!.id
@@ -1504,7 +1504,7 @@ class RequestController {
             !isCEOApprover &&
             !isCTOApprover &&
             !isCFOApprover &&
-            !isGroupCeoApprover &&
+            !isGroupDceoApprover &&
             !isParticipant
         ) {
             throw new AppError('You do not have permission to view this request', 403);
@@ -1522,7 +1522,7 @@ class RequestController {
             !isCEOApprover &&
             !isCTOApprover &&
             !isCFOApprover &&
-            !isGroupCeoApprover &&
+            !isGroupDceoApprover &&
             !isParticipant
         ) {
             throw new AppError('This request is confidential and cannot be viewed', 403);
@@ -2101,7 +2101,7 @@ class RequestController {
             PENDING_CFO_APPROVAL_IT: 'CFO',
             PENDING_CFO_APPROVAL_FIN: 'CFO',
             PENDING_FINANCE_HEAD_APPROVAL: 'CFO',
-            PENDING_GROUP_CEO_APPROVAL: 'GROUP_CEO',
+            PENDING_GROUP_DCEO_APPROVAL: 'GROUP_DCEO',
             PENDING_MANAGER_APPROVAL_FIN: 'MANAGER',
             PENDING_MANAGER_REVIEW: 'MANAGER',
             LOA_PENDING_APPROVAL: 'HR',
@@ -2131,7 +2131,7 @@ class RequestController {
                     approverId = byUserRole?.id ?? null;
                 }
             } else {
-                // For non-executive roles (GROUP_CEO, VP, MANAGER, HR), find by UserRole
+                // For non-executive roles (GROUP_DCEO, VP, MANAGER, HR), find by UserRole
                 const approverUser = await prisma.user.findFirst({
                     where: {
                         isActive: true,

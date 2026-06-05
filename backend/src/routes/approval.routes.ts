@@ -7,8 +7,8 @@ import {
     routeToManager,
     managerDecision,
     entityDecision,
-    routeToGroupCeoHr,
-    groupCeoDecisionHr
+    routeToGroupDceoHr,
+    groupDceoDecisionHr
 } from '../controllers/approval.controller';
 import {
     uploadResume,
@@ -72,18 +72,18 @@ router.post('/requests/:id/manager-decision', managerDecision);
 router.post('/requests/:id/entity-decision', entityDecision);
 
 /**
- * @route   POST /api/approvals/requests/:id/route-to-group-ceo-hr
- * @desc    Route HR hiring request to Group CEO for approval
+ * @route   POST /api/approvals/requests/:id/route-to-group-dceo-hr
+ * @desc    Route HR hiring request to Group Deputy CEO for approval
  * @access  Private (HR Agent)
  */
-router.post('/requests/:id/route-to-group-ceo-hr', routeToGroupCeoHr);
+router.post('/requests/:id/route-to-group-dceo-hr', routeToGroupDceoHr);
 
 /**
- * @route   POST /api/approvals/requests/:id/group-ceo-decision-hr
- * @desc    Group CEO approve or reject HR hiring request
- * @access  Private (Group CEO)
+ * @route   POST /api/approvals/requests/:id/group-dceo-decision-hr
+ * @desc    Group Deputy CEO approve or reject HR hiring request
+ * @access  Private (Group Deputy CEO)
  */
-router.post('/requests/:id/group-ceo-decision-hr', groupCeoDecisionHr);
+router.post('/requests/:id/group-dceo-decision-hr', groupDceoDecisionHr);
 
 // ============================================================================
 // RESUME UPLOAD ROUTES

@@ -96,7 +96,7 @@ export function resolveEntityCode(
 // ── Map job titles to executive roles ────────────────────────────────────────
 export function inferExecutiveRole(jobTitle: string): ExecutiveRole | null {
   const lower = jobTitle.toLowerCase();
-  if (lower.includes('group chief executive') || lower.includes('chairman')) return 'GROUP_CEO' as ExecutiveRole;
+  if (lower.includes('group deputy chief executive officer') || lower.includes('group deputy ceo')) return 'GROUP_DCEO' as ExecutiveRole;
   if (lower === 'chief executive officer' || lower === 'ceo') return 'CEO' as ExecutiveRole;
   if (lower.includes('chief executive officer') && lower.includes('head of sales')) return 'CEO' as ExecutiveRole;
   if (lower.includes('chief technology officer') || lower === 'cto') return 'CTO' as ExecutiveRole;
@@ -116,7 +116,7 @@ export function inferDepartment(jobTitle: string): string | null {
   if (lower.includes('marketing') || lower.includes('investor relation')) return 'Marketing';
   if (lower.includes('legal') || lower.includes('compliance')) return 'Legal';
   if (lower.includes('admin') || lower.includes('receptionist') || lower.includes('executive assistant')) return 'Admin';
-  if (lower.includes('director') || lower.includes('chief') || lower.includes('chairman') || lower.includes('ceo') || lower.includes('cto') || lower.includes('cfo')) return 'Executive';
+  if (lower.includes('director') || lower.includes('chief') || lower.includes('group deputy') || lower.includes('ceo') || lower.includes('cto') || lower.includes('cfo')) return 'Executive';
   if (lower.includes('sales')) return 'Sales';
   return null;
 }

@@ -8,7 +8,7 @@
 
 ## Overview
 
-Replace the existing stub Finance workflow with a fully implemented Purchase Requisition approval chain. Staff submit a ticket; Finance Agents review and enter a finalized amount before routing through a CEO → CFO → (conditional) Group CEO approval chain, followed by payment processing and ticket closure.
+Replace the existing stub Finance workflow with a fully implemented Purchase Requisition approval chain. Staff submit a ticket; Finance Agents review and enter a finalized amount before routing through a CEO → CFO → (conditional) Group Deputy CEO approval chain, followed by payment processing and ticket closure.
 
 ---
 
@@ -22,9 +22,9 @@ SUBMITTED
             └─[CEO: Approve]──► PENDING_CFO_APPROVAL_FIN  (auto, no manual step)
                  ├─[CFO: Reject]──► CFO_REJECTED_FIN (closed)
                  └─[CFO: Approve]──► [amount check]
-                      ├─ > MYR 15,000 ──► PENDING_GROUP_CEO_APPROVAL_FIN
-                      │    ├─[Group CEO: Reject]──► GROUP_CEO_REJECTED_FIN (closed)
-                      │    └─[Group CEO: Approve]──► PAYMENT_PROCESSING_FIN
+                      ├─ > MYR 15,000 ──► PENDING_GROUP_DCEO_APPROVAL_FIN
+                      │    ├─[Group Deputy CEO: Reject]──► GROUP_DCEO_REJECTED_FIN (closed)
+                      │    └─[Group Deputy CEO: Approve]──► PAYMENT_PROCESSING_FIN
                       └─ ≤ MYR 15,000 ──► PAYMENT_PROCESSING_FIN
                            └─[Finance Agent: Mark payment complete]──► PAYMENT_COMPLETED_FIN
                                 └─[Finance Agent: Close ticket]──► COMPLETED
@@ -50,9 +50,9 @@ CEO_REJECTED_FIN
 PENDING_CFO_APPROVAL_FIN
 CFO_APPROVED_FIN
 CFO_REJECTED_FIN
-PENDING_GROUP_CEO_APPROVAL_FIN
-GROUP_CEO_APPROVED_FIN
-GROUP_CEO_REJECTED_FIN
+PENDING_GROUP_DCEO_APPROVAL_FIN
+GROUP_DCEO_APPROVED_FIN
+GROUP_DCEO_REJECTED_FIN
 PAYMENT_PROCESSING_FIN
 PAYMENT_COMPLETED_FIN
 ```
@@ -70,8 +70,8 @@ All under `/api/v1/finance-workflow/requests/:id/`
 | POST | `acknowledge` | Finance Agent | `SUBMITTED → ACKNOWLEDGED_FIN` |
 | POST | `set-finalized-amount-and-route-ceo` | Finance Agent | Saves `finalizedAmount` to customFields, transitions `ACKNOWLEDGED_FIN → PENDING_CEO_APPROVAL_FIN` |
 | POST | `ceo-decision` | CEO | `APPROVE → PENDING_CFO_APPROVAL_FIN` (auto), `REJECT → CEO_REJECTED_FIN` |
-| POST | `cfo-decision` | CFO | `APPROVE` → threshold check → `PENDING_GROUP_CEO_APPROVAL_FIN` or `PAYMENT_PROCESSING_FIN`; `REJECT → CFO_REJECTED_FIN` |
-| POST | `group-ceo-decision` | Group CEO | `APPROVE → PAYMENT_PROCESSING_FIN`, `REJECT → GROUP_CEO_REJECTED_FIN` |
+| POST | `cfo-decision` | CFO | `APPROVE` → threshold check → `PENDING_GROUP_DCEO_APPROVAL_FIN` or `PAYMENT_PROCESSING_FIN`; `REJECT → CFO_REJECTED_FIN` |
+| POST | `group-dceo-decision` | Group Deputy CEO | `APPROVE → PAYMENT_PROCESSING_FIN`, `REJECT → GROUP_DCEO_REJECTED_FIN` |
 | POST | `mark-payment-complete` | Finance Agent | `PAYMENT_PROCESSING_FIN → PAYMENT_COMPLETED_FIN` |
 | POST | `close` | Finance Agent | `PAYMENT_COMPLETED_FIN → COMPLETED` |
 
@@ -96,7 +96,7 @@ Add `WorkflowActionType` values:
 - `ROUTE_TO_CEO_FIN`
 - `CEO_APPROVE_FIN` / `CEO_REJECT_FIN`
 - `CFO_APPROVE_FIN` / `CFO_REJECT_FIN`
-- `GROUP_CEO_APPROVE_FIN` / `GROUP_CEO_REJECT_FIN`
+- `GROUP_DCEO_APPROVE_FIN` / `GROUP_DCEO_REJECT_FIN`
 - `MARK_PAYMENT_COMPLETE_FIN`
 - `CLOSE_TICKET_FIN`
 
@@ -111,7 +111,7 @@ Add Finance Purchase Requisition step progression:
 2. Under Review (`ACKNOWLEDGED_FIN`)
 3. Pending CEO Approval (`PENDING_CEO_APPROVAL_FIN`)
 4. Pending CFO Approval (`PENDING_CFO_APPROVAL_FIN`)
-5. Pending Group CEO Approval (`PENDING_GROUP_CEO_APPROVAL_FIN`) — shown only when amount > MYR 15,000
+5. Pending Group Deputy CEO Approval (`PENDING_GROUP_DCEO_APPROVAL_FIN`) — shown only when amount > MYR 15,000
 6. Payment Processing (`PAYMENT_PROCESSING_FIN`)
 7. Completed (`PAYMENT_COMPLETED_FIN`, `COMPLETED`)
 
@@ -127,9 +127,9 @@ Add label entry for `finalizedAmount` → display as `MYR {value}` formatted.
 | `AGENT` (Finance desk) | Acknowledge, Route to CEO, Payment, Close |
 | `CEO` | CEO approval step |
 | `CFO` | CFO approval step |
-| `GROUP_CEO` (new role or existing admin) | Group CEO approval step |
+| `GROUP_DCEO` (new role or existing admin) | Group Deputy CEO approval step |
 
-Group CEO uses a dedicated `GROUP_CEO` role, seeded into the database alongside the existing CEO/CFO roles.
+Group Deputy CEO uses a dedicated `GROUP_DCEO` role, seeded into the database alongside the existing CEO/CFO roles.
 
 ---
 

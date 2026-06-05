@@ -147,11 +147,11 @@ async function main() {
     });
 
     await prisma.role.upsert({
-        where: { name: 'GROUP_CEO' },
+        where: { name: 'GROUP_DCEO' },
         update: {},
         create: {
-            name: 'GROUP_CEO',
-            description: 'Group Chief Executive Officer with highest approval authority',
+            name: 'GROUP_DCEO',
+            description: 'Group Deputy Chief Executive Officer with highest approval authority',
         },
     });
 
@@ -214,13 +214,6 @@ async function main() {
         where: { name: 'CREDIT_OPS' },
         update: {},
         create: { name: 'CREDIT_OPS', description: 'Credit Operations — disbursement and post-disbursement operations' }
-    });
-
-    // Group-level executive roles
-    await prisma.role.upsert({
-        where: { name: 'GROUP_DCEO' },
-        update: {},
-        create: { name: 'GROUP_DCEO', description: 'Group Deputy CEO — executive approval authority, second to Group CEO' }
     });
 
     console.log('✅ Roles created');
@@ -365,7 +358,6 @@ async function main() {
         CTO: ctoPerms,
         CFO: executivePerms,
         CMO: executivePerms,
-        GROUP_CEO: executivePerms,
         GROUP_DCEO: executivePerms,
         HIRING_MANAGER: hiringManagerPerms,
         FINANCE_HEAD: executivePerms,
@@ -573,23 +565,23 @@ async function main() {
     await assignRoles(cfoUser.id, [cfoRole.id]);
     console.log('✅ CFO user created (email: cfo@test.local, password: abc@123)');
 
-    const groupCeoRole = await prisma.role.findUniqueOrThrow({ where: { name: 'GROUP_CEO' } });
-    const groupCeoUser = await prisma.user.upsert({
+    const groupDceoRole = await prisma.role.findUniqueOrThrow({ where: { name: 'GROUP_DCEO' } });
+    const groupDceoUser = await prisma.user.upsert({
         where: { email: 'groupceo@test.local' },
-        update: { jobTitle: 'Chairman & Group Chief Executive Officer', department: 'Executive', executiveRole: 'GROUP_CEO' },
+        update: { jobTitle: 'Group Deputy Chief Executive Officer', department: 'Executive', executiveRole: 'GROUP_DCEO' },
         create: {
             email: 'groupceo@test.local',
             passwordHash: hashedPassword,
             firstName: 'Alain',
             lastName: 'Boey',
             department: 'Executive',
-            jobTitle: 'Chairman & Group Chief Executive Officer',
-            executiveRole: 'GROUP_CEO',
+            jobTitle: 'Group Deputy Chief Executive Officer',
+            executiveRole: 'GROUP_DCEO',
             isActive: true,
         },
     });
-    await assignRoles(groupCeoUser.id, [groupCeoRole.id]);
-    console.log('✅ Group CEO user created (email: groupceo@test.local, password: abc@123)');
+    await assignRoles(groupDceoUser.id, [groupDceoRole.id]);
+    console.log('✅ Group Deputy CEO user created (email: groupceo@test.local, password: abc@123)');
 
     // --- Agent accounts ---
     const agentPassword = await bcrypt.hash('abc@123', 10);
@@ -1734,7 +1726,7 @@ async function main() {
             serviceDeskId: financeDesk.id,
             title: 'Purchase Requisition Guide',
             slug: 'purchase-requisition-guide',
-            content: `## Purchase Requisition (PR) Process\n\nAll departmental purchases must go through the formal requisition workflow.\n\n### When to Submit a PR\n\n- Office equipment and furniture\n- Software subscriptions and licenses\n- Consulting and professional services\n- Any purchase exceeding RM 500\n\n### PR Workflow\n\n1. **Submit Request** via Group Finance → Purchase Requisition\n2. **Finance Acknowledgement** — Finance verifies budget allocation\n3. **Finance Processing** — PO created and sent to vendor\n4. **CFO Approval** — Required for purchases above RM 10,000\n5. **Group CEO Approval** — Required for purchases above RM 50,000\n6. **Payment** — Processed after goods/services received\n\n### Required Information\n\n- Item description and specifications\n- Quantity and estimated unit cost\n- Preferred vendor (if any)\n- Budget code / cost center\n- Expected delivery date\n- Business justification\n\n### Turnaround Time\n\n- Under RM 10,000: 5–7 business days\n- RM 10,000–50,000: 10–15 business days\n- Above RM 50,000: 15–20 business days`,
+            content: `## Purchase Requisition (PR) Process\n\nAll departmental purchases must go through the formal requisition workflow.\n\n### When to Submit a PR\n\n- Office equipment and furniture\n- Software subscriptions and licenses\n- Consulting and professional services\n- Any purchase exceeding RM 500\n\n### PR Workflow\n\n1. **Submit Request** via Group Finance → Purchase Requisition\n2. **Finance Acknowledgement** — Finance verifies budget allocation\n3. **Finance Processing** — PO created and sent to vendor\n4. **CFO Approval** — Required for purchases above RM 10,000\n5. **Group Deputy CEO Approval** — Required for purchases above RM 50,000\n6. **Payment** — Processed after goods/services received\n\n### Required Information\n\n- Item description and specifications\n- Quantity and estimated unit cost\n- Preferred vendor (if any)\n- Budget code / cost center\n- Expected delivery date\n- Business justification\n\n### Turnaround Time\n\n- Under RM 10,000: 5–7 business days\n- RM 10,000–50,000: 10–15 business days\n- Above RM 50,000: 15–20 business days`,
             excerpt: 'Complete guide for submitting and tracking purchase requisitions through approval workflow.',
             category: 'Procurement',
             tags: ['purchase', 'requisition', 'procurement', 'finance', 'approval'],

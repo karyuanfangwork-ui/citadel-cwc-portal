@@ -211,21 +211,21 @@ export const ceoDecision = async (req: Request, res: Response) => {
           await reassignToTeam(id, request.referenceNumber, 'HR', 'HR-Approval');
         }
 
-        // When CEO approves, auto-advance to Group CEO for HR hiring workflow
+        // When CEO approves, auto-advance to Group Deputy CEO for HR hiring workflow
         if (decision === 'APPROVED') {
-            const groupCeo = await prisma.user.findFirst({
-                where: { executiveRole: 'GROUP_CEO', isActive: true }
+            const groupDceo = await prisma.user.findFirst({
+                where: { executiveRole: 'GROUP_DCEO', isActive: true }
             });
-            if (groupCeo) {
-                updateData.status = 'PENDING_GROUP_CEO_APPROVAL';
-                updateData.assignedToId = groupCeo.id;
+            if (groupDceo) {
+                updateData.status = 'PENDING_GROUP_DCEO_APPROVAL';
+                updateData.assignedToId = groupDceo.id;
 
-                // Create Group CEO approval record
+                // Create Group Deputy CEO approval record
                 await prisma.requestApproval.create({
                     data: {
                         requestId: id,
-                        approverType: 'GROUP_CEO',
-                        approverId: groupCeo.id,
+                        approverType: 'GROUP_DCEO',
+                        approverId: groupDceo.id,
                         status: ApprovalStatus.PENDING,
                         comments: null
                     }
@@ -239,16 +239,16 @@ export const ceoDecision = async (req: Request, res: Response) => {
                         authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                         authorRole: 'CEO',
                         activityType: 'ASSIGNMENT',
-                        message: `Request auto-routed to Group CEO (${groupCeo.firstName} ${groupCeo.lastName}) after CEO approval`,
+                        message: `Request auto-routed to Group Deputy CEO (${groupDceo.firstName} ${groupDceo.lastName}) after CEO approval`,
                         isSystemGenerated: true
                     }
                 });
 
-                // Notify Group CEO
+                // Notify Group Deputy CEO
                 await notify({
-                    userId: groupCeo.id,
+                    userId: groupDceo.id,
                     eventType: 'APPROVAL_REQUIRED',
-                    variables: { requestId: id, role: 'GROUP_CEO' },
+                    variables: { requestId: id, role: 'GROUP_DCEO' },
                     relatedRequestId: id,
                 });
             }
@@ -281,7 +281,7 @@ export const ceoDecision = async (req: Request, res: Response) => {
         comments: comments || null,
     }, { status: 'PENDING_CEO_APPROVAL' });
 
-    // Only resume SLA if not auto-advancing to another pause status (Group CEO approval)
+    // Only resume SLA if not auto-advancing to another pause status (Group Deputy CEO approval)
     if (decision !== 'APPROVED' || updateData.status === 'CEO_APPROVED') {
         await resumeSla(id);
     }
@@ -347,10 +347,10 @@ export const markJobPosted = async (req: Request, res: Response) => {
             return;
         }
 
-        if (request.status !== 'CEO_APPROVED' && request.status !== 'GROUP_CEO_APPROVED') {
+        if (request.status !== 'CEO_APPROVED' && request.status !== 'GROUP_DCEO_APPROVED') {
             res.status(400).json({
                 status: 'error',
-                message: 'Request must be CEO or Group CEO approved before marking as job posted'
+                message: 'Request must be CEO or Group Deputy CEO approved before marking as job posted'
             });
             return;
         }
@@ -873,10 +873,10 @@ export const entityDecision = async (req: Request, res: Response) => {
 };
 
 /**
- * Route HR hiring request to Group CEO for approval
- * POST /approvals/requests/:id/route-to-group-ceo-hr
+ * Route HR hiring request to Group Deputy CEO for approval
+ * POST /approvals/requests/:id/route-to-group-dceo-hr
  */
-export const routeToGroupCeoHr = async (req: Request, res: Response) => {
+export const routeToGroupDceoHr = async (req: Request, res: Response) => {
     try {
         const idOrRef = String(req.params.id);
         const id = await resolveRequestId(idOrRef);
@@ -884,7 +884,7 @@ export const routeToGroupCeoHr = async (req: Request, res: Response) => {
             res.status(404).json({ status: 'error', message: 'Request not found' });
             return;
         }
-        const { comments, groupCeoId } = req.body;
+        const { comments, groupDceoId } = req.body;
         const userId = (req as any).user?.id;
 
         const request = await prisma.request.findUnique({
@@ -898,34 +898,34 @@ export const routeToGroupCeoHr = async (req: Request, res: Response) => {
         }
 
         if (request.status !== 'CEO_APPROVED') {
-            res.status(400).json({ status: 'error', message: 'Request must be CEO approved before routing to Group CEO' });
+            res.status(400).json({ status: 'error', message: 'Request must be CEO approved before routing to Group Deputy CEO' });
             return;
         }
 
-        // Find Group CEO user — use provided ID or auto-detect
-        let groupCeo;
-        if (groupCeoId) {
-            groupCeo = await prisma.user.findFirst({
-                where: { id: groupCeoId, isActive: true }
+        // Find Group Deputy CEO user — use provided ID or auto-detect
+        let groupDceo;
+        if (groupDceoId) {
+            groupDceo = await prisma.user.findFirst({
+                where: { id: groupDceoId, isActive: true }
             });
         }
-        if (!groupCeo) {
-            groupCeo = await prisma.user.findFirst({
-                where: { executiveRole: 'GROUP_CEO', isActive: true }
+        if (!groupDceo) {
+            groupDceo = await prisma.user.findFirst({
+                where: { executiveRole: 'GROUP_DCEO', isActive: true }
             });
         }
 
-        if (!groupCeo) {
-            res.status(404).json({ status: 'error', message: 'No active Group CEO found' });
+        if (!groupDceo) {
+            res.status(404).json({ status: 'error', message: 'No active Group Deputy CEO found' });
             return;
         }
 
-        // Update request status and assign to Group CEO
+        // Update request status and assign to Group Deputy CEO
         const updatedRequest = await prisma.request.update({
             where: { id },
             data: {
-                status: 'PENDING_GROUP_CEO_APPROVAL',
-                assignedToId: groupCeo.id
+                status: 'PENDING_GROUP_DCEO_APPROVAL',
+                assignedToId: groupDceo.id
             }
         });
 
@@ -933,8 +933,8 @@ export const routeToGroupCeoHr = async (req: Request, res: Response) => {
         const approval = await prisma.requestApproval.create({
             data: {
                 requestId: id,
-                approverType: 'GROUP_CEO',
-                approverId: groupCeo.id,
+                approverType: 'GROUP_DCEO',
+                approverId: groupDceo.id,
                 status: ApprovalStatus.PENDING,
                 comments: comments || null
             }
@@ -948,38 +948,38 @@ export const routeToGroupCeoHr = async (req: Request, res: Response) => {
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
                 authorRole: 'HR Agent',
                 activityType: 'ASSIGNMENT',
-                message: `Request routed to Group CEO for approval — assigned to ${groupCeo.firstName} ${groupCeo.lastName}${comments ? ': ' + comments : ''}`,
+                message: `Request routed to Group Deputy CEO for approval — assigned to ${groupDceo.firstName} ${groupDceo.lastName}${comments ? ': ' + comments : ''}`,
                 isSystemGenerated: true
             }
         });
 
         await auditLog(req as any, 'APPROVAL_ROUTED', 'request', id, {
-            status: 'PENDING_GROUP_CEO_APPROVAL',
+            status: 'PENDING_GROUP_DCEO_APPROVAL',
             previousStatus: 'CEO_APPROVED',
-            approverType: 'GROUP_CEO',
-            groupCeoId: groupCeo.id,
+            approverType: 'GROUP_DCEO',
+            groupDceoId: groupDceo.id,
         }, { status: 'CEO_APPROVED' });
 
         await pauseSla(id);
 
-        // Notify Group CEO
-        await notify({ userId: groupCeo.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group CEO' }, relatedRequestId: id });
+        // Notify Group Deputy CEO
+        await notify({ userId: groupDceo.id, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
 
         res.json({
             status: 'success',
             data: { request: updatedRequest, approval }
         });
     } catch (error) {
-        console.error('Error routing to Group CEO:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to route request to Group CEO' });
+        console.error('Error routing to Group Deputy CEO:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to route request to Group Deputy CEO' });
     }
 };
 
 /**
- * Group CEO approve or reject HR hiring request
- * POST /approvals/requests/:id/group-ceo-decision-hr
+ * Group Deputy CEO approve or reject HR hiring request
+ * POST /approvals/requests/:id/group-dceo-decision-hr
  */
-export const groupCeoDecisionHr = async (req: Request, res: Response) => {
+export const groupDceoDecisionHr = async (req: Request, res: Response) => {
     try {
         const idOrRef = String(req.params.id);
         const id = await resolveRequestId(idOrRef);
@@ -998,9 +998,8 @@ export const groupCeoDecisionHr = async (req: Request, res: Response) => {
         const request = await prisma.request.findUnique({
             where: { id },
             include: {
-                requester: true,
                 approvals: {
-                    where: { approverType: 'GROUP_CEO', status: ApprovalStatus.PENDING }
+                    where: { approverType: 'GROUP_DCEO', status: ApprovalStatus.PENDING }
                 }
             }
         });
@@ -1010,18 +1009,18 @@ export const groupCeoDecisionHr = async (req: Request, res: Response) => {
             return;
         }
 
-        if (request.status !== 'PENDING_GROUP_CEO_APPROVAL') {
-            res.status(400).json({ status: 'error', message: 'Request is not pending Group CEO approval' });
+        if (request.status !== 'PENDING_GROUP_DCEO_APPROVAL') {
+            res.status(400).json({ status: 'error', message: 'Request is not pending Group Deputy CEO approval' });
             return;
         }
 
         const pendingApproval = request.approvals[0];
         if (!pendingApproval) {
-            res.status(404).json({ status: 'error', message: 'No pending Group CEO approval found' });
+            res.status(404).json({ status: 'error', message: 'No pending Group Deputy CEO approval found' });
             return;
         }
 
-        const newStatus = decision === 'APPROVED' ? 'GROUP_CEO_APPROVED' : 'GROUP_CEO_REJECTED';
+        const newStatus = decision === 'APPROVED' ? 'GROUP_DCEO_APPROVED' : 'GROUP_DCEO_REJECTED';
 
         // Reassign back to HR agent — use shared reassignToTeam (no entity-scoping, sets assignedToId + assignedTeam, logs + notifies)
         await reassignToTeam(id, request.referenceNumber, 'HR', 'HR-Approval');
@@ -1048,9 +1047,9 @@ export const groupCeoDecisionHr = async (req: Request, res: Response) => {
                 requestId: id,
                 authorId: userId,
                 authorName: (req as any).user?.firstName + ' ' + (req as any).user?.lastName,
-                authorRole: 'Group CEO',
+                authorRole: 'Group Deputy CEO',
                 activityType: decision === 'APPROVED' ? 'APPROVAL' : 'REJECTION',
-                message: `Group CEO ${decision.toLowerCase()} this request${comments ? ': ' + comments : ''}`,
+                message: `Group Deputy CEO ${decision.toLowerCase()} this request${comments ? ': ' + comments : ''}`,
                 isSystemGenerated: false
             }
         });
@@ -1059,11 +1058,11 @@ export const groupCeoDecisionHr = async (req: Request, res: Response) => {
 
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
-            approverType: 'GROUP_CEO',
+            approverType: 'GROUP_DCEO',
             newStatus,
-            previousStatus: 'PENDING_GROUP_CEO_APPROVAL',
+            previousStatus: 'PENDING_GROUP_DCEO_APPROVAL',
             comments: comments || null,
-        }, { status: 'PENDING_GROUP_CEO_APPROVAL' });
+        }, { status: 'PENDING_GROUP_DCEO_APPROVAL' });
 
         await resumeSla(id);
 
@@ -1072,14 +1071,14 @@ export const groupCeoDecisionHr = async (req: Request, res: Response) => {
             await notify({
                 userId: request.requesterId,
                 eventType: 'STATUS_CHANGED',
-                variables: { requestId: id, status: 'GROUP_CEO_APPROVED', message: 'Your hiring request has been approved by the Group CEO.' },
+                variables: { requestId: id, status: 'GROUP_DCEO_APPROVED', message: 'Your hiring request has been approved by the Group Deputy CEO.' },
                 relatedRequestId: id,
             });
         } else {
             await notify({
                 userId: request.requesterId,
                 eventType: 'REQUEST_REJECTED',
-                variables: { requestId: id, rejectedBy: 'Group CEO', comments: comments || '' },
+                variables: { requestId: id, rejectedBy: 'Group Deputy CEO', comments: comments || '' },
                 relatedRequestId: id,
             });
         }
@@ -1089,7 +1088,7 @@ export const groupCeoDecisionHr = async (req: Request, res: Response) => {
             data: { request: updatedRequest, approval: updatedApproval }
         });
     } catch (error) {
-        console.error('Error processing Group CEO decision:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to process Group CEO decision' });
+        console.error('Error processing Group Deputy CEO decision:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to process Group Deputy CEO decision' });
     }
 };

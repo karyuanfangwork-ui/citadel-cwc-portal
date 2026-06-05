@@ -33,8 +33,8 @@ const financeWorkflowService = {
         return response.data;
     },
 
-    async groupCeoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
-        const response = await api.post(`/finance-workflow/requests/${requestId}/group-ceo-decision`, { decision, comments });
+    async groupDceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/group-dceo-decision`, { decision, comments });
         return response.data;
     },
 

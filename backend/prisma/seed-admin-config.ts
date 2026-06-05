@@ -56,13 +56,13 @@ export const SEED_NOTIFICATION_TEMPLATES = [
     "isActive": true
   },
   {
-    "name": "finance_group_ceo_decision",
-    "eventType": "FINANCE_GROUP_CEO_DECISION",
-    "emailSubject": "Group CEO Decision — Request #{{requestId}}",
-    "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Group CEO Decision</h2><p>Hello {{userName}},</p><p>The Group CEO has made a decision on finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p>This request was escalated to Group CEO level due to the amount exceeding the CFO approval threshold.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
+    "name": "finance_group_dceo_decision",
+    "eventType": "FINANCE_GROUP_DCEO_DECISION",
+    "emailSubject": "Group Deputy CEO Decision — Request #{{requestId}}",
+    "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>Group Deputy CEO Decision</h2><p>Hello {{userName}},</p><p>The Group Deputy CEO has made a decision on finance request <strong>#{{requestId}} — {{requestTitle}}</strong>.</p><p>This request was escalated to Group Deputy CEO level due to the amount exceeding the CFO approval threshold.</p><table style='width:100%;border-collapse:collapse;margin:16px 0;'><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;width:140px;'>Request ID</td><td style='padding:8px 12px;border:1px solid #eee;'>#{{requestId}}</td></tr><tr><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;background:#f8f9fa;'>Amount</td><td style='padding:8px 12px;border:1px solid #eee;font-weight:600;'>{{currency}} {{amount}}</td></tr></table><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Decision</a></p>",
     "smsBody": "",
-    "pushTitle": "Group CEO Decision",
-    "pushBody": "Group CEO reviewed request #{{requestId}}.",
+    "pushTitle": "Group Deputy CEO Decision",
+    "pushBody": "Group Deputy CEO reviewed request #{{requestId}}.",
     "isActive": true
   },
   {
@@ -962,8 +962,8 @@ export const SEED_STATUS_DEFINITIONS = [
     "isActive": true
   },
   {
-    "code": "PENDING_GROUP_CEO_APPROVAL",
-    "label": "Pending Group CEO Approval",
+    "code": "PENDING_GROUP_DCEO_APPROVAL",
+    "label": "Pending Group Deputy CEO Approval",
     "description": null,
     "category": "HR,FINANCE",
     "displayOrder": 76,
@@ -978,16 +978,16 @@ export const SEED_STATUS_DEFINITIONS = [
     "isActive": true
   },
   {
-    "code": "GROUP_CEO_APPROVED",
-    "label": "Group CEO Approved",
+    "code": "GROUP_DCEO_APPROVED",
+    "label": "Group Deputy CEO Approved",
     "description": null,
     "category": "HR,FINANCE",
     "displayOrder": 77,
     "isActive": true
   },
   {
-    "code": "GROUP_CEO_REJECTED",
-    "label": "Group CEO Rejected",
+    "code": "GROUP_DCEO_REJECTED",
+    "label": "Group Deputy CEO Rejected",
     "description": null,
     "category": "HR,FINANCE",
     "displayOrder": 78,
@@ -1088,8 +1088,8 @@ export const SEED_WORKFLOW_TRANSITIONS = [
   },
   {
     "fromStatus": "CEO_APPROVED",
-    "toStatus": "PENDING_GROUP_CEO_APPROVAL",
-    "transitionLabel": "ROUTE_TO_GROUP_CEO",
+    "toStatus": "PENDING_GROUP_DCEO_APPROVAL",
+    "transitionLabel": "ROUTE_TO_GROUP_DCEO",
     "autoAssignRole": null,
     "isActive": true
   },
@@ -1164,14 +1164,14 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "isActive": true
   },
   {
-    "fromStatus": "GROUP_CEO_APPROVED",
+    "fromStatus": "GROUP_DCEO_APPROVED",
     "toStatus": "JOB_POSTED",
     "transitionLabel": "ADVANCE",
     "autoAssignRole": null,
     "isActive": true
   },
   {
-    "fromStatus": "GROUP_CEO_REJECTED",
+    "fromStatus": "GROUP_DCEO_REJECTED",
     "toStatus": "SUBMITTED",
     "transitionLabel": "RESUBMIT",
     "autoAssignRole": null,
@@ -1479,16 +1479,16 @@ export const SEED_WORKFLOW_TRANSITIONS = [
     "isActive": true
   },
   {
-    "fromStatus": "PENDING_GROUP_CEO_APPROVAL",
-    "toStatus": "GROUP_CEO_REJECTED",
-    "transitionLabel": "GROUP_CEO_REJECT",
+    "fromStatus": "PENDING_GROUP_DCEO_APPROVAL",
+    "toStatus": "GROUP_DCEO_REJECTED",
+    "transitionLabel": "GROUP_DCEO_REJECT",
     "autoAssignRole": null,
     "isActive": true
   },
   {
-    "fromStatus": "PENDING_GROUP_CEO_APPROVAL",
-    "toStatus": "GROUP_CEO_APPROVED",
-    "transitionLabel": "GROUP_CEO_APPROVE",
+    "fromStatus": "PENDING_GROUP_DCEO_APPROVAL",
+    "toStatus": "GROUP_DCEO_APPROVED",
+    "transitionLabel": "GROUP_DCEO_APPROVE",
     "autoAssignRole": null,
     "isActive": true
   },
@@ -2187,7 +2187,7 @@ export const SEED_ENTITY_CONFIG = [
 export const SEED_PRODUCTION_USERS = [
   { email: 'adly.mohamed@citadelgroup.com.my', firstName: 'Adly', lastName: 'Mohamed', department: 'Executive', jobTitle: 'Chief Executive Officer', executiveRole: 'CEO', agentTeam: null, entityCode: 'CT360', roles: ["NORMAL_STAFF", "CEO"], isActive: true },
   { email: 'ahmad.zuhayri@citadelgroup.com.my', firstName: 'Ahmad', lastName: 'Zuhayri Mohamed', department: null, jobTitle: 'Business Development & Corporate Communication Executive', executiveRole: null, agentTeam: null, entityCode: 'CT360', roles: ["NORMAL_STAFF"], isActive: true },
-  { email: 'alain.boey@citadelgroup.com.my', firstName: 'Alain', lastName: 'Boey', department: 'Executive', jobTitle: 'Deputy Chief Executive Officer', executiveRole: null, agentTeam: null, entityCode: 'CG', roles: ["NORMAL_STAFF", "GROUP_CEO"], isActive: true },
+  { email: 'alain.boey@citadelgroup.com.my', firstName: 'Alain', lastName: 'Boey', department: 'Executive', jobTitle: 'Deputy Chief Executive Officer', executiveRole: null, agentTeam: null, entityCode: 'CG', roles: ["NORMAL_STAFF", "GROUP_DCEO"], isActive: true },
   { email: 'alan.ling@citadelgroup.com.my', firstName: 'Alan', lastName: 'Ling', department: 'Executive', jobTitle: 'Managing Director- Kuching Office', executiveRole: null, agentTeam: null, entityCode: 'CWP', roles: ["NORMAL_STAFF"], isActive: true },
   { email: 'cheehao.wong@citadelgroup.com.my', firstName: 'Brandon', lastName: 'Wong Chee Hao', department: 'IT', jobTitle: 'Full Stack Developer', executiveRole: null, agentTeam: 'IT', entityCode: 'CGT', roles: ["NORMAL_STAFF"], isActive: true },
   { email: 'emily.chow@citadelgroup.com.my', firstName: 'Emily', lastName: 'Chow', department: 'Executive', jobTitle: 'Chief Executive Officer', executiveRole: 'CEO', agentTeam: null, entityCode: 'CGT', roles: ["NORMAL_STAFF", "CEO"], isActive: true },
@@ -2195,7 +2195,7 @@ export const SEED_PRODUCTION_USERS = [
   { email: 'fangkhai.foo@citadelgroup.com.my', firstName: 'Fang', lastName: 'Khai Foo', department: 'IT', jobTitle: 'Full Stack Developer (AI)', executiveRole: null, agentTeam: 'IT', entityCode: 'CGT', roles: ["NORMAL_STAFF"], isActive: true },
   { email: 'girling.liong@citadelgroup.com.my', firstName: 'Girling', lastName: 'Liong Mee Yee', department: 'Admin', jobTitle: 'Receptionist & Admin Executive - Sibu Office', executiveRole: null, agentTeam: null, entityCode: 'CWP', roles: ["NORMAL_STAFF"], isActive: true },
   { email: 'irina.kamarzan@citadelgroup.com.my', firstName: 'Nor', lastName: 'Irina Safiyyah Md Kamarzan', department: 'Finance', jobTitle: 'Financial Analyst', executiveRole: null, agentTeam: 'FINANCE', entityCode: 'CG', roles: ["NORMAL_STAFF"], isActive: true },
-  { email: 'j.medina@citadelgroup.com.my', firstName: 'Dato\' Jeff', lastName: 'Medina', department: 'Executive', jobTitle: 'Chairman & Group Chief Executive Officer', executiveRole: 'GROUP_CEO', agentTeam: null, entityCode: 'CG', roles: ["NORMAL_STAFF", "GROUP_CEO"], isActive: true },
+  { email: 'j.medina@citadelgroup.com.my', firstName: 'Dato\' Jeff', lastName: 'Medina', department: 'Executive', jobTitle: 'Chairman & Group Chief Executive Officer', executiveRole: 'GROUP_DCEO', agentTeam: null, entityCode: 'CG', roles: ["NORMAL_STAFF", "GROUP_DCEO"], isActive: true },
   { email: 'joyce.loh@citadelgroup.com.my', firstName: 'Joyce', lastName: 'Loh', department: 'Admin', jobTitle: 'Head of Admin Operations', executiveRole: null, agentTeam: null, entityCode: 'CWP', roles: ["NORMAL_STAFF"], isActive: true },
   { email: 'juliana.jalil@citadelgroup.com.my', firstName: 'Juliana', lastName: 'Abd Jalil', department: 'Admin', jobTitle: 'Senior Admin Executive', executiveRole: null, agentTeam: null, entityCode: 'CWP', roles: ["NORMAL_STAFF"], isActive: true },
   { email: 'kamilah.hanif@citadelgroup.com.my', firstName: 'Nurul', lastName: 'Kamilah Hanif Kondon', department: 'Legal', jobTitle: 'Group Legal & Compliance Head', executiveRole: null, agentTeam: null, entityCode: 'CG', roles: ["NORMAL_STAFF"], isActive: true },

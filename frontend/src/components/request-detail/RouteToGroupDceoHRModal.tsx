@@ -4,22 +4,22 @@ import itWorkflowService from '../../services/it-workflow.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import ModalPortal from '../ModalPortal';
 
-interface GroupCeo {
+interface GroupDceo {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
 }
 
-interface RouteToGroupCeoHRModalProps {
+interface RouteToGroupDceoHRModalProps {
   requestId: string;
   onSuccess: () => void;
   onClose: () => void;
 }
 
-const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ requestId, onSuccess, onClose }) => {
-  const [groupCeos, setGroupCeos] = useState<GroupCeo[]>([]);
-  const [filtered, setFiltered] = useState<GroupCeo[]>([]);
+const RouteToGroupDceoHRModal: React.FC<RouteToGroupDceoHRModalProps> = ({ requestId, onSuccess, onClose }) => {
+  const [groupDceos, setGroupDceos] = useState<GroupDceo[]>([]);
+  const [filtered, setFiltered] = useState<GroupDceo[]>([]);
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [comments, setComments] = useState('');
@@ -29,20 +29,20 @@ const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ request
   const { handleBackdropClick } = useModalDismiss(onClose);
 
   useEffect(() => {
-    itWorkflowService.getUsersByRole('GROUP_CEO')
-      .then(users => { setGroupCeos(users); setFiltered(users); })
-      .catch(() => setError('Failed to load Group CEO users'))
+    itWorkflowService.getUsersByRole('GROUP_DCEO')
+      .then(users => { setGroupDceos(users); setFiltered(users); })
+      .catch(() => setError('Failed to load Group Deputy CEO users'))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
     const q = search.toLowerCase();
-    setFiltered(groupCeos.filter(c =>
+    setFiltered(groupDceos.filter(c =>
       c.firstName.toLowerCase().includes(q) ||
       c.lastName.toLowerCase().includes(q) ||
       c.email.toLowerCase().includes(q)
     ));
-  }, [search, groupCeos]);
+  }, [search, groupDceos]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,10 +50,10 @@ const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ request
     try {
       setSubmitting(true);
       setError(null);
-      await approvalService.routeToGroupCeoHR(requestId, comments || undefined);
+      await approvalService.routeToGroupDceoHR(requestId, comments || undefined);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to route to Group CEO');
+      setError(err.response?.data?.message || 'Failed to route to Group Deputy CEO');
     } finally {
       setSubmitting(false);
     }
@@ -68,7 +68,7 @@ const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ request
               <span className="material-symbols-outlined text-indigo-600">send</span>
             </div>
             <div>
-              <h2 className="font-bold text-base text-gray-900">Route to Group CEO for Approval</h2>
+              <h2 className="font-bold text-base text-gray-900">Route to Group Deputy CEO for Approval</h2>
               <p className="text-xs text-gray-500">HR Workflow · New Hiring Request</p>
             </div>
           </div>
@@ -76,7 +76,7 @@ const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ request
             <div className="p-5 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
-                  Search Group CEO
+                  Search Group Deputy CEO
                 </label>
                 <input
                   type="search"
@@ -88,14 +88,14 @@ const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ request
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">
-                  Select Group CEO <span className="text-red-500">*</span>
+                  Select Group Deputy CEO <span className="text-red-500">*</span>
                 </label>
                 {loading ? (
-                  <p className="text-xs text-gray-400 py-2">Loading Group CEO users…</p>
+                  <p className="text-xs text-gray-400 py-2">Loading Group Deputy CEO users…</p>
                 ) : (
                   <div className="space-y-2 max-h-52 overflow-y-auto pr-0.5">
                     {filtered.length === 0 ? (
-                      <p className="text-xs text-gray-400 py-2">No Group CEO users found</p>
+                      <p className="text-xs text-gray-400 py-2">No Group Deputy CEO users found</p>
                     ) : (
                       filtered.map(c => (
                         <label
@@ -106,7 +106,7 @@ const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ request
                         >
                           <input
                             type="radio"
-                            name="groupCeo"
+                            name="groupDceo"
                             value={c.id}
                             checked={selectedId === c.id}
                             onChange={() => setSelectedId(c.id)}
@@ -133,7 +133,7 @@ const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ request
                   value={comments}
                   onChange={e => setComments(e.target.value)}
                   rows={2}
-                  placeholder="Any context the Group CEO should know…"
+                  placeholder="Any context the Group Deputy CEO should know…"
                   className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:border-[#0052cc] resize-none"
                 />
               </div>
@@ -150,7 +150,7 @@ const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ request
                 disabled={!selectedId || submitting}
                 className="px-4 py-3 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
               >
-                {submitting ? 'Routing…' : 'Route to Group CEO'}
+                {submitting ? 'Routing…' : 'Route to Group Deputy CEO'}
               </button>
             </div>
           </form>
@@ -160,4 +160,4 @@ const RouteToGroupCeoHRModal: React.FC<RouteToGroupCeoHRModalProps> = ({ request
   );
 };
 
-export default RouteToGroupCeoHRModal;
+export default RouteToGroupDceoHRModal;

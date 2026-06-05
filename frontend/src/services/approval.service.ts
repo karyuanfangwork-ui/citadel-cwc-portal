@@ -31,25 +31,25 @@ export const ceoDecision = async (
 };
 
 /**
- * Route HR hiring request to Group CEO for approval
+ * Route HR hiring request to Group Deputy CEO for approval
  */
-export const routeToGroupCeoHR = async (requestId: string, comments?: string, groupCeoId?: string) => {
-    const response = await apiClient.post(`/approvals/requests/${requestId}/route-to-group-ceo-hr`, {
+export const routeToGroupDceoHR = async (requestId: string, comments?: string, groupDceoId?: string) => {
+    const response = await apiClient.post(`/approvals/requests/${requestId}/route-to-group-dceo-hr`, {
         comments,
-        groupCeoId,
+        groupDceoId,
     });
     return response.data.data;
 };
 
 /**
- * Group CEO approve or reject HR hiring request
+ * Group Deputy CEO approve or reject HR hiring request
  */
-export const groupCeoDecisionHR = async (
+export const groupDceoDecisionHR = async (
     requestId: string,
     decision: 'APPROVED' | 'REJECTED',
     comments?: string
 ) => {
-    const response = await apiClient.post(`/approvals/requests/${requestId}/group-ceo-decision-hr`, {
+    const response = await apiClient.post(`/approvals/requests/${requestId}/group-dceo-decision-hr`, {
         decision,
         comments
     });
@@ -354,8 +354,8 @@ export const getPolicyExplanation = async (
 const approvalService = {
     routeToCEO,
     ceoDecision,
-    routeToGroupCeoHR,
-    groupCeoDecisionHR,
+    routeToGroupDceoHR,
+    groupDceoDecisionHR,
     markJobPosted,
     routeToManager,
     managerDecision,

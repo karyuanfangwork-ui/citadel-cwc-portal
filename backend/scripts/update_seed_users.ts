@@ -8,7 +8,7 @@ async function main() {
     { email: 'ceo@test.local',       entityId: codeToId['CGT'], executiveRole: 'CEO' as ExecutiveRole, jobTitle: 'Chief Executive Officer' },
     { email: 'cto@test.local',       entityId: codeToId['CGT'], executiveRole: 'CTO' as ExecutiveRole, jobTitle: 'Chief Technology Officer' },
     { email: 'cfo@test.local',       entityId: codeToId['CG'],  executiveRole: 'CFO' as ExecutiveRole, jobTitle: 'Chief Finance Officer' },
-    { email: 'groupceo@test.local',  entityId: codeToId['CG'],  executiveRole: 'GROUP_CEO' as ExecutiveRole, jobTitle: 'Chairman & Group Chief Executive Officer' },
+    { email: 'groupceo@test.local',  entityId: codeToId['CG'],  executiveRole: 'GROUP_DCEO' as ExecutiveRole, jobTitle: 'Chairman & Group Chief Executive Officer' },
     { email: 'hr@test.local',        entityId: codeToId['CG'],  jobTitle: 'Senior HR Executive' },
     { email: 'finance@test.local',   entityId: codeToId['CG'],  jobTitle: 'Finance Agent' },
     { email: 'it@test.local',        entityId: codeToId['CGT'], jobTitle: 'IT Agent' },

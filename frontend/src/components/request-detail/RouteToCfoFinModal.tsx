@@ -65,7 +65,7 @@ const RouteToCfoFinModal: React.FC<Props> = ({ requestId, onSuccess, onClose }) 
                     required
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-1">Amounts above MYR 15,000 will require additional Group CEO approval after CFO.</p>
+                <p className="text-xs text-gray-400 mt-1">Amounts above MYR 15,000 will require additional Group Deputy CEO approval after CFO.</p>
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">

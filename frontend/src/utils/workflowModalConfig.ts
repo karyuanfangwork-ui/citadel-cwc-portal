@@ -47,7 +47,7 @@ export interface WorkflowModalField {
   /** Number of rows (textarea only) */
   rows?: number;
   /** Executive role to fetch (only used when type === 'approver-picker') */
-  approverRole?: 'GROUP_CEO' | 'CEO' | 'CTO' | 'CFO' | 'CMO' | 'COO' | 'CHRO';
+  approverRole?: 'GROUP_DCEO' | 'CEO' | 'CTO' | 'CFO' | 'CMO' | 'COO' | 'CHRO';
 }
 
 export type SubmitColor = 'primary' | 'danger' | 'warning' | 'success';
@@ -639,12 +639,12 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       ),
   },
 
-  GROUP_CEO_DECISION_FIN: {
-    title: 'Group CEO Decision',
-    subtitle: 'Finance Workflow · Approve or reject',
+  GROUP_DCEO_DECISION_FIN: {
+    title: 'Group Deputy CEO Decision',
+    subtitle: 'Finance Workflow · Approve or reject high-value Purchase Requisition',
     icon: 'gavel',
-    iconBgClass: 'bg-purple-100',
-    iconTextClass: 'text-purple-600',
+    iconBgClass: 'bg-red-100',
+    iconTextClass: 'text-red-600',
     fields: [
       {
         name: 'decision',
@@ -665,7 +665,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitLabel: 'Submit Decision',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      financeWorkflowService.groupCeoDecision(
+      financeWorkflowService.groupDceoDecision(
         requestId,
         (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
         (values.notes as string) || undefined,
@@ -765,21 +765,21 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       approvalService.routeToCEO(requestId, (values.ceoId as string) || undefined, (values.notes as string) || undefined),
   },
 
-  ROUTE_TO_GROUP_CEO_HR: {
-    title: 'Route to Group CEO',
-    subtitle: 'HR Workflow · Select Group CEO and forward for approval',
+  ROUTE_TO_GROUP_DCEO_HR: {
+    title: 'Route to Group Deputy CEO',
+    subtitle: 'HR Workflow · Select Group Deputy CEO and forward for approval',
     icon: 'send',
     iconBgClass: 'bg-orange-100',
     iconTextClass: 'text-orange-600',
     fields: [
       {
-        name: 'groupCeoId',
-        label: 'Select Group CEO',
+        name: 'groupDceoId',
+        label: 'Select Group Deputy CEO',
         type: 'select',
         required: true,
-        placeholder: 'Choose a Group CEO…',
+        placeholder: 'Choose a Group Deputy CEO…',
         asyncOptions: async () => {
-          const users = await itWorkflowService.getUsersByRole('GROUP_CEO');
+          const users = await itWorkflowService.getUsersByRole('GROUP_DCEO');
           return users.map(u => ({ value: u.id, label: `${u.firstName} ${u.lastName}` }));
         },
       },
@@ -787,20 +787,20 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
         name: 'notes',
         label: 'Notes',
         type: 'textarea',
-        placeholder: 'Optional notes for Group CEO…',
+        placeholder: 'Optional notes for Group Deputy CEO…',
         required: false,
         rows: 3,
       },
     ],
-    submitLabel: 'Route to Group CEO',
+    submitLabel: 'Route to Group Deputy CEO',
     submitColor: 'primary',
     loadingLabel: 'Routing…',
     onSubmit: (requestId, values) =>
-      approvalService.routeToGroupCeoHR(requestId, (values.notes as string) || undefined, (values.groupCeoId as string) || undefined),
+      approvalService.routeToGroupDceoHR(requestId, (values.notes as string) || undefined, (values.groupDceoId as string) || undefined),
   },
 
-  GROUP_CEO_DECISION_HR: {
-    title: 'Group CEO Decision (HR)',
+  GROUP_DCEO_DECISION_HR: {
+    title: 'Group Deputy CEO Decision (HR)',
     subtitle: 'HR Workflow · Approve or reject',
     icon: 'gavel',
     iconBgClass: 'bg-purple-100',
@@ -825,7 +825,7 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitLabel: 'Submit Decision',
     submitColor: 'primary',
     onSubmit: (requestId, values) =>
-      approvalService.groupCeoDecisionHR(
+      approvalService.groupDceoDecisionHR(
         requestId,
         (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
         (values.notes as string) || undefined

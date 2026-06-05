@@ -420,7 +420,7 @@ if (
     !isCEOApprover &&
     !isCTOApprover &&
     !isCFOApprover &&
-    !isGroupCeoApprover &&
+    !isGroupDceoApprover &&
     !isParticipant
 ) {
     throw new AppError('You do not have permission to view this request', 403);

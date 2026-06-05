@@ -146,7 +146,7 @@ Enterprise organizations face fragmented internal service management:
 | # | Category                      | Request Types |
 |---|-------------------------------|---------------|
 | 1 | **Expense Reimbursement**     | Manager → Finance Head approval chain with payment tracking |
-| 2 | **Purchase Requisition**      | Multi-level approval: Acknowledge → CFO → Group CEO (if > RM15,000) → Payment → Confirmation |
+| 2 | **Purchase Requisition**      | Multi-level approval: Acknowledge → CFO → Group Deputy CEO (if > RM15,000) → Payment → Confirmation |
 | 3 | **Inter-Company Chargeback**  | Entity-based dual-approval: From-Entity → To-Entity → Finance Review → Confirmation |
 
 ### 2.2 Admin Settings Feature Breakdown
@@ -253,8 +253,8 @@ SUBMITTED
 ```
 SUBMITTED → [HR agent routes to CEO] PENDING_CEO_APPROVAL
   → [CEO approves] CEO_APPROVED
-  → [HR agent routes to Group CEO] PENDING_GROUP_CEO_APPROVAL
-  → [Group CEO approves] GROUP_CEO_APPROVED
+  → [HR agent routes to Group Deputy CEO] PENDING_GROUP_DCEO_APPROVAL
+  → [Group Deputy CEO approves] GROUP_DCEO_APPROVED
   → [HR agent marks job posted] JOB_POSTED
   → [HR uploads resumes + routes to manager] PENDING_MANAGER_REVIEW
   → [Manager selects candidates] MANAGER_APPROVED
@@ -268,7 +268,7 @@ SUBMITTED → [HR agent routes to CEO] PENDING_CEO_APPROVAL
   → [Triggers onboarding child ticket]
 
 [CEO rejects]          → CEO_REJECTED → RESOLVED
-[Group CEO rejects]    → (stays REJECTED)
+[Group Deputy CEO rejects]    → (stays REJECTED)
 [Manager rejects]      → CANDIDATE_REJECTED_INTERVIEW
 [Interview rejected]   → CANDIDATE_REJECTED_INTERVIEW
 ```
@@ -286,7 +286,7 @@ SUBMITTED → PENDING_MANAGER_APPROVAL_FIN → MANAGER_APPROVED_FIN
 ```
 SUBMITTED → FINANCE_PENDING_ACK → FINANCE_ACKNOWLEDGED → FINANCE_IN_PROGRESS
   → PENDING_CFO_APPROVAL_FIN → CFO_APPROVED_FIN
-  → [if amount > RM15,000] PENDING_GROUP_CEO_APPROVAL → GROUP_CEO_APPROVED
+  → [if amount > RM15,000] PENDING_GROUP_DCEO_APPROVAL → GROUP_DCEO_APPROVED
   → PAYMENT_PROCESSING_FIN → AWAITING_PAYMENT_CONFIRMATION
   → PAYMENT_CONFIRMED_FIN → TICKET_CLOSED_FIN
 ```
@@ -1003,8 +1003,8 @@ Finance Reimbursement (9): PENDING_MANAGER_APPROVAL_FIN,
 
 Finance Purchase (13): FINANCE_PENDING_ACK, FINANCE_ACKNOWLEDGED,
   FINANCE_IN_PROGRESS, PENDING_CFO_APPROVAL_FIN, CFO_APPROVED_FIN,
-  CFO_REJECTED_FIN, PENDING_GROUP_CEO_APPROVAL, GROUP_CEO_APPROVED,
-  GROUP_CEO_REJECTED, PAYMENT_PROCESSING_FIN,
+  CFO_REJECTED_FIN, PENDING_GROUP_DCEO_APPROVAL, GROUP_DCEO_APPROVED,
+  GROUP_DCEO_REJECTED, PAYMENT_PROCESSING_FIN,
   AWAITING_PAYMENT_CONFIRMATION, PAYMENT_CONFIRMED_FIN, TICKET_CLOSED_FIN
 
 Chargeback (9): PENDING_FROM_ENTITY_APPROVAL, FROM_ENTITY_APPROVED,
@@ -1028,7 +1028,7 @@ Chargeback (9): PENDING_FROM_ENTITY_APPROVAL, FROM_ENTITY_APPROVED,
 
 **SLA Pause Statuses (14):** PENDING_CEO_APPROVAL_IT, PENDING_CTO_APPROVAL_IT,
 PENDING_CFO_APPROVAL_IT, PENDING_CEO_APPROVAL, PENDING_MANAGER_REVIEW,
-LOA_PENDING_APPROVAL, PENDING_CFO_APPROVAL_FIN, PENDING_GROUP_CEO_APPROVAL,
+LOA_PENDING_APPROVAL, PENDING_CFO_APPROVAL_FIN, PENDING_GROUP_DCEO_APPROVAL,
 PENDING_FROM_ENTITY_APPROVAL, PENDING_TO_ENTITY_APPROVAL,
 CHARGEBACK_FINANCE_REVIEW, ONBOARDING_PENDING_HR_APPROVAL,
 PENDING_MANAGER_APPROVAL_FIN, PENDING_FINANCE_HEAD_APPROVAL
@@ -1053,7 +1053,7 @@ PENDING_APPROVAL_STATUSES = {
     CEO:       ['PENDING_CEO_APPROVAL', 'PENDING_CEO_APPROVAL_IT', 'PENDING_CEO_APPROVAL_FIN'],
     CTO:       ['PENDING_CTO_APPROVAL_IT'],
     CFO:       ['PENDING_CFO_APPROVAL_IT', 'PENDING_CFO_APPROVAL_FIN', 'PENDING_FINANCE_HEAD_APPROVAL'],
-    GROUP_CEO: ['PENDING_GROUP_CEO_APPROVAL'],
+    GROUP_DCEO: ['PENDING_GROUP_DCEO_APPROVAL'],
     VP:        [],
     HR:        ['LOA_PENDING_APPROVAL', 'ONBOARDING_PENDING_HR_APPROVAL'],
 }
@@ -1244,7 +1244,7 @@ Production Environment (Docker Compose)
 | `S3_SECRET_KEY`                 | No       | S3 secret key |
 | `S3_BUCKET`                     | No       | S3 bucket name |
 | `HARDWARE_VP_APPROVAL_THRESHOLD`| No       | VP approval threshold (default: RM2,500) |
-| `GROUP_CEO_APPROVAL_THRESHOLD`  | No       | Group CEO threshold (default: RM15,000) |
+| `GROUP_DCEO_APPROVAL_THRESHOLD`  | No       | Group Deputy CEO threshold (default: RM15,000) |
 | `SLA_SCHEDULE_MODE`             | No       | SLA check mode: 'interval' or 'cron' |
 | `SLA_CRON_EXPRESSION`           | No       | Cron expression (default: '0 9 * * 1-5') |
 
@@ -1383,7 +1383,7 @@ All service unit tests follow the same pattern:
 | **HR**        | hr@test.local         | abc@123     |
 | **CEO**       | ceo@test.local        | abc@123     |
 | **End User**  | user@test.local       | abc@123     |
-| **Group CEO** | groupceo@company.com  | groupceo123 |
+| **Group Deputy CEO** | groupceo@company.com  | groupceo123 |
 
 ---
 
@@ -1499,6 +1499,6 @@ See section 10.3 for required variables. Additional configuration:
 
 **Doc sync (2026-05-08):** Corrected controller count (30→31, +systemSetting), service count (11→12, +autoAssignment), route count (30→31, +systemSetting), admin tab count (13→12, Role Assignment is modal not a tab); added /forgot-password, /reset-password/:token, /change-password to navigation structure; added ForgotPassword/ResetPassword/ChangePassword to frontend module structure; added /system-settings to API route table and backend architecture diagrams.
 
-**Doc sync (2026-05-25):** Added Credit Assessment module (12 main pages + 22 tab components, 12 `/credit/*` routes, credit.service.ts frontend service); added UnifiedInbox page (`/inbox`); added Insights page (`/insights`, `report:read`); added AuditTrail standalone page (`/admin/audit`); renamed ApprovalQueue → ApprovalCenter; corrected HR hiring workflow (added missing PENDING_GROUP_CEO_APPROVAL → GROUP_CEO_APPROVED steps between CEO_APPROVED and JOB_POSTED); fixed `/register` route (removed — does not exist in App.tsx); fixed `/reset-password/:token` → `/reset-password` (no token param); updated controller count (33→38, +interview, insights, policyExplainer, scheduler, participant); updated route count (34→37, +insights, policyExplainer, scheduler); updated service count backend (16→20, +crm-ai, insights, policyExplainer, scheduler); updated Prisma model count (58→121) and enum count (16→58) reflecting major schema growth; updated frontend services (23→28, +credit, insights, scheduler, auditLog, bannerConfig, entity, loa, requestStatus, screening, workflow); added `src/components/ui/` directory (16 primitives: Button, Card, Tabs, Drawer, Modal, Combobox, Tooltip, Skeleton, StateBadge, RiskBadge, AutosaveTextField, EmptyState, EnvironmentBanner, OutOfOfficeModal, PolicyExplainer); added new components (RichTextEditor, SessionExpiryBanner, NavMoreDropdown, CrmNav, CreditNav, CollapsibleKanbanColumn); updated hooks (4→9, added useAutosave, useCrmAi, useDebouncedValue, useIdleSession, useScrollLock); updated request-detail component count (25→38, added WorkflowCockpit, WorkflowStepper, DecisionPanel, ParticipantsSection, ActionBanner, AssignToDropdown, + new workflow modals); updated navigation section to reflect WorkflowCockpit/WorkflowStepper architecture in RequestDetail.
+**Doc sync (2026-05-25):** Added Credit Assessment module (12 main pages + 22 tab components, 12 `/credit/*` routes, credit.service.ts frontend service); added UnifiedInbox page (`/inbox`); added Insights page (`/insights`, `report:read`); added AuditTrail standalone page (`/admin/audit`); renamed ApprovalQueue → ApprovalCenter; corrected HR hiring workflow (added missing PENDING_GROUP_DCEO_APPROVAL → GROUP_DCEO_APPROVED steps between CEO_APPROVED and JOB_POSTED); fixed `/register` route (removed — does not exist in App.tsx); fixed `/reset-password/:token` → `/reset-password` (no token param); updated controller count (33→38, +interview, insights, policyExplainer, scheduler, participant); updated route count (34→37, +insights, policyExplainer, scheduler); updated service count backend (16→20, +crm-ai, insights, policyExplainer, scheduler); updated Prisma model count (58→121) and enum count (16→58) reflecting major schema growth; updated frontend services (23→28, +credit, insights, scheduler, auditLog, bannerConfig, entity, loa, requestStatus, screening, workflow); added `src/components/ui/` directory (16 primitives: Button, Card, Tabs, Drawer, Modal, Combobox, Tooltip, Skeleton, StateBadge, RiskBadge, AutosaveTextField, EmptyState, EnvironmentBanner, OutOfOfficeModal, PolicyExplainer); added new components (RichTextEditor, SessionExpiryBanner, NavMoreDropdown, CrmNav, CreditNav, CollapsibleKanbanColumn); updated hooks (4→9, added useAutosave, useCrmAi, useDebouncedValue, useIdleSession, useScrollLock); updated request-detail component count (25→38, added WorkflowCockpit, WorkflowStepper, DecisionPanel, ParticipantsSection, ActionBanner, AssignToDropdown, + new workflow modals); updated navigation section to reflect WorkflowCockpit/WorkflowStepper architecture in RequestDetail.
 
 **Doc sync (2026-05-13):** Added CRM module (13 frontend pages, 3 backend services crm/crm-automation/crm-reports, 1 route file, 1 controller, 10 CRM Prisma models + 4 enums, 4 permissions crm:read/write/delete/admin, 7 report types, automation engine, Malaysian-specific fields); added Announcement Board (4 frontend pages/widget, 1 backend service, 1 route file, 1 controller, 2 Prisma models, 2 permissions announcement:write/admin, 14 API endpoints including PDF/DOCX parse and image upload); updated route count (31→34), controller count (31→33), service count (12→16), Prisma model count (43→58), enum count (16), KB routes flagged as DEV-only; updated rate limit to 2000/15min; updated navigation structure with all new CRM and announcement routes; added sections 9.7 CRM Module, 9.8 Announcement Board; updated glossary with 12 new terms.*

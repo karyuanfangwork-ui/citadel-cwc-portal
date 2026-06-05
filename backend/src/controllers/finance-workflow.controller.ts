@@ -9,8 +9,8 @@ import { pauseSla, resumeSla } from '../services/sla-pause.service';
 
 const prisma = new PrismaClient();
 
-// Get threshold from config (configurable via GROUP_CEO_APPROVAL_THRESHOLD env var)
-const GROUP_CEO_THRESHOLD = config.groupCeoApprovalThreshold;
+// Get threshold from config (configurable via GROUP_DCEO_APPROVAL_THRESHOLD env var)
+const GROUP_DCEO_THRESHOLD = config.groupDceoApprovalThreshold;
 
 async function logActivity(requestId: string, message: string, authorId?: string) {
     await prisma.requestActivity.create({
@@ -167,36 +167,36 @@ export const cfoDecision = async (req: Request, res: Response) => {
         } else {
             const fields = (request.customFields as Record<string, unknown>) || {};
             const amount = Number(fields.finalizedAmount ?? 0);
-            newStatus = amount > GROUP_CEO_THRESHOLD ? RequestStatus.PENDING_GROUP_CEO_APPROVAL : RequestStatus.PAYMENT_PROCESSING_FIN;
+            newStatus = amount > GROUP_DCEO_THRESHOLD ? RequestStatus.PENDING_GROUP_DCEO_APPROVAL : RequestStatus.PAYMENT_PROCESSING_FIN;
         }
 
         const cfoUpdateData: any = { status: newStatus };
-        // Resolve Group CEO ID (needed for both assignment and notification)
-        let groupCeoId: string | undefined;
-        if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
-            // When routing to Group CEO, reassign to them and create PENDING approval record
-            const existingGroupCeoApproval = await prisma.requestApproval.findFirst({
-                where: { requestId: id, approverType: 'GROUP_CEO', status: 'PENDING' },
+        // Resolve Group Deputy CEO ID (needed for both assignment and notification)
+        let groupDceoId: string | undefined;
+        if (newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL) {
+            // When routing to Group Deputy CEO, reassign to them and create PENDING approval record
+            const existingGroupDceoApproval = await prisma.requestApproval.findFirst({
+                where: { requestId: id, approverType: 'GROUP_DCEO', status: 'PENDING' },
                 select: { approverId: true },
             });
-            if (existingGroupCeoApproval?.approverId) {
-                groupCeoId = existingGroupCeoApproval.approverId;
+            if (existingGroupDceoApproval?.approverId) {
+                groupDceoId = existingGroupDceoApproval.approverId;
             } else {
-                const groupCeoUser = await prisma.user.findFirst({
-                    where: { isActive: true, executiveRole: 'GROUP_CEO' },
+                const groupDceoUser = await prisma.user.findFirst({
+                    where: { isActive: true, executiveRole: 'GROUP_DCEO' },
                     select: { id: true },
                 });
-                groupCeoId = groupCeoUser?.id;
+                groupDceoId = groupDceoUser?.id;
             }
-            if (groupCeoId) {
-                cfoUpdateData.assignedToId = groupCeoId;
-                // Create the PENDING GROUP_CEO approval record if it doesn't exist yet
-                if (!existingGroupCeoApproval) {
+            if (groupDceoId) {
+                cfoUpdateData.assignedToId = groupDceoId;
+                // Create the PENDING GROUP_DCEO approval record if it doesn't exist yet
+                if (!existingGroupDceoApproval) {
                     await prisma.requestApproval.create({
                         data: {
                             requestId: id,
-                            approverType: 'GROUP_CEO',
-                            approverId: groupCeoId,
+                            approverType: 'GROUP_DCEO',
+                            approverId: groupDceoId,
                             status: 'PENDING',
                             comments: null,
                         },
@@ -214,7 +214,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
             data: { requestId: id, approverType: 'CFO', approverId: userId, status: decision, comments: comments || null },
         });
 
-        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL ? 'Group CEO (amount > MYR ' + GROUP_CEO_THRESHOLD + ')' : 'payment processing'}`;
+        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL ? 'Group Deputy CEO (amount > MYR ' + GROUP_DCEO_THRESHOLD + ')' : 'payment processing'}`;
         await logActivity(id, `CFO ${verb}${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
@@ -225,22 +225,22 @@ export const cfoDecision = async (req: Request, res: Response) => {
         }, { status: request.status });
         await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
-        // If routed to Group CEO for approval, notify them
-        if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
-            // Use the groupCeoId already resolved above if available, otherwise look it up
-            const gCeoIdForNotify = groupCeoId ?? (await prisma.user.findFirst({
-                where: { isActive: true, executiveRole: 'GROUP_CEO' },
+        // If routed to Group Deputy CEO for approval, notify them
+        if (newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL) {
+            // Use the groupDceoId already resolved above if available, otherwise look it up
+            const gCeoIdForNotify = groupDceoId ?? (await prisma.user.findFirst({
+                where: { isActive: true, executiveRole: 'GROUP_DCEO' },
                 select: { id: true },
             }))?.id;
             if (gCeoIdForNotify) {
-                await notify({ userId: gCeoIdForNotify, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group CEO' }, relatedRequestId: id });
+                await notify({ userId: gCeoIdForNotify, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'Group Deputy CEO' }, relatedRequestId: id });
             }
         }
 
         await resumeSla(id);
 
-        // If routed to Group CEO, pause SLA again for PENDING_GROUP_CEO_APPROVAL
-        if (newStatus === RequestStatus.PENDING_GROUP_CEO_APPROVAL) {
+        // If routed to Group Deputy CEO, pause SLA again for PENDING_GROUP_DCEO_APPROVAL
+        if (newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL) {
             await pauseSla(id);
         }
 
@@ -251,8 +251,8 @@ export const cfoDecision = async (req: Request, res: Response) => {
     }
 };
 
-/** POST /finance-workflow/requests/:id/group-ceo-decision */
-export const groupCeoDecision = async (req: Request, res: Response) => {
+/** POST /finance-workflow/requests/:id/group-dceo-decision */
+export const groupDceoDecision = async (req: Request, res: Response) => {
     try {
         const id = String(req.params.id);
         const { decision, comments } = req.body;
@@ -267,7 +267,7 @@ export const groupCeoDecision = async (req: Request, res: Response) => {
             where: { id },
             include: {
                 approvals: {
-                    where: { approverType: 'GROUP_CEO', status: 'PENDING' },
+                    where: { approverType: 'GROUP_DCEO', status: 'PENDING' },
                 },
             },
         });
@@ -276,18 +276,18 @@ export const groupCeoDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        if (request.status !== 'PENDING_GROUP_CEO_APPROVAL') {
-            res.status(400).json({ status: 'error', message: 'Request is not pending Group CEO approval' });
+        if (request.status !== 'PENDING_GROUP_DCEO_APPROVAL') {
+            res.status(400).json({ status: 'error', message: 'Request is not pending Group Deputy CEO approval' });
             return;
         }
 
         const pendingApproval = request.approvals[0];
         if (!pendingApproval) {
-            res.status(404).json({ status: 'error', message: 'No pending Group CEO approval found for this request' });
+            res.status(404).json({ status: 'error', message: 'No pending Group Deputy CEO approval found for this request' });
             return;
         }
 
-        const newStatus = decision === 'APPROVED' ? RequestStatus.PAYMENT_PROCESSING_FIN : RequestStatus.GROUP_CEO_REJECTED;
+        const newStatus = decision === 'APPROVED' ? RequestStatus.PAYMENT_PROCESSING_FIN : RequestStatus.GROUP_DCEO_REJECTED;
 
         // Reassign back to Finance agent using shared reassignToTeam (no entity-scoping)
         await reassignToTeam(id, request.referenceNumber, 'FINANCE', 'Finance-Workflow');
@@ -306,23 +306,23 @@ export const groupCeoDecision = async (req: Request, res: Response) => {
         });
 
         const verb = decision === 'APPROVED' ? 'approved — routed to payment processing' : 'rejected';
-        await logActivity(id, `Group CEO ${verb}${comments ? ': ' + comments : ''}`, userId);
+        await logActivity(id, `Group Deputy CEO ${verb}${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
-            approverType: 'GROUP_CEO',
+            approverType: 'GROUP_DCEO',
             newStatus,
             previousStatus: request.status,
             comments: comments || null,
         }, { status: request.status });
-        await notify({ userId: request.requesterId, eventType: 'FINANCE_GROUP_CEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_GROUP_DCEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
-        // Resume SLA — leaving PENDING_GROUP_CEO_APPROVAL
+        // Resume SLA — leaving PENDING_GROUP_DCEO_APPROVAL
         await resumeSla(id);
 
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
-        console.error('groupCeoDecision error:', error);
-        res.status(500).json({ status: 'error', message: 'Failed to process Group CEO decision' });
+        console.error('groupDceoDecision error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to process Group Deputy CEO decision' });
     }
 };
 

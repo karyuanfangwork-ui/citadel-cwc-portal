@@ -3,13 +3,13 @@ import * as approvalService from '../../services/approval.service';
 import { useModalDismiss } from '../../hooks/useModalDismiss';
 import ModalPortal from '../ModalPortal';
 
-interface GroupCeoDecisionHRModalProps {
+interface GroupDceoDecisionHRModalProps {
   requestId: string;
   onSuccess: () => void;
   onClose: () => void;
 }
 
-const GroupCeoDecisionHRModal: React.FC<GroupCeoDecisionHRModalProps> = ({ requestId, onSuccess, onClose }) => {
+const GroupDceoDecisionHRModal: React.FC<GroupDceoDecisionHRModalProps> = ({ requestId, onSuccess, onClose }) => {
   const [decision, setDecision] = useState<'APPROVED' | 'REJECTED' | null>(null);
   const [comments, setComments] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -22,10 +22,10 @@ const GroupCeoDecisionHRModal: React.FC<GroupCeoDecisionHRModalProps> = ({ reque
     try {
       setSubmitting(true);
       setError(null);
-      await approvalService.groupCeoDecisionHR(requestId, decision, comments || undefined);
+      await approvalService.groupDceoDecisionHR(requestId, decision, comments || undefined);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to process Group CEO decision');
+      setError(err.response?.data?.message || 'Failed to process Group Deputy CEO decision');
     } finally {
       setSubmitting(false);
     }
@@ -40,7 +40,7 @@ const GroupCeoDecisionHRModal: React.FC<GroupCeoDecisionHRModalProps> = ({ reque
               <span className="material-symbols-outlined text-indigo-600">gavel</span>
             </div>
             <div>
-              <h2 className="font-bold text-base text-gray-900">Group CEO Decision</h2>
+              <h2 className="font-bold text-base text-gray-900">Group Deputy CEO Decision</h2>
               <p className="text-xs text-gray-500">HR Workflow · New Hiring Request</p>
             </div>
           </div>
@@ -114,4 +114,4 @@ const GroupCeoDecisionHRModal: React.FC<GroupCeoDecisionHRModalProps> = ({ reque
   );
 };
 
-export default GroupCeoDecisionHRModal;
+export default GroupDceoDecisionHRModal;

@@ -17,7 +17,7 @@ interface CreateUserModalProps {
 
 const EXECUTIVE_ROLES = [
     { value: '', label: 'None' },
-    { value: 'GROUP_CEO', label: 'Group CEO' },
+    { value: 'GROUP_DCEO', label: 'Group Deputy CEO' },
     { value: 'CEO', label: 'CEO' },
     { value: 'CTO', label: 'CTO' },
     { value: 'CFO', label: 'CFO' },

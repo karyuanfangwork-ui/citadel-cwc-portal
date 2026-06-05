@@ -15,7 +15,7 @@
 | File | Action |
 |------|--------|
 | `backend/prisma/schema.prisma` | Add 12 new `RequestStatus` values |
-| `backend/prisma/seed.ts` | Add GROUP_CEO user after CFO user block |
+| `backend/prisma/seed.ts` | Add GROUP_DCEO user after CFO user block |
 | `backend/src/controllers/finance-workflow.controller.ts` | Replace entirely with 7 new endpoints |
 | `backend/src/routes/finance-workflow.routes.ts` | Replace routes to match new endpoints |
 | `frontend/src/services/finance-workflow.service.ts` | Replace with 7 new service methods |
@@ -59,9 +59,9 @@ Find the `// Finance Workflow` comment block (currently ends at `REIMBURSEMENT_C
   PENDING_CFO_APPROVAL_FIN
   CFO_APPROVED_FIN
   CFO_REJECTED_FIN
-  PENDING_GROUP_CEO_APPROVAL_FIN
-  GROUP_CEO_APPROVED_FIN
-  GROUP_CEO_REJECTED_FIN
+  PENDING_GROUP_DCEO_APPROVAL_FIN
+  GROUP_DCEO_APPROVED_FIN
+  GROUP_DCEO_REJECTED_FIN
   PAYMENT_PROCESSING_FIN
   PAYMENT_COMPLETED_FIN
 ```
@@ -78,7 +78,7 @@ Expected: Migration created and applied successfully. Prisma client regenerated.
 - [ ] **Step 3: Verify Prisma client includes new statuses**
 
 ```bash
-grep -c "ACKNOWLEDGED_FIN\|PENDING_CEO_APPROVAL_FIN\|PENDING_GROUP_CEO_APPROVAL_FIN" node_modules/.prisma/client/index.d.ts
+grep -c "ACKNOWLEDGED_FIN\|PENDING_CEO_APPROVAL_FIN\|PENDING_GROUP_DCEO_APPROVAL_FIN" node_modules/.prisma/client/index.d.ts
 ```
 
 Expected: `3`
@@ -92,18 +92,18 @@ git commit -m "feat(db): add Purchase Requisition workflow statuses to RequestSt
 
 ---
 
-## Task 2: Add GROUP_CEO seed user
+## Task 2: Add GROUP_DCEO seed user
 
 **Files:**
 - Modify: `backend/prisma/seed.ts` (after the CFO user block, around line 219)
 
-- [ ] **Step 1: Add GROUP_CEO user after the CFO block**
+- [ ] **Step 1: Add GROUP_DCEO user after the CFO block**
 
 After line `console.log('✅ CFO user created ...')`, insert:
 
 ```typescript
-    const groupCeoRole = await prisma.role.findUniqueOrThrow({ where: { name: 'GROUP_CEO' } });
-    const groupCeoUser = await prisma.user.upsert({
+    const groupDceoRole = await prisma.role.findUniqueOrThrow({ where: { name: 'GROUP_DCEO' } });
+    const groupDceoUser = await prisma.user.upsert({
         where: { email: 'groupceo@company.com' },
         update: {},
         create: {
@@ -116,7 +116,7 @@ After line `console.log('✅ CFO user created ...')`, insert:
             isActive: true,
         },
     });
-    await assignRoles(groupCeoUser.id, [groupCeoRole.id]);
+    await assignRoles(groupDceoUser.id, [groupDceoRole.id]);
     console.log('✅ Group CEO user created (email: groupceo@company.com, password: groupceo123)');
 ```
 
@@ -133,7 +133,7 @@ Expected output includes: `✅ Group CEO user created (email: groupceo@company.c
 
 ```bash
 git add backend/prisma/seed.ts
-git commit -m "feat(db): seed GROUP_CEO user for Purchase Requisition workflow"
+git commit -m "feat(db): seed GROUP_DCEO user for Purchase Requisition workflow"
 ```
 
 ---
@@ -288,7 +288,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
         } else {
             const fields = (request.customFields as Record<string, unknown>) || {};
             const amount = Number(fields.finalizedAmount ?? 0);
-            newStatus = amount > THRESHOLD_MYR ? 'PENDING_GROUP_CEO_APPROVAL_FIN' : 'PAYMENT_PROCESSING_FIN';
+            newStatus = amount > THRESHOLD_MYR ? 'PENDING_GROUP_DCEO_APPROVAL_FIN' : 'PAYMENT_PROCESSING_FIN';
         }
 
         const updated = await prisma.request.update({ where: { id }, data: { status: newStatus } });
@@ -297,7 +297,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
             data: { requestId: id, approverType: 'CFO', approverId: userId, status: decision, comments: comments || null },
         });
 
-        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === 'PENDING_GROUP_CEO_APPROVAL_FIN' ? 'Group CEO (amount > MYR 15,000)' : 'payment processing'}`;
+        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === 'PENDING_GROUP_DCEO_APPROVAL_FIN' ? 'Group CEO (amount > MYR 15,000)' : 'payment processing'}`;
         await logActivity(id, decision === 'APPROVED' ? 'APPROVAL' : 'REJECTION', `CFO ${verb}${comments ? ': ' + comments : ''}`, userId);
         await notify({ userId: request.requesterId, eventType: 'FINANCE_CFO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
@@ -308,8 +308,8 @@ export const cfoDecision = async (req: Request, res: Response) => {
     }
 };
 
-/** POST /finance-workflow/requests/:id/group-ceo-decision */
-export const groupCeoDecision = async (req: Request, res: Response) => {
+/** POST /finance-workflow/requests/:id/group-dceo-decision */
+export const groupDceoDecision = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { decision, comments } = req.body;
@@ -322,20 +322,20 @@ export const groupCeoDecision = async (req: Request, res: Response) => {
         const request = await getFinanceRequest(id, res);
         if (!request) return;
 
-        const newStatus = decision === 'APPROVED' ? 'PAYMENT_PROCESSING_FIN' : 'GROUP_CEO_REJECTED_FIN';
+        const newStatus = decision === 'APPROVED' ? 'PAYMENT_PROCESSING_FIN' : 'GROUP_DCEO_REJECTED_FIN';
         const updated = await prisma.request.update({ where: { id }, data: { status: newStatus } });
 
         await prisma.requestApproval.create({
-            data: { requestId: id, approverType: 'GROUP_CEO', approverId: userId, status: decision, comments: comments || null },
+            data: { requestId: id, approverType: 'GROUP_DCEO', approverId: userId, status: decision, comments: comments || null },
         });
 
         const verb = decision === 'APPROVED' ? 'approved — routed to payment processing' : 'rejected';
         await logActivity(id, decision === 'APPROVED' ? 'APPROVAL' : 'REJECTION', `Group CEO ${verb}${comments ? ': ' + comments : ''}`, userId);
-        await notify({ userId: request.requesterId, eventType: 'FINANCE_GROUP_CEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_GROUP_DCEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
 
         res.json({ status: 'success', data: { request: updated } });
     } catch (error) {
-        console.error('groupCeoDecision error:', error);
+        console.error('groupDceoDecision error:', error);
         res.status(500).json({ status: 'error', message: 'Failed to process Group CEO decision' });
     }
 };
@@ -425,7 +425,7 @@ import {
     setFinalizedAmountAndRouteCeo,
     ceoDecision,
     cfoDecision,
-    groupCeoDecision,
+    groupDceoDecision,
     markPaymentComplete,
     closeTicket,
 } from '../controllers/finance-workflow.controller';
@@ -437,7 +437,7 @@ router.post('/requests/:id/acknowledge', authorize('ADMIN', 'AGENT'), acknowledg
 router.post('/requests/:id/set-finalized-amount-and-route-ceo', authorize('ADMIN', 'AGENT'), setFinalizedAmountAndRouteCeo);
 router.post('/requests/:id/ceo-decision', authorize('CEO'), ceoDecision);
 router.post('/requests/:id/cfo-decision', authorize('CFO'), cfoDecision);
-router.post('/requests/:id/group-ceo-decision', authorize('GROUP_CEO'), groupCeoDecision);
+router.post('/requests/:id/group-dceo-decision', authorize('GROUP_DCEO'), groupDceoDecision);
 router.post('/requests/:id/mark-payment-complete', authorize('ADMIN', 'AGENT'), markPaymentComplete);
 router.post('/requests/:id/close', authorize('ADMIN', 'AGENT'), closeTicket);
 
@@ -506,8 +506,8 @@ const financeWorkflowService = {
         return response.data;
     },
 
-    async groupCeoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
-        const response = await api.post(`/finance-workflow/requests/${requestId}/group-ceo-decision`, { decision, comments });
+    async groupDceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/group-dceo-decision`, { decision, comments });
         return response.data;
     },
 
@@ -567,7 +567,7 @@ In `workflowActions.ts`, find the `export type WorkflowActionType =` block and a
   | 'ROUTE_TO_CEO_FIN'
   | 'CEO_DECISION_FIN'
   | 'CFO_DECISION_FIN'
-  | 'GROUP_CEO_DECISION_FIN'
+  | 'GROUP_DCEO_DECISION_FIN'
   | 'MARK_PAYMENT_COMPLETE_FIN'
   | 'CLOSE_TICKET_FIN'
 ```
@@ -600,9 +600,9 @@ In `getWorkflowActions`, add the following block just before the final `return a
       });
     }
 
-    if (userRoles.includes('GROUP_CEO') && status === 'PENDING_GROUP_CEO_APPROVAL_FIN') {
+    if (userRoles.includes('GROUP_DCEO') && status === 'PENDING_GROUP_DCEO_APPROVAL_FIN') {
       actions.push({
-        type: 'GROUP_CEO_DECISION_FIN',
+        type: 'GROUP_DCEO_DECISION_FIN',
         label: 'Group CEO Approval Decision',
         description: 'Review and approve or reject this high-value Purchase Requisition as Group CEO.',
         variant: 'primary',
@@ -649,7 +649,7 @@ In `getWorkflowActions`, add the following block just before the final `return a
 
 Place this block **above** the existing `if (!canAct) return actions;` guard — insert it right after the `isHR` const declaration and before the `if (!canAct) return actions;` line.
 
-Wait — re-check: `CEO_DECISION_FIN`, `CFO_DECISION_FIN`, `GROUP_CEO_DECISION_FIN` must be reachable without `canAct`. The correct placement is: add the entire `if (isPurchaseRequisition)` block **before** `if (!canAct) return actions;`. The `canAct`-gated inner actions are safe because they use a nested `if (canAct)`.
+Wait — re-check: `CEO_DECISION_FIN`, `CFO_DECISION_FIN`, `GROUP_DCEO_DECISION_FIN` must be reachable without `canAct`. The correct placement is: add the entire `if (isPurchaseRequisition)` block **before** `if (!canAct) return actions;`. The `canAct`-gated inner actions are safe because they use a nested `if (canAct)`.
 
 - [ ] **Step 3: Verify TypeScript**
 
@@ -1192,7 +1192,7 @@ import financeWorkflowService from '../../services/finance-workflow.service';
 Replace the existing `type ModalType = ...` line with:
 
 ```typescript
-type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'FIN_ROUTE_CEO' | 'FIN_CEO_DECISION' | 'FIN_CFO_DECISION' | 'FIN_GROUP_CEO_DECISION' | 'FIN_PAYMENT_COMPLETE' | 'FIN_CLOSE_TICKET' | null;
+type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 'HARDWARE_ORDERED' | 'HARDWARE_RECEIVED' | 'SOFTWARE_PROVISIONED' | 'FULFILMENT' | 'ASSIGN' | 'VP_DECISION' | 'RESUBMIT_REQUEST' | 'ACKNOWLEDGE_IT' | 'CEO_DECISION' | 'CTO_DECISION' | 'ROUTE_TO_CFO' | 'CFO_DECISION' | 'PAYMENT_DONE' | 'MANAGER_DECISION' | 'COMPLETE_DELIVERY' | 'ROUTE_TO_CEO_HR' | 'MARK_JOB_POSTED' | 'UPLOAD_RESUME' | 'SCHEDULE_INTERVIEW' | 'UPDATE_SCREENING' | 'UPLOAD_LOA' | 'UPLOAD_SIGNED_LOA' | 'FIN_ACKNOWLEDGE' | 'FIN_ROUTE_CEO' | 'FIN_CEO_DECISION' | 'FIN_CFO_DECISION' | 'FIN_GROUP_DCEO_DECISION' | 'FIN_PAYMENT_COMPLETE' | 'FIN_CLOSE_TICKET' | null;
 ```
 
 - [ ] **Step 3: Add handleActionClick cases** (inside the switch, before the `default:` case)
@@ -1202,7 +1202,7 @@ type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 
       case 'ROUTE_TO_CEO_FIN': setOpenModal('FIN_ROUTE_CEO'); break;
       case 'CEO_DECISION_FIN': setOpenModal('FIN_CEO_DECISION'); break;
       case 'CFO_DECISION_FIN': setOpenModal('FIN_CFO_DECISION'); break;
-      case 'GROUP_CEO_DECISION_FIN': setOpenModal('FIN_GROUP_CEO_DECISION'); break;
+      case 'GROUP_DCEO_DECISION_FIN': setOpenModal('FIN_GROUP_DCEO_DECISION'); break;
       case 'MARK_PAYMENT_COMPLETE_FIN': setOpenModal('FIN_PAYMENT_COMPLETE'); break;
       case 'CLOSE_TICKET_FIN': setOpenModal('FIN_CLOSE_TICKET'); break;
 ```
@@ -1240,12 +1240,12 @@ type ModalType = 'APPROVE' | 'REJECT' | 'SUBMIT_FOR_APPROVAL' | 'PROCUREMENT' | 
           />
         </Suspense>
       )}
-      {openModal === 'FIN_GROUP_CEO_DECISION' && (
+      {openModal === 'FIN_GROUP_DCEO_DECISION' && (
         <Suspense fallback={null}>
           <FinDecisionModal
             title="Group CEO Approval Decision"
             subtitle="Finance Workflow · Purchase Requisition (High-Value)"
-            onDecision={(decision, comments) => financeWorkflowService.groupCeoDecision(requestId, decision, comments).then(handleSuccess)}
+            onDecision={(decision, comments) => financeWorkflowService.groupDceoDecision(requestId, decision, comments).then(handleSuccess)}
             onClose={() => setOpenModal(null)}
           />
         </Suspense>
@@ -1299,15 +1299,15 @@ Find the block starting at `if (workflowCode === 'FINANCE') {` (around line 229)
         // Determine if amount > 15000 to show Group CEO step
         const fields = (request.customFields as Record<string, unknown>) || {};
         const amount = Number(fields.finalizedAmount ?? 0);
-        const needsGroupCeo = amount > 15000 ||
-          ['PENDING_GROUP_CEO_APPROVAL_FIN', 'GROUP_CEO_APPROVED_FIN', 'GROUP_CEO_REJECTED_FIN'].includes(currentStatus);
+        const needsGroupDceo = amount > 15000 ||
+          ['PENDING_GROUP_DCEO_APPROVAL_FIN', 'GROUP_DCEO_APPROVED_FIN', 'GROUP_DCEO_REJECTED_FIN'].includes(currentStatus);
 
         const allSteps = [
           { label: 'Submitted', status: 'SUBMITTED', icon: 'check_circle' },
           { label: 'Under Review', status: 'ACKNOWLEDGED_FIN', icon: 'radio_button_checked' },
           { label: 'Pending CEO', status: 'PENDING_CEO_APPROVAL_FIN', icon: 'radio_button_checked' },
           { label: 'Pending CFO', status: 'PENDING_CFO_APPROVAL_FIN', icon: 'radio_button_checked' },
-          ...(needsGroupCeo ? [{ label: 'Pending Group CEO', status: 'PENDING_GROUP_CEO_APPROVAL_FIN', icon: 'radio_button_checked' }] : []),
+          ...(needsGroupDceo ? [{ label: 'Pending Group CEO', status: 'PENDING_GROUP_DCEO_APPROVAL_FIN', icon: 'radio_button_checked' }] : []),
           { label: 'Payment', status: 'PAYMENT_PROCESSING_FIN', icon: 'radio_button_checked' },
           { label: 'Completed', status: 'COMPLETED', icon: 'check_circle' },
         ];
@@ -1316,7 +1316,7 @@ Find the block starting at `if (workflowCode === 'FINANCE') {` (around line 229)
           'SUBMITTED', 'ACKNOWLEDGED_FIN',
           'PENDING_CEO_APPROVAL_FIN', 'CEO_APPROVED_FIN',
           'PENDING_CFO_APPROVAL_FIN', 'CFO_APPROVED_FIN',
-          ...(needsGroupCeo ? ['PENDING_GROUP_CEO_APPROVAL_FIN', 'GROUP_CEO_APPROVED_FIN'] : []),
+          ...(needsGroupDceo ? ['PENDING_GROUP_DCEO_APPROVAL_FIN', 'GROUP_DCEO_APPROVED_FIN'] : []),
           'PAYMENT_PROCESSING_FIN', 'PAYMENT_COMPLETED_FIN', 'COMPLETED',
         ];
 
@@ -1489,7 +1489,7 @@ cd frontend && npm run dev
 
 1. Create a new Purchase Requisition ticket
 2. Acknowledge → set amount `20000` → route to CEO
-3. CEO approves → CFO approves → verify status → PENDING_GROUP_CEO_APPROVAL_FIN
+3. CEO approves → CFO approves → verify status → PENDING_GROUP_DCEO_APPROVAL_FIN
 4. Verify stepper shows "Pending Group CEO" step
 5. Log in as `groupceo@company.com` / `groupceo123`
 6. Open ticket → verify **Group CEO Approval Decision** appears

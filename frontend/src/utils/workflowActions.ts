@@ -18,8 +18,8 @@ export type WorkflowActionType =
   | 'MANAGER_DECISION'
   | 'LOA_APPROVAL'
   | 'ROUTE_TO_CEO_HR'
-  | 'ROUTE_TO_GROUP_CEO_HR'
-  | 'GROUP_CEO_DECISION_HR'
+  | 'ROUTE_TO_GROUP_DCEO_HR'
+  | 'GROUP_DCEO_DECISION_HR'
   | 'MARK_JOB_POSTED'
   | 'UPLOAD_RESUME'
   | 'ROUTE_TO_MANAGER'
@@ -42,7 +42,7 @@ export type WorkflowActionType =
   | 'SET_FINALIZED_AMOUNT'
   | 'ROUTE_TO_CFO_FIN'
   | 'CFO_DECISION_FIN'
-  | 'GROUP_CEO_DECISION_FIN'
+  | 'GROUP_DCEO_DECISION_FIN'
   | 'MARK_PAYMENT_COMPLETE_FIN'
   | 'CLOSE_TICKET_FIN'
   // Inter-Company Chargeback workflow actions
@@ -188,22 +188,22 @@ export function getWorkflowActions(
       });
     }
 
-    if (userRoles.includes('GROUP_CEO') && status === 'PENDING_GROUP_CEO_APPROVAL') {
+    if (userRoles.includes('GROUP_DCEO') && status === 'PENDING_GROUP_DCEO_APPROVAL') {
       actions.push({
-        type: 'GROUP_CEO_DECISION_FIN',
-        label: 'Group CEO Approval Decision',
-        description: 'Review and approve or reject this high-value Purchase Requisition as Group CEO.',
+        type: 'GROUP_DCEO_DECISION_FIN',
+        label: 'Group Deputy CEO Approval Decision',
+        description: 'Review and approve or reject this high-value Purchase Requisition as Group Deputy CEO.',
         variant: 'primary',
       });
     }
   }
 
-  // Group CEO decision for HR hiring requests — must be before canAct guard
-  if (userRoles.includes('GROUP_CEO') && status === 'PENDING_GROUP_CEO_APPROVAL' && (requestTypeCode === 'NEW_HIRING' || (!requestTypeCode && requestTypeName.toLowerCase().includes('hiring')))) {
+  // Group Deputy CEO decision for HR hiring requests — must be before canAct guard
+  if (userRoles.includes('GROUP_DCEO') && status === 'PENDING_GROUP_DCEO_APPROVAL' && (requestTypeCode === 'NEW_HIRING' || (!requestTypeCode && requestTypeName.toLowerCase().includes('hiring')))) {
     actions.push({
-      type: 'GROUP_CEO_DECISION_HR',
-      label: 'Group CEO Approval Decision',
-      description: 'Review and approve or reject this hiring request as Group CEO.',
+      type: 'GROUP_DCEO_DECISION_HR',
+      label: 'Group Deputy CEO Approval Decision',
+      description: 'Review and approve or reject this hiring request as Group Deputy CEO.',
       variant: 'primary',
     });
   }
@@ -571,18 +571,18 @@ export function getWorkflowActions(
 
   if (canActOnDesk && isHR && isNewHiring && status === 'CEO_APPROVED') {
     actions.push({
-      type: 'ROUTE_TO_GROUP_CEO_HR',
-      label: 'Route to Group CEO for Approval',
-      description: 'CEO has approved. Route this hiring request to the Group CEO for final sign-off.',
+      type: 'ROUTE_TO_GROUP_DCEO_HR',
+      label: 'Route to Group Deputy CEO for Approval',
+      description: 'CEO has approved. Route this hiring request to the Group Deputy CEO for final sign-off.',
       variant: 'primary',
     });
   }
 
-  if (canActOnDesk && isHR && isNewHiring && status === 'GROUP_CEO_APPROVED') {
+  if (canActOnDesk && isHR && isNewHiring && status === 'GROUP_DCEO_APPROVED') {
     actions.push({
       type: 'MARK_JOB_POSTED',
       label: 'Mark Job as Posted',
-      description: 'Group CEO has approved. Record the job posting URL to proceed.',
+      description: 'Group Deputy CEO has approved. Record the job posting URL to proceed.',
       variant: 'primary',
     });
   }

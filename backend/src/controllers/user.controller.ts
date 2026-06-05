@@ -377,7 +377,7 @@ class UserController {
     });
 
     /**
-     * Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_CEO / etc.)
+     * Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_DCEO / etc.)
      * Used by workflow modals (AcknowledgeModal, CeoDecisionModal, etc.) to let the
      * agent override the auto-selected approver before routing.
      *
@@ -388,7 +388,7 @@ class UserController {
         const role = String(req.query.role || '').toUpperCase().trim();
 
         if (!role) {
-            throw new AppError('Query param "role" is required (e.g. CEO, CTO, CFO, GROUP_CEO)', 400);
+            throw new AppError('Query param "role" is required (e.g. CEO, CTO, CFO, GROUP_DCEO)', 400);
         }
         if (!EXECUTIVE_HIERARCHY.includes(role as ExecutiveRole)) {
             throw new AppError(
@@ -747,7 +747,7 @@ class UserController {
 
         // Validate executive role if provided
         if (executiveRole) {
-            const validRoles = ['CEO', 'CTO', 'CFO', 'CMO', 'COO', 'CHRO', 'GROUP_CEO'];
+            const validRoles = ['CEO', 'CTO', 'CFO', 'CMO', 'COO', 'CHRO', 'GROUP_DCEO'];
             if (!validRoles.includes(executiveRole)) {
                 throw new AppError(`Invalid executive role. Must be one of: ${validRoles.join(', ')}`, 400);
             }
