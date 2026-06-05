@@ -147,6 +147,17 @@ export interface CrmTagAssignment {
   tag?: CrmTag;
 }
 
+export interface CrmFieldChange {
+  id: string;
+  entityType: string;
+  entityId: string;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  changedBy: string;
+  changedAt: string;
+}
+
 export interface CrmActivity {
   id: string; activityType: CrmActivityType; subject: string; description: string | null;
   userId: string; accountId: string | null; contactId: string | null;
@@ -606,6 +617,12 @@ const crmService = {
   async getEntityTags(entityType: string, entityId: string) {
     const res = await api.get('/crm/tag-assignments', { params: { entityType, entityId } });
     return res.data.data as CrmTagAssignment[];
+  },
+
+  // Field-level change history
+  async getFieldChanges(entityType: string, entityId: string, limit = 100) {
+    const res = await api.get('/crm/field-changes', { params: { entityType, entityId, limit } });
+    return res.data.data as CrmFieldChange[];
   },
 
   // My Stats (Self-Service Rep Stats)

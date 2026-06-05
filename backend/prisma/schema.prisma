@@ -1762,6 +1762,22 @@ model CrmTagAssignment {
   @@map("crm_tag_assignments")
 }
 
+// CRM Field-level Change Audit
+model CrmFieldChange {
+  id        String   @id @default(uuid()) @db.Uuid
+  entityType String  @db.VarChar(20) // LEAD, CONTACT, ACCOUNT, OPPORTUNITY
+  entityId   String  @map("entity_id") @db.Uuid
+  field      String  @db.VarChar(100)
+  oldValue   String? @map("old_value") @db.Text
+  newValue   String? @map("new_value") @db.Text
+  changedBy  String  @map("changed_by") @db.Uuid
+  changedAt  DateTime @default(now()) @map("changed_at") @db.Timestamp(6)
+
+  @@index([entityType, entityId])
+  @@index([field])
+  @@map("crm_field_changes")
+}
+
 // CRM Pipelines — configurable deal pipelines
 model CrmPipeline {
   id          String   @id @default(uuid()) @db.Uuid

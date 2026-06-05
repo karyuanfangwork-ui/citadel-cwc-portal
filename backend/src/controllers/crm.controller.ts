@@ -10,6 +10,7 @@ import * as crmForecastService from '../services/crm-forecast.service';
 import { recomputeLeadRuleScore } from '../services/crm-lead-scoring.service';
 import { notify } from '../services/notification.service';
 import { autoAssignLead } from '../services/crm-automation.service';
+import { trackFieldChanges } from '../services/crm-field-change.service';
 import crmReportsService from '../services/crm-reports.service';
 import { scoreLead, predictWinProbability } from '../services/crm-ai.service';
 import { logger } from '../utils/logger';
@@ -159,6 +160,7 @@ class CrmController {
     }
     const account = await prisma.crmAccount.update({ where: { id: req.params.id as string }, data: req.body, include: { owner: { select: userSelect } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmAccount', resourceId: account.id, oldValues: existing as any, newValues: { ...req.body, bankAccount: req.body.bankAccount ? '****' : undefined } } });
+    trackFieldChanges('ACCOUNT', account.id, existing as any, req.body, req.user!.id).catch(() => {});
     res.json({ status: 'success', data: { account: maskBankAccount(account) } });
     broadcast('crm_update', { type: 'account.updated', entityType: 'account', id: account.id, changedBy: req.user!.id });
   });
@@ -257,6 +259,7 @@ class CrmController {
     if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
     const contact = await prisma.crmContact.update({ where: { id: req.params.id as string }, data, include: { account: { select: { id: true, name: true } } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmContact', resourceId: contact.id, oldValues: existing as any, newValues: req.body } });
+    trackFieldChanges('CONTACT', contact.id, existing as any, req.body, req.user!.id).catch(() => {});
     res.json({ status: 'success', data: { contact } });
     broadcast('crm_update', { type: 'contact.updated', entityType: 'contact', id: contact.id, changedBy: req.user!.id });
   });
@@ -410,6 +413,7 @@ class CrmController {
     if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
     const lead = await prisma.crmLead.update({ where: { id: req.params.id as string }, data, include: { owner: { select: userSelect } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmLead', resourceId: lead.id, oldValues: existing as any, newValues: req.body } });
+    trackFieldChanges('LEAD', lead.id, existing as any, req.body, req.user!.id).catch(() => {});
     // Emit workflow event if status changed
     if (rest.status && rest.status !== existing.status) {
       const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
@@ -538,6 +542,7 @@ class CrmController {
     if (expectedCloseDate !== undefined) data.expectedCloseDate = expectedCloseDate ? new Date(expectedCloseDate) : null;
     const opportunity = await prisma.crmOpportunity.update({ where: { id: req.params.id as string }, data, include: { stage: true, owner: { select: userSelect } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: opportunity.id, oldValues: existing as any, newValues: req.body } });
+    trackFieldChanges('OPPORTUNITY', opportunity.id, existing as any, req.body, req.user!.id).catch(() => {});
     // Emit workflow event if stage changed
     if (rest.stageId && rest.stageId !== existing.stageId) {
       const { emitWorkflowEvent } = await import('../services/crm-workflow.service');
@@ -1860,6 +1865,22 @@ class CrmController {
       orderBy: { assignedAt: 'desc' },
     });
     res.json({ status: 'success', data: assignments });
+  });
+
+  // ======== FIELD-LEVEL CHANGE HISTORY ========
+
+  getFieldChanges = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { entityType, entityId } = req.query;
+    const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+    const changes = await prisma.crmFieldChange.findMany({
+      where: {
+        entityType: entityType as string,
+        entityId: entityId as string,
+      },
+      orderBy: { changedAt: 'desc' },
+      take: limit,
+    });
+    res.json({ status: 'success', data: changes });
   });
 }
 

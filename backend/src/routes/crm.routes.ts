@@ -233,4 +233,7 @@ router.post('/tag-assignments', requirePermission('crm:write'), crmController.as
 router.delete('/tag-assignments/:id', requirePermission('crm:write'), crmController.removeTagAssignment);
 router.get('/tag-assignments', requirePermission('crm:read'), crmController.getEntityTags);
 
+// Field-level change history
+router.get('/field-changes', requirePermission('crm:read'), crmController.getFieldChanges);
+
 export default router;
