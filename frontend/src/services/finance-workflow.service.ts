@@ -23,6 +23,11 @@ const financeWorkflowService = {
         return response.data;
     },
 
+    async routeToCfo(requestId: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/route-to-cfo`, { notes });
+        return response.data;
+    },
+
     async ceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
         const response = await api.post(`/finance-workflow/requests/${requestId}/ceo-decision`, { decision, comments });
         return response.data;
@@ -45,6 +50,11 @@ const financeWorkflowService = {
 
     async closeTicket(requestId: string) {
         const response = await api.post(`/finance-workflow/requests/${requestId}/close`, {});
+        return response.data;
+    },
+
+    async updateAndCloseBudget(requestId: string, notes?: string) {
+        const response = await api.post(`/finance-workflow/requests/${requestId}/update-and-close-budget`, { notes });
         return response.data;
     },
 

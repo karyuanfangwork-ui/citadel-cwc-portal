@@ -606,6 +606,32 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       ),
   },
 
+  ROUTE_TO_CFO_BP: {
+    title: 'Route to CFO',
+    subtitle: 'Budget Proposal · Forward for CFO approval',
+    icon: 'send',
+    iconBgClass: 'bg-amber-100',
+    iconTextClass: 'text-amber-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Notes',
+        type: 'textarea',
+        placeholder: 'Optional notes for CFO…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Route to CFO',
+    submitColor: 'primary',
+    loadingLabel: 'Routing…',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.routeToCfo(
+        requestId,
+        (values.notes as string) || undefined,
+      ),
+  },
+
   CFO_DECISION_FIN: {
     title: 'CFO Decision',
     subtitle: 'Finance Workflow · Approve or reject',
@@ -725,6 +751,28 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
     submitColor: 'success',
     onSubmit: (requestId) =>
       financeWorkflowService.closeTicket(requestId),
+  },
+
+  CLOSE_BUDGET_PROPOSAL: {
+    title: 'Update & Close Budget Proposal',
+    subtitle: 'Finance Workflow · Update budget record and close',
+    icon: 'check_circle',
+    iconBgClass: 'bg-green-100',
+    iconTextClass: 'text-green-600',
+    fields: [
+      {
+        name: 'notes',
+        label: 'Closing Notes',
+        type: 'textarea',
+        placeholder: 'Budget adoption confirmed. Add any closing notes…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Update & Close',
+    submitColor: 'success',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.updateAndCloseBudget(requestId, (values.notes as string) || undefined),
   },
 
   /* ────────────────────────────────────────────────────────────────── *

@@ -688,6 +688,7 @@ class RequestController {
         const isManualOnboarding = requestType?.code === 'EMPLOYEE_ONBOARDING';
         const isManualOffboarding = requestType?.code === 'EMPLOYEE_OFFBOARDING';
         const isPurchaseRequisition = requestType?.code === 'PURCHASE_REQUISITION';
+        const isBudgetProposal = requestType?.code === 'BUDGET_PROPOSAL';
         const isIntercompanyChargeback = requestType?.code === 'INTERCOMPANY_CHARGEBACK';
         const isExpenseClaim = requestType?.code === 'EXPENSE_CLAIM';
 
@@ -702,7 +703,7 @@ class RequestController {
             ? 'ONBOARDING_SUBMITTED'
             : isManualOffboarding
             ? 'OFFBOARDING_SUBMITTED'
-            : isPurchaseRequisition
+            : (isPurchaseRequisition || isBudgetProposal)
             ? 'FINANCE_PENDING_ACK'
             : isIntercompanyChargeback
             ? 'SUBMITTED'

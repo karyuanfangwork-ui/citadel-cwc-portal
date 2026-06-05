@@ -129,7 +129,7 @@ const STATUS_TO_STEP: Record<string, string> = {
   REIMBURSEMENT_CLOSED: 'Reimbursement Closed',
   FINANCE_PENDING_ACK: 'Acknowledgement',
   FINANCE_ACKNOWLEDGED: 'Acknowledged',
-  FINANCE_IN_PROGRESS: 'In Progress',
+  FINANCE_IN_PROGRESS: 'Finance Updating',
   AWAITING_PAYMENT_CONFIRMATION: 'Awaiting Payment',
   PAYMENT_CONFIRMED_FIN: 'Payment Confirmed',
   TICKET_CLOSED_FIN: 'Ticket Closed',

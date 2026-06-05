@@ -41,10 +41,12 @@ export type WorkflowActionType =
   | 'FIN_ACKNOWLEDGE'
   | 'SET_FINALIZED_AMOUNT'
   | 'ROUTE_TO_CFO_FIN'
+  | 'ROUTE_TO_CFO_BP'
   | 'CFO_DECISION_FIN'
   | 'GROUP_DCEO_DECISION_FIN'
   | 'MARK_PAYMENT_COMPLETE_FIN'
   | 'CLOSE_TICKET_FIN'
+  | 'CLOSE_BUDGET_PROPOSAL'
   // Inter-Company Chargeback workflow actions
   | 'CHARGEBACK_SUBMIT'
   | 'FROM_ENTITY_APPROVE'
@@ -174,21 +176,27 @@ export function getWorkflowActions(
     });
   }
 
-  // Finance Purchase Requisition — Executive approver actions (not gated by canAct)
+  // Finance — Executive approver actions (not gated by canAct)
   const isPurchaseRequisition = requestTypeCode === 'PURCHASE_REQUISITION' ||
     (!requestTypeCode && requestTypeName.toLowerCase().includes('purchase requisition'));
+  const isBudgetProposal = requestTypeCode === 'BUDGET_PROPOSAL' ||
+    (!requestTypeCode && requestTypeName.toLowerCase().includes('budget proposal'));
+  const isFinanceRequest = isPurchaseRequisition || isBudgetProposal;
 
-  if (isPurchaseRequisition) {
+  if (isFinanceRequest) {
     if (userRoles.includes('CFO') && status === 'PENDING_CFO_APPROVAL_FIN') {
       actions.push({
         type: 'CFO_DECISION_FIN',
         label: 'CFO Approval Decision',
-        description: 'Review and approve or reject this Purchase Requisition as CFO.',
+        description: isBudgetProposal
+          ? 'Review and approve or reject this Budget Proposal as CFO.'
+          : 'Review and approve or reject this Purchase Requisition as CFO.',
         variant: 'primary',
       });
     }
 
-    if (userRoles.includes('GROUP_DCEO') && status === 'PENDING_GROUP_DCEO_APPROVAL') {
+    // Group DCEO only applies to Purchase Requisitions (not Budget Proposals)
+    if (isPurchaseRequisition && userRoles.includes('GROUP_DCEO') && status === 'PENDING_GROUP_DCEO_APPROVAL') {
       actions.push({
         type: 'GROUP_DCEO_DECISION_FIN',
         label: 'Group Deputy CEO Approval Decision',
@@ -210,21 +218,35 @@ export function getWorkflowActions(
 
   // Finance Agent / Admin actions — only finance desk agents/admins
   if (canActOnDesk && serviceDeskCode === 'FINANCE') {
-      if (status === 'FINANCE_PENDING_ACK' || (isPurchaseRequisition && status === 'SUBMITTED')) {
+      if (status === 'FINANCE_PENDING_ACK' || (isFinanceRequest && status === 'SUBMITTED')) {
         actions.push({
           type: 'FIN_ACKNOWLEDGE',
           label: 'Acknowledge Request',
-          description: 'Acknowledge this Purchase Requisition and begin your review.',
+          description: isBudgetProposal
+            ? 'Acknowledge this Budget Proposal and begin your review.'
+            : 'Acknowledge this Purchase Requisition and begin your review.',
           variant: 'primary',
         });
       }
       if (status === 'FINANCE_ACKNOWLEDGED') {
-        actions.push({
-          type: 'ROUTE_TO_CFO_FIN',
-          label: 'Set Amount & Route to CFO',
-          description: 'Enter the finalized amount and route this request to the CFO for approval.',
-          variant: 'warning',
-        });
+        // Budget Proposals: simple route to CFO (no finalized amount or invoice required)
+        if (isBudgetProposal) {
+          actions.push({
+            type: 'ROUTE_TO_CFO_BP',
+            label: 'Route to CFO',
+            description: 'Forward this Budget Proposal to the CFO for approval.',
+            variant: 'primary',
+          });
+        }
+        // Purchase Requisitions: must set finalized amount and attach invoice
+        if (isPurchaseRequisition) {
+          actions.push({
+            type: 'ROUTE_TO_CFO_FIN',
+            label: 'Set Amount & Route to CFO',
+            description: 'Enter the finalized amount and route this request to the CFO for approval.',
+            variant: 'warning',
+          });
+        }
       }
       if (status === 'PAYMENT_PROCESSING_FIN') {
         actions.push({
@@ -239,6 +261,15 @@ export function getWorkflowActions(
           type: 'CLOSE_TICKET_FIN',
           label: 'Close Ticket',
           description: 'Payment confirmed. Close this ticket to complete the Purchase Requisition.',
+          variant: 'success',
+        });
+      }
+      // Budget Proposal: after CFO approval, Finance updates & closes (no payment phase)
+      if (isBudgetProposal && status === 'FINANCE_IN_PROGRESS') {
+        actions.push({
+          type: 'CLOSE_BUDGET_PROPOSAL',
+          label: 'Update & Close',
+          description: 'Update the budget record and close this ticket. The budget is now adopted.',
           variant: 'success',
         });
       }

@@ -71,7 +71,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const isAutoSummary = useMemo(() => {
     if (!selectedRequestType) return false;
     const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
-    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT' || code === 'INTERCOMPANY_CHARGEBACK';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT' || code === 'INTERCOMPANY_CHARGEBACK' || code === 'BUDGET_PROPOSAL';
   }, [selectedRequestType]);
 
   const autoSummary = useMemo(() => {
@@ -207,6 +207,27 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       parts.push('→');
       if (toName) parts.push(toName);
       if (amount) parts.push(`(RM${Number(amount).toLocaleString()})`);
+      return parts.join(' ');
+    }
+
+    if (code === 'BUDGET_PROPOSAL') {
+      const formConfig = selectedRequestType?.formConfig || [];
+      const resolveByLabel = (labelMatch: string): string => {
+        for (const f of formConfig) {
+          if (f.label && f.label.toLowerCase().includes(labelMatch.toLowerCase())) {
+            if (cf[f.id]) return cf[f.id];
+          }
+        }
+        return '';
+      };
+      const dept = cf.department || resolveByLabel('department') || '';
+      const period = cf.budgetPeriod || resolveByLabel('budget period') || '';
+      const amount = cf.totalAmount || resolveByLabel('total amount') || '';
+      if (!dept && !period && !amount) return '';
+      const parts = ['Budget:'];
+      if (dept) parts.push(dept);
+      if (period) parts.push(`(${period})`);
+      if (amount) parts.push(`— RM${Number(amount).toLocaleString()}`);
       return parts.join(' ');
     }
 

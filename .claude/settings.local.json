@@ -63,7 +63,8 @@
       "Bash(echo \"EXIT $?\")",
       "Bash(grep -E \"navigate\\\\\\(/request/|navigate\\\\\\(\\\\`/request/\")",
       "Bash(npx jest *)",
-      "Bash(node -e \"require\\('./src/credit/routes/credit.routes.ts'\\)\")"
+      "Bash(node -e \"require\\('./src/credit/routes/credit.routes.ts'\\)\")",
+      "Bash(awk '/NEW_HIRING/{print NR\": \"$0}' backend/prisma/seed.ts)"
     ]
   }
 }

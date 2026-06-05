@@ -57,6 +57,63 @@ export const acknowledge = async (req: Request, res: Response) => {
     }
 };
 
+/** POST /finance-workflow/requests/:id/route-to-cfo
+ *  Simple route-to-CFO for Budget Proposals (no finalized amount or invoice required).
+ */
+export const routeToCfo = async (req: Request, res: Response) => {
+    try {
+        const id = String(req.params.id);
+        const { notes } = req.body;
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        // Find CFO user for assignee reassignment
+        const cfoPendingApproval = await prisma.requestApproval.findFirst({
+            where: { requestId: id, approverType: 'CFO', status: 'PENDING' },
+            select: { approverId: true },
+        });
+        const cfoUserId = cfoPendingApproval?.approverId ?? (await prisma.user.findFirst({
+            where: { executiveRole: 'CFO', isActive: true },
+            select: { id: true },
+        }))?.id;
+
+        const updateData: any = {
+            status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
+        };
+        if (cfoUserId) {
+            updateData.assignedToId = cfoUserId;
+        }
+
+        const updated = await prisma.request.update({
+            where: { id },
+            data: updateData,
+        });
+
+        await logActivity(id, `Routed to CFO for approval${notes ? ': ' + notes : ''}`);
+        await auditLog(req as any, 'FINANCE_ROUTED_CFO', 'request', id, {
+            status: RequestStatus.PENDING_CFO_APPROVAL_FIN,
+            previousStatus: request.status,
+            notes: notes || null,
+        }, { status: request.status });
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_ROUTED_CFO', variables: { requestId: id }, relatedRequestId: id });
+
+        if (cfoUserId) {
+            await notify({ userId: cfoUserId, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'CFO' }, relatedRequestId: id });
+        }
+
+        await pauseSla(id);
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('routeToCfo error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to route to CFO' });
+    }
+};
+
 /** POST /finance-workflow/requests/:id/set-finalized-amount-and-route-cfo */
 export const setFinalizedAmountAndRouteCfo = async (req: Request, res: Response) => {
     try {
@@ -165,9 +222,28 @@ export const cfoDecision = async (req: Request, res: Response) => {
         if (decision === 'REJECTED') {
             newStatus = RequestStatus.CFO_REJECTED_FIN;
         } else {
+            // Budget Proposals go to FINANCE_IN_PROGRESS (no payment phase, no Group DCEO)
+            // Purchase Requisitions go to PAYMENT_PROCESSING_FIN or PENDING_GROUP_DCEO_APPROVAL
             const fields = (request.customFields as Record<string, unknown>) || {};
             const amount = Number(fields.finalizedAmount ?? 0);
-            newStatus = amount > GROUP_DCEO_THRESHOLD ? RequestStatus.PENDING_GROUP_DCEO_APPROVAL : RequestStatus.PAYMENT_PROCESSING_FIN;
+
+            // Determine request type to decide routing
+            const requestType = await prisma.requestType.findFirst({
+                where: { id: request.requestTypeId! },
+                select: { code: true },
+            });
+            const isBudgetProposal = requestType?.code === 'BUDGET_PROPOSAL';
+
+            if (isBudgetProposal) {
+                // Budget Proposals: CFO approval → Finance Updating (no Group DCEO, no payment)
+                newStatus = RequestStatus.FINANCE_IN_PROGRESS;
+            } else if (amount > GROUP_DCEO_THRESHOLD) {
+                // Purchase Requisitions > threshold: CFO approval → Group DCEO
+                newStatus = RequestStatus.PENDING_GROUP_DCEO_APPROVAL;
+            } else {
+                // Purchase Requisitions ≤ threshold: CFO approval → Payment Processing
+                newStatus = RequestStatus.PAYMENT_PROCESSING_FIN;
+            }
         }
 
         const cfoUpdateData: any = { status: newStatus };
@@ -214,7 +290,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
             data: { requestId: id, approverType: 'CFO', approverId: userId, status: decision, comments: comments || null },
         });
 
-        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL ? 'Group Deputy CEO (amount > MYR ' + GROUP_DCEO_THRESHOLD + ')' : 'payment processing'}`;
+        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL ? 'Group Deputy CEO (amount > MYR ' + GROUP_DCEO_THRESHOLD + ')' : newStatus === RequestStatus.FINANCE_IN_PROGRESS ? 'Finance Updating (budget adopted)' : 'payment processing'}`;
         await logActivity(id, `CFO ${verb}${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
@@ -390,6 +466,44 @@ export const closeTicket = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('closeTicket error:', error);
         res.status(500).json({ status: 'error', message: 'Failed to close ticket' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/update-and-close-budget */
+export const updateAndCloseBudget = async (req: Request, res: Response) => {
+    try {
+        const id = String(req.params.id);
+        const { notes } = req.body;
+        const userId = (req as any).user?.id;
+
+        const request = await prisma.request.findUnique({ where: { id } });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== 'FINANCE_IN_PROGRESS') {
+            res.status(400).json({ status: 'error', message: 'Request must be in Finance Updating status to close' });
+            return;
+        }
+
+        const updated = await prisma.request.update({
+            where: { id },
+            data: { status: RequestStatus.TICKET_CLOSED_FIN, resolvedAt: new Date(), completedAt: new Date() },
+        });
+
+        await logActivity(id, `Budget proposal closed by Finance Agent${notes ? ': ' + notes : ''}`, userId);
+        await auditLog(req as any, 'BUDGET_PROPOSAL_CLOSED', 'request', id, {
+            status: RequestStatus.TICKET_CLOSED_FIN,
+            previousStatus: request.status,
+            notes: notes || null,
+        }, { status: request.status });
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_TICKET_CLOSED', variables: { requestId: id }, relatedRequestId: id });
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('updateAndCloseBudget error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to update and close budget proposal' });
     }
 };
 
