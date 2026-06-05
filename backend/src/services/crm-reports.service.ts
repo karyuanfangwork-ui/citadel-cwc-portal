@@ -280,6 +280,8 @@ export async function getPipelineForecastReport(
         select: {
           id: true,
           value: true,
+          currency: true,
+          fxRateToBase: true,
           probability: true,
           expectedCloseDate: true,
           wonAt: true,
@@ -293,7 +295,10 @@ export async function getPipelineForecastReport(
 
   const stageReports = stages.map((stage) => {
     const deals = stage.opportunities;
-    const totalValue = deals.reduce((sum, o) => sum + Number(o.value), 0);
+    const totalValue = deals.reduce((sum, o) => {
+      const rate = o.fxRateToBase ? Number(o.fxRateToBase) : 1;
+      return sum + Number(o.value) * rate;
+    }, 0);
     const probabilityPct = stage.probability || 0;
     const weightedValue = (totalValue * probabilityPct) / 100;
 

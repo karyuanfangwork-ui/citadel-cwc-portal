@@ -11,6 +11,7 @@ import { recomputeLeadRuleScore } from '../services/crm-lead-scoring.service';
 import { notify } from '../services/notification.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import { trackFieldChanges } from '../services/crm-field-change.service';
+import { DEFAULT_FX_RATES, BASE_CURRENCY } from '../services/crm-fx.service';
 import crmReportsService from '../services/crm-reports.service';
 import { scoreLead, predictWinProbability } from '../services/crm-ai.service';
 import { logger } from '../utils/logger';
@@ -525,8 +526,11 @@ class CrmController {
       const stage = await prisma.crmPipelineStage.findUnique({ where: { id: rest.stageId } });
       if (stage) probability = stage.probability;
     }
+    // Compute fxRateToBase from currency if not MYR
+    const currency = rest.currency || 'MYR';
+    const fxRate = currency === BASE_CURRENCY ? 1 : (DEFAULT_FX_RATES.find(r => r.currency === currency)?.rateToBase ?? null);
     const opportunity = await prisma.crmOpportunity.create({
-      data: { ...rest, ownerId: req.user!.id, probability, expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : undefined },
+      data: { ...rest, ownerId: req.user!.id, probability, fxRateToBase: fxRate, expectedCloseDate: expectedCloseDate ? new Date(expectedCloseDate) : undefined },
       include: { account: { select: { id: true, name: true } }, stage: true, owner: { select: userSelect } },
     });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CREATE', resourceType: 'CrmOpportunity', resourceId: opportunity.id, newValues: req.body } });
@@ -540,6 +544,11 @@ class CrmController {
     const { expectedCloseDate, ...rest } = req.body;
     const data: any = { ...rest };
     if (expectedCloseDate !== undefined) data.expectedCloseDate = expectedCloseDate ? new Date(expectedCloseDate) : null;
+    // Re-compute fxRateToBase if currency is being changed
+    if (rest.currency) {
+      const fxRate = rest.currency === BASE_CURRENCY ? 1 : (DEFAULT_FX_RATES.find(r => r.currency === rest.currency)?.rateToBase ?? null);
+      data.fxRateToBase = fxRate;
+    }
     const opportunity = await prisma.crmOpportunity.update({ where: { id: req.params.id as string }, data, include: { stage: true, owner: { select: userSelect } } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: opportunity.id, oldValues: existing as any, newValues: req.body } });
     trackFieldChanges('OPPORTUNITY', opportunity.id, existing as any, req.body, req.user!.id).catch(() => {});

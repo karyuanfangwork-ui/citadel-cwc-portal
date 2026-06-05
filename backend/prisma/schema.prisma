@@ -1831,6 +1831,7 @@ model CrmOpportunity {
 
   value             Decimal   @default(0) @db.Decimal(15, 2)
   currency          String    @default("MYR") @db.VarChar(3)
+  fxRateToBase      Decimal?  @map("fx_rate_to_base") @db.Decimal(10, 6) // snapshot rate to base currency
   probability       Int       @default(0) // 0-100
   expectedCloseDate DateTime? @map("expected_close_date") @db.Date
 
