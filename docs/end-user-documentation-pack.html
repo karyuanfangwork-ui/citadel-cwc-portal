@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CWC 2.0 Service Desk — End User Documentation Pack</title>
+<title>CWC Service Desk — End User Documentation Pack</title>
 <style>
   :root{
     --navy:#0b2545;--blue:#13315c;--accent:#1d6fb8;--accent2:#2a9d8f;
@@ -22,6 +22,9 @@
   nav.side h2{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#6f8fb5;margin:18px 20px 6px}
   nav.side a{display:block;color:#cdd9e8;text-decoration:none;padding:7px 20px;font-size:13.5px;border-left:3px solid transparent}
   nav.side a:hover{background:#13315c;color:#fff;border-left-color:var(--accent)}
+  nav.side a.sub{padding:4px 20px 4px 32px;font-size:12px;color:#8fb0d6}
+  nav.side a.sub:hover{background:#13315c;color:#fff;border-left-color:var(--accent)}
+  nav.side .nav-divider{border:none;border-top:1px solid #1c3a63;margin:8px 20px}
   main{flex:1;min-width:0;padding:0 0 80px}
   .topbar{background:var(--panel);border-bottom:1px solid var(--line);padding:14px 40px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
   .topbar .meta{font-size:12px;color:var(--muted)}
@@ -100,6 +103,8 @@
   footer{text-align:center;padding:30px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);margin-top:20px}
   .backtop{text-align:right;margin:8px 0}
   .backtop a{font-size:12px;color:var(--accent);text-decoration:none}
+  /* scroll offset so sticky topbar doesn't cover anchor targets */
+  [id]{scroll-margin-top:70px}
   @media print{nav.side{display:none}.topbar{position:static}main{padding:0}.doc{page-break-after:always}}
   @media(max-width:880px){nav.side{display:none}.content{padding:0 18px}.topbar{padding:12px 18px}}
 </style>
@@ -109,21 +114,34 @@
 
 <!-- ============ SIDEBAR ============ -->
 <nav class="side">
-  <div class="brand"><span>Citadel Group</span><h1>CWC 2.0 Service Desk</h1></div>
+  <div class="brand"><span>Citadel Group</span><h1>CWC Service Desk</h1></div>
+
   <h2>Overview</h2>
   <a href="#top">Cover &amp; Welcome</a>
   <a href="#toc">Table of Contents</a>
   <a href="#desks">The Three Service Desks</a>
+
   <h2>Documents</h2>
   <a href="#doc1">1 · Quick Start Guide</a>
   <a href="#doc2">2 · End User SOP</a>
   <a href="#doc3">3 · Service Catalog Guide</a>
   <a href="#doc4">4 · Ticket Lifecycle Guide</a>
+  <a class="sub" href="#ref-status">↳ 4.1 General Track</a>
+  <a class="sub" href="#track-42">↳ 4.2 New Hardware</a>
+  <a class="sub" href="#track-42b">↳ 4.2b Software Installation</a>
+  <a class="sub" href="#track-43">↳ 4.3 New Hiring Request</a>
+  <a class="sub" href="#track-44">↳ 4.4 New Employee Onboarding</a>
+  <a class="sub" href="#track-45">↳ 4.5 Offboard an Employee</a>
+  <a class="sub" href="#track-46">↳ 4.6 Purchase Requisition</a>
+  <a class="sub" href="#track-47">↳ 4.7 Inter-Company Chargeback</a>
+  <a class="sub" href="#track-48">↳ 4.8 Submit Budget Proposal</a>
+  <a class="sub" href="#track-49">↳ 4.9 Expense Reimbursement</a>
   <a href="#doc5">5 · Approval Workflow Guide</a>
   <a href="#doc6">6 · Knowledge Base Guide</a>
   <a href="#doc7">7 · FAQ</a>
   <a href="#doc8">8 · Business Rules Guide</a>
   <a href="#doc9">9 · Role-Based User Guide</a>
+
   <h2>Reference</h2>
   <a href="#ref-status">Status Definitions</a>
   <a href="#ref-sla">SLA Definitions</a>
@@ -134,12 +152,12 @@
 <main>
 <div class="topbar">
   <strong style="color:var(--navy)">End User Documentation Pack</strong>
-  <span class="meta">Version 1.0 &nbsp;•&nbsp; Published 5 June 2026 &nbsp;•&nbsp; Audience: All Employees</span>
+  <span class="meta">Version 1.1 &nbsp;•&nbsp; Published 5 June 2026 &nbsp;•&nbsp; Audience: All Employees</span>
 </div>
 
 <!-- ============ HERO ============ -->
 <section class="hero" id="top">
-  <h1>CWC 2.0 Service Desk</h1>
+  <h1>CWC Service Desk</h1>
   <p><strong>End User Documentation Pack</strong></p>
   <p>Everything employees, managers and approvers need to raise, track and approve requests across IT Support, HR Services and Group Finance.</p>
   <div>
@@ -147,6 +165,7 @@
     <span class="pill">HR Services</span>
     <span class="pill">Group Finance</span>
     <span class="pill">9 Guides</span>
+    <span class="pill">10 Workflow Tracks</span>
     <span class="pill">Confluence / SharePoint ready</span>
   </div>
 </section>
@@ -157,7 +176,7 @@
 <section class="doc" id="toc">
   <span class="docnum">CONTENTS</span>
   <h1 class="doc-title">Table of Contents</h1>
-  <p>This pack contains nine documents covering the complete employee experience on the CWC 2.0 Service Desk. Each document is self-contained — start with the Quick Start Guide, then refer to the others as needed.</p>
+  <p>This pack contains nine documents covering the complete employee experience on the CWC Service Desk. Each document is self-contained — start with the Quick Start Guide, then refer to the others as needed.</p>
   <div class="toc-grid">
     <a class="toc-card" href="#doc1"><div class="n">DOCUMENT 1</div><div class="t">User Quick Start Guide</div><div class="d">Log in, find your desk, raise your first ticket in minutes.</div></a>
     <a class="toc-card" href="#doc2"><div class="n">DOCUMENT 2</div><div class="t">End User SOP</div><div class="d">The official step-by-step procedure for the full request lifecycle.</div></a>
@@ -176,7 +195,7 @@
     <tbody>
       <tr><td><strong>IT Support</strong></td><td>Technical help, email, system problems, software &amp; hardware procurement</td><td>5</td><td>24–72 hrs</td></tr>
       <tr><td><strong>HR Services</strong></td><td>HR questions, hiring, employee onboarding &amp; offboarding</td><td>4</td><td>24–48 hrs</td></tr>
-      <tr><td><strong>Group Finance</strong></td><td>Purchase requisitions, inter-company chargebacks, budget proposals</td><td>3 active</td><td>72 hrs</td></tr>
+      <tr><td><strong>Group Finance</strong></td><td>Purchase requisitions, inter-company chargebacks, budget proposals</td><td>3 active (+1 upcoming)</td><td>72 hrs</td></tr>
     </tbody>
   </table>
   <div class="box info"><span class="lbl">How requests are named</span>In this pack a <em>request</em> and a <em>ticket</em> mean the same thing — the item you create and track through the desk.</div>
@@ -194,7 +213,7 @@
 
   <h2>Step 1 — Log in</h2>
   <ol class="steps">
-    <li>Open the CWC 2.0 portal in your browser. The <span class="screen">Login</span> screen appears.</li>
+    <li>Open the CWC portal in your browser. The <span class="screen">Login</span> screen appears.</li>
     <li>Enter your company email and password, then select <strong>Sign In</strong>.</li>
     <li>Forgot your password? Select <strong>Forgot password</strong> to reach the <span class="screen">Forgot Password</span> screen and follow the email link.</li>
   </ol>
@@ -206,9 +225,13 @@
     <tbody>
       <tr><td>Home</td><td><span class="screen">/ Dashboard</span></td><td>See request summary cards and announcements.</td></tr>
       <tr><td>My Requests</td><td><span class="screen">/my-requests</span></td><td>View, search and filter everything you've raised.</td></tr>
+      <tr><td>Agent Dashboard</td><td><span class="screen">/agent</span></td><td>(Agents/Admin) Pick up and progress tickets.</td></tr>
       <tr><td>Approvals</td><td><span class="screen">/approvals</span></td><td>(Managers) Approve or reject items waiting on you.</td></tr>
-      <tr><td>Inbox</td><td><span class="screen">/inbox</span></td><td>Read in-app notifications and mark them read.</td></tr>
+      <tr><td>IT Assets</td><td><span class="screen">/assets</span></td><td>View and manage assigned IT equipment.</td></tr>
+      <tr><td>Announcements</td><td><span class="screen">/announcements</span></td><td>Company-wide notices and updates.</td></tr>
+      <tr><td>Notifications</td><td><span class="screen">/inbox</span></td><td>Real-time notifications (also pushed via SSE).</td></tr>
       <tr><td>Knowledge Base</td><td><span class="screen">/kb</span></td><td>Find self-help articles before raising a ticket.</td></tr>
+      <tr><td>Reports</td><td><span class="screen">/reports</span></td><td>View service desk performance and metrics.</td></tr>
     </tbody>
   </table>
 
@@ -306,7 +329,7 @@
   <h1 class="doc-title">Service Catalog Guide</h1>
   <div class="docmeta">
     <div><div class="k">Purpose</div><div class="v">List every available request type with its fields, SLA and approval needs.</div></div>
-    <div><div class="k">Scope</div><div class="v">All 12 active request types across 3 desks.</div></div>
+    <div><div class="k">Scope</div><div class="v">All 12 request types across 3 desks (11 active + 1 upcoming).</div></div>
     <div><div class="k">Audience</div><div class="v">All employees.</div></div>
   </div>
 
@@ -317,10 +340,13 @@
       <tr><td><strong>Get IT Help</strong></td><td>General technical support &amp; how-to issues.</td><td>Description, file attachment</td><td>24 hrs</td><td>No</td></tr>
       <tr><td><strong>Email Management</strong></td><td>New mailbox, config, troubleshooting, distribution lists, forwarding.</td><td>Request type, email address, mail client, symptoms</td><td>24 hrs</td><td>No</td></tr>
       <tr><td><strong>Report System Problem</strong></td><td>An application or system is broken or erroring.</td><td>System name, problem type, affected users, screenshot</td><td>24 hrs</td><td>No</td></tr>
-      <tr><td><strong>Software Installation</strong></td><td>Install/license a software package.</td><td>Software name, version, business justification</td><td>48 hrs</td><td><strong>Yes</strong></td></tr>
-      <tr><td><strong>New Hardware</strong></td><td>Request a laptop, monitor or other equipment.</td><td>Hardware name, model, estimated price, vendor, justification</td><td>72 hrs</td><td><strong>Yes</strong> (multi-tier)</td></tr>
+      <tr><td><strong>Software Installation</strong></td><td>Install/license a software package.</td><td>Software name, version, business justification</td><td>48 hrs</td><td><strong>Yes</strong> (CEO → CTO → CFO)</td></tr>
+      <tr><td><strong>New Hardware</strong></td><td>Request a laptop, monitor or other equipment.</td><td>Hardware name, model, estimated price, vendor, justification</td><td>72 hrs</td><td><strong>Yes</strong> (CEO → CTO → CFO)</td></tr>
     </tbody>
   </table>
+
+  <h3>IT Asset Management</h3>
+  <p>Beyond raising requests, the <span class="screen">IT Assets</span> page (<span class="screen">/assets</span>) lets agents and admins track the full lifecycle of IT equipment — laptops, monitors, peripherals, phones and software licences. End users can view their assigned assets but cannot create or modify asset records directly.</p>
 
   <h2 id="cat-hr">3.2 HR Services</h2>
   <table>
@@ -342,11 +368,11 @@
       <tr><td><strong>Submit Budget Proposal</strong></td><td>Propose a departmental budget.</td><td>Department, budget period, total amount, breakdown, justification</td><td>72 hrs</td><td><strong>Yes</strong></td></tr>
     </tbody>
   </table>
-  <div class="box info"><span class="lbl">Note</span>An <em>Expense Claim</em> request type exists in the system but is currently <strong>disabled</strong> and not available to raise.</div>
+  <div class="box info"><span class="lbl">Coming Soon</span> <em>Expense Claims</em> is defined in the system (workflow: Manager Approval → Finance Head Approval → Payment Processing → Reimbursement Closed) but is <strong>not yet enabled</strong> for end users. It will appear in the Finance desk when activated.</div>
 
   <div class="box tip"><span class="lbl">Best Practices</span> Attach quotations and a clear business justification on any procurement or finance request — incomplete justification is the top reason approvals are returned.</div>
   <div class="box danger"><span class="lbl">Common Mistakes</span> Selecting the wrong <em>entity</em> on a chargeback or purchase requisition sends it to the wrong approver. Double-check the entity before submitting.</div>
-  <div class="box example"><span class="lbl">Example Scenario</span> A team lead needs three laptops. They raise <strong>New Hardware</strong>, enter models, estimated price and justification. Because hardware requires approval, it routes through Manager → CEO/CTO → CFO before procurement begins (see <a class="inline" href="#doc5">Document 5</a>).</div>
+  <div class="box example"><span class="lbl">Example Scenario</span> A team lead needs three laptops. They raise <strong>New Hardware</strong>, enter models, estimated price and justification. Because hardware requires approval, it routes through CEO → CTO → CFO before procurement begins (see <a class="inline" href="#doc5">Document 5</a>).</div>
   <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
 </section>
 
@@ -356,11 +382,11 @@
   <h1 class="doc-title">Ticket Lifecycle Guide</h1>
   <div class="docmeta">
     <div><div class="k">Purpose</div><div class="v">Explain every ticket status and how requests progress.</div></div>
-    <div><div class="k">Scope</div><div class="v">7 workflow tracks; the Request Detail &amp; Workflow Stepper screens.</div></div>
+    <div><div class="k">Scope</div><div class="v">10 workflow tracks; the Request Detail &amp; Workflow Stepper screens.</div></div>
     <div><div class="k">Audience</div><div class="v">All employees and approvers.</div></div>
   </div>
 
-  <p>CWC 2.0 uses different status tracks depending on the request type. Most simple tickets only ever use the <strong>General track</strong> below. Procurement, hiring, onboarding, offboarding, finance and chargeback requests follow their own specialised tracks. The <strong>Workflow Stepper</strong> on the <span class="screen">Request Detail</span> page always shows your ticket's position in plain language.</p>
+  <p>CWC uses different status tracks depending on the request type. Most simple tickets follow the <strong>General track</strong> below. Software and hardware procurement each have their own track. Hiring, onboarding, offboarding, finance and chargeback requests follow their own specialised tracks. The <strong>Workflow Stepper</strong> on the <span class="screen">Request Detail</span> page always shows your ticket's position in plain language.</p>
 
   <h2 id="ref-status">4.1 General Track (most tickets)</h2>
   <table>
@@ -378,79 +404,1551 @@
     </tbody>
   </table>
 
-  <h2>4.2 IT Hardware &amp; Procurement Track</h2>
+  <h2 id="track-42">4.2 Request New Hardware Track</h2>
+
+  <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
-    <span class="node start">Acknowledged</span><span class="arr">→</span>
+    <span class="node">Submitted</span><span class="arr">→</span>
+    <span class="node start">IT Acknowledged</span><span class="arr">→</span>
     <span class="node gate">CEO Approval</span><span class="arr">→</span>
     <span class="node gate">CTO Approval</span><span class="arr">→</span>
+    <span class="node">Invoice / Payment</span><span class="arr">→</span>
     <span class="node gate">CFO Approval</span><span class="arr">→</span>
-    <span class="node">Procurement</span><span class="arr">→</span>
-    <span class="node">Ordered</span><span class="arr">→</span>
-    <span class="node">Received</span><span class="arr">→</span>
-    <span class="node">Provisioned</span><span class="arr">→</span>
+    <span class="node">Payment Processing</span><span class="arr">→</span>
+    <span class="node">Procurement In Progress</span><span class="arr">→</span>
+    <span class="node">Hardware Ordered</span><span class="arr">→</span>
+    <span class="node">Hardware Received</span><span class="arr">→</span>
+    <span class="node">Software Provisioned</span><span class="arr">→</span>
     <span class="node end">Resolved</span>
   </div>
-  <p>Statuses you may see (friendly labels): <span class="badge b-blue">CEO Approval</span> <span class="badge b-blue">CTO Approval</span> <span class="badge b-blue">CFO Approval</span> <span class="badge b-purple">Procurement In Progress</span> <span class="badge b-purple">Hardware Ordered</span> <span class="badge b-purple">Hardware Received</span> <span class="badge b-purple">Software Provisioned</span> <span class="badge b-purple">Payment Processing</span> <span class="badge b-green">Pending Delivery</span>. A rejection at any gate ends the request (e.g. <span class="badge b-red">CEO Rejected</span>).</p>
 
-  <h2>4.3 HR Hiring Track</h2>
+  <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
+  <h3>4.2.1 &nbsp; Detailed User Journey — Request New Hardware</h3>
+  <p>The table below walks through every status in order, who acts, what they do, what the end user sees, and what happens next. Rejection paths are shown inline so you know exactly where things can stop.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:6%">#</th>
+        <th style="width:14%">Status</th>
+        <th style="width:13%">Who Acts</th>
+        <th style="width:22%">What Happens</th>
+        <th style="width:25%">What the Requester Sees</th>
+        <th style="width:20%">Next Status / Branch</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- 1 -->
+      <tr>
+        <td>1</td>
+        <td><span class="badge b-grey">Submitted</span></td>
+        <td>Requester (end user)</td>
+        <td>User fills in <strong>Create Request</strong> wizard: <em>Service Desk → IT Support → New Hardware</em>. Required fields: hardware name, model (optional), estimated price, preferred vendor (optional), product URL (optional), business justification. Attachments supported. On submit a tracking ID is generated.</td>
+        <td>Confirmation banner with request ID. Stepper highlights <strong>Submitted</strong>. SLA timer starts (72 hrs).</td>
+        <td>→ <span class="badge b-blue">Acknowledged</span> (IT agent picks up)</td>
+      </tr>
+      <!-- 2 -->
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-blue">Acknowledged</span></td>
+        <td>IT Agent / Admin</td>
+        <td>Assigned IT agent clicks <strong>"Acknowledge &amp; Route to CEO"</strong>. This moves the ticket out of the queue and into the executive approval chain.</td>
+        <td>Stepper moves to <strong>Acknowledged</strong>. Requester receives a notification that IT has started processing.</td>
+        <td>→ <span class="badge b-blue">CEO Approval</span></td>
+      </tr>
+      <!-- 3 -->
+      <tr>
+        <td>3</td>
+        <td><span class="badge b-blue">CEO Approval</span></td>
+        <td>CEO</td>
+        <td>CEO receives a notification and opens the request. Reviews the business justification, estimated cost, and hardware details. Clicks <strong>Approve</strong> or <strong>Reject</strong> with a comment.</td>
+        <td>Stepper shows <strong>CEO Approval</strong>. The SLA is <strong>paused</strong> during approval. The requester cannot act — only wait.</td>
+        <td>✅ Approve → <span class="badge b-blue">CTO Approval</span><br>❌ Reject → <span class="badge b-red">Rejected</span> (ticket ends)</td>
+      </tr>
+      <!-- 4 -->
+      <tr>
+        <td>4</td>
+        <td><span class="badge b-blue">CTO Approval</span></td>
+        <td>CTO</td>
+        <td>CTO reviews technical merit and infrastructure fit. Approves or rejects with comment.</td>
+        <td>Stepper shows <strong>CTO Approval</strong>. SLA remains paused. Requester is notified that CEO approved and the request moved forward.</td>
+        <td>✅ Approve → <span class="badge b-purple">Pending Invoice</span><br>❌ Reject → <span class="badge b-red">Rejected</span></td>
+      </tr>
+      <!-- 5 -->
+      <tr>
+        <td>5</td>
+        <td><span class="badge b-purple">Pending Invoice</span></td>
+        <td>IT Agent / Admin</td>
+        <td>The assigned IT agent (or admin) uploads or records the invoice details. Once the invoice is linked, the request routes to the CFO for payment approval.</td>
+        <td>Stepper shows <strong>Pending Invoice</strong>. Requester sees that procurement documentation is being prepared.</td>
+        <td>→ <span class="badge b-blue">CFO Approval</span></td>
+      </tr>
+      <!-- 6 -->
+      <tr>
+        <td>6</td>
+        <td><span class="badge b-blue">CFO Approval</span></td>
+        <td>CFO</td>
+        <td>CFO reviews the financial commitment (cost, budget allocation). Approves or rejects.</td>
+        <td>Stepper shows <strong>CFO Approval</strong>. SLA paused. Requester sees that CTO approved and the request is awaiting final financial sign-off.</td>
+        <td>✅ Approve → <span class="badge b-purple">Payment Processing</span><br>❌ Reject → <span class="badge b-red">Rejected</span></td>
+      </tr>
+      <!-- 7 -->
+      <tr>
+        <td>7</td>
+        <td><span class="badge b-purple">Payment Processing</span></td>
+        <td>IT Agent / Finance</td>
+        <td>Payment is processed. The assigned agent (or a finance team member acting cross-desk) confirms the payment by entering payment details (reference, date, amount) and clicks <strong>"Mark Payment Done"</strong>.</td>
+        <td>Stepper shows <strong>Payment Processing</strong>. Requester sees that the purchase has been approved and payment is underway.</td>
+        <td>→ <span class="badge b-purple">Payment Done</span></td>
+      </tr>
+      <!-- 8 -->
+      <tr>
+        <td>8</td>
+        <td><span class="badge b-purple">Payment Done</span></td>
+        <td>System / IT Agent</td>
+        <td>Payment confirmed. The request automatically transitions and the procurement stage begins.</td>
+        <td>Stepper advances to <strong>Payment Done</strong>, then transitions into the procurement phase.</td>
+        <td>→ <span class="badge b-purple">Procurement In Progress</span></td>
+      </tr>
+      <!-- 9 -->
+      <tr>
+        <td>9</td>
+        <td><span class="badge b-purple">Procurement In Progress</span></td>
+        <td>IT Agent / Admin</td>
+        <td>The assigned IT agent begins procurement. They click <strong>"Confirm Procurement"</strong> and fill in: <em>vendor name, estimated cost, PO number (optional), notes (optional)</em>.</td>
+        <td>Stepper shows <strong>Procurement In Progress</strong>. Requester sees procurement has begun.</td>
+        <td>→ <span class="badge b-purple">Hardware Ordered</span></td>
+      </tr>
+      <!-- 10 -->
+      <tr>
+        <td>10</td>
+        <td><span class="badge b-purple">Hardware Ordered</span></td>
+        <td>IT Agent / Admin</td>
+        <td>Agent confirms the order has been placed by clicking <strong>"Mark Hardware Ordered"</strong> and entering: <em>order reference</em> (e.g. PO number) and <em>estimated delivery date</em>.</td>
+        <td>Stepper shows <strong>Hardware Ordered</strong>. Requester is notified that the vendor has received the order.</td>
+        <td>→ <span class="badge b-purple">Hardware Received</span></td>
+      </tr>
+      <!-- 11 -->
+      <tr>
+        <td>11</td>
+        <td><span class="badge b-purple">Hardware Received</span></td>
+        <td>IT Agent / Admin</td>
+        <td>Agent confirms physical delivery by clicking <strong>"Mark Hardware Received"</strong> and entering receiving notes (condition, serial number, etc.). The system may also register the asset in IT Asset Management at this point.</td>
+        <td>Stepper shows <strong>Hardware Received</strong>. Requester is notified that the hardware has arrived.</td>
+        <td>→ <span class="badge b-purple">Software Provisioned</span></td>
+      </tr>
+      <!-- 12 -->
+      <tr>
+        <td>12</td>
+        <td><span class="badge b-purple">Software Provisioned</span></td>
+        <td>IT Agent / Admin</td>
+        <td>Agent confirms that required software (OS, licensed apps, security tools) has been installed and configured. Clicks <strong>"Mark Software Provisioned"</strong> and enters provisioning notes.</td>
+        <td>Stepper shows <strong>Software Provisioned</strong>. Requester is notified that setup is complete.</td>
+        <td>→ <span class="badge b-green">Resolved</span></td>
+      </tr>
+      <!-- 13 -->
+      <tr>
+        <td>13</td>
+        <td><span class="badge b-green">Resolved</span></td>
+        <td>IT Agent / Admin</td>
+        <td>The agent (or admin) clicks <strong>"Close &amp; Resolve"</strong> from the <span class="badge b-purple">Software Provisioned</span> status. This marks the ticket as fully resolved. The asset is now linked to the requester in IT Asset Management.</td>
+        <td>Stepper shows all steps completed. Requester sees <strong>Resolved</strong> and can comment to re-open if there are issues.</td>
+        <td>End of life cycle. Ticket is closed.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ─── REJECTION BRANCH TABLE ─── -->
+  <h3>4.2.2 &nbsp; Rejection Paths</h3>
+  <table>
+    <thead>
+      <tr><th>Rejection Point</th><th>Status Shown</th><th>What Happens</th><th>Can the Requester Re-submit?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="badge b-blue">CEO Approval</span></td><td><span class="badge b-red">CEO Rejected</span></td><td>Ticket moves to <span class="badge b-red">Rejected</span>. CEO's rejection comment is visible.</td><td>No automatic re-submission. The requester must create a new <strong>New Hardware</strong> request.</td></tr>
+      <tr><td><span class="badge b-blue">CTO Approval</span></td><td><span class="badge b-red">CTO Rejected</span></td><td>Ticket moves to <span class="badge b-red">Rejected</span>. CTO's comment explains why.</td><td>Must create a new request.</td></tr>
+      <tr><td><span class="badge b-blue">CFO Approval</span></td><td><span class="badge b-red">CFO Rejected</span></td><td>Ticket moves to <span class="badge b-red">Rejected</span>.</td><td>Must create a new request.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── VISUAL DETAILED FLOW DIAGRAM ─── -->
+  <h3>4.2.3 &nbsp; Visual Flow — Approval Chain &amp; Procurement</h3>
+  <p>The diagram below shows the two major phases of a hardware request: <strong>Phase A (Executive Approval Chain)</strong> and <strong>Phase B (Procurement &amp; Fulfilment)</strong>. Each phase is self-contained — a rejection in Phase A terminates the request before Phase B begins.</p>
+
+  <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
+    <!-- Phase A -->
+    <div style="background:var(--soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">PHASE A — Executive Approval Chain <span style="font-weight:400;font-size:12px;color:var(--muted)">(SLA paused during approvals)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Submitted</span><span class="arr">→</span>
+        <span class="node start">Acknowledged</span><span class="arr">→</span>
+        <span class="node gate">CEO<br>Approval</span><span class="arr">→</span>
+        <span class="node gate">CTO<br>Approval</span><span class="arr">→</span>
+        <span class="node">Pending<br>Invoice</span><span class="arr">→</span>
+        <span class="node gate">CFO<br>Approval</span><span class="arr">→</span>
+        <span class="node">Payment<br>Processing</span><span class="arr">→</span>
+        <span class="node">Payment<br>Done</span>
+      </div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
+        <span style="color:var(--danger);font-weight:600">Rejection at any gate:</span>
+        <span class="badge b-red">CEO Rejected</span>
+        <span class="badge b-red">CTO Rejected</span>
+        <span class="badge b-red">CFO Rejected</span>
+        <span style="color:var(--muted)">→ Ticket ends as Rejected. New request needed.</span>
+      </div>
+    </div>
+    <!-- Connector -->
+    <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;All three approvals passed &amp; payment confirmed&nbsp; ↓</div>
+    <!-- Phase B -->
+    <div style="background:#f0faf5;border:1px solid var(--ok);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:14px">PHASE B — Procurement &amp; Fulfilment <span style="font-weight:400;font-size:12px;color:var(--muted)">(SLA resumes, IT agent drives each step)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Procurement<br>In Progress</span><span class="arr">→</span>
+        <span class="node">Hardware<br>Ordered</span><span class="arr">→</span>
+        <span class="node">Hardware<br>Received</span><span class="arr">→</span>
+        <span class="node">Software<br>Provisioned</span><span class="arr">→</span>
+        <span class="node end">Resolved</span>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+        Each step requires the assigned IT agent to take an action (confirm procurement, log order details, confirm delivery, confirm software setup).
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WHO DOES WHAT ─── -->
+  <h3>4.2.4 &nbsp; Who Does What — Roles &amp; Actions at a Glance</h3>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Actions Available</th><th>Applicable Statuses</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Requester</strong> (end user)</td><td>Submit request, view progress, comment, re-open if needed</td><td>Creator only — no approval actions</td></tr>
+      <tr><td><strong>IT Agent / Admin</strong></td><td>Acknowledge &amp; Route to CEO, log procurement (vendor/PO), mark hardware ordered, mark hardware received, mark software provisioned, close &amp; resolve, mark payment done</td><td>All <span class="badge b-purple">Procurement In Progress</span> through <span class="badge b-purple">Software Provisioned</span> statuses; also <span class="badge b-grey">Submitted</span> and <span class="badge b-blue">Pending Invoice</span></td></tr>
+      <tr><td><strong>CEO</strong></td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">CEO Approval</span></td></tr>
+      <tr><td><strong>CTO</strong></td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">CTO Approval</span></td></tr>
+      <tr><td><strong>CFO</strong></td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">CFO Approval</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info"><span class="lbl">Key fields in the request form</span>
+    Hardware Name (required), Hardware Model (optional), Estimated Price (optional), Preferred Vendor (optional), Product URL (optional), Business Justification (required), Attachments (optional — quotations, specs, etc.).
+  </div>
+  <div class="box tip"><span class="lbl">Best Practices</span>
+    <ul>
+      <li>Attach vendor quotations and specify the exact model — this speeds up the CEO/CTO review.</li>
+      <li>The SLA timer <strong>pauses</strong> during all three executive approvals. If you're an approver, act promptly to avoid delays.</li>
+      <li>After all approvals, the IT agent drives procurement. Watch for notifications at each milestone (ordered, received, provisioned).</li>
+      <li>The hardware is registered as an IT Asset upon delivery. You can verify it on the <span class="screen">/assets</span> page.</li>
+    </ul>
+  </div>
+  <div class="box example"><span class="lbl">Example Scenario</span>
+    A team lead needs a new MacBook Pro for a design hire. They open <strong>IT Support → New Hardware</strong>, enter: hardware name "MacBook Pro 16&quot;", model "M4 Max / 48 GB / 1 TB", estimated price RM 12,500, vendor "Apple Authorised Reseller", justification "New hire — Design team requires macOS for Figma &amp; video editing". The request is submitted. IT acknowledges and routes it to the CEO → CTO → CFO approval chain. After all three approve, the IT agent begins procurement, orders the unit, confirms receipt, provisions the software, and resolves the ticket — a new asset record is created and visible on the requester's <span class="screen">IT Assets</span> page.
+  </div>
+
+  <h2 id="track-42b">4.2b Request Software Installation Track</h2>
+
+  <!-- ─── HIGH-LEVEL FLOW ─── -->
+  <div class="flow">
+    <span class="node">Submitted</span><span class="arr">→</span>
+    <span class="node start">IT Acknowledged</span><span class="arr">→</span>
+    <span class="node gate">CEO Approval</span><span class="arr">→</span>
+    <span class="node gate">CTO Approval</span><span class="arr">→</span>
+    <span class="node">Pending Invoice</span><span class="arr">→</span>
+    <span class="node gate">CFO Approval</span><span class="arr">→</span>
+    <span class="node">Payment Processing</span><span class="arr">→</span>
+    <span class="node">Payment Done</span><span class="arr">→</span>
+    <span class="node">Pending Delivery</span><span class="arr">→</span>
+    <span class="node end">Resolved</span>
+  </div>
+
+  <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
+  <h3>4.2b.1 &nbsp; Detailed User Journey — Request Software Installation</h3>
+  <p>The Software Installation track shares the same executive approval chain as hardware (CEO → CTO → CFO), but there is <strong>no procurement phase</strong> — after payment, the IT agent confirms delivery and the request is resolved. This makes it a shorter, simpler workflow.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:6%">#</th>
+        <th style="width:14%">Status</th>
+        <th style="width:13%">Who Acts</th>
+        <th style="width:22%">What Happens</th>
+        <th style="width:25%">What the Requester Sees</th>
+        <th style="width:20%">Next Status / Branch</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- 1 -->
+      <tr>
+        <td>1</td>
+        <td><span class="badge b-grey">Submitted</span></td>
+        <td>Requester (end user)</td>
+        <td>User fills in <strong>Create Request</strong> wizard: <em>Service Desk → IT Support → Software Installation</em>. Required fields: software name, version (optional), business justification. Attachments supported (e.g. license quotes). On submit a tracking ID is generated.</td>
+        <td>Confirmation banner with request ID. Stepper highlights <strong>Submitted</strong>. SLA timer starts (48 hrs).</td>
+        <td>→ <span class="badge b-blue">Acknowledged</span> (IT agent picks up)</td>
+      </tr>
+      <!-- 2 -->
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-blue">Acknowledged</span></td>
+        <td>IT Agent / Admin</td>
+        <td>Assigned IT agent clicks <strong>"Acknowledge &amp; Route to CEO"</strong>. This moves the ticket out of the queue and into the executive approval chain.</td>
+        <td>Stepper moves to <strong>Acknowledged</strong>. Requester receives a notification that IT has started processing.</td>
+        <td>→ <span class="badge b-blue">CEO Approval</span></td>
+      </tr>
+      <!-- 3 -->
+      <tr>
+        <td>3</td>
+        <td><span class="badge b-blue">CEO Approval</span></td>
+        <td>CEO</td>
+        <td>CEO receives a notification and opens the request. Reviews the business justification and software details. Clicks <strong>Approve</strong> or <strong>Reject</strong> with a comment.</td>
+        <td>Stepper shows <strong>CEO Approval</strong>. The SLA is <strong>paused</strong> during approval. The requester cannot act — only wait.</td>
+        <td>✅ Approve → <span class="badge b-blue">CTO Approval</span><br>❌ Reject → <span class="badge b-red">Rejected</span> (ticket ends)</td>
+      </tr>
+      <!-- 4 -->
+      <tr>
+        <td>4</td>
+        <td><span class="badge b-blue">CTO Approval</span></td>
+        <td>CTO</td>
+        <td>CTO reviews technical fit, licensing implications, and infrastructure compatibility. Approves or rejects with comment.</td>
+        <td>Stepper shows <strong>CTO Approval</strong>. SLA remains paused.</td>
+        <td>✅ Approve → <span class="badge b-purple">Pending Invoice</span><br>❌ Reject → <span class="badge b-red">Rejected</span></td>
+      </tr>
+      <!-- 5 -->
+      <tr>
+        <td>5</td>
+        <td><span class="badge b-purple">Pending Invoice</span></td>
+        <td>IT Agent / Admin</td>
+        <td>The assigned IT agent reviews pricing and records the invoice. Once the invoice is linked, the agent clicks <strong>"Route to CFO"</strong> to forward for financial approval.</td>
+        <td>Stepper shows <strong>Pending Invoice</strong>. Requester sees that procurement documentation is being prepared.</td>
+        <td>→ <span class="badge b-blue">CFO Approval</span></td>
+      </tr>
+      <!-- 6 -->
+      <tr>
+        <td>6</td>
+        <td><span class="badge b-blue">CFO Approval</span></td>
+        <td>CFO</td>
+        <td>CFO reviews the financial commitment (software cost, budget). Approves or rejects.</td>
+        <td>Stepper shows <strong>CFO Approval</strong>. SLA paused. Requester sees that CTO approved and the request is awaiting final financial sign-off.</td>
+        <td>✅ Approve → <span class="badge b-purple">Payment Processing</span><br>❌ Reject → <span class="badge b-red">Rejected</span></td>
+      </tr>
+      <!-- 7 -->
+      <tr>
+        <td>7</td>
+        <td><span class="badge b-purple">Payment Processing</span></td>
+        <td>IT Agent / Finance</td>
+        <td>Payment is processed. The assigned agent (or a finance team member acting cross-desk) confirms the payment by entering payment details and clicks <strong>"Mark Payment Done"</strong>.</td>
+        <td>Stepper shows <strong>Payment Processing</strong>. Requester sees that the purchase has been approved and payment is underway.</td>
+        <td>→ <span class="badge b-purple">Payment Done</span></td>
+      </tr>
+      <!-- 8 -->
+      <tr>
+        <td>8</td>
+        <td><span class="badge b-purple">Payment Done</span></td>
+        <td>System / IT Agent</td>
+        <td>Payment confirmed. The request transitions to pending delivery — the IT agent will now install or provision the software.</td>
+        <td>Stepper advances to <strong>Payment Done</strong>.</td>
+        <td>→ <span class="badge b-purple">Pending Delivery</span></td>
+      </tr>
+      <!-- 9 -->
+      <tr>
+        <td>9</td>
+        <td><span class="badge b-purple">Pending Delivery</span></td>
+        <td>IT Agent / Admin</td>
+        <td>The assigned IT agent installs or provisions the software on the requester's device. Once complete, they click <strong>"Complete Delivery"</strong> and enter optional notes (installation details, license key, etc.).</td>
+        <td>Stepper shows <strong>Pending Delivery</strong>. Requester is notified that software is being installed or delivered.</td>
+        <td>→ <span class="badge b-green">Resolved</span></td>
+      </tr>
+      <!-- 10 -->
+      <tr>
+        <td>10</td>
+        <td><span class="badge b-green">Resolved</span></td>
+        <td>IT Agent / Admin</td>
+        <td>The agent confirms delivery and marks the request as resolved. The software is installed and ready to use.</td>
+        <td>Stepper shows all steps completed. Requester sees <strong>Resolved</strong> and can comment to re-open if there are issues.</td>
+        <td>End of life cycle. Ticket is closed.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ─── REJECTION BRANCH TABLE ─── -->
+  <h3>4.2b.2 &nbsp; Rejection Paths</h3>
+  <table>
+    <thead>
+      <tr><th>Rejection Point</th><th>Status Shown</th><th>What Happens</th><th>Can the Requester Re-submit?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="badge b-blue">CEO Approval</span></td><td><span class="badge b-red">CEO Rejected</span></td><td>Ticket moves to <span class="badge b-red">Rejected</span>. CEO's rejection comment is visible.</td><td>No automatic re-submission. The requester must create a new <strong>Software Installation</strong> request.</td></tr>
+      <tr><td><span class="badge b-blue">CTO Approval</span></td><td><span class="badge b-red">CTO Rejected</span></td><td>Ticket moves to <span class="badge b-red">Rejected</span>. CTO's comment explains why (e.g. licensing conflict, redundant tool).</td><td>Must create a new request.</td></tr>
+      <tr><td><span class="badge b-blue">CFO Approval</span></td><td><span class="badge b-red">CFO Rejected</span></td><td>Ticket moves to <span class="badge b-red">Rejected</span>.</td><td>Must create a new request.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── VISUAL DETAILED FLOW DIAGRAM ─── -->
+  <h3>4.2b.3 &nbsp; Visual Flow — Approval Chain &amp; Delivery</h3>
+  <p>The diagram below shows the two phases of a software installation request: <strong>Phase A (Executive Approval Chain &amp; Payment)</strong> and <strong>Phase B (Software Delivery)</strong>. A rejection in Phase A terminates the request before delivery begins. Note there is <strong>no procurement phase</strong> — software is delivered directly after payment.</p>
+
+  <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
+    <!-- Phase A -->
+    <div style="background:var(--soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">PHASE A — Executive Approval Chain &amp; Payment <span style="font-weight:400;font-size:12px;color:var(--muted)">(SLA paused during approvals)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Submitted</span><span class="arr">→</span>
+        <span class="node start">Acknowledged</span><span class="arr">→</span>
+        <span class="node gate">CEO<br>Approval</span><span class="arr">→</span>
+        <span class="node gate">CTO<br>Approval</span><span class="arr">→</span>
+        <span class="node">Pending<br>Invoice</span><span class="arr">→</span>
+        <span class="node gate">CFO<br>Approval</span><span class="arr">→</span>
+        <span class="node">Payment<br>Processing</span><span class="arr">→</span>
+        <span class="node">Payment<br>Done</span>
+      </div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
+        <span style="color:var(--danger);font-weight:600">Rejection at any gate:</span>
+        <span class="badge b-red">CEO Rejected</span>
+        <span class="badge b-red">CTO Rejected</span>
+        <span class="badge b-red">CFO Rejected</span>
+        <span style="color:var(--muted)">→ Ticket ends as Rejected. New request needed.</span>
+      </div>
+    </div>
+    <!-- Connector -->
+    <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;All three approvals passed &amp; payment confirmed&nbsp; ↓</div>
+    <!-- Phase B -->
+    <div style="background:#f0faf5;border:1px solid var(--ok);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:14px">PHASE B — Software Delivery <span style="font-weight:400;font-size:12px;color:var(--muted)">(SLA resumes, IT agent installs &amp; confirms)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Pending<br>Delivery</span><span class="arr">→</span>
+        <span class="node end">Resolved</span>
+      </div>
+      <div style="margin-top:8px;font-size:12px;color:var(--muted)">
+        The IT agent installs or provisions the software, then clicks "Complete Delivery" to resolve the ticket. No procurement, ordering, or asset registration steps.
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WHO DOES WHAT ─── -->
+  <h3>4.2b.4 &nbsp; Who Does What — Roles &amp; Actions at a Glance</h3>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Actions Available</th><th>Applicable Statuses</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Requester</strong> (end user)</td><td>Submit request, view progress, comment, re-open if needed</td><td>Creator only — no approval actions</td></tr>
+      <tr><td><strong>IT Agent / Admin</strong></td><td>Acknowledge &amp; Route to CEO, Route to CFO (invoice), Mark Payment Done, Complete Delivery, Resolve</td><td><span class="badge b-grey">Submitted</span>, <span class="badge b-purple">Pending Invoice</span>, <span class="badge b-purple">Payment Processing</span>, <span class="badge b-purple">Pending Delivery</span></td></tr>
+      <tr><td><strong>CEO</strong></td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">CEO Approval</span></td></tr>
+      <tr><td><strong>CTO</strong></td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">CTO Approval</span></td></tr>
+      <tr><td><strong>CFO</strong></td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">CFO Approval</span></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── COMPARISON ─── -->
+  <h3>4.2b.5 &nbsp; Software vs Hardware — Key Differences</h3>
+  <table>
+    <thead>
+      <tr><th>Aspect</th><th>Software Installation</th><th>New Hardware (Section 4.2)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Approval chain</td><td>CEO → CTO → CFO <em>(same)</em></td><td>CEO → CTO → CFO <em>(same)</em></td></tr>
+      <tr><td>After CFO approval</td><td>Payment Processing → Payment Done → Pending Delivery → Resolved</td><td>Payment Processing → Payment Done → Procurement → Hardware Ordered → Hardware Received → Software Provisioned → Resolved</td></tr>
+      <tr><td>Procurement phase</td><td><strong>None</strong> — software is delivered digitally</td><td>Full procurement lifecycle (vendor, PO, delivery, provisioning)</td></tr>
+      <tr><td>Asset registration</td><td>Not applicable</td><td>Hardware is registered as an IT Asset on delivery</td></tr>
+      <tr><td>SLA</td><td>48 hours</td><td>72 hours (longer due to physical procurement)</td></tr>
+      <tr><td>Total statuses</td><td>10</td><td>13</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info"><span class="lbl">Key fields in the request form</span>
+    Software Name (required), Version (optional), Business Justification (required), Attachments (optional — license quotes, vendor emails, etc.).
+  </div>
+  <div class="box tip"><span class="lbl">Best Practices</span>
+    <ul>
+      <li>Include the exact software name and version — vague names like "Adobe" slow down the CTO's technical review.</li>
+      <li>Attach licence quotes or vendor emails as supporting documents. The CFO needs cost clarity.</li>
+      <li>The SLA timer <strong>pauses</strong> during all three executive approvals. Approvers should act promptly.</li>
+      <li>After approval, the IT agent handles installation directly — no procurement or shipping delays.</li>
+    </ul>
+  </div>
+  <div class="box example"><span class="lbl">Example Scenario</span>
+    A marketing analyst needs Adobe Creative Cloud installed. They open <strong>IT Support → Software Installation</strong>, enter: software name "Adobe Creative Cloud", version "2025", justification "Required for Q3 campaign design deliverables — no team licence currently covers my seat". The request is submitted. IT acknowledges and routes it through CEO → CTO → CFO approval (CTO confirms no licence conflict, CFO approves the budget). Payment is processed, the IT agent installs the software on the requester's machine, clicks <strong>"Complete Delivery"</strong>, and the ticket is resolved — typically within a day after all approvals are in.
+  </div>
+
+  <h2 id="track-43">4.3 New Hiring Request</h2>
+
+  <p>The HR Hiring track (request type <strong>New Hiring Request</strong>) is the longest workflow in CWC. It runs from a hiring manager's request, through a <strong>two-tier executive approval</strong> (CEO then Group Deputy CEO), into recruitment (job posting, candidate review, interview, screening) and finally the <strong>Letter of Acceptance (LOA)</strong> cycle. On completion it can automatically spin up an Onboarding ticket (Section 4.4). The request can only be raised by a user with the <strong>Hiring Manager</strong> role, and the HR agent drives most of the recruitment steps while the hiring manager makes the candidate and LOA decisions.</p>
+
+  <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
     <span class="node start">Submitted</span><span class="arr">→</span>
     <span class="node gate">CEO Approval</span><span class="arr">→</span>
-    <span class="node gate">Group CEO Approval</span><span class="arr">→</span>
+    <span class="node gate">Group DCEO Approval</span><span class="arr">→</span>
     <span class="node">Job Posted</span><span class="arr">→</span>
     <span class="node gate">Manager Review</span><span class="arr">→</span>
-    <span class="node">Interview</span><span class="arr">→</span>
+    <span class="node">Interview Scheduled</span><span class="arr">→</span>
+    <span class="node">Interview Feedback</span><span class="arr">→</span>
     <span class="node">HR Screening</span><span class="arr">→</span>
-    <span class="node gate">LOA</span><span class="arr">→</span>
+    <span class="node gate">LOA Pending</span><span class="arr">→</span>
+    <span class="node">LOA Approved</span><span class="arr">→</span>
+    <span class="node">LOA Issued</span><span class="arr">→</span>
+    <span class="node">LOA Accepted</span><span class="arr">→</span>
     <span class="node end">Completed</span>
   </div>
-  <p>Includes <span class="badge b-blue">Interview Scheduled</span>, <span class="badge b-amber">Interview Feedback Pending</span>, <span class="badge b-purple">HR Screening</span>, and the Letter of Acceptance steps <span class="badge b-blue">LOA Pending Approval</span> → <span class="badge b-blue">LOA Approved</span> → <span class="badge b-purple">LOA Issued</span> → <span class="badge b-green">LOA Accepted</span>. A rejected candidate (<span class="badge b-red">Candidate Rejected</span>) loops back to <span class="badge b-purple">Job Posted</span> to resume recruitment.</p>
 
-  <h2>4.4 Onboarding Track</h2>
+  <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
+  <h3>4.3.1 &nbsp; Detailed User Journey — New Hiring Request</h3>
+  <p>New Hiring Requests are raised under <strong>HR Services</strong>. After both executives approve, the HR agent posts the job, collects resumes, and routes candidates to the hiring manager; once a candidate clears the interview and screening, HR drives the Letter of Acceptance cycle to completion.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:5%">#</th>
+        <th style="width:15%">Status</th>
+        <th style="width:13%">Who Acts</th>
+        <th style="width:24%">What Happens</th>
+        <th style="width:23%">What the Requester Sees</th>
+        <th style="width:20%">Next Status / Branch</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="badge b-grey">Submitted</span></td>
+        <td>Hiring Manager (requester)</td>
+        <td>Creates the request via <strong>Create Request</strong>: <em>HR Services → New Hiring Request</em>. Required fields: job title, department, role category (Junior/Senior Executive, Manager, HOD, C-Level), employment type; optional proposed salary, org chart, job description. An HR agent then clicks <strong>"Route to CEO for Approval"</strong> (<code>ROUTE_TO_CEO_HR</code>).</td>
+        <td>Confirmation banner with request ID. Stepper highlights <strong>Submitted</strong>. SLA timer starts (48 hrs).</td>
+        <td>→ <span class="badge b-blue">CEO Approval</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-blue">CEO Approval</span><br><small><code>PENDING_CEO_APPROVAL</code></small></td>
+        <td>CEO</td>
+        <td>The CEO reviews the headcount request and clicks <strong>Approve</strong> or <strong>Reject</strong> with a comment (<code>CEO_DECISION_HR</code>).</td>
+        <td>Stepper shows <strong>CEO Approval</strong>.</td>
+        <td>✅ Approve → <span class="badge b-blue">Group DCEO Approval</span> <em>(HR routes it on)</em><br>❌ Reject → <span class="badge b-grey">Submitted</span> (correct &amp; resubmit)</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="badge b-blue">Group DCEO Approval</span><br><small><code>PENDING_GROUP_DCEO_APPROVAL</code></small></td>
+        <td>Group Deputy CEO</td>
+        <td>After CEO approval, the HR agent clicks <strong>"Route to Group Deputy CEO"</strong> (<code>ROUTE_TO_GROUP_DCEO_HR</code>). The Group DCEO gives final executive sign-off — <strong>Approve</strong> or <strong>Reject</strong> (<code>GROUP_DCEO_DECISION_HR</code>).</td>
+        <td>Stepper shows <strong>Group DCEO Approval</strong>.</td>
+        <td>✅ Approve → <span class="badge b-purple">Job Posted</span> <em>(HR records posting)</em><br>❌ Reject → <span class="badge b-grey">Submitted</span> (correct &amp; resubmit)</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><span class="badge b-purple">Job Posted</span><br><small><code>JOB_POSTED</code></small></td>
+        <td>HR Agent</td>
+        <td>HR records the job posting URL (<code>MARK_JOB_POSTED</code>), uploads candidate resumes (<code>UPLOAD_RESUME</code>), then clicks <strong>"Route to Hiring Manager"</strong> (<code>ROUTE_TO_MANAGER</code>) to send the resumes for review.</td>
+        <td>Stepper shows <strong>Job Posted</strong>. Requester sees the role is live and candidates are being collected.</td>
+        <td>→ <span class="badge b-blue">Manager Review</span></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><span class="badge b-blue">Manager Review</span><br><small><code>PENDING_MANAGER_REVIEW</code></small></td>
+        <td>Hiring Manager (requester)</td>
+        <td>The hiring manager reviews submitted resumes and <strong>selects up to 3 candidates</strong> for interview (<code>MANAGER_DECISION</code>).</td>
+        <td>Stepper shows <strong>Manager Review</strong>.</td>
+        <td>→ <span class="badge b-blue">Interview Scheduled</span> <em>(HR schedules)</em></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><span class="badge b-blue">Interview Scheduled</span><br><small><code>INTERVIEW_SCHEDULED</code></small></td>
+        <td>HR Agent → Hiring Manager</td>
+        <td>HR schedules the interview (<code>SCHEDULE_INTERVIEW</code>). After the interview, the hiring manager submits feedback and a hiring decision (<code>SUBMIT_INTERVIEW_FEEDBACK</code>).</td>
+        <td>Stepper shows <strong>Interview Scheduled</strong>. Requester sees interview date/time.</td>
+        <td>→ <span class="badge b-amber">Interview Feedback</span></td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td><span class="badge b-amber">Interview Feedback</span><br><small><code>INTERVIEW_FEEDBACK_PENDING</code></small></td>
+        <td>Hiring Manager / HR</td>
+        <td>The hiring decision from the feedback is recorded. A positive outcome advances to reference checks; a negative outcome rejects the candidate.</td>
+        <td>Stepper shows <strong>Interview Feedback</strong>.</td>
+        <td>✅ Proceed → <span class="badge b-purple">HR Screening</span><br>❌ Reject → <span class="badge b-red">Candidate Rejected</span> → <span class="badge b-purple">Job Posted</span> (resume recruitment)</td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td><span class="badge b-purple">HR Screening</span><br><small><code>HR_SCREENING</code></small></td>
+        <td>HR Agent</td>
+        <td>HR completes reference/background checks (<code>UPDATE_SCREENING</code>), uploads the draft Letter of Acceptance (<code>UPLOAD_LOA</code>), and clicks <strong>"Route LOA for Approval"</strong> (<code>ROUTE_LOA_FOR_APPROVAL</code>).</td>
+        <td>Stepper shows <strong>HR Screening</strong>. Requester sees the candidate is being screened.</td>
+        <td>→ <span class="badge b-blue">LOA Pending</span></td>
+      </tr>
+      <tr>
+        <td>9</td>
+        <td><span class="badge b-blue">LOA Pending</span><br><small><code>LOA_PENDING_APPROVAL</code></small></td>
+        <td>Hiring Manager (requester)</td>
+        <td>The hiring manager reviews the draft LOA and clicks <strong>Approve</strong> or <strong>Reject</strong> (<code>LOA_APPROVAL</code>).</td>
+        <td>Stepper shows <strong>LOA Pending</strong>.</td>
+        <td>✅ Approve → <span class="badge b-blue">LOA Approved</span><br>❌ Reject → <span class="badge b-red">LOA Rejected</span> (stops)</td>
+      </tr>
+      <tr>
+        <td>10</td>
+        <td><span class="badge b-blue">LOA Approved</span><br><small><code>LOA_APPROVED</code></small></td>
+        <td>HR Agent</td>
+        <td>HR clicks <strong>"Issue LOA to Candidate"</strong> (<code>ISSUE_LOA</code>) to send the approved offer to the candidate.</td>
+        <td>Stepper shows <strong>LOA Approved</strong>.</td>
+        <td>→ <span class="badge b-purple">LOA Issued</span></td>
+      </tr>
+      <tr>
+        <td>11</td>
+        <td><span class="badge b-purple">LOA Issued</span><br><small><code>LOA_ISSUED</code></small></td>
+        <td>HR Agent</td>
+        <td>Once the candidate signs, HR clicks <strong>"Upload Signed LOA"</strong> (<code>UPLOAD_SIGNED_LOA</code>) to attach the returned copy.</td>
+        <td>Stepper shows <strong>LOA Issued</strong>. Requester sees the offer is out with the candidate.</td>
+        <td>→ <span class="badge b-green">LOA Accepted</span></td>
+      </tr>
+      <tr>
+        <td>12</td>
+        <td><span class="badge b-green">LOA Accepted</span><br><small><code>LOA_ACCEPTED</code></small></td>
+        <td>HR Agent</td>
+        <td>HR clicks <strong>"Mark LOA Accepted"</strong> (<code>MARK_LOA_ACCEPTED</code>) to confirm the signed offer and finalise the hire.</td>
+        <td>Stepper shows <strong>LOA Accepted</strong>.</td>
+        <td>→ <span class="badge b-green">Completed</span></td>
+      </tr>
+      <tr>
+        <td>13</td>
+        <td><span class="badge b-green">Completed</span><br><small><code>COMPLETED</code></small></td>
+        <td>System</td>
+        <td>The hire is finalised. The system can automatically create an <strong>Onboarding</strong> ticket (Section 4.4) for the new employee.</td>
+        <td>Stepper shows all steps completed. Requester sees <strong>Completed</strong>.</td>
+        <td>→ Onboarding (Section 4.4)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ─── REJECTION BRANCH TABLE ─── -->
+  <h3>4.3.2 &nbsp; Rejection &amp; Loop-Back Paths</h3>
+  <p>The hiring workflow has several decision points. Executive rejections loop back to Submitted; a failed interview returns to recruitment; an LOA rejection is terminal.</p>
+  <table>
+    <thead>
+      <tr><th>Decision Point</th><th>Status Shown</th><th>What Happens</th><th>Can the Requester Re-submit?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="badge b-blue">CEO Approval</span></td><td><span class="badge b-red">CEO Rejected</span></td><td>Routes back to <span class="badge b-grey">Submitted</span>. The CEO's comment explains why.</td><td><strong>Yes</strong> — correct and resubmit.</td></tr>
+      <tr><td><span class="badge b-blue">Group DCEO Approval</span></td><td><span class="badge b-red">Group DCEO Rejected</span></td><td>Routes back to <span class="badge b-grey">Submitted</span> (or fully rejected). The Group DCEO's comment explains why.</td><td><strong>Yes</strong> — correct and resubmit.</td></tr>
+      <tr><td><span class="badge b-amber">Interview Feedback</span></td><td><span class="badge b-red">Candidate Rejected</span></td><td>Returns to <span class="badge b-purple">Job Posted</span> to resume recruitment with other candidates — the request itself is <strong>not</strong> cancelled.</td><td>N/A — recruitment continues.</td></tr>
+      <tr><td><span class="badge b-blue">LOA Pending</span></td><td><span class="badge b-red">LOA Rejected</span></td><td>The LOA cycle <strong>stops</strong>. The hiring manager's comment is visible.</td><td>Raise a new request if needed.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── VISUAL DETAILED FLOW DIAGRAM ─── -->
+  <h3>4.3.3 &nbsp; Visual Flow — Approval → Recruitment → Offer</h3>
+  <p>The hiring journey runs in three phases: executive approval, recruitment &amp; selection, and the Letter of Acceptance cycle.</p>
+
+  <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
+    <!-- Phase A -->
+    <div style="background:var(--soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">PHASE A — Executive Approval</div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Submitted</span><span class="arr">→</span>
+        <span class="node gate">CEO<br>Approval</span><span class="arr">→</span>
+        <span class="node gate">Group DCEO<br>Approval</span>
+      </div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
+        <span style="color:var(--warn);font-weight:600">Rejection loops back:</span>
+        <span class="badge b-red">CEO Rejected</span>
+        <span class="badge b-red">Group DCEO Rejected</span>
+        <span style="color:var(--muted)">→ Back to <span class="badge b-grey">Submitted</span></span>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;Both executives approved&nbsp; ↓</div>
+    <!-- Phase B -->
+    <div style="background:#f3f0fb;border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">PHASE B — Recruitment &amp; Selection</div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Job Posted</span><span class="arr">→</span>
+        <span class="node gate">Manager<br>Review</span><span class="arr">→</span>
+        <span class="node">Interview<br>Scheduled</span><span class="arr">→</span>
+        <span class="node">Interview<br>Feedback</span><span class="arr">→</span>
+        <span class="node">HR<br>Screening</span>
+      </div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
+        <span style="color:var(--warn);font-weight:600">Candidate rejected:</span>
+        <span class="badge b-red">Candidate Rejected</span>
+        <span style="color:var(--muted)">→ Back to <span class="badge b-purple">Job Posted</span> (try other candidates)</span>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;Candidate cleared screening&nbsp; ↓</div>
+    <!-- Phase C -->
+    <div style="background:#f0faf5;border:1px solid var(--ok);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:14px">PHASE C — Letter of Acceptance &amp; Completion</div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node gate">LOA<br>Pending</span><span class="arr">→</span>
+        <span class="node">LOA<br>Approved</span><span class="arr">→</span>
+        <span class="node">LOA<br>Issued</span><span class="arr">→</span>
+        <span class="node">LOA<br>Accepted</span><span class="arr">→</span>
+        <span class="node end">Completed<br><small>→ Onboarding</small></span>
+      </div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
+        <span style="color:var(--warn);font-weight:600">LOA rejected:</span>
+        <span class="badge b-red">LOA Rejected</span>
+        <span style="color:var(--muted)">→ cycle stops</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WHO DOES WHAT ─── -->
+  <h3>4.3.4 &nbsp; Who Does What — Roles &amp; Actions at a Glance</h3>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Actions Available</th><th>Applicable Statuses</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Hiring Manager</strong> (requester)</td><td>Submit request, select candidates, submit interview feedback, approve/reject LOA</td><td><span class="badge b-blue">Manager Review</span>, <span class="badge b-blue">Interview Scheduled</span>, <span class="badge b-blue">LOA Pending</span></td></tr>
+      <tr><td><strong>HR Agent / Admin</strong></td><td>Route to CEO, route to Group DCEO, mark job posted, upload resumes &amp; route to manager, schedule interview, update screening, upload &amp; route LOA, issue LOA, upload signed LOA, mark accepted</td><td><span class="badge b-grey">Submitted</span>, <span class="badge b-purple">Job Posted</span>, <span class="badge b-purple">HR Screening</span>, LOA steps</td></tr>
+      <tr><td><strong>CEO</strong></td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">CEO Approval</span></td></tr>
+      <tr><td><strong>Group Deputy CEO</strong></td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">Group DCEO Approval</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info"><span class="lbl">Key fields in the request form</span>
+    Job Title (required), Department (required), Role Category (required: Junior Executive / Senior Executive / Manager / Head of Department / C-Level), Employment Type (required: Permanent / Temporary / Contract), Proposed Salary (optional), Org Chart (optional attachment), Job Description (optional attachment), Candidate Documents (optional — up to 5 candidates with Resume / Certificates / Transcripts).
+  </div>
+  <div class="box tip"><span class="lbl">Best Practices</span>
+    <ul>
+      <li>Only users with the <strong>Hiring Manager</strong> role can raise a New Hiring Request.</li>
+      <li>Both the <strong>CEO and Group Deputy CEO</strong> must approve before the role can be posted — there is no amount-based skip.</li>
+      <li>A <strong>rejected candidate</strong> at the interview stage does not cancel the request — it returns to <strong>Job Posted</strong> so recruitment can continue.</li>
+      <li>An <strong>LOA rejection</strong> by the hiring manager stops the offer cycle; coordinate with the candidate before re-issuing.</li>
+      <li>On completion, an <strong>Onboarding</strong> ticket can be created automatically for the new hire (Section 4.4).</li>
+    </ul>
+  </div>
+  <div class="box example"><span class="lbl">Example Scenario</span>
+    A department needs a new Senior Executive. The hiring manager opens <strong>HR Services → New Hiring Request</strong>, enters the job title, department, role category "Senior Executive", employment type "Permanent", and attaches a job description. HR routes it to the CEO, who approves; HR then routes it to the Group Deputy CEO, who also approves. HR posts the job, uploads three resumes, and routes them to the hiring manager, who shortlists two candidates. HR schedules interviews; the manager submits positive feedback for one candidate. HR completes reference checks, uploads the LOA, and routes it for approval. The manager approves; HR issues the LOA, uploads the signed copy, and marks it accepted. The hire is completed and an onboarding ticket is created.
+  </div>
+
+  <h2 id="track-44">4.4 New Employee Onboarding</h2>
+
+  <p>The New Employee Onboarding track (request type <strong>New Employee Onboarding</strong>) walks a new hire through their first weeks, from pre-arrival setup to a completed onboarding. It can be raised directly by HR or <strong>created automatically</strong> when a New Hiring Request completes (Section 4.3). An <strong>HR agent</strong> drives the ticket forward one phase at a time; a supporting <strong>onboarding checklist</strong> (tasks) and an optional <strong>buddy assignment</strong> help track the detailed work within each phase. There is no approval gate — this is an execution workflow, not an approval one.</p>
+
+  <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
-    <span class="node start">Submitted</span><span class="arr">→</span>
-    <span class="node gate">HR Approval</span><span class="arr">→</span>
+    <span class="node start">Onboarding Submitted</span><span class="arr">→</span>
     <span class="node">Pre-Arrival Setup</span><span class="arr">→</span>
     <span class="node">Ready for Day 1</span><span class="arr">→</span>
     <span class="node">Day 1 Orientation</span><span class="arr">→</span>
-    <span class="node">Week 1</span><span class="arr">→</span>
-    <span class="node">Month 1–3 Milestones</span><span class="arr">→</span>
-    <span class="node end">Completed</span>
+    <span class="node">Week 1 Integration</span><span class="arr">→</span>
+    <span class="node end">Onboarding Complete</span>
   </div>
 
-  <h2>4.5 Offboarding Track</h2>
+  <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
+  <h3>4.4.1 &nbsp; Detailed User Journey — New Employee Onboarding</h3>
+  <p>Onboarding tickets are raised under <strong>HR Services</strong>. The HR agent advances the ticket through each phase with a single action button, completing the supporting checklist tasks along the way, and closes it after the Week 1 integration phase.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:5%">#</th>
+        <th style="width:16%">Status</th>
+        <th style="width:12%">Who Acts</th>
+        <th style="width:25%">What Happens</th>
+        <th style="width:22%">What the Requester Sees</th>
+        <th style="width:20%">Next Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="badge b-grey">Onboarding Submitted</span><br><small><code>ONBOARDING_SUBMITTED</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>The ticket is created via <strong>Create Request</strong> (<em>HR Services → New Employee Onboarding</em>) or auto-generated from a completed hire. Required fields: employee full name, email, start date, department, job title. The HR agent reviews the new-hire details and clicks <strong>"Start Pre-Arrival Setup"</strong> (<code>ADVANCE_ONBOARDING_PHASE</code>).</td>
+        <td>Confirmation banner with request ID. Stepper highlights <strong>Onboarding Submitted</strong>. SLA timer starts (48 hrs).</td>
+        <td>→ <span class="badge b-purple">Pre-Arrival Setup</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-purple">Pre-Arrival Setup</span><br><small><code>ONBOARDING_PRE_ARRIVAL_SETUP</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>HR completes pre-arrival tasks from the checklist (account creation, equipment provisioning, access requests), then clicks <strong>"Mark Day 1 Ready"</strong>.</td>
+        <td>Stepper shows <strong>Pre-Arrival Setup</strong>. Requester sees preparation is underway.</td>
+        <td>→ <span class="badge b-purple">Ready for Day 1</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="badge b-purple">Ready for Day 1</span><br><small><code>ONBOARDING_READY_FOR_DAY_1</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>All pre-arrival tasks are done and the new hire is ready to start. On their arrival, HR clicks <strong>"Begin Day 1 Orientation"</strong>.</td>
+        <td>Stepper shows <strong>Ready for Day 1</strong>.</td>
+        <td>→ <span class="badge b-blue">Day 1 Orientation</span></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><span class="badge b-blue">Day 1 Orientation</span><br><small><code>ONBOARDING_DAY_1_ORIENTATION</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>HR runs the Day 1 orientation (welcome, introductions, policies, workstation). Once complete, they click <strong>"Advance to Week 1 Integration"</strong>.</td>
+        <td>Stepper shows <strong>Day 1 Orientation</strong>.</td>
+        <td>→ <span class="badge b-blue">Week 1 Integration</span></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><span class="badge b-blue">Week 1 Integration</span><br><small><code>ONBOARDING_WEEK_1_INTEGRATION</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>The new hire settles into the team during the first week. When all onboarding tasks are done, HR clicks <strong>"Complete Onboarding"</strong> (<code>COMPLETE_ONBOARDING</code>).</td>
+        <td>Stepper shows <strong>Week 1 Integration</strong>. Requester sees onboarding is nearly complete.</td>
+        <td>→ <span class="badge b-green">Onboarding Complete</span></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><span class="badge b-green">Onboarding Complete</span><br><small><code>ONBOARDING_COMPLETED</code></small></td>
+        <td>System</td>
+        <td>Onboarding is finalised and the ticket is closed.</td>
+        <td>Stepper shows all steps completed. Requester sees <strong>Onboarding Complete</strong>.</td>
+        <td>End of life cycle.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ─── VISUAL DETAILED FLOW DIAGRAM ─── -->
+  <h3>4.4.2 &nbsp; Visual Flow — Onboarding Phases</h3>
+  <p>Onboarding is a straightforward linear progression with <strong>no approval gates and no rejection branches</strong>. The HR agent advances one phase at a time as the new hire's first weeks progress.</p>
+
+  <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
+    <div style="background:#f3f0fb;border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">PRE-ARRIVAL &amp; ARRIVAL <span style="font-weight:400;font-size:12px;color:var(--muted)">(HR agent advances each phase)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Onboarding<br>Submitted</span><span class="arr">→</span>
+        <span class="node">Pre-Arrival<br>Setup</span><span class="arr">→</span>
+        <span class="node">Ready for<br>Day 1</span>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;New hire arrives&nbsp; ↓</div>
+    <div style="background:#f0faf5;border:1px solid var(--ok);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:14px">INTEGRATION &amp; COMPLETION</div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Day 1<br>Orientation</span><span class="arr">→</span>
+        <span class="node">Week 1<br>Integration</span><span class="arr">→</span>
+        <span class="node end">Onboarding<br>Complete</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WHO DOES WHAT ─── -->
+  <h3>4.4.3 &nbsp; Who Does What — Roles &amp; Actions at a Glance</h3>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Actions Available</th><th>Applicable Statuses</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Requester</strong> (HR / hiring manager)</td><td>Raise onboarding ticket, view progress, comment</td><td>Creator only — no phase actions</td></tr>
+      <tr><td><strong>HR Agent / Admin</strong></td><td>Advance each onboarding phase, manage the onboarding checklist (tasks), assign a buddy, set/adjust start date, complete onboarding</td><td>All onboarding statuses from <span class="badge b-grey">Onboarding Submitted</span> to <span class="badge b-blue">Week 1 Integration</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info"><span class="lbl">Key fields in the request form</span>
+    Employee Full Name (required), Employee Email (required), Start Date (required), Department (required), Job Title (required).
+  </div>
+  <div class="box tip"><span class="lbl">Best Practices</span>
+    <ul>
+      <li>Onboarding tickets are often <strong>created automatically</strong> when a New Hiring Request completes — check the HR queue rather than raising a duplicate.</li>
+      <li>Use the <strong>onboarding checklist (tasks)</strong> to track the detailed work within each phase (accounts, equipment, access, orientation items).</li>
+      <li>Assign an <strong>onboarding buddy</strong> to help the new hire settle in during the first week.</li>
+      <li>Keep the <strong>start date</strong> accurate — it anchors the pre-arrival and Day 1 timing.</li>
+      <li>This is an <strong>execution workflow with no approval gate</strong>; HR advances it phase-by-phase as the new hire's first weeks progress.</li>
+    </ul>
+  </div>
+  <div class="box example"><span class="lbl">Example Scenario</span>
+    A new Marketing Executive is hired and an onboarding ticket is auto-created from the completed hiring request. The HR agent reviews the details and clicks <strong>Start Pre-Arrival Setup</strong>, completing checklist tasks for the laptop, email account, and building access, then marks <strong>Day 1 Ready</strong> and assigns a buddy. On the start date HR clicks <strong>Begin Day 1 Orientation</strong>, runs the welcome session, then advances to <strong>Week 1 Integration</strong>. At the end of the first week, with all tasks done, HR clicks <strong>Complete Onboarding</strong> and the ticket closes.
+  </div>
+
+  <h2 id="track-45">4.5 Offboard an Employee</h2>
+
+  <p>The Offboard an Employee track (request type <strong>Offboard an Employee</strong>) manages a departing employee's exit from first notice through to final access revocation. It is raised by HR and progresses through five phases driven by an <strong>HR agent</strong> one step at a time. There is <strong>no approval gate</strong> — this is a pure execution workflow. Supporting tools include an <strong>offboarding checklist (tasks)</strong> and an optional <strong>resignation letter upload</strong>.</p>
+
+  <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
-    <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node start">Offboarding Submitted</span><span class="arr">→</span>
     <span class="node">Notice Period</span><span class="arr">→</span>
     <span class="node">Knowledge Transfer</span><span class="arr">→</span>
     <span class="node">Final Week</span><span class="arr">→</span>
     <span class="node">Exit Procedures</span><span class="arr">→</span>
-    <span class="node end">Completed</span>
+    <span class="node end">Offboarding Complete</span>
   </div>
 
-  <h2>4.6 Finance Track (Purchase &amp; Reimbursement)</h2>
+  <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
+  <h3>4.5.1 &nbsp; Detailed User Journey — Offboard an Employee</h3>
+  <p>Offboarding tickets are raised under <strong>HR Services</strong>. The HR agent advances the ticket through each phase, completing checklist tasks at every stage, until exit procedures are done and the ticket is closed.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:5%">#</th>
+        <th style="width:16%">Status</th>
+        <th style="width:12%">Who Acts</th>
+        <th style="width:25%">What Happens</th>
+        <th style="width:22%">What the Requester Sees</th>
+        <th style="width:20%">Next Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="badge b-grey">Offboarding Submitted</span><br><small><code>OFFBOARDING_SUBMITTED</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>Ticket is created via <strong>Create Request</strong>: <em>HR Services → Offboard an Employee</em>. Required fields: employee full name, email, last working day. HR can upload the <strong>resignation letter</strong> at any point. The HR agent clicks <strong>"Start Notice Period"</strong> (<code>ADVANCE_OFFBOARDING_PHASE</code>) to begin.</td>
+        <td>Confirmation banner with request ID. Stepper highlights <strong>Offboarding Submitted</strong>. SLA timer starts (48 hrs).</td>
+        <td>→ <span class="badge b-blue">Notice Period</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-blue">Notice Period</span><br><small><code>OFFBOARDING_NOTICE_PERIOD</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>HR manages the notice period — informing the team, beginning handover planning, working through checklist tasks. When the notice period is underway, HR clicks <strong>"Begin Knowledge Transfer"</strong>.</td>
+        <td>Stepper shows <strong>Notice Period</strong>.</td>
+        <td>→ <span class="badge b-blue">Knowledge Transfer</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="badge b-blue">Knowledge Transfer</span><br><small><code>OFFBOARDING_KNOWLEDGE_TRANSFER</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>The departing employee documents processes, hands over projects and files, and completes knowledge-transfer checklist items. Once done, HR clicks <strong>"Advance to Final Week"</strong>.</td>
+        <td>Stepper shows <strong>Knowledge Transfer</strong>.</td>
+        <td>→ <span class="badge b-blue">Final Week</span></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><span class="badge b-blue">Final Week</span><br><small><code>OFFBOARDING_FINAL_WEEK</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>The employee's last week — final farewells, outstanding tasks cleared. HR clicks <strong>"Begin Exit Procedures"</strong> to start the formal IT and access revocation steps.</td>
+        <td>Stepper shows <strong>Final Week</strong>.</td>
+        <td>→ <span class="badge b-purple">Exit Procedures</span></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><span class="badge b-purple">Exit Procedures</span><br><small><code>OFFBOARDING_EXIT_PROCEDURES</code></small></td>
+        <td>HR Agent / Admin</td>
+        <td>HR completes exit procedures: IT account and access revocation, hardware and equipment collection, ID/access card return. When all exit tasks are done, HR clicks <strong>"Complete Offboarding"</strong> (<code>COMPLETE_OFFBOARDING</code>).</td>
+        <td>Stepper shows <strong>Exit Procedures</strong>.</td>
+        <td>→ <span class="badge b-green">Offboarding Complete</span></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><span class="badge b-green">Offboarding Complete</span><br><small><code>OFFBOARDING_COMPLETED</code></small></td>
+        <td>System</td>
+        <td>Offboarding is finalised and the ticket is closed.</td>
+        <td>Stepper shows all steps completed. Requester sees <strong>Offboarding Complete</strong>.</td>
+        <td>End of life cycle.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ─── VISUAL FLOW ─── -->
+  <h3>4.5.2 &nbsp; Visual Flow — Offboarding Phases</h3>
+  <p>Offboarding is a strictly linear progression with <strong>no approval gates and no rejection branches</strong>. The HR agent advances one phase at a time as the departure progresses.</p>
+
+  <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
+    <div style="background:var(--soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">DEPARTURE PHASES <span style="font-weight:400;font-size:12px;color:var(--muted)">(HR agent advances each phase)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Offboarding<br>Submitted</span><span class="arr">→</span>
+        <span class="node">Notice<br>Period</span><span class="arr">→</span>
+        <span class="node">Knowledge<br>Transfer</span><span class="arr">→</span>
+        <span class="node">Final<br>Week</span>
+      </div>
+    </div>
+    <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;Last day approaching&nbsp; ↓</div>
+    <div style="background:#f0faf5;border:1px solid var(--ok);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:14px">EXIT &amp; CLOSURE</div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Exit<br>Procedures</span><span class="arr">→</span>
+        <span class="node end">Offboarding<br>Complete</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WHO DOES WHAT ─── -->
+  <h3>4.5.3 &nbsp; Who Does What — Roles &amp; Actions at a Glance</h3>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Actions Available</th><th>Applicable Statuses</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Requester</strong> (HR)</td><td>Raise offboarding ticket, upload resignation letter, view progress, comment</td><td>Creator only — no phase-advance actions</td></tr>
+      <tr><td><strong>HR Agent / Admin</strong></td><td>Advance each offboarding phase, manage the offboarding checklist (tasks), upload resignation letter, complete offboarding</td><td>All offboarding statuses from <span class="badge b-grey">Offboarding Submitted</span> to <span class="badge b-purple">Exit Procedures</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info"><span class="lbl">Key fields in the request form</span>
+    Employee Full Name (required), Employee Email (required), Last Working Day (required, date).
+  </div>
+  <div class="box tip"><span class="lbl">Best Practices</span>
+    <ul>
+      <li>Raise the offboarding ticket <strong>as soon as resignation is confirmed</strong> — early setup gives more time for knowledge transfer.</li>
+      <li>Upload the <strong>resignation letter</strong> early to keep a record on the ticket.</li>
+      <li>Use the <strong>offboarding checklist (tasks)</strong> to track every exit item — IT access revocation, hardware return, payroll notification, etc.</li>
+      <li>The <strong>Last Working Day</strong> field anchors the notice and final-week timing; keep it accurate.</li>
+      <li>This is an <strong>execution workflow with no approval gate</strong> — HR drives it start to finish.</li>
+    </ul>
+  </div>
+  <div class="box example"><span class="lbl">Example Scenario</span>
+    A Finance Executive resigns with four weeks' notice. HR opens <strong>HR Services → Offboard an Employee</strong>, enters the employee's name, email, and last working day, uploads the resignation letter, and clicks <strong>Start Notice Period</strong>. As the employee documents processes and hands over files, HR advances to <strong>Knowledge Transfer</strong>, then <strong>Final Week</strong>. On the last day, HR clicks <strong>Begin Exit Procedures</strong>, completes the IT revocation and hardware-collection checklist, and clicks <strong>Complete Offboarding</strong>. The ticket closes.
+  </div>
+
+  <h2 id="track-46">4.6 Purchase Requisition Track</h2>
+
+  <p>The <strong>Group DCEO approval step is conditional</strong>: it only triggers when the <strong>finalised amount exceeds RM 15,000</strong> (configurable threshold). For amounts ≤ RM 15,000, the CFO approval directly advances to Payment Processing, skipping Group DCEO entirely.</p>
+
+  <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
-    <span class="node start">Pending Ack</span><span class="arr">→</span>
+    <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node">Pending Acknowledgement</span><span class="arr">→</span>
     <span class="node">Acknowledged</span><span class="arr">→</span>
-    <span class="node">In Progress</span><span class="arr">→</span>
-    <span class="node gate">Finance Head / CFO Approval</span><span class="arr">→</span>
+    <span class="node gate">CFO Approval</span><span class="arr">→</span>
+    <span class="node gate">Group DCEO Approval<br><small>(if &gt; RM 15K)</small></span><span class="arr">→</span>
     <span class="node">Payment Processing</span><span class="arr">→</span>
+    <span class="node">Awaiting Payment Confirmation</span><span class="arr">→</span>
     <span class="node end">Closed</span>
   </div>
-  <p>You may see <span class="badge b-blue">Pending Manager Approval</span>, <span class="badge b-blue">Pending Finance Head Approval</span>, <span class="badge b-blue">Pending CFO Approval</span>, <span class="badge b-purple">Payment Processing</span>, <span class="badge b-green">Payment Completed</span>, <span class="badge b-green">Reimbursement Closed</span>. A rejection routes the request back to <span class="badge b-grey">Submitted</span> so you can correct and resubmit.</p>
 
-  <h2>4.7 Inter-Company Chargeback Track</h2>
+  <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
+  <h3>4.6.1 &nbsp; Detailed User Journey — Purchase Requisition</h3>
+  <p>Purchase Requisitions are raised under <strong>Group Finance</strong>. A Finance agent acknowledges the request, sets a finalised amount, and routes it through the CFO and Group DCEO approval chain before payment is processed. Rejections loop back to Submitted so the requester can correct and resubmit.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:6%">#</th>
+        <th style="width:14%">Status</th>
+        <th style="width:13%">Who Acts</th>
+        <th style="width:22%">What Happens</th>
+        <th style="width:25%">What the Requester Sees</th>
+        <th style="width:20%">Next Status / Branch</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="badge b-grey">Submitted</span></td>
+        <td>Requester (end user)</td>
+        <td>User fills in <strong>Create Request</strong> wizard: <em>Group Finance → Purchase Requisition</em>. Required fields: type of purchase (IT Hardware, Marketing, Office Supplies, Misc.), business unit / entity, estimated cost (RM), business justification, quotation/files. On submit a tracking ID is generated.</td>
+        <td>Confirmation banner with request ID. Stepper highlights <strong>Submitted</strong>. SLA timer starts (72 hrs).</td>
+        <td>→ <span class="badge b-blue">Pending Acknowledgement</span> (finance agent picks up)</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-blue">Pending Acknowledgement</span></td>
+        <td>Finance Agent / Admin</td>
+        <td>A Finance agent clicks <strong>"Acknowledge Request"</strong> to accept the request into the finance queue. Optional notes can be added.</td>
+        <td>Stepper moves to <strong>Pending Acknowledgement</strong>. Requester sees the request is in the finance queue.</td>
+        <td>→ <span class="badge b-blue">Acknowledged</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="badge b-blue">Acknowledged</span></td>
+        <td>Finance Agent / Admin</td>
+        <td>The Finance agent reviews the request, sets the <strong>finalised amount</strong>, attaches the invoice, and clicks <strong>"Set Amount &amp; Route to CFO"</strong>. This forwards the request to the CFO for approval.</td>
+        <td>Stepper shows <strong>Acknowledged</strong>. Requester is notified that the request is being reviewed and routed for approval.</td>
+        <td>→ <span class="badge b-blue">CFO Approval</span></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><span class="badge b-blue">CFO Approval</span></td>
+        <td>CFO</td>
+        <td>CFO reviews the financial commitment (cost, budget allocation, invoice). Clicks <strong>Approve</strong> or <strong>Reject</strong> with a comment. <em>On approval, the system checks the finalised amount:</em> if &gt; RM 15,000 the request is routed to Group DCEO; if ≤ RM 15,000 it advances directly to Payment Processing.</td>
+        <td>Stepper shows <strong>CFO Approval</strong>. SLA is <strong>paused</strong>. Requester sees the request is awaiting financial sign-off.</td>
+        <td>✅ Approve (amount &gt; RM 15K) → <span class="badge b-blue">Group DCEO Approval</span><br>✅ Approve (amount ≤ RM 15K) → <span class="badge b-purple">Payment Processing</span><br>❌ Reject → <span class="badge b-grey">Submitted</span> (can correct and resubmit)</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><span class="badge b-blue">Group DCEO Approval</span> <span class="badge b-amber">Only if &gt; RM 15K</span></td>
+        <td>Group Deputy CEO</td>
+        <td>Group DCEO reviews the high-level strategic and financial merit of <strong>high-value</strong> purchases. Approves or rejects with comment. <em>This step is skipped entirely when the finalised amount is RM 15,000 or below.</em></td>
+        <td>Stepper shows <strong>Group DCEO Approval</strong>. SLA paused. Requester sees the request is at the highest executive level (only shown when amount &gt; RM 15K).</td>
+        <td>✅ Approve → <span class="badge b-purple">Payment Processing</span><br>❌ Reject → <span class="badge b-grey">Submitted</span> (can correct and resubmit)</td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><span class="badge b-purple">Payment Processing</span></td>
+        <td>Finance Agent / Admin</td>
+        <td>The Finance agent processes the payment. They click <strong>"Mark Payment Complete"</strong> and enter a payment reference (e.g. PAY-2026-00456) and optional notes.</td>
+        <td>Stepper shows <strong>Payment Processing</strong>. Requester sees that payment is being processed.</td>
+        <td>→ <span class="badge b-purple">Awaiting Payment Confirmation</span></td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td><span class="badge b-purple">Awaiting Payment Confirmation</span></td>
+        <td>Finance Agent / Admin</td>
+        <td>Once the payment is confirmed (bank confirmation, receipt, etc.), the Finance agent clicks <strong>"Close Ticket"</strong> and adds optional closing notes.</td>
+        <td>Stepper shows <strong>Awaiting Payment Confirmation</strong>. Requester is notified that payment has been made and confirmation is pending.</td>
+        <td>→ <span class="badge b-green">Ticket Closed</span></td>
+      </tr>
+      <tr>
+        <td>8</td>
+        <td><span class="badge b-green">Ticket Closed</span></td>
+        <td>System</td>
+        <td>The purchase requisition is finalised. Payment has been confirmed and the ticket is closed.</td>
+        <td>Stepper shows all steps completed. Requester sees <strong>Closed</strong>.</td>
+        <td>End of life cycle. Ticket is closed.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ─── REJECTION BRANCH TABLE ─── -->
+  <h3>4.6.2 &nbsp; Rejection Paths</h3>
+  <p><strong>Note:</strong> Group DCEO rejection only applies to requests where the finalised amount exceeds RM 15,000. Lower-value requests skip this step entirely after CFO approval.</p>
+  <table>
+    <thead>
+      <tr><th>Rejection Point</th><th>Status Shown</th><th>What Happens</th><th>Can the Requester Re-submit?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="badge b-blue">CFO Approval</span></td><td><span class="badge b-red">CFO Rejected</span></td><td>Ticket routes back to <span class="badge b-grey">Submitted</span>. CFO's rejection comment is visible.</td><td><strong>Yes</strong> — correct the request and resubmit.</td></tr>
+      <tr><td><span class="badge b-blue">Group DCEO Approval</span></td><td><span class="badge b-red">Group DCEO Rejected</span></td><td>Ticket routes back to <span class="badge b-grey">Submitted</span>. Group DCEO's comment explains why.</td><td><strong>Yes</strong> — correct and resubmit.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── VISUAL DETAILED FLOW DIAGRAM ─── -->
+  <h3>4.6.3 &nbsp; Visual Flow — Finance Approval &amp; Payment</h3>
+  <p>The diagram below shows the two phases of a purchase requisition. <strong>Group DCEO approval only applies when the finalised amount exceeds RM 15,000</strong> (configurable threshold). Lower-value requests skip straight from CFO approval to Payment Processing.</p>
+
+  <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
+    <!-- Phase A -->
+    <div style="background:var(--soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">PHASE A — Finance Review &amp; Approval <span style="font-weight:400;font-size:12px;color:var(--muted)">(SLA paused during approvals)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Submitted</span><span class="arr">→</span>
+        <span class="node start">Pending<br>Acknowledgement</span><span class="arr">→</span>
+        <span class="node">Acknowledged</span><span class="arr">→</span>
+        <span class="node gate">CFO<br>Approval</span><span class="arr">→</span>
+        <span class="node gate">Group DCEO<br>Approval<br><small>(if &gt; RM 15K)</small></span>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--muted)">
+        <strong>CFO approves — amount branches:</strong><br>
+        &nbsp;&nbsp;• <strong>Amount &gt; RM 15,000</strong> → routes to Group DCEO Approval (above)<br>
+        &nbsp;&nbsp;• <strong>Amount ≤ RM 15,000</strong> → skips Group DCEO, goes straight to Payment Processing (Phase B)
+      </div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
+        <span style="color:var(--warn);font-weight:600">Rejection loops back:</span>
+        <span class="badge b-red">CFO Rejected</span>
+        <span class="badge b-red">Group DCEO Rejected</span>
+        <span style="color:var(--muted)">→ Back to <span class="badge b-grey">Submitted</span> (correct &amp; resubmit)</span>
+      </div>
+    </div>
+    <!-- Connector -->
+    <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;Both approvals passed&nbsp; ↓</div>
+    <!-- Phase B -->
+    <div style="background:#f0faf5;border:1px solid var(--ok);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:14px">PHASE B — Payment &amp; Closure <span style="font-weight:400;font-size:12px;color:var(--muted)">(Finance agent drives each step)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Payment<br>Processing</span><span class="arr">→</span>
+        <span class="node">Awaiting Payment<br>Confirmation</span><span class="arr">→</span>
+        <span class="node end">Closed</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WHO DOES WHAT ─── -->
+  <h3>4.6.4 &nbsp; Who Does What — Roles &amp; Actions at a Glance</h3>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Actions Available</th><th>Applicable Statuses</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Requester</strong> (end user)</td><td>Submit request, view progress, comment, correct &amp; resubmit after rejection</td><td>Creator only — no approval actions</td></tr>
+      <tr><td><strong>Finance Agent / Admin</strong></td><td>Acknowledge request, set finalised amount &amp; route to CFO, mark payment complete, close ticket</td><td><span class="badge b-blue">Pending Acknowledgement</span>, <span class="badge b-blue">Acknowledged</span>, <span class="badge b-purple">Payment Processing</span>, <span class="badge b-purple">Awaiting Payment Confirmation</span></td></tr>
+      <tr><td><strong>CFO</strong></td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">CFO Approval</span></td></tr>
+      <tr><td><strong>Group DCEO</strong></td><td>Approve or Reject (with comment) — <em>only involved when finalised amount &gt; RM 15,000</em></td><td><span class="badge b-blue">Group DCEO Approval</span> <span class="badge b-amber">Only if &gt; RM 15K</span></td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info"><span class="lbl">Key fields in the request form</span>
+    Type of Purchase (required: IT Hardware / Equipment, Marketing &amp; Advertising, Office Supplies, Miscellaneous), Business Unit / Entity (required), Estimated Cost in RM (required), Business Justification (required), Quotation / Files / Docs (required attachment).
+  </div>
+  <div class="box tip"><span class="lbl">Best Practices</span>
+    <ul>
+      <li>Always attach a vendor quotation — incomplete documentation is the top reason for CFO rejection.</li>
+      <li>Select the correct <strong>entity / business unit</strong> — wrong entity routes to the wrong approvers.</li>
+      <li>The SLA timer <strong>pauses</strong> during CFO and Group DCEO approvals.</li>
+      <li>Unlike IT approvals, finance rejections <strong>loop back to Submitted</strong> — you can correct and resubmit without creating a new request.</li>
+      <li>Purchase requisitions <strong>&gt; RM 15,000</strong> require Group DCEO approval after the CFO approves. Requests ≤ RM 15,000 skip this step and go directly to Payment Processing.</li>
+    </ul>
+  </div>
+  <div class="box example"><span class="lbl">Example Scenario</span>
+    A department lead needs to purchase three ergonomic desks (RM 4,500 total). They open <strong>Group Finance → Purchase Requisition</strong>, select "Office Supplies", enter the business unit, estimated cost RM 4,500, attach the vendor quotation PDF, and write a justification. A Finance agent acknowledges, sets the finalised amount, and routes to the CFO. The CFO approves, the Group DCEO approves, Finance processes the payment and closes the ticket.
+  </div>
+
+  <h2 id="track-47">4.7 Inter-Company Chargeback Track</h2>
+
+  <p>An Inter-Company Chargeback moves a cost from one internal entity (the <strong>Charge-From</strong> entity) to another (the <strong>Charge-To</strong> entity). Because two business units are affected, <strong>both entities must approve</strong> through their <em>designated entity approvers</em> before Finance processes the chargeback. Unlike Purchase Requisitions, there is <strong>no CFO or Group DCEO step and no payment disbursement</strong> — the approvals come from the entity approvers and Finance simply books and confirms the internal transfer.</p>
+
+  <!-- ─── HIGH-LEVEL FLOW ─── -->
   <div class="flow">
-    <span class="node start">From-Entity Approval</span><span class="arr">→</span>
+    <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node gate">From-Entity Approval</span><span class="arr">→</span>
     <span class="node gate">To-Entity Approval</span><span class="arr">→</span>
     <span class="node">Finance Review</span><span class="arr">→</span>
     <span class="node">Awaiting Confirmation</span><span class="arr">→</span>
     <span class="node end">Completed</span>
   </div>
-  <p>Both the charging and the charged entity must approve. If either declines (<span class="badge b-red">From-Entity Rejected</span> / <span class="badge b-red">To-Entity Rejected</span>) the chargeback stops.</p>
+
+  <!-- ─── DETAILED USER JOURNEY TABLE ─── -->
+  <h3>4.7.1 &nbsp; Detailed User Journey — Inter-Company Chargeback</h3>
+  <p>Inter-Company Chargebacks are raised under <strong>Group Finance</strong>. A Finance agent submits the chargeback to the From-Entity approver; once both entity approvers sign off, the Finance team books the transfer and closes the ticket. <strong>An entity rejection stops the chargeback</strong> — there is no automatic loop back to Submitted.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:6%">#</th>
+        <th style="width:14%">Status</th>
+        <th style="width:13%">Who Acts</th>
+        <th style="width:22%">What Happens</th>
+        <th style="width:25%">What the Requester Sees</th>
+        <th style="width:20%">Next Status / Branch</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="badge b-grey">Submitted</span></td>
+        <td>Requester (end user) / Finance Agent</td>
+        <td>The request is created via <strong>Create Request</strong>: <em>Group Finance → Inter-Company Chargeback</em>. Required fields: charge-from entity, charge-to entity, amount (RM), description/reason; cost center is optional. A tracking ID is generated and a description is auto-composed.</td>
+        <td>Confirmation banner with request ID. Stepper highlights <strong>Submitted</strong>. SLA timer starts (72 hrs).</td>
+        <td>→ <span class="badge b-blue">From-Entity Approval</span> (after Finance submits)</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-grey">Submitted</span> → routing</td>
+        <td>Finance Agent / Admin</td>
+        <td>A Finance agent clicks <strong>"Submit for Entity Approval"</strong> (<code>CHARGEBACK_SUBMIT</code>). The system looks up the <strong>charge-from entity's designated approver</strong>, assigns the ticket to them, and pauses the SLA.</td>
+        <td>Stepper moves toward <strong>From-Entity Approval</strong>. Requester sees the chargeback is routed for approval.</td>
+        <td>→ <span class="badge b-blue">From-Entity Approval</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="badge b-blue">From-Entity Approval</span><br><small><code>PENDING_FROM_ENTITY_APPROVAL</code></small></td>
+        <td>From-Entity Approver</td>
+        <td>The designated approver for the <strong>charge-from entity</strong> reviews the charge and clicks <strong>Approve</strong> or <strong>Reject</strong> with a comment. On approval, the ticket is routed to the <strong>charge-to entity's</strong> approver.</td>
+        <td>Stepper shows <strong>From-Entity Approval</strong>. SLA is <strong>paused</strong>.</td>
+        <td>✅ Approve → <span class="badge b-blue">To-Entity Approval</span><br>❌ Reject → <span class="badge b-red">From-Entity Rejected</span> (stops)</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><span class="badge b-blue">To-Entity Approval</span><br><small><code>PENDING_TO_ENTITY_APPROVAL</code></small></td>
+        <td>To-Entity Approver</td>
+        <td>The designated approver for the <strong>charge-to entity</strong> (the entity being charged) reviews and clicks <strong>Approve</strong> or <strong>Reject</strong> with a comment. On approval, the chargeback proceeds to Finance for booking.</td>
+        <td>Stepper shows <strong>To-Entity Approval</strong>. SLA remains <strong>paused</strong>.</td>
+        <td>✅ Approve → <span class="badge b-purple">Finance Review</span><br>❌ Reject → <span class="badge b-red">To-Entity Rejected</span> (stops)</td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><span class="badge b-purple">Finance Review</span><br><small><code>CHARGEBACK_FINANCE_REVIEW</code></small></td>
+        <td>Finance Agent / Admin</td>
+        <td>With both entities approved (SLA resumes), the Finance agent books the internal transfer and clicks <strong>"Mark as Confirmed"</strong> (<code>CHARGEBACK_MARK_CONFIRMED</code>).</td>
+        <td>Stepper shows <strong>Finance Review</strong>. Requester sees the chargeback is being processed by Finance.</td>
+        <td>→ <span class="badge b-purple">Awaiting Confirmation</span></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><span class="badge b-purple">Awaiting Confirmation</span><br><small><code>AWAITING_CHARGEBACK_CONFIRMATION</code></small></td>
+        <td>Finance Agent / Admin</td>
+        <td>Once the internal transfer is confirmed in the ledger, the Finance agent clicks <strong>"Complete Chargeback"</strong> (<code>CHARGEBACK_COMPLETE</code>) to close the ticket.</td>
+        <td>Stepper shows <strong>Awaiting Confirmation</strong>. Requester is notified the chargeback is being finalised.</td>
+        <td>→ <span class="badge b-green">Chargeback Completed</span></td>
+      </tr>
+      <tr>
+        <td>7</td>
+        <td><span class="badge b-green">Chargeback Completed</span><br><small><code>CHARGEBACK_COMPLETED</code></small></td>
+        <td>System</td>
+        <td>The chargeback is finalised and the cost has been transferred between the entities. The ticket is closed.</td>
+        <td>Stepper shows all steps completed. Requester sees <strong>Completed</strong>.</td>
+        <td>End of life cycle.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ─── REJECTION BRANCH TABLE ─── -->
+  <h3>4.7.2 &nbsp; Rejection Paths</h3>
+  <p>A chargeback has <strong>two rejection points</strong> — either entity approver can decline. <strong>Important:</strong> unlike Purchase Requisitions and Budget Proposals, a rejection is <strong>terminal</strong> — the chargeback stops and does not loop back to Submitted. To pursue it again, a new chargeback request must be created.</p>
+  <table>
+    <thead>
+      <tr><th>Rejection Point</th><th>Status Shown</th><th>What Happens</th><th>Can the Requester Re-submit?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="badge b-blue">From-Entity Approval</span></td><td><span class="badge b-red">From-Entity Rejected</span></td><td>The chargeback <strong>stops</strong>. The from-entity approver's comment explains why. The to-entity approver is never engaged.</td><td>Create a <strong>new</strong> chargeback request.</td></tr>
+      <tr><td><span class="badge b-blue">To-Entity Approval</span></td><td><span class="badge b-red">To-Entity Rejected</span></td><td>The chargeback <strong>stops</strong> after the from-entity already approved. The to-entity approver's comment is visible.</td><td>Create a <strong>new</strong> chargeback request.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── VISUAL DETAILED FLOW DIAGRAM ─── -->
+  <h3>4.7.3 &nbsp; Visual Flow — Dual-Entity Approval &amp; Finance Booking</h3>
+  <p>Both the charging and the charged entity must approve. If <strong>either</strong> declines, the chargeback stops at that point.</p>
+
+  <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
+    <!-- Phase A -->
+    <div style="background:var(--soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">PHASE A — Dual-Entity Approval <span style="font-weight:400;font-size:12px;color:var(--muted)">(SLA paused during both approvals)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Submitted</span><span class="arr">→</span>
+        <span class="node gate">From-Entity<br>Approval</span><span class="arr">→</span>
+        <span class="node gate">To-Entity<br>Approval</span>
+      </div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
+        <span style="color:var(--warn);font-weight:600">Either rejection stops it:</span>
+        <span class="badge b-red">From-Entity Rejected</span>
+        <span class="badge b-red">To-Entity Rejected</span>
+        <span style="color:var(--muted)">→ chargeback ends (raise a new request)</span>
+      </div>
+    </div>
+    <!-- Connector -->
+    <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;Both entities approved&nbsp; ↓</div>
+    <!-- Phase B -->
+    <div style="background:#f0faf5;border:1px solid var(--ok);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:14px">PHASE B — Finance Booking &amp; Closure <span style="font-weight:400;font-size:12px;color:var(--muted)">(Finance agent drives each step)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Finance<br>Review</span><span class="arr">→</span>
+        <span class="node">Awaiting<br>Confirmation</span><span class="arr">→</span>
+        <span class="node end">Completed</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WHO DOES WHAT ─── -->
+  <h3>4.7.4 &nbsp; Who Does What — Roles &amp; Actions at a Glance</h3>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Actions Available</th><th>Applicable Statuses</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Requester</strong> (end user)</td><td>Create chargeback request, view progress, comment</td><td>Creator only — no approval actions</td></tr>
+      <tr><td><strong>Finance Agent / Admin</strong></td><td>Submit for entity approval, mark as confirmed, complete chargeback</td><td><span class="badge b-grey">Submitted</span>, <span class="badge b-purple">Finance Review</span>, <span class="badge b-purple">Awaiting Confirmation</span></td></tr>
+      <tr><td><strong>From-Entity Approver</strong> (designated entity approver)</td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">From-Entity Approval</span></td></tr>
+      <tr><td><strong>To-Entity Approver</strong> (designated entity approver)</td><td>Approve or Reject (with comment)</td><td><span class="badge b-blue">To-Entity Approval</span></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── COMPARISON TABLE ─── -->
+  <h3>4.7.5 &nbsp; Chargeback vs Purchase Requisition — Key Differences</h3>
+  <table>
+    <thead>
+      <tr><th>Aspect</th><th>Inter-Company Chargeback (Section 4.7)</th><th>Purchase Requisition (Section 4.6)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Purpose</td><td>Move a cost between two internal entities</td><td>Request purchase of goods or services from a vendor</td></tr>
+      <tr><td>Approvers</td><td><strong>Two entity approvers</strong> (charge-from + charge-to) — no CFO / Group DCEO</td><td>CFO → Group DCEO <em>(if &gt; RM 15K)</em></td></tr>
+      <tr><td>Payment phase</td><td>❌ None — an internal ledger transfer, not a disbursement</td><td>✅ Full payment lifecycle (processing → confirmation → close)</td></tr>
+      <tr><td>On rejection</td><td><strong>Terminal</strong> — chargeback stops; raise a new request</td><td>Loops back to Submitted (correct &amp; resubmit)</td></tr>
+      <tr><td>SLA</td><td>72 hours (paused during both entity approvals)</td><td>72 hours (paused during approvals)</td></tr>
+      <tr><td>Key form fields</td><td>Charge-From Entity, Charge-To Entity, Amount, Cost Center (optional), Description</td><td>Type of Purchase, Entity, Estimated Cost, Justification, Quotation</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info"><span class="lbl">Key fields in the request form</span>
+    Charge From Entity (required), Charge To Entity (required), Amount in RM (required), Cost Center (optional), Description / Reason (required).
+  </div>
+  <div class="box tip"><span class="lbl">Best Practices</span>
+    <ul>
+      <li>Double-check the <strong>charge-from</strong> and <strong>charge-to</strong> entities before submitting — they determine which approvers are engaged, and the wrong entity routes to the wrong person.</li>
+      <li>Provide a clear <strong>description / reason</strong> and a cost center where applicable — entity approvers reject vague charges.</li>
+      <li>The SLA timer <strong>pauses</strong> during both the From-Entity and To-Entity approvals.</li>
+      <li>A rejection by either entity is <strong>final</strong> — there is no resubmit loop. You will need to raise a fresh chargeback request.</li>
+    </ul>
+  </div>
+  <div class="box example"><span class="lbl">Example Scenario</span>
+    The Marketing team in Entity A ran a shared campaign that also benefited Entity B, and RM 8,000 of the cost should sit with Entity B. A Finance agent opens <strong>Group Finance → Inter-Company Chargeback</strong>, selects charge-from "Entity A", charge-to "Entity B", amount RM 8,000, cost center "MKT-2026", and a description, then clicks <strong>Submit for Entity Approval</strong>. Entity A's approver approves, then Entity B's approver approves. Finance books the transfer, marks it confirmed, and completes the chargeback.
+  </div>
+
+  <h2 id="track-48">4.8 Submit Budget Proposal Track</h2>
+
+  <!-- ─── IMPLEMENTATION STATUS ─── -->
+  <div class="box" style="background:#f0faf5;border-color:#2e7d32"><span class="lbl" style="background:#2e7d32">Implementation Status — Live</span>
+    <p style="margin:4px 0 0">The Budget Proposal track is <strong>fully wired end-to-end</strong>. Finance agents, the CFO, and the requester can all act on a Budget Proposal through its complete life cycle. The workflow is intentionally simpler than Purchase Requisition — <strong>no Group DCEO approval, no payment phase</strong>. Key behaviours:</p>
+    <ul style="margin:4px 0 0;padding-left:20px">
+      <li><strong>Acknowledge</strong> — Finance agents/admins see <strong>"Acknowledge Request"</strong> on a Budget Proposal at <code>SUBMITTED</code> (or <code>FINANCE_PENDING_ACK</code>).</li>
+      <li><strong>Route to CFO</strong> — at <code>FINANCE_ACKNOWLEDGED</code>, Finance clicks <strong>"Route to CFO"</strong> (action <code>ROUTE_TO_CFO_BP</code>). <em>No finalised amount or invoice is required</em> — this differs from Purchase Requisition.</li>
+      <li><strong>CFO decision</strong> — the CFO sees <strong>"CFO Approval Decision"</strong> (<code>CFO_DECISION_FIN</code>) at <code>PENDING_CFO_APPROVAL_FIN</code>. Approval routes directly to <code>FINANCE_IN_PROGRESS</code>.</li>
+      <li><strong>Update &amp; close</strong> — at <code>FINANCE_IN_PROGRESS</code>, Finance clicks <strong>"Update &amp; Close Budget"</strong> (<code>CLOSE_BUDGET_PROPOSAL</code>) to finalise the record and reach <code>TICKET_CLOSED_FIN</code>.</li>
+      <li><strong>No Group DCEO step</strong> — Budget Proposals skip Group DCEO entirely, regardless of amount.</li>
+      <li><strong>No payment phase</strong> — after CFO approval, Finance updates the budget record and closes the ticket.</li>
+    </ul>
+  </div>
+
+  <!-- ─── KEY DIFFERENCE NOTE ─── -->
+  <p>Budget Proposals are raised under <strong>Group Finance</strong>. Unlike Purchase Requisitions (Section 4.6), Budget Proposals have <strong>no Group DCEO approval and no payment phase</strong>. After CFO approval, the Finance agent updates the budget record and closes the ticket. This is a shorter, lighter workflow because a budget proposal is an <em>adoption of a financial plan</em>, not a purchase that requires disbursement.</p>
+
+  <!-- ─── HIGH-LEVEL FLOW ─── -->
+  <div class="flow">
+    <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node">Pending Acknowledgement</span><span class="arr">→</span>
+    <span class="node">Acknowledged</span><span class="arr">→</span>
+    <span class="node gate">CFO Approval</span><span class="arr">→</span>
+    <span class="node">Finance Updating</span><span class="arr">→</span>
+    <span class="node end">Closed</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:6%">#</th>
+        <th style="width:14%">Status</th>
+        <th style="width:13%">Who Acts</th>
+        <th style="width:22%">What Happens</th>
+        <th style="width:25%">What the Requester Sees</th>
+        <th style="width:20%">Next Status / Branch</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td><span class="badge b-grey">Submitted</span></td>
+        <td>Requester (department head)</td>
+        <td>User fills in <strong>Create Request</strong> wizard: <em>Group Finance → Submit Budget Proposal</em>. Required fields: department, budget period (e.g. Q1 2026), total amount requested (RM), budget breakdown (line-item detail), business justification.</td>
+        <td>Confirmation banner with request ID. Stepper highlights <strong>Submitted</strong>. SLA timer starts (72 hrs).</td>
+        <td>→ <span class="badge b-blue">Pending Acknowledgement</span></td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td><span class="badge b-blue">Pending Acknowledgement</span></td>
+        <td>Finance Agent / Admin</td>
+        <td>Finance agent clicks <strong>"Acknowledge Request"</strong> (<code>FIN_ACKNOWLEDGE</code>) to accept the proposal into the finance queue and begin review.</td>
+        <td>Stepper moves to <strong>Pending Acknowledgement</strong>.</td>
+        <td>→ <span class="badge b-blue">Acknowledged</span></td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td><span class="badge b-blue">Acknowledged</span></td>
+        <td>Finance Agent / Admin</td>
+        <td>Finance agent reviews the proposal and clicks <strong>"Route to CFO"</strong> (<code>ROUTE_TO_CFO_BP</code>) to forward it to the CFO for approval. <em>Unlike Purchase Requisition, no finalised amount or invoice is entered</em> — a budget proposal is an adoption of a plan, not a disbursement. The ticket is reassigned to the CFO and the SLA timer pauses.</td>
+        <td>Stepper shows <strong>Acknowledged</strong>. Requester is notified that the proposal is being routed for approval.</td>
+        <td>→ <span class="badge b-blue">CFO Approval</span></td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td><span class="badge b-blue">CFO Approval</span></td>
+        <td>CFO</td>
+        <td>CFO clicks <strong>"CFO Approval Decision"</strong> (<code>CFO_DECISION_FIN</code>), reviews the budget proposal (total amount, breakdown, alignment) and chooses <strong>Approve</strong> or <strong>Reject</strong>. <strong>No Group DCEO step</strong> — regardless of amount, CFO approval is the only executive sign-off needed for Budget Proposals.</td>
+        <td>Stepper shows <strong>CFO Approval</strong>. SLA is <strong>paused</strong>.</td>
+        <td>✅ Approve → <span class="badge b-purple">Finance Updating</span><br>❌ Reject → <span class="badge b-red">CFO Rejected</span> → <span class="badge b-grey">Submitted</span></td>
+      </tr>
+      <tr>
+        <td>5</td>
+        <td><span class="badge b-purple">Finance Updating</span><br><small><code>FINANCE_IN_PROGRESS</code></small></td>
+        <td>Finance Agent / Admin</td>
+        <td>After CFO approval, the Finance agent updates the budget record (adjusts line items, attaches approval documents, etc.) and clicks <strong>"Update &amp; Close Budget"</strong> (<code>CLOSE_BUDGET_PROPOSAL</code>) to finalise. This is a <strong>bookkeeping step</strong> — no payment is processed because this is a budget adoption, not a purchase.</td>
+        <td>Stepper shows <strong>Finance Updating</strong>. Requester sees that the budget has been approved and Finance is finalising the record.</td>
+        <td>→ <span class="badge b-green">Closed</span></td>
+      </tr>
+      <tr>
+        <td>6</td>
+        <td><span class="badge b-green">Closed</span><br><small><code>TICKET_CLOSED_FIN</code></small></td>
+        <td>System</td>
+        <td>The budget proposal is finalised. The budget allocation is now adopted. No payment or procurement follows — this is an internal budget adoption record.</td>
+        <td>Stepper shows all steps completed. Requester sees <strong>Closed</strong>.</td>
+        <td>End of life cycle.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ─── REJECTION BRANCH TABLE ─── -->
+  <h3>4.8.2 &nbsp; Rejection Paths</h3>
+  <p>Budget Proposals have <strong>only one rejection point</strong>: CFO. There is no Group DCEO step in this workflow.</p>
+  <table>
+    <thead>
+      <tr><th>Rejection Point</th><th>Status Shown</th><th>What Happens</th><th>Can the Requester Re-submit?</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="badge b-blue">CFO Approval</span></td><td><span class="badge b-red">CFO Rejected</span></td><td>Proposal routes back to <span class="badge b-grey">Submitted</span>. CFO's rejection comment is visible to the requester.</td><td><strong>Yes</strong> — correct the proposal and resubmit.</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── VISUAL FLOW DIAGRAM ─── -->
+  <h3>4.8.3 &nbsp; Visual Flow — Budget Proposal</h3>
+  <p>Budget Proposals follow a shorter workflow than Purchase Requisitions — <strong>no Group DCEO step and no payment phase</strong>. After CFO approval, Finance updates the record and closes the ticket.</p>
+
+  <div class="flow" style="flex-direction:column;gap:12px;align-items:stretch">
+    <!-- Review & Approval Phase -->
+    <div style="background:var(--soft);border:1px solid var(--accent);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--navy);margin-bottom:8px;font-size:14px">REVIEW &amp; APPROVAL PHASE <span style="font-weight:400;font-size:12px;color:var(--muted)">(SLA paused during CFO approval)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Submitted</span><span class="arr">→</span>
+        <span class="node">Pending Ack</span><span class="arr">→</span>
+        <span class="node">Acknowledged</span><span class="arr">→</span>
+        <span class="node gate">CFO Approval</span>
+      </div>
+      <div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px">
+        <span style="color:var(--warn);font-weight:600">Rejection:</span>
+        <span class="badge b-red">CFO Rejected</span>
+        <span style="color:var(--muted)">→ Back to <span class="badge b-grey">Submitted</span> (correct &amp; resubmit)</span>
+      </div>
+    </div>
+    <!-- Connector -->
+    <div style="text-align:center;font-size:20px;color:var(--accent);font-weight:700">↓ &nbsp;CFO approved&nbsp; ↓</div>
+    <!-- Finalisation Phase -->
+    <div style="background:#f0faf5;border:1px solid var(--ok);border-radius:8px;padding:12px 16px">
+      <div style="font-weight:700;color:var(--ok);margin-bottom:8px;font-size:14px">FINALISATION PHASE <span style="font-weight:400;font-size:12px;color:var(--muted)">(Finance agent closes the record)</span></div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px">
+        <span class="node">Finance Updating</span><span class="arr">→</span>
+        <span class="node end">Closed<br><small>Budget Adopted</small></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── WHO DOES WHAT ─── -->
+  <h3>4.8.4 &nbsp; Who Does What — Roles &amp; Actions at a Glance</h3>
+  <table>
+    <thead>
+      <tr><th>Role</th><th>Actions Available</th><th>Applicable Statuses</th><th>Frontend Status</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Requester</strong> (department head)</td><td>Submit budget proposal, view progress, comment</td><td>Creator only — no approval actions</td><td>✅ Works</td></tr>
+      <tr><td><strong>Finance Agent / Admin</strong></td><td>Acknowledge, route to CFO (no finalised amount), update &amp; close budget record</td><td><span class="badge b-blue">Pending Ack</span>, <span class="badge b-blue">Acknowledged</span>, <span class="badge b-purple">Finance Updating</span>, <span class="badge b-green">Closed</span></td><td>✅ Works (<code>FIN_ACKNOWLEDGE</code>, <code>ROUTE_TO_CFO_BP</code>, <code>CLOSE_BUDGET_PROPOSAL</code>)</td></tr>
+      <tr><td><strong>CFO</strong></td><td>Approve or Reject budget proposal (with comment)</td><td><span class="badge b-blue">CFO Approval</span></td><td>✅ Works (<code>CFO_DECISION_FIN</code>)</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ─── COMPARISON TABLE ─── -->
+  <h3>4.8.5 &nbsp; Budget Proposal vs Purchase Requisition — Key Differences</h3>
+  <table>
+    <thead>
+      <tr><th>Aspect</th><th>Budget Proposal (Section 4.8)</th><th>Purchase Requisition (Section 4.6)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Purpose</td><td>Request adoption of an annual / quarterly budget</td><td>Request purchase of specific goods or services</td></tr>
+      <tr><td>Workflow length</td><td><strong>6 statuses</strong> (shorter)</td><td><strong>7–8 statuses</strong> (longer)</td></tr>
+      <tr><td>Executive approval</td><td><strong>CFO only</strong> — no Group DCEO step regardless of amount</td><td>CFO → Group DCEO <em>(if &gt; RM 15K)</em></td></tr>
+      <tr><td>Group DCEO</td><td>❌ <strong>Not involved</strong></td><td>✅ Required when amount &gt; RM 15,000</td></tr>
+      <tr><td>After CFO approval</td><td><strong>Finance Updating</strong> → <strong>Closed</strong></td><td>Group DCEO (if &gt; RM 15K) → Payment Processing → Awaiting Payment Confirmation → Closed</td></tr>
+      <tr><td>Payment phase</td><td>❌ <strong>None</strong> — budget adoption, not a purchase</td><td>✅ Full payment lifecycle (processing → confirmation → close)</td></tr>
+      <tr><td>CFO rejection</td><td>Loops back to Submitted (resubmit allowed)</td><td>Loops back to Submitted (resubmit allowed) <em>(same)</em></td></tr>
+      <tr><td>SLA</td><td>72 hours</td><td>72 hours <em>(same)</em></td></tr>
+      <tr><td>Key form fields</td><td>Department, Budget Period, Total Amount, Budget Breakdown, Justification</td><td>Type of Purchase, Entity, Estimated Cost, Justification, Quotation</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box info"><span class="lbl">Key fields in the request form</span>
+    Department (required), Budget Period e.g. Q1 2026 (required), Total Amount Requested in RM (required), Budget Breakdown (required — line-item detail), Business Justification (required).
+  </div>
+  <div class="box tip"><span class="lbl">Best Practices</span>
+    <ul>
+      <li>Provide a detailed <strong>budget breakdown</strong> — lump-sum proposals without line items get queried back by Finance.</li>
+      <li>Align the budget period with the company's financial calendar (Q1–Q4 or annual).</li>
+      <li>The SLA timer <strong>pauses</strong> during CFO approval.</li>
+      <li>CFO rejection <strong>loops back to Submitted</strong> — you can revise and resubmit without creating a new request.</li>
+      <li>Budget Proposals <strong>do not require Group DCEO approval</strong>, regardless of the amount. CFO is the sole executive approver.</li>
+      <li>There is <strong>no payment phase</strong> — this is a budget adoption, not a purchase. After CFO approval, Finance updates the record and closes the ticket.</li>
+    </ul>
+  </div>
+  <div class="box info"><span class="lbl">How it works under the hood</span>
+    <p style="margin:4px 0 0">Budget Proposal uses a different, simpler workflow than Purchase Requisition (<strong>no Group DCEO, no payment phase</strong>). The actions are keyed off an <code>isBudgetProposal</code> flag (request type code <code>BUDGET_PROPOSAL</code>) in <code>workflowActions.ts</code>:</p>
+    <ol style="margin:4px 0 0;padding-left:20px">
+      <li><strong>Acknowledge</strong> — <code>FIN_ACKNOWLEDGE</code> is shown to Finance desk agents/admins at <code>SUBMITTED</code> or <code>FINANCE_PENDING_ACK</code> → <code>POST /finance-workflow/requests/:id/acknowledge</code>.</li>
+      <li><strong>Route to CFO</strong> — <code>ROUTE_TO_CFO_BP</code> at <code>FINANCE_ACKNOWLEDGED</code> (no finalised amount/invoice) → <code>POST /finance-workflow/requests/:id/route-to-cfo</code>; reassigns to the CFO and pauses the SLA.</li>
+      <li><strong>CFO decision</strong> — <code>CFO_DECISION_FIN</code> at <code>PENDING_CFO_APPROVAL_FIN</code> → <code>POST /finance-workflow/requests/:id/cfo-decision</code>. On approval the backend routes Budget Proposals to <code>FINANCE_IN_PROGRESS</code> (not <code>PAYMENT_PROCESSING_FIN</code>).</li>
+      <li><strong>Update &amp; close</strong> — <code>CLOSE_BUDGET_PROPOSAL</code> at <code>FINANCE_IN_PROGRESS</code> → <code>POST /finance-workflow/requests/:id/update-and-close-budget</code> → <code>TICKET_CLOSED_FIN</code>.</li>
+    </ol>
+  </div>
+  <div class="box example"><span class="lbl">Example Scenario</span>
+    The HR department needs to propose a Q3 2026 training budget of RM 120,000. The HR director opens <strong>Group Finance → Submit Budget Proposal</strong>, enters: department "Human Resources", budget period "Q3 2026", total amount RM 120,000, and a breakdown (Leadership Workshop RM 40K, Technical Certifications RM 50K, External Coaching RM 30K) with justification. Finance acknowledges, routes to the CFO. The CFO approves the allocation; Finance updates the budget record and closes the ticket. <strong>No Group DCEO step, no payment phase</strong> — the budget is adopted directly.
+  </div>
+
+  <h2 id="track-49">4.9 Expense Reimbursement Track <span class="badge b-amber">Upcoming</span></h2>
+  <p>This track is defined in the system but <strong>not yet enabled</strong> for end users. It will be available in a future release.</p>
+  <div class="flow">
+    <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node gate">Manager Approval</span><span class="arr">→</span>
+    <span class="node gate">Finance Head Approval</span><span class="arr">→</span>
+    <span class="node">Payment Processing</span><span class="arr">→</span>
+    <span class="node end">Reimbursement Closed</span>
+  </div>
+  <p>Employee expense claims will follow: direct-report manager approval → Finance Head approval → payment processing → closed. The <span class="badge b-purple">Payment Processing</span> and <span class="badge b-green">Reimbursement Closed</span> statuses are unique to this track.</p>
 
   <div class="box info"><span class="lbl">You won't memorise these</span> The Workflow Stepper translates every status into a plain label and highlights the current step — use it rather than the raw status codes.</div>
-  <div class="box example"><span class="lbl">Example Scenario</span> A hiring request sits at <span class="badge b-blue">Group CEO Approval</span> for two days. The requester checks the Stepper, sees it's awaiting an executive sign-off (not their own action), and waits — the SLA is paused during approval.</div>
+  <div class="box example"><span class="lbl">Example Scenario</span> A hiring request sits at <span class="badge b-blue">Group DCEO Approval</span> for two days. The requester checks the Stepper, sees it's awaiting an executive sign-off (not their own action), and waits — the SLA is paused during approval.</div>
   <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
 </section>
 
@@ -468,11 +1966,11 @@
   <table>
     <thead><tr><th>Request Type</th><th>Approval chain (in order)</th><th>Decision rule</th></tr></thead>
     <tbody>
-      <tr><td>Software Installation</td><td>IT triage → designated approver</td><td>Single approval to proceed.</td></tr>
-      <tr><td>New Hardware</td><td>Manager → CEO → CTO → CFO (payment)</td><td>Each tier must approve in sequence; any rejection ends it.</td></tr>
-      <tr><td>New Hiring Request</td><td>CEO → Group CEO → Hiring Manager (candidate selection) → HR Screening → LOA approval</td><td>Sequential; candidate rejection re-opens posting.</td></tr>
-      <tr><td>Purchase Requisition</td><td>Finance acknowledge → Finance Head / CFO</td><td>Routed by value/entity; approval required to pay.</td></tr>
-      <tr><td>Budget Proposal</td><td>Finance review → Finance Head / CFO</td><td>Approval required to adopt.</td></tr>
+      <tr><td>Software Installation</td><td>IT acknowledge → CEO → CTO → CFO</td><td>Sequential multi-tier approval; any rejection ends it.</td></tr>
+      <tr><td>New Hardware</td><td>IT acknowledge → CEO → CTO → CFO (payment)</td><td>Sequential multi-tier approval; any rejection ends it.</td></tr>
+      <tr><td>New Hiring Request</td><td>CEO → Group DCEO → Hiring Manager (candidate selection) → HR Screening → LOA approval</td><td>Sequential; candidate rejection re-opens posting.</td></tr>
+      <tr><td>Purchase Requisition</td><td>Finance acknowledge → CFO → Group DCEO <em>(only if &gt; RM 15,000)</em></td><td>Routed by value/entity; approval required to pay. Amount ≤ RM 15K skips Group DCEO.</td></tr>
+      <tr><td>Budget Proposal</td><td>Finance acknowledge → CFO <em>(no Group DCEO)</em></td><td>CFO is sole executive approver. No payment phase — Finance updates &amp; closes after approval.</td></tr>
       <tr><td>Inter-Company Chargeback</td><td>From-Entity approver → To-Entity approver → Finance review</td><td><strong>Both</strong> entities must approve; either rejection stops it.</td></tr>
     </tbody>
   </table>
@@ -512,7 +2010,7 @@
 
   <h2>6.1 Finding answers</h2>
   <ol class="steps">
-    <li>Open the <span class="screen">Knowledge Base</span> (<span class="screen">/kb</span>).</li>
+    <li>Open the <span class="screen">Knowledge Base</span> (<span class="screen">/kb</span>). <em>Note: The KB is enabled by your administrator; if you don't see it in the navigation, the feature may not yet be active for your organisation.</em></li>
     <li>Type keywords in the search box — it matches article titles and content.</li>
     <li>Or browse by <strong>category</strong> (e.g. General) or filter by service desk (IT, HR, Finance).</li>
     <li>Select an article to open the <span class="screen">Article Detail</span> page with the full content, author and date.</li>
@@ -552,8 +2050,8 @@
   <p><strong>Q: I'm a manager but can't see an approval.</strong><br>Confirm your role and that the item is routed to your entity. See <a class="inline" href="#doc9">Document 9</a>.</p>
 
   <h3>Notifications</h3>
-  <p><strong>Q: How am I notified?</strong><br>Both in-app (real-time, shown in your <span class="screen">Inbox</span>) and by email. Email can be toggled globally by Admins.</p>
-  <p><strong>Q: Where's my notification history?</strong><br>The Unified Inbox (<span class="screen">/inbox</span>) — filter and mark items read.</p>
+  <p><strong>Q: How am I notified?</strong><br>Real-time in-app notifications (pushed instantly via SSE — no page refresh needed) appear in the <span class="screen">Notifications</span> centre (bell icon). Email notifications are also sent for key events (approvals, status changes, escalations). Email can be toggled by administrators.</p>
+  <p><strong>Q: Where's my notification history?</strong><br>The <span class="screen">Notifications</span> centre (<span class="screen">/inbox</span>) — filter and mark items read.</p>
 
   <h3>Knowledge Base</h3>
   <p><strong>Q: Do I need an account to read articles?</strong><br>Articles are available to logged-in employees; search and browse freely.</p>
@@ -583,20 +2081,20 @@
 
   <h3>8.2 SLA Pause &amp; Resume</h3>
   <ul>
-    <li>The SLA timer <strong>pauses automatically</strong> when a request enters an approval stage (e.g. awaiting CEO/CFO/manager).</li>
-    <li>It <strong>resumes</strong> when the approval is decided, and the original time remaining is preserved (the deadline shifts by the paused duration).</li>
+    <li>The SLA timer <strong>pauses automatically</strong> when a request enters an approval stage (e.g. awaiting CEO/CFO/Group DCEO/manager) or when the agent sets the status to <span class="badge b-amber">Action Required</span> (waiting on the requester's response).</li>
+    <li>It <strong>resumes</strong> when the approval is decided or the requester responds, and the original time remaining is preserved (the deadline shifts by the paused duration).</li>
     <li>A request that stays paused longer than <strong>14 days</strong> is auto-resumed to prevent it stalling indefinitely.</li>
   </ul>
 
   <h2 id="ref-escalation">8.3 Escalation Procedures</h2>
-  <p>If a request breaches its SLA deadline, the system records a breach and notifies the assignee and managers. Escalation rules then fire a set number of hours <em>after</em> the breach, notifying progressively more senior roles.</p>
+  <p>If a request breaches its SLA deadline, the system records a breach and notifies the assigned agent and administrators. Multi-tier escalation rules can be configured per request type by administrators — for example, notifying senior management when an SLA breach goes unresolved for a specified number of hours.</p>
   <div class="flow">
     <span class="node start">SLA Breached</span><span class="arr">→</span>
-    <span class="node gate">+1h → notify Agent</span><span class="arr">→</span>
-    <span class="node gate">+4h → notify Agent + CEO</span><span class="arr">→</span>
-    <span class="node reject">+24h → notify CEO + Group CEO</span>
+    <span class="node gate">Escalation Tier 1<br>(Agent / Admin)</span><span class="arr">→</span>
+    <span class="node gate">Escalation Tier 2<br>(CEO / Senior Mgmt)</span><span class="arr">→</span>
+    <span class="node reject">Critical Alert</span>
   </div>
-  <p><em>Illustrative chain — actual trigger hours and target roles are configured per request type by administrators. Eligible escalation roles include Admin, Agent, HR, IT, Finance, CEO, VP and Group CEO.</em></p>
+  <p><em>Illustrative chain — actual trigger hours, escalation tiers and target roles are configured per request type by administrators via Admin Settings. Eligible escalation roles include Admin, Agent, HR, IT, Finance, CEO, CTO, CFO and Group DCEO. The default configuration triggers a breach notification to the Admin role; additional tiers can be added as needed.</em></p>
 
   <h2>8.4 Approval Trigger Rules</h2>
   <table>
@@ -623,7 +2121,7 @@
     <div><div class="k">Audience</div><div class="v">All employees.</div></div>
   </div>
 
-  <p>Your access is governed by your role(s). Most employees are <strong>Normal Staff</strong>. Additional roles unlock approval queues and specialised actions.</p>
+  <p>Your access is governed by your role(s). Most employees are <strong>Normal Staff</strong>. Additional roles unlock approval queues, specialised actions and module access. The table below covers the service-desk roles.</p>
 
   <h2>9.1 Role Capabilities</h2>
   <table>
@@ -631,23 +2129,25 @@
     <tbody>
       <tr><td><strong>Normal Staff</strong> (all employees)</td><td>Create &amp; track requests, search KB, read announcements.</td><td><span class="screen">Dashboard</span> <span class="screen">My Requests</span> <span class="screen">KB</span></td></tr>
       <tr><td><strong>Hiring Manager</strong></td><td>Raise hiring requests; select candidates during Manager Review.</td><td><span class="screen">Create Request</span> <span class="screen">Approval Center</span></td></tr>
-      <tr><td><strong>Manager / Approver</strong></td><td>Approve or reject items routed to them.</td><td><span class="screen">Approval Center</span></td></tr>
-      <tr><td><strong>Finance Head</strong></td><td>Approve finance/reimbursement requests.</td><td><span class="screen">Approval Center</span></td></tr>
-      <tr><td><strong>Executives</strong> (CEO, CTO, CFO, Group CEO)</td><td>Approve high-tier items (hardware, hiring, finance) at their gate.</td><td><span class="screen">Approval Center</span></td></tr>
+      <tr><td><strong>Direct-Line Manager</strong></td><td>Approve or reject items routed via the manager-approval workflow (based on the requester's <em>managerId</em> relationship, not a separate role).</td><td><span class="screen">Approval Center</span></td></tr>
+      <tr><td><strong>Finance Head</strong></td><td>Approve finance/reimbursement requests at the Finance Head gate.</td><td><span class="screen">Approval Center</span></td></tr>
+      <tr><td><strong>Executives</strong> (CEO, CTO, CFO, Group DCEO)</td><td>Approve high-tier items (hardware, hiring, finance) at their respective gate.</td><td><span class="screen">Approval Center</span></td></tr>
       <tr><td><strong>Agent / IT Agent</strong></td><td>Triage and resolve tickets; manage IT assets.</td><td><span class="screen">Agent Dashboard</span> <span class="screen">Assets</span></td></tr>
-      <tr><td><strong>Admin</strong></td><td>System configuration, users, SLA &amp; escalation rules, audit.</td><td><span class="screen">Admin Settings</span> <span class="screen">Audit Trail</span></td></tr>
+      <tr><td><strong>Admin</strong></td><td>System configuration, users, SLA &amp; escalation rules, audit, feature flags.</td><td><span class="screen">Admin Settings</span> <span class="screen">Audit Trail</span></td></tr>
     </tbody>
   </table>
+
+
 
   <h2>9.2 Role-Based Journeys</h2>
   <h4>Employee (Normal Staff)</h4>
   <p>Dashboard → choose desk → Create Request → track in My Requests → respond to Action Required → confirm resolution.</p>
-  <h4>Manager / Approver</h4>
-  <p>Receive notification → Approval Center → review &amp; decide with a comment → item advances.</p>
+  <h4>Direct-Line Manager / Approver</h4>
+  <p>Receive notification → Approval Center → review &amp; decide with a comment → item advances. Note: manager approval is based on your position in the reporting hierarchy (your direct reports' requests route to you automatically).</p>
   <h4>Hiring Manager</h4>
   <p>Raise New Hiring Request → executive approvals → at Manager Review, select 1–3 candidates (each with required documents) → HR continues screening &amp; LOA.</p>
   <h4>Agent</h4>
-  <p>Agent Dashboard → pick up My/Unassigned tickets → progress through statuses → resolve within SLA.</p>
+  <p>Agent Dashboard → pick up My/Unassigned tickets → progress through statuses → resolve within SLA. Agents also manage IT Assets via <span class="screen">/assets</span>.</p>
 
   <div class="box tip"><span class="lbl">Best Practices</span> Hold only the roles you need. If you require an approval or specialised role, raise an HR/IT request to have it granted.</div>
   <div class="box warn"><span class="lbl">Troubleshooting</span> Missing a screen or action you expect? It's almost always a role/permission matter — permissions are cached briefly, so a recently granted role can take a few minutes to take effect.</div>
@@ -655,7 +2155,7 @@
 </section>
 
 <footer>
-  CWC 2.0 Service Desk — End User Documentation Pack &nbsp;•&nbsp; Version 1.0 &nbsp;•&nbsp; Published 5 June 2026<br>
+  CWC Service Desk — End User Documentation Pack &nbsp;•&nbsp; Version 1.1 &nbsp;•&nbsp; Published 5 June 2026<br>
   Citadel Group · Prepared for company-wide rollout · Suitable for Confluence, SharePoint or an internal knowledge portal.
 </footer>
 
