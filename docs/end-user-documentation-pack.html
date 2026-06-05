@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CWC 2.0 Service Desk — End User Documentation Pack</title>
+<style>
+  :root{
+    --navy:#0b2545;--blue:#13315c;--accent:#1d6fb8;--accent2:#2a9d8f;
+    --bg:#f4f6f9;--panel:#ffffff;--line:#e2e8f0;--ink:#1f2937;--muted:#5b6675;
+    --ok:#1f9d55;--warn:#c97a00;--danger:#c0392b;--info:#1d6fb8;--soft:#eef4fb;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;font-size:15px}
+  /* Layout */
+  .wrap{display:flex;min-height:100vh}
+  nav.side{width:300px;flex:0 0 300px;background:var(--navy);color:#cdd9e8;position:sticky;top:0;height:100vh;overflow-y:auto;padding:0 0 40px}
+  nav.side .brand{padding:22px 20px;border-bottom:1px solid #1c3a63;background:linear-gradient(180deg,#0b2545,#13315c)}
+  nav.side .brand h1{font-size:17px;margin:0;color:#fff;letter-spacing:.3px}
+  nav.side .brand span{font-size:11px;color:#8fb0d6;text-transform:uppercase;letter-spacing:1.5px}
+  nav.side h2{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#6f8fb5;margin:18px 20px 6px}
+  nav.side a{display:block;color:#cdd9e8;text-decoration:none;padding:7px 20px;font-size:13.5px;border-left:3px solid transparent}
+  nav.side a:hover{background:#13315c;color:#fff;border-left-color:var(--accent)}
+  main{flex:1;min-width:0;padding:0 0 80px}
+  .topbar{background:var(--panel);border-bottom:1px solid var(--line);padding:14px 40px;position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center}
+  .topbar .meta{font-size:12px;color:var(--muted)}
+  .content{max-width:1000px;margin:0 auto;padding:0 40px}
+  /* Doc sections */
+  .doc{padding:46px 0 10px;border-bottom:6px solid var(--bg)}
+  .doc>.docnum{display:inline-block;background:var(--accent);color:#fff;font-size:12px;font-weight:700;letter-spacing:1px;padding:4px 12px;border-radius:20px;margin-bottom:10px}
+  h1.doc-title{font-size:30px;color:var(--navy);margin:6px 0 4px;border-bottom:3px solid var(--accent);padding-bottom:12px}
+  h2{font-size:22px;color:var(--blue);margin-top:34px;border-left:5px solid var(--accent);padding-left:12px}
+  h3{font-size:17px;color:var(--navy);margin-top:24px}
+  h4{font-size:14.5px;color:var(--blue);margin:18px 0 4px;text-transform:uppercase;letter-spacing:.5px}
+  p{margin:10px 0}
+  ul,ol{margin:8px 0 8px 4px;padding-left:22px}
+  li{margin:4px 0}
+  code{background:#eef2f7;padding:1px 6px;border-radius:4px;font-size:12.5px;color:#9c2c2c;font-family:"SF Mono",Consolas,monospace}
+  a.inline{color:var(--accent);text-decoration:none}
+  a.inline:hover{text-decoration:underline}
+  /* Hero */
+  .hero{background:linear-gradient(135deg,#0b2545,#1d6fb8);color:#fff;padding:60px 40px;text-align:center}
+  .hero h1{font-size:38px;margin:0 0 8px;color:#fff;border:none}
+  .hero p{font-size:16px;color:#cfe0f3;max-width:720px;margin:6px auto}
+  .hero .pill{display:inline-block;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);padding:6px 16px;border-radius:24px;margin:14px 6px 0;font-size:13px}
+  /* Tables */
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px;background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  th{background:var(--blue);color:#fff;text-align:left;padding:10px 12px;font-weight:600;font-size:12.5px;text-transform:uppercase;letter-spacing:.4px}
+  td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:nth-child(even) td{background:#fafbfd}
+  tr:hover td{background:var(--soft)}
+  caption{caption-side:top;text-align:left;font-weight:600;color:var(--muted);font-size:12px;margin-bottom:6px}
+  /* Callouts */
+  .box{border-radius:8px;padding:14px 16px 14px 46px;margin:16px 0;position:relative;border:1px solid;font-size:14px}
+  .box:before{position:absolute;left:14px;top:13px;font-size:18px}
+  .box.tip{background:#eafaf1;border-color:#bce8cf}.box.tip:before{content:"\2705"}
+  .box.warn{background:#fff6e6;border-color:#f3d8a0}.box.warn:before{content:"\26A0\FE0F"}
+  .box.danger{background:#fdecea;border-color:#f3c0ba}.box.danger:before{content:"\26D4"}
+  .box.info{background:#eaf3fb;border-color:#bcd9f0}.box.info:before{content:"\2139\FE0F"}
+  .box.example{background:#f3f0fb;border-color:#d6c9f0}.box.example:before{content:"\1F4D8"}
+  .box .lbl{font-weight:700;display:block;margin-bottom:2px;color:var(--navy)}
+  /* Status badges */
+  .badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .b-grey{background:#e5e9f0;color:#445}
+  .b-blue{background:#dbe9fa;color:#15558c}
+  .b-amber{background:#fdecc8;color:#8a5a00}
+  .b-green{background:#d6f2df;color:#176c39}
+  .b-red{background:#fadbd6;color:#a8331f}
+  .b-purple{background:#e7ddf7;color:#5b3a9e}
+  /* Flow diagram */
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:16px 0;padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow-x:auto}
+  .flow .node{background:var(--soft);border:1.5px solid var(--accent);color:var(--navy);border-radius:6px;padding:8px 12px;font-size:12.5px;font-weight:600;text-align:center;min-width:90px}
+  .flow .node.start{background:var(--navy);color:#fff;border-color:var(--navy)}
+  .flow .node.end{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .flow .node.gate{background:#fff6e6;border-color:var(--warn);border-style:dashed}
+  .flow .node.reject{background:#fdecea;border-color:var(--danger);color:var(--danger)}
+  .flow .arr{color:var(--accent);font-weight:700;font-size:16px}
+  .flow .br{flex-basis:100%;height:0}
+  /* TOC */
+  .toc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin:20px 0}
+  .toc-card{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--ink);transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .toc-card:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.1);border-left-color:var(--accent2)}
+  .toc-card .n{font-size:11px;color:var(--accent);font-weight:700;letter-spacing:1px}
+  .toc-card .t{font-size:15px;font-weight:600;color:var(--navy);margin:3px 0}
+  .toc-card .d{font-size:12.5px;color:var(--muted)}
+  /* Meta header inside doc */
+  .docmeta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:14px 0 26px}
+  .docmeta div{padding:11px 14px;border-right:1px solid var(--line);background:var(--panel)}
+  .docmeta div:last-child{border-right:none}
+  .docmeta .k{font-size:10.5px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:700}
+  .docmeta .v{font-size:13px;color:var(--ink);margin-top:2px}
+  .pillrow{margin:4px 0 0}
+  .tag{display:inline-block;background:var(--soft);border:1px solid #cfe0f3;color:var(--blue);font-size:11px;padding:2px 8px;border-radius:10px;margin:2px 3px 0}
+  /* steps */
+  ol.steps{counter-reset:step;list-style:none;padding-left:0}
+  ol.steps>li{position:relative;padding:6px 0 6px 42px;margin:6px 0;border-bottom:1px dashed var(--line)}
+  ol.steps>li:before{counter-increment:step;content:counter(step);position:absolute;left:0;top:6px;width:28px;height:28px;background:var(--accent);color:#fff;border-radius:50%;text-align:center;line-height:28px;font-weight:700;font-size:13px}
+  .screen{display:inline-block;background:#1b2a3d;color:#9fd0ff;font-size:11.5px;padding:2px 8px;border-radius:4px;font-family:monospace;margin:1px 2px}
+  footer{text-align:center;padding:30px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);margin-top:20px}
+  .backtop{text-align:right;margin:8px 0}
+  .backtop a{font-size:12px;color:var(--accent);text-decoration:none}
+  @media print{nav.side{display:none}.topbar{position:static}main{padding:0}.doc{page-break-after:always}}
+  @media(max-width:880px){nav.side{display:none}.content{padding:0 18px}.topbar{padding:12px 18px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ============ SIDEBAR ============ -->
+<nav class="side">
+  <div class="brand"><span>Citadel Group</span><h1>CWC 2.0 Service Desk</h1></div>
+  <h2>Overview</h2>
+  <a href="#top">Cover &amp; Welcome</a>
+  <a href="#toc">Table of Contents</a>
+  <a href="#desks">The Three Service Desks</a>
+  <h2>Documents</h2>
+  <a href="#doc1">1 · Quick Start Guide</a>
+  <a href="#doc2">2 · End User SOP</a>
+  <a href="#doc3">3 · Service Catalog Guide</a>
+  <a href="#doc4">4 · Ticket Lifecycle Guide</a>
+  <a href="#doc5">5 · Approval Workflow Guide</a>
+  <a href="#doc6">6 · Knowledge Base Guide</a>
+  <a href="#doc7">7 · FAQ</a>
+  <a href="#doc8">8 · Business Rules Guide</a>
+  <a href="#doc9">9 · Role-Based User Guide</a>
+  <h2>Reference</h2>
+  <a href="#ref-status">Status Definitions</a>
+  <a href="#ref-sla">SLA Definitions</a>
+  <a href="#ref-matrix">Approval Matrix</a>
+  <a href="#ref-escalation">Escalation Procedures</a>
+</nav>
+
+<main>
+<div class="topbar">
+  <strong style="color:var(--navy)">End User Documentation Pack</strong>
+  <span class="meta">Version 1.0 &nbsp;•&nbsp; Published 5 June 2026 &nbsp;•&nbsp; Audience: All Employees</span>
+</div>
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="top">
+  <h1>CWC 2.0 Service Desk</h1>
+  <p><strong>End User Documentation Pack</strong></p>
+  <p>Everything employees, managers and approvers need to raise, track and approve requests across IT Support, HR Services and Group Finance.</p>
+  <div>
+    <span class="pill">IT Support</span>
+    <span class="pill">HR Services</span>
+    <span class="pill">Group Finance</span>
+    <span class="pill">9 Guides</span>
+    <span class="pill">Confluence / SharePoint ready</span>
+  </div>
+</section>
+
+<div class="content">
+
+<!-- ============ TABLE OF CONTENTS ============ -->
+<section class="doc" id="toc">
+  <span class="docnum">CONTENTS</span>
+  <h1 class="doc-title">Table of Contents</h1>
+  <p>This pack contains nine documents covering the complete employee experience on the CWC 2.0 Service Desk. Each document is self-contained — start with the Quick Start Guide, then refer to the others as needed.</p>
+  <div class="toc-grid">
+    <a class="toc-card" href="#doc1"><div class="n">DOCUMENT 1</div><div class="t">User Quick Start Guide</div><div class="d">Log in, find your desk, raise your first ticket in minutes.</div></a>
+    <a class="toc-card" href="#doc2"><div class="n">DOCUMENT 2</div><div class="t">End User SOP</div><div class="d">The official step-by-step procedure for the full request lifecycle.</div></a>
+    <a class="toc-card" href="#doc3"><div class="n">DOCUMENT 3</div><div class="t">Service Catalog Guide</div><div class="d">Every request type across the three desks, with fields &amp; SLAs.</div></a>
+    <a class="toc-card" href="#doc4"><div class="n">DOCUMENT 4</div><div class="t">Ticket Lifecycle Guide</div><div class="d">What every status means, grouped by the 7 workflow tracks.</div></a>
+    <a class="toc-card" href="#doc5"><div class="n">DOCUMENT 5</div><div class="t">Approval Workflow Guide</div><div class="d">The approval matrix and how to approve or reject as a manager.</div></a>
+    <a class="toc-card" href="#doc6"><div class="n">DOCUMENT 6</div><div class="t">Knowledge Base User Guide</div><div class="d">Search articles, self-serve and rate answers.</div></a>
+    <a class="toc-card" href="#doc7"><div class="n">DOCUMENT 7</div><div class="t">Frequently Asked Questions</div><div class="d">Quick answers to the most common employee questions.</div></a>
+    <a class="toc-card" href="#doc8"><div class="n">DOCUMENT 8</div><div class="t">Business Rules Guide</div><div class="d">SLA timers, escalation, approval triggers and role rules.</div></a>
+    <a class="toc-card" href="#doc9"><div class="n">DOCUMENT 9</div><div class="t">Role-Based User Guide</div><div class="d">What you can do based on your role and responsibilities.</div></a>
+  </div>
+
+  <h3 id="desks">The Three Service Desks at a Glance</h3>
+  <table>
+    <thead><tr><th>Service Desk</th><th>What it handles</th><th>Request types</th><th>SLA range</th></tr></thead>
+    <tbody>
+      <tr><td><strong>IT Support</strong></td><td>Technical help, email, system problems, software &amp; hardware procurement</td><td>5</td><td>24–72 hrs</td></tr>
+      <tr><td><strong>HR Services</strong></td><td>HR questions, hiring, employee onboarding &amp; offboarding</td><td>4</td><td>24–48 hrs</td></tr>
+      <tr><td><strong>Group Finance</strong></td><td>Purchase requisitions, inter-company chargebacks, budget proposals</td><td>3 active</td><td>72 hrs</td></tr>
+    </tbody>
+  </table>
+  <div class="box info"><span class="lbl">How requests are named</span>In this pack a <em>request</em> and a <em>ticket</em> mean the same thing — the item you create and track through the desk.</div>
+</section>
+
+<!-- ============ DOC 1: QUICK START ============ -->
+<section class="doc" id="doc1">
+  <span class="docnum">DOCUMENT 1</span>
+  <h1 class="doc-title">User Quick Start Guide</h1>
+  <div class="docmeta">
+    <div><div class="k">Purpose</div><div class="v">Get a new user productive in under 10 minutes.</div></div>
+    <div><div class="k">Scope</div><div class="v">Login, navigation, first request, tracking.</div></div>
+    <div><div class="k">Audience</div><div class="v">All employees (especially new joiners).</div></div>
+  </div>
+
+  <h2>Step 1 — Log in</h2>
+  <ol class="steps">
+    <li>Open the CWC 2.0 portal in your browser. The <span class="screen">Login</span> screen appears.</li>
+    <li>Enter your company email and password, then select <strong>Sign In</strong>.</li>
+    <li>Forgot your password? Select <strong>Forgot password</strong> to reach the <span class="screen">Forgot Password</span> screen and follow the email link.</li>
+  </ol>
+
+  <h2>Step 2 — Get your bearings (the Dashboard)</h2>
+  <p>After login you land on the <span class="screen">Dashboard</span> — your home base. From here you can see a summary of your requests, recent company announcements, and quick links to the three service desks.</p>
+  <table>
+    <thead><tr><th>Where</th><th>Screen</th><th>Use it to…</th></tr></thead>
+    <tbody>
+      <tr><td>Home</td><td><span class="screen">/ Dashboard</span></td><td>See request summary cards and announcements.</td></tr>
+      <tr><td>My Requests</td><td><span class="screen">/my-requests</span></td><td>View, search and filter everything you've raised.</td></tr>
+      <tr><td>Approvals</td><td><span class="screen">/approvals</span></td><td>(Managers) Approve or reject items waiting on you.</td></tr>
+      <tr><td>Inbox</td><td><span class="screen">/inbox</span></td><td>Read in-app notifications and mark them read.</td></tr>
+      <tr><td>Knowledge Base</td><td><span class="screen">/kb</span></td><td>Find self-help articles before raising a ticket.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Step 3 — Raise your first request</h2>
+  <ol class="steps">
+    <li>From the Dashboard, choose the desk you need: <span class="screen">IT Support</span>, <span class="screen">HR Services</span> or <span class="screen">Group Finance</span>.</li>
+    <li>Pick the category that matches your need (e.g. <em>Get IT Help</em>).</li>
+    <li>The <span class="screen">Create Request</span> wizard opens: <strong>Select Type → Fill Details → Review &amp; Submit</strong>.</li>
+    <li>Complete the required fields, attach any files, and select <strong>Submit</strong>.</li>
+    <li>You'll get a confirmation and a request ID — your ticket is now <span class="badge b-grey">Submitted</span>.</li>
+  </ol>
+
+  <h2>Step 4 — Track it</h2>
+  <p>Open <span class="screen">My Requests</span> and select your ticket to reach the <span class="screen">Request Detail</span> page. The <strong>Workflow Stepper</strong> at the top shows exactly where your request is and what happens next. Add comments, upload files, and respond when a request is marked <span class="badge b-amber">Action Required</span>.</p>
+
+  <div class="box tip"><span class="lbl">Best Practices</span>
+    <ul><li>Search the Knowledge Base first — many issues have an instant answer.</li>
+    <li>Pick the most specific category; it routes your ticket to the right team faster.</li>
+    <li>Write a clear, one-line summary and attach screenshots where relevant.</li></ul>
+  </div>
+  <div class="box danger"><span class="lbl">Common Mistakes</span>
+    <ul><li>Raising an IT ticket under HR (or vice-versa) — this delays routing.</li>
+    <li>Leaving required fields vague (“not working”) instead of describing the symptom.</li>
+    <li>Closing the browser before pressing <strong>Submit</strong> on the final wizard step.</li></ul>
+  </div>
+  <div class="box warn"><span class="lbl">Troubleshooting</span>
+    <ul><li><strong>Can't log in?</strong> Use <em>Forgot password</em>; if it persists, raise a <em>Get IT Help</em> ticket via a colleague or call the IT desk.</li>
+    <li><strong>Don't see a desk or category?</strong> Some categories are role-restricted (e.g. hiring). See <a class="inline" href="#doc9">Document 9</a>.</li></ul>
+  </div>
+  <div class="box example"><span class="lbl">Example Scenario</span>
+    Priya's laptop won't connect to Wi-Fi. She opens <strong>IT Support → Get IT Help</strong>, describes the symptom, attaches a screenshot of the error, and submits. Her ticket is <span class="badge b-grey">Submitted</span>, then <span class="badge b-blue">In Review</span> within the 24-hour SLA, and she's notified at each step.
+  </div>
+  <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
+</section>
+
+<!-- ============ DOC 2: SOP ============ -->
+<section class="doc" id="doc2">
+  <span class="docnum">DOCUMENT 2</span>
+  <h1 class="doc-title">End User Standard Operating Procedure (SOP)</h1>
+  <div class="docmeta">
+    <div><div class="k">Purpose</div><div class="v">Define the official procedure for raising and managing a request end-to-end.</div></div>
+    <div><div class="k">Scope</div><div class="v">All three desks; creation through closure.</div></div>
+    <div><div class="k">Audience</div><div class="v">All employees, managers, approvers.</div></div>
+  </div>
+
+  <h2>2.1 The Standard Request Lifecycle</h2>
+  <div class="flow">
+    <span class="node start">Submit</span><span class="arr">→</span>
+    <span class="node">In Review</span><span class="arr">→</span>
+    <span class="node gate">Approval<br>(if required)</span><span class="arr">→</span>
+    <span class="node">In Progress</span><span class="arr">→</span>
+    <span class="node gate">Action<br>Required?</span><span class="arr">→</span>
+    <span class="node end">Resolved / Completed</span>
+  </div>
+
+  <h2>2.2 Procedure</h2>
+  <ol class="steps">
+    <li><strong>Identify the need and the right desk.</strong> Check the <a class="inline" href="#doc3">Service Catalog</a> to choose the correct request type.</li>
+    <li><strong>Self-serve first.</strong> Search the <a class="inline" href="#doc6">Knowledge Base</a>. Raise a ticket only if no article resolves it.</li>
+    <li><strong>Create the request</strong> via the <span class="screen">Create Request</span> wizard. Complete all required fields and attach supporting documents.</li>
+    <li><strong>Submit and record the ID.</strong> The system assigns a tracking ID and sets status to <span class="badge b-grey">Submitted</span>. You and the assigned team are notified.</li>
+    <li><strong>Respond promptly to “Action Required”.</strong> If the agent needs more information, the ticket moves to <span class="badge b-amber">Action Required</span> and the SLA may pause until you reply.</li>
+    <li><strong>Approvals (where applicable).</strong> Procurement, hiring and finance items route to approvers automatically. The SLA timer pauses while awaiting approval (see <a class="inline" href="#doc8">Business Rules</a>).</li>
+    <li><strong>Confirm resolution.</strong> When the agent marks the ticket <span class="badge b-green">Resolved</span> / <span class="badge b-green">Completed</span>, review the outcome. Re-open by commenting if the issue persists.</li>
+  </ol>
+
+  <h2>2.3 User Responsibilities</h2>
+  <ul>
+    <li>Provide accurate, complete information and valid business justification.</li>
+    <li>Respond to <span class="badge b-amber">Action Required</span> requests within the stated window.</li>
+    <li>Use the correct desk and category; do not raise duplicate tickets.</li>
+    <li>Keep confidential information appropriate to the request.</li>
+  </ul>
+
+  <h2>2.4 Department Responsibilities</h2>
+  <table>
+    <thead><tr><th>Department</th><th>Owns</th><th>Responsible for</th></tr></thead>
+    <tbody>
+      <tr><td>IT Support</td><td>IT desk &amp; assets</td><td>Triage, technical resolution, procurement of approved hardware/software, asset provisioning.</td></tr>
+      <tr><td>HR Services</td><td>HR desk</td><td>HR queries, recruitment workflow, onboarding &amp; offboarding coordination.</td></tr>
+      <tr><td>Group Finance</td><td>Finance desk</td><td>Purchase requisitions, chargebacks, budget review, payment processing.</td></tr>
+      <tr><td>Approvers / Managers</td><td>Approval decisions</td><td>Timely review of items routed to them; documented approve/reject decisions.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box tip"><span class="lbl">Best Practices</span> One issue per ticket; reference related ticket IDs in comments rather than merging unrelated problems.</div>
+  <div class="box danger"><span class="lbl">Common Mistakes</span> Emailing an agent directly instead of commenting on the ticket — off-ticket conversations are not tracked and can break the SLA record.</div>
+  <div class="box warn"><span class="lbl">Troubleshooting</span> If a ticket appears “stuck”, open it and read the Workflow Stepper — it usually shows it's awaiting <em>your</em> action or an approver's decision.</div>
+  <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
+</section>
+
+<!-- ============ DOC 3: SERVICE CATALOG ============ -->
+<section class="doc" id="doc3">
+  <span class="docnum">DOCUMENT 3</span>
+  <h1 class="doc-title">Service Catalog Guide</h1>
+  <div class="docmeta">
+    <div><div class="k">Purpose</div><div class="v">List every available request type with its fields, SLA and approval needs.</div></div>
+    <div><div class="k">Scope</div><div class="v">All 12 active request types across 3 desks.</div></div>
+    <div><div class="k">Audience</div><div class="v">All employees.</div></div>
+  </div>
+
+  <h2 id="cat-it">3.1 IT Support</h2>
+  <table>
+    <thead><tr><th>Request Type</th><th>Use it for</th><th>Key fields</th><th>SLA</th><th>Approval</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Get IT Help</strong></td><td>General technical support &amp; how-to issues.</td><td>Description, file attachment</td><td>24 hrs</td><td>No</td></tr>
+      <tr><td><strong>Email Management</strong></td><td>New mailbox, config, troubleshooting, distribution lists, forwarding.</td><td>Request type, email address, mail client, symptoms</td><td>24 hrs</td><td>No</td></tr>
+      <tr><td><strong>Report System Problem</strong></td><td>An application or system is broken or erroring.</td><td>System name, problem type, affected users, screenshot</td><td>24 hrs</td><td>No</td></tr>
+      <tr><td><strong>Software Installation</strong></td><td>Install/license a software package.</td><td>Software name, version, business justification</td><td>48 hrs</td><td><strong>Yes</strong></td></tr>
+      <tr><td><strong>New Hardware</strong></td><td>Request a laptop, monitor or other equipment.</td><td>Hardware name, model, estimated price, vendor, justification</td><td>72 hrs</td><td><strong>Yes</strong> (multi-tier)</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="cat-hr">3.2 HR Services</h2>
+  <table>
+    <thead><tr><th>Request Type</th><th>Use it for</th><th>Key fields</th><th>SLA</th><th>Approval / Role</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Question for HR</strong></td><td>Any HR policy or general query.</td><td>Question, detail, optional attachment</td><td>24 hrs</td><td>No</td></tr>
+      <tr><td><strong>New Hiring Request</strong></td><td>Open a new role / recruitment.</td><td>Position, department, role category, employment type, proposed salary, org chart &amp; JD, candidate docs</td><td>48 hrs</td><td>Restricted to <strong>Hiring Manager</strong>; multi-stage approval</td></tr>
+      <tr><td><strong>New Employee Onboarding</strong></td><td>Onboard a confirmed new joiner.</td><td>Employee name, email, start date, department, job title</td><td>48 hrs</td><td>No</td></tr>
+      <tr><td><strong>Offboard an Employee</strong></td><td>Process a leaver.</td><td>Employee name, email, last working day</td><td>48 hrs</td><td>No</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="cat-fin">3.3 Group Finance</h2>
+  <table>
+    <thead><tr><th>Request Type</th><th>Use it for</th><th>Key fields</th><th>SLA</th><th>Approval</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Purchase Requisition</strong></td><td>Procure goods/services through Finance.</td><td>Item type, entity/business unit, estimated cost, justification, quotation</td><td>72 hrs</td><td><strong>Yes</strong></td></tr>
+      <tr><td><strong>Inter-Company Chargeback</strong></td><td>Charge costs between entities.</td><td>Charge-from entity, charge-to entity, amount (RM), cost center, description</td><td>72 hrs</td><td><strong>Yes</strong> (both entities)</td></tr>
+      <tr><td><strong>Submit Budget Proposal</strong></td><td>Propose a departmental budget.</td><td>Department, budget period, total amount, breakdown, justification</td><td>72 hrs</td><td><strong>Yes</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="box info"><span class="lbl">Note</span>An <em>Expense Claim</em> request type exists in the system but is currently <strong>disabled</strong> and not available to raise.</div>
+
+  <div class="box tip"><span class="lbl">Best Practices</span> Attach quotations and a clear business justification on any procurement or finance request — incomplete justification is the top reason approvals are returned.</div>
+  <div class="box danger"><span class="lbl">Common Mistakes</span> Selecting the wrong <em>entity</em> on a chargeback or purchase requisition sends it to the wrong approver. Double-check the entity before submitting.</div>
+  <div class="box example"><span class="lbl">Example Scenario</span> A team lead needs three laptops. They raise <strong>New Hardware</strong>, enter models, estimated price and justification. Because hardware requires approval, it routes through Manager → CEO/CTO → CFO before procurement begins (see <a class="inline" href="#doc5">Document 5</a>).</div>
+  <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
+</section>
+
+<!-- ============ DOC 4: LIFECYCLE / STATUS ============ -->
+<section class="doc" id="doc4">
+  <span class="docnum">DOCUMENT 4</span>
+  <h1 class="doc-title">Ticket Lifecycle Guide</h1>
+  <div class="docmeta">
+    <div><div class="k">Purpose</div><div class="v">Explain every ticket status and how requests progress.</div></div>
+    <div><div class="k">Scope</div><div class="v">7 workflow tracks; the Request Detail &amp; Workflow Stepper screens.</div></div>
+    <div><div class="k">Audience</div><div class="v">All employees and approvers.</div></div>
+  </div>
+
+  <p>CWC 2.0 uses different status tracks depending on the request type. Most simple tickets only ever use the <strong>General track</strong> below. Procurement, hiring, onboarding, offboarding, finance and chargeback requests follow their own specialised tracks. The <strong>Workflow Stepper</strong> on the <span class="screen">Request Detail</span> page always shows your ticket's position in plain language.</p>
+
+  <h2 id="ref-status">4.1 General Track (most tickets)</h2>
+  <table>
+    <thead><tr><th>Status</th><th>Meaning</th><th>What you should do</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge b-grey">Submitted</span></td><td>Ticket received, awaiting triage.</td><td>Nothing — wait for the team.</td></tr>
+      <tr><td><span class="badge b-blue">In Review</span></td><td>An agent is assessing it.</td><td>Be available for questions.</td></tr>
+      <tr><td><span class="badge b-amber">Action Required</span></td><td>The team needs more info from you.</td><td><strong>Respond</strong> — the SLA may be paused on you.</td></tr>
+      <tr><td><span class="badge b-blue">In Progress</span></td><td>Actively being worked on.</td><td>Wait; monitor for updates.</td></tr>
+      <tr><td><span class="badge b-amber">Waiting</span></td><td>Paused on a dependency (e.g. third party).</td><td>Wait; check comments for context.</td></tr>
+      <tr><td><span class="badge b-green">Approved</span></td><td>An approval gate was passed.</td><td>Nothing — it proceeds automatically.</td></tr>
+      <tr><td><span class="badge b-green">Resolved</span></td><td>Work is done.</td><td>Confirm; comment to re-open if needed.</td></tr>
+      <tr><td><span class="badge b-green">Completed</span></td><td>Closed and finalised.</td><td>None.</td></tr>
+      <tr><td><span class="badge b-red">Rejected</span></td><td>Declined (with reason).</td><td>Read the reason; raise a corrected request if appropriate.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>4.2 IT Hardware &amp; Procurement Track</h2>
+  <div class="flow">
+    <span class="node start">Acknowledged</span><span class="arr">→</span>
+    <span class="node gate">CEO Approval</span><span class="arr">→</span>
+    <span class="node gate">CTO Approval</span><span class="arr">→</span>
+    <span class="node gate">CFO Approval</span><span class="arr">→</span>
+    <span class="node">Procurement</span><span class="arr">→</span>
+    <span class="node">Ordered</span><span class="arr">→</span>
+    <span class="node">Received</span><span class="arr">→</span>
+    <span class="node">Provisioned</span><span class="arr">→</span>
+    <span class="node end">Resolved</span>
+  </div>
+  <p>Statuses you may see (friendly labels): <span class="badge b-blue">CEO Approval</span> <span class="badge b-blue">CTO Approval</span> <span class="badge b-blue">CFO Approval</span> <span class="badge b-purple">Procurement In Progress</span> <span class="badge b-purple">Hardware Ordered</span> <span class="badge b-purple">Hardware Received</span> <span class="badge b-purple">Software Provisioned</span> <span class="badge b-purple">Payment Processing</span> <span class="badge b-green">Pending Delivery</span>. A rejection at any gate ends the request (e.g. <span class="badge b-red">CEO Rejected</span>).</p>
+
+  <h2>4.3 HR Hiring Track</h2>
+  <div class="flow">
+    <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node gate">CEO Approval</span><span class="arr">→</span>
+    <span class="node gate">Group CEO Approval</span><span class="arr">→</span>
+    <span class="node">Job Posted</span><span class="arr">→</span>
+    <span class="node gate">Manager Review</span><span class="arr">→</span>
+    <span class="node">Interview</span><span class="arr">→</span>
+    <span class="node">HR Screening</span><span class="arr">→</span>
+    <span class="node gate">LOA</span><span class="arr">→</span>
+    <span class="node end">Completed</span>
+  </div>
+  <p>Includes <span class="badge b-blue">Interview Scheduled</span>, <span class="badge b-amber">Interview Feedback Pending</span>, <span class="badge b-purple">HR Screening</span>, and the Letter of Acceptance steps <span class="badge b-blue">LOA Pending Approval</span> → <span class="badge b-blue">LOA Approved</span> → <span class="badge b-purple">LOA Issued</span> → <span class="badge b-green">LOA Accepted</span>. A rejected candidate (<span class="badge b-red">Candidate Rejected</span>) loops back to <span class="badge b-purple">Job Posted</span> to resume recruitment.</p>
+
+  <h2>4.4 Onboarding Track</h2>
+  <div class="flow">
+    <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node gate">HR Approval</span><span class="arr">→</span>
+    <span class="node">Pre-Arrival Setup</span><span class="arr">→</span>
+    <span class="node">Ready for Day 1</span><span class="arr">→</span>
+    <span class="node">Day 1 Orientation</span><span class="arr">→</span>
+    <span class="node">Week 1</span><span class="arr">→</span>
+    <span class="node">Month 1–3 Milestones</span><span class="arr">→</span>
+    <span class="node end">Completed</span>
+  </div>
+
+  <h2>4.5 Offboarding Track</h2>
+  <div class="flow">
+    <span class="node start">Submitted</span><span class="arr">→</span>
+    <span class="node">Notice Period</span><span class="arr">→</span>
+    <span class="node">Knowledge Transfer</span><span class="arr">→</span>
+    <span class="node">Final Week</span><span class="arr">→</span>
+    <span class="node">Exit Procedures</span><span class="arr">→</span>
+    <span class="node end">Completed</span>
+  </div>
+
+  <h2>4.6 Finance Track (Purchase &amp; Reimbursement)</h2>
+  <div class="flow">
+    <span class="node start">Pending Ack</span><span class="arr">→</span>
+    <span class="node">Acknowledged</span><span class="arr">→</span>
+    <span class="node">In Progress</span><span class="arr">→</span>
+    <span class="node gate">Finance Head / CFO Approval</span><span class="arr">→</span>
+    <span class="node">Payment Processing</span><span class="arr">→</span>
+    <span class="node end">Closed</span>
+  </div>
+  <p>You may see <span class="badge b-blue">Pending Manager Approval</span>, <span class="badge b-blue">Pending Finance Head Approval</span>, <span class="badge b-blue">Pending CFO Approval</span>, <span class="badge b-purple">Payment Processing</span>, <span class="badge b-green">Payment Completed</span>, <span class="badge b-green">Reimbursement Closed</span>. A rejection routes the request back to <span class="badge b-grey">Submitted</span> so you can correct and resubmit.</p>
+
+  <h2>4.7 Inter-Company Chargeback Track</h2>
+  <div class="flow">
+    <span class="node start">From-Entity Approval</span><span class="arr">→</span>
+    <span class="node gate">To-Entity Approval</span><span class="arr">→</span>
+    <span class="node">Finance Review</span><span class="arr">→</span>
+    <span class="node">Awaiting Confirmation</span><span class="arr">→</span>
+    <span class="node end">Completed</span>
+  </div>
+  <p>Both the charging and the charged entity must approve. If either declines (<span class="badge b-red">From-Entity Rejected</span> / <span class="badge b-red">To-Entity Rejected</span>) the chargeback stops.</p>
+
+  <div class="box info"><span class="lbl">You won't memorise these</span> The Workflow Stepper translates every status into a plain label and highlights the current step — use it rather than the raw status codes.</div>
+  <div class="box example"><span class="lbl">Example Scenario</span> A hiring request sits at <span class="badge b-blue">Group CEO Approval</span> for two days. The requester checks the Stepper, sees it's awaiting an executive sign-off (not their own action), and waits — the SLA is paused during approval.</div>
+  <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
+</section>
+
+<!-- ============ DOC 5: APPROVAL WORKFLOW ============ -->
+<section class="doc" id="doc5">
+  <span class="docnum">DOCUMENT 5</span>
+  <h1 class="doc-title">Approval Workflow Guide</h1>
+  <div class="docmeta">
+    <div><div class="k">Purpose</div><div class="v">Explain who approves what, and how to act on approvals.</div></div>
+    <div><div class="k">Scope</div><div class="v">All approval-bearing request types.</div></div>
+    <div><div class="k">Audience</div><div class="v">Managers, department approvers, executives, requesters.</div></div>
+  </div>
+
+  <h2 id="ref-matrix">5.1 Approval Matrix</h2>
+  <table>
+    <thead><tr><th>Request Type</th><th>Approval chain (in order)</th><th>Decision rule</th></tr></thead>
+    <tbody>
+      <tr><td>Software Installation</td><td>IT triage → designated approver</td><td>Single approval to proceed.</td></tr>
+      <tr><td>New Hardware</td><td>Manager → CEO → CTO → CFO (payment)</td><td>Each tier must approve in sequence; any rejection ends it.</td></tr>
+      <tr><td>New Hiring Request</td><td>CEO → Group CEO → Hiring Manager (candidate selection) → HR Screening → LOA approval</td><td>Sequential; candidate rejection re-opens posting.</td></tr>
+      <tr><td>Purchase Requisition</td><td>Finance acknowledge → Finance Head / CFO</td><td>Routed by value/entity; approval required to pay.</td></tr>
+      <tr><td>Budget Proposal</td><td>Finance review → Finance Head / CFO</td><td>Approval required to adopt.</td></tr>
+      <tr><td>Inter-Company Chargeback</td><td>From-Entity approver → To-Entity approver → Finance review</td><td><strong>Both</strong> entities must approve; either rejection stops it.</td></tr>
+    </tbody>
+  </table>
+  <div class="box info"><span class="lbl">How routing is decided</span> Approvers are determined by your <em>entity</em> (business unit) and request type. Multi-entity items (like chargebacks) create one approval task per entity, and the request only advances when <strong>all</strong> required approvals are granted.</div>
+
+  <h2>5.2 How to approve or reject (for managers/approvers)</h2>
+  <ol class="steps">
+    <li>You're notified by email and in-app when something needs your decision.</li>
+    <li>Open the <span class="screen">Approval Center</span> (<span class="screen">/approvals</span>) to see your queue.</li>
+    <li>Select the item to review its details, justification and attachments.</li>
+    <li>Choose <strong>Approve</strong> or <strong>Reject</strong>, and <strong>always add a comment</strong> — especially on rejection.</li>
+    <li>The request advances to the next tier or returns to the requester automatically.</li>
+  </ol>
+
+  <h2>5.3 What requesters should know</h2>
+  <ul>
+    <li>While an item awaits approval, its <strong>SLA timer is paused</strong> — delays at the approval stage don't count against the SLA.</li>
+    <li>You'll be notified of each approval decision.</li>
+    <li>If rejected, read the approver's comment, correct the issue, and resubmit where the workflow allows.</li>
+  </ul>
+
+  <div class="box tip"><span class="lbl">Best Practices (approvers)</span> Act within one business day where possible; an approval left idle beyond 14 days is auto-released to keep work flowing (see <a class="inline" href="#doc8">Business Rules</a>).</div>
+  <div class="box danger"><span class="lbl">Common Mistakes</span> Rejecting without a comment leaves the requester unable to fix the problem. Always state why.</div>
+  <div class="box warn"><span class="lbl">Troubleshooting</span> Don't see an item you expect to approve? Confirm you hold the right role (e.g. Hiring Manager, Finance Head) and that the request is routed to your entity.</div>
+  <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
+</section>
+
+<!-- ============ DOC 6: KB ============ -->
+<section class="doc" id="doc6">
+  <span class="docnum">DOCUMENT 6</span>
+  <h1 class="doc-title">Knowledge Base User Guide</h1>
+  <div class="docmeta">
+    <div><div class="k">Purpose</div><div class="v">Help users self-serve before raising a ticket.</div></div>
+    <div><div class="k">Scope</div><div class="v">Search, browse, read and rate articles.</div></div>
+    <div><div class="k">Audience</div><div class="v">All employees.</div></div>
+  </div>
+
+  <h2>6.1 Finding answers</h2>
+  <ol class="steps">
+    <li>Open the <span class="screen">Knowledge Base</span> (<span class="screen">/kb</span>).</li>
+    <li>Type keywords in the search box — it matches article titles and content.</li>
+    <li>Or browse by <strong>category</strong> (e.g. General) or filter by service desk (IT, HR, Finance).</li>
+    <li>Select an article to open the <span class="screen">Article Detail</span> page with the full content, author and date.</li>
+  </ol>
+
+  <h2>6.2 Rating an article</h2>
+  <p>At the bottom of each article, mark it <strong>Helpful</strong> or <strong>Not Helpful</strong>. Your vote improves article quality and helps surface the best answers. You can vote once per article.</p>
+
+  <div class="box tip"><span class="lbl">Best Practices</span> Search with the error message or a specific noun (“VPN”, “payslip”, “purchase requisition”) rather than a full sentence.</div>
+  <div class="box danger"><span class="lbl">Common Mistakes</span> Skipping the KB and raising a ticket for something with a published instant answer — slower for you and the desk.</div>
+  <div class="box example"><span class="lbl">Example Scenario</span> Before raising an email ticket, Sam searches “Outlook signature”, finds the setup article, follows it, and marks it <strong>Helpful</strong> — no ticket needed.</div>
+  <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
+</section>
+
+<!-- ============ DOC 7: FAQ ============ -->
+<section class="doc" id="doc7">
+  <span class="docnum">DOCUMENT 7</span>
+  <h1 class="doc-title">Frequently Asked Questions</h1>
+  <div class="docmeta">
+    <div><div class="k">Purpose</div><div class="v">Answer the most common employee questions quickly.</div></div>
+    <div><div class="k">Scope</div><div class="v">Access, requests, status, approvals, notifications.</div></div>
+    <div><div class="k">Audience</div><div class="v">All employees.</div></div>
+  </div>
+
+  <h3>Getting started</h3>
+  <p><strong>Q: How do I log in?</strong><br>Use your company email and password on the Login screen. Reset via <em>Forgot password</em> if needed.</p>
+  <p><strong>Q: Which desk do I use?</strong><br>IT for technical/equipment, HR for people matters, Finance for purchases, chargebacks and budgets. See the <a class="inline" href="#doc3">Service Catalog</a>.</p>
+
+  <h3>Requests &amp; tracking</h3>
+  <p><strong>Q: Where do I see all my requests?</strong><br>On <span class="screen">My Requests</span> — filter by open/closed, search and sort.</p>
+  <p><strong>Q: What does “Action Required” mean?</strong><br>The team needs information from you. Open the ticket and respond; the SLA may be paused until you do.</p>
+  <p><strong>Q: My ticket hasn't moved — why?</strong><br>Check the Workflow Stepper. It's usually awaiting an approver's decision (SLA paused) or your own response.</p>
+  <p><strong>Q: Can I re-open a resolved ticket?</strong><br>Yes — add a comment explaining the issue persists.</p>
+
+  <h3>Approvals</h3>
+  <p><strong>Q: Why does my hardware/finance request take longer?</strong><br>These require multi-tier approval before work begins. Approval time doesn't count against the SLA.</p>
+  <p><strong>Q: I'm a manager but can't see an approval.</strong><br>Confirm your role and that the item is routed to your entity. See <a class="inline" href="#doc9">Document 9</a>.</p>
+
+  <h3>Notifications</h3>
+  <p><strong>Q: How am I notified?</strong><br>Both in-app (real-time, shown in your <span class="screen">Inbox</span>) and by email. Email can be toggled globally by Admins.</p>
+  <p><strong>Q: Where's my notification history?</strong><br>The Unified Inbox (<span class="screen">/inbox</span>) — filter and mark items read.</p>
+
+  <h3>Knowledge Base</h3>
+  <p><strong>Q: Do I need an account to read articles?</strong><br>Articles are available to logged-in employees; search and browse freely.</p>
+  <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
+</section>
+
+<!-- ============ DOC 8: BUSINESS RULES ============ -->
+<section class="doc" id="doc8">
+  <span class="docnum">DOCUMENT 8</span>
+  <h1 class="doc-title">Business Rules Guide</h1>
+  <div class="docmeta">
+    <div><div class="k">Purpose</div><div class="v">Document the rules that govern SLAs, escalation and approvals.</div></div>
+    <div><div class="k">Scope</div><div class="v">SLA timers, pause/resume, escalation, approval triggers, role rules.</div></div>
+    <div><div class="k">Audience</div><div class="v">All employees, managers, approvers.</div></div>
+  </div>
+
+  <h2 id="ref-sla">8.1 SLA Definitions</h2>
+  <p>Each request type has a Service Level Agreement (SLA) measured in hours from submission. The deadline is shown on the request.</p>
+  <table>
+    <thead><tr><th>SLA</th><th>Applies to</th></tr></thead>
+    <tbody>
+      <tr><td><strong>24 hours</strong></td><td>Get IT Help, Email Management, Report System Problem, Question for HR</td></tr>
+      <tr><td><strong>48 hours</strong></td><td>Software Installation, New Hiring, Onboarding, Offboarding</td></tr>
+      <tr><td><strong>72 hours</strong></td><td>New Hardware, Purchase Requisition, Inter-Company Chargeback, Budget Proposal</td></tr>
+    </tbody>
+  </table>
+
+  <h3>8.2 SLA Pause &amp; Resume</h3>
+  <ul>
+    <li>The SLA timer <strong>pauses automatically</strong> when a request enters an approval stage (e.g. awaiting CEO/CFO/manager).</li>
+    <li>It <strong>resumes</strong> when the approval is decided, and the original time remaining is preserved (the deadline shifts by the paused duration).</li>
+    <li>A request that stays paused longer than <strong>14 days</strong> is auto-resumed to prevent it stalling indefinitely.</li>
+  </ul>
+
+  <h2 id="ref-escalation">8.3 Escalation Procedures</h2>
+  <p>If a request breaches its SLA deadline, the system records a breach and notifies the assignee and managers. Escalation rules then fire a set number of hours <em>after</em> the breach, notifying progressively more senior roles.</p>
+  <div class="flow">
+    <span class="node start">SLA Breached</span><span class="arr">→</span>
+    <span class="node gate">+1h → notify Agent</span><span class="arr">→</span>
+    <span class="node gate">+4h → notify Agent + CEO</span><span class="arr">→</span>
+    <span class="node reject">+24h → notify CEO + Group CEO</span>
+  </div>
+  <p><em>Illustrative chain — actual trigger hours and target roles are configured per request type by administrators. Eligible escalation roles include Admin, Agent, HR, IT, Finance, CEO, VP and Group CEO.</em></p>
+
+  <h2>8.4 Approval Trigger Rules</h2>
+  <table>
+    <thead><tr><th>Rule</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr><td>Request type marked “requires approval”</td><td>Routes to the configured approval chain before work proceeds (Software, Hardware, all Finance types).</td></tr>
+      <tr><td>Role-restricted request type</td><td>Only users with the required role may raise it (e.g. <em>New Hiring</em> requires Hiring Manager).</td></tr>
+      <tr><td>Entity-based routing</td><td>Approver is chosen from the requester's entity or a selected entity field.</td></tr>
+      <tr><td>Multi-entity request</td><td>One approval per entity; advances only when all approve, stops if any rejects.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="box warn"><span class="lbl">Troubleshooting</span> If a ticket breaches SLA while genuinely waiting on you, respond promptly — escalations notify your management.</div>
+  <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
+</section>
+
+<!-- ============ DOC 9: ROLE-BASED ============ -->
+<section class="doc" id="doc9">
+  <span class="docnum">DOCUMENT 9</span>
+  <h1 class="doc-title">Role-Based User Guide</h1>
+  <div class="docmeta">
+    <div><div class="k">Purpose</div><div class="v">Clarify what each role can do and is responsible for.</div></div>
+    <div><div class="k">Scope</div><div class="v">All end-user-facing roles.</div></div>
+    <div><div class="k">Audience</div><div class="v">All employees.</div></div>
+  </div>
+
+  <p>Your access is governed by your role(s). Most employees are <strong>Normal Staff</strong>. Additional roles unlock approval queues and specialised actions.</p>
+
+  <h2>9.1 Role Capabilities</h2>
+  <table>
+    <thead><tr><th>Role</th><th>Can do</th><th>Key screens</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Normal Staff</strong> (all employees)</td><td>Create &amp; track requests, search KB, read announcements.</td><td><span class="screen">Dashboard</span> <span class="screen">My Requests</span> <span class="screen">KB</span></td></tr>
+      <tr><td><strong>Hiring Manager</strong></td><td>Raise hiring requests; select candidates during Manager Review.</td><td><span class="screen">Create Request</span> <span class="screen">Approval Center</span></td></tr>
+      <tr><td><strong>Manager / Approver</strong></td><td>Approve or reject items routed to them.</td><td><span class="screen">Approval Center</span></td></tr>
+      <tr><td><strong>Finance Head</strong></td><td>Approve finance/reimbursement requests.</td><td><span class="screen">Approval Center</span></td></tr>
+      <tr><td><strong>Executives</strong> (CEO, CTO, CFO, Group CEO)</td><td>Approve high-tier items (hardware, hiring, finance) at their gate.</td><td><span class="screen">Approval Center</span></td></tr>
+      <tr><td><strong>Agent / IT Agent</strong></td><td>Triage and resolve tickets; manage IT assets.</td><td><span class="screen">Agent Dashboard</span> <span class="screen">Assets</span></td></tr>
+      <tr><td><strong>Admin</strong></td><td>System configuration, users, SLA &amp; escalation rules, audit.</td><td><span class="screen">Admin Settings</span> <span class="screen">Audit Trail</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>9.2 Role-Based Journeys</h2>
+  <h4>Employee (Normal Staff)</h4>
+  <p>Dashboard → choose desk → Create Request → track in My Requests → respond to Action Required → confirm resolution.</p>
+  <h4>Manager / Approver</h4>
+  <p>Receive notification → Approval Center → review &amp; decide with a comment → item advances.</p>
+  <h4>Hiring Manager</h4>
+  <p>Raise New Hiring Request → executive approvals → at Manager Review, select 1–3 candidates (each with required documents) → HR continues screening &amp; LOA.</p>
+  <h4>Agent</h4>
+  <p>Agent Dashboard → pick up My/Unassigned tickets → progress through statuses → resolve within SLA.</p>
+
+  <div class="box tip"><span class="lbl">Best Practices</span> Hold only the roles you need. If you require an approval or specialised role, raise an HR/IT request to have it granted.</div>
+  <div class="box warn"><span class="lbl">Troubleshooting</span> Missing a screen or action you expect? It's almost always a role/permission matter — permissions are cached briefly, so a recently granted role can take a few minutes to take effect.</div>
+  <div class="backtop"><a href="#toc">↑ Back to contents</a></div>
+</section>
+
+<footer>
+  CWC 2.0 Service Desk — End User Documentation Pack &nbsp;•&nbsp; Version 1.0 &nbsp;•&nbsp; Published 5 June 2026<br>
+  Citadel Group · Prepared for company-wide rollout · Suitable for Confluence, SharePoint or an internal knowledge portal.
+</footer>
+
+</div><!-- /content -->
+</main>
+</div><!-- /wrap -->
+</body>
+</html>

@@ -128,6 +128,25 @@ export interface ContactAccountRole {
   account?: { id: string; name: string };
 }
 
+export interface CrmTag {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { assignments: number };
+}
+
+export interface CrmTagAssignment {
+  id: string;
+  tagId: string;
+  entityType: string;
+  entityId: string;
+  assignedBy: string;
+  assignedAt: string;
+  tag?: CrmTag;
+}
+
 export interface CrmActivity {
   id: string; activityType: CrmActivityType; subject: string; description: string | null;
   userId: string; accountId: string | null; contactId: string | null;
@@ -561,6 +580,32 @@ const crmService = {
   },
   async removeContactAccountRole(id: string) {
     return api.delete(`/crm/contact-account-roles/${id}`);
+  },
+
+  // Tags
+  async listTags() {
+    const res = await api.get('/crm/tags');
+    return res.data.data as CrmTag[];
+  },
+  async createTag(data: { name: string; color?: string }) {
+    const res = await api.post('/crm/tags', data);
+    return res.data.data.tag as CrmTag;
+  },
+  async deleteTag(id: string) {
+    return api.delete(`/crm/tags/${id}`);
+  },
+
+  // Tag assignments
+  async assignTag(tagId: string, entityType: string, entityId: string) {
+    const res = await api.post('/crm/tag-assignments', { tagId, entityType, entityId });
+    return res.data.data.assignment as CrmTagAssignment;
+  },
+  async removeTagAssignment(id: string) {
+    return api.delete(`/crm/tag-assignments/${id}`);
+  },
+  async getEntityTags(entityType: string, entityId: string) {
+    const res = await api.get('/crm/tag-assignments', { params: { entityType, entityId } });
+    return res.data.data as CrmTagAssignment[];
   },
 
   // My Stats (Self-Service Rep Stats)

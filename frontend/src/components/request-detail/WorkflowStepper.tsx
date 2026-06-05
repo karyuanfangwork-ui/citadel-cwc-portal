@@ -379,11 +379,28 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
   const useVerticalLayout = steps.length > MANY_STEPS_THRESHOLD;
 
   // Collapsible logic: only applies to horizontal layout
-  // When the workflow is done or using vertical layout, show all steps
   const COLLAPSE_THRESHOLD = 5;
   const shouldCollapse = !useVerticalLayout && steps.length > COLLAPSE_THRESHOLD;
   const visibleSteps = shouldCollapse && !expanded && !workflowDone ? steps.slice(0, 3) : steps;
   const hiddenCount = shouldCollapse && !expanded && !workflowDone ? steps.length - 3 : 0;
+
+  // Vertical smart truncation: last 2 completed + current + next 2 upcoming
+  const verticalTruncatedSteps = useMemo(() => {
+    if (workflowDone || !useVerticalLayout) return steps;
+    const currentIdx = steps.findIndex(s => s.state === 'current');
+    if (currentIdx === -1) return steps;
+    const start = Math.max(0, currentIdx - 2);
+    const end = Math.min(steps.length, currentIdx + 3);
+    return steps.slice(start, end);
+  }, [steps, workflowDone, useVerticalLayout]);
+
+  const verticalHiddenBefore = useVerticalLayout && !workflowDone && !expanded
+    ? Math.max(0, steps.findIndex(s => s.state === 'current') - 2)
+    : 0;
+  const verticalHiddenAfter = useVerticalLayout && !workflowDone && !expanded
+    ? Math.max(0, steps.length - Math.min(steps.length, steps.findIndex(s => s.state === 'current') + 3))
+    : 0;
+  const verticalIsTruncated = verticalHiddenBefore > 0 || verticalHiddenAfter > 0;
 
   // Empty state
   if (steps.length === 0) {
@@ -720,15 +737,75 @@ const WorkflowStepper: React.FC<WorkflowStepperProps> = ({ request, workflowStep
       {/* Desktop: horizontal stepper for ≤7 steps, vertical for >7 steps */}
       {useVerticalLayout ? (
         <div className="hidden md:block">
-          {renderVerticalTimeline(steps)}
+          {verticalHiddenBefore > 0 && !expanded && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="mb-2 w-full flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#0052cc] transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm" aria-hidden="true">expand_less</span>
+              {verticalHiddenBefore} earlier step{verticalHiddenBefore !== 1 ? 's' : ''}
+            </button>
+          )}
+          {renderVerticalTimeline(expanded ? steps : verticalTruncatedSteps)}
+          {verticalHiddenAfter > 0 && !expanded && (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="mt-1 w-full flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#0052cc] transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm" aria-hidden="true">expand_more</span>
+              {verticalHiddenAfter} more step{verticalHiddenAfter !== 1 ? 's' : ''}
+            </button>
+          )}
+          {verticalIsTruncated && expanded && (
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="mt-1 w-full flex items-center justify-center gap-1 text-xs font-semibold text-[#0052cc] hover:text-blue-700 transition-colors"
+            >
+              <span className="material-symbols-outlined text-sm" aria-hidden="true">expand_less</span>
+              Show less
+            </button>
+          )}
         </div>
       ) : (
         renderHorizontalStepper()
       )}
 
-      {/* Mobile: always vertical timeline */}
+      {/* Mobile: always vertical timeline with same truncation */}
       <div className="md:hidden">
-        {renderVerticalTimeline(steps)}
+        {verticalHiddenBefore > 0 && !expanded && useVerticalLayout && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="mb-2 w-full flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#0052cc] transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">expand_less</span>
+            {verticalHiddenBefore} earlier step{verticalHiddenBefore !== 1 ? 's' : ''}
+          </button>
+        )}
+        {renderVerticalTimeline(expanded || !useVerticalLayout ? steps : verticalTruncatedSteps)}
+        {verticalHiddenAfter > 0 && !expanded && useVerticalLayout && (
+          <button
+            type="button"
+            onClick={() => setExpanded(true)}
+            className="mt-1 w-full flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#0052cc] transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">expand_more</span>
+            {verticalHiddenAfter} more step{verticalHiddenAfter !== 1 ? 's' : ''}
+          </button>
+        )}
+        {verticalIsTruncated && expanded && useVerticalLayout && (
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="mt-1 w-full flex items-center justify-center gap-1 text-xs font-semibold text-[#0052cc] hover:text-blue-700 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">expand_less</span>
+            Show less
+          </button>
+        )}
       </div>
 
       {/* Collapse / expand toggle — only for horizontal layout with many steps */}

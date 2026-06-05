@@ -223,4 +223,14 @@ router.get('/contact-account-roles', requirePermission('crm:read'), crmControlle
 router.post('/contact-account-roles', requirePermission('crm:write'), crmController.addContactAccountRole);
 router.delete('/contact-account-roles/:id', requirePermission('crm:write'), crmController.removeContactAccountRole);
 
+// Tags
+router.get('/tags', requirePermission('crm:read'), crmController.listTags);
+router.post('/tags', requirePermission('crm:admin'), crmController.createTag);
+router.delete('/tags/:id', requirePermission('crm:admin'), crmController.deleteTag);
+
+// Tag assignments
+router.post('/tag-assignments', requirePermission('crm:write'), crmController.assignTag);
+router.delete('/tag-assignments/:id', requirePermission('crm:write'), crmController.removeTagAssignment);
+router.get('/tag-assignments', requirePermission('crm:read'), crmController.getEntityTags);
+
 export default router;

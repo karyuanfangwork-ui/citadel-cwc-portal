@@ -1,6 +1,6 @@
 # CWC Credit Assessment Module — Quick Start Guide
 
-> **Version:** 1.1 | **Last Updated:** June 2026 | **Audience:** Staff & Stakeholders
+> **Version:** 1.2 | **Last Updated:** June 2026 | **Audience:** Staff & Stakeholders
 
 ---
 
@@ -87,12 +87,12 @@ Once inside the Credit module, a secondary navigation bar provides access to all
 | `/credit/borrowers` | Borrowers | — |
 | `/credit/applications` | Applications | — |
 | `/credit/approvals` | My Approvals | `credit:approve` |
-| `/credit/financials` | Financials | `credit:read` |
 | `/credit/committee` | Committee | `credit:read` |
-| `/credit/collateral` | Collateral | `credit:read` |
 | `/credit/scorecards` | Scorecards | `credit:admin` |
 | `/credit/analysis` | Analysis | `credit:read` |
 | `/credit/reports` | Reports | `credit:read` |
+
+> Financials and Collateral are accessed via tabs inside individual application detail pages, not top-level nav items.
 
 ---
 
@@ -106,8 +106,8 @@ Once inside the Credit module, a secondary navigation bar provides access to all
 1. Navigate to **Credit → Applications**
 2. Click **"+ New Application"** button
 3. The **Application Wizard** opens with 3 steps:
-   - **Step 1 — Borrower & Loan:** Select borrower (or create new), choose product type, enter requested amount and tenor
-   - **Step 2 — Risk & Analysis:** Fill in financials, risk score, bureau checks, industry, mitigants
+   - **Step 1 — Loan & Borrower:** Select or create a borrower, choose product type, enter requested amount and tenor
+   - **Step 2 — Risk & Mitigants:** Fill in financials or retail income, risk score, bureau checks, industry, mitigants
    - **Step 3 — Decision:** Collateral, security, approvals, sign-off, conditions
 4. Smart defaults are applied automatically:
    - Currency derived from borrower's domicile country
@@ -116,7 +116,21 @@ Once inside the Credit module, a secondary navigation bar provides access to all
 5. Save as **DRAFT** at any point, or proceed to completion
 6. When all required sections are filled, click **Submit** to move the application to `SUBMITTED` state
 
-> **Walkthrough Script:** "I log in and navigate to Credit → Applications. I click '+ New Application' — the wizard opens. I select the borrower profile, choose 'Term Loan' as the product, enter RM500,000 as the amount and 60 months tenor. The system auto-fills MYR as currency and my user as RM. I fill in the borrower profile tab and click 'Save as Draft'. The application number CA-001 is generated."
+#### Retail vs Corporate — Key Differences
+
+The wizard adapts based on the **Borrower Type** selected. The two main paths are:
+
+| Section | Corporate / Joint (`CORPORATE`) | Retail / Individual (`INDIVIDUAL`, `SOLE_PROPRIETOR`) |
+|---|---|---|
+| **Step 1 — Borrower Profile** | Company registration number required + at least one director or party | Borrower type alone is sufficient (NRIC is held on the linked CRM Contact) |
+| **Step 1 — Parties tab** | "Directors & UBOs" — add directors, shareholders, and UBOs | "Guarantors & Parties" — add guarantors and co-borrowers only; no directors required |
+| **Step 2 — Financials** | Upload 3-year financial statements (Balance Sheet, P&L, Cash Flow) for spreading | **Retail Income** tab instead — enter employment type, monthly gross income, EPF contributions, and monthly commitments. Cross-check against payslip / bank statements before verifying |
+| **Step 2 — Risk Score** | Corporate scorecard weights (Debt Service, Leverage, Profitability, etc.) | Retail scorecard weights (separate factor group set) |
+| **Step 3 — Collateral** | Required if the facility is secured; optional for unsecured lending | Same rules apply |
+
+> **Corporate Walkthrough:** "I select the borrower — a registered company. The wizard asks for the SSM registration number. I add the three directors under the Directors & UBOs tab. Under Financials, I upload three years of audited accounts and the system computes the ratios automatically."
+
+> **Retail Walkthrough:** "I select the borrower — an individual. The wizard does not ask for a registration number or directors. Under Financials, I see the Retail Income tab instead — I enter the borrower's employment type (Salaried), monthly gross income of RM8,000, EPF contribution, and total monthly commitments. The system computes DSR for me. I mark it as verified once I've checked against the payslip."
 
 ### Journey 2: KYC Officer Reviews Application
 
@@ -145,7 +159,7 @@ Once inside the Credit module, a secondary navigation bar provides access to all
    - **Financials:** Upload financial statements, review spreading, check ratios
    - **Risk Score & Rating:** Run the scoring model, verify the computed risk rating
    - **Payment Capability:** Review income, cash flow, DSCR
-   - **Bureau Checks:** Review bureau reports (CTOS, CCRIS, BNM)
+   - **Bureau Checks:** Review bureau reports (CTOS, CCRIS borrower self-pull via eCCRIS, Experian RAMCI, Credit Bureau Malaysia, etc.)
    - **Industry Outlook:** Assess sector risk
    - **Risk & Mitigators:** Document risks and mitigating factors
 4. Navigate to **Collateral** tab — add collateral items with valuations
@@ -201,7 +215,7 @@ Once inside the Credit module, a secondary navigation bar provides access to all
    - Aging analysis (performing, watch, impaired)
    - SLA breach report (filterable by product type, date range)
 
-### Journey 7: Borrower Profile Management (Onboarding a New Borrower)
+### Journey 7: Borrower Profile Management
 
 **Persona:** Relationship Manager (RM)  
 **Test Account:** `admin@test.local` / `abc@123`
@@ -420,8 +434,8 @@ The Credit Assessment Memo is organized into 7 sections across 3 steps, plus met
 | Tab | Description |
 |---|---|
 | **Loan Request** | Product type, amount, tenor, currency, purpose |
-| **Borrower Profile & KYC** | Borrower details, directors, shareholders, UBOs, KYC status |
-| **Parties** | Co-borrowers, guarantors, sponsors |
+| **Borrower Profile & KYC** | Borrower details, KYC status |
+| **Directors & UBOs** | Directors, shareholders, UBOs, co-borrowers, guarantors |
 
 ### Step 2 — Risk & Mitigants
 
@@ -442,10 +456,10 @@ The Credit Assessment Memo is organized into 7 sections across 3 steps, plus met
 | **Security & Guarantees** | Security documentation, guarantee details |
 | **Approvals** | Approval decisions and progress tracking |
 | **Sign-off** | Prepared/Reviewed/Concurred sign-off |
-| **Conditions** | Conditions precedent and subsequent |
+| **Conditions Precedent** | Conditions precedent and subsequent |
 | **Summary** | Consolidated CA Memo summary |
 
-### Metadata Tabs (always visible)
+### Operations Tabs (Step 3)
 
 | Tab | Description |
 |---|---|
@@ -462,7 +476,7 @@ These tabs are visible only when your administrator has enabled the Advanced CA 
 | **Profitability** | Account profitability analysis |
 | **Counterparties** | Key counterparties (suppliers, buyers, competitors) |
 | **Account Conduct** | Wallet share, account utilisation |
-| **Forward-Looking Risk** | ESG, SICR assessments |
+| **ESG / SICR / FL Risk** | ESG, SICR, and forward-looking risk assessments |
 | **Header & Background** | CA Memo header fields, application background |
 
 ---
@@ -687,7 +701,7 @@ The following fields are encrypted at rest using AES-256-GCM:
 | Term | Definition |
 |---|---|
 | **CA Memo** | Credit Assessment Memo — the structured document summarizing the full credit analysis |
-| **CA Request Type** | Type of credit request: New Facility, Renewal, Variation, Policy Breach Ratification, SICR Impairment |
+| **CA Request Type** | Type of credit request: New, Additional, Renewal, Variation |
 | **Borrower Profile** | Complete profile of the applicant — individual or corporate entity |
 | **UBO** | Ultimate Beneficial Owner — person who ultimately owns or controls 25%+ of the entity |
 | **DSCR** | Debt Service Coverage Ratio — measures cash flow available to service debt |
@@ -806,4 +820,4 @@ If any of the above is missing, your account may not have the required credit pe
 
 ---
 
-*End of Quick Start Guide — CWC Credit Assessment Module v1.1*
+*End of Quick Start Guide — CWC Credit Assessment Module v1.2*

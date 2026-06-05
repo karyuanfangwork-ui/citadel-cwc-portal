@@ -241,26 +241,32 @@ async function main() {
     console.log(`   ✓ ${accountName}: ${contactList.length} contacts`);
   }
 
-  // 3. Create Sales Pipeline with Stages
+  // 3. Reuse or create the default Sales Pipeline with Stages
   console.log('\n🔀 Creating CRM Pipeline...');
-  const pipeline = await prisma.crmPipeline.create({
-    data: {
-      name: 'Sales Pipeline',
-      description: 'Unified sales pipeline for tracking deals from prospecting to close',
-      isDefault: true,
-      stages: {
-        create: [
-          { name: 'Prospecting', displayOrder: 0, probability: 10, color: '#6366f1', isWonStage: false, isLostStage: false },
-          { name: 'Qualification', displayOrder: 1, probability: 25, color: '#3b82f6', isWonStage: false, isLostStage: false },
-          { name: 'Proposal', displayOrder: 2, probability: 50, color: '#0ea5e9', isWonStage: false, isLostStage: false },
-          { name: 'Negotiation', displayOrder: 3, probability: 75, color: '#f59e0b', isWonStage: false, isLostStage: false },
-          { name: 'Closed Won', displayOrder: 4, probability: 100, color: '#10b981', isWonStage: true, isLostStage: false },
-          { name: 'Closed Lost', displayOrder: 5, probability: 0, color: '#ef4444', isWonStage: false, isLostStage: true },
-        ],
+  const stageData = [
+    { name: 'Prospecting', displayOrder: 0, probability: 10, color: '#6366f1', isWonStage: false, isLostStage: false },
+    { name: 'Qualification', displayOrder: 1, probability: 25, color: '#3b82f6', isWonStage: false, isLostStage: false },
+    { name: 'Proposal', displayOrder: 2, probability: 50, color: '#0ea5e9', isWonStage: false, isLostStage: false },
+    { name: 'Negotiation', displayOrder: 3, probability: 75, color: '#f59e0b', isWonStage: false, isLostStage: false },
+    { name: 'Closed Won', displayOrder: 4, probability: 100, color: '#10b981', isWonStage: true, isLostStage: false },
+    { name: 'Closed Lost', displayOrder: 5, probability: 0, color: '#ef4444', isWonStage: false, isLostStage: true },
+  ];
+  const existingPipeline = await prisma.crmPipeline.findFirst({ where: { name: 'Sales Pipeline' }, include: { stages: true } });
+  let pipeline: typeof existingPipeline & { stages: { id: string; name: string; displayOrder: number }[] };
+  if (existingPipeline) {
+    pipeline = existingPipeline;
+    console.log(`   Pipeline already exists, reusing: ${pipeline.name}`);
+  } else {
+    pipeline = await prisma.crmPipeline.create({
+      data: {
+        name: 'Sales Pipeline',
+        description: 'Unified sales pipeline for tracking deals from prospecting to close',
+        isDefault: true,
+        stages: { create: stageData },
       },
-    },
-    include: { stages: true },
-  });
+      include: { stages: true },
+    });
+  }
   console.log(`   ✓ Pipeline: ${pipeline.name} with ${pipeline.stages.length} stages`);
 
   const stageMap: Record<string, string> = {};

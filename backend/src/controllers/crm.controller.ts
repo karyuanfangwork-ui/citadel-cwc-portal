@@ -1820,6 +1820,47 @@ class CrmController {
     });
     res.json({ status: 'success', data: roles });
   });
+
+  // ======== TAGS & TAG ASSIGNMENTS ========
+
+  listTags = asyncHandler(async (_req: AuthRequest, res: Response) => {
+    const tags = await prisma.crmTag.findMany({ orderBy: { name: 'asc' }, include: { _count: { select: { assignments: true } } } });
+    res.json({ status: 'success', data: tags });
+  });
+
+  createTag = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const tag = await prisma.crmTag.create({ data: req.body });
+    res.status(201).json({ status: 'success', data: { tag } });
+  });
+
+  deleteTag = asyncHandler(async (req: AuthRequest, res: Response) => {
+    await prisma.crmTag.delete({ where: { id: req.params.id as string } });
+    res.json({ status: 'success', message: 'Tag deleted' });
+  });
+
+  assignTag = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { tagId, entityType, entityId } = req.body;
+    const assignment = await prisma.crmTagAssignment.create({
+      data: { tagId, entityType, entityId, assignedBy: req.user!.id },
+      include: { tag: true },
+    });
+    res.status(201).json({ status: 'success', data: { assignment } });
+  });
+
+  removeTagAssignment = asyncHandler(async (req: AuthRequest, res: Response) => {
+    await prisma.crmTagAssignment.delete({ where: { id: req.params.id as string } });
+    res.json({ status: 'success', message: 'Tag assignment removed' });
+  });
+
+  getEntityTags = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { entityType, entityId } = req.query;
+    const assignments = await prisma.crmTagAssignment.findMany({
+      where: { entityType: entityType as string, entityId: entityId as string },
+      include: { tag: true },
+      orderBy: { assignedAt: 'desc' },
+    });
+    res.json({ status: 'success', data: assignments });
+  });
 }
 
 export const crmController = new CrmController();

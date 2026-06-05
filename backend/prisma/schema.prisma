@@ -1734,6 +1734,34 @@ model CrmAssignmentRule {
   @@map("crm_assignment_rules")
 }
 
+// CRM Tags & polymorphic tag assignments
+model CrmTag {
+  id        String @id @default(uuid()) @db.Uuid
+  name      String @unique @db.VarChar(50)
+  color     String @default("#6B7280") @db.VarChar(7) // hex color
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  assignments CrmTagAssignment[]
+
+  @@map("crm_tags")
+}
+
+model CrmTagAssignment {
+  id         String @id @default(uuid()) @db.Uuid
+  tagId      String @map("tag_id") @db.Uuid
+  entityType String @db.VarChar(20) // LEAD, CONTACT, ACCOUNT, OPPORTUNITY
+  entityId   String @map("entity_id") @db.Uuid
+  assignedBy String @map("assigned_by") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamp(6)
+
+  tag CrmTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([tagId, entityType, entityId])
+  @@index([entityType, entityId])
+  @@map("crm_tag_assignments")
+}
+
 // CRM Pipelines — configurable deal pipelines
 model CrmPipeline {
   id          String   @id @default(uuid()) @db.Uuid
