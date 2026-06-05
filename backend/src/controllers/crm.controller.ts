@@ -12,6 +12,7 @@ import { notify } from '../services/notification.service';
 import { autoAssignLead } from '../services/crm-automation.service';
 import { trackFieldChanges } from '../services/crm-field-change.service';
 import { DEFAULT_FX_RATES, BASE_CURRENCY } from '../services/crm-fx.service';
+import { buildMatchFields } from '../services/crm-duplicate.service';
 import crmReportsService from '../services/crm-reports.service';
 import { scoreLead, predictWinProbability } from '../services/crm-ai.service';
 import { logger } from '../utils/logger';
@@ -225,6 +226,26 @@ class CrmController {
   });
 
   createContact = asyncHandler(async (req: AuthRequest, res: Response) => {
+    // Duplicate check (unless ?force=true)
+    if (req.query.force !== 'true' && (req.body.email || req.body.phone || req.body.mobile || req.body.firstName)) {
+      const OR: any[] = [];
+      if (req.body.email) OR.push({ email: req.body.email });
+      if (req.body.phone) OR.push({ phone: req.body.phone });
+      if (req.body.mobile) OR.push({ mobile: req.body.mobile });
+      if (OR.length > 0) {
+        const candidates = await prisma.crmContact.findMany({ where: { deletedAt: null, OR }, take: 10 });
+        for (const c of candidates) {
+          const { confidence, matchFields } = buildMatchFields(
+            { email: req.body.email, phone: req.body.phone ?? req.body.mobile, firstName: req.body.firstName, lastName: req.body.lastName },
+            { email: c.email, phone: c.phone ?? c.mobile, firstName: c.firstName, lastName: c.lastName },
+          );
+          if (confidence >= 0.7) {
+            res.status(409).json({ status: 'error', message: 'Potential duplicate contact found', data: { match: { id: c.id, confidence, matchFields, name: `${c.firstName} ${c.lastName}`, email: c.email, phone: c.phone } } });
+            return;
+          }
+        }
+      }
+    }
     if (req.body.accountId) {
       const account = await prisma.crmAccount.findUnique({ where: { id: req.body.accountId } });
       if (!account) throw new AppError('Account not found', 404);
@@ -342,6 +363,25 @@ class CrmController {
   });
 
   createLead = asyncHandler(async (req: AuthRequest, res: Response) => {
+    // Duplicate check (unless ?force=true)
+    if (req.query.force !== 'true' && (req.body.contactEmail || req.body.contactPhone || req.body.contactName)) {
+      const OR: any[] = [];
+      if (req.body.contactEmail) OR.push({ contactEmail: req.body.contactEmail });
+      if (req.body.contactPhone) OR.push({ contactPhone: req.body.contactPhone });
+      if (OR.length > 0) {
+        const candidates = await prisma.crmLead.findMany({ where: { deletedAt: null, OR }, take: 10 });
+        for (const c of candidates) {
+          const { confidence, matchFields } = buildMatchFields(
+            { email: req.body.contactEmail, phone: req.body.contactPhone, contactName: req.body.contactName },
+            { email: c.contactEmail, phone: c.contactPhone, contactName: c.contactName },
+          );
+          if (confidence >= 0.7) {
+            res.status(409).json({ status: 'error', message: 'Potential duplicate lead found', data: { match: { id: c.id, confidence, matchFields, name: c.contactName, email: c.contactEmail, phone: c.contactPhone } } });
+            return;
+          }
+        }
+      }
+    }
     // Use ownerId from body if provided, otherwise default to logged-in user
     const ownerId = req.body.ownerId || req.user!.id;
     const { ownerId: _ownerId, autoAssign, ...restBody } = req.body;
