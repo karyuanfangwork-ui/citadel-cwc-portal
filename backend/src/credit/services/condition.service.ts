@@ -16,6 +16,7 @@ export interface CreateConditionData {
   category?: ConditionCategoryLabel;
   conditionType?: ConditionTypeLabel;
   dueDate?: Date | string | null;
+  decisionId?: string;
 }
 
 export interface UpdateConditionData {
@@ -54,7 +55,10 @@ export interface ConditionDto {
   title: string;
   description: string | null;
   category: ConditionCategoryLabel;
+  conditionType?: ConditionTypeLabel;
   status: ConditionStatusLabel;
+  isFulfilled?: boolean;
+  decisionId?: string | null;
   dueDate: string | null;
   completedAt: string | null;
   completedBy: string | null;
@@ -78,7 +82,10 @@ function toDto(c: any): ConditionDto {
     title: c.title,
     description: c.description,
     category: c.category,
+    conditionType: c.conditionType,
     status: c.status,
+    isFulfilled: c.isFulfilled ?? false,
+    decisionId: c.decisionId ?? null,
     dueDate: c.dueDate ? c.dueDate.toISOString() : null,
     completedAt: c.fulfilledAt ? c.fulfilledAt.toISOString() : null,
     completedBy: c.fulfilledById ?? null,
@@ -145,6 +152,7 @@ class ConditionService {
       isFulfilled: false,
       dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
       application: { connect: { id: data.applicationId } },
+      ...(data.decisionId ? { decision: { connect: { id: data.decisionId } } } : {}),
     };
 
     const row = await prisma.condition.create({

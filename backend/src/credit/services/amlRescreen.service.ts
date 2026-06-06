@@ -1,7 +1,8 @@
 import prisma from '../../utils/prisma';
-import { BureauProvider } from '@prisma/client';
+import { BureauProvider, AmlRescreenOutcome, AmlRescreenAction } from '@prisma/client';
 import { AuditChainService } from './auditChain.service';
 import { logger } from '../../utils/logger';
+import { AppError } from '../../middleware/error.middleware';
 
 // ---------------------------------------------------------------------------
 // §2.7 — AML Re-Screening Service
@@ -141,6 +142,133 @@ class AmlRescreenService {
         findingsSummary: findings.substring(0, 500),
       },
     );
+  }
+
+  // -----------------------------------------------------------------------
+  // §2.8 — AML Rescreen Event Log (explicit officer-triggered screenings)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Trigger a new AML rescreen event. Creates an AmlRescreenEvent record
+   * and an audit trail entry. If outcome is CONFIRMED_HIT, notifies compliance.
+   */
+  async triggerRescreen(dto: {
+    borrowerProfileId: string;
+    applicationId?: string;
+    triggeredById: string;
+    screeningSource: string;
+    outcome: AmlRescreenOutcome;
+    hitDetails?: string;
+    actionTaken: AmlRescreenAction;
+    actionNotes?: string;
+  }) {
+    const event = await prisma.amlRescreenEvent.create({
+      data: {
+        borrowerProfileId: dto.borrowerProfileId,
+        applicationId: dto.applicationId ?? null,
+        triggeredById: dto.triggeredById,
+        screeningSource: dto.screeningSource,
+        outcome: dto.outcome,
+        hitDetails: dto.hitDetails ?? null,
+        actionTaken: dto.actionTaken,
+        actionNotes: dto.actionNotes ?? null,
+      },
+    });
+
+    // Audit event
+    await AuditChainService.appendEvent(
+      dto.applicationId ?? 'N/A',
+      dto.outcome === 'CONFIRMED_HIT' ? 'AML_RESCREEN_CONFIRMED_HIT' : 'AML_RESCREEN_TRIGGERED',
+      dto.triggeredById,
+      'aml_rescreen_triggered',
+      undefined,
+      undefined,
+      {
+        eventId: event.id,
+        outcome: dto.outcome,
+        screeningSource: dto.screeningSource,
+        actionTaken: dto.actionTaken,
+      },
+    );
+
+    // If confirmed hit, notification is handled at the controller/route level
+    // (we create a Notification record for compliance team)
+    if (dto.outcome === AmlRescreenOutcome.CONFIRMED_HIT) {
+      await this.notifyComplianceHit(event.id, dto.borrowerProfileId, dto.applicationId);
+    }
+
+    return event;
+  }
+
+  /**
+   * Get the full AML rescreen event history for a borrower profile.
+   */
+  async getHistory(borrowerProfileId: string) {
+    return prisma.amlRescreenEvent.findMany({
+      where: { borrowerProfileId },
+      orderBy: { triggeredAt: 'desc' },
+      include: {
+        triggeredBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        reviewedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      },
+    });
+  }
+
+  /**
+   * Compliance review of an AML rescreen event — marks it as reviewed.
+   */
+  async reviewEvent(eventId: string, reviewedById: string, reviewNotes?: string) {
+    const event = await prisma.amlRescreenEvent.findUnique({ where: { id: eventId } });
+    if (!event) throw new AppError('AML rescreen event not found', 404);
+    if (event.reviewedAt) throw new AppError('Event already reviewed', 400);
+
+    const updated = await prisma.amlRescreenEvent.update({
+      where: { id: eventId },
+      data: {
+        reviewedById,
+        reviewedAt: new Date(),
+        actionNotes: reviewNotes ? `${event.actionNotes ?? ''}\n--- Compliance Review ---\n${reviewNotes}`.trim() : event.actionNotes,
+      },
+    });
+
+    await AuditChainService.appendEvent(
+      event.applicationId ?? 'N/A',
+      'AML_RESCREEN_REVIEWED',
+      reviewedById,
+      'aml_rescreen_reviewed',
+      undefined,
+      undefined,
+      { eventId, reviewNotes },
+    );
+
+    return updated;
+  }
+
+  /**
+   * Notify compliance team about a confirmed hit.
+   */
+  private async notifyComplianceHit(eventId: string, _borrowerProfileId: string, _applicationId?: string) {
+    try {
+      // Find compliance officers (users with COMPLIANCE role)
+      const complianceOfficers = await prisma.user.findMany({
+        where: { roles: { some: { role: { name: 'COMPLIANCE' } } } },
+        select: { id: true },
+      });
+
+      for (const officer of complianceOfficers) {
+        await prisma.notification.create({
+          data: {
+            userId: officer.id,
+            channel: 'IN_APP',
+            subject: 'AML Confirmed Hit — Compliance Review Required',
+            body: `AML rescreen event ${eventId} has a confirmed hit. Compliance review is required before the application can progress.`,
+            relatedRequestId: null,
+          },
+        });
+      }
+    } catch (err: any) {
+      logger.error(`[§2.8] Failed to notify compliance for event ${eventId}: ${err.message}`);
+    }
   }
 }
 

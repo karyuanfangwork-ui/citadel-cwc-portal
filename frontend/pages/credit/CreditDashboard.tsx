@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { dashboardApi } from '../../src/services/credit.service';
+import { dashboardApi, ExposureSummary } from '../../src/services/credit.service';
 import CreditNav from '../../src/components/CreditNav';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
@@ -130,6 +130,7 @@ const CreditDashboard: React.FC = () => {
   const [pipeline, setPipeline] = useState<PipelineDashboard | null>(null);
   const [approvalInbox, setApprovalInbox] = useState<ApprovalInbox | null>(null);
   const [exposure, setExposure] = useState<ExposureDashboard | null>(null);
+  const [exposureSummary, setExposureSummary] = useState<ExposureSummary | null>(null);
   const [calendar, setCalendar] = useState<CommitteeCalendar | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,21 +138,37 @@ const CreditDashboard: React.FC = () => {
   useEffect(() => {
     setLoading(true);
     setError(null);
+
+    if (activeTab === 'exposure') {
+      Promise.all([
+        dashboardApi.getExposureDashboard().then((res: any) => res.data?.data ?? res.data ?? res),
+        dashboardApi.getExposureSummary().then((res: any) => res.data?.data ?? res.data ?? res),
+      ])
+        .then(([dashboard, summary]) => {
+          setExposure(dashboard);
+          setExposureSummary(summary);
+        })
+        .catch((err: any) => {
+          console.error(err);
+          toast.error(friendlyMessage(err, 'Failed to load exposure data'));
+          setError(err.message ?? 'Failed to load exposure data');
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
+
     const fetcher =
       activeTab === 'pipeline'
         ? dashboardApi.getPipelineDashboard
         : activeTab === 'approval'
           ? dashboardApi.getApprovalInbox
-          : activeTab === 'exposure'
-            ? dashboardApi.getExposureDashboard
-            : dashboardApi.getCommitteeCalendar;
+          : dashboardApi.getCommitteeCalendar;
 
     fetcher()
       .then((res: any) => {
         const payload = res.data?.data ?? res.data ?? res;
         if (activeTab === 'pipeline') setPipeline(payload);
         else if (activeTab === 'approval') setApprovalInbox(payload);
-        else if (activeTab === 'exposure') setExposure(payload);
         else setCalendar(payload);
       })
       .catch((err: any) => {
@@ -205,7 +222,7 @@ const CreditDashboard: React.FC = () => {
           <ApprovalInboxSection data={approvalInbox} />
         )}
         {!loading && !error && activeTab === 'exposure' && exposure && (
-          <ExposureSection data={exposure} />
+          <ExposureSection data={exposure} summary={exposureSummary} />
         )}
         {!loading && !error && activeTab === 'calendar' && calendar && (
           <CalendarSection data={calendar} />
@@ -348,7 +365,7 @@ const ApprovalInboxSection: React.FC<{ data: ApprovalInbox }> = ({ data }) => {
 // Exposure Section
 // ---------------------------------------------------------------------------
 
-const ExposureSection: React.FC<{ data: ExposureDashboard }> = ({ data }) => {
+const ExposureSection: React.FC<{ data: ExposureDashboard; summary?: ExposureSummary | null }> = ({ data, summary }) => {
   const maxExposure = Math.max(...data.topBorrowers.map(b => b.totalExposure), 1);
 
   return (
@@ -356,8 +373,54 @@ const ExposureSection: React.FC<{ data: ExposureDashboard }> = ({ data }) => {
       {/* Total portfolio */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
         <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Total Portfolio Exposure</p>
-        <p className="text-2xl font-black text-text-primary">{formatCurrency(data.totalPortfolio)}</p>
+        <p className="text-2xl font-black text-text-primary">{formatCurrency(summary?.totalPortfolioExposure ?? data.totalPortfolio)}</p>
       </div>
+
+      {/* §2.6 — Exposure Limit Alerts */}
+      {summary && (summary.approachingLimit.length > 0 || summary.breachedLimit.length > 0) && (
+        <div className="space-y-3">
+          {summary.breachedLimit.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-red-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-red-600">error</span>
+                Limit Breached ({summary.breachedLimit.length})
+              </h3>
+              <div className="space-y-2">
+                {summary.breachedLimit.map(b => (
+                  <Link key={b.borrowerProfileId} to={`/credit/borrowers/${b.borrowerProfileId}`}
+                    className="flex items-center justify-between bg-white rounded-lg px-3 py-2 hover:shadow-sm transition-shadow">
+                    <span className="text-sm font-semibold text-red-900">{b.borrowerName}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-red-700">{formatCurrency(b.totalExposure)} / {formatCurrency(b.exposureLimit)}</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-600 text-white">{b.utilisationPct}%</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+          {summary.approachingLimit.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-amber-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-600">warning</span>
+                Approaching Limit ({summary.approachingLimit.length})
+              </h3>
+              <div className="space-y-2">
+                {summary.approachingLimit.map(b => (
+                  <Link key={b.borrowerProfileId} to={`/credit/borrowers/${b.borrowerProfileId}`}
+                    className="flex items-center justify-between bg-white rounded-lg px-3 py-2 hover:shadow-sm transition-shadow">
+                    <span className="text-sm font-semibold text-amber-900">{b.borrowerName}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-amber-700">{formatCurrency(b.totalExposure)} / {formatCurrency(b.exposureLimit)}</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-500 text-white">{b.utilisationPct}%</span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Top borrowers */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
@@ -447,6 +510,31 @@ const ExposureSection: React.FC<{ data: ExposureDashboard }> = ({ data }) => {
           </div>
         )}
       </div>
+
+      {/* §2.6 — Product Type Breakdown */}
+      {summary && Object.keys(summary.byProductType).length > 0 && (
+        <div className="bg-bg-surface border border-border rounded-xl p-5">
+          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Exposure by Product Type</h3>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Product Type</th>
+                <th className="text-right px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Exposure</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(summary.byProductType)
+                .sort(([, a], [, b]) => (b as number) - (a as number))
+                .map(([type, amount]) => (
+                  <tr key={type} className="border-b border-border last:border-0">
+                    <td className="px-2 py-2 font-semibold text-text-primary">{type}</td>
+                    <td className="px-2 py-2 text-right font-semibold">{formatCurrency(amount as number)}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 };

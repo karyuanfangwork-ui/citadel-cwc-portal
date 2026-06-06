@@ -29,16 +29,18 @@ interface Props {
 
 const DECISION_STYLES: Record<string, { bg: string; text: string; icon: string }> = {
   APPROVE:  { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: 'check_circle' },
+  CONDITIONAL: { bg: 'bg-amber-50', text: 'text-amber-700', icon: 'rule' },
   REJECT:   { bg: 'bg-red-50',     text: 'text-red-700',     icon: 'cancel' },
-  RETURN:   { bg: 'bg-amber-50',   text: 'text-amber-700',   icon: 'undo' },
+  RETURN:   { bg: 'bg-blue-50',    text: 'text-blue-700',    icon: 'undo' },
   ESCALATE: { bg: 'bg-purple-50',  text: 'text-purple-700',  icon: 'arrow_upward' },
 };
 
 const DECISION_BUTTONS: { decision: ApprovalDecision; label: string; classes: string }[] = [
-  { decision: 'APPROVE',  label: 'Approve',  classes: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' },
-  { decision: 'REJECT',   label: 'Reject',   classes: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' },
-  { decision: 'RETURN',   label: 'Return',   classes: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' },
-  { decision: 'ESCALATE', label: 'Escalate', classes: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' },
+  { decision: 'APPROVE',    label: 'Approve',           classes: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' },
+  { decision: 'CONDITIONAL', label: 'Conditional Approve', classes: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' },
+  { decision: 'REJECT',     label: 'Reject',             classes: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' },
+  { decision: 'RETURN',     label: 'Return',             classes: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' },
+  { decision: 'ESCALATE',  label: 'Escalate',            classes: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' },
 ];
 
 // ── Component ──────────────────────────────────────────────────────
@@ -60,6 +62,15 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
   const [selectedDecision, setSelectedDecision] = useState<ApprovalDecision | ''>('');
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [rejectionReasonCode, setRejectionReasonCode] = useState('');
+  const [rejectionReasonCodes, setRejectionReasonCodes] = useState<{value: string; label: string}[]>([]);
+  // §2.5 — Inline conditions for CONDITIONAL approval
+  const [conditions, setConditions] = useState<{title: string; description: string; category: string; conditionType: string; dueDate: string}[]>([]);
+
+  // Fetch rejection reason codes on mount
+  useEffect(() => {
+    creditService.listRejectionReasonCodes?.().then(setRejectionReasonCodes).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const exposure = Number(application.requestedAmount || 0);
@@ -97,15 +108,29 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
       toast.error('Comment is required for this approval tier');
       return;
     }
+    // §2.7 — Require rejection reason code when rejecting
+    if (selectedDecision === 'REJECT' && !rejectionReasonCode) {
+      toast.error('Rejection reason code is required');
+      return;
+    }
+    // §2.5 — Require at least one condition for CONDITIONAL approval
+    if (selectedDecision === 'CONDITIONAL' && conditions.length === 0) {
+      toast.error('At least one condition is required for conditional approval');
+      return;
+    }
     setSubmitting(true);
     try {
       await creditService.submitApproval(application.id, {
         decision: selectedDecision,
         comment: comment.trim() || undefined,
+        rejectionReasonCode: selectedDecision === 'REJECT' ? rejectionReasonCode : undefined,
+        conditions: selectedDecision === 'CONDITIONAL' ? conditions : undefined,
       });
       toast.success('Decision submitted');
       setSelectedDecision('');
       setComment('');
+      setRejectionReasonCode('');
+      setConditions([]);
       onActionComplete();
     } catch (e) {
       toast.error(friendlyMessage(e, 'Failed to submit decision'));
@@ -285,6 +310,102 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
               </button>
             ))}
           </div>
+
+          {/* §2.7 — Rejection reason code dropdown */}
+          {selectedDecision === 'REJECT' && (
+            <div>
+              <label className="block text-sm font-semibold text-red-800 mb-1">
+                Rejection Reason Code *
+              </label>
+              <select
+                value={rejectionReasonCode}
+                onChange={e => setRejectionReasonCode(e.target.value)}
+                className="w-full px-4 py-2 border border-red-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-red-200 bg-white"
+              >
+                <option value="">Select reason…</option>
+                {rejectionReasonCodes.map(rc => (
+                  <option key={rc.value} value={rc.value}>{rc.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* §2.5 — Inline conditions builder for CONDITIONAL approval */}
+          {selectedDecision === 'CONDITIONAL' && (
+            <div className="space-y-3 border border-amber-200 rounded-lg p-3 bg-amber-50">
+              <div className="flex items-center justify-between">
+                <h5 className="text-sm font-semibold text-amber-800">Conditions (at least 1 required)</h5>
+                <button
+                  type="button"
+                  onClick={() => setConditions([...conditions, { title: '', description: '', category: 'PRE_DISBURSEMENT', conditionType: 'PRECEDENT', dueDate: '' }])}
+                  className="px-2 py-1 text-xs font-medium bg-amber-600 text-white rounded hover:bg-amber-700"
+                >
+                  + Add Condition
+                </button>
+              </div>
+              {conditions.length === 0 && (
+                <p className="text-xs text-amber-600">No conditions added yet. Click &quot;+ Add Condition&quot; to define approval conditions.</p>
+              )}
+              {conditions.map((c, idx) => (
+                <div key={idx} className="grid grid-cols-12 gap-2 items-end bg-white border border-amber-200 rounded p-2">
+                  <div className="col-span-4">
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-0.5">Title *</label>
+                    <input
+                      type="text"
+                      value={c.title}
+                      onChange={e => { const n = [...conditions]; n[idx].title = e.target.value; setConditions(n); }}
+                      className="w-full px-2 py-1 border rounded text-xs"
+                      placeholder="Condition title"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-0.5">Category</label>
+                    <select
+                      value={c.category}
+                      onChange={e => { const n = [...conditions]; n[idx].category = e.target.value; setConditions(n); }}
+                      className="w-full px-2 py-1 border rounded text-xs"
+                    >
+                      <option value="PRE_DISBURSEMENT">Pre-disbursement</option>
+                      <option value="POST_DISBURSEMENT">Post-disbursement</option>
+                      <option value="FINANCIAL_COVENANT">Financial Covenant</option>
+                      <option value="REPORTING">Reporting</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-0.5">Type</label>
+                    <select
+                      value={c.conditionType}
+                      onChange={e => { const n = [...conditions]; n[idx].conditionType = e.target.value; setConditions(n); }}
+                      className="w-full px-2 py-1 border rounded text-xs"
+                    >
+                      <option value="PRECEDENT">Precedent</option>
+                      <option value="SUBSEQUENT">Subsequent</option>
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[11px] font-semibold text-gray-600 mb-0.5">Due Date</label>
+                    <input
+                      type="date"
+                      value={c.dueDate}
+                      onChange={e => { const n = [...conditions]; n[idx].dueDate = e.target.value; setConditions(n); }}
+                      className="w-full px-2 py-1 border rounded text-xs"
+                    />
+                  </div>
+                  <div className="col-span-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setConditions(conditions.filter((_, i) => i !== idx))}
+                      className="text-red-500 hover:text-red-700 text-sm"
+                      title="Remove condition"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-semibold text-gray-800 mb-1">

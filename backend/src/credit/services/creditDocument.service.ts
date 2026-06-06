@@ -519,14 +519,21 @@ class CreditDocumentService {
   async getDownloadUrl(id: string): Promise<string | null> {
     const doc = await prisma.creditDocument.findFirst({
       where: { id, deletedAt: null },
-      select: { filePath: true, fileName: true },
+      select: { filePath: true, fileName: true, mimeType: true },
     });
 
     if (!doc) {
       return null;
     }
 
-    return s3Service.getPresignedUrl(doc.filePath, 0.25);
+    const overrides: Record<string, string> = {
+      'response-content-disposition': `attachment; filename="${doc.fileName}"`,
+    };
+    if (doc.mimeType) {
+      overrides['response-content-type'] = doc.mimeType;
+    }
+
+    return s3Service.getPresignedUrl(doc.filePath, 0.25, overrides);
   }
 
   /**

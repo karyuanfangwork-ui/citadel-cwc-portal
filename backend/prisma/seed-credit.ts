@@ -58,7 +58,7 @@ async function seedFlags() {
     { key: 'credit:bureau_checks',  description: 'Bureau & AML adapter calls (OFF until adapter live)',   enabled: false, category: 'credit' },
     // Wave E — CA Memo Redesign: section visibility flags
     { key: 'credit:advanced_memo',    description: 'Enables bank-grade CA Memo sections (ECL, ESG, SICR, Sensitivity, CommitteeMeeting, Profitability, WalletShare, AccountUtilisation)', enabled: false, category: 'credit' },
-    { key: 'credit:committee_formal', description: 'Enables full CommitteeMeeting formal vote flow inside the approval tab', enabled: false, category: 'credit' },
+    { key: 'credit:committee_formal', description: 'Enables full CommitteeMeeting formal vote flow inside the approval tab', enabled: true, category: 'credit' },
   ];
 
   for (const flag of creditFlags) {

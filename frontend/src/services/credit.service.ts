@@ -28,7 +28,29 @@ export type CaRequestType =
 
 export type CurrencyCode = 'MYR' | 'USD' | 'SGD' | 'GBP' | 'EUR' | 'JPY' | 'CNY' | 'THB' | 'IDR' | 'AUD' | 'HKD';
 
-export type ApprovalDecision = 'APPROVE' | 'REJECT' | 'RETURN' | 'ESCALATE';
+export type ApprovalDecision = 'APPROVE' | 'REJECT' | 'RETURN' | 'ESCALATE' | 'CONDITIONAL';
+
+// §2.8 — AML Rescreen Event types
+export type AmlRescreenOutcome = 'CLEAR' | 'POTENTIAL_HIT' | 'CONFIRMED_HIT' | 'FALSE_POSITIVE';
+export type AmlRescreenAction = 'NO_ACTION' | 'ESCALATED_TO_COMPLIANCE' | 'RELATIONSHIP_EXITED' | 'FILED_STR';
+
+export interface AmlRescreenEvent {
+  id: string;
+  borrowerProfileId: string;
+  applicationId: string | null;
+  triggeredById: string;
+  triggeredAt: string;
+  screeningSource: string;
+  outcome: AmlRescreenOutcome;
+  hitDetails: string | null;
+  actionTaken: AmlRescreenAction;
+  actionNotes: string | null;
+  reviewedById: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  triggeredBy?: { id: string; firstName: string; lastName: string; email: string };
+  reviewedBy?: { id: string; firstName: string; lastName: string; email: string } | null;
+}
 
 
 // CA Memo Phase 1 — header classification enums
@@ -166,7 +188,7 @@ export interface CreditDocument {
 }
 
 /**
- * Normalize Prisma field names to frontend CreditApplication interface names.
+...[truncated]
  * Prisma returns assignedRm / assignedAnalyst / assignedRmId / assignedAnalystId,
  * but the frontend interface uses rm / analyst / rmId / analystId.
  */
@@ -829,6 +851,23 @@ const creditService = {
     await apiClient.delete(`/credit/applications/facilities/${id}`);
   },
 
+  // ── Pricing Worksheet (§2.1) ───────────────────────────────────────────────
+  async getPricingWorksheet(facilityId: string) {
+    const res = await apiClient.get(`/credit/applications/${facilityId}/pricing`);
+    return res.data.data.worksheet as any;
+  },
+
+  async upsertPricingWorksheet(facilityId: string, data: any) {
+    const res = await apiClient.put(`/credit/applications/${facilityId}/pricing`, data);
+    return res.data.data.worksheet as any;
+  },
+
+  async computePricingPreview(data: any, tenorMonths?: number) {
+    const params = tenorMonths ? `?tenorMonths=${tenorMonths}` : '';
+    const res = await apiClient.post(`/credit/applications/facilities/pricing/compute${params}`, data);
+    return res.data.data as { effectiveRatePct: number; effectiveYieldPct: number | null };
+  },
+
   // Request Items (CA Memo Phase 2)
   async listRequestItems(applicationId: string) {
     const res = await apiClient.get(`/credit/applications/${applicationId}/request-items`);
@@ -943,9 +982,15 @@ const creditService = {
     return (res.data.data.decisions || res.data.data.approvals || []) as CreditApproval[];
   },
 
-  async submitApproval(applicationId: string, data: { decision: ApprovalDecision; comment?: string; isCommitteeVote?: boolean }) {
+  async submitApproval(applicationId: string, data: { decision: ApprovalDecision; comment?: string; isCommitteeVote?: boolean; rejectionReasonCode?: string; conditions?: { title: string; description?: string; category?: string; conditionType?: string; dueDate?: string | null }[] }) {
     const res = await apiClient.post(`/credit/applications/${applicationId}/approvals`, data);
     return res.data.data.approval as CreditApproval;
+  },
+
+  // §2.7 — Rejection reason codes
+  async listRejectionReasonCodes() {
+    const res = await apiClient.get('/credit/applications/rejection-reasons');
+    return res.data.data as { value: string; label: string }[];
   },
 
   // Approval Matrices
@@ -1670,6 +1715,11 @@ export const dashboardApi = {
   getApprovalInbox: () => apiClient.get('/credit/dashboard/approval-inbox'),
   getExposureDashboard: () => apiClient.get('/credit/dashboard/exposure'),
   getCommitteeCalendar: () => apiClient.get('/credit/dashboard/committee-calendar'),
+  // §2.6 — Exposure Summary
+  getExposureSummary: async (filters?: { rmId?: string; borrowerGroupId?: string; riskRating?: string }) => {
+    const res = await apiClient.get('/credit/dashboard/exposure-summary', { params: filters });
+    return res.data.data as ExposureSummary;
+  },
 };
 
 // ── Reports API ─────────────────────────────────────────────
@@ -1704,6 +1754,24 @@ export interface RatingDistribution {
   rating: string;
   count: number;
   totalExposure: number;
+}
+
+// §2.6 — Exposure Summary
+export interface ExposureLimitEntry {
+  borrowerProfileId: string;
+  borrowerName: string;
+  totalExposure: number;
+  exposureLimit: number;
+  utilisationPct: number;
+}
+
+export interface ExposureSummary {
+  totalPortfolioExposure: number;
+  topBorrowers: ExposureByBorrower[];
+  ratingDistribution: RatingDistribution[];
+  approachingLimit: ExposureLimitEntry[];
+  breachedLimit: ExposureLimitEntry[];
+  byProductType: Record<string, number>;
 }
 
 export interface ExposureReport {
@@ -2240,4 +2308,82 @@ export const disbursementApi = {
   },
 };
 
+// ── LOO (Letter of Offer) API ─────────────────────────────────────────────
+export interface LooStatus {
+  generatedAt: string | null;
+  expiryDate: string | null;
+  generatedBy: { id: string; firstName: string; lastName: string } | null;
+  version: number;
+  expired: boolean;
+  daysRemaining: number | null;
+  documentId: string | null;
+}
+
+export interface LooGenerateResult {
+  documentId: string;
+  fileName: string;
+  version: number;
+  generatedAt: string;
+  expiryDate: string;
+}
+
+export const looApi = {
+  generate: async (applicationId: string) => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/loo/generate`);
+    return res.data.data as LooGenerateResult;
+  },
+  regenerate: async (applicationId: string) => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/loo/regenerate`);
+    return res.data.data as LooGenerateResult;
+  },
+  status: async (applicationId: string) => {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/loo/status`);
+    return res.data.data as LooStatus;
+  },
+  documentId: async (applicationId: string) => {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/loo/document`);
+    return res.data.data?.documentId as string | null;
+  },
+};
+
+// ── Rejection API ──────────────────────────────────────────────────────────
+export interface RejectionReasonOption {
+  value: string;
+  label: string;
+}
+
+export const rejectionApi = {
+  listReasonCodes: async () => {
+    const res = await apiClient.get('/credit/applications/rejection-reasons');
+    return res.data.data as RejectionReasonOption[];
+  },
+  cloneFromRejected: async (applicationId: string) => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/clone`);
+    return res.data.data as { id: string };
+  },
+};
+
 export default creditService;
+
+// §2.8 — AML Rescreen Event Log API
+export const amlRescreenApi = {
+  trigger: async (borrowerId: string, data: {
+    applicationId?: string;
+    screeningSource: string;
+    outcome: string;
+    hitDetails?: string;
+    actionTaken: string;
+    actionNotes?: string;
+  }) => {
+    const res = await apiClient.post(`/credit/borrowers/${borrowerId}/aml-rescreen`, data);
+    return res.data.data;
+  },
+  getHistory: async (borrowerId: string) => {
+    const res = await apiClient.get(`/credit/borrowers/${borrowerId}/aml-rescreen`);
+    return res.data.data as AmlRescreenEvent[];
+  },
+  reviewEvent: async (eventId: string, reviewNotes?: string) => {
+    const res = await apiClient.patch(`/credit/aml-rescreen/${eventId}/review`, { reviewNotes });
+    return res.data.data as AmlRescreenEvent;
+  },
+};

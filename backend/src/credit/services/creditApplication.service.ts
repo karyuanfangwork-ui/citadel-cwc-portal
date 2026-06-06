@@ -702,7 +702,7 @@ class CreditApplicationService {
     action: string,
     actorId?: string,
     reason?: string,
-    options?: { skipApprovalChainCheck?: boolean },
+    options?: { skipApprovalChainCheck?: boolean; rejectionReasonCode?: string },
   ) {
     const existing = await prisma.creditApplication.findFirst({
       where: { id, deletedAt: null },
@@ -721,6 +721,11 @@ class CreditApplicationService {
 
     if (transition.reasonRequired && !reason) {
       throw new Error(`Reason is required for action '${action}'`);
+    }
+
+    // §2.7 — Require structured rejection reason code for reject actions
+    if ((action === 'reject' || action === 'reject_kyc' || action === 'decline_offer') && !options?.rejectionReasonCode) {
+      throw new Error(`Rejection reason code is required for action '${action}'`);
     }
 
     // §1.7 — Submission-readiness hard gate: block submit if validation fails
@@ -854,6 +859,16 @@ class CreditApplicationService {
         );
       }
       acceptedOfferDocId = signedLoo.id;
+
+      // §2.3 — LOO expiry gate: block OFFER → ACCEPTED if LOO has expired
+      const { looService } = await import('./loo.service');
+      const { expired, expiryDate } = await looService.checkExpiry(id);
+      if (expired) {
+        const msg = expiryDate
+          ? `Letter of Offer has expired on ${expiryDate.toLocaleDateString()}. Please regenerate.`
+          : 'Letter of Offer has expired. Please regenerate.';
+        throw Object.assign(new Error(msg), { statusCode: 400 });
+      }
     }
 
     // §1.2 — Disbursement control gate: block direct ACCEPTED→DISBURSED transition.
@@ -893,6 +908,7 @@ class CreditApplicationService {
     // Set rejection/withdrawal reason based on action
     if (action === 'reject' || action === 'reject_kyc' || action === 'decline_offer') {
       updateData.rejectionReason = reason ?? null;
+      (updateData as any).rejectionReasonCode = options?.rejectionReasonCode ?? null;
     }
     if (action === 'withdraw') {
       updateData.withdrawalReason = reason ?? null;

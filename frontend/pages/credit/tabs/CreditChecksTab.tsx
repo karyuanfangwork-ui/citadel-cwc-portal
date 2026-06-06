@@ -5,6 +5,10 @@ import {
   CreditBureauCheck,
   BureauProvider,
   bureauCheckApi,
+  AmlRescreenEvent,
+  AmlRescreenOutcome,
+  AmlRescreenAction,
+  amlRescreenApi,
 } from '../../../src/services/credit.service';
 import { BUREAU_PROVIDER_OPTIONS, bureauProviderLabel } from '../../../src/constants/creditEnums';
 import toast from 'react-hot-toast';
@@ -434,6 +438,198 @@ const BureauChecklistPanel: React.FC<{ appId: string; readOnly: boolean; checks:
   );
 };
 
+// ── §2.8 AML Rescreen History Section ─────────────────────────────────
+
+const OUTCOME_LABELS: Record<string, { label: string; color: string }> = {
+  CLEAR: { label: 'Clear', color: 'bg-green-100 text-green-800' },
+  POTENTIAL_HIT: { label: 'Potential Hit', color: 'bg-yellow-100 text-yellow-800' },
+  CONFIRMED_HIT: { label: 'Confirmed Hit', color: 'bg-red-100 text-red-800' },
+  FALSE_POSITIVE: { label: 'False Positive', color: 'bg-gray-100 text-gray-800' },
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  NO_ACTION: 'No Action',
+  ESCALATED_TO_COMPLIANCE: 'Escalated to Compliance',
+  RELATIONSHIP_EXITED: 'Relationship Exited',
+  FILED_STR: 'Filed STR',
+};
+
+const SCREENING_SOURCES = ['UN', 'OFAC', 'INTERNAL', 'CTOS', 'CCRIS', 'OTHER'] as const;
+
+const AmlRescreenHistorySection: React.FC<{
+  borrowerProfileId: string;
+  applicationId: string;
+  readOnly: boolean;
+}> = ({ borrowerProfileId, applicationId, readOnly }) => {
+  const [events, setEvents] = useState<AmlRescreenEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form state
+  const [screeningSource, setScreeningSource] = useState<string>('INTERNAL');
+  const [outcome, setOutcome] = useState<AmlRescreenOutcome>('CLEAR');
+  const [hitDetails, setHitDetails] = useState('');
+  const [actionTaken, setActionTaken] = useState<AmlRescreenAction>('NO_ACTION');
+  const [actionNotes, setActionNotes] = useState('');
+
+  const loadHistory = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await amlRescreenApi.getHistory(borrowerProfileId);
+      setEvents(data ?? []);
+    } catch {
+      toast.error('Failed to load AML rescreen history');
+    } finally {
+      setLoading(false);
+    }
+  }, [borrowerProfileId]);
+
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+
+  const handleSubmit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await amlRescreenApi.trigger(borrowerProfileId, {
+        applicationId,
+        screeningSource,
+        outcome,
+        hitDetails: hitDetails || undefined,
+        actionTaken,
+        actionNotes: actionNotes || undefined,
+      });
+      toast.success('AML rescreen event recorded');
+      setShowForm(false);
+      setScreeningSource('INTERNAL');
+      setOutcome('CLEAR');
+      setHitDetails('');
+      setActionTaken('NO_ACTION');
+      setActionNotes('');
+      loadHistory();
+    } catch (e) {
+      toast.error(friendlyMessage(e, 'Failed to record AML rescreen event'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReview = async (eventId: string) => {
+    try {
+      await amlRescreenApi.reviewEvent(eventId, 'Reviewed by compliance officer');
+      toast.success('Event marked as reviewed');
+      loadHistory();
+    } catch (e) {
+      toast.error(friendlyMessage(e, 'Failed to review event'));
+    }
+  };
+
+  return (
+    <CaMemoSection title="AML Rescreen History" readOnly={readOnly}>
+      {loading ? (
+        <div className="text-sm text-gray-400">Loading AML events…</div>
+      ) : events.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">No AML rescreen events recorded.</p>
+      ) : (
+        <div className="space-y-3">
+          {events.map((evt) => {
+            const outcomeStyle = OUTCOME_LABELS[evt.outcome] ?? { label: evt.outcome, color: 'bg-gray-100 text-gray-800' };
+            return (
+              <div key={evt.id} className="border rounded-lg p-3 space-y-1">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${outcomeStyle.color}`}>
+                    {outcomeStyle.label}
+                  </span>
+                  <span className="text-xs text-gray-500">{evt.screeningSource}</span>
+                  <span className="text-xs text-gray-400">
+                    {new Date(evt.triggeredAt).toLocaleDateString()}
+                  </span>
+                  {evt.triggeredBy && (
+                    <span className="text-xs text-gray-600">
+                      by {evt.triggeredBy.firstName} {evt.triggeredBy.lastName}
+                    </span>
+                  )}
+                  <span className="px-2 py-0.5 rounded text-xs bg-blue-50 text-blue-700">
+                    {ACTION_LABELS[evt.actionTaken] ?? evt.actionTaken}
+                  </span>
+                  {!evt.reviewedAt && evt.outcome === 'CONFIRMED_HIT' && (
+                    <button
+                      onClick={() => handleReview(evt.id)}
+                      className="ml-auto px-2 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      Review (Required)
+                    </button>
+                  )}
+                  {evt.reviewedAt && (
+                    <span className="ml-auto text-xs text-green-600 font-medium">
+                      Reviewed ✓
+                    </span>
+                  )}
+                </div>
+                {evt.hitDetails && (
+                  <p className="text-xs text-gray-600 mt-1"><strong>Hit Details:</strong> {evt.hitDetails}</p>
+                )}
+                {evt.actionNotes && (
+                  <p className="text-xs text-gray-500"><strong>Notes:</strong> {evt.actionNotes}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {!readOnly && !showForm && (
+        <button
+          onClick={() => setShowForm(true)}
+          className="mt-3 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700"
+        >
+          + Run AML Rescreen
+        </button>
+      )}
+
+      {!readOnly && showForm && (
+        <div className="mt-3 border border-blue-200 rounded-lg p-4 bg-blue-50 space-y-3">
+          <h4 className="text-sm font-semibold text-blue-800">New AML Rescreen Event</h4>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">Screening Source *</label>
+              <select value={screeningSource} onChange={e => setScreeningSource(e.target.value)} className="w-full px-3 py-2 border rounded text-sm">
+                {SCREENING_SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">Outcome *</label>
+              <select value={outcome} onChange={e => setOutcome(e.target.value as AmlRescreenOutcome)} className="w-full px-3 py-2 border rounded text-sm">
+                {Object.entries(OUTCOME_LABELS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">Action Taken *</label>
+              <select value={actionTaken} onChange={e => setActionTaken(e.target.value as AmlRescreenAction)} className="w-full px-3 py-2 border rounded text-sm">
+                {Object.entries(ACTION_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">Hit Details</label>
+              <input type="text" value={hitDetails} onChange={e => setHitDetails(e.target.value)} className="w-full px-3 py-2 border rounded text-sm" placeholder="Details of any hits found" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-0.5">Notes</label>
+            <textarea value={actionNotes} onChange={e => setActionNotes(e.target.value)} className="w-full px-3 py-2 border rounded text-sm" rows={2} placeholder="Additional notes" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={handleSubmit} disabled={submitting} className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">
+              {submitting ? 'Submitting…' : 'Submit'}
+            </button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm font-medium bg-gray-200 text-gray-700 rounded hover:bg-gray-300">Cancel</button>
+          </div>
+        </div>
+      )}
+    </CaMemoSection>
+  );
+};
+
 const CreditChecksTab: React.FC<Props> = ({ application }) => {
   const readOnly = application.state !== 'DRAFT';
   const [checks, setChecks] = useState<CreditBureauCheck[]>([]);
@@ -486,6 +682,13 @@ const CreditChecksTab: React.FC<Props> = ({ application }) => {
         {!readOnly && <AddCheckForm appId={application.id} onAdded={c => setChecks(cs => [c, ...cs])} />}
       </CaMemoSection>
       <BureauChecklistPanel appId={application.id} readOnly={readOnly} checks={checks} />
+
+      {/* §2.8 — AML Rescreen History */}
+      <AmlRescreenHistorySection
+        borrowerProfileId={application.borrowerProfileId}
+        applicationId={application.id}
+        readOnly={readOnly}
+      />
     </>
   );
 };

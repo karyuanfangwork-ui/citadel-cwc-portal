@@ -62,4 +62,15 @@ router.get(
   dashboardController.getCommitteeCalendar,
 );
 
+/**
+ * GET /credit/dashboard/exposure-summary
+ * §2.6 — Exposure summary with approaching/breached limits, product type breakdown
+ * Requires: credit:read
+ */
+router.get(
+  '/exposure-summary',
+  requirePermission('credit:read'),
+  dashboardController.getExposureSummary,
+);
+
 export default router;

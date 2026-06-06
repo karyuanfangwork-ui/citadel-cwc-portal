@@ -55,6 +55,8 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
           accountId: true,
           contactId: true,
           borrowerType: true,
+          exposureLimit: true,
+          totalExposure: true,
           contact: { select: { nricPassport: true } },
         },
       },
@@ -224,6 +226,28 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
           severity: 'warning',
         });
       }
+    }
+  }
+
+  // ---- Check 11: §2.6 Exposure limit warning ----
+  const exposureLimit = Number(bp.exposureLimit ?? 0);
+  const currentExposure = Number(bp.totalExposure ?? 0);
+  if (exposureLimit > 0) {
+    // Calculate projected exposure including new facility amounts
+    const newFacilityAmount = application.facilities.reduce((sum, f) => sum + Number(f.amount ?? 0), 0);
+    const projectedExposure = currentExposure + newFacilityAmount;
+    if (projectedExposure > exposureLimit) {
+      warnings.push({
+        field: 'exposureLimit',
+        message: `Projected exposure (MYR ${projectedExposure.toLocaleString()}) would breach borrower limit (MYR ${exposureLimit.toLocaleString()}). Override required.`,
+        severity: 'warning',
+      });
+    } else if (projectedExposure > exposureLimit * 0.9) {
+      warnings.push({
+        field: 'exposureLimit',
+        message: `Projected exposure (MYR ${projectedExposure.toLocaleString()}) is approaching the borrower limit (MYR ${exposureLimit.toLocaleString()}).`,
+        severity: 'warning',
+      });
     }
   }
 

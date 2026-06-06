@@ -90,6 +90,7 @@ import FinancialSpreading from './pages/FinancialSpreading';
 import FinancialAnalysis from './pages/FinancialAnalysis';
 import ScorecardManagement from './pages/ScorecardManagement';
 import CommitteeMeetings from './pages/CommitteeMeetings';
+import CommitteeMeetingDetail from './pages/credit/CommitteeMeetingDetail';
 import CommitteeMobileVote from './pages/credit/CommitteeMobileVote';
 import MobileApprovalInbox from './pages/credit/MobileApprovalInbox';
 import CollateralManagement from './pages/CollateralManagement';
@@ -289,6 +290,7 @@ const AppShell = () => {
               <Route path="/credit/analysis" element={<ProtectedRoute requirePermission="credit:read"><FinancialAnalysis /></ProtectedRoute>} />
               <Route path="/credit/scorecards" element={<ProtectedRoute requirePermission="credit:admin"><ScorecardManagement /></ProtectedRoute>} />
               <Route path="/credit/committee" element={<ProtectedRoute requirePermission="credit:read"><CommitteeMeetings /></ProtectedRoute>} />
+              <Route path="/credit/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:read"><CommitteeMeetingDetail /></ProtectedRoute>} />
               <Route path="/credit/m/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:approve"><CommitteeMobileVote /></ProtectedRoute>} />
               <Route path="/credit/m/approvals" element={<ProtectedRoute requirePermission="credit:approve"><MobileApprovalInbox /></ProtectedRoute>} />
               <Route path="/credit/collateral" element={<ProtectedRoute requirePermission="credit:read"><CollateralManagement /></ProtectedRoute>} />

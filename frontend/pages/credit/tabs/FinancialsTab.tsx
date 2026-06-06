@@ -3,6 +3,8 @@ import creditService, {
   CreditApplication,
   FinancialStatement,
   FinancialPeriod,
+  FinancialLineItem,
+  FinancialRatio,
   CurrencyCode,
   financialApi,
 } from '../../../src/services/credit.service';
@@ -385,6 +387,205 @@ function StatementModal({
 }
 
 // ── Main FinancialsTab ────────────────────────────────────────────────────────
+// ── §2.2 — Multi-Year Spread View ──────────────────────────────────────────
+
+const SPREAD_LINE_KEYS: Record<string, string[]> = {
+  BS: ['totalAssets', 'totalLiabilities', 'totalEquity', 'currentAssets', 'currentLiabilities', 'cashAndCashEquivalents', 'accountsReceivable', 'inventory', 'fixedAssets', 'longTermDebt', 'totalDebt'],
+  PL: ['revenue', 'costOfGoodsSold', 'grossProfit', 'ebitda', 'depreciationAndAmortization', 'operatingProfit', 'netProfit', 'interestExpense'],
+  CF: ['operatingCashFlow', 'investingCashFlow', 'financingCashFlow', 'netChangeInCash'],
+};
+
+function fmtNum(v: number | string | null | undefined): string {
+  if (v == null) return '—';
+  const n = typeof v === 'string' ? parseFloat(v) : v;
+  if (isNaN(n)) return '—';
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toFixed(0);
+}
+
+function yoyChange(curr: number | null, prev: number | null): { text: string; color: string } | null {
+  if (curr == null || prev == null || prev === 0) return null;
+  const pct = ((curr - prev) / Math.abs(prev)) * 100;
+  const sign = pct >= 0 ? '+' : '';
+  const arrow = pct >= 0 ? '▲' : '▼';
+  if (Math.abs(pct) < 0.5) return { text: '—', color: 'text-gray-400' };
+  const color = pct > 0 ? 'text-green-600' : 'text-red-600';
+  return { text: `${arrow} ${sign}${pct.toFixed(1)}%`, color };
+}
+
+type SpreadProps = {
+  statements: FinancialStatement[];
+  lineItemsMap: Record<string, FinancialLineItem[] | undefined>;
+  ratiosMap: Record<string, FinancialRatio[] | undefined>;
+};
+
+const SpreadViewTable: React.FC<SpreadProps> = ({ statements, lineItemsMap, ratiosMap }) => {
+  // Group statements by type, sort by fiscalYearEnd
+  const byType = React.useMemo(() => {
+    const groups: Record<string, FinancialStatement[]> = {};
+    for (const s of statements) {
+      const key = s.statementType;
+      (groups[key] ??= []).push(s);
+    }
+    for (const key of Object.keys(groups)) {
+      groups[key].sort((a, b) => a.fiscalYearEnd.localeCompare(b.fiscalYearEnd));
+    }
+    return groups;
+  }, [statements]);
+
+  const typeLabels: Record<string, string> = { BS: 'Balance Sheet', PL: 'Profit & Loss', CF: 'Cash Flow' };
+
+  const buildRows = (type: string, stmts: FinancialStatement[]) => {
+    const years = stmts.map(s => new Date(s.fiscalYearEnd).getFullYear());
+    const keySet = new Set<string>();
+    // Collect all line keys from all statements of this type
+    for (const s of stmts) {
+      const items = lineItemsMap[s.id] ?? s.lineItems ?? [];
+      for (const item of items) keySet.add(item.lineKey);
+    }
+    // If no data, fall back to standard keys for this type
+    const keys = keySet.size > 0 ? [...keySet] : (SPREAD_LINE_KEYS[type] ?? []);
+    const labelMap: Record<string, string> = {};
+    for (const s of stmts) {
+      const items = lineItemsMap[s.id] ?? s.lineItems ?? [];
+      for (const item of items) labelMap[item.lineKey] = item.lineLabel;
+    }
+
+    return { keys, labelMap, years, stmts };
+  };
+
+  return (
+    <div className="space-y-6 mt-4">
+      {Object.entries(byType).map(([type, stmts]) => {
+        const { keys, labelMap, years } = buildRows(type, stmts);
+        return (
+          <div key={type}>
+            <h4 className="text-sm font-semibold text-gray-800 mb-2">{typeLabels[type] ?? type} — Multi-Year Comparison</h4>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="text-left px-3 py-2 font-semibold text-gray-600 border-b">Line Item</th>
+                    {years.map(y => (
+                      <th key={y} className="text-right px-3 py-2 font-semibold text-gray-600 border-b">FY{y}</th>
+                    ))}
+                    {years.length > 1 && (
+                      <th className="text-right px-3 py-2 font-semibold text-gray-600 border-b">YoY</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {keys.map(lineKey => {
+                    // Look up values from each statement's line items
+                    const values = stmts.map(s => {
+                      const items = lineItemsMap[s.id] ?? s.lineItems ?? [];
+                      const item = items.find(i => i.lineKey === lineKey);
+                      const raw = item?.amount;
+                      return raw != null ? (typeof raw === 'string' ? parseFloat(raw) : raw) : null;
+                    });
+                    const lastVal = values[values.length - 1];
+                    const prevVal = values.length > 1 ? values[values.length - 2] : null;
+                    const change = yoyChange(lastVal, prevVal);
+
+                    return (
+                      <tr key={lineKey} className="border-b hover:bg-gray-50">
+                        <td className="px-3 py-1.5 text-gray-700 font-medium">{labelMap[lineKey] || lineKey}</td>
+                        {values.map((v, i) => (
+                          <td key={i} className="text-right px-3 py-1.5 text-gray-600 tabular-nums">{fmtNum(v)}</td>
+                        ))}
+                        {years.length > 1 && (
+                          <td className={`text-right px-3 py-1.5 tabular-nums font-medium ${change?.color ?? 'text-gray-400'}`}>
+                            {change?.text ?? '—'}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Ratio Comparison ────────────────────── */}
+            {(() => {
+              const allRatios: Record<string, Record<number, FinancialRatio>> = {};
+              const ratioKeys = new Set<string>();
+              for (const s of stmts) {
+                const rs = ratiosMap[s.id] ?? s.ratios ?? [];
+                const yr = new Date(s.fiscalYearEnd).getFullYear();
+                for (const r of rs) {
+                  if (!allRatios[r.ratioKey]) allRatios[r.ratioKey] = {};
+                  allRatios[r.ratioKey][yr] = r;
+                  ratioKeys.add(r.ratioKey);
+                }
+              }
+              if (ratioKeys.size === 0) return null;
+              return (
+                <div className="mt-4">
+                  <h5 className="text-xs font-semibold text-gray-600 mb-1">Ratio Comparison</h5>
+                  <table className="min-w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="text-left px-3 py-1.5 font-semibold text-gray-600 border-b">Ratio</th>
+                        {years.map(y => (
+                          <th key={y} className="text-right px-3 py-1.5 font-semibold text-gray-600 border-b">FY{y}</th>
+                        ))}
+                        <th className="text-center px-3 py-1.5 font-semibold text-gray-600 border-b">Threshold</th>
+                        <th className="text-center px-3 py-1.5 font-semibold text-gray-600 border-b">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...ratioKeys].map(rk => {
+                        const ratiosByYear = allRatios[rk];
+                        const latestRatio = ratiosByYear[years[years.length - 1]] ?? Object.values(ratiosByYear)[0];
+                        const label = latestRatio?.ratioLabel ?? rk;
+                        const threshold = latestRatio?.threshold;
+                        const isGood = (val: number | null) => {
+                          if (!threshold || val == null) return null;
+                          if (threshold.passMin != null && val < threshold.passMin) return false;
+                          if (threshold.passMax != null && val > threshold.passMax) return false;
+                          if (threshold.warnMin != null && val < threshold.warnMin) return 'warn';
+                          if (threshold.warnMax != null && val > threshold.warnMax) return 'warn';
+                          return true;
+                        };
+                        const thresholdStr = threshold
+                          ? `${threshold.passMin ?? '—'}${threshold.passMin != null && threshold.passMax != null ? '–' : ''}${threshold.passMax ?? ''}${threshold.unit === 'x' ? 'x' : threshold.unit === '%' ? '%' : ''}`
+                          : '—';
+                        const latestVal = ratiosByYear[years[years.length - 1]]?.value;
+                        const status = isGood(latestVal ?? null);
+                        return (
+                          <tr key={rk} className="border-b hover:bg-gray-50">
+                            <td className="px-3 py-1.5 text-gray-700 font-medium">{label}</td>
+                            {years.map(y => {
+                              const r = ratiosByYear[y];
+                              const v = r?.value;
+                              const fmt = v != null ? (threshold?.unit === '%' ? `${(v * 100).toFixed(1)}%` : threshold?.unit === 'x' ? `${v.toFixed(2)}x` : v.toFixed(2)) : '—';
+                              const rowStatus = isGood(v ?? null);
+                              const cls = rowStatus === true ? 'text-green-700 font-semibold' : rowStatus === false ? 'text-red-600 font-semibold' : 'text-gray-600';
+                              return <td key={y} className={`text-right px-3 py-1.5 tabular-nums ${cls}`}>{fmt}</td>;
+                            })}
+                            <td className="text-center px-3 py-1.5 text-gray-500">{thresholdStr}</td>
+                            <td className="text-center px-3 py-1.5">
+                              {status === true && <span className="text-green-600">✅</span>}
+                              {status === false && <span className="text-red-600">❌</span>}
+                              {status === 'warn' && <span className="text-yellow-500">⚠️</span>}
+                              {status === null && <span className="text-gray-300">—</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const FinancialsTab: React.FC<Props> = ({ application }) => {
   const [statements, setStatements] = useState<FinancialStatement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -394,6 +595,7 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
   const [lineItemsMap, setLineItemsMap] = useState<Record<string, FinancialStatement['lineItems']>>({});
   const [ratiosMap, setRatiosMap] = useState<Record<string, FinancialStatement['ratios']>>({});
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
+  const [showSpreadView, setShowSpreadView] = useState(false);
 
   const bpId = application.borrowerProfileId;
   const borrowerType = application.borrowerProfile?.borrowerType;
@@ -461,6 +663,13 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
               ? 'No financial statements recorded. Add a statement to begin.'
               : `${statements.length} statement${statements.length !== 1 ? 's' : ''} on file`}
           </p>
+          <button
+            onClick={() => { setShowSpreadView(!showSpreadView); }}
+            className={`px-3 py-1.5 text-xs rounded-md flex items-center gap-1 ${showSpreadView ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >
+            <span className="material-symbols-outlined text-sm">view_column</span>
+            Spread View
+          </button>
           <button
             onClick={() => { setEditStatement(null); setShowModal(true); }}
             className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 flex items-center gap-1"
@@ -835,6 +1044,17 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
               </div>
             );
           })()}
+        </CaMemoSection>
+      )}
+
+      {/* ── §2.2 Spread View ──────────── */}
+      {showSpreadView && statements.length > 0 && (
+        <CaMemoSection title="Multi-Year Spread View" phase="S3">
+          <SpreadViewTable
+            statements={statements}
+            lineItemsMap={lineItemsMap as Record<string, FinancialLineItem[] | undefined>}
+            ratiosMap={ratiosMap as Record<string, FinancialRatio[] | undefined>}
+          />
         </CaMemoSection>
       )}
 

@@ -428,6 +428,79 @@ class DashboardService {
   }
 
   /**
+   * §2.6 — Get exposure summary with approaching/breached limits.
+   */
+  async getExposureSummary(filters?: { rmId?: string; borrowerGroupId?: string; riskRating?: string }) {
+    // Build borrower filter
+    const where: any = { isActive: true, deletedAt: null };
+    if (filters?.rmId) where.relationshipManagerId = filters.rmId;
+    if (filters?.riskRating) where.creditRiskRating = filters.riskRating;
+
+    const borrowers = await prisma.borrowerProfile.findMany({
+      where,
+      include: {
+        account: { select: { name: true, industry: true } },
+        contact: { select: { firstName: true, lastName: true } },
+        applications: {
+          where: {
+            deletedAt: null,
+            state: { in: ['APPROVED', 'OFFER', 'ACCEPTED', 'DISBURSED', 'ACTIVE'] as any[] },
+          },
+          include: { facilities: true },
+        },
+      },
+    });
+
+    let totalPortfolioExposure = 0;
+    const approachingLimit: Array<{ borrowerProfileId: string; borrowerName: string; totalExposure: number; exposureLimit: number; utilisationPct: number }> = [];
+    const breachedLimit: Array<{ borrowerProfileId: string; borrowerName: string; totalExposure: number; exposureLimit: number; utilisationPct: number }> = [];
+
+    // product type breakdown
+    const byProductType: Record<string, number> = {};
+
+    for (const bp of borrowers) {
+      const borrowerName = bp.account?.name ?? (bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : 'Unknown');
+      let totalExposure = 0;
+      for (const app of bp.applications) {
+        for (const fac of app.facilities) {
+          const amt = Number(fac.approvedAmount ?? fac.amount ?? 0);
+          totalExposure += amt;
+          const productType = fac.facilityType ?? 'OTHER';
+          byProductType[productType] = (byProductType[productType] ?? 0) + amt;
+        }
+      }
+      totalPortfolioExposure += totalExposure;
+
+      const exposureLimit = Number(bp.exposureLimit ?? 0);
+      if (exposureLimit > 0) {
+        const utilisationPct = (totalExposure / exposureLimit) * 100;
+        const entry = { borrowerProfileId: bp.id, borrowerName, totalExposure, exposureLimit, utilisationPct: Math.round(utilisationPct * 10) / 10 };
+        if (utilisationPct > 100) {
+          breachedLimit.push(entry);
+        } else if (utilisationPct >= 90) {
+          approachingLimit.push(entry);
+        }
+      }
+    }
+
+    // Sort by utilisation descending
+    approachingLimit.sort((a, b) => b.utilisationPct - a.utilisationPct);
+    breachedLimit.sort((a, b) => b.utilisationPct - a.utilisationPct);
+
+    // Existing dashboard method for top borrowers + rating breakdown
+    const dashboard = await this.getExposureDashboard({ topN: 10 });
+
+    return {
+      totalPortfolioExposure,
+      topBorrowers: dashboard.topBorrowers,
+      ratingDistribution: dashboard.ratingDistribution,
+      approachingLimit,
+      breachedLimit,
+      byProductType,
+    };
+  }
+
+  /**
    * Get committee calendar — upcoming committee meetings with agenda counts.
    */
   async getCommitteeCalendar(filters?: {

@@ -52,6 +52,20 @@ class DashboardController {
     const result = await dashboardService.getCommitteeCalendar({ dateFrom, dateTo, limit });
     res.json({ status: 'success', data: result });
   });
+
+  /**
+   * GET /credit/dashboard/exposure-summary
+   * §2.6 — Exposure summary with approaching/breached limits
+   */
+  getExposureSummary = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const filters = {
+      rmId: req.query.rmId as string | undefined,
+      borrowerGroupId: req.query.borrowerGroupId as string | undefined,
+      riskRating: req.query.riskRating as string | undefined,
+    };
+    const result = await dashboardService.getExposureSummary(filters);
+    res.json({ status: 'success', data: result });
+  });
 }
 
 export const dashboardController = new DashboardController();

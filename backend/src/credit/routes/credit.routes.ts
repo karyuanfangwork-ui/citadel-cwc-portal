@@ -89,6 +89,16 @@ import dlpRoutes from './dlp.routes';
 // §1.2 — Disbursement Control Layer
 import disbursementRoutes from './disbursement.routes';
 
+// §2.1 — Loan Pricing Engine
+import pricingRoutes from './pricing.routes';
+
+// §2.3 — LOO (Letter of Offer)
+import looRoutes from './loo.routes';
+
+// §2.7 — Rejection workflow
+import rejectionRoutes from './rejection.routes';
+import amlRescreenRoutes from './amlRescreen.routes';
+
 const router = Router();
 
 // Feature flag admin routes (outside feature flag gate)
@@ -223,5 +233,15 @@ router.use('/', dlpRoutes);
 
 // §1.2 — Disbursement Control Layer
 router.use('/applications', disbursementRoutes);
+
+// §2.1 — Loan Pricing Engine (facility-scoped pricing routes)
+router.use('/applications', pricingRoutes);
+
+// §2.3 — LOO (Letter of Offer) generation
+router.use('/applications', looRoutes);
+
+// §2.7 — Rejection workflow
+router.use('/applications', rejectionRoutes);
+router.use('/', amlRescreenRoutes);
 
 export default router;

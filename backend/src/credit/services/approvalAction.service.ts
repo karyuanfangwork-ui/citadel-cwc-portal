@@ -11,9 +11,11 @@ import { AuditChainService } from './auditChain.service';
 
 export interface SubmitApprovalActionData {
   applicationId: string;
-  decision: 'APPROVE' | 'REJECT' | 'RETURN' | 'ESCALATE';
+  decision: 'APPROVE' | 'REJECT' | 'RETURN' | 'ESCALATE' | 'CONDITIONAL';
   comment?: string;
   isCommitteeVote?: boolean;
+  rejectionReasonCode?: string;
+  conditions?: { title: string; description?: string; category?: string; conditionType?: string; dueDate?: string | null }[];
   actorId: string;
   actorRoles: string[];
 }
@@ -67,7 +69,7 @@ class ApprovalActionService {
    * 5. On final approval, advance state; on reject, set rejected state; on return, go back to ANALYSING
    */
   async submitApprovalAction(data: SubmitApprovalActionData): Promise<ApprovalActionResult> {
-    const { applicationId, decision, comment, isCommitteeVote, actorId, actorRoles } = data;
+    const { applicationId, decision, comment, isCommitteeVote, rejectionReasonCode, actorId, actorRoles } = data;
 
     // 1. Fetch the application with borrower profile
     const application = await prisma.creditApplication.findUnique({
@@ -175,8 +177,25 @@ class ApprovalActionService {
         },
       });
 
+      // §2.5 — Create conditions linked to this CONDITIONAL decision
+      if (decision === 'CONDITIONAL' && data.conditions && data.conditions.length > 0) {
+        await tx.condition.createMany({
+          data: data.conditions.map((c) => ({
+            applicationId,
+            title: c.title,
+            description: c.description ?? null,
+            category: (c.category ?? 'PRE_DISBURSEMENT') as any,
+            conditionType: (c.conditionType ?? 'PRECEDENT') as any,
+            status: 'PENDING',
+            isFulfilled: false,
+            dueDate: c.dueDate ? new Date(c.dueDate) : null,
+            decisionId: creditDecision.id,
+          })),
+        });
+      }
+
       // 7. Determine the resulting application state
-      if (decision === 'APPROVE') {
+      if (decision === 'APPROVE' || decision === 'CONDITIONAL') {
         // Re-count distinct approvers inside the transaction to avoid race conditions
         const approveDecisions = await tx.creditDecision.findMany({
           where: {
@@ -224,6 +243,7 @@ class ApprovalActionService {
         // Set rejection reason if rejecting
         if (decision === 'REJECT' && comment) {
           updateData.rejectionReason = comment;
+          updateData.rejectionReasonCode = rejectionReasonCode ?? null;
         }
 
         await tx.creditApplication.update({
@@ -247,8 +267,15 @@ class ApprovalActionService {
         requiredApproverCount,
         comment,
         isCommitteeVote: isCommitteeVote ?? false,
+        rejectionReasonCode,
       },
     );
+
+    // §2.7 — Notify on rejection
+    if (decision === 'REJECT') {
+      const { rejectionService } = await import('./rejection.service');
+      await rejectionService.notifyRejection(applicationId, rejectionReasonCode ?? 'OTHER', comment ?? null).catch(() => {});
+    }
 
     return {
       decision: {

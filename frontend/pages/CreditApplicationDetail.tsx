@@ -58,6 +58,7 @@ import {
 } from './credit/creditUtils';
 import CreditApplicationWizard from './credit/CreditApplicationWizard';
 import { LEGACY_TAB_MAP } from './credit/tabRegistry';
+import RejectionBanner from './credit/RejectionBanner';
 
 const CreditApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -485,6 +486,15 @@ const CreditApplicationDetail: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* §2.7 — Rejection Banner */}
+        <RejectionBanner
+          applicationId={app.id}
+          state={currentState}
+          rejectionReasonCode={(app as any).rejectionReasonCode}
+          rejectionReason={app.rejectionReason}
+          applicationNo={app.applicationNo ?? undefined}
+        />
 
         {/* Stepper */}
         <div className="bg-bg-surface border border-border rounded-xl p-5 mb-6">

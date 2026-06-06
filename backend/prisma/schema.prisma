@@ -184,6 +184,13 @@ model User {
   disbursementApproved    DisbursementOrder[]      @relation("DisbursementApprovedBy")
   disbursementDisbursed   DisbursementOrder[]      @relation("DisbursementDisbursedBy")
   disbursementCancelled   DisbursementOrder[]      @relation("DisbursementCancelledBy")
+  // Pricing Worksheet
+  pricingWorksheets       PricingWorksheet[]        @relation("PricingWorksheetPreparedBy")
+  // LOO Generation
+  looGeneratedApplications CreditApplication[]       @relation("CreditApplicationLooGeneratedBy")
+  // §2.8 — AML Rescreen
+  amlRescreenTriggeredEvents AmlRescreenEvent[]      @relation("AmlRescreenTriggeredBy")
+  amlRescreenReviewedEvents   AmlRescreenEvent[]      @relation("AmlRescreenReviewedBy")
 
   @@index([email])
   @@index([managerId])
@@ -2702,6 +2709,60 @@ enum ApprovalDecisionType {
   RETURN
   ESCALATE
   DEFER
+  CONDITIONAL
+}
+
+// §2.7 — Structured rejection reason codes
+enum RejectionReasonCode {
+  INSUFFICIENT_INCOME
+  HIGH_EXISTING_OBLIGATIONS
+  POOR_CREDIT_HISTORY
+  INADEQUATE_COLLATERAL
+  WEAK_BUSINESS_PERFORMANCE
+  INCOMPLETE_DOCUMENTATION
+  AML_COMPLIANCE_ISSUE
+  POLICY_BREACH
+  CONCENTRATION_LIMIT
+  OTHER
+}
+
+// §2.8 — AML Rescreen Event Log
+enum AmlRescreenOutcome {
+  CLEAR
+  POTENTIAL_HIT
+  CONFIRMED_HIT
+  FALSE_POSITIVE
+}
+
+enum AmlRescreenAction {
+  NO_ACTION
+  ESCALATED_TO_COMPLIANCE
+  RELATIONSHIP_EXITED
+  FILED_STR
+}
+
+model AmlRescreenEvent {
+  id              String              @id @default(uuid()) @db.Uuid
+  borrowerProfileId String            @map("borrower_profile_id") @db.Uuid
+  applicationId   String?             @map("application_id") @db.Uuid
+  triggeredById   String              @map("triggered_by_id") @db.Uuid
+  triggeredAt     DateTime            @default(now()) @map("triggered_at") @db.Timestamp(6)
+  screeningSource String              @map("screening_source") @db.VarChar(100)
+  outcome         AmlRescreenOutcome
+  hitDetails      String?             @map("hit_details") @db.Text
+  actionTaken     AmlRescreenAction
+  actionNotes     String?             @map("action_notes") @db.Text
+  reviewedById    String?             @map("reviewed_by_id") @db.Uuid
+  reviewedAt      DateTime?           @map("reviewed_at") @db.Timestamp(6)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamp(6)
+
+  borrowerProfile BorrowerProfile     @relation(fields: [borrowerProfileId], references: [id])
+  application     CreditApplication?  @relation(fields: [applicationId], references: [id])
+  triggeredBy     User                @relation("AmlRescreenTriggeredBy", fields: [triggeredById], references: [id])
+  reviewedBy      User?               @relation("AmlRescreenReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([borrowerProfileId])
+  @@map("aml_rescreen_events")
 }
 
 // Committee vote — kept for backward compat; newer code uses CommitteeVoteChoice
@@ -2854,6 +2915,7 @@ model BorrowerProfile {
   guarantees        Guarantee[]
   financialStatements FinancialStatement[]
   keyCounterparties KeyCounterparty[]
+  amlRescreenEvents AmlRescreenEvent[]
 
   @@index([accountId])
   @@index([contactId])
@@ -3014,7 +3076,11 @@ model CreditApplication {
   
   // Rejection/withdrawal
   rejectionReason String?          @map("rejection_reason") @db.Text
+  rejectionReasonCode RejectionReasonCode? @map("rejection_reason_code")
   withdrawalReason String?         @map("withdrawal_reason") @db.Text
+  parentApplicationId String?      @map("parent_application_id") @db.Uuid
+  parentApplication   CreditApplication? @relation("ApplicationCloneSource", fields: [parentApplicationId], references: [id])
+  clonedApplications  CreditApplication[] @relation("ApplicationCloneSource")
   
   // CA Memo Phase 1 — Section 1 (Header)
   customerGroupName        String?               @map("customer_group_name") @db.VarChar(255)
@@ -3099,6 +3165,13 @@ model CreditApplication {
   retailIncome            RetailIncome?
   bureauChecklist         BureauChecklist?
   disbursementOrder       DisbursementOrder?
+  // §2.3 — LOO (Letter of Offer) fields
+  looGeneratedAt   DateTime? @map("loo_generated_at") @db.Timestamp(6)
+  looExpiryDate    DateTime? @map("loo_expiry_date") @db.Date
+  looGeneratedById String?   @map("loo_generated_by_id") @db.Uuid
+  looVersion       Int       @default(1) @map("loo_version")
+  looGeneratedBy   User?     @relation("CreditApplicationLooGeneratedBy", fields: [looGeneratedById], references: [id])
+  amlRescreenEvents AmlRescreenEvent[]
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -3140,11 +3213,48 @@ model ApplicationFacility {
 
   application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   requestItem RequestItem?       @relation(fields: [requestItemId], references: [id])
+  pricingWorksheet PricingWorksheet?
   collaterals Collateral[]
   guarantees  Guarantee[]
 
   @@index([applicationId])
   @@map("application_facilities")
+}
+
+// ============================================================================
+// §2.1 — Pricing Worksheet (Loan Pricing Engine)
+// ============================================================================
+
+enum BaseRateType {
+  BLR
+  OPR
+  FIXED
+  SORA
+  KLIBOR
+}
+
+model PricingWorksheet {
+  id                   String       @id @default(uuid()) @db.Uuid
+  facilityId           String       @unique @map("facility_id") @db.Uuid
+  baseRateType         BaseRateType @default(FIXED) @map("base_rate_type")
+  baseRatePct          Decimal      @map("base_rate_pct") @db.Decimal(6, 4)
+  creditSpreadPct      Decimal      @map("credit_spread_pct") @db.Decimal(6, 4)
+  riskPremiumPct       Decimal      @map("risk_premium_pct") @db.Decimal(6, 4)
+  administrationFeePct Decimal?     @map("administration_fee_pct") @db.Decimal(6, 4)
+  processingFeeFlat    Decimal?     @map("processing_fee_flat") @db.Decimal(15, 2)
+  effectiveRatePct     Decimal      @map("effective_rate_pct") @db.Decimal(6, 4)
+  effectiveYieldPct    Decimal?     @map("effective_yield_pct") @db.Decimal(6, 4)
+  pricingJustification String?      @map("pricing_justification") @db.Text
+  preparedById         String       @map("prepared_by_id") @db.Uuid
+  preparedAt           DateTime     @default(now()) @map("prepared_at") @db.Timestamp(6)
+  createdAt            DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt            DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  facility    ApplicationFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  preparedBy  User                @relation("PricingWorksheetPreparedBy", fields: [preparedById], references: [id])
+
+  @@index([facilityId])
+  @@map("pricing_worksheets")
 }
 
 // ============================================================================
@@ -3772,6 +3882,7 @@ model CreditDecision {
   
   application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   decidedBy       User              @relation("CreditDecisionBy", fields: [decisionById], references: [id])
+  conditionRecords Condition[]       @relation("CreditDecisionConditions")
   
   @@index([applicationId])
   @@map("credit_decisions")
@@ -3805,9 +3916,13 @@ model Condition {
   createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamp(6)
   
+  // §2.5 — Link to approval decision that generated this condition
+  decisionId     String?           @map("decision_id") @db.Uuid
+  
   application     CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   fulfilledBy     User?             @relation("ConditionFulfilledBy", fields: [fulfilledById], references: [id])
   waivedBy        User?             @relation("ConditionWaivedBy", fields: [waivedById], references: [id])
+  decision        CreditDecision?   @relation("CreditDecisionConditions", fields: [decisionId], references: [id])
   
   @@index([applicationId])
   @@index([conditionType])

@@ -12,6 +12,7 @@ import { getFacilityTypes } from '../creditUtils';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import useAutosave from '../../../src/hooks/useAutosave';
 import RetailFacilitiesTab from './RetailFacilitiesTab';
+import PricingWorksheetPanel from './PricingWorksheetPanel';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ const FacilityRow: React.FC<FacilityRowProps> = ({ facility, readOnly, facilityT
   const [form, setForm] = useState<Partial<CreditFacility>>(facility);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showPricing, setShowPricing] = useState(false);
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -155,24 +157,36 @@ const FacilityRow: React.FC<FacilityRowProps> = ({ facility, readOnly, facilityT
   }
 
   return (
-    <tr className="border-t hover:bg-gray-50">
-      <td className="p-2 text-sm">{facilityTypeLabels[facility.facilityType] ?? facility.facilityType}</td>
-      <td className="p-2 text-sm text-gray-500">{facility.pricingLabel ?? '—'}</td>
-      <td className="p-2 text-sm text-right">{fmt(facility.existingLimit)}</td>
-      <td className="p-2 text-sm text-right">{fmt(facility.proposedChange)}</td>
-      <td className="p-2 text-sm text-right font-medium">{fmt(facility.newLimit ?? facility.amount)}</td>
-      <td className="p-2 text-sm text-right">{fmt(facility.outstandingBalance)}</td>
-      <td className="p-2 text-sm text-right">{fmt(facility.undisbursedLimit)}</td>
-      <td className="p-2 text-sm">{facility.approvingLevel ?? '—'}</td>
-      <td className="p-2 space-x-1">
-        {!readOnly && (
-          <>
-            <button onClick={() => setEditing(true)} className="text-xs text-blue-600 hover:underline">Edit</button>
-            <button onClick={() => onDelete(facility.id)} className="text-xs text-red-500 hover:underline">Del</button>
-          </>
-        )}
-      </td>
-    </tr>
+    <>
+      <tr className="border-t hover:bg-gray-50">
+        <td className="p-2 text-sm">{facilityTypeLabels[facility.facilityType] ?? facility.facilityType}</td>
+        <td className="p-2 text-sm text-gray-500">{facility.pricingLabel ?? '—'}</td>
+        <td className="p-2 text-sm text-right">{fmt(facility.existingLimit)}</td>
+        <td className="p-2 text-sm text-right">{fmt(facility.proposedChange)}</td>
+        <td className="p-2 text-sm text-right font-medium">{fmt(facility.newLimit ?? facility.amount)}</td>
+        <td className="p-2 text-sm text-right">{fmt(facility.outstandingBalance)}</td>
+        <td className="p-2 text-sm text-right">{fmt(facility.undisbursedLimit)}</td>
+        <td className="p-2 text-sm">{facility.approvingLevel ?? '—'}</td>
+        <td className="p-2 space-x-1">
+          {!readOnly && (
+            <>
+              <button onClick={() => setEditing(true)} className="text-xs text-blue-600 hover:underline">Edit</button>
+              <button onClick={() => onDelete(facility.id)} className="text-xs text-red-500 hover:underline">Del</button>
+            </>
+          )}
+          <button onClick={() => setShowPricing(p => !p)} className="text-xs text-emerald-600 hover:underline ml-1" title="Pricing Worksheet">
+            {showPricing ? '▸ Hide Pricing' : '▸ Pricing'}
+          </button>
+        </td>
+      </tr>
+      {showPricing && (
+        <tr>
+          <td colSpan={9} className="p-0">
+            <PricingWorksheetPanel facilityId={facility.id} tenorMonths={facility.tenorMonths ?? undefined} readOnly={readOnly} />
+          </td>
+        </tr>
+      )}
+    </>
   );
 };
 

@@ -111,7 +111,7 @@ class ApprovalController {
     const actor = requireUser(req);
     const actorId = actor.id;
     const actorRoles = actor.roles ?? [];
-    const { decision, comment, isCommitteeVote } = req.body;
+    const { decision, comment, isCommitteeVote, rejectionReasonCode, conditions } = req.body;
 
     try {
       const result = await approvalActionService.submitApprovalAction({
@@ -119,6 +119,8 @@ class ApprovalController {
         decision,
         comment,
         isCommitteeVote,
+        rejectionReasonCode,
+        conditions,
         actorId,
         actorRoles,
       });
