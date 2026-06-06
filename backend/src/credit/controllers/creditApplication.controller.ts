@@ -251,6 +251,31 @@ class CreditApplicationController {
     const result = await validateSubmissionReadiness(id);
     res.json({ status: 'success', data: result });
   });
+
+  /**
+   * GET /applications/:id/esign-readiness — Check e-sign document gate
+   * Returns whether a verified signed Letter of Offer exists.
+   * Requires: credit:read
+   */
+  checkEsignReadiness = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const signedLoo = await prisma.creditDocument.findFirst({
+      where: {
+        applicationId: id,
+        classification: 'LETTER_OF_OFFER',
+        verificationStatus: 'VERIFIED',
+        deletedAt: null,
+      },
+      select: { id: true, fileName: true, verificationStatus: true },
+    });
+    res.json({
+      status: 'success',
+      data: {
+        ready: !!signedLoo,
+        signedLoo: signedLoo ?? null,
+      },
+    });
+  });
 }
 
 export const creditApplicationController = new CreditApplicationController();

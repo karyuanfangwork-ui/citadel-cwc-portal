@@ -178,7 +178,12 @@ model User {
   conditionsFulfilled   Condition[]             @relation("ConditionFulfilledBy")
   conditionsWaived      Condition[]             @relation("ConditionWaivedBy")
   qualitativeAssessments QualitativeAssessment[]
-  bureauChecklists       BureauChecklist[]
+  bureauChecklists         BureauChecklist[]         @relation("BureauChecklistTickedBy")
+  bureauChecklistsVerified BureauChecklist[]         @relation("BureauChecklistVerifiedBy")
+  disbursementRequested   DisbursementOrder[]      @relation("DisbursementRequestedBy")
+  disbursementApproved    DisbursementOrder[]      @relation("DisbursementApprovedBy")
+  disbursementDisbursed   DisbursementOrder[]      @relation("DisbursementDisbursedBy")
+  disbursementCancelled   DisbursementOrder[]      @relation("DisbursementCancelledBy")
 
   @@index([email])
   @@index([managerId])
@@ -2650,6 +2655,8 @@ enum DocumentClass {
   SSM_CERT
   MOA_AOA
   JV_AGREEMENT
+  LETTER_OF_OFFER
+  DISBURSEMENT_INSTRUCTION
   OTHER
 }
 
@@ -2718,6 +2725,13 @@ enum HealthStatus {
   WATCH
   AT_RISK
   DEFAULT
+}
+
+enum DisbursementStatus {
+  PENDING
+  APPROVED
+  DISBURSED
+  CANCELLED
 }
 
 enum PaymentStatus {
@@ -3084,6 +3098,7 @@ model CreditApplication {
   qualitativeAssessment   QualitativeAssessment?
   retailIncome            RetailIncome?
   bureauChecklist         BureauChecklist?
+  disbursementOrder       DisbursementOrder?
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -3354,6 +3369,7 @@ model CreditDocument {
   uploadedBy       User                @relation("CreditDocumentUpload", fields: [uploadedById], references: [id])
   verifiedBy       User?               @relation("CreditDocumentVerifier", fields: [verifiedById], references: [id])
   versions         CreditDocumentVersion[]
+  bureauChecks     CreditBureauCheck[]
   
   @@index([applicationId])
   @@index([borrowerProfileId])
@@ -3797,6 +3813,42 @@ model Condition {
   @@index([conditionType])
   @@index([status])
   @@map("conditions")
+}
+
+// ============================================================================
+// Disbursement Order — controls the disbursement lifecycle
+// ============================================================================
+model DisbursementOrder {
+  id                  String             @id @default(uuid()) @db.Uuid
+  applicationId        String             @unique @map("application_id") @db.Uuid
+  orderNo             String             @unique @map("order_no") @db.VarChar(30)
+  requestedById       String             @map("requested_by_id") @db.Uuid
+  requestedAt         DateTime           @default(now()) @map("requested_at") @db.Timestamp(6)
+  approvedById        String?            @map("approved_by_id") @db.Uuid
+  approvedAt          DateTime?          @map("approved_at") @db.Timestamp(6)
+  disbursedById       String?            @map("disbursed_by_id") @db.Uuid
+  disbursedAt         DateTime?          @map("disbursed_at") @db.Timestamp(6)
+  status              DisbursementStatus @default(PENDING)
+  totalAmount          Decimal            @map("total_amount") @db.Decimal(15, 2)
+  currency            String             @default("MYR") @db.VarChar(3)
+  disbursementMethod  String?            @map("disbursement_method") @db.VarChar(100)
+  beneficiaryBank     String?            @map("beneficiary_bank") @db.VarChar(255)
+  beneficiaryAccount  String?            @map("beneficiary_account") @db.VarChar(50)
+  referenceNote       String?            @map("reference_note") @db.Text
+  cancelledById       String?            @map("cancelled_by_id") @db.Uuid
+  cancelledAt         DateTime?          @map("cancelled_at") @db.Timestamp(6)
+  cancellationReason  String?            @map("cancellation_reason") @db.Text
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime           @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  requestedBy   User              @relation("DisbursementRequestedBy", fields: [requestedById], references: [id])
+  approvedBy    User?             @relation("DisbursementApprovedBy", fields: [approvedById], references: [id])
+  disbursedBy   User?             @relation("DisbursementDisbursedBy", fields: [disbursedById], references: [id])
+  cancelledBy   User?             @relation("DisbursementCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([status])
+  @@map("disbursement_orders")
 }
 
 // ============================================================================
@@ -4460,6 +4512,7 @@ model CreditBureauCheck {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  attachedDoc  CreditDocument?   @relation(fields: [attachedDocId], references: [id])
   runBy       User?             @relation("BureauCheckRunBy", fields: [runById], references: [id])
 
   @@index([applicationId])
@@ -4479,11 +4532,14 @@ model BureauChecklist {
   amlScreeningDone       Boolean   @default(false) @map("aml_screening_done")
   tickedById             String?   @map("ticked_by_id") @db.Uuid
   tickedAt               DateTime? @map("ticked_at") @db.Timestamp(6)
+  verifiedById           String?   @map("verified_by_id") @db.Uuid
+  verifiedAt             DateTime? @map("verified_at") @db.Timestamp(6)
   createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
 
   application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
-  tickedBy    User?              @relation(fields: [tickedById], references: [id])
+  tickedBy    User?             @relation("BureauChecklistTickedBy", fields: [tickedById], references: [id])
+  verifiedBy  User?             @relation("BureauChecklistVerifiedBy", fields: [verifiedById], references: [id])
 
   @@map("bureau_checklists")
 }

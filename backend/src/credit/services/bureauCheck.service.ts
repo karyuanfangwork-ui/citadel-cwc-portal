@@ -1,5 +1,7 @@
 import prisma from '../../utils/prisma';
 import { BureauProvider, RiskRating } from '@prisma/client';
+import { AppError } from '../../middleware/error.middleware';
+import { AuditChainService } from './auditChain.service';
 
 // ── Bureau Rating Caps (Wave 3) ───────────────────────────────────────────────
 
@@ -69,6 +71,43 @@ export async function isBureauCheckFresh(applicationId: string): Promise<{ fresh
   return { fresh: staleProviders.length === 0, staleProviders };
 }
 
+// ── Bureau Checklist — Tick Enforcement ─────────────────────────────────────
+//
+// Before setting ccrisUploaded=true or ctosUploaded=true, verify that:
+//   1. A CreditBureauCheck row exists with the correct provider and attachedDocId
+//   2. The linked CreditDocument has verificationStatus = 'VERIFIED'
+//
+// This prevents ticking without a verified bureau report PDF uploaded.
+
+/**
+ * Validate that a bureau report PDF has been uploaded and verified before
+ * ticking the corresponding checklist item.
+ */
+async function requireVerifiedBureauDoc(
+  applicationId: string,
+  provider: BureauProvider,
+  fieldLabel: string,
+): Promise<void> {
+  const bureauCheck = await prisma.creditBureauCheck.findFirst({
+    where: { applicationId, provider },
+    include: { attachedDoc: true },
+  });
+
+  if (!bureauCheck?.attachedDocId) {
+    throw new AppError(
+      `Bureau report PDF must be uploaded (${provider}) before ticking ${fieldLabel}.`,
+      400,
+    );
+  }
+
+  if (bureauCheck.attachedDoc?.verificationStatus !== 'VERIFIED') {
+    throw new AppError(
+      `Bureau report PDF must be verified by a credit officer before ticking ${fieldLabel}. Document status: ${bureauCheck.attachedDoc?.verificationStatus ?? 'PENDING'}`,
+      400,
+    );
+  }
+}
+
 export async function upsertBureauChecklist(
   applicationId: string,
   userId: string,
@@ -80,19 +119,45 @@ export async function upsertBureauChecklist(
     amlScreeningDone?: boolean;
   },
 ) {
+  // ── Tick enforcement: ccrisUploaded requires verified CCRIS doc ──
+  if (data.ccrisUploaded) {
+    await requireVerifiedBureauDoc(applicationId, 'CCRIS_BORROWER_UPLOAD' as BureauProvider, 'ccrisUploaded');
+  }
+
+  // ── Tick enforcement: ctosUploaded requires verified CTOS doc ──
+  if (data.ctosUploaded) {
+    await requireVerifiedBureauDoc(applicationId, 'CTOS' as BureauProvider, 'ctosUploaded');
+  }
+
+  // ── If ticking any checkbox, clear verifiedById (must re-verify) ──
+  const hasTickChange = data.ccrisUploaded !== undefined || data.ctosUploaded !== undefined
+    || data.noAdverseRecord !== undefined || data.amlScreeningDone !== undefined;
+
   return prisma.bureauChecklist.upsert({
     where: { applicationId },
     create: { applicationId, tickedById: userId, tickedAt: new Date(), ...data },
-    update: { tickedById: userId, tickedAt: new Date(), ...data },
+    update: {
+      tickedById: userId,
+      tickedAt: new Date(),
+      ...data,
+      // Any tick change invalidates the previous verification
+      ...(hasTickChange ? { verifiedById: null, verifiedAt: null } : {}),
+    },
   });
 }
 
 export async function getBureauChecklist(applicationId: string) {
-  return prisma.bureauChecklist.findUnique({ where: { applicationId } });
+  return prisma.bureauChecklist.findUnique({
+    where: { applicationId },
+    include: {
+      tickedBy: { select: { id: true, firstName: true, lastName: true } },
+      verifiedBy: { select: { id: true, firstName: true, lastName: true } },
+    },
+  });
 }
 
 export async function isBureauChecklistComplete(applicationId: string): Promise<boolean> {
-  const checklist = await getBureauChecklist(applicationId);
+  const checklist = await prisma.bureauChecklist.findUnique({ where: { applicationId } });
   if (!checklist) return false;
   return (
     checklist.ccrisUploaded &&
@@ -101,6 +166,78 @@ export async function isBureauChecklistComplete(applicationId: string): Promise<
     (checklist.noAdverseRecord || Boolean(checklist.adverseExceptionReason))
   );
 }
+
+export async function isBureauChecklistVerified(applicationId: string): Promise<boolean> {
+  const checklist = await prisma.bureauChecklist.findUnique({ where: { applicationId } });
+  if (!checklist) return false;
+  return checklist.verifiedById !== null;
+}
+
+// ── Verify Checklist (maker-checker) ────────────────────────────────────────
+//
+// A supervisor (credit:approve) verifies the bureau checklist after the
+// analyst ticks all items. The verifier must be a different person from
+// the one who ticked the checklist.
+
+export async function verifyChecklist(
+  applicationId: string,
+  verifiedById: string,
+): Promise<any> {
+  const checklist = await prisma.bureauChecklist.findUnique({
+    where: { applicationId },
+    include: {
+      tickedBy: { select: { id: true, firstName: true, lastName: true } },
+    },
+  });
+
+  if (!checklist) {
+    throw new AppError('Bureau checklist not found for this application.', 404);
+  }
+
+  // Must be complete before verifying
+  if (!checklist.ccrisUploaded || !checklist.ctosUploaded || !checklist.amlScreeningDone
+      || (!checklist.noAdverseRecord && !checklist.adverseExceptionReason)) {
+    throw new AppError(
+      'Bureau checklist must be complete (CCRIS, CTOS, AML screening ticked; adverse record exception if applicable) before verification.',
+      400,
+    );
+  }
+
+  // Maker-checker: verifier cannot be the same person who ticked
+  if (checklist.tickedById && checklist.tickedById === verifiedById) {
+    throw new AppError(
+      'Checklist verification requires a different officer from the one who ticked the items.',
+      400,
+    );
+  }
+
+  const updated = await prisma.bureauChecklist.update({
+    where: { applicationId },
+    data: {
+      verifiedById,
+      verifiedAt: new Date(),
+    },
+    include: {
+      tickedBy: { select: { id: true, firstName: true, lastName: true } },
+      verifiedBy: { select: { id: true, firstName: true, lastName: true } },
+    },
+  });
+
+  // Log audit event
+  await AuditChainService.appendEvent(
+    applicationId,
+    'BUREAU_CHECKLIST_VERIFIED',
+    verifiedById,
+    'verify',
+    undefined,
+    undefined,
+    { verifiedById },
+  );
+
+  return updated;
+}
+
+// ── Bureau Check CRUD ───────────────────────────────────────────────────────
 
 export interface CreateBureauCheckData {
   provider: BureauProvider;
@@ -116,7 +253,10 @@ export async function listByApplication(applicationId: string) {
   return prisma.creditBureauCheck.findMany({
     where: { applicationId },
     orderBy: { createdAt: 'desc' },
-    include: { runBy: { select: { id: true, firstName: true, lastName: true } } },
+    include: {
+      runBy: { select: { id: true, firstName: true, lastName: true } },
+      attachedDoc: { select: { id: true, verificationStatus: true, fileName: true, classification: true } },
+    },
   });
 }
 
@@ -132,7 +272,10 @@ export async function create(applicationId: string, data: CreateBureauCheckData)
       findings: data.findings ?? null,
       attachedDocId: data.attachedDocId ?? null,
     },
-    include: { runBy: { select: { id: true, firstName: true, lastName: true } } },
+    include: {
+      runBy: { select: { id: true, firstName: true, lastName: true } },
+      attachedDoc: { select: { id: true, verificationStatus: true, fileName: true, classification: true } },
+    },
   });
 }
 
@@ -148,7 +291,10 @@ export async function update(id: string, data: Partial<CreateBureauCheckData>) {
       findings: data.findings,
       attachedDocId: data.attachedDocId,
     },
-    include: { runBy: { select: { id: true, firstName: true, lastName: true } } },
+    include: {
+      runBy: { select: { id: true, firstName: true, lastName: true } },
+      attachedDoc: { select: { id: true, verificationStatus: true, fileName: true, classification: true } },
+    },
   });
 }
 

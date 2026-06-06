@@ -125,6 +125,8 @@ export type DetailTab =
   // META — Operations
   | 'documents'
   | 'audit'
+  // Disbursement (visible in ACCEPTED / DISBURSED / CLOSED states)
+  | 'disbursement'
   // Bank-only tabs (hidden by default, restored via credit:advanced_memo flag)
   | 'risk-rating'
   | 'profitability'

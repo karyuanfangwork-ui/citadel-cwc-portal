@@ -808,27 +808,87 @@ class _State extends ConsumerState<BorrowerCreateScreen> {
 }
 ```
 
-- [ ] **Step 3: Wire into router**
+- [ ] **Step 3: Write BorrowerListScreen**
 
-In `cwc_mobile/lib/staff/router.dart`, update the `'/applications'` and add borrowers:
+Create `cwc_mobile/lib/staff/borrowers/borrower_list_screen.dart`:
 
 ```dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/api/api_provider.dart';
+import '../../core/api/endpoints.dart';
+import '../../core/theme/app_theme.dart';
+
+class BorrowerListScreen extends ConsumerWidget {
+  const BorrowerListScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final borrowersAsync = ref.watch(_borrowerListProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Borrower Profiles')),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/borrowers/new'),
+        child: const Icon(Icons.add),
+      ),
+      body: borrowersAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e', style: TextStyle(color: AppColors.danger))),
+        data: (borrowers) {
+          if (borrowers.isEmpty) {
+            return const Center(child: Text('No borrower profiles yet.\nTap + to create one.', textAlign: TextAlign.center));
+          }
+          return ListView.separated(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: borrowers.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (_, i) {
+              final b = borrowers[i];
+              return ListTile(
+                title: Text(b['companyName'] as String? ?? '-', style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text(b['businessRegNo'] as String? ?? ''),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/borrowers/${b['id']}'),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+final _borrowerListProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final res = await ref.read(apiClientProvider).get(Endpoints.creditBorrowers);
+  final list = res.data['data']['borrowerProfiles'] as List<dynamic>? ?? [];
+  return list.cast<Map<String, dynamic>>();
+});
+```
+
+- [ ] **Step 4: Wire into router**
+
+In `cwc_mobile/lib/staff/router.dart`, update to use the full list screen:
+
+```dart
+import '../staff/borrowers/borrower_list_screen.dart';
 import '../staff/borrowers/borrower_create_screen.dart';
 // ...
 GoRoute(
   path: '/borrowers',
-  builder: (_, __) => const _PlaceholderScreen('Borrowers'), // full list screen is optional P4 extension
+  builder: (_, __) => const BorrowerListScreen(),
   routes: [
     GoRoute(path: 'new', builder: (_, __) => const BorrowerCreateScreen()),
   ],
 ),
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add cwc_mobile/lib/staff/borrowers/
-git commit -m "feat(mobile/staff): add Borrower Profile Create screen"
+git commit -m "feat(mobile/staff): add Borrower Profile List and Create screens"
 ```
 
 ---

@@ -1454,11 +1454,58 @@ void initState() {
 // (change StaffApp to ConsumerStatefulWidget)
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 3: Add Riverpod notification stream provider**
+
+Create `cwc_mobile/lib/core/notifications/notification_provider.dart`:
+
+```dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+
+class AppNotification {
+  final String type;
+  final Map<String, String> data;
+  const AppNotification({required this.type, required this.data});
+}
+
+/// Exposes foreground FCM messages as a reactive Riverpod stream.
+/// Screens watch this to auto-refresh when a relevant push arrives —
+/// no manual SnackBar wiring needed for data invalidation.
+final notificationStreamProvider = StreamProvider<AppNotification>((ref) {
+  return FirebaseMessaging.onMessage.map((msg) => AppNotification(
+    type: msg.data['type'] as String? ?? 'UNKNOWN',
+    data: Map<String, String>.from(msg.data),
+  ));
+});
+```
+
+- [ ] **Step 4: Wire auto-refresh into Approval Inbox**
+
+In `cwc_mobile/lib/staff/approvals/approval_inbox_screen.dart`, inside `build()` before the `return Scaffold(...)`, add:
+
+```dart
+// Auto-refresh the approval list when a push notification arrives
+ref.listen(notificationStreamProvider, (_, next) {
+  next.whenData((n) {
+    if (n.type == 'APPROVAL_PENDING' || n.type == 'APPROVAL_DECISION') {
+      ref.invalidate(approvalInboxProvider);
+    }
+  });
+});
+```
+
+Add the import at the top of the file:
+```dart
+import '../../core/notifications/notification_provider.dart';
+```
+
+Note: `PushHandler.init()` still runs on startup (Step 2) for navigation-on-tap and background/terminated state handling. The `notificationStreamProvider` handles foreground data refresh reactively — both coexist without conflict.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add cwc_mobile/lib/core/notifications/ cwc_mobile/lib/main_staff.dart cwc_mobile/lib/staff/app.dart cwc_mobile/lib/staff/router.dart
-git commit -m "feat(mobile/staff): add push notification handler with approval and state-change routing"
+git add cwc_mobile/lib/core/notifications/ cwc_mobile/lib/main_staff.dart cwc_mobile/lib/staff/app.dart cwc_mobile/lib/staff/router.dart cwc_mobile/lib/staff/approvals/approval_inbox_screen.dart
+git commit -m "feat(mobile/staff): add push handler + Riverpod notification stream for reactive inbox refresh"
 ```
 
 ---

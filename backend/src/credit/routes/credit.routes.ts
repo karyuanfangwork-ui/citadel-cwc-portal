@@ -86,6 +86,9 @@ import creditSlaRoutes from './creditSla.routes';
 // §2.5 — DLP (exports + tokens)
 import dlpRoutes from './dlp.routes';
 
+// §1.2 — Disbursement Control Layer
+import disbursementRoutes from './disbursement.routes';
+
 const router = Router();
 
 // Feature flag admin routes (outside feature flag gate)
@@ -217,5 +220,8 @@ router.use('/sla', creditSlaRoutes);
 
 // §2.5 — DLP (export tokens + protected export endpoints)
 router.use('/', dlpRoutes);
+
+// §1.2 — Disbursement Control Layer
+router.use('/applications', disbursementRoutes);
 
 export default router;

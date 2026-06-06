@@ -748,6 +748,28 @@ class CreditApplicationService {
           { statusCode: 400 },
         );
       }
+
+      // §1.1 — Bureau checklist enforcement: block submit_to_committee if checklist
+      // incomplete or not verified by a second officer.
+      const { isBureauChecklistComplete, isBureauChecklistVerified } = await import('./bureauCheck.service');
+      const checklistComplete = await isBureauChecklistComplete(id);
+      if (!checklistComplete) {
+        throw Object.assign(
+          new Error(
+            'Cannot submit to committee — Bureau checklist incomplete. CCRIS, CTOS and AML screening must be completed before committee submission.',
+          ),
+          { statusCode: 400 },
+        );
+      }
+      const checklistVerified = await isBureauChecklistVerified(id);
+      if (!checklistVerified) {
+        throw Object.assign(
+          new Error(
+            'Cannot submit to committee — Bureau checklist must be verified by a second officer before committee submission.',
+          ),
+          { statusCode: 400 },
+        );
+      }
     }
 
     // §2.5 — Approval chain completion gate: block approve/reject from COMMITTEE_REVIEW
@@ -814,6 +836,50 @@ class CreditApplicationService {
       }
     }
 
+    // §1.3 — E-sign document gate: block OFFER → ACCEPTED if no verified Letter of Offer
+    let acceptedOfferDocId: string | null = null;
+    if (action === 'accept_offer') {
+      const signedLoo = await prisma.creditDocument.findFirst({
+        where: {
+          applicationId: id,
+          classification: 'LETTER_OF_OFFER',
+          verificationStatus: 'VERIFIED',
+          deletedAt: null,
+        },
+      });
+      if (!signedLoo) {
+        throw Object.assign(
+          new Error('Cannot accept offer: a verified signed Letter of Offer must be uploaded as a Legal document before the offer can be accepted.'),
+          { statusCode: 400 },
+        );
+      }
+      acceptedOfferDocId = signedLoo.id;
+    }
+
+    // §1.2 — Disbursement control gate: block direct ACCEPTED→DISBURSED transition.
+    // Disbursement must go through DisbursementOrder workflow (create → approve → disburse).
+    if (action === 'disburse') {
+      const { DisbursementStatus } = await import('@prisma/client');
+      const order = await prisma.disbursementOrder.findUnique({ where: { applicationId: id } });
+      if (!order) {
+        throw Object.assign(
+          new Error('Cannot disburse: no disbursement order exists. Create and approve a disbursement order first.'),
+          { statusCode: 400 },
+        );
+      }
+      if (order.status !== DisbursementStatus.APPROVED) {
+        throw Object.assign(
+          new Error(`Cannot disburse: disbursement order status is ${order.status}, expected APPROVED. Approve the order first.`),
+          { statusCode: 400 },
+        );
+      }
+      // Do NOT transition here — disburseOrder() handles state transition
+      throw Object.assign(
+        new Error('Direct state transition to DISBURSED is blocked. Use the disbursement order workflow (POST /disbursement/disburse) instead.'),
+        { statusCode: 400 },
+      );
+    }
+
     // Build update data
     const updateData: Prisma.CreditApplicationUpdateInput = {
       state: transition.to,
@@ -856,6 +922,7 @@ class CreditApplicationService {
     // Create audit event for state transition
     await this.createAuditEvent(id, actorId, action, existing.state, transition.to, {
       reason: reason ?? null,
+      ...(acceptedOfferDocId ? { signedLooDocId: acceptedOfferDocId } : {}),
     });
 
     // §1.2 — On submit, derive connected-party flag from RelatedPartyGroup membership

@@ -26,6 +26,7 @@ import SecurityGuaranteesTab from './credit/tabs/SecurityGuaranteesTab';
 import ApprovalsTab from './credit/tabs/ApprovalsTab';
 import SignoffTab from './credit/tabs/SignoffTab';
 import ConditionsTab from './credit/tabs/ConditionsTab';
+import DisbursementTab from './credit/tabs/DisbursementTab';
 import SummaryTab from './credit/tabs/SummaryTab';
 import DocumentsTab from './credit/tabs/DocumentsTab';
 import AuditTab from './credit/tabs/AuditTab';
@@ -107,6 +108,8 @@ const CreditApplicationDetail: React.FC = () => {
     satisfied: { field: string; message: string; severity: string }[];
   } | null>(null);
   const [readinessLoading, setReadinessLoading] = useState(false);
+  const [esignReady, setEsignReady] = useState<{ ready: boolean; signedLoo: { id: string; fileName: string; verificationStatus: string } | null } | null>(null);
+  const [esignLoading, setEsignLoading] = useState(false);
   const [signoffs, setSignoffs] = useState<ApplicationSignoff[]>([]);
   const [approvals, setApprovals] = useState<CreditApproval[]>([]);
   const [transitioning, setTransitioning] = useState(false);
@@ -183,6 +186,17 @@ const CreditApplicationDetail: React.FC = () => {
       .finally(() => setReadinessLoading(false));
   }, [id, app]);
 
+  // §1.3 — Fetch e-sign readiness when application is in OFFER state
+  useEffect(() => {
+    if (!id || !app) return;
+    if ((app.state || app.status) !== 'OFFER') return;
+    setEsignLoading(true);
+    creditService.checkEsignReadiness(id)
+      .then(r => setEsignReady(r))
+      .catch(() => { /* non-critical — panel stays hidden */ })
+      .finally(() => setEsignLoading(false));
+  }, [id, app]);
+
   // Auto-focus cancel button when dialog opens
   useEffect(() => {
     if (showTransitionDialog && transitionDialogCancelRef.current) {
@@ -210,6 +224,7 @@ const CreditApplicationDetail: React.FC = () => {
       fetchTransitions();
       // Re-check readiness if we returned to DRAFT (e.g. after KYC rejection)
       setReadiness(null);
+      setEsignReady(null);
     } catch (e) { console.error(e); toast.error(friendlyMessage(e, 'Failed to transition application')); }
     finally { setTransitioning(false); }
   };
@@ -328,6 +343,7 @@ const CreditApplicationDetail: React.FC = () => {
       case 'approvals': return <ApprovalsTab app={app!} onRefresh={fetchApp} />;
       case 'signoff': return <SignoffTab application={app!} onUpdated={setApp} />;
       case 'conditions': return <ConditionsTab />;
+      case 'disbursement': return <DisbursementTab application={app!} onUpdated={(updated) => setApp(updated)} />;
       case 'summary': return <SummaryTab app={app!} facilities={facilities} onRefresh={fetchApp} />;
 
       // META — Operations
@@ -662,28 +678,63 @@ const CreditApplicationDetail: React.FC = () => {
               </div>
             )}
 
+            {/* §1.3 — E-sign gate banner (OFFER state only) */}
+            {currentState === 'OFFER' && esignReady && !esignReady.ready && (
+              <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-600 text-base mt-0.5 shrink-0">lock</span>
+                <div>
+                  <p className="text-xs font-bold text-amber-800">Signed Letter of Offer required before acceptance</p>
+                  <p className="text-xs text-amber-700 mt-1">
+                    To accept this offer, upload the signed Letter of Offer as a <strong>Letter of Offer</strong> document and have it verified by a credit officer.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab('documents')}
+                    className="mt-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-sm">upload_file</span>
+                    Go to Documents tab to upload
+                  </button>
+                </div>
+              </div>
+            )}
+            {currentState === 'OFFER' && esignReady && esignReady.ready && (
+              <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
+                <span className="material-symbols-outlined text-green-600 text-base mt-0.5 shrink-0">verified</span>
+                <div>
+                  <p className="text-xs font-bold text-green-800">Signed Letter of Offer verified</p>
+                  {esignReady.signedLoo && (
+                    <p className="text-xs text-green-700 mt-0.5">
+                      Document: {esignReady.signedLoo.fileName} — ready to accept offer.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
               {transitions.map(t => {
                 const isReject = t.toState === 'REJECTED' || t.toState === 'KYC_REJECTED' || t.toState === 'WITHDRAWN';
                 const isApprove = t.toState === 'APPROVED' || t.toState === 'KYC_APPROVED' || t.toState === 'ACCEPTED';
                 const isTerminal = t.toState === 'CLOSED' || t.toState === 'WITHDRAWN' || t.toState === 'REJECTED' || t.toState === 'KYC_REJECTED';
                 const isSignoffBlocked = t.action === 'submit_to_committee' && !allSigned;
+                const isEsignBlocked = t.action === 'accept_offer' && esignReady !== null && !esignReady.ready;
                 const isAdminAction = t.action === 'close';
                 const isAdminBlocked = isAdminAction && !canAdmin;
                 return (
                   <button key={t.action} ref={el => { if (t.action === showTransitionDialog) transitionTriggerRef.current = el; }}
-                    onClick={() => !isSignoffBlocked && !isAdminBlocked && setShowTransitionDialog(t.action)}
-                    disabled={isSignoffBlocked || isAdminBlocked}
+                    onClick={() => !isSignoffBlocked && !isEsignBlocked && !isAdminBlocked && setShowTransitionDialog(t.action)}
+                    disabled={isSignoffBlocked || isEsignBlocked || isAdminBlocked}
                     title={isSignoffBlocked ? 'Blocked: Complete all CA Memo sign-offs (Prepared By, Reviewed By, Concurred By) first' :
+                      isEsignBlocked ? 'Blocked: Upload and verify a signed Letter of Offer before accepting the offer.' :
                       isAdminBlocked ? 'Admin permission required: Only credit administrators can close a loan' :
                       t.toState === 'CLOSED' ? 'Irreversible: This will permanently close the loan and stop all monitoring.' : undefined}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-colors ${
-                      isSignoffBlocked || isAdminBlocked ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60' :
+                      isSignoffBlocked || isEsignBlocked || isAdminBlocked ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed opacity-60' :
                       t.toState === 'CLOSED' ? 'bg-amber-50 text-amber-700 border border-amber-300 hover:bg-amber-100' :
                       isReject ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100' :
                       isApprove ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100' :
                       'bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100'
-                    }`} style={{ fontFamily: 'var(--font-sans)', cursor: isSignoffBlocked || isAdminBlocked ? 'not-allowed' : 'pointer' }}>
+                    }`} style={{ fontFamily: 'var(--font-sans)', cursor: isSignoffBlocked || isEsignBlocked || isAdminBlocked ? 'not-allowed' : 'pointer' }}>
                     <span className="material-symbols-outlined text-base">{
                       t.toState === 'CLOSED' ? 'lock' :
                       isReject ? 'block' : isApprove ? 'check_circle' : 'arrow_forward'
@@ -933,6 +984,13 @@ const CreditApplicationDetail: React.FC = () => {
         {activeTab === 'conditions' && (
           <div role="tabpanel" id="panel-conditions" aria-labelledby="tab-conditions" tabIndex={0}>
             <ConditionsTab />
+          </div>
+        )}
+
+        {/* S7 — Disbursement */}
+        {activeTab === 'disbursement' && (
+          <div role="tabpanel" id="panel-disbursement" aria-labelledby="tab-disbursement" tabIndex={0}>
+            <DisbursementTab application={app} onUpdated={(updated) => setApp(updated)} />
           </div>
         )}
 

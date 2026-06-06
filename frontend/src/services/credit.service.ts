@@ -771,6 +771,11 @@ const creditService = {
     return res.data.data;
   },
 
+  async checkEsignReadiness(id: string): Promise<{ ready: boolean; signedLoo: { id: string; fileName: string; verificationStatus: string } | null }> {
+    const res = await apiClient.get(`/credit/applications/${id}/esign-readiness`);
+    return res.data.data;
+  },
+
   async listFeatureFlags(): Promise<{ key: string; enabled: boolean }[]> {
     const res = await apiClient.get('/credit/feature-flags');
     return res.data.data.flags as { key: string; enabled: boolean }[];
@@ -1865,6 +1870,7 @@ export interface CreditBureauCheck {
   createdAt: string;
   updatedAt: string;
   runBy?: { id: string; firstName: string; lastName: string } | null;
+  attachedDoc?: { id: string; verificationStatus: string | null; fileName: string; classification: string } | null;
 }
 
 export interface IndustryAssessment {
@@ -2084,10 +2090,20 @@ export const bureauChecklistApi = {
       noAdverseRecord: boolean;
       adverseExceptionReason?: string | null;
       amlScreeningDone: boolean;
+      tickedById?: string | null;
+      tickedAt?: string | null;
+      tickedBy?: { id: string; firstName: string; lastName: string } | null;
+      verifiedById?: string | null;
+      verifiedAt?: string | null;
+      verifiedBy?: { id: string; firstName: string; lastName: string } | null;
     } | null;
   },
   upsert: async (applicationId: string, data: Record<string, unknown>) => {
     const res = await apiClient.put(`/credit/applications/${applicationId}/bureau-checklist`, data);
+    return res.data.data;
+  },
+  verify: async (applicationId: string) => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/bureau-checklist/verify`);
     return res.data.data;
   },
   updateCheckStructured: async (applicationId: string, checkId: string, data: Record<string, unknown>) => {
@@ -2141,6 +2157,74 @@ export const qualitativeAssessmentApi = {
   ) => {
     const res = await apiClient.put(`/credit/applications/${applicationId}/qualitative-assessment`, scores);
     return res.data.data;
+  },
+};
+
+// ── Disbursement API ──────────────────────────────────────────────────────
+export interface DisbursementOrder {
+  id: string;
+  applicationId: string;
+  orderNo: string;
+  requestedById: string;
+  requestedAt: string;
+  approvedById: string | null;
+  approvedAt: string | null;
+  disbursedById: string | null;
+  disbursedAt: string | null;
+  status: 'PENDING' | 'APPROVED' | 'DISBURSED' | 'CANCELLED';
+  totalAmount: string;
+  currency: string;
+  disbursementMethod: string | null;
+  beneficiaryBank: string | null;
+  beneficiaryAccount: string | null;
+  referenceNote: string | null;
+  cancelledById: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requestedBy: { id: string; firstName: string; lastName: string } | null;
+  approvedBy: { id: string; firstName: string; lastName: string } | null;
+  disbursedBy: { id: string; firstName: string; lastName: string } | null;
+  cancelledBy: { id: string; firstName: string; lastName: string } | null;
+}
+
+export interface DisbursementReadinessResult {
+  ready: boolean;
+  checks: { pass: boolean; reason: string }[];
+}
+
+export const disbursementApi = {
+  get: async (applicationId: string) => {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/disbursement`);
+    return res.data.data as DisbursementOrder | null;
+  },
+  create: async (applicationId: string, data: {
+    totalAmount: number;
+    currency?: string;
+    disbursementMethod?: string;
+    beneficiaryBank?: string;
+    beneficiaryAccount?: string;
+    referenceNote?: string;
+  }) => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/disbursement`, data);
+    return res.data.data as DisbursementOrder;
+  },
+  approve: async (applicationId: string) => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/disbursement/approve`);
+    return res.data.data as DisbursementOrder;
+  },
+  disburse: async (applicationId: string) => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/disbursement/disburse`);
+    return res.data.data as DisbursementOrder;
+  },
+  cancel: async (applicationId: string, reason: string) => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/disbursement/cancel`, { reason });
+    return res.data.data as DisbursementOrder;
+  },
+  readiness: async (applicationId: string) => {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/disbursement/readiness`);
+    return res.data.data as DisbursementReadinessResult;
   },
 };
 

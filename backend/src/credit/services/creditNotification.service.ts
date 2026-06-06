@@ -32,7 +32,10 @@ export type CreditEventType =
   | 'credit_application_approved'
   | 'credit_application_rejected'
   | 'credit_approval_requested'
-  | 'credit_application_withdrawn';
+  | 'credit_application_withdrawn'
+  | 'disbursement_requested'
+  | 'disbursement_approved'
+  | 'disbursement_completed';
 
 export interface CreditEventDetails {
   /** Human-readable application number (e.g. CA-00001) */
@@ -135,6 +138,29 @@ function getTargetUserIds(
     }
     case 'credit_application_withdrawn': {
       // Notify RM, analyst, and any approvers who already voted
+      if (recipients.rmId && recipients.rmId !== actorId) unique.add(recipients.rmId);
+      if (recipients.analystId && recipients.analystId !== actorId) unique.add(recipients.analystId);
+      for (const id of recipients.approverIds) {
+        if (id !== actorId) unique.add(id);
+      }
+      break;
+    }
+    case 'disbursement_requested': {
+      // Notify RM and approvers (they need to approve)
+      if (recipients.rmId && recipients.rmId !== actorId) unique.add(recipients.rmId);
+      for (const id of recipients.approverIds) {
+        if (id !== actorId) unique.add(id);
+      }
+      break;
+    }
+    case 'disbursement_approved': {
+      // Notify RM and analyst — order approved, ready for disbursement
+      if (recipients.rmId && recipients.rmId !== actorId) unique.add(recipients.rmId);
+      if (recipients.analystId && recipients.analystId !== actorId) unique.add(recipients.analystId);
+      break;
+    }
+    case 'disbursement_completed': {
+      // Notify RM, analyst, and approvers — disbursement done
       if (recipients.rmId && recipients.rmId !== actorId) unique.add(recipients.rmId);
       if (recipients.analystId && recipients.analystId !== actorId) unique.add(recipients.analystId);
       for (const id of recipients.approverIds) {

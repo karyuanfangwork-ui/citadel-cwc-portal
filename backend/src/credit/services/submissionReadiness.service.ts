@@ -8,7 +8,7 @@
 import prisma from '../../utils/prisma';
 import { hasStaleCollateralValuations } from '../jobs/collateralInsuranceMonitor.job';
 import { hasPendingScoreOverride } from './scoreOverride.service';
-import { isBureauCheckFresh, isBureauChecklistComplete } from './bureauCheck.service';
+import { isBureauCheckFresh, isBureauChecklistComplete, isBureauChecklistVerified } from './bureauCheck.service';
 
 function getRequiredDocuments(borrowerType: string): string[] {
   switch (borrowerType) {
@@ -177,14 +177,24 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
     });
   }
 
-  // ---- Check 9: Bureau checklist completion ----
+  // ---- Check 9: Bureau checklist completion + verification (hard gate) ----
   const bureauComplete = await isBureauChecklistComplete(applicationId);
   if (!bureauComplete) {
-    warnings.push({
+    errors.push({
       field: 'bureauChecklist',
-      message: 'Bureau checklist incomplete — all items should be ticked before submission',
-      severity: 'warning',
+      message: 'Bureau checklist incomplete — CCRIS, CTOS and AML screening must be completed before committee submission.',
+      severity: 'error',
     });
+  } else {
+    // Checklist is complete — verify it has been signed off by a second officer
+    const bureauVerified = await isBureauChecklistVerified(applicationId);
+    if (!bureauVerified) {
+      errors.push({
+        field: 'bureauChecklist',
+        message: 'Bureau checklist must be verified by a second officer before committee submission.',
+        severity: 'error',
+      });
+    }
   }
 
   // ---- Check 10: Retail DSR warning ----

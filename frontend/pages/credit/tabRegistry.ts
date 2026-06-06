@@ -51,11 +51,12 @@ export const SECTIONS: SectionDef[] = [
   { id: 'approvals', label: 'Approvals', shortLabel: 'Approvals', step: 3, order: 12 },
   { id: 'signoff', label: 'Sign-off', shortLabel: 'Signoff', step: 3, order: 13 },
   { id: 'conditions', label: 'Conditions Precedent', shortLabel: 'Conditions', step: 3, order: 14 },
-  { id: 'summary', label: 'Summary', shortLabel: 'Summary', step: 3, order: 15 },
+  { id: 'disbursement', label: 'Disbursement', shortLabel: 'Disbursement', step: 3, order: 15, advancedOnly: false },
+  { id: 'summary', label: 'Summary', shortLabel: 'Summary', step: 3, order: 16 },
 
   // Meta (cross-cutting)
-  { id: 'documents', label: 'Documents', shortLabel: 'Docs', step: 3, order: 16 },
-  { id: 'audit', label: 'Audit Trail', shortLabel: 'Audit', step: 3, order: 17 },
+  { id: 'documents', label: 'Documents', shortLabel: 'Docs', step: 3, order: 17 },
+  { id: 'audit', label: 'Audit Trail', shortLabel: 'Audit', step: 3, order: 18 },
 
   // ── Bank-only sections (advanced_memo flag) ──
   { id: 'risk-rating', label: 'Risk Rating & ECL', shortLabel: 'ECL', step: 2, order: 100, advancedOnly: true },
@@ -90,7 +91,7 @@ export const WIZARD_GROUPS: GroupDef[] = [
   // Step 3: Decision
   { id: 'g-collateral', label: 'Collateral & Guarantees', step: 3, sections: ['collateral', 'security'] },
   { id: 'g-approvals', label: 'Approvals & Signoff', step: 3, sections: ['approvals', 'signoff'] },
-  { id: 'g-conditions', label: 'Conditions & Summary', step: 3, sections: ['conditions', 'summary'] },
+  { id: 'g-conditions', label: 'Conditions & Disbursement', step: 3, sections: ['conditions', 'disbursement', 'summary'] },
   { id: 'g-meta', label: 'Operations', step: 3, sections: ['documents', 'audit'] },
 
   // ── Bank-only groups (hidden unless credit:advanced_memo) ──
@@ -147,6 +148,7 @@ export const LEGACY_TAB_MAP: Record<string, { step: WizardStep; section: DetailT
   'approvals': { step: 3, section: 'approvals' },
   'signoff': { step: 3, section: 'signoff' },
   'conditions': { step: 3, section: 'conditions' },
+  'disbursement': { step: 3, section: 'disbursement' },
   'summary': { step: 3, section: 'summary' },
   'documents': { step: 3, section: 'documents' },
   'audit': { step: 3, section: 'audit' },

@@ -170,6 +170,17 @@ router.get(
 );
 
 /**
+ * GET /applications/:id/esign-readiness
+ * Check e-sign document gate (verified Letter of Offer)
+ * Requires: credit:read
+ */
+router.get(
+  '/:id/esign-readiness',
+  requirePermission('credit:read'),
+  creditApplicationController.checkEsignReadiness,
+);
+
+/**
  * PATCH /applications/:id/connected-party-flag
  * Override the connected-party flag (manual override with audit trail)
  * Requires: credit:admin
