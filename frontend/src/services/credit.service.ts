@@ -528,12 +528,24 @@ export interface FinancialLineItem {
 export interface FinancialRatio {
   id: string;
   financialStatementId: string;
+  statementId: string;
   ratioKey: string;
   ratioLabel: string;
   category: RatioCategory;
   value: number;
   previousValue: number | null;
   trend: 'UP' | 'DOWN' | 'STABLE' | null;
+  // §1.4 — Threshold enrichment from backend
+  threshold?: {
+    ratioKey: string;
+    passMin?: number;
+    passMax?: number;
+    warnMin?: number;
+    warnMax?: number;
+    unit: 'x' | '%' | 'days';
+    formatHint: string;
+  } | null;
+  badge?: 'pass' | 'warn' | 'fail' | 'neutral';
   createdAt: string;
 }
 

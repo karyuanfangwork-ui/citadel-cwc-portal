@@ -3988,6 +3988,7 @@ model FinancialRatio {
   @@index([statementId])
   @@index([ratioKey])
   @@index([category])
+  @@unique([statementId, ratioKey])
   @@map("financial_ratios")
 }
 

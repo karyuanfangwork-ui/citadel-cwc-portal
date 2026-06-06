@@ -107,6 +107,7 @@ const BS_LINE_ITEMS = [
   { key: 'total_current_liabilities', label: 'Total Current Liabilities', parent: null, computed: true },
   { key: 'long_term_debt', label: 'Long-Term Debt', parent: 'non_current_liabilities' },
   { key: 'other_non_current_liabilities', label: 'Other Non-Current Liabilities', parent: null },
+  { key: 'total_debt', label: 'Total Debt (ST + LT)', parent: null, computed: true },
   { key: 'total_liabilities', label: 'Total Liabilities', parent: null, computed: true },
   { key: 'total_equity', label: 'Total Equity', parent: null, computed: true },
   { key: 'total_liabilities_equity', label: 'Total Liabilities + Equity', parent: null, computed: true },
@@ -229,14 +230,28 @@ function StatementModal({
         });
         stmtId = stmt.id;
       }
+
+      // §1.4 — Derive computed line items before save
+      const enrichedItems = lineItems.map((item, idx) => ({
+        lineKey: item.lineKey,
+        lineLabel: lineItemDefs.find(d => d.key === item.lineKey)?.label || item.lineKey,
+        amount: item.amount,
+        displayOrder: idx,
+      }));
+
+      if (form.statementType === 'BS') {
+        // Derive total_debt = short_term_debt + long_term_debt
+        const stDebt = Number(lineItems.find(i => i.lineKey === 'short_term_debt')?.amount || 0);
+        const ltDebt = Number(lineItems.find(i => i.lineKey === 'long_term_debt')?.amount || 0);
+        const totalDebtIdx = enrichedItems.findIndex(i => i.lineKey === 'total_debt');
+        if (totalDebtIdx >= 0) {
+          enrichedItems[totalDebtIdx].amount = stDebt + ltDebt;
+        }
+      }
+
       // Save line items
-      if (stmtId && lineItems.length > 0) {
-        await financialApi.upsertLineItems(stmtId, lineItems.map((item, idx) => ({
-          lineKey: item.lineKey,
-          lineLabel: lineItemDefs.find(d => d.key === item.lineKey)?.label || item.lineKey,
-          amount: item.amount,
-          displayOrder: idx,
-        })));
+      if (stmtId && enrichedItems.length > 0) {
+        await financialApi.upsertLineItems(stmtId, enrichedItems);
       }
       onSaved();
     } catch (err: any) {
@@ -329,10 +344,14 @@ function StatementModal({
           {/* Summary totals for BS */}
           {form.statementType === 'BS' && (
             <div className="bg-blue-50 rounded-lg p-3 text-sm">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-4">
                 <div>
                   <span className="text-gray-500">Total Assets:</span>
                   <span className="ml-2 font-bold">{(lineItems.find(i => i.lineKey === 'total_assets')?.amount || 0).toLocaleString('en-MY')}</span>
+                </div>
+                <div>
+                  <span className="text-gray-500">Total Debt:</span>
+                  <span className="ml-2 font-bold">{(lineItems.find(i => i.lineKey === 'total_debt')?.amount || 0).toLocaleString('en-MY')}</span>
                 </div>
                 <div>
                   <span className="text-gray-500">Total Liabilities:</span>
@@ -554,17 +573,96 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
                             </div>
                           </div>
 
-                          {/* Ratios */}
+                          {/* §1.4 — Computed Ratios Panel (grouped by category with threshold badges) */}
                           {ratios && ratios.length > 0 && (
                             <div>
                               <h4 className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Computed Ratios</h4>
-                              <div className="flex flex-wrap gap-2">
-                                {ratios.map((r, rIdx) => (
-                                  <span key={r.id || rIdx} className="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-medium">
-                                    {r.ratioLabel || r.ratioKey}: {r.value != null ? Number(r.value).toFixed(4) : '—'}
-                                  </span>
-                                ))}
-                              </div>
+                              {(() => {
+                                // Group ratios by category
+                                const groups: Record<string, typeof ratios> = {};
+                                for (const r of ratios) {
+                                  const cat = r.category || 'OTHER';
+                                  if (!groups[cat]) groups[cat] = [];
+                                  groups[cat].push(r);
+                                }
+                                const CATEGORY_ORDER = ['LIQUIDITY', 'LEVERAGE', 'COVERAGE', 'PROFITABILITY', 'ACTIVITY'];
+                                const CATEGORY_LABELS: Record<string, string> = {
+                                  LIQUIDITY: 'Liquidity',
+                                  LEVERAGE: 'Leverage',
+                                  COVERAGE: 'Coverage',
+                                  PROFITABILITY: 'Profitability',
+                                  ACTIVITY: 'Activity',
+                                };
+                                const badgeStyles: Record<string, string> = {
+                                  pass: 'bg-green-100 text-green-700',
+                                  warn: 'bg-amber-100 text-amber-700',
+                                  fail: 'bg-red-100 text-red-700',
+                                  neutral: 'bg-gray-100 text-gray-600',
+                                };
+                                const badgeLabels: Record<string, string> = {
+                                  pass: '✓ Pass',
+                                  warn: '⚠ Warn',
+                                  fail: '✗ Fail',
+                                  neutral: '',
+                                };
+                                const formatRatioValue = (r: any) => {
+                                  if (r.value == null) return '—';
+                                  const v = Number(r.value);
+                                  const unit = r.threshold?.unit;
+                                  if (unit === '%' || r.ratioKey === 'gearing_ratio' || r.ratioKey === 'ros' || r.ratioKey === 'gross_margin' || r.ratioKey === 'roe' || r.ratioKey === 'roa') {
+                                    return (v * 100).toFixed(2) + '%';
+                                  }
+                                  if (r.ratioKey === 'receivables_days' || r.ratioKey === 'payables_days' || r.ratioKey === 'inventory_days') {
+                                    return v.toFixed(1) + ' days';
+                                  }
+                                  return v.toFixed(2) + 'x';
+                                };
+                                return (
+                                  <div className="space-y-4">
+                                    {CATEGORY_ORDER.filter(c => groups[c]?.length).map(cat => (
+                                      <div key={cat}>
+                                        <h5 className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">{CATEGORY_LABELS[cat] || cat}</h5>
+                                        <div className="bg-white rounded-lg border overflow-hidden">
+                                          <table className="w-full text-xs">
+                                            <thead>
+                                              <tr className="bg-gray-50 border-b">
+                                                <th className="text-left px-3 py-1.5 font-medium text-gray-500">Ratio</th>
+                                                <th className="text-right px-3 py-1.5 font-medium text-gray-500">Value</th>
+                                                <th className="text-center px-3 py-1.5 font-medium text-gray-500">Status</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {groups[cat].map((r: any, rIdx: number) => {
+                                                const badge = r.badge || 'neutral';
+                                                return (
+                                                  <tr key={r.id || rIdx} className="border-b border-gray-50 last:border-0">
+                                                    <td className="px-3 py-1.5">
+                                                      <div className="flex items-center gap-1.5">
+                                                        <span className="font-medium text-gray-800">{r.ratioLabel || r.ratioKey}</span>
+                                                        {r.threshold?.formatHint && (
+                                                          <span className="material-symbols-outlined text-xs text-gray-300 cursor-help" title={r.threshold.formatHint}>info</span>
+                                                        )}
+                                                      </div>
+                                                    </td>
+                                                    <td className="px-3 py-1.5 text-right font-mono font-semibold text-gray-900">{formatRatioValue(r)}</td>
+                                                    <td className="px-3 py-1.5 text-center">
+                                                      {badge !== 'neutral' && (
+                                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${badgeStyles[badge]}`}>
+                                                          {badgeLabels[badge]}
+                                                        </span>
+                                                      )}
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           )}
 
@@ -610,8 +708,10 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
                                   }
                                 }}
                                 className="px-3 py-1.5 text-xs border border-indigo-200 text-indigo-600 rounded hover:bg-indigo-50"
+                                title="Ratios auto-compute on save. Use this to force-refresh."
                               >
-                                Compute Ratios
+                                <span className="material-symbols-outlined text-xs align-middle mr-0.5">refresh</span>
+                                Refresh Ratios
                               </button>
                             )}
                           </div>
@@ -639,39 +739,102 @@ const FinancialsTab: React.FC<Props> = ({ application }) => {
       {/* ── Key Ratios Summary ─────────────────── */}
       {statements.length > 0 && (
         <CaMemoSection title="Key Financial Ratios" phase="S3">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {(() => {
-              const plStmt = statements.find(s => s.statementType === 'PL');
-              const bsStmt = statements.find(s => s.statementType === 'BS');
-              const bsRatios = ratiosMap[bsStmt?.id || ''] || bsStmt?.ratios || [];
-              const plRatios = ratiosMap[plStmt?.id || ''] || plStmt?.ratios || [];
-              const allRatios = [...bsRatios, ...plRatios];
-              const find = (key: string) => {
-                const r = allRatios.find(r => (r.ratioKey || '').toUpperCase().includes(key.toUpperCase()));
-                return r?.value ?? null;
-              };
-              const display = (v: string | number | null) => v != null ? String(v) : '—';
-              return [
-                { label: 'DSCR', value: display(find('DSCR')), desc: 'Debt Service Coverage Ratio', icon: 'shield' },
-                { label: 'Current Ratio', value: display(find('CURRENT_RATIO') || find('CURRENT')), desc: 'Current Assets / Current Liabilities', icon: 'balance' },
-                { label: 'Gearing', value: display(find('GEARING') || find('DEBT_EQUITY') || find('D_E')), desc: 'Total Debt / Total Equity', icon: 'trending_up' },
-                { label: 'LTV', value: display(find('LTV') || find('LOAN_TO_VALUE')), desc: 'Loan-to-Value', icon: 'percent' },
-              ].map(r => (
-                <div key={r.label} className="bg-white border rounded-lg p-3">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="material-symbols-outlined text-base text-gray-400">{r.icon}</span>
-                    <div className="text-xs font-semibold text-gray-500">{r.label}</div>
-                  </div>
-                  <div className="text-xl font-black text-gray-900">{r.value}</div>
-                  <div className="text-[10px] text-gray-400 mt-0.5">{r.desc}</div>
+          {(() => {
+            // Collect ratios from all statements (latest per ratioKey wins)
+            const latestRatios: Record<string, any> = {};
+            const ratioByStatement: Record<string, any[]> = {};
+            for (const stmt of statements) {
+              const stmtRatios = ratiosMap[stmt.id] || (stmt as any).ratios || [];
+              if (stmtRatios.length > 0) {
+                ratioByStatement[stmt.id] = stmtRatios;
+                for (const r of stmtRatios) {
+                  latestRatios[r.ratioKey] = r;
+                }
+              }
+            }
+            const allRatioKeys = Object.keys(latestRatios);
+            if (allRatioKeys.length === 0) {
+              return (
+                <div className="text-center py-8 text-gray-400">
+                  <span className="material-symbols-outlined text-4xl mb-2 block">calculate</span>
+                  <p className="text-sm font-medium text-gray-500">No ratios computed yet</p>
+                  <p className="text-xs mt-1">Ratios are auto-computed when you save line items to financial statements.</p>
                 </div>
-              ));
-            })()}
-          </div>
-          <p className="text-xs text-gray-400 mt-3">
-            Ratios are auto-calculated from financial statements when line items are complete.
-            Click "Compute Ratios" on a Balance Sheet to generate them.
-          </p>
+              );
+            }
+            // Group by category
+            const groups: Record<string, any[]> = {};
+            for (const key of allRatioKeys) {
+              const r = latestRatios[key];
+              const cat = r.category || 'OTHER';
+              if (!groups[cat]) groups[cat] = [];
+              groups[cat].push(r);
+            }
+            const CATEGORY_ORDER = ['LIQUIDITY', 'LEVERAGE', 'COVERAGE', 'PROFITABILITY', 'ACTIVITY'];
+            const CATEGORY_LABELS: Record<string, string> = {
+              LIQUIDITY: 'Liquidity', LEVERAGE: 'Leverage', COVERAGE: 'Coverage',
+              PROFITABILITY: 'Profitability', ACTIVITY: 'Activity',
+            };
+            const badgeStyles: Record<string, string> = {
+              pass: 'bg-green-100 text-green-700 border-green-200',
+              warn: 'bg-amber-100 text-amber-700 border-amber-200',
+              fail: 'bg-red-100 text-red-700 border-red-200',
+              neutral: 'bg-gray-100 text-gray-600 border-gray-200',
+            };
+            const badgeIcons: Record<string, string> = {
+              pass: 'check_circle', warn: 'warning', fail: 'cancel', neutral: '',
+            };
+            const formatRatioValue = (r: any) => {
+              if (r.value == null) return '—';
+              const v = Number(r.value);
+              const unit = r.threshold?.unit;
+              if (unit === '%' || ['gearing_ratio', 'ros', 'gross_margin', 'roe', 'roa'].includes(r.ratioKey)) {
+                return (v * 100).toFixed(2) + '%';
+              }
+              if (['receivables_days', 'payables_days', 'inventory_days'].includes(r.ratioKey)) {
+                return v.toFixed(1) + ' days';
+              }
+              return v.toFixed(2) + 'x';
+            };
+            return (
+              <div className="space-y-6">
+                {CATEGORY_ORDER.filter(c => groups[c]?.length).map(cat => (
+                  <div key={cat}>
+                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">{CATEGORY_LABELS[cat]}</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {groups[cat].map((r: any) => {
+                        const badge = r.badge || 'neutral';
+                        const hasThreshold = badge !== 'neutral';
+                        return (
+                          <div key={r.ratioKey} className={`bg-white border rounded-lg p-3 ${hasThreshold ? 'border-l-4 ' + (badge === 'pass' ? 'border-l-green-400' : badge === 'warn' ? 'border-l-amber-400' : 'border-l-red-400') : ''}`}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-semibold text-gray-500 truncate">{r.ratioLabel || r.ratioKey}</span>
+                              {hasThreshold && (
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${badgeStyles[badge]}`}>
+                                  {badge === 'pass' ? '✓' : badge === 'warn' ? '⚠' : '✗'}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-lg font-black text-gray-900">{formatRatioValue(r)}</div>
+                            {r.threshold?.formatHint && (
+                              <div className="text-[10px] text-gray-400 mt-0.5 truncate" title={r.threshold.formatHint}>{r.threshold.formatHint}</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {/* Multi-year comparison hint */}
+                {statements.length > 1 && (
+                  <div className="text-xs text-gray-400 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm">timeline</span>
+                    Compare ratios across years — expand individual statements to see detail with trend analysis.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </CaMemoSection>
       )}
 

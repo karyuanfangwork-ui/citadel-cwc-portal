@@ -67,10 +67,17 @@ const RATIO_DEFINITIONS: RatioDef[] = [
   // Profitability
   {
     key: 'ros',
-    label: 'Return on Sales',
+    label: 'Return on Sales (Net Margin)',
     category: 'PROFITABILITY',
     requiredKeys: ['net_income', 'revenue'],
     compute: (v) => v.revenue !== 0 ? v.net_income / v.revenue : null,
+  },
+  {
+    key: 'gross_margin',
+    label: 'Gross Margin',
+    category: 'PROFITABILITY',
+    requiredKeys: ['revenue', 'cogs'],
+    compute: (v) => v.revenue !== 0 ? (v.revenue - v.cogs) / v.revenue : null,
   },
   {
     key: 'roa',
@@ -93,6 +100,13 @@ const RATIO_DEFINITIONS: RatioDef[] = [
     category: 'LEVERAGE',
     requiredKeys: ['total_debt', 'total_equity'],
     compute: (v) => v.total_equity !== 0 ? v.total_debt / v.total_equity : null,
+  },
+  {
+    key: 'gearing_ratio',
+    label: 'Gearing Ratio',
+    category: 'LEVERAGE',
+    requiredKeys: ['total_debt', 'total_equity'],
+    compute: (v) => (v.total_debt + v.total_equity) !== 0 ? v.total_debt / (v.total_debt + v.total_equity) : null,
   },
   {
     key: 'debt_to_assets',
@@ -125,8 +139,15 @@ const RATIO_DEFINITIONS: RatioDef[] = [
     compute: (v) => (v.interest + v.principal) !== 0 ? (v.net_income + v.depreciation + v.interest) / (v.interest + v.principal) : null,
   },
   {
+    key: 'ebitda_interest_cover',
+    label: 'EBITDA Interest Cover',
+    category: 'COVERAGE',
+    requiredKeys: ['net_income', 'depreciation', 'interest'],
+    compute: (v) => v.interest !== 0 ? (v.net_income + v.depreciation + v.interest) / v.interest : null,
+  },
+  {
     key: 'interest_coverage',
-    label: 'Interest Coverage',
+    label: 'Interest Coverage (EBIT)',
     category: 'COVERAGE',
     requiredKeys: ['ebit', 'interest'],
     compute: (v) => v.interest !== 0 ? v.ebit / v.interest : null,
@@ -140,27 +161,71 @@ const RATIO_DEFINITIONS: RatioDef[] = [
     compute: (v) => v.total_assets !== 0 ? v.revenue / v.total_assets : null,
   },
   {
-    key: 'inventory_turnover',
-    label: 'Inventory Turnover',
+    key: 'inventory_days',
+    label: 'Inventory Days',
     category: 'ACTIVITY',
-    requiredKeys: ['cogs', 'inventory'],
-    compute: (v) => v.inventory !== 0 ? v.cogs / v.inventory : null,
+    requiredKeys: ['inventory', 'cogs'],
+    compute: (v) => v.cogs !== 0 ? (v.inventory / v.cogs) * 365 : null,
   },
   {
-    key: 'receivables_turnover',
-    label: 'Receivables Turnover',
+    key: 'receivables_days',
+    label: 'Receivables Days',
     category: 'ACTIVITY',
-    requiredKeys: ['revenue', 'accounts_receivable'],
-    compute: (v) => v.accounts_receivable !== 0 ? v.revenue / v.accounts_receivable : null,
+    requiredKeys: ['accounts_receivable', 'revenue'],
+    compute: (v) => v.revenue !== 0 ? (v.accounts_receivable / v.revenue) * 365 : null,
   },
   {
-    key: 'payables_turnover',
-    label: 'Payables Turnover',
+    key: 'payables_days',
+    label: 'Payables Days',
     category: 'ACTIVITY',
-    requiredKeys: ['cogs', 'accounts_payable'],
-    compute: (v) => v.accounts_payable !== 0 ? v.cogs / v.accounts_payable : null,
+    requiredKeys: ['accounts_payable', 'cogs'],
+    compute: (v) => v.cogs !== 0 ? (v.accounts_payable / v.cogs) * 365 : null,
   },
 ];
+
+// ---------------------------------------------------------------------------
+// §1.4 — Threshold definitions for ratio badges
+// ---------------------------------------------------------------------------
+
+export interface RatioThreshold {
+  ratioKey: string;
+  passMax?: number;    // value <= passMax → PASS (for ratios where lower is better)
+  passMin?: number;    // value >= passMin → PASS (for ratios where higher is better)
+  warnMin?: number;    // warnMin <= value < passMin → WARN
+  warnMax?: number;    // passMax < value <= warnMax → WARN
+  unit: 'x' | '%' | 'days';  // display unit
+  formatHint: string;  // tooltip text for formula
+}
+
+export const RATIO_THRESHOLDS: RatioThreshold[] = [
+  { ratioKey: 'dscr', passMin: 1.25, warnMin: 1.0, unit: 'x', formatHint: 'EBITDA / (Interest + Principal Repayments)' },
+  { ratioKey: 'gearing_ratio', passMax: 0.60, warnMax: 0.80, unit: '%', formatHint: 'Total Debt / (Total Debt + Total Equity)' },
+  { ratioKey: 'current_ratio', passMin: 1.5, warnMin: 1.0, unit: 'x', formatHint: 'Current Assets / Current Liabilities' },
+  { ratioKey: 'gross_margin', passMin: 0.20, warnMin: 0.10, unit: '%', formatHint: 'Gross Profit / Revenue' },
+  { ratioKey: 'quick_ratio', passMin: 1.0, warnMin: 0.5, unit: 'x', formatHint: '(Current Assets - Inventory) / Current Liabilities' },
+  { ratioKey: 'debt_to_equity', passMax: 1.5, warnMax: 2.0, unit: 'x', formatHint: 'Total Debt / Total Equity' },
+  { ratioKey: 'ros', passMin: 0.05, warnMin: 0.0, unit: '%', formatHint: 'Net Income / Revenue' },
+  { ratioKey: 'roe', passMin: 0.10, warnMin: 0.05, unit: '%', formatHint: 'Net Income / Total Equity' },
+];
+
+export function evaluateRatioThreshold(ratioKey: string, value: number): 'pass' | 'warn' | 'fail' | 'neutral' {
+  const t = RATIO_THRESHOLDS.find(r => r.ratioKey === ratioKey);
+  if (!t) return 'neutral';
+
+  // Ratios where higher is better (passMin/warnMin pattern)
+  if (t.passMin !== undefined) {
+    if (value >= t.passMin) return 'pass';
+    if (t.warnMin !== undefined && value >= t.warnMin) return 'warn';
+    return 'fail';
+  }
+  // Ratios where lower is better (passMax/warnMax pattern)
+  if (t.passMax !== undefined) {
+    if (value <= t.passMax) return 'pass';
+    if (t.warnMax !== undefined && value <= t.warnMax) return 'warn';
+    return 'fail';
+  }
+  return 'neutral';
+}
 
 // ---------------------------------------------------------------------------
 // Service
@@ -385,7 +450,12 @@ class FinancialService {
       })
     );
 
-    return prisma.$transaction(operations);
+    const result = await prisma.$transaction(operations);
+
+    // §1.4 — Auto-compute ratios after every line-item save
+    await this.computeRatios(statementId);
+
+    return result;
   }
 
   /**
@@ -573,24 +643,29 @@ class FinancialService {
       });
     }
 
-    // Delete existing ratios and re-insert
-    await prisma.$transaction(async (tx) => {
-      await tx.financialRatio.deleteMany({
-        where: { statementId },
-      });
-
-      if (computed.length > 0) {
-        await tx.financialRatio.createMany({
-          data: computed.map((r) => ({
+    // Upsert all computed ratios (using unique constraint statementId + ratioKey)
+    await Promise.all(computed.map((r) =>
+      prisma.financialRatio.upsert({
+        where: {
+          statementId_ratioKey: {
             statementId,
             ratioKey: r.ratioKey,
-            ratioLabel: r.ratioLabel,
-            value: r.value,
-            category: r.category as any,
-          })),
-        });
-      }
-    });
+          },
+        },
+        update: {
+          ratioLabel: r.ratioLabel,
+          value: r.value,
+          category: r.category as any,
+        },
+        create: {
+          statementId,
+          ratioKey: r.ratioKey,
+          ratioLabel: r.ratioLabel,
+          value: r.value,
+          category: r.category as any,
+        },
+      })
+    ));
 
     return computed;
   }
@@ -634,19 +709,29 @@ class FinancialService {
       });
     }
 
-    await tx.financialRatio.deleteMany({ where: { statementId } });
-
-    if (computed.length > 0) {
-      await tx.financialRatio.createMany({
-        data: computed.map((r) => ({
+    // Upsert within transaction
+    await Promise.all(computed.map((r) =>
+      tx.financialRatio.upsert({
+        where: {
+          statementId_ratioKey: {
+            statementId,
+            ratioKey: r.ratioKey,
+          },
+        },
+        update: {
+          ratioLabel: r.ratioLabel,
+          value: r.value,
+          category: r.category as any,
+        },
+        create: {
           statementId,
           ratioKey: r.ratioKey,
           ratioLabel: r.ratioLabel,
           value: r.value,
           category: r.category as any,
-        })),
-      });
-    }
+        },
+      })
+    ));
   }
 
   /**
@@ -664,10 +749,17 @@ class FinancialService {
       where.ratioKey = filters.ratioKey;
     }
 
-    return prisma.financialRatio.findMany({
+    const ratios = await prisma.financialRatio.findMany({
       where,
       orderBy: { category: 'asc' },
     });
+
+    // §1.4 — Enrich with threshold data
+    return ratios.map(r => ({
+      ...r,
+      threshold: (RATIO_THRESHOLDS.find(t => t.ratioKey === r.ratioKey)) ?? null,
+      badge: evaluateRatioThreshold(r.ratioKey, Number(r.value)),
+    }));
   }
 
   // ==========================================================================
