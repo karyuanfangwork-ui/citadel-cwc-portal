@@ -137,63 +137,97 @@ const ConditionsTab: React.FC<ConditionsTabProps> = () => {
         {conditions.length === 0 ? (
           <EmptyState icon="checklist" title="No Conditions" description="Conditions precedent and subsequent will appear here." />
         ) : (
-          <div className="space-y-2">
-            {conditions.map(cond => {
-              const isOverdue = cond.status === 'PENDING' && cond.dueDate && new Date(cond.dueDate) < new Date();
-              return (
-                <div key={cond.id} className={`bg-bg-surface border rounded-xl p-4 ${isOverdue ? 'border-red-300' : 'border-border'}`}>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                      cond.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                      cond.status === 'WAIVED' ? 'bg-purple-100 text-purple-700' :
-                      isOverdue ? 'bg-red-100 text-red-700' :
-                      'bg-amber-100 text-amber-700'
-                    }`}>
-                      <span className="material-symbols-outlined text-base">
-                        {cond.status === 'COMPLETED' ? 'check_circle' :
-                         cond.status === 'WAIVED' ? 'verified' :
-                         isOverdue ? 'warning' :
-                         'radio_button_unchecked'}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold text-text-primary text-sm">{cond.title}</p>
-                        <StateBadge state={cond.status} size="sm" />
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-bg-subtle text-text-secondary">
-                          {cond.category.replace(/_/g, ' ')}
+          <div className="space-y-6">
+            {/* §2.5 — Group by source: decision-linked vs manually added */}
+            {(() => {
+              const fromDecision = conditions.filter(c => c.decisionId);
+              const manual = conditions.filter(c => !c.decisionId);
+              const renderCondition = (cond: typeof conditions[0]) => {
+                const isOverdue = cond.status === 'PENDING' && cond.dueDate && new Date(cond.dueDate) < new Date();
+                return (
+                  <div key={cond.id} className={`bg-bg-surface border rounded-xl p-4 ${isOverdue ? 'border-red-300' : 'border-border'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                        cond.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                        cond.status === 'WAIVED' ? 'bg-purple-100 text-purple-700' :
+                        isOverdue ? 'bg-red-100 text-red-700' :
+                        'bg-amber-100 text-amber-700'
+                      }`}>
+                        <span className="material-symbols-outlined text-base">
+                          {cond.status === 'COMPLETED' ? 'check_circle' :
+                           cond.status === 'WAIVED' ? 'verified' :
+                           isOverdue ? 'warning' :
+                           'radio_button_unchecked'}
                         </span>
                       </div>
-                      {cond.description && <p className="text-xs text-text-secondary mt-0.5">{cond.description}</p>}
-                      <div className="flex items-center gap-3 mt-1 text-xs text-text-secondary">
-                        {cond.dueDate && (
-                          <span className={isOverdue ? 'text-red-600 font-bold' : ''}>
-                            Due: {formatDate(cond.dueDate)}{isOverdue ? ' (Overdue!)' : ''}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-text-primary text-sm">{cond.title}</p>
+                          <StateBadge state={cond.status} size="sm" />
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-bg-subtle text-text-secondary">
+                            {cond.category.replace(/_/g, ' ')}
                           </span>
-                        )}
-                        {cond.completedAt && <span>Completed: {formatDate(cond.completedAt)}</span>}
-                        {cond.waivedAt && <span>Waived: {formatDate(cond.waivedAt)}</span>}
+                          {cond.conditionType && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                              {cond.conditionType}
+                            </span>
+                          )}
+                        </div>
+                        {cond.description && <p className="text-xs text-text-secondary mt-0.5">{cond.description}</p>}
+                        <div className="flex items-center gap-3 mt-1 text-xs text-text-secondary">
+                          {cond.dueDate && (
+                            <span className={isOverdue ? 'text-red-600 font-bold' : ''}>
+                              Due: {formatDate(cond.dueDate)}{isOverdue ? ' (Overdue!)' : ''}
+                            </span>
+                          )}
+                          {cond.completedAt && <span>Completed: {formatDate(cond.completedAt)}</span>}
+                          {cond.waivedAt && <span>Waived: {formatDate(cond.waivedAt)}</span>}
+                        </div>
                       </div>
+                      {canWrite && cond.status === 'PENDING' && (
+                        <div className="flex gap-2 shrink-0">
+                          <button onClick={() => handleCompleteCondition(cond.id)} disabled={completingCondition === cond.id}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
+                            style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                            <span className="material-symbols-outlined text-sm">check</span>
+                            {completingCondition === cond.id ? '...' : 'Complete'}
+                          </button>
+                          <button onClick={() => { setWaiveDialogId(cond.id); setWaiveReason(''); }}
+                            className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors"
+                            style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                            <span className="material-symbols-outlined text-sm">block</span> Waive
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {canWrite && cond.status === 'PENDING' && (
-                      <div className="flex gap-2 shrink-0">
-                        <button onClick={() => handleCompleteCondition(cond.id)} disabled={completingCondition === cond.id}
-                          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors disabled:opacity-50"
-                          style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                          <span className="material-symbols-outlined text-sm">check</span>
-                          {completingCondition === cond.id ? '...' : 'Complete'}
-                        </button>
-                        <button onClick={() => { setWaiveDialogId(cond.id); setWaiveReason(''); }}
-                          className="flex items-center gap-1 px-2 py-1 rounded text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 transition-colors"
-                          style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-                          <span className="material-symbols-outlined text-sm">block</span> Waive
-                        </button>
-                      </div>
-                    )}
                   </div>
-                </div>
+                );
+              };
+              return (
+                <>
+                  {fromDecision.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="material-symbols-outlined text-amber-600 text-base">gavel</span>
+                        <h4 className="text-xs font-bold text-amber-700 uppercase tracking-wide">From Approval Decision</h4>
+                        <span className="text-[10px] text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">{fromDecision.length}</span>
+                      </div>
+                      <div className="space-y-2">{fromDecision.map(renderCondition)}</div>
+                    </div>
+                  )}
+                  {manual.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="material-symbols-outlined text-gray-500 text-base">edit_note</span>
+                        <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wide">Added Manually</h4>
+                        <span className="text-[10px] text-text-secondary bg-bg-subtle border border-border px-1.5 py-0.5 rounded-full">{manual.length}</span>
+                      </div>
+                      <div className="space-y-2">{manual.map(renderCondition)}</div>
+                    </div>
+                  )}
+                </>
               );
-            })}
+            })()}
           </div>
         )}
       </CaMemoSection>

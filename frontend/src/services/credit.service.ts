@@ -1409,6 +1409,7 @@ export interface ConditionPrecedent {
   title: string;
   description: string | null;
   category: ConditionCategory;
+  conditionType: 'PRECEDENT' | 'SUBSEQUENT' | null;
   status: ConditionStatus;
   dueDate: string | null;
   completedAt: string | null;
@@ -1416,6 +1417,7 @@ export interface ConditionPrecedent {
   waiverReason: string | null;
   waivedAt: string | null;
   waivedBy: string | null;
+  decisionId: string | null;
   createdAt: string;
   updatedAt: string;
   completer?: CreditUserRef;

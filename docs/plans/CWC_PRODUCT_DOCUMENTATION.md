@@ -105,22 +105,24 @@ Enterprise organizations face fragmented internal service management:
 | 25 | **Insights**               | AI-powered analytics and insights dashboard (`report:read`)              | `Insights.tsx` |
 | 26 | **Audit Trail**            | Standalone admin audit trail viewer — immutable log of all system actions | `AuditTrail.tsx` |
 
-#### Credit Assessment Module (12 main pages + 22 tab components)
+#### Credit Assessment Module (15 main pages + 33 tab/panel components)
 
 | #  | Feature                        | Purpose                                                                    | Module |
 |----|--------------------------------|----------------------------------------------------------------------------|--------|
-| 27 | **Credit Dashboard**           | Overview of credit pipeline, application KPIs, risk exposure              | `CreditDashboard.tsx` |
+| 27 | **Credit Dashboard**           | Overview of credit pipeline, application KPIs, risk exposure, AML rescreen alerts | `CreditDashboard.tsx` |
 | 28 | **Borrower Profiles**          | List and detail of borrower profiles with risk ratings                     | `BorrowerProfileList.tsx`, `BorrowerProfileDetail.tsx` |
-| 29 | **Credit Applications**        | Full credit application lifecycle — list, detail, multi-tab review        | `CreditApplicationList.tsx`, `CreditApplicationDetail.tsx` |
+| 29 | **Credit Applications**        | Full credit application lifecycle — list, detail, wizard mode, multi-tab review, rejection banner | `CreditApplicationList.tsx`, `CreditApplicationDetail.tsx`, `CreditApplicationWizard.tsx`, `RejectionBanner.tsx` |
 | 30 | **Financial Spreading**        | Financial statement spreading and analysis tool                            | `FinancialSpreading.tsx` |
-| 31 | **Financial Analysis**         | Financial ratio and trend analysis for credit assessment                   | `FinancialAnalysis.tsx` |
+| 31 | **Financial Analysis**         | Financial ratio and trend analysis for credit assessment, auto-computed ratios with threshold badges | `FinancialAnalysis.tsx` |
 | 32 | **Scorecard Management**       | Credit scoring model management                                            | `ScorecardManagement.tsx` |
-| 33 | **Committee Meetings**         | Credit committee meeting management and decision recording                 | `CommitteeMeetings.tsx` |
+| 33 | **Committee Meetings**         | Credit committee meeting list, detail (decision recording, LOO generation), and mobile voting | `CommitteeMeetings.tsx`, `CommitteeMeetingDetail.tsx`, `CommitteeMobileVote.tsx` |
 | 34 | **Collateral Management**      | Collateral registry and valuation tracking                                 | `CollateralManagement.tsx` |
 | 35 | **Credit Reports**             | Credit assessment reporting and analytics                                  | `CreditReports.tsx` |
-| 36 | **My Approvals (Credit)**      | Credit-specific approval queue                                             | `MyApprovals.tsx` |
+| 36 | **My Approvals (Credit)**      | Credit-specific approval queue (desktop + `MobileApprovalInbox.tsx` mobile view) | `MyApprovals.tsx`, `MobileApprovalInbox.tsx` |
 
-> **Credit Application tab components (22):** AccountConductTab, ApprovalsTab, AuditTab, CollateralTab, ConditionsTab, CounterpartiesTab, CreditChecksTab, DocumentsTab, EsgTab, FacilitiesTab, HeaderBackgroundTab, IndustryOutlookTab, PartiesTab, PaymentCapabilityTab, ProfitabilityWalletTab, RequestsFacilitiesTab, RiskMitigatorsTab, RiskRatingEclTab, SecurityGuaranteesTab, SicrTab, SignoffTab, SummaryTab
+> **Credit Application tab/panel components (33):** AccountConductTab, ApprovalsTab, AuditTab, BorrowerProfileTab, CollateralTab, ConditionsTab, CounterpartiesTab, CreditChecksTab, DisbursementTab, DocumentsTab, EsgTab, FacilitiesTab, FinancialsTab, ForwardLookingRiskTab, HeaderBackgroundTab, IndustryOutlookTab, LoanRequestTab, LooSection, PartiesTab, PaymentCapabilityTab, PricingWorksheetPanel, ProfitabilityWalletTab, QualitativeAssessmentTab, RequestsFacilitiesTab, RetailFacilitiesTab, RetailIncomeTab, RiskMitigatorsTab, RiskRatingEclTab, RiskScoreTab, SecurityGuaranteesTab, SicrTab, SignoffTab, SummaryTab
+>
+> Notable additions: **LooSection** generates and downloads Letter of Offer PDFs via presigned S3 URLs; **PricingWorksheetPanel** computes facility pricing; **ConditionsTab** groups conditions by source ("From Approval Decision" vs "Added Manually"); **FinancialsTab** auto-computes financial ratios with threshold badges (Phase 1.4); **DisbursementTab** enforces disbursement controls and e-sign gating (Phase 1 P0); **CreditChecksTab** enforces bureau (CCRIS/CTOS) checklist completion before submission.
 
 #### IT Support Service Desk (5 Categories)
 
@@ -366,8 +368,11 @@ AppShell (BrowserRouter)
 ├── /credit/approvals   → MyApprovals (protected)
 ├── /credit/financials  → FinancialSpreading (protected)
 ├── /credit/analysis    → FinancialAnalysis (protected)
-├── /credit/scorecards  → ScorecardManagement (protected)
+├── /credit/scorecards  → ScorecardManagement (protected, credit:admin)
 ├── /credit/committee   → CommitteeMeetings (protected)
+├── /credit/committee/:meetingId → CommitteeMeetingDetail (protected)
+├── /credit/m/committee/:meetingId → CommitteeMobileVote (protected, credit:approve)
+├── /credit/m/approvals → MobileApprovalInbox (protected, credit:approve)
 ├── /credit/collateral  → CollateralManagement (protected)
 ├── /credit/reports     → CreditReports (protected)
 └── /admin/settings     → AdminSettings (protected, admin:access)
@@ -566,14 +571,23 @@ frontend/
 │   ├── FinancialAnalysis.tsx       # Financial analysis
 │   ├── ScorecardManagement.tsx     # Credit scorecard management
 │   ├── CommitteeMeetings.tsx       # Credit committee meetings
+│   ├── CommitteeMeetingDetail.tsx  # Committee meeting detail (decisions, LOO generation)
+│   ├── CommitteeMobileVote.tsx     # Mobile committee voting view
+│   ├── MobileApprovalInbox.tsx     # Mobile credit approval inbox
 │   ├── CollateralManagement.tsx    # Collateral registry
 │   ├── CreditReports.tsx           # Credit reporting
-│   └── [22 credit tab components]  # AccountConductTab, ApprovalsTab, AuditTab, CollateralTab,
-│                                   # ConditionsTab, CounterpartiesTab, CreditChecksTab,
-│                                   # DocumentsTab, EsgTab, FacilitiesTab, HeaderBackgroundTab,
-│                                   # IndustryOutlookTab, PartiesTab, PaymentCapabilityTab,
-│                                   # ProfitabilityWalletTab, RequestsFacilitiesTab,
-│                                   # RiskMitigatorsTab, RiskRatingEclTab, SecurityGuaranteesTab,
+│   ├── credit/CreditApplicationWizard.tsx # Wizard-mode shell for CreditApplicationDetail
+│   ├── credit/RejectionBanner.tsx  # Rejection status banner for credit applications
+│   └── [33 credit tab/panel components] # AccountConductTab, ApprovalsTab, AuditTab,
+│                                   # BorrowerProfileTab, CollateralTab, ConditionsTab,
+│                                   # CounterpartiesTab, CreditChecksTab, DisbursementTab,
+│                                   # DocumentsTab, EsgTab, FacilitiesTab, FinancialsTab,
+│                                   # ForwardLookingRiskTab, HeaderBackgroundTab, IndustryOutlookTab,
+│                                   # LoanRequestTab, LooSection, PartiesTab, PaymentCapabilityTab,
+│                                   # PricingWorksheetPanel, ProfitabilityWalletTab,
+│                                   # QualitativeAssessmentTab, RequestsFacilitiesTab,
+│                                   # RetailFacilitiesTab, RetailIncomeTab, RiskMitigatorsTab,
+│                                   # RiskRatingEclTab, RiskScoreTab, SecurityGuaranteesTab,
 │                                   # SicrTab, SignoffTab, SummaryTab
 ├── src/
 │   ├── pages/
@@ -728,6 +742,8 @@ frontend/
 └──────────────────────────────────────────────────────────────┘
 ```
 
+> **Note:** The Credit Assessment domain is implemented as a self-contained sub-module at `backend/src/credit/` with its own `controllers/` (51), `routes/` (~20 files mounted under `/api/v1/credit/*`), and `services/` (60) — separate from the counts in the diagram above, which cover the core helpdesk/CRM/HR backend only. See §6.2 for its structure.
+
 ### 6.2 Module Structure
 
 ```
@@ -740,6 +756,15 @@ backend/
 │   ├── controllers/                # 38 controller files
 │   ├── routes/                     # 37 route files + index.ts
 │   ├── services/                   # 20 business logic services
+│   ├── credit/                     # Self-contained Credit Assessment domain module
+│   │   ├── controllers/             # 51 controllers (application, approval, loo, pricing,
+│   │   │                            #   rejection, amlRescreen, dashboard, condition, etc.)
+│   │   ├── routes/                  # ~20 route files (mounted under /api/v1/credit/*)
+│   │   ├── services/                # 60 services (creditApplication, approvalAction, loo,
+│   │   │                            #   pricing, rejection, amlRescreen, dashboard,
+│   │   │                            #   condition, creditDocument, submissionReadiness, etc.)
+│   │   └── templates/
+│   │       └── loo.html.ts          # Letter of Offer (LOO) HTML→PDF template
 │   ├── middleware/
 │   │   ├── auth.middleware.ts       # JWT auth, role/permission authorization, SSE auth
 │   │   ├── error.middleware.ts      # Centralized error handler
@@ -1493,11 +1518,13 @@ See section 10.3 for required variables. Additional configuration:
 
 ---
 
-*This document reflects Citadel Workplace Connect v2.2.0 as of 2026-05-25. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (94 values), i18next foundation, notificationSse route, serviceDesk service, request-detail workflow modals (26+), accessibility hooks (useFocusTrap, useEscapeKey), password management pages (ForgotPassword, ResetPassword, ChangePassword), systemSetting controller + routes (global email toggle), autoAssignment service.*
+*This document reflects Citadel Workplace Connect v2.3.0 as of 2026-06-07. Changes since v1.0: IT Asset Management module (CRUD, assign/return, active assignments list, Employee Assets tab, bulk CSV import/export, Excel device inventory import utility, PRINTER category, serialNumber+assetTag on ITHardwareRequest), ApprovalQueue page, SLA pause engine (14 statuses), dark mode (ThemeContext), Sentry error monitoring, executive approval routing (PENDING_APPROVAL_STATUSES), confidential resume handling, corrected RequestStatus enum (94 values), i18next foundation, notificationSse route, serviceDesk service, request-detail workflow modals (26+), accessibility hooks (useFocusTrap, useEscapeKey), password management pages (ForgotPassword, ResetPassword, ChangePassword), systemSetting controller + routes (global email toggle), autoAssignment service.*
 
 **Doc sync (2026-05-05):** Updated RequestStatus count (76→94), controller count (31→30), route files (+notificationSse), service count (10→11, +serviceDesk), validator count (+serviceDesk), schema lines (1363→1364), Prisma data layer (76→94 statuses), backend test counts (112→121), frontend test counts (97→91), admin modals (6→11), request-detail components documented, STATUS_CONFIG count (76+→94), workflow modals (15→26+), FSD modal description (9→26+ with directory split), added hooks (useFocusTrap, useEscapeKey), added notificationSSE route, corrected individual test per-suite counts.
 
 **Doc sync (2026-05-08):** Corrected controller count (30→31, +systemSetting), service count (11→12, +autoAssignment), route count (30→31, +systemSetting), admin tab count (13→12, Role Assignment is modal not a tab); added /forgot-password, /reset-password/:token, /change-password to navigation structure; added ForgotPassword/ResetPassword/ChangePassword to frontend module structure; added /system-settings to API route table and backend architecture diagrams.
+
+**Doc sync (2026-06-07):** Updated Credit Assessment Module (12→15 main pages, 22→33 tab/panel components); added Letter of Offer (LOO) generation & PDF download (`loo.service.ts`/`loo.controller.ts`/`loo.routes.ts`/`loo.html.ts`, `LooSection.tsx`, presigned-S3 download with Content-Disposition overrides), pricing engine (`pricing.service.ts`/`.controller.ts`/`.routes.ts`, `PricingWorksheetPanel.tsx`), AML rescreen (`amlRescreen.service.ts`/`.controller.ts`/`.routes.ts`), rejection flow (`rejection.service.ts`/`.controller.ts`/`.routes.ts`, `RejectionBanner.tsx`), `CommitteeMeetingDetail.tsx` + `CommitteeMobileVote.tsx` + `MobileApprovalInbox.tsx` pages, `CreditApplicationWizard.tsx` wizard-mode shell, dashboard enhancements (`dashboard.service.ts`/`.controller.ts`/`.routes.ts`); added Phase 1 P0 bureau (CCRIS/CTOS) checklist enforcement, disbursement control, and e-sign gating; added Phase 1.4 auto-computed financial ratios with threshold badges (`FinancialsTab.tsx`); added inline-conditions backend wiring grouping conditions by source ("From Approval Decision" vs "Added Manually") in `ConditionsTab.tsx`/`condition.service.ts`; added new tab/panel components (BorrowerProfileTab, DisbursementTab, FinancialsTab, ForwardLookingRiskTab, LoanRequestTab, LooSection, PricingWorksheetPanel, QualitativeAssessmentTab, RetailFacilitiesTab, RetailIncomeTab, RiskScoreTab); expanded `credit.service.ts` frontend service surface (LOO, pricing, rejection, AML rescreen, dashboard, document download URL helpers).
 
 **Doc sync (2026-05-25):** Added Credit Assessment module (12 main pages + 22 tab components, 12 `/credit/*` routes, credit.service.ts frontend service); added UnifiedInbox page (`/inbox`); added Insights page (`/insights`, `report:read`); added AuditTrail standalone page (`/admin/audit`); renamed ApprovalQueue → ApprovalCenter; corrected HR hiring workflow (added missing PENDING_GROUP_DCEO_APPROVAL → GROUP_DCEO_APPROVED steps between CEO_APPROVED and JOB_POSTED); fixed `/register` route (removed — does not exist in App.tsx); fixed `/reset-password/:token` → `/reset-password` (no token param); updated controller count (33→38, +interview, insights, policyExplainer, scheduler, participant); updated route count (34→37, +insights, policyExplainer, scheduler); updated service count backend (16→20, +crm-ai, insights, policyExplainer, scheduler); updated Prisma model count (58→121) and enum count (16→58) reflecting major schema growth; updated frontend services (23→28, +credit, insights, scheduler, auditLog, bannerConfig, entity, loa, requestStatus, screening, workflow); added `src/components/ui/` directory (16 primitives: Button, Card, Tabs, Drawer, Modal, Combobox, Tooltip, Skeleton, StateBadge, RiskBadge, AutosaveTextField, EmptyState, EnvironmentBanner, OutOfOfficeModal, PolicyExplainer); added new components (RichTextEditor, SessionExpiryBanner, NavMoreDropdown, CrmNav, CreditNav, CollapsibleKanbanColumn); updated hooks (4→9, added useAutosave, useCrmAi, useDebouncedValue, useIdleSession, useScrollLock); updated request-detail component count (25→38, added WorkflowCockpit, WorkflowStepper, DecisionPanel, ParticipantsSection, ActionBanner, AssignToDropdown, + new workflow modals); updated navigation section to reflect WorkflowCockpit/WorkflowStepper architecture in RequestDetail.
 
