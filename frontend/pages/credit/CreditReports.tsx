@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { reportsApi, PipelineReport, ExposureReport } from '../../src/services/credit.service';
+import { reportsApi, branchApi, Branch, PipelineReport, ExposureReport } from '../../src/services/credit.service';
 import CreditNav from '../../src/components/CreditNav';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
@@ -237,6 +237,13 @@ const CreditReports: React.FC = () => {
   const [dateTo, setDateTo] = useState('');
   // Exposure topN filter
   const [topN, setTopN] = useState(10);
+  // §3.1 — Multi-branch support: branch filter
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchFilter, setBranchFilter] = useState('');
+
+  useEffect(() => {
+    branchApi.list().then(setBranches).catch(() => {});
+  }, []);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
@@ -246,12 +253,14 @@ const CreditReports: React.FC = () => {
         const res = await reportsApi.getPipelineReport({
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
+          branchId: branchFilter || undefined,
         });
         const payload = (res as any).data?.data ?? (res as any).data ?? res;
         setPipeline(payload);
       } else {
         const res = await reportsApi.getExposureReport({
           topN,
+          branchId: branchFilter || undefined,
         });
         const payload = (res as any).data?.data ?? (res as any).data ?? res;
         setExposure(payload);
@@ -264,7 +273,7 @@ const CreditReports: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, dateFrom, dateTo, topN]);
+  }, [activeTab, dateFrom, dateTo, topN, branchFilter]);
 
   useEffect(() => {
     fetchReport();
@@ -277,6 +286,7 @@ const CreditReports: React.FC = () => {
         const res = await reportsApi.getPipelineReport({
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
+          branchId: branchFilter || undefined,
           format: 'csv',
         });
         const blob = new Blob([res.data as any], { type: 'text/csv' });
@@ -290,6 +300,7 @@ const CreditReports: React.FC = () => {
       } else {
         const res = await reportsApi.getExposureReport({
           topN,
+          branchId: branchFilter || undefined,
           format: 'csv',
         });
         const blob = new Blob([res.data as any], { type: 'text/csv' });
@@ -380,6 +391,18 @@ const CreditReports: React.FC = () => {
               <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1">Top N Borrowers</label>
               <input type="number" min={1} max={50} value={topN} onChange={e => setTopN(Number(e.target.value) || 10)}
                 className="px-3 py-2 border border-border rounded-lg text-sm w-20 outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)' }} />
+            </div>
+          )}
+          {/* §3.1 — Branch filter */}
+          {branches.length > 0 && (
+            <div>
+              <label className="block text-xs font-bold text-text-secondary uppercase tracking-wider mb-1">Branch</label>
+              <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
+                aria-label="Filter report by branch"
+                className="px-3 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
+                <option value="">All Branches</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
+              </select>
             </div>
           )}
           <button onClick={fetchReport}

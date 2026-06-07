@@ -73,6 +73,7 @@ export const createCreditApplicationSchema = z.object({
     currency: currencyCodeEnum.default('MYR'),
     assignedRmId: z.string().uuid().optional().nullable(),
     assignedAnalystId: z.string().uuid().optional().nullable(),
+    branchId: z.string().uuid().optional().nullable(),
     ...caMemoHeaderFields,
   }),
 });
@@ -86,6 +87,7 @@ export const updateCreditApplicationSchema = z.object({
     currency: currencyCodeEnum.optional(),
     assignedRmId: z.string().uuid().optional().nullable(),
     assignedAnalystId: z.string().uuid().optional().nullable(),
+    branchId: z.string().uuid().optional().nullable(),
     ...caMemoHeaderFields,
   }),
 });

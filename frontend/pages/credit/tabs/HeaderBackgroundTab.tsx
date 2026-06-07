@@ -99,9 +99,9 @@ const HeaderBackgroundTab: React.FC<Props> = ({ application, onUpdated, onDirtyC
             <input className="w-full rounded border border-gray-200 px-3 py-2 text-sm bg-gray-50 text-text-secondary" disabled value={application.borrowerProfile?.account?.name ?? (application.borrowerProfile?.contact ? `${application.borrowerProfile.contact.firstName} ${application.borrowerProfile.contact.lastName}` : application.borrowerProfile?.name) ?? '—'} />
           </div>
           {!isIndividual && (
-            <AutosaveTextField label="Customer Group" value={form.customerGroupName} onChange={(v) => update('customerGroupName', v)} onSave={() => autosave.save()} disabled={readOnly} />
+            <AutosaveTextField label="Customer Group" value={form.customerGroupName} onChange={(v) => update('customerGroupName', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
           )}
-          <AutosaveTextField label="CIF No" value={form.cifNo} onChange={(v) => update('cifNo', v)} onSave={() => autosave.save()} disabled={readOnly} />
+          <AutosaveTextField label="CIF No" value={form.cifNo} onChange={(v) => update('cifNo', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
           <div>
             <label className="block text-xs font-semibold text-text-secondary mb-1">Application Type <span className="text-red-500">*</span></label>
             <select className="w-full rounded border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-gray-50 disabled:text-text-secondary" disabled={readOnly}
@@ -113,9 +113,9 @@ const HeaderBackgroundTab: React.FC<Props> = ({ application, onUpdated, onDirtyC
               {APPLICATION_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
-          <AutosaveTextField label="Originating Department" value={form.originatingDepartment} onChange={(v) => update('originatingDepartment', v)} onSave={() => autosave.save()} disabled={readOnly} />
-          <AutosaveTextField label="Team Lead Name" value={form.teamLeadName} onChange={(v) => update('teamLeadName', v)} onSave={() => autosave.save()} disabled={readOnly} />
-          <AutosaveTextField label="Referred By" value={form.referredBy} onChange={(v) => update('referredBy', v)} onSave={() => autosave.save()} disabled={readOnly} />
+          <AutosaveTextField label="Originating Department" value={form.originatingDepartment} onChange={(v) => update('originatingDepartment', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
+          <AutosaveTextField label="Team Lead Name" value={form.teamLeadName} onChange={(v) => update('teamLeadName', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
+          <AutosaveTextField label="Referred By" value={form.referredBy} onChange={(v) => update('referredBy', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
           <div>
             <label className="block text-xs font-semibold text-text-secondary mb-1">Account Classification <span className="text-red-500">*</span></label>
             <select className="w-full rounded border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600 disabled:bg-gray-50 disabled:text-text-secondary" disabled={readOnly}
@@ -150,32 +150,32 @@ const HeaderBackgroundTab: React.FC<Props> = ({ application, onUpdated, onDirtyC
               <span className="text-text-secondary text-xs">(Borrower connected to bank staff or director)</span>
             </label>
             {form.connectedPartyFlag && (
-              <AutosaveTextField label="Staff / Connected Person Name" value={form.connectedPartyStaffName} onChange={(v) => update('connectedPartyStaffName', v)} onSave={() => autosave.save()} disabled={readOnly} className="mt-2" />
+              <AutosaveTextField label="Staff / Connected Person Name" value={form.connectedPartyStaffName} onChange={(v) => update('connectedPartyStaffName', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} className="mt-2" />
             )}
           </div>
 
           {/* Dates row */}
-          <AutosaveTextField label="Complete Docs Received" type="date" value={form.completeDocsDate} onChange={(v) => update('completeDocsDate', v)} onSave={() => autosave.save()} disabled={readOnly} />
-          <AutosaveTextField label="Last Review Date" type="date" value={form.lastReviewDate} onChange={(v) => update('lastReviewDate', v)} onSave={() => autosave.save()} disabled={readOnly} />
-          <AutosaveTextField label="Next Review Date" type="date" value={form.nextReviewDate} onChange={(v) => update('nextReviewDate', v)} onSave={() => autosave.save()} disabled={readOnly} />
-          <AutosaveTextField label="Relationship Since" type="date" value={form.relationshipSince} onChange={(v) => update('relationshipSince', v)} onSave={() => autosave.save()} disabled={readOnly} />
-          <AutosaveTextField label="Last Site Visit" type="date" value={form.lastSiteVisitDate} onChange={(v) => update('lastSiteVisitDate', v)} onSave={() => autosave.save()} disabled={readOnly} />
+          <AutosaveTextField label="Complete Docs Received" type="date" value={form.completeDocsDate} onChange={(v) => update('completeDocsDate', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
+          <AutosaveTextField label="Last Review Date" type="date" value={form.lastReviewDate} onChange={(v) => update('lastReviewDate', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
+          <AutosaveTextField label="Next Review Date" type="date" value={form.nextReviewDate} onChange={(v) => update('nextReviewDate', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
+          <AutosaveTextField label="Relationship Since" type="date" value={form.relationshipSince} onChange={(v) => update('relationshipSince', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
+          <AutosaveTextField label="Last Site Visit" type="date" value={form.lastSiteVisitDate} onChange={(v) => update('lastSiteVisitDate', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} />
         </div>
       </CaMemoSection>
 
       {/* Section 2 — Preamble */}
       <CaMemoSection title="Section 2 — Preamble / Background" phase="Phase 1" readOnly={readOnly}>
-        <AutosaveTextField label="Preamble / Background" value={form.preambleText} onChange={(v) => update('preambleText', v)} onSave={() => autosave.save()} disabled={readOnly} multiline minRows={5} placeholder="Provide background context, history of the relationship, and overall narrative for this application." />
+        <AutosaveTextField label="Preamble / Background" value={form.preambleText} onChange={(v) => update('preambleText', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} multiline minRows={5} placeholder="Provide background context, history of the relationship, and overall narrative for this application." />
       </CaMemoSection>
 
       {/* Section 4 — Matters to Highlight */}
       <CaMemoSection title="Section 4 — Matters to Highlight" phase="Phase 1" readOnly={readOnly}>
-        <AutosaveTextField label="Matters to Highlight" value={form.mattersToHighlight} onChange={(v) => update('mattersToHighlight', v)} onSave={() => autosave.save()} disabled={readOnly} multiline minRows={4} placeholder="Key matters reviewers need to be aware of (covenants, exceptions, deviations, escalations)." />
+        <AutosaveTextField label="Matters to Highlight" value={form.mattersToHighlight} onChange={(v) => update('mattersToHighlight', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} multiline minRows={4} placeholder="Key matters reviewers need to be aware of (covenants, exceptions, deviations, escalations)." />
       </CaMemoSection>
 
       {/* Section 6 — Transaction Details */}
       <CaMemoSection title="Section 6 — Details of Transaction(s) / Updates" phase="Phase 1" readOnly={readOnly}>
-        <AutosaveTextField label="Details of Transaction(s)" value={form.transactionDetailsText} onChange={(v) => update('transactionDetailsText', v)} onSave={() => autosave.save()} disabled={readOnly} multiline minRows={5} placeholder="Describe the transactions / updates being requested in this memo." />
+        <AutosaveTextField label="Details of Transaction(s)" value={form.transactionDetailsText} onChange={(v) => update('transactionDetailsText', v)} onSave={() => autosave.save()} saveStatus={{ saving: autosave.saving, savedAt: autosave.savedAt, error: autosave.error }} onRetry={() => autosave.save()} disabled={readOnly} multiline minRows={5} placeholder="Describe the transactions / updates being requested in this memo." />
       </CaMemoSection>
     </div>
   );

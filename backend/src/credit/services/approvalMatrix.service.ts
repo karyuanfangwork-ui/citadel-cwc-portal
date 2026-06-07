@@ -64,7 +64,7 @@ class ApprovalMatrixService {
    *   - isActive = true
    *   - effectiveFrom <= now <= effectiveTo (or effectiveTo is null)
    */
-  async lookupApprovalAuthority(exposure: number, riskRating: string): Promise<ApprovalAuthorityResult | null> {
+  async lookupApprovalAuthority(exposure: number, riskRating: string, branchId?: string | null): Promise<ApprovalAuthorityResult | null> {
     const now = new Date();
     const ratingOrdinal = ratingToOrdinal(riskRating);
 
@@ -85,26 +85,35 @@ class ApprovalMatrixService {
       orderBy: { minExposure: 'desc' },
     });
 
-    for (const matrix of matrices) {
+    const matches = (matrix: typeof matrices[number]) => {
       const minExp = Number(matrix.minExposure);
       const maxExp = Number(matrix.maxExposure);
       const minOrd = ratingToOrdinal(matrix.minRating);
       const maxOrd = ratingToOrdinal(matrix.maxRating);
 
-      if (
+      return (
         exposure >= minExp &&
         exposure <= maxExp &&
         ratingOrdinal >= minOrd &&
         ratingOrdinal <= maxOrd
-      ) {
-        return {
-          authorityLevel: matrix.authorityLevel,
-          requiredApproverCount: matrix.requiredApproverCount,
-          matrixId: matrix.id,
-          matrixName: matrix.name,
-        };
-      }
+      );
+    };
+
+    const toResult = (matrix: typeof matrices[number]): ApprovalAuthorityResult => ({
+      authorityLevel: matrix.authorityLevel,
+      requiredApproverCount: matrix.requiredApproverCount,
+      matrixId: matrix.id,
+      matrixName: matrix.name,
+    });
+
+    // §3.1 — Branch-specific matrices take precedence over the global matrix
+    if (branchId) {
+      const branchMatch = matrices.find(m => m.branchId === branchId && matches(m));
+      if (branchMatch) return toResult(branchMatch);
     }
+
+    const globalMatch = matrices.find(m => m.branchId === null && matches(m));
+    if (globalMatch) return toResult(globalMatch);
 
     return null;
   }

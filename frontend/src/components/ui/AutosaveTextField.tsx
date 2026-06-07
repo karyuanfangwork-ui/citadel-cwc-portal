@@ -22,6 +22,52 @@ type AutosaveTextFieldProps = {
   error?: string | null;
   /** Optional help text rendered below the input. */
   helpText?: string;
+  /** §3.5c — Autosave status indicator. Pass through from useAutosave (saving/savedAt/error). */
+  saveStatus?: { saving?: boolean; savedAt?: Date | string | null; error?: string | null };
+  /** Retry handler shown alongside the "Save failed" indicator. */
+  onRetry?: () => void;
+};
+
+// §3.5c — fades out 2s after a successful save
+const SavedIndicator: React.FC<{ savedAt: Date | string }> = ({ savedAt }) => {
+  const [visible, setVisible] = React.useState(true);
+  React.useEffect(() => {
+    setVisible(true);
+    const t = setTimeout(() => setVisible(false), 2000);
+    return () => clearTimeout(t);
+  }, [savedAt]);
+  if (!visible) return null;
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-green-600 transition-opacity duration-300">
+      <span className="material-symbols-outlined" style={{ fontSize: 13 }}>check</span> Saved
+    </span>
+  );
+};
+
+const AutosaveStatusChip: React.FC<{ status: NonNullable<AutosaveTextFieldProps['saveStatus']>; onRetry?: () => void }> = ({ status, onRetry }) => {
+  if (status.saving) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-text-secondary">
+        <span className="material-symbols-outlined animate-spin" style={{ fontSize: 13 }}>progress_activity</span> Saving…
+      </span>
+    );
+  }
+  if (status.error) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-danger">
+        <span className="material-symbols-outlined" style={{ fontSize: 13 }}>warning</span> Save failed
+        {onRetry && (
+          <button type="button" onClick={onRetry} className="underline hover:no-underline" style={{ cursor: 'pointer', border: 'none', background: 'none', padding: 0 }}>
+            retry
+          </button>
+        )}
+      </span>
+    );
+  }
+  if (status.savedAt) {
+    return <SavedIndicator savedAt={status.savedAt} />;
+  }
+  return null;
 };
 
 let fieldIdSeq = 0;
@@ -41,6 +87,8 @@ const AutosaveTextField: React.FC<AutosaveTextFieldProps> = ({
   type = 'text',
   error,
   helpText,
+  saveStatus,
+  onRetry,
 }) => {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -84,9 +132,12 @@ const AutosaveTextField: React.FC<AutosaveTextFieldProps> = ({
 
   return (
     <div>
-      <label htmlFor={fieldId} className="block text-xs font-semibold text-text-secondary mb-1">
-        {label}
-        {required && <span className="text-danger ml-0.5" aria-hidden="true">*</span>}
+      <label htmlFor={fieldId} className="flex items-center gap-2 text-xs font-semibold text-text-secondary mb-1">
+        <span>
+          {label}
+          {required && <span className="text-danger ml-0.5" aria-hidden="true">*</span>}
+        </span>
+        {saveStatus && <AutosaveStatusChip status={saveStatus} onRetry={onRetry} />}
       </label>
       {multiline ? (
         <textarea

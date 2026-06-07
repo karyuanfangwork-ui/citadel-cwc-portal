@@ -18,6 +18,7 @@
     "prisma:seed:credit:workflow": "tsx prisma/seed-credit.ts --workflow",
     "prisma:seed:credit:notifications": "tsx prisma/seed-credit.ts --notifications",
     "prisma:seed:credit:approvals": "tsx prisma/seed-credit.ts --approvals",
+    "prisma:seed:credit:branches": "tsx prisma/seed-credit.ts --branches",
     "prisma:seed:credit:demo": "tsx prisma/seed-credit.ts --demo",
     "prisma:seed:credit:clear": "tsx prisma/seed-credit.ts --clear",
     "prisma:reset": "prisma migrate reset",

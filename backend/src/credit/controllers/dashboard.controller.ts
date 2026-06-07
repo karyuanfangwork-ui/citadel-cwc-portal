@@ -12,8 +12,9 @@ class DashboardController {
   getPipelineDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : undefined;
+    const branchId = req.query.branchId as string | undefined;
 
-    const result = await dashboardService.getPipelineDashboard({ dateFrom, dateTo });
+    const result = await dashboardService.getPipelineDashboard({ dateFrom, dateTo, branchId });
     res.json({ status: 'success', data: result });
   });
 
@@ -35,8 +36,9 @@ class DashboardController {
    */
   getExposureDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
     const topN = parseInt(req.query.topN as string, 10) || 10;
+    const branchId = req.query.branchId as string | undefined;
 
-    const result = await dashboardService.getExposureDashboard({ topN });
+    const result = await dashboardService.getExposureDashboard({ topN, branchId });
     res.json({ status: 'success', data: result });
   });
 

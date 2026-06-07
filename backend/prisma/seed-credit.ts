@@ -31,10 +31,43 @@ const flags = {
   workflow:       args.includes('--workflow'),
   notifications:  args.includes('--notifications'),
   approvals:      args.includes('--approvals'),
+  branches:       args.includes('--branches'),
   demo:           args.includes('--demo'),
   clear:          args.includes('--clear'),
 };
-const runAll = !flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.demo && !flags.clear;
+const runAll = !flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.branches && !flags.demo && !flags.clear;
+
+// ---------------------------------------------------------------------------
+// §3.1 — Branches (multi-branch support)
+// ---------------------------------------------------------------------------
+const BRANCHES = [
+  { code: 'HQ', name: 'Headquarters', region: 'Central' },
+  { code: 'BN', name: 'Branch-North', region: 'North' },
+  { code: 'BS', name: 'Branch-South', region: 'South' },
+];
+
+async function seedBranches() {
+  console.log('🏢 Seeding credit branches...');
+
+  for (const branch of BRANCHES) {
+    await prisma.branch.upsert({
+      where: { code: branch.code },
+      update: { name: branch.name, region: branch.region },
+      create: branch,
+    });
+    console.log(`  ✅ ${branch.code} — ${branch.name}`);
+  }
+
+  // Assign existing seed users to the HQ branch by default
+  const hq = await prisma.branch.findUnique({ where: { code: 'HQ' } });
+  if (hq) {
+    const result = await prisma.user.updateMany({
+      where: { branchId: null },
+      data: { branchId: hq.id },
+    });
+    console.log(`  ✅ Assigned ${result.count} users to ${hq.code} (default branch)`);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 1. Feature Flags
@@ -472,7 +505,7 @@ async function main() {
   try {
     if (flags.clear) {
       await clearCreditData();
-      if (!flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.demo) {
+      if (!flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.branches && !flags.demo) {
         await prisma.$disconnect();
         return;
       }
@@ -482,6 +515,7 @@ async function main() {
     if (shouldRun(flags.workflow))      await seedWorkflow();
     if (shouldRun(flags.notifications)) await seedNotifications();
     if (shouldRun(flags.approvals))     await seedApprovals();
+    if (shouldRun(flags.branches))      await seedBranches();
     if (shouldRun(flags.demo))          await seedDemo();
 
     console.log('\n✅ Done.');

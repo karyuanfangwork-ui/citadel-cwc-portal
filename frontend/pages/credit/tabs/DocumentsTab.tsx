@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import creditService, { CreditApplication, CreditDocument, DocumentStatus } from '../../../src/services/credit.service';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
+import EmptyState from '../../../src/components/EmptyState';
 
 const ALL_DOC_CLASSES: { value: string; label: string; borrowerTypes?: string[] }[] = [
   { value: 'NRIC_PASSPORT', label: 'NRIC / Passport', borrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR'] },
@@ -240,10 +241,13 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
         {loading ? (
           <div className="p-6 text-center text-sm text-text-secondary">Loading…</div>
         ) : docs.length === 0 ? (
-          <div className="p-8 text-center">
-            <span className="material-symbols-outlined text-3xl text-text-secondary opacity-30 block mb-2">folder_open</span>
-            <p className="text-sm text-text-secondary">No documents uploaded yet</p>
-          </div>
+          <EmptyState
+            icon="folder_open"
+            title="No Documents Uploaded"
+            description="Upload borrower documents such as ID, payslips, and bank statements to support this application."
+            actionLabel="Upload Document"
+            onAction={() => fileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+          />
         ) : (
           <ul className="divide-y divide-border">
             {docs.map(doc => {

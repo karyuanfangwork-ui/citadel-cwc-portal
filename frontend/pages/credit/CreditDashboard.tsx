@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { dashboardApi, ExposureSummary } from '../../src/services/credit.service';
+import { dashboardApi, branchApi, Branch, ExposureSummary } from '../../src/services/credit.service';
 import CreditNav from '../../src/components/CreditNav';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
@@ -134,6 +134,13 @@ const CreditDashboard: React.FC = () => {
   const [calendar, setCalendar] = useState<CommitteeCalendar | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // §3.1 — Multi-branch support: branch filter dropdown (visible to Admin)
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [branchFilter, setBranchFilter] = useState<string>('');
+
+  useEffect(() => {
+    branchApi.list().then(setBranches).catch(() => {});
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -141,7 +148,7 @@ const CreditDashboard: React.FC = () => {
 
     if (activeTab === 'exposure') {
       Promise.all([
-        dashboardApi.getExposureDashboard().then((res: any) => res.data?.data ?? res.data ?? res),
+        dashboardApi.getExposureDashboard(branchFilter ? { branchId: branchFilter } : undefined).then((res: any) => res.data?.data ?? res.data ?? res),
         dashboardApi.getExposureSummary().then((res: any) => res.data?.data ?? res.data ?? res),
       ])
         .then(([dashboard, summary]) => {
@@ -159,7 +166,7 @@ const CreditDashboard: React.FC = () => {
 
     const fetcher =
       activeTab === 'pipeline'
-        ? dashboardApi.getPipelineDashboard
+        ? () => dashboardApi.getPipelineDashboard(branchFilter ? { branchId: branchFilter } : undefined)
         : activeTab === 'approval'
           ? dashboardApi.getApprovalInbox
           : dashboardApi.getCommitteeCalendar;
@@ -177,7 +184,7 @@ const CreditDashboard: React.FC = () => {
         setError(err.message ?? 'Failed to load dashboard data');
       })
       .finally(() => setLoading(false));
-  }, [activeTab]);
+  }, [activeTab, branchFilter]);
 
   const tabs: { key: TabKey; label: string; icon: string }[] = [
     { key: 'pipeline', label: 'Pipeline', icon: 'water' },
@@ -190,7 +197,18 @@ const CreditDashboard: React.FC = () => {
     <>
       <CreditNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
-        <h1 className="text-2xl font-black text-text-primary mb-6">Credit Dashboard</h1>
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <h1 className="text-2xl font-black text-text-primary">Credit Dashboard</h1>
+          {/* §3.1 — Branch filter */}
+          {branches.length > 0 && (
+            <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
+              aria-label="Filter dashboard by branch"
+              className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
+              <option value="">All Branches</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
+            </select>
+          )}
+        </div>
 
         {/* Tab bar */}
         <div className="flex gap-1 bg-surface-muted rounded-xl p-1 mb-6 overflow-x-auto" role="tablist">

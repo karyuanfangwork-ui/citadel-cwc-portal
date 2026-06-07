@@ -25,6 +25,7 @@ class CreditApplicationController {
     const assignedRmId = req.query.assignedRmId as string | undefined;
     const assignedAnalystId = req.query.assignedAnalystId as string | undefined;
     const search = req.query.search as string | undefined;
+    const branchId = req.query.branchId as string | undefined;
 
     // §2.4 — Row-level access: use rmScopeFilter from middleware
     const rmScopeFilter = (req as RmScopedRequest).rmScopeFilter;
@@ -38,6 +39,7 @@ class CreditApplicationController {
       assignedRmId,
       assignedAnalystId,
       search,
+      branchId,
       rmScopeFilter,
     });
 

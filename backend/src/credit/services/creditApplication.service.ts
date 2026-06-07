@@ -77,6 +77,8 @@ export interface CreateCreditApplicationData extends CaMemoHeaderFields {
   currency?: string;
   assignedRmId?: string | null;
   assignedAnalystId?: string | null;
+  /** §3.1 — Multi-branch support */
+  branchId?: string | null;
 }
 
 export interface UpdateCreditApplicationData extends CaMemoHeaderFields {
@@ -87,6 +89,8 @@ export interface UpdateCreditApplicationData extends CaMemoHeaderFields {
   currency?: string;
   assignedRmId?: string | null;
   assignedAnalystId?: string | null;
+  /** §3.1 — Multi-branch support */
+  branchId?: string | null;
 }
 
 export interface ListCreditApplicationsOptions {
@@ -98,6 +102,8 @@ export interface ListCreditApplicationsOptions {
   assignedRmId?: string;
   assignedAnalystId?: string;
   search?: string;
+  /** §3.1 — Multi-branch support: scope list to a given branch */
+  branchId?: string;
   /** §2.4 — Row-level access: Prisma where clause injected by rmScope middleware.
    *  When present, this OR filter is AND-combined with the other filters,
    *  ensuring non-admin users only see their own applications. */
@@ -364,6 +370,7 @@ class CreditApplicationService {
       assignedRmId,
       assignedAnalystId,
       search,
+      branchId,
       rmScopeFilter,
     } = options;
 
@@ -387,6 +394,9 @@ class CreditApplicationService {
     }
     if (assignedAnalystId) {
       where.assignedAnalystId = assignedAnalystId;
+    }
+    if (branchId) {
+      where.branchId = branchId;
     }
     if (search) {
       where.OR = [
@@ -517,6 +527,13 @@ class CreditApplicationService {
 
     const effectiveRmId = data.assignedRmId ?? actorId;  // ← auto-assign creating user as RM when none specified
 
+    // §3.1 — Default branch from the assigned RM's branch when not explicitly provided
+    let effectiveBranchId = data.branchId ?? null;
+    if (!effectiveBranchId && effectiveRmId) {
+      const rm = await prisma.user.findUnique({ where: { id: effectiveRmId }, select: { branchId: true } });
+      effectiveBranchId = rm?.branchId ?? null;
+    }
+
     const createData: Prisma.CreditApplicationCreateInput = {
       applicationNo,
       state: ApplicationState.DRAFT,
@@ -528,6 +545,7 @@ class CreditApplicationService {
       currency: (data.currency as any) ?? 'MYR',
       ...(effectiveRmId && { assignedRm: { connect: { id: effectiveRmId } } }),
       ...(data.assignedAnalystId && { assignedAnalyst: { connect: { id: data.assignedAnalystId } } }),
+      ...(effectiveBranchId && { branch: { connect: { id: effectiveBranchId } } }),
     };
     applyCaMemoFields(createData as Record<string, unknown>, data);
 
@@ -603,6 +621,9 @@ class CreditApplicationService {
     }
     if (data.assignedAnalystId !== undefined) {
       (updateData as any).assignedAnalystId = data.assignedAnalystId;
+    }
+    if (data.branchId !== undefined) {
+      (updateData as any).branchId = data.branchId;
     }
     applyCaMemoFields(updateData as Record<string, unknown>, data);
 
@@ -800,6 +821,7 @@ class CreditApplicationService {
         const authorityResult = await approvalMatrixService.lookupApprovalAuthority(
           totalExposure,
           borrowerRating ?? 'NR',
+          appWithBorrower.branchId,
         );
 
         const requiredApproverCount = authorityResult?.requiredApproverCount ?? 1;

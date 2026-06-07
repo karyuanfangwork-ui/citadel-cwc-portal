@@ -6,6 +6,7 @@ import {
   utilisationApi,
 } from '../../../src/services/credit.service';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import EmptyState from '../../../src/components/EmptyState';
 
 type Props = {
   application: CreditApplication;
@@ -152,7 +153,11 @@ const SnapshotTable: React.FC<{
           </table>
         </div>
       ) : (
-        <p className="text-sm text-gray-400 italic">No snapshots recorded.</p>
+        <EmptyState
+          icon="monitoring"
+          title="No Account Conduct Snapshots"
+          description="Record account utilisation snapshots to track this borrower's repayment conduct over time."
+        />
       )}
       {!readOnly && <AddSnapshotForm appId={appId} facilityType={facilityType} onAdded={onAdded} />}
     </section>

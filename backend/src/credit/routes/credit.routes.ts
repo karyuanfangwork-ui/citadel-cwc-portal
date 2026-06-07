@@ -6,10 +6,12 @@ import prisma from '../../utils/prisma';
 // Sprint 1 — Borrower + Documents
 import borrowerProfileRoutes from './borrowerProfile.routes';
 import directorRoutes from './director.routes';
+import fatcaCrsRoutes from './fatcaCrs.routes';
 import shareholderRoutes from './shareholder.routes';
 import uboRoutes from './ubo.routes';
 import relatedPartyGroupRoutes from './relatedPartyGroup.routes';
 import creditDocumentRoutes from './creditDocument.routes';
+import branchRoutes from './branch.routes';
 
 // Sprint 2 — Applications + Approvals
 import approvalRoutes from './approval.routes';
@@ -142,10 +144,14 @@ router.use('/borrowers', borrowerProfileRoutes);
 
 // Directors, Shareholders, UBOs — nested under /borrowers
 router.use('/borrowers', directorRoutes);
+router.use('/borrowers', fatcaCrsRoutes);
 router.use('/borrowers', shareholderRoutes);
 router.use('/borrowers', uboRoutes);
 
 router.use('/related-party-groups', relatedPartyGroupRoutes);
+
+// §3.1 — Branches
+router.use('/branches', branchRoutes);
 
 // Credit Documents
 router.use(creditDocumentRoutes);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import creditService, {
   CreditApplication, ApplicationState, CreditProductType, Pagination,
-  BorrowerProfile, dashboardApi,
+  BorrowerProfile, dashboardApi, branchApi, Branch,
 } from '../src/services/credit.service';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
@@ -38,6 +38,41 @@ const PRODUCT_LABELS: Record<string, string> = Object.fromEntries(PRODUCT_TYPES.
 
 const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD'] as const;
 
+// §3.5e — Smart filter quick views
+type QuickFilterKey = 'all' | 'mine' | 'pendingApproval' | 'overdueSla' | 'inCommittee' | 'offers';
+
+const PENDING_APPROVAL_STATES: ApplicationState[] = ['SUBMITTED', 'KYC_REVIEW', 'UNDERWRITING', 'CREDIT_ASSESSMENT', 'COMMITTEE_REVIEW'];
+
+const QUICK_FILTERS: { key: QuickFilterKey; label: string; icon: string }[] = [
+  { key: 'all', label: 'All', icon: 'apps' },
+  { key: 'mine', label: 'My Applications', icon: 'person' },
+  { key: 'pendingApproval', label: 'Pending Approval', icon: 'hourglass_top' },
+  { key: 'overdueSla', label: 'Overdue SLA', icon: 'schedule' },
+  { key: 'inCommittee', label: 'In Committee', icon: 'groups' },
+  { key: 'offers', label: 'Offers', icon: 'description' },
+];
+
+function applyQuickFilter(apps: CreditApplication[], key: QuickFilterKey, currentUserId?: string): CreditApplication[] {
+  if (key === 'all') return apps;
+  return apps.filter(app => {
+    const state = (app.state || app.status) as ApplicationState;
+    switch (key) {
+      case 'mine':
+        return !!currentUserId && (app.rmId === currentUserId || app.analystId === currentUserId);
+      case 'pendingApproval':
+        return PENDING_APPROVAL_STATES.includes(state);
+      case 'overdueSla':
+        return getSLAInfo(app.createdAt, state).color === '#dc2626';
+      case 'inCommittee':
+        return state === 'COMMITTEE_REVIEW';
+      case 'offers':
+        return state === 'OFFER';
+      default:
+        return true;
+    }
+  });
+}
+
 function getSLAInfo(createdAt: string, state: ApplicationState): { text: string; color: string } {
   const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
   const slaMap: Partial<Record<ApplicationState, number>> = {
@@ -67,8 +102,9 @@ function getSLAStrip(apps: CreditApplication[]) {
 const CreditApplicationList: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const borrowerFilter = searchParams.get('borrowerProfileId') || '';
+  const initialQuickFilter = (searchParams.get('quickFilter') as QuickFilterKey) || 'all';
 
   const [applications, setApplications] = useState<CreditApplication[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,6 +112,20 @@ const CreditApplicationList: React.FC = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [productFilter, setProductFilter] = useState<string>('');
   const [stateFilter, setStateFilter] = useState<string>('');
+  // §3.1 — Multi-branch support: branch filter dropdown
+  const [branchFilter, setBranchFilter] = useState<string>('');
+  const [branches, setBranches] = useState<Branch[]>([]);
+  // §3.5e — Smart filter quick views (mutually exclusive chips)
+  const [quickFilter, setQuickFilterState] = useState<QuickFilterKey>(initialQuickFilter);
+  const setQuickFilter = useCallback((key: QuickFilterKey) => {
+    setQuickFilterState(key);
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (key === 'all') next.delete('quickFilter');
+      else next.set('quickFilter', key);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, totalPages: 0 });
@@ -106,7 +156,8 @@ const CreditApplicationList: React.FC = () => {
     localStorage.setItem('credit-applications-view', v);
   };
 
-  const sortedApplications = sortApplications(applications, sortCol, sortDir);
+  const quickFilteredApplications = applyQuickFilter(applications, quickFilter, user?.id);
+  const sortedApplications = sortApplications(quickFilteredApplications, sortCol, sortDir);
 
   // Debounce search input
   useEffect(() => {
@@ -127,6 +178,7 @@ const CreditApplicationList: React.FC = () => {
         productType: productFilter || undefined,
         state: stateFilter || undefined,
         borrowerProfileId: borrowerFilter || undefined,
+        branchId: branchFilter || undefined,
       });
       setApplications(data.applications);
       setPagination(data.pagination);
@@ -136,12 +188,17 @@ const CreditApplicationList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch, productFilter, stateFilter, borrowerFilter]);
+  }, [page, pageSize, debouncedSearch, productFilter, stateFilter, borrowerFilter, branchFilter]);
 
   // Reset to page 1 when filters change (not page itself)
-  useEffect(() => { setPage(1); }, [debouncedSearch, productFilter, stateFilter, borrowerFilter]);
+  useEffect(() => { setPage(1); }, [debouncedSearch, productFilter, stateFilter, borrowerFilter, branchFilter, quickFilter]);
 
   useEffect(() => { fetchApplications(); }, [fetchApplications]);
+
+  // §3.1 — Load branches for the filter dropdown (visible to Admin)
+  useEffect(() => {
+    branchApi.list().then(setBranches).catch(() => {});
+  }, []);
 
   // Fetch borrower profiles when create modal opens
   useEffect(() => {
@@ -234,6 +291,30 @@ const CreditApplicationList: React.FC = () => {
           </div>
         )}
 
+        {/* §3.5e — Smart filter quick views */}
+        <div className="flex items-center gap-2 mb-3 flex-wrap" role="tablist" aria-label="Quick filter views">
+          {QUICK_FILTERS.map(qf => {
+            const active = quickFilter === qf.key;
+            return (
+              <button
+                key={qf.key}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setQuickFilter(qf.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                  active
+                    ? 'bg-brand-700 text-white border-brand-700'
+                    : 'bg-surface border-border text-text-secondary hover:bg-gray-50'
+                }`}
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>{qf.icon}</span>
+                {qf.label}
+              </button>
+            );
+          })}
+        </div>
+
         {/* Filters */}
         <div className="flex items-center gap-3 mb-5 flex-wrap">
           <div className="relative flex-1 min-w-[200px] max-w-md">
@@ -254,6 +335,15 @@ const CreditApplicationList: React.FC = () => {
             <option value="">All States</option>
             {Object.entries(STATE_COLORS).map(([key]) => <option key={key} value={key}>{key.replace(/_/g, ' ')}</option>)}
           </select>
+          {/* §3.1 — Branch filter */}
+          {branches.length > 0 && (
+            <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
+              aria-label="Filter by branch"
+              className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
+              <option value="">All Branches</option>
+              {branches.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
+            </select>
+          )}
           {/* View toggle */}
           <div className="ml-auto flex gap-1">
             <button
@@ -578,6 +668,17 @@ const CreditApplicationList: React.FC = () => {
                       {PRODUCT_TYPES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                     </select>
                   </div>
+                  {/* §3.1 — Branch override (admin only; defaults to RM's branch) */}
+                  {hasPermission(user, 'credit:admin') && branches.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-text-primary mb-1">Branch</label>
+                      <select value={form.branchId || ''} onChange={e => setForm(f => ({ ...f, branchId: e.target.value || null }))}
+                        className="w-full px-4 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200" style={{ fontFamily: 'var(--font-sans)' }}>
+                        <option value="">— Default to RM's branch —</option>
+                        {branches.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-semibold text-text-primary mb-1">Requested Amount *</label>

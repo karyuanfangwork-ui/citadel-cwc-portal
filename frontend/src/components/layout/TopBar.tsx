@@ -67,7 +67,7 @@ export default function TopBar({ navLinks, onMobileMenuToggle, mobileMenuOpen, o
   }, [location.pathname]);
 
   return (
-    <header className={`sticky top-0 z-20 w-full border-b border-cwc-border bg-surface/80 backdrop-blur-md h-14 overflow-visible ${className}`}>
+    <header className={`sticky top-0 z-[65] w-full border-b border-cwc-border bg-surface/80 backdrop-blur-md h-14 overflow-visible ${className}`}>
       <div className="flex items-center justify-between h-full px-4 sm:px-6 overflow-visible">
         {/* Left: hamburger (mobile) */}
         <div className="flex items-center gap-4">

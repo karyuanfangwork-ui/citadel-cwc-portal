@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import { formatDateTime, STATE_COLORS } from '../creditUtils';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
+import EmptyState from '../../../src/components/EmptyState';
 
 interface AuditTabProps {
   // No props needed — fetches its own data based on URL param
@@ -27,7 +28,11 @@ const AuditTab: React.FC<AuditTabProps> = () => {
   return (
     <CaMemoSection title="Audit Trail" phase="Meta" readOnly>
       {audit.length === 0 ? (
-        <p className="text-sm text-text-secondary">No audit events recorded.</p>
+        <EmptyState
+          icon="history"
+          title="No Audit Events"
+          description="State transitions and key actions on this application will be recorded here as they happen."
+        />
       ) : (
         <div className="space-y-4">
           {audit.map(a => {

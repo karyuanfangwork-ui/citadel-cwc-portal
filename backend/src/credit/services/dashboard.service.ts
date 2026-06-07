@@ -137,6 +137,7 @@ class DashboardService {
   async getPipelineDashboard(filters?: {
     dateFrom?: Date;
     dateTo?: Date;
+    branchId?: string;
   }): Promise<PipelineDashboardResult> {
     const where: any = { deletedAt: null };
     if (filters?.dateFrom || filters?.dateTo) {
@@ -144,6 +145,7 @@ class DashboardService {
       if (filters.dateFrom) where.createdAt.gte = filters.dateFrom;
       if (filters.dateTo) where.createdAt.lte = filters.dateTo;
     }
+    if (filters?.branchId) where.branchId = filters.branchId;
 
     // Fetch all non-deleted applications
     const applications = await prisma.creditApplication.findMany({
@@ -319,6 +321,7 @@ class DashboardService {
    */
   async getExposureDashboard(filters?: {
     topN?: number;
+    branchId?: string;
   }): Promise<ExposureDashboardResult> {
     const topN = filters?.topN ?? 10;
 
@@ -327,6 +330,7 @@ class DashboardService {
       where: {
         isActive: true,
         deletedAt: null,
+        ...(filters?.branchId ? { branchId: filters.branchId } : {}),
       },
       include: {
         account: { select: { name: true, industry: true } },

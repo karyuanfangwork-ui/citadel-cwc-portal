@@ -18,6 +18,7 @@ import ProgressOverlay from '../../../src/components/credit/ProgressOverlay';
 import { useProgressOverlay } from '../../../src/hooks/useProgressOverlay';
 import { useAuth } from '../../../src/context/AuthContext';
 import { hasPermission } from '../../../src/utils/permissions';
+import EmptyState from '../../../src/components/EmptyState';
 
 type Props = { application: CreditApplication; onUpdated: (next: CreditApplication) => void };
 
@@ -529,7 +530,11 @@ const AmlRescreenHistorySection: React.FC<{
       {loading ? (
         <div className="text-sm text-gray-400">Loading AML events…</div>
       ) : events.length === 0 ? (
-        <p className="text-sm text-gray-400 italic">No AML rescreen events recorded.</p>
+        <EmptyState
+          icon="fact_check"
+          title="No AML Rescreen Events"
+          description="AML rescreen events will appear here once a screening is triggered for this borrower."
+        />
       ) : (
         <div className="space-y-3">
           {events.map((evt) => {
@@ -676,7 +681,13 @@ const CreditChecksTab: React.FC<Props> = ({ application }) => {
             {checks.map(c => (
               <CheckCard key={c.id} check={c} appId={application.id} readOnly={readOnly} onRemoved={() => setChecks(cs => cs.filter(x => x.id !== c.id))} />
             ))}
-            {checks.length === 0 && <p className="text-sm text-gray-400 italic">No bureau checks recorded.</p>}
+            {checks.length === 0 && (
+              <EmptyState
+                icon="account_balance"
+                title="No Bureau Checks"
+                description="Run a credit bureau check to assess the borrower's credit history before approval."
+              />
+            )}
           </>
         )}
         {!readOnly && <AddCheckForm appId={application.id} onAdded={c => setChecks(cs => [c, ...cs])} />}

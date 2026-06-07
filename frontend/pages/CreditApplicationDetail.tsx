@@ -59,6 +59,32 @@ import {
 import CreditApplicationWizard from './credit/CreditApplicationWizard';
 import { LEGACY_TAB_MAP } from './credit/tabRegistry';
 import RejectionBanner from './credit/RejectionBanner';
+import ApplicationTimeline from '../src/components/credit/ApplicationTimeline';
+
+// §3.5b — Application progress ring (required-section completion)
+const ProgressRing: React.FC<{ pct: number; color: string; size?: number }> = ({ pct, color, size = 40 }) => {
+  const stroke = 4;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (pct / 100) * circumference;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }} title={`${pct}% of required sections complete`}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} stroke="#e5e7eb" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size / 2} cy={size / 2} r={radius}
+          stroke={color} strokeWidth={stroke} fill="none"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          strokeLinecap="round"
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold" style={{ color }}>
+        {pct}%
+      </span>
+    </div>
+  );
+};
 
 const CreditApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -308,6 +334,11 @@ const CreditApplicationDetail: React.FC = () => {
     isSecured: false,
   });
   const incompleteCount = getIncompletePhaseCount(phaseCompletion);
+  // §3.5b — Application progress ring (required sections only; 'optional' excluded)
+  const requiredPhases = Object.values(phaseCompletion).filter(s => s !== 'optional');
+  const completedPhases = requiredPhases.filter(s => s === 'complete').length;
+  const progressPct = requiredPhases.length > 0 ? Math.round((completedPhases / requiredPhases.length) * 100) : 0;
+  const progressColor = progressPct > 80 ? '#16a34a' : progressPct >= 50 ? '#d97706' : '#dc2626';
 
   // Stepper logic
   const currentStageIdx = STEPPER_STAGES.findIndex(s => s.states.includes(currentState));
@@ -447,6 +478,10 @@ const CreditApplicationDetail: React.FC = () => {
             <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xl shrink-0">
               <span className="material-symbols-outlined text-2xl">description</span>
             </div>
+            <ProgressRing pct={progressPct} color={progressColor} />
+            <span className="text-[11px] text-text-secondary -ml-1 mr-1 leading-tight">
+              {completedPhases}/{requiredPhases.length}<br />complete
+            </span>
             <div>
               <h1 className="text-2xl font-black text-text-primary">
                 {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : 'Application'}
@@ -495,6 +530,9 @@ const CreditApplicationDetail: React.FC = () => {
           rejectionReason={app.rejectionReason}
           applicationNo={app.applicationNo ?? undefined}
         />
+
+        {/* §3.5d — Application Timeline */}
+        <ApplicationTimeline applicationId={app.id} currentState={currentState} />
 
         {/* Stepper */}
         <div className="bg-bg-surface border border-border rounded-xl p-5 mb-6">

@@ -123,7 +123,7 @@ class ApprovalActionService {
     const borrowerRating = application.borrowerProfile?.creditRiskRating ?? 'NR';
     const totalExposure = formatCurrency(application.borrowerProfile?.totalExposure ?? application.requestedAmount) ?? 0;
 
-    const authorityResult = await approvalMatrixService.lookupApprovalAuthority(totalExposure, borrowerRating ?? 'NR');
+    const authorityResult = await approvalMatrixService.lookupApprovalAuthority(totalExposure, borrowerRating ?? 'NR', application.branchId);
 
     let authorityLevel: string | null = null;
     let requiredApproverCount = 1;

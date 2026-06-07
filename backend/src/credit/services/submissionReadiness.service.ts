@@ -9,6 +9,7 @@ import prisma from '../../utils/prisma';
 import { hasStaleCollateralValuations } from '../jobs/collateralInsuranceMonitor.job';
 import { hasPendingScoreOverride } from './scoreOverride.service';
 import { isBureauCheckFresh, isBureauChecklistComplete, isBureauChecklistVerified } from './bureauCheck.service';
+import { fatcaCrsService } from './fatcaCrs.service';
 
 function getRequiredDocuments(borrowerType: string): string[] {
   switch (borrowerType) {
@@ -55,6 +56,7 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
           accountId: true,
           contactId: true,
           borrowerType: true,
+          amlRiskTier: true,
           exposureLimit: true,
           totalExposure: true,
           contact: { select: { nricPassport: true } },
@@ -246,6 +248,25 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
       warnings.push({
         field: 'exposureLimit',
         message: `Projected exposure (MYR ${projectedExposure.toLocaleString()}) is approaching the borrower limit (MYR ${exposureLimit.toLocaleString()}).`,
+        severity: 'warning',
+      });
+    }
+  }
+
+  // ---- Check 12: §3.4 FATCA/CRS declaration (foreign / elevated-risk borrowers) ----
+  const amlTier = bp.amlRiskTier as string | null | undefined;
+  if (amlTier === 'MEDIUM' || amlTier === 'HIGH') {
+    const fatcaStatus = await fatcaCrsService.checkExpiry(application.borrowerProfileId);
+    if (!fatcaStatus.exists) {
+      warnings.push({
+        field: 'fatcaCrs',
+        message: 'No FATCA/CRS declaration on file — required for foreign / elevated AML-risk borrowers.',
+        severity: 'warning',
+      });
+    } else if (fatcaStatus.expired) {
+      warnings.push({
+        field: 'fatcaCrs',
+        message: `FATCA/CRS declaration expired on ${fatcaStatus.expiryDate?.toISOString().slice(0, 10)} — re-declaration required.`,
         severity: 'warning',
       });
     }

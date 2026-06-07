@@ -227,6 +227,9 @@ export interface CreditApplication {
   riskRating: string | null;
   rmId: string | null;
   analystId: string | null;
+  // §3.1 — Multi-branch support
+  branchId?: string | null;
+  branch?: { id: string; code: string; name: string } | null;
   submittedAt: string | null;
   decisionedAt: string | null;
   rejectionReason: string | null;
@@ -1139,6 +1142,44 @@ export const trendApi = {
   },
 };
 
+// ── §3.1: Branch API (multi-branch support) ───────────────────
+
+export interface Branch {
+  id: string;
+  code: string;
+  name: string;
+  region: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export const branchApi = {
+  async list(includeInactive = false) {
+    const res = await apiClient.get('/credit/branches', { params: includeInactive ? { includeInactive: 'true' } : {} });
+    return res.data.data.branches as Branch[];
+  },
+
+  async getOne(id: string) {
+    const res = await apiClient.get(`/credit/branches/${id}`);
+    return res.data.data.branch as Branch;
+  },
+
+  async create(data: { code: string; name: string; region?: string | null }) {
+    const res = await apiClient.post('/credit/branches', data);
+    return res.data.data.branch as Branch;
+  },
+
+  async update(id: string, data: { code?: string; name?: string; region?: string | null }) {
+    const res = await apiClient.patch(`/credit/branches/${id}`, data);
+    return res.data.data.branch as Branch;
+  },
+
+  async deactivate(id: string) {
+    const res = await apiClient.patch(`/credit/branches/${id}/deactivate`, {});
+    return res.data.data.branch as Branch;
+  },
+};
+
 // ── Sprint 3: Exposure API ─────────────────────────────────────
 
 export const exposureApi = {
@@ -1713,9 +1754,9 @@ export const conditionApi = {
 // ── Sprint 5: Dashboard API ─────────────────────────────────
 
 export const dashboardApi = {
-  getPipelineDashboard: () => apiClient.get('/credit/dashboard/pipeline'),
+  getPipelineDashboard: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/pipeline', { params }),
   getApprovalInbox: () => apiClient.get('/credit/dashboard/approval-inbox'),
-  getExposureDashboard: () => apiClient.get('/credit/dashboard/exposure'),
+  getExposureDashboard: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/exposure', { params }),
   getCommitteeCalendar: () => apiClient.get('/credit/dashboard/committee-calendar'),
   // §2.6 — Exposure Summary
   getExposureSummary: async (filters?: { rmId?: string; borrowerGroupId?: string; riskRating?: string }) => {
@@ -1784,17 +1825,19 @@ export interface ExposureReport {
 }
 
 export const reportsApi = {
-  getPipelineReport: (params?: { dateFrom?: string; dateTo?: string; format?: 'json' | 'csv' }) => {
+  getPipelineReport: (params?: { dateFrom?: string; dateTo?: string; branchId?: string; format?: 'json' | 'csv' }) => {
     const q = new URLSearchParams();
     if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
     if (params?.dateTo) q.set('dateTo', params.dateTo);
+    if (params?.branchId) q.set('branchId', params.branchId);
     if (params?.format === 'csv') q.set('format', 'csv');
     const qs = q.toString();
     return apiClient.get(`/credit/reports/pipeline${qs ? '?' + qs : ''}`, params?.format === 'csv' ? { responseType: 'blob' } : undefined);
   },
-  getExposureReport: (params?: { topN?: number; format?: 'json' | 'csv' }) => {
+  getExposureReport: (params?: { topN?: number; branchId?: string; format?: 'json' | 'csv' }) => {
     const q = new URLSearchParams();
     if (params?.topN) q.set('topN', String(params.topN));
+    if (params?.branchId) q.set('branchId', params.branchId);
     if (params?.format === 'csv') q.set('format', 'csv');
     const qs = q.toString();
     return apiClient.get(`/credit/reports/exposure${qs ? '?' + qs : ''}`, params?.format === 'csv' ? { responseType: 'blob' } : undefined);
@@ -2191,6 +2234,53 @@ export const bureauChecklistApi = {
   updateCheckStructured: async (applicationId: string, checkId: string, data: Record<string, unknown>) => {
     const res = await apiClient.patch(`/credit/applications/${applicationId}/bureau-checks/${checkId}/structured`, data);
     return res.data.data;
+  },
+};
+
+export type FatcaEntityClassification = 'INDIVIDUAL' | 'ACTIVE_NFE' | 'PASSIVE_NFE' | 'FINANCIAL_INSTITUTION';
+
+export interface CrsResidency {
+  country: string;
+  tin?: string | null;
+}
+
+export interface FatcaCrsDeclaration {
+  id: string;
+  borrowerProfileId: string;
+  declarationDate: string;
+  isUsPerson: boolean;
+  usTin?: string | null;
+  entityClassification: FatcaEntityClassification;
+  crsResidencies: CrsResidency[];
+  selfCertifiedById: string;
+  selfCertifiedBy?: { id: string; firstName: string; lastName: string; email: string } | null;
+  verifiedById?: string | null;
+  verifiedBy?: { id: string; firstName: string; lastName: string; email: string } | null;
+  verifiedAt?: string | null;
+  expiryDate?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const fatcaCrsApi = {
+  get: async (borrowerId: string): Promise<FatcaCrsDeclaration | null> => {
+    const res = await apiClient.get(`/credit/borrowers/${borrowerId}/fatca-crs`);
+    return res.data.data.declaration;
+  },
+  upsert: async (borrowerId: string, data: {
+    declarationDate: string;
+    isUsPerson: boolean;
+    usTin?: string | null;
+    entityClassification: FatcaEntityClassification;
+    crsResidencies: CrsResidency[];
+    expiryDate?: string | null;
+  }): Promise<FatcaCrsDeclaration> => {
+    const res = await apiClient.put(`/credit/borrowers/${borrowerId}/fatca-crs`, data);
+    return res.data.data.declaration;
+  },
+  verify: async (borrowerId: string): Promise<FatcaCrsDeclaration> => {
+    const res = await apiClient.patch(`/credit/borrowers/${borrowerId}/fatca-crs/verify`, {});
+    return res.data.data.declaration;
   },
 };
 

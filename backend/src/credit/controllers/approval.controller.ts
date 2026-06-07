@@ -84,13 +84,13 @@ class ApprovalController {
    * POST /approval-matrices/lookup — Look up approval authority by exposure & risk rating
    */
   lookupAuthority = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { exposure, riskRating } = req.body;
+    const { exposure, riskRating, branchId } = req.body;
 
     if (exposure === undefined || !riskRating) {
       throw new AppError('exposure and riskRating are required', 400);
     }
 
-    const result = await approvalMatrixService.lookupApprovalAuthority(Number(exposure), riskRating);
+    const result = await approvalMatrixService.lookupApprovalAuthority(Number(exposure), riskRating, branchId ?? null);
 
     if (!result) {
       throw new AppError('No matching approval authority found for the given exposure and risk rating', 404);

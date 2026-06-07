@@ -116,14 +116,17 @@ class CreditSlaService {
     });
 
     for (const policy of policies) {
-      // Find applications in the target state that have been there longer than the SLA
-      const slaDeadline = new Date(now.getTime() - policy.slaHours * 60 * 60 * 1000);
+      // §3.1 — Branch-specific SLA hour overrides
+      const branchOverrides = await prisma.creditSlaPolicyBranchOverride.findMany({
+        where: { policyId: policy.id, isActive: true },
+      });
+      const overrideByBranch = new Map(branchOverrides.map(o => [o.branchId, o.slaHours]));
 
-      const breachedApps = await prisma.creditApplication.findMany({
+      // Candidate applications in the target state not yet breached for this policy
+      const candidateApps = await prisma.creditApplication.findMany({
         where: {
           state: policy.targetState as ApplicationState,
           deletedAt: null,
-          createdAt: { lte: slaDeadline },
           // Exclude applications that already have an un-resolved breach for this policy
           slaBreaches: {
             none: {
@@ -132,18 +135,19 @@ class CreditSlaService {
             },
           },
         },
-        select: { id: true, applicationNo: true },
+        select: { id: true, applicationNo: true, branchId: true, createdAt: true, productType: true },
+      });
+
+      const breachedApps = candidateApps.filter(app => {
+        const branchOverrideHours = app.branchId ? overrideByBranch.get(app.branchId) : undefined;
+        const effectiveSlaHours = branchOverrideHours ?? policy.slaHours;
+        const slaDeadline = new Date(now.getTime() - effectiveSlaHours * 60 * 60 * 1000);
+        return app.createdAt <= slaDeadline;
       });
 
       for (const app of breachedApps) {
         // Product type filter — skip if policy is product-specific and doesn't match
-        if (policy.productType) {
-          const fullApp = await prisma.creditApplication.findUnique({
-            where: { id: app.id },
-            select: { productType: true },
-          });
-          if (fullApp?.productType !== policy.productType) continue;
-        }
+        if (policy.productType && app.productType !== policy.productType) continue;
 
         try {
           await prisma.creditSlaBreach.create({

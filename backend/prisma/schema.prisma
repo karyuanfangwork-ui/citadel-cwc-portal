@@ -65,6 +65,8 @@ model User {
   agentTeam         String?        @map("agent_team") @db.VarChar(50)
   executiveRole     ExecutiveRole? @map("executive_role")
   entityId          String?        @map("entity_id") @db.Uuid
+  // §3.1 — Multi-branch support: auto-scopes RM views to their branch
+  branchId          String?        @map("branch_id") @db.Uuid
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
   lastLoginAt       DateTime?      @map("last_login_at") @db.Timestamp(6)
@@ -122,6 +124,8 @@ model User {
   // Entity Relations
   entity                    Entity?                @relation("UserEntity", fields: [entityId], references: [id])
   approverForEntities       Entity[]               @relation("EntityApprover")
+  // §3.1 — Multi-branch support
+  branch                    Branch?                @relation(fields: [branchId], references: [id])
   // Asset Relations
   createdAssets             Asset[]                @relation("AssetCreatedBy")
   assetAssignments          AssetAssignment[]      @relation("AssetAssignmentUser")
@@ -191,6 +195,9 @@ model User {
   // §2.8 — AML Rescreen
   amlRescreenTriggeredEvents AmlRescreenEvent[]      @relation("AmlRescreenTriggeredBy")
   amlRescreenReviewedEvents   AmlRescreenEvent[]      @relation("AmlRescreenReviewedBy")
+  // §3.4 — FATCA/CRS Declarations
+  fatcaCrsSelfCertified       FatcaCrsDeclaration[]   @relation("FatcaSelfCertifiedBy")
+  fatcaCrsVerified            FatcaCrsDeclaration[]   @relation("FatcaVerifiedBy")
 
   @@index([email])
   @@index([managerId])
@@ -2901,7 +2908,11 @@ model BorrowerProfile {
   deletedAt         DateTime?    @map("deleted_at") @db.Timestamp(6)
   createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
-  
+
+  // §3.1 — Multi-branch support
+  branchId          String?      @map("branch_id") @db.Uuid
+  branch            Branch?      @relation(fields: [branchId], references: [id])
+
   // Relations
   account           CrmAccount?  @relation(fields: [accountId], references: [id])
   contact           CrmContact?  @relation(fields: [contactId], references: [id])
@@ -2916,13 +2927,48 @@ model BorrowerProfile {
   financialStatements FinancialStatement[]
   keyCounterparties KeyCounterparty[]
   amlRescreenEvents AmlRescreenEvent[]
+  fatcaCrsDeclarations FatcaCrsDeclaration[]
 
   @@index([accountId])
   @@index([contactId])
   @@index([borrowerType])
   @@index([creditRiskRating])
   @@index([amlRiskTier])
+  @@index([branchId])
   @@map("borrower_profiles")
+}
+
+// ============================================================================
+// FATCA/CRS Declaration — §3.4 (Phase 3)
+// ============================================================================
+enum FatcaEntityClassification {
+  INDIVIDUAL
+  ACTIVE_NFE
+  PASSIVE_NFE
+  FINANCIAL_INSTITUTION
+}
+
+model FatcaCrsDeclaration {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  borrowerProfileId     String                    @map("borrower_profile_id") @db.Uuid
+  declarationDate       DateTime                  @map("declaration_date") @db.Date
+  isUsPerson            Boolean                   @map("is_us_person")
+  usTinEncrypted        String?                   @map("us_tin_encrypted") @db.VarChar(255)
+  entityClassification  FatcaEntityClassification @map("entity_classification")
+  crsResidencies        Json                      @map("crs_residencies")
+  selfCertifiedById     String                    @map("self_certified_by_id") @db.Uuid
+  verifiedById          String?                   @map("verified_by_id") @db.Uuid
+  verifiedAt            DateTime?                 @map("verified_at") @db.Timestamp(6)
+  expiryDate            DateTime?                 @map("expiry_date") @db.Date
+  createdAt             DateTime                  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime                  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  borrowerProfile   BorrowerProfile @relation(fields: [borrowerProfileId], references: [id], onDelete: Cascade)
+  selfCertifiedBy   User            @relation("FatcaSelfCertifiedBy", fields: [selfCertifiedById], references: [id])
+  verifiedBy        User?           @relation("FatcaVerifiedBy", fields: [verifiedById], references: [id])
+
+  @@index([borrowerProfileId])
+  @@map("fatca_crs_declarations")
 }
 
 // ============================================================================
@@ -3050,6 +3096,40 @@ model RelatedPartyMember {
 // ============================================================================
 // Credit Application
 // ============================================================================
+// ============================================================================
+// Branch — multi-branch support (§3.1)
+// ============================================================================
+model Branch {
+  id        String  @id @default(uuid()) @db.Uuid
+  code      String  @unique @db.VarChar(20)
+  name      String  @db.VarChar(255)
+  region    String? @db.VarChar(100)
+  isActive  Boolean @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  applications     CreditApplication[]
+  borrowerProfiles BorrowerProfile[]
+  approvalMatrices CreditApprovalMatrix[]
+  slaOverrides     CreditSlaPolicyBranchOverride[]
+  users            User[]
+
+  @@map("branches")
+}
+
+model CreditSlaPolicyBranchOverride {
+  id         String   @id @default(uuid()) @db.Uuid
+  policyId   String   @map("policy_id") @db.Uuid
+  branchId   String   @map("branch_id") @db.Uuid
+  slaHours   Int      @map("sla_hours")
+  isActive   Boolean  @default(true) @map("is_active")
+
+  policy  CreditSlaPolicy @relation(fields: [policyId], references: [id])
+  branch  Branch          @relation(fields: [branchId], references: [id])
+
+  @@unique([policyId, branchId])
+  @@map("credit_sla_policy_branch_overrides")
+}
+
 model CreditApplication {
   id              String           @id @default(uuid()) @db.Uuid
   applicationNo    String           @unique @map("application_no") @db.VarChar(50) // e.g. CA-2026-00001
@@ -3057,7 +3137,11 @@ model CreditApplication {
   
   // Borrower
   borrowerProfileId String          @map("borrower_profile_id") @db.Uuid
-  
+
+  // §3.1 — Multi-branch support
+  branchId        String?          @map("branch_id") @db.Uuid
+  branch          Branch?          @relation(fields: [branchId], references: [id])
+
   // Product
   productType     CreditProductType @map("product_type")
   purpose         String?           @db.Text
@@ -3178,6 +3262,7 @@ model CreditApplication {
   @@index([assignedRmId])
   @@index([productType])
   @@index([submittedAt])
+  @@index([branchId])
   @@map("credit_applications")
 }
 
@@ -3591,6 +3676,7 @@ model CreditSlaPolicy {
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 
   breaches       CreditSlaBreach[]
+  branchOverrides CreditSlaPolicyBranchOverride[]
 
   @@index([targetState])
   @@index([isActive])
@@ -3981,7 +4067,11 @@ model CreditApprovalMatrix {
   
   authorityLevel      String     @map("authority_level") @db.VarChar(50)
   requiredApproverCount Int      @map("required_approver_count") @default(1)
-  
+
+  // §3.1 — null = applies to all branches; set = branch-specific authority override
+  branchId            String?    @map("branch_id") @db.Uuid
+  branch              Branch?    @relation(fields: [branchId], references: [id])
+
   isActive            Boolean    @default(true) @map("is_active")
   effectiveFrom       DateTime   @map("effective_from") @db.Timestamp(6)
   effectiveTo         DateTime?  @map("effective_to") @db.Timestamp(6)
@@ -3994,6 +4084,7 @@ model CreditApprovalMatrix {
   @@index([authorityLevel])
   @@index([isActive])
   @@index([effectiveFrom])
+  @@index([branchId])
   @@map("credit_approval_matrices")
 }
 

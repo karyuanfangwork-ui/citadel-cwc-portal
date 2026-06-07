@@ -14,6 +14,7 @@ router.get('/pipeline', creditExportLimiter, requirePermission('credit:read'), a
   const data = await dashboardService.getPipelineDashboard({
     dateFrom: req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined,
     dateTo: req.query.dateTo ? new Date(req.query.dateTo as string) : undefined,
+    branchId: req.query.branchId as string | undefined,
   });
 
   if (format === 'csv') {
@@ -34,6 +35,7 @@ router.get('/exposure', creditExportLimiter, requirePermission('credit:read'), a
   const format = (req.query.format as string) || 'json';
   const data = await dashboardService.getExposureDashboard({
     topN: req.query.topN ? Number(req.query.topN) : undefined,
+    branchId: req.query.branchId as string | undefined,
   });
 
   if (format === 'csv') {
