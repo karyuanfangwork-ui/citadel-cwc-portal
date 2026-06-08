@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { looService } from '../services/loo.service';
+import { asyncHandler } from '../../middleware/error.middleware';
 
 export async function generateLoo(req: Request, res: Response, next: NextFunction) {
   try {
@@ -47,3 +48,9 @@ export async function getLooDocument(req: Request, res: Response, next: NextFunc
     next(err);
   }
 }
+
+// §6.3 — LOO Expiry Check (manual trigger / scheduler)
+export const checkLooExpiry = asyncHandler(async (_req: Request, res: Response, _next: NextFunction) => {
+  const result = await looService.checkAndNotifyExpiring();
+  res.json({ status: 'success', data: result });
+});

@@ -101,6 +101,9 @@ import looRoutes from './loo.routes';
 import rejectionRoutes from './rejection.routes';
 import amlRescreenRoutes from './amlRescreen.routes';
 
+// §6.2 — Credit Policy Limits
+import policyLimitRoutes from './policyLimit.routes';
+
 const router = Router();
 
 // Feature flag admin routes (outside feature flag gate)
@@ -249,5 +252,8 @@ router.use('/applications', looRoutes);
 // §2.7 — Rejection workflow
 router.use('/applications', rejectionRoutes);
 router.use('/', amlRescreenRoutes);
+
+// §6.2 — Credit Policy Limits
+router.use('/policy-limits', policyLimitRoutes);
 
 export default router;

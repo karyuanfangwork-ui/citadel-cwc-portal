@@ -547,6 +547,43 @@ const CreditApplicationDetail: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* §6.1 — Clone / Renew buttons */}
+              {['APPROVED', 'ACTIVE', 'CLOSED', 'REJECTED'].includes(currentState) && hasPermission(user, 'credit:create') && (
+                <>
+                  <button
+                    onClick={async () => {
+                      if (!app) return;
+                      try {
+                        const newId = await creditService.cloneApplication(app.id);
+                        toast.success('Application cloned successfully');
+                        navigate(`/credit/applications/${newId}?new=1`);
+                      } catch (e) {
+                        toast.error(friendlyMessage(e, 'Failed to clone application'));
+                      }
+                    }}
+                    className="flex items-center gap-1 text-sm text-gray-700 border border-gray-300 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <span className="material-symbols-outlined text-base">content_copy</span> Clone
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!app) return;
+                      try {
+                        const newId = await creditService.cloneApplication(app.id, { asRenewal: true });
+                        toast.success('Renewal application created');
+                        navigate(`/credit/applications/${newId}?new=1`);
+                      } catch (e) {
+                        toast.error(friendlyMessage(e, 'Failed to create renewal'));
+                      }
+                    }}
+                    className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <span className="material-symbols-outlined text-base">autorenew</span> Renew
+                  </button>
+                </>
+              )}
               {app.borrowerProfile && (
                 <Link to={`/credit/borrowers/${app.borrowerProfileId}`}
                   className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"

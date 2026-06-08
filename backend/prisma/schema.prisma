@@ -198,6 +198,8 @@ model User {
   // §3.4 — FATCA/CRS Declarations
   fatcaCrsSelfCertified       FatcaCrsDeclaration[]   @relation("FatcaSelfCertifiedBy")
   fatcaCrsVerified            FatcaCrsDeclaration[]   @relation("FatcaVerifiedBy")
+  // §6.2 — Credit Policy Limits
+  createdPolicyLimits        CreditPolicyLimit[]     @relation("PolicyLimitCreatedBy")
 
   @@index([email])
   @@index([managerId])
@@ -2771,6 +2773,34 @@ model AmlRescreenEvent {
 
   @@index([borrowerProfileId])
   @@map("aml_rescreen_events")
+}
+
+// §6.2 — Credit Policy Limit types
+enum PolicyLimitType {
+  SINGLE_BORROWER
+  SECTOR
+  PRODUCT
+}
+
+model CreditPolicyLimit {
+  id            String          @id @default(uuid()) @db.Uuid
+  type          PolicyLimitType @map("type")
+  label         String          @db.VarChar(255)
+  maxValue      Decimal         @map("max_value") @db.Decimal(15, 2)
+  thresholdPct  Decimal         @map("threshold_pct") @db.Decimal(5, 2) @default(80) // % of maxValue that triggers soft warning
+  isActive      Boolean         @default(true) @map("is_active")
+  currency      String          @default("MYR") @db.VarChar(3)
+  sector        String?         @db.VarChar(100)   // For SECTOR type — matches BorrowerProfile.industry
+  productType   String?         @map("product_type") @db.VarChar(50)  // For PRODUCT type — matches CreditApplication.productType
+  createdById   String          @map("created_by_id") @db.Uuid
+  createdAt     DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt     DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
+  createdBy     User            @relation("PolicyLimitCreatedBy", fields: [createdById], references: [id])
+
+  @@index([type, isActive])
+  @@index([sector])
+  @@index([productType])
+  @@map("credit_policy_limits")
 }
 
 // Committee vote — kept for backward compat; newer code uses CommitteeVoteChoice

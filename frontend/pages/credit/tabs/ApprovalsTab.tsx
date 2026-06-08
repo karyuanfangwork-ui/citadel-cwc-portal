@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom';
 import creditService, {
   CreditApplication,
   CreditApproval,
+  policyLimitApi,
+  PolicyEvaluationResult,
 } from '../../../src/services/credit.service';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
@@ -26,6 +28,9 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
   // §3 — Fetch sign-off completion status to show advisory
   const [signoffsComplete, setSignoffsComplete] = useState<boolean | undefined>(undefined);
   const REQUIRED_SIGNOFF_ROLES = ['PREPARED_BY', 'REVIEWED_BY', 'CONCURRED_BY'] as const;
+
+  // §6.2 — Policy limit evaluation
+  const [policyResult, setPolicyResult] = useState<PolicyEvaluationResult | null>(null);
 
   const fetchApprovals = useCallback(async () => {
     if (!id) return;
@@ -55,6 +60,12 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
     });
   }, [id]);
 
+  // §6.2 — Fetch policy limit evaluation
+  useEffect(() => {
+    if (!id) return;
+    policyLimitApi.evaluate(id).then(setPolicyResult).catch(() => {});
+  }, [id]);
+
   const handleActionComplete = () => {
     fetchApprovals();
     onRefresh();
@@ -73,6 +84,30 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
           Preview Approval Pack
         </button>
       </div>
+
+      {/* §6.2 — Policy Limit Banners */}
+      {policyResult && policyResult.blocks.length > 0 && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 space-y-1.5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-red-800">
+            <span className="material-symbols-outlined text-base">gpp_bad</span>
+            Policy Limit Violations — Submission Blocked
+          </div>
+          {policyResult.blocks.map((b, i) => (
+            <div key={i} className="text-xs text-red-700 pl-6">{b.message}</div>
+          ))}
+        </div>
+      )}
+      {policyResult && policyResult.warnings.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-1.5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-amber-800">
+            <span className="material-symbols-outlined text-base">warning</span>
+            Policy Limit Warnings — Requires Justification
+          </div>
+          {policyResult.warnings.filter(w => w.message).map((w, i) => (
+            <div key={i} className="text-xs text-amber-700 pl-6">{w.message}</div>
+          ))}
+        </div>
+      )}
 
       {/* Approval chain */}
       <CaMemoSection title="Approval Chain" phase="S7">

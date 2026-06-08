@@ -226,6 +226,114 @@ class LooService {
     });
     return doc?.id ?? null;
   }
+
+  /**
+   * §6.3 — Check all active LOOs for expiry and send notifications.
+   * Called by scheduler (daily). Sends warning at 7, 3, 1 days before expiry.
+   * Marks expired LOOs so the application state can be handled.
+   */
+  async checkAndNotifyExpiring(): Promise<{ notified: number; expired: number }> {
+    const now = new Date();
+    const WARNING_DAYS = [7, 3, 1];
+
+    // Find all applications with active (non-expired) LOOs in OFFER/ACCEPTED state
+    const appsWithLoo = await prisma.creditApplication.findMany({
+      where: {
+        state: { in: ['OFFER', 'ACCEPTED'] },
+        looExpiryDate: { not: null, gt: now },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        applicationNo: true,
+        looExpiryDate: true,
+        assignedRmId: true,
+        assignedRm: { select: { id: true, firstName: true, lastName: true } },
+        borrowerProfile: { select: { id: true, name: true, account: { select: { name: true } }, contact: { select: { firstName: true, lastName: true } } } },
+      },
+    });
+
+    let notified = 0;
+
+    for (const app of appsWithLoo) {
+      if (!app.looExpiryDate) continue;
+
+      const daysRemaining = Math.ceil((app.looExpiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Check if we should notify for this number of remaining days
+      if (!WARNING_DAYS.includes(daysRemaining)) continue;
+
+      const borrowerName =
+        (app.borrowerProfile as any)?.account?.name ??
+        (app.borrowerProfile as any)?.name ??
+        ((app.borrowerProfile as any)?.contact ? `${(app.borrowerProfile as any).contact.firstName ?? ''} ${(app.borrowerProfile as any).contact.lastName ?? ''}`.trim() : null) ??
+        'Unnamed Borrower';
+
+      // Notify assigned RM
+      if (app.assignedRmId && app.assignedRm) {
+        await prisma.notification.create({
+          data: {
+            userId: app.assignedRmId,
+            channel: 'IN_APP',
+            subject: `LOO Expiring in ${daysRemaining} Day${daysRemaining > 1 ? 's' : ''}`,
+            body: `Letter of Offer for ${borrowerName} (App: ${app.applicationNo ?? app.id.slice(0, 8)}) expires in ${daysRemaining} day${daysRemaining > 1 ? 's' : ''} on ${app.looExpiryDate.toLocaleDateString('en-MY')}. Follow up with the borrower for acceptance.`,
+            relatedRequestId: app.id,
+          },
+        });
+        notified++;
+      }
+
+      // Audit event
+      await AuditChainService.appendEvent(
+        app.id,
+        'LOO_EXPIRY_WARNING',
+        app.assignedRmId ?? 'system',
+        'loo_expiry_check',
+        undefined,
+        undefined,
+        { daysRemaining, expiryDate: app.looExpiryDate.toISOString() },
+      );
+    }
+
+    // Mark expired LOOs — transition apps past their expiry date
+    const justExpired = await prisma.creditApplication.findMany({
+      where: {
+        state: { in: ['OFFER', 'ACCEPTED'] },
+        looExpiryDate: { not: null, lte: now },
+        deletedAt: null,
+      },
+      select: { id: true, applicationNo: true, assignedRmId: true },
+    });
+
+    let expired = 0;
+    for (const app of justExpired) {
+      // Notify RM about expired LOO
+      if (app.assignedRmId) {
+        await prisma.notification.create({
+          data: {
+            userId: app.assignedRmId,
+            channel: 'IN_APP',
+            subject: 'LOO Has Expired',
+            body: `Letter of Offer for application ${app.applicationNo ?? app.id.slice(0, 8)} has expired. The borrower must request a new LOO to proceed.`,
+            relatedRequestId: app.id,
+          },
+        });
+      }
+
+      await AuditChainService.appendEvent(
+        app.id,
+        'LOO_EXPIRED',
+        app.assignedRmId ?? 'system',
+        'loo_expiry_auto',
+        undefined,
+        undefined,
+        { expiredAt: now.toISOString() },
+      );
+      expired++;
+    }
+
+    return { notified, expired };
+  }
 }
 
 export const looService = new LooService();

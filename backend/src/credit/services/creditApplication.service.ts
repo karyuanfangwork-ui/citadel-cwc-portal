@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { Prisma, ApplicationState, ApprovalDecisionType, SignoffRole } from '@prisma/client';
+import { AppError } from '../../middleware/error.middleware';
 import { AuditChainService } from './auditChain.service';
 import { creditNotificationService, CreditEventType } from './creditNotification.service';
 import { deriveAndSetConnectedPartyFlag } from './connectedParty.service';
@@ -1118,6 +1119,115 @@ class CreditApplicationService {
       newState,
       metadata,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Clone / Renew
+  // -------------------------------------------------------------------------
+
+  /**
+   * Clone an application into a new DRAFT.
+   * Works for APPROVED, ACTIVE, CLOSED, and REJECTED states (not just REJECTED).
+   * Copies: borrowerProfileId, productType, currency, requestedAmount,
+   * requestedTenor, purpose, parties, facilities.
+   * Sets parentApplicationId to source.id, state to DRAFT,
+   * assignedRmId to requestedById.
+   * If asRenewal=true, appends "(Renewal)" to purpose.
+   */
+  async cloneApplication(
+    applicationId: string,
+    requestedById: string,
+    options?: { asRenewal?: boolean },
+  ): Promise<string> {
+    const source = await prisma.creditApplication.findUnique({
+      where: { id: applicationId },
+      include: { parties: true, facilities: true },
+    });
+    if (!source) {
+      throw new AppError('Source application not found', 404);
+    }
+
+    const CLONEABLE_STATES: ApplicationState[] = [
+      ApplicationState.APPROVED,
+      ApplicationState.ACTIVE,
+      ApplicationState.CLOSED,
+      ApplicationState.REJECTED,
+    ];
+    if (!CLONEABLE_STATES.includes(source.state)) {
+      throw new AppError(
+        `Cannot clone application in ${source.state} state. Only APPROVED, ACTIVE, CLOSED, or REJECTED applications can be cloned.`,
+        400,
+      );
+    }
+
+    // Check deleted
+    if (source.deletedAt) {
+      throw new AppError('Cannot clone a deleted application', 400);
+    }
+
+    const applicationNo = await generateApplicationNo();
+
+    let purpose = source.purpose;
+    if (options?.asRenewal) {
+      purpose = purpose ? `${purpose} (Renewal)` : '(Renewal)';
+    }
+
+    const newApp = await prisma.creditApplication.create({
+      data: {
+        applicationNo,
+        borrowerProfileId: source.borrowerProfileId,
+        productType: source.productType,
+        currency: source.currency,
+        requestedAmount: source.requestedAmount,
+        requestedTenor: source.requestedTenor,
+        purpose,
+        state: ApplicationState.DRAFT,
+        assignedRmId: requestedById,
+        parentApplicationId: source.id,
+        // Copy parties
+        parties: {
+          create: source.parties.map((p) => ({
+            role: p.role,
+            borrowerProfileId: p.borrowerProfileId,
+            liabilityPct: p.liabilityPct,
+          })),
+        },
+        // Copy facilities
+        facilities: {
+          create: source.facilities.map((f) => ({
+            facilityType: f.facilityType,
+            amount: f.amount,
+            tenorMonths: f.tenorMonths,
+            ratePct: f.ratePct,
+            purpose: f.purpose,
+            existingLimit: f.existingLimit,
+            proposedChange: f.proposedChange,
+            newLimit: f.newLimit,
+            outstandingBalance: f.outstandingBalance,
+            undisbursedLimit: f.undisbursedLimit,
+            approvingLevel: f.approvingLevel,
+            pricingLabel: f.pricingLabel,
+          })),
+        },
+      },
+    });
+
+    // Audit event
+    await AuditChainService.appendEvent(
+      newApp.id,
+      'APPLICATION_CLONED',
+      requestedById,
+      options?.asRenewal ? 'clone_as_renewal' : 'clone',
+      source.id,
+      newApp.id,
+      {
+        parentApplicationId: source.id,
+        fromState: source.state,
+        asRenewal: options?.asRenewal ?? false,
+      },
+    );
+
+    return newApp.id;
   }
 }
 

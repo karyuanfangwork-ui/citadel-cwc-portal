@@ -1072,6 +1072,14 @@ const creditService = {
     const res = await apiClient.post(`/credit/score-runs/${scoreRunId}/override`, data);
     return normalizeScoreRun(res.data.data.scoreRun as CreditScoreRun);
   },
+
+  // §6.1 — Clone / Renew application
+  async cloneApplication(applicationId: string, options?: { asRenewal?: boolean }) {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/clone`, {
+      asRenewal: options?.asRenewal ?? false,
+    });
+    return res.data.data.applicationId as string;
+  },
 };
 
 // ── Sprint 3: Financial Spreading API ──────────────────────────
@@ -2553,6 +2561,82 @@ export const rejectionApi = {
 };
 
 export default creditService;
+
+// §6.2 — Credit Policy Limit API
+export interface PolicyLimit {
+  id: string;
+  type: 'SINGLE_BORROWER' | 'SECTOR' | 'PRODUCT';
+  label: string;
+  maxValue: number;
+  thresholdPct: number;
+  isActive: boolean;
+  currency: string;
+  sector: string | null;
+  productType: string | null;
+  createdById: string;
+  createdBy?: { id: string; firstName: string; lastName: string };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PolicyEvaluationResult {
+  blocks: PolicyBlock[];
+  warnings: PolicyBlock[];
+}
+
+export interface PolicyBlock {
+  limitId: string;
+  limitType: string;
+  label: string;
+  maxValue: number;
+  currentValue: number;
+  thresholdValue: number;
+  proposedValue: number;
+  severity: 'HARD' | 'SOFT';
+  message: string;
+}
+
+export const policyLimitApi = {
+  list: async (filters?: { type?: string; isActive?: boolean }) => {
+    const params = new URLSearchParams();
+    if (filters?.type) params.set('type', filters.type);
+    if (filters?.isActive !== undefined) params.set('isActive', String(filters.isActive));
+    const res = await apiClient.get(`/credit/policy-limits?${params.toString()}`);
+    return res.data as PolicyLimit[];
+  },
+
+  get: async (id: string) => {
+    const res = await apiClient.get(`/credit/policy-limits/${id}`);
+    return res.data as PolicyLimit;
+  },
+
+  create: async (data: {
+    type: 'SINGLE_BORROWER' | 'SECTOR' | 'PRODUCT';
+    label: string;
+    maxValue: number;
+    thresholdPct?: number;
+    currency?: string;
+    sector?: string;
+    productType?: string;
+  }) => {
+    const res = await apiClient.post('/credit/policy-limits', data);
+    return res.data as PolicyLimit;
+  },
+
+  update: async (id: string, data: Partial<PolicyLimit>) => {
+    const res = await apiClient.patch(`/credit/policy-limits/${id}`, data);
+    return res.data as PolicyLimit;
+  },
+
+  delete: async (id: string) => {
+    await apiClient.delete(`/credit/policy-limits/${id}`);
+  },
+
+  evaluate: async (applicationId: string) => {
+    const res = await apiClient.get(`/credit/policy-limits/evaluate/${applicationId}`);
+    return res.data as PolicyEvaluationResult;
+  },
+};
 
 // §2.8 — AML Rescreen Event Log API
 export const amlRescreenApi = {

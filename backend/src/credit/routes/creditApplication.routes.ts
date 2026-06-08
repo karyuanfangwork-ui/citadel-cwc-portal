@@ -191,4 +191,16 @@ router.patch(
   creditApplicationController.overrideConnectedPartyFlag,
 );
 
+/**
+ * POST /applications/:id/clone
+ * Clone an application into a new DRAFT (also supports renewal)
+ * Works for APPROVED, ACTIVE, CLOSED, REJECTED states
+ * Requires: credit:create
+ */
+router.post(
+  '/:id/clone',
+  requirePermission('credit:create'),
+  creditApplicationController.clone,
+);
+
 export default router;

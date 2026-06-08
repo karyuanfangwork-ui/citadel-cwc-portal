@@ -255,6 +255,35 @@ class CreditApplicationController {
   });
 
   /**
+   * POST /applications/:id/clone — Clone an application into a new DRAFT
+   * Works for APPROVED, ACTIVE, CLOSED, REJECTED states
+   * Requires: credit:create
+   */
+  clone = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const actorId = requireUser(req).id;
+    const { asRenewal } = req.body as { asRenewal?: boolean };
+
+    try {
+      const newAppId = await creditApplicationService.cloneApplication(id, actorId, {
+        asRenewal: asRenewal ?? false,
+      });
+      res.status(201).json({ status: 'success', data: { applicationId: newAppId } });
+    } catch (err: any) {
+      if (err.statusCode === 400 || err.statusCode === 404) {
+        throw err;
+      }
+      if (err.message.includes('Cannot clone')) {
+        throw new AppError(err.message, 400);
+      }
+      if (err.message.includes('not found')) {
+        throw new AppError(err.message, 404);
+      }
+      throw err;
+    }
+  });
+
+  /**
    * GET /applications/:id/esign-readiness — Check e-sign document gate
    * Returns whether a verified signed Letter of Offer exists.
    * Requires: credit:read

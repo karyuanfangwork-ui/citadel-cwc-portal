@@ -83,10 +83,17 @@ const LooSection: React.FC<Props> = ({ applicationId, state, readOnly = false })
     if (status.expired) {
       return <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded bg-red-100 text-red-700">Expired</span>;
     }
-    if ((status.daysRemaining ?? 0) <= 5) {
-      return <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-700">Expires in {status.daysRemaining} days</span>;
+    const days = status.daysRemaining ?? 0;
+    if (days <= 1) {
+      return <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded bg-red-100 text-red-700">Expires in {days} day{days !== 1 ? 's' : ''}!</span>;
     }
-    return <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded bg-green-100 text-green-700">Expires in {status.daysRemaining} days</span>;
+    if (days <= 3) {
+      return <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded bg-amber-100 text-amber-700">Expires in {days} days</span>;
+    }
+    if (days <= 7) {
+      return <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded bg-yellow-100 text-yellow-700">Expires in {days} days</span>;
+    }
+    return <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded bg-green-100 text-green-700">Expires in {days} days</span>;
   };
 
   return (

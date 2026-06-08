@@ -510,9 +510,32 @@ const CreditApplicationList: React.FC = () => {
                           </td>
                           <td style={{ color: 'var(--color-text-tertiary)', fontSize: 11 }}>{createdLabel}</td>
                           <td>
-                            <span className="material-symbols-outlined" style={{ color: 'var(--color-text-tertiary)', fontSize: 18 }}>
-                              chevron_right
-                            </span>
+                            <div className="flex items-center gap-1">
+                              {/* §6.1 — Clone action for eligible states */}
+                              {['APPROVED', 'ACTIVE', 'CLOSED', 'REJECTED'].includes(state) && canCreate && (
+                                <button
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      const newId = await creditService.cloneApplication(app.id);
+                                      toast.success('Application cloned');
+                                      navigate(`/credit/applications/${newId}?new=1`);
+                                    } catch (err) {
+                                      toast.error(friendlyMessage(err, 'Failed to clone application'));
+                                    }
+                                  }}
+                                  className="flex items-center gap-0.5 px-1.5 py-1 text-[10px] font-semibold text-gray-600 border border-gray-200 rounded hover:bg-gray-50 transition-colors"
+                                  style={{ cursor: 'pointer', background: 'none' }}
+                                  title="Clone this application into a new draft"
+                                >
+                                  <span className="material-symbols-outlined" style={{ fontSize: 12 }}>content_copy</span>
+                                  Clone
+                                </button>
+                              )}
+                              <span className="material-symbols-outlined" style={{ color: 'var(--color-text-tertiary)', fontSize: 18 }}>
+                                chevron_right
+                              </span>
+                            </div>
                           </td>
                         </tr>
                       );

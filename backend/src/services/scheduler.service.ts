@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { startSlaChecker, stopSlaChecker, runSlaChecks, JobConfig } from '../jobs/sla-checker';
 import { startCrmJob, stopCrmJob, CrmJobKey, CRM_JOB_FNS } from '../jobs/crm-checker';
 import { startMonitorJob, stopMonitorJob, processDailyCheck } from '../credit/jobs/monitor.job';
+import { startLooExpiryJob, stopLooExpiryJob, runLooExpiryCheck } from '../credit/jobs/looExpiry.job';
 
 export interface SchedulerConfigRow {
   id: string;
@@ -30,6 +31,7 @@ const DEFAULT_CONFIGS: Omit<SchedulerConfigRow, 'id' | 'updatedAt'>[] = [
   { jobKey: 'crm.kyc_expiration',     label: 'CRM: KYC Expiration',      enabled: true, mode: 'cron', cronExpr: '0 6 * * 1-5',   intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'crm.rep_inactivity',     label: 'CRM: Rep Inactivity',      enabled: true, mode: 'cron', cronExpr: '0 16 * * 1-5',  intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'credit.monitor',         label: 'Credit Daily Monitor',     enabled: true, mode: 'interval', cronExpr: null, intervalMs: 86400000, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
+  { jobKey: 'credit.loo_expiry',      label: 'LOO Expiry Check',         enabled: true, mode: 'interval', cronExpr: null, intervalMs: 86400000, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
 ];
 
 async function seedDefaults(): Promise<void> {
@@ -63,6 +65,8 @@ function startJobByKey(row: SchedulerConfigRow): void {
     startCrmJob(row.jobKey as CrmJobKey, cfg);
   } else if (row.jobKey === 'credit.monitor') {
     startMonitorJob(cfg);
+  } else if (row.jobKey === 'credit.loo_expiry') {
+    startLooExpiryJob(cfg);
   }
 }
 
@@ -73,6 +77,8 @@ function stopJobByKey(jobKey: string): void {
     stopCrmJob(jobKey as CrmJobKey);
   } else if (jobKey === 'credit.monitor') {
     stopMonitorJob();
+  } else if (jobKey === 'credit.loo_expiry') {
+    stopLooExpiryJob();
   }
 }
 
@@ -91,6 +97,7 @@ export async function shutdownScheduler(): Promise<void> {
   stopSlaChecker();
   (Object.keys(CRM_JOB_FNS) as CrmJobKey[]).forEach(stopCrmJob);
   await stopMonitorJob();
+  stopLooExpiryJob();
   logger.info('[Scheduler] All jobs stopped');
 }
 
@@ -139,6 +146,8 @@ export async function triggerJob(jobKey: string): Promise<void> {
       await CRM_JOB_FNS[jobKey as CrmJobKey]();
     } else if (jobKey === 'credit.monitor') {
       await processDailyCheck();
+    } else if (jobKey === 'credit.loo_expiry') {
+      await runLooExpiryCheck();
     }
     await prisma.schedulerConfig.update({
       where: { jobKey },
