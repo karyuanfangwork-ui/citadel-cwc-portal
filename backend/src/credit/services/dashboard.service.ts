@@ -111,6 +111,39 @@ export interface CommitteeCalendarResult {
 }
 
 // ---------------------------------------------------------------------------
+// §5.2 — Approval Turnaround Report types
+// ---------------------------------------------------------------------------
+
+export interface TurnaroundAppRow {
+  applicationId: string;
+  applicationNo: string;
+  borrowerName: string;
+  productType: string;
+  rmName: string;
+  submittedAt: string;
+  firstApprovalAt: string;
+  turnaroundDays: number;
+}
+
+export interface TurnaroundGroup {
+  key: string;
+  label: string;
+  count: number;
+  avgDays: number;
+  medianDays: number;
+  p90Days: number;
+}
+
+export interface TurnaroundResult {
+  applications: TurnaroundAppRow[];
+  summary: {
+    groupBy: string;
+    groups: TurnaroundGroup[];
+    overall: TurnaroundGroup;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // SLA thresholds per state (business days) — kept simple for Sprint 5
 // ---------------------------------------------------------------------------
 
@@ -757,6 +790,166 @@ class DashboardService {
     return {
       meetings: items,
       totalUpcoming: items.length,
+    };
+  }
+  /**
+   * Get Approval Turnaround Report — §5.2
+   *
+   * For each completed application (APPROVED+ post-approval states),
+   * calculates turnaround days from submittedAt to first APPROVE CreditDecision.
+   * Groups by product type, month, or RM with avg/median/P90 aggregates.
+   */
+  async getApprovalTurnaround(filters?: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    productType?: string;
+    rmId?: string;
+    branchId?: string;
+    groupBy?: 'product' | 'month' | 'rm';
+  }): Promise<TurnaroundResult> {
+    const groupBy = filters?.groupBy ?? 'month';
+
+    // Terminal/post-approval states that have been decisioned
+    const DECISIONED_STATES = ['APPROVED', 'REJECTED', 'OFFER', 'ACCEPTED', 'DISBURSED', 'ACTIVE', 'CLOSED'];
+
+    // Build where clause for applications
+    const where: any = {
+      state: { in: DECISIONED_STATES },
+      submittedAt: { not: null },
+      deletedAt: null,
+    };
+
+    if (filters?.dateFrom || filters?.dateTo) {
+      where.submittedAt = { not: null };
+      if (filters.dateFrom) where.submittedAt.gte = filters.dateFrom;
+      if (filters.dateTo) where.submittedAt.lte = filters.dateTo;
+    }
+    if (filters?.productType) where.productType = filters.productType;
+    if (filters?.rmId) where.assignedRmId = filters.rmId;
+    if (filters?.branchId) where.branchId = filters.branchId;
+
+    // Fetch relevant applications with their APPROVE decisions
+    const applicationsRaw = await prisma.creditApplication.findMany({
+      where,
+      select: {
+        id: true,
+        applicationNo: true,
+        productType: true,
+        submittedAt: true,
+        assignedRmId: true,
+        borrowerProfile: {
+          select: {
+            name: true,
+            account: { select: { name: true } },
+            contact: { select: { firstName: true, lastName: true } },
+          },
+        },
+        assignedRm: {
+          select: { id: true, firstName: true, lastName: true },
+        },
+        decisions: {
+          where: { decisionType: 'APPROVE' },
+          select: { decisionAt: true },
+          orderBy: { decisionAt: 'asc' },
+          take: 1,
+        },
+      },
+      orderBy: { submittedAt: 'desc' },
+    }) as any[];
+
+    // Calculate turnaround for each application
+    const appRows: TurnaroundAppRow[] = [];
+
+    for (const app of applicationsRaw) {
+      const bp = app.borrowerProfile;
+      const borrowerName = bp?.account?.name
+        ?? (bp?.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : null)
+        ?? bp?.name
+        ?? 'Unknown';
+
+      // Only include apps that have at least one APPROVE decision
+      if (!app.decisions || app.decisions.length === 0) continue;
+      if (!app.submittedAt) continue;
+
+      const firstApprovalAt = app.decisions[0].decisionAt;
+      const turnaroundDays = daysBetween(app.submittedAt, firstApprovalAt);
+
+      appRows.push({
+        applicationId: app.id,
+        applicationNo: app.applicationNo,
+        borrowerName,
+        productType: app.productType as string,
+        rmName: app.assignedRm ? `${app.assignedRm.firstName} ${app.assignedRm.lastName}` : 'Unassigned',
+        submittedAt: app.submittedAt.toISOString(),
+        firstApprovalAt: firstApprovalAt.toISOString(),
+        turnaroundDays: Math.max(0, turnaroundDays),
+      });
+    }
+
+    // Group and aggregate using raw SQL for percentile calculations
+    const groupKey = groupBy === 'product' ? 'productType'
+      : groupBy === 'rm' ? 'rmName'
+      : 'month';
+
+    const groups: Record<string, number[]> = {};
+    for (const row of appRows) {
+      let key: string;
+      if (groupKey === 'month') {
+        // Extract YYYY-MM from submittedAt
+        key = row.submittedAt.slice(0, 7);
+      } else if (groupKey === 'productType') {
+        key = row.productType;
+      } else {
+        key = row.rmName;
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(row.turnaroundDays);
+    }
+
+    function percentile(arr: number[], p: number): number {
+      if (arr.length === 0) return 0;
+      const sorted = [...arr].sort((a, b) => a - b);
+      const idx = (p / 100) * (sorted.length - 1);
+      const lower = Math.floor(idx);
+      const upper = Math.ceil(idx);
+      if (lower === upper) return sorted[lower];
+      return sorted[lower] + (idx - lower) * (sorted[upper] - sorted[lower]);
+    }
+
+    function avg(arr: number[]): number {
+      if (arr.length === 0) return 0;
+      return Math.round((arr.reduce((s, v) => s + v, 0) / arr.length) * 10) / 10;
+    }
+
+    const groupResults: TurnaroundGroup[] = Object.entries(groups)
+      .map(([key, days]) => ({
+        key,
+        label: groupKey === 'month' ? key : key,
+        count: days.length,
+        avgDays: avg(days),
+        medianDays: Math.round(percentile(days, 50) * 10) / 10,
+        p90Days: Math.round(percentile(days, 90) * 10) / 10,
+      }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+
+    // Overall aggregates
+    const allDays = appRows.map(r => r.turnaroundDays);
+    const overall: TurnaroundGroup = {
+      key: 'overall',
+      label: 'Overall',
+      count: allDays.length,
+      avgDays: avg(allDays),
+      medianDays: Math.round(percentile(allDays, 50) * 10) / 10,
+      p90Days: Math.round(percentile(allDays, 90) * 10) / 10,
+    };
+
+    return {
+      applications: appRows,
+      summary: {
+        groupBy,
+        groups: groupResults,
+        overall,
+      },
     };
   }
 }

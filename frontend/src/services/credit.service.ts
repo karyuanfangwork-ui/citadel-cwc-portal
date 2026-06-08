@@ -1870,23 +1870,74 @@ export interface ExposureReport {
   totalPortfolio: number;
 }
 
+// ---------------------------------------------------------------------------
+// §5.2 — Approval Turnaround Report types
+// ---------------------------------------------------------------------------
+
+export interface TurnaroundAppRow {
+  applicationId: string;
+  applicationNo: string;
+  borrowerName: string;
+  productType: string;
+  rmName: string;
+  submittedAt: string;
+  firstApprovalAt: string;
+  turnaroundDays: number;
+}
+
+export interface TurnaroundGroup {
+  key: string;
+  label: string;
+  count: number;
+  avgDays: number;
+  medianDays: number;
+  p90Days: number;
+}
+
+export interface TurnaroundReport {
+  applications: TurnaroundAppRow[];
+  summary: {
+    groupBy: string;
+    groups: TurnaroundGroup[];
+    overall: TurnaroundGroup;
+  };
+}
+
 export const reportsApi = {
-  getPipelineReport: (params?: { dateFrom?: string; dateTo?: string; branchId?: string; format?: 'json' | 'csv' }) => {
+  getPipelineReport: (params?: { dateFrom?: string; dateTo?: string; branchId?: string; format?: 'json' | 'csv' | 'xlsx' }) => {
     const q = new URLSearchParams();
     if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
     if (params?.dateTo) q.set('dateTo', params.dateTo);
     if (params?.branchId) q.set('branchId', params.branchId);
-    if (params?.format === 'csv') q.set('format', 'csv');
+    if (params?.format && params.format !== 'json') q.set('format', params.format);
     const qs = q.toString();
-    return apiClient.get(`/credit/reports/pipeline${qs ? '?' + qs : ''}`, params?.format === 'csv' ? { responseType: 'blob' } : undefined);
+    const isBlob = params?.format === 'csv' || params?.format === 'xlsx';
+    return apiClient.get(`/credit/reports/pipeline${qs ? '?' + qs : ''}`, isBlob ? { responseType: 'blob' } : undefined);
   },
-  getExposureReport: (params?: { topN?: number; branchId?: string; format?: 'json' | 'csv' }) => {
+  getExposureReport: (params?: { topN?: number; branchId?: string; format?: 'json' | 'csv' | 'xlsx' }) => {
     const q = new URLSearchParams();
     if (params?.topN) q.set('topN', String(params.topN));
     if (params?.branchId) q.set('branchId', params.branchId);
-    if (params?.format === 'csv') q.set('format', 'csv');
+    if (params?.format && params.format !== 'json') q.set('format', params.format);
     const qs = q.toString();
-    return apiClient.get(`/credit/reports/exposure${qs ? '?' + qs : ''}`, params?.format === 'csv' ? { responseType: 'blob' } : undefined);
+    const isBlob = params?.format === 'csv' || params?.format === 'xlsx';
+    return apiClient.get(`/credit/reports/exposure${qs ? '?' + qs : ''}`, isBlob ? { responseType: 'blob' } : undefined);
+  },
+  getApprovalTurnaround: (params?: {
+    dateFrom?: string; dateTo?: string; productType?: string; rmId?: string;
+    branchId?: string; groupBy?: 'product' | 'month' | 'rm'; format?: 'json' | 'csv' | 'xlsx';
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.dateFrom) q.set('dateFrom', params.dateFrom);
+    if (params?.dateTo) q.set('dateTo', params.dateTo);
+    if (params?.productType) q.set('productType', params.productType);
+    if (params?.rmId) q.set('rmId', params.rmId);
+    if (params?.branchId) q.set('branchId', params.branchId);
+    if (params?.groupBy) q.set('groupBy', params.groupBy);
+    if (params?.format && params.format !== 'json') q.set('format', params.format);
+    const qs = q.toString();
+    const isBlob = params?.format === 'csv' || params?.format === 'xlsx';
+    return apiClient.get(`/credit/reports/approval-turnaround${qs ? '?' + qs : ''}`, isBlob ? { responseType: 'blob' } : undefined);
   },
 };
 
