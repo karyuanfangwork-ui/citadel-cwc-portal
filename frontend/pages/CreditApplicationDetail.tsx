@@ -178,8 +178,11 @@ const CreditApplicationDetail: React.FC = () => {
   const canApprove = hasPermission(user, 'credit:approve');
   const canAdmin = hasPermission(user, 'credit:admin');
 
+const IS_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isIdPlaceholder = id === 'new';
+
   const fetchApp = useCallback(async () => {
-    if (!id) return;
+    if (!id || !IS_UUID.test(id)) return;
     try {
       setLoading(true);
       const data = await creditService.getApplication(id);
@@ -194,7 +197,7 @@ const CreditApplicationDetail: React.FC = () => {
   }, [id, navigate]);
 
   const fetchTransitions = useCallback(async () => {
-    if (!id) return;
+    if (!id || !IS_UUID.test(id)) return;
     try {
       const data = await creditService.getApplicationTransitions(id);
       setTransitions(data);
@@ -202,7 +205,7 @@ const CreditApplicationDetail: React.FC = () => {
   }, [id]);
 
   const fetchFacilities = useCallback(async () => {
-    if (!id) return;
+    if (!id || !IS_UUID.test(id)) return;
     try {
       const data = await creditService.listFacilities(id);
       setFacilities(data);
@@ -212,6 +215,11 @@ const CreditApplicationDetail: React.FC = () => {
   useEffect(() => { fetchApp(); }, [fetchApp]);
   useEffect(() => { if (id) fetchTransitions(); }, [fetchTransitions]);
   useEffect(() => { if (id) fetchFacilities(); }, [fetchFacilities]); // Load facilities on mount for section completion
+
+  // When id is a placeholder like "new", skip server fetches and clear loading state
+  useEffect(() => {
+    if (isIdPlaceholder) setLoading(false);
+  }, [isIdPlaceholder]);
 
   // Recalculate visible tab groups when app state changes
   useEffect(() => {
@@ -330,6 +338,30 @@ const CreditApplicationDetail: React.FC = () => {
       document.getElementById(`tab-${visibleTabs[visibleTabs.length - 1]}`)?.focus();
     }
   };
+
+  // When id is "new" (placeholder), show a redirect to the creation flow
+  // This handles /credit/applications/new which is not a valid UUID
+  if (isIdPlaceholder) {
+    return (
+      <>
+        <CreditNav />
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '2rem' }} className="text-center">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">New Credit Application</h2>
+          <p className="text-gray-600 mb-6">
+            You&#39;ll be redirected to the application list to create a new application.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/credit/applications')}
+            className="inline-flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg px-5 py-2.5 text-sm transition-colors cursor-pointer border-none"
+          >
+            <span className="material-symbols-outlined text-base">arrow_back</span>
+            Go to Applications
+          </button>
+        </div>
+      </>
+    );
+  }
 
   if (loading) return (
     <>

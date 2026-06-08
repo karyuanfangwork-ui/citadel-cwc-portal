@@ -3,6 +3,7 @@ import { applicationFacilityController } from '../controllers/applicationFacilit
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
+import { validateUUID } from '../../middleware/uuidValidate.middleware';
 import { createApplicationFacilitySchema, updateApplicationFacilitySchema } from '../validators/applicationFacility.validator';
 import prisma from '../../utils/prisma';
 import { AppError } from '../../middleware/error.middleware';
@@ -89,6 +90,7 @@ async function requireFacilityAccess(req: Request, _res: Response, next: NextFun
 router.get(
   '/:applicationId/facilities',
   requirePermission('credit:read'),
+  validateUUID('applicationId'),
   applicationFacilityController.list,
 );
 
@@ -100,6 +102,7 @@ router.get(
 router.post(
   '/:applicationId/facilities',
   requirePermission('credit:write'),
+  validateUUID('applicationId'),
   validate(createApplicationFacilitySchema),
   applicationFacilityController.create,
 );

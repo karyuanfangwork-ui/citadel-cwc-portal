@@ -2,6 +2,7 @@ import { Router, Response, NextFunction } from 'express';
 import { creditApplicationController } from '../controllers/creditApplication.controller';
 import { authenticate, requirePermission, AuthRequest } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
+import { validateUUID } from '../../middleware/uuidValidate.middleware';
 import { applyRmScope } from '../middleware/rmScope.middleware';
 import {
   createCreditApplicationSchema,
@@ -74,6 +75,7 @@ router.get(
 router.get(
   '/:id',
   requirePermission('credit:read'),
+  validateUUID('id'),
   applyRmScope(),
   creditApplicationController.getOne,
 );
@@ -100,6 +102,7 @@ router.post(
 router.patch(
   '/:id',
   requirePermission('credit:write'),
+  validateUUID('id'),
   validate(updateCreditApplicationSchema),
   creditApplicationController.update,
 );
@@ -112,6 +115,7 @@ router.patch(
 router.delete(
   '/:id',
   requirePermission('credit:admin'),
+  validateUUID('id'),
   creditApplicationController.delete,
 );
 
@@ -132,6 +136,7 @@ router.delete(
 router.post(
   '/:id/transition',
   requireTransitionPermission,
+  validateUUID('id'),
   validate(transitionApplicationSchema),
   creditApplicationController.transition,
 );
@@ -144,6 +149,7 @@ router.post(
 router.get(
   '/:id/transitions',
   requirePermission('credit:read'),
+  validateUUID('id'),
   creditApplicationController.getTransitions,
 );
 
@@ -155,6 +161,7 @@ router.get(
 router.get(
   '/:id/audit',
   requirePermission('credit:read'),
+  validateUUID('id'),
   creditApplicationController.getAuditTrail,
 );
 
@@ -166,6 +173,7 @@ router.get(
 router.get(
   '/:id/readiness',
   requirePermission('credit:read'),
+  validateUUID('id'),
   creditApplicationController.checkReadiness,
 );
 
@@ -177,6 +185,7 @@ router.get(
 router.get(
   '/:id/esign-readiness',
   requirePermission('credit:read'),
+  validateUUID('id'),
   creditApplicationController.checkEsignReadiness,
 );
 
@@ -188,6 +197,7 @@ router.get(
 router.patch(
   '/:id/connected-party-flag',
   requirePermission('credit:admin'),
+  validateUUID('id'),
   creditApplicationController.overrideConnectedPartyFlag,
 );
 
@@ -200,6 +210,7 @@ router.patch(
 router.post(
   '/:id/clone',
   requirePermission('credit:create'),
+  validateUUID('id'),
   creditApplicationController.clone,
 );
 
