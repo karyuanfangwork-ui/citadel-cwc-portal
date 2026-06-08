@@ -222,8 +222,8 @@ class ApprovalActionService {
         newState = ApplicationState.REJECTED as ApplicationState;
         isComplete = true;
       } else if (decision === 'RETURN') {
-        // Send back to ANALYSING
-        newState = ApplicationState.CREDIT_ASSESSMENT as ApplicationState;
+        // Refer back to analyst — transition to REFERRED_BACK state
+        newState = ApplicationState.REFERRED_BACK as ApplicationState;
         isComplete = true;
       } else if (decision === 'ESCALATE') {
         // Stay in current state but flag for higher authority

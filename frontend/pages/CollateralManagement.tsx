@@ -4,6 +4,7 @@ import {
   collateralApi, guaranteeApi, Collateral, CollateralValuation, CollateralLien,
   InsuranceCover, Guarantee, CollateralType, GuaranteeType, CurrencyCode, LienStatus,
 } from '../src/services/credit.service';
+import creditService from '../src/services/credit.service';
 import apiClient from '../src/services/api';
 import CreditNav from '../src/components/CreditNav';
 import { useAuth } from '../src/context/AuthContext';
@@ -40,6 +41,7 @@ const CollateralManagement: React.FC = () => {
 
   const [collaterals, setCollaterals] = useState<Collateral[]>([]);
   const [guarantees, setGuarantees] = useState<Guarantee[]>([]);
+  const [application, setApplication] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [expandedCollateralId, setExpandedCollateralId] = useState<string | null>(null);
 
@@ -109,6 +111,14 @@ const CollateralManagement: React.FC = () => {
   }, [applicationId]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Fetch application for breadcrumb context
+  useEffect(() => {
+    if (!applicationId) return;
+    creditService.getApplication(applicationId)
+      .then(app => setApplication(app))
+      .catch(() => setApplication(null));
+  }, [applicationId]);
 
   const fetchSubData = useCallback(async (collateralId: string) => {
     try {
@@ -302,7 +312,12 @@ const CollateralManagement: React.FC = () => {
           <span>/</span>
           <Link to="/credit/applications" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Applications</Link>
           <span>/</span>
-          <Link to={`/credit/applications/${applicationId}`} style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">{applicationId.slice(0, 8)}...</Link>
+          <Link to={`/credit/applications/${applicationId}`} style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">
+            {application?.borrowerProfile?.account?.name
+              || (application?.borrowerProfile?.contact
+                ? `${application.borrowerProfile.contact.firstName} ${application.borrowerProfile.contact.lastName}`
+                : application?.borrowerProfile?.name || applicationId.slice(0, 8))}
+          </Link>
           <span>/</span>
           <span className="font-semibold text-text-primary">Collateral & Guarantees</span>
         </div>

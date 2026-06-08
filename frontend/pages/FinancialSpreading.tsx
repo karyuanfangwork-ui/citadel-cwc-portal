@@ -144,6 +144,7 @@ const AuditorCommentaryPanel: React.FC<{
 const FinancialSpreading: React.FC = () => {
   const [searchParams] = useSearchParams();
   const borrowerProfileId = searchParams.get('borrowerProfileId') || '';
+  const applicationId = searchParams.get('applicationId') || '';
   const { user } = useAuth();
   const toast = useToast();
 
@@ -415,14 +416,25 @@ const FinancialSpreading: React.FC = () => {
         <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
           <Link to="/credit" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Credit</Link>
           <span>/</span>
-          <Link to="/credit/borrowers" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Borrowers</Link>
-          {borrowerProfileId && (
+          {applicationId ? (
             <>
+              <Link to="/credit/applications" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Applications</Link>
               <span>/</span>
-              <Link to={`/credit/borrowers/${borrowerProfileId}`} style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">{borrowerName || borrowerProfileId.slice(0, 8)}</Link>
+              <Link to={`/credit/applications/${applicationId}`} style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Application</Link>
+              <span>/</span>
+            </>
+          ) : (
+            <>
+              <Link to="/credit/borrowers" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Borrowers</Link>
+              <span>/</span>
+              {borrowerProfileId && (
+                <>
+                  <Link to={`/credit/borrowers/${borrowerProfileId}`} style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">{borrowerName || borrowerProfileId.slice(0, 8)}</Link>
+                  <span>/</span>
+                </>
+              )}
             </>
           )}
-          <span>/</span>
           <span className="font-semibold text-text-primary">Financial Spreading</span>
         </div>
 

@@ -25,6 +25,7 @@ export const STATE_COLORS: Record<string, { bg: string; text: string }> = {
   DISBURSED: { bg: '#06b6d420', text: '#0891b2' },
   ACTIVE: { bg: '#22c55e20', text: '#16a34a' },
   CLOSED: { bg: '#6b728020', text: '#6b7280' },
+  REFERRED_BACK: { bg: '#f59e0b20', text: '#d97706' },
   WITHDRAWN: { bg: '#6b728020', text: '#6b7280' },
 };
 
@@ -45,12 +46,14 @@ export const STATE_LABELS: Record<string, string> = {
   ACTIVE: 'Active',
   CLOSED: 'Closed',
   WITHDRAWN: 'Withdrawn',
+  REFERRED_BACK: 'Referred Back',
 };
 
 export const STEPPER_STAGES: { key: string; label: string; states: ApplicationState[] }[] = [
   { key: 'draft', label: 'Draft', states: ['DRAFT'] },
   { key: 'kyc', label: 'KYC Review', states: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED'] },
   { key: 'assessment', label: 'Assessment', states: ['UNDERWRITING', 'CREDIT_ASSESSMENT'] },
+  { key: 'referred', label: 'Referred Back', states: ['REFERRED_BACK'] },
   { key: 'decision', label: 'Decision', states: ['COMMITTEE_REVIEW', 'APPROVED', 'REJECTED'] },
   { key: 'offer', label: 'Offer', states: ['OFFER', 'ACCEPTED'] },
   { key: 'active', label: 'Active', states: ['DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN'] },
@@ -147,6 +150,8 @@ export interface TabGroup {
   tabs: TabDefinition[];
   /** Whether this group is only visible with credit:advanced_memo flag */
   advancedOnly?: boolean;
+  /** Application states in which this group is visible. Undefined = always visible. */
+  states?: ApplicationState[];
 }
 
 export const TAB_GROUPS: TabGroup[] = [
@@ -209,6 +214,15 @@ export const TAB_GROUPS: TabGroup[] = [
     ],
   },
   {
+    id: 's7-disbursement',
+    label: 'Disbursement',
+    tabs: [
+      { id: 'disbursement', label: 'Disbursement Orders' },
+    ],
+    // Only visible when application is in these states
+    states: ['ACCEPTED', 'DISBURSED', 'ACTIVE', 'CLOSED'],
+  },
+  {
     id: 'meta',
     label: 'Operations',
     tabs: [
@@ -258,10 +272,11 @@ export const ALL_TABS: DetailTab[] = TAB_GROUPS.flatMap(g => g.tabs.map(t => t.i
 
 /** Return the default tab groups (S1-S7 + meta), optionally including bank-only groups.
  *  Pass borrowerType to suppress tabs irrelevant for individual/retail borrowers. */
-export function getVisibleTabGroups(advancedMemo: boolean, borrowerType?: string | null): TabGroup[] {
+export function getVisibleTabGroups(advancedMemo: boolean, borrowerType?: string | null, applicationState?: string | null): TabGroup[] {
   const isRetail = borrowerType === 'INDIVIDUAL' || borrowerType === 'SOLE_PROPRIETOR';
   return TAB_GROUPS
     .filter(g => !g.advancedOnly || advancedMemo)
+    .filter(g => !g.states || !applicationState || g.states.includes(applicationState as ApplicationState))
     .map(g => {
       if (!isRetail) return g;
       // For retail: relabel parties tab, but keep payment-capability 
@@ -385,10 +400,12 @@ export function getIncompletePhaseCount(completion: Record<string, PhaseStatus>)
  * Returns the first tab ID belonging to the first incomplete (non-optional) section,
  * or null if all sections are complete.
  */
-export function getNextIncompleteTab(completion: Record<string, PhaseStatus>): DetailTab | null {
+export function getNextIncompleteTab(completion: Record<string, PhaseStatus>, applicationState?: string | null): DetailTab | null {
   for (const group of TAB_GROUPS) {
     // Skip advanced-only groups for default next-incomplete logic
     if (group.advancedOnly) continue;
+    // Skip state-gated groups that don't apply to current state
+    if (group.states && applicationState && !group.states.includes(applicationState as ApplicationState)) continue;
     if (completion[group.id] === 'incomplete') {
       return group.tabs[0].id;
     }

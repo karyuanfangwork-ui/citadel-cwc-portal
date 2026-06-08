@@ -2510,6 +2510,7 @@ enum ApplicationState {
   ACTIVE
   CLOSED
   WITHDRAWN
+  REFERRED_BACK
 }
 
 // Borrower types

@@ -31,7 +31,7 @@ const DECISION_STYLES: Record<string, { bg: string; text: string; icon: string }
   APPROVE:  { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: 'check_circle' },
   CONDITIONAL: { bg: 'bg-amber-50', text: 'text-amber-700', icon: 'rule' },
   REJECT:   { bg: 'bg-red-50',     text: 'text-red-700',     icon: 'cancel' },
-  RETURN:   { bg: 'bg-blue-50',    text: 'text-blue-700',    icon: 'undo' },
+  RETURN:   { bg: 'bg-amber-50',    text: 'text-amber-700',    icon: 'undo' },
   ESCALATE: { bg: 'bg-purple-50',  text: 'text-purple-700',  icon: 'arrow_upward' },
 };
 
@@ -39,7 +39,7 @@ const DECISION_BUTTONS: { decision: ApprovalDecision; label: string; classes: st
   { decision: 'APPROVE',    label: 'Approve',           classes: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100' },
   { decision: 'CONDITIONAL', label: 'Conditional Approve', classes: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' },
   { decision: 'REJECT',     label: 'Reject',             classes: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' },
-  { decision: 'RETURN',     label: 'Return',             classes: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100' },
+  { decision: 'RETURN',     label: 'Refer Back',         classes: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' },
   { decision: 'ESCALATE',  label: 'Escalate',            classes: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100' },
 ];
 
@@ -111,6 +111,11 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
     // §2.7 — Require rejection reason code when rejecting
     if (selectedDecision === 'REJECT' && !rejectionReasonCode) {
       toast.error('Rejection reason code is required');
+      return;
+    }
+    // Refer Back requires a reason (comment)
+    if (selectedDecision === 'RETURN' && !comment.trim()) {
+      toast.error('A reason is required when referring an application back');
       return;
     }
     // §2.5 — Require at least one condition for CONDITIONAL approval

@@ -49,6 +49,7 @@ import {
   STEPPER_STAGES,
   PRODUCT_LABELS,
   DetailTab,
+  TabGroup,
   TAB_GROUPS,
   ALL_TABS,
   getPhaseCompletion,
@@ -118,7 +119,9 @@ const CreditApplicationDetail: React.FC = () => {
       .catch(() => { /* non-admin — stays false */ });
   }, []);
 
-  const visibleTabGroups = getVisibleTabGroups(advancedMemo, app?.borrowerProfile?.borrowerType);
+  // State-dependent tab visibility — computed after currentState
+  // (visibleTabGroups is set in useEffect below after app loads)
+  const [visibleTabGroups, setVisibleTabGroups] = useState<TabGroup[]>([]);
   const visibleTabs = visibleTabGroups.flatMap(g => g.tabs.map(t => t.id));
 
   // Guarded tab switch — prompts if there are unsaved changes
@@ -186,6 +189,13 @@ const CreditApplicationDetail: React.FC = () => {
   useEffect(() => { fetchApp(); }, [fetchApp]);
   useEffect(() => { if (id) fetchTransitions(); }, [fetchTransitions]);
   useEffect(() => { if (id) fetchFacilities(); }, [fetchFacilities]); // Load facilities on mount for section completion
+
+  // Recalculate visible tab groups when app state changes
+  useEffect(() => {
+    if (!app) return;
+    const st = (app.state || app.status) as ApplicationState;
+    setVisibleTabGroups(getVisibleTabGroups(advancedMemo, app.borrowerProfile?.borrowerType ?? null, st));
+  }, [app, advancedMemo]);
 
   // Fetch sign-offs for committee review gate
   useEffect(() => {
@@ -472,53 +482,59 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Header */}
-        <div className="flex items-start justify-between flex-wrap gap-4 mb-6">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 font-bold text-xl shrink-0">
-              <span className="material-symbols-outlined text-2xl">description</span>
-            </div>
-            <ProgressRing pct={progressPct} color={progressColor} />
-            <span className="text-[11px] text-text-secondary -ml-1 mr-1 leading-tight">
-              {completedPhases}/{requiredPhases.length}<br />complete
-            </span>
-            <div>
-              <h1 className="text-2xl font-black text-text-primary">
-                {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : 'Application'}
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
-                  {currentState.replace(/_/g, ' ')}
+        {/* Header — sticky on scroll */}
+        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm border-b border-border/50 -mx-4 sm:-mx-8 px-4 sm:px-8 py-3 mb-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5">
+                <ProgressRing pct={progressPct} color={progressColor} />
+                <span className="text-[11px] text-text-secondary leading-tight">
+                  {completedPhases}/{requiredPhases.length}<br />complete
                 </span>
-                {['SUBMITTED','KYC_REVIEW','UNDERWRITING','CREDIT_ASSESSMENT','COMMITTEE_REVIEW'].includes(currentState) && (
-                  <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
-                    Pending approval
+              </div>
+              <div>
+                <h1 className="text-lg font-black text-text-primary leading-tight">
+                  {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : 'Application'}
+                </h1>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
+                    {currentState.replace(/_/g, ' ')}
                   </span>
-                )}
-                <span className="text-sm text-text-secondary">{PRODUCT_LABELS[app.productType || app.productName || ''] || app.productName}</span>
-                {incompleteCount > 0 && (
-                  <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">warning</span>
-                    {incompleteCount} section{incompleteCount !== 1 ? 's' : ''} incomplete
-                  </span>
-                )}
-                {incompleteCount === 0 && (
-                  <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                    All sections complete
-                  </span>
-                )}
+                  {['SUBMITTED','KYC_REVIEW','UNDERWRITING','CREDIT_ASSESSMENT','COMMITTEE_REVIEW'].includes(currentState) && (
+                    <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
+                      Pending approval
+                    </span>
+                  )}
+                  {currentState === 'REFERRED_BACK' && (
+                    <span className="text-[10px] font-semibold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded-full border border-amber-300">
+                      Referred Back
+                    </span>
+                  )}
+                  <span className="text-sm text-text-secondary">{PRODUCT_LABELS[app.productType || app.productName || ''] || app.productName}</span>
+                  {incompleteCount > 0 && (
+                    <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">warning</span>
+                      {incompleteCount} section{incompleteCount !== 1 ? 's' : ''} incomplete
+                    </span>
+                  )}
+                  {incompleteCount === 0 && (
+                    <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-200 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      All sections complete
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="flex gap-2">
-            {app.borrowerProfile && (
-              <Link to={`/credit/borrowers/${app.borrowerProfileId}`}
-                className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
-                style={{ textDecoration: 'none' }}>
-                <span className="material-symbols-outlined text-base">person</span> View Borrower
-              </Link>
-            )}
+            <div className="flex items-center gap-2">
+              {app.borrowerProfile && (
+                <Link to={`/credit/borrowers/${app.borrowerProfileId}`}
+                  className="flex items-center gap-1 text-sm text-brand-700 border border-brand-200 px-3 py-2 rounded-lg hover:bg-brand-50 transition-colors"
+                  style={{ textDecoration: 'none' }}>
+                  <span className="material-symbols-outlined text-base">person</span> Borrower
+                </Link>
+              )}
+            </div>
           </div>
         </div>
 
@@ -1035,13 +1051,6 @@ const CreditApplicationDetail: React.FC = () => {
           </div>
         )}
 
-        {/* S7 — Disbursement */}
-        {activeTab === 'disbursement' && (
-          <div role="tabpanel" id="panel-disbursement" aria-labelledby="tab-disbursement" tabIndex={0}>
-            <DisbursementTab application={app} onUpdated={(updated) => setApp(updated)} />
-          </div>
-        )}
-
         {/* S7 — Summary */}
         {activeTab === 'summary' && (
           <div role="tabpanel" id="panel-summary" aria-labelledby="tab-summary" tabIndex={0}>
@@ -1113,7 +1122,7 @@ const CreditApplicationDetail: React.FC = () => {
 
         {/* Floating Action Button — jump to next incomplete section */}
         {(() => {
-          const nextTab = getNextIncompleteTab(phaseCompletion);
+          const nextTab = getNextIncompleteTab(phaseCompletion, currentState);
           if (!nextTab || nextTab === activeTab) return null;
           const nextGroup = visibleTabGroups.find(g => g.tabs.some(t => t.id === nextTab));
           return (

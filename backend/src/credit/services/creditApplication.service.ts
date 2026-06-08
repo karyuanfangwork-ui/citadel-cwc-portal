@@ -197,6 +197,17 @@ const TRANSITIONS: TransitionDef[] = [
   { from: ApplicationState.APPROVED, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.OFFER, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
   { from: ApplicationState.ACCEPTED, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
+  // ── Refer Back transitions (any review stage → REFERRED_BACK) ──
+  { from: ApplicationState.KYC_REVIEW, to: ApplicationState.REFERRED_BACK, action: 'refer_back', reasonRequired: true },
+  { from: ApplicationState.CREDIT_ASSESSMENT, to: ApplicationState.REFERRED_BACK, action: 'refer_back', reasonRequired: true },
+  { from: ApplicationState.COMMITTEE_REVIEW, to: ApplicationState.REFERRED_BACK, action: 'refer_back', reasonRequired: true },
+  // ── Resume transitions (REFERRED_BACK → prior stage) ──
+  { from: ApplicationState.REFERRED_BACK, to: ApplicationState.KYC_REVIEW, action: 'resume_kyc' },
+  { from: ApplicationState.REFERRED_BACK, to: ApplicationState.UNDERWRITING, action: 'resume_underwriting' },
+  { from: ApplicationState.REFERRED_BACK, to: ApplicationState.CREDIT_ASSESSMENT, action: 'resume_assessment' },
+  { from: ApplicationState.REFERRED_BACK, to: ApplicationState.SUBMITTED, action: 'resubmit' },
+  // ── REFERRED_BACK can also be withdrawn ──
+  { from: ApplicationState.REFERRED_BACK, to: ApplicationState.WITHDRAWN, action: 'withdraw', reasonRequired: true, timestampField: 'closedAt' },
 ];
 
 /** Terminal states — cannot transition out */
@@ -228,6 +239,10 @@ const TRANSITION_PERMISSIONS: Record<string, string> = {
   activate: 'credit:admin',
   close: 'credit:admin',
   withdraw: 'credit:write',
+  refer_back: 'credit:approve',
+  resume_kyc: 'credit:write',
+  resume_underwriting: 'credit:write',
+  resume_assessment: 'credit:write',
 };
 
 /** Human-readable labels for transition actions */
@@ -249,6 +264,10 @@ const ACTION_LABELS: Record<string, string> = {
   disburse: 'Disburse',
   activate: 'Activate',
   close: 'Close',
+  refer_back: 'Refer Back',
+  resume_kyc: 'Resume KYC Review',
+  resume_underwriting: 'Resume Underwriting',
+  resume_assessment: 'Resume Assessment',
 };
 
 function getValidTransitions(currentState: ApplicationState): TransitionDef[] {
