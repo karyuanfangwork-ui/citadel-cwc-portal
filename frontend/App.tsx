@@ -94,6 +94,7 @@ import CommitteeMeetings from './pages/CommitteeMeetings';
 import CommitteeMeetingDetail from './pages/credit/CommitteeMeetingDetail';
 import CommitteeMobileVote from './pages/credit/CommitteeMobileVote';
 import MobileApprovalInbox from './pages/credit/MobileApprovalInbox';
+import CreditApplicationMobileSummary from './pages/credit/CreditApplicationMobileSummary';
 import CollateralManagement from './pages/CollateralManagement';
 import Announcements from './pages/Announcements';
 import AnnouncementsManage from './pages/AnnouncementsManage';
@@ -294,6 +295,7 @@ const AppShell = () => {
               <Route path="/credit/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:read"><CommitteeMeetingDetail /></ProtectedRoute>} />
               <Route path="/credit/m/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:approve"><CommitteeMobileVote /></ProtectedRoute>} />
               <Route path="/credit/m/approvals" element={<ProtectedRoute requirePermission="credit:approve"><MobileApprovalInbox /></ProtectedRoute>} />
+              <Route path="/credit/m/applications/:id" element={<ProtectedRoute><CreditApplicationMobileSummary /></ProtectedRoute>} />
               <Route path="/credit/collateral" element={<ProtectedRoute requirePermission="credit:read"><CollateralManagement /></ProtectedRoute>} />
               <Route path="/credit/reports" element={<ProtectedRoute requirePermission="credit:read"><CreditReports /></ProtectedRoute>} />
               <Route path="/credit/group-exposure" element={<ProtectedRoute requirePermission="credit:read"><GroupExposurePage /></ProtectedRoute>} />

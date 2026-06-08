@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { dashboardApi, branchApi, Branch, ExposureSummary, SlaBreachItem, MyWorkDashboard } from '../../src/services/credit.service';
 import CreditNav from '../../src/components/CreditNav';
 import SlaBreachWidget from '../../src/components/credit/SlaBreachWidget';
@@ -128,6 +128,7 @@ const RATING_ORDER = ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D',
 type TabKey = 'myWork' | 'pipeline' | 'approval' | 'exposure' | 'calendar';
 
 const CreditDashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabKey>('myWork');
   const [pipeline, setPipeline] = useState<PipelineDashboard | null>(null);
   const [approvalInbox, setApprovalInbox] = useState<ApprovalInbox | null>(null);
@@ -218,15 +219,26 @@ const CreditDashboard: React.FC = () => {
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <h1 className="text-2xl font-black text-text-primary">Credit Dashboard</h1>
-          {/* §3.1 — Branch filter */}
-          {branches.length > 0 && (
-            <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
-              aria-label="Filter dashboard by branch"
-              className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
-              <option value="">All Branches</option>
-              {branches.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
-            </select>
-          )}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* §3.1 — Branch filter */}
+            {branches.length > 0 && (
+              <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)}
+                aria-label="Filter dashboard by branch"
+                className="px-4 py-2 bg-surface border border-border rounded-lg text-sm text-text-primary outline-none cursor-pointer" style={{ fontFamily: 'var(--font-sans)' }}>
+                <option value="">All Branches</option>
+                {branches.map(b => <option key={b.id} value={b.id}>{b.code} — {b.name}</option>)}
+              </select>
+            )}
+            {/* §8.4 — New Application CTA */}
+            <button
+              type="button"
+              onClick={() => navigate('/credit/applications/new')}
+              className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors cursor-pointer border-none"
+            >
+              <span className="material-symbols-outlined text-base">add_circle</span>
+              New Application
+            </button>
+          </div>
         </div>
 
         {/* Tab bar */}

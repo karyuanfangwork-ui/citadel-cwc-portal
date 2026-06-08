@@ -49,6 +49,27 @@ export const STATE_LABELS: Record<string, string> = {
   REFERRED_BACK: 'Referred Back',
 };
 
+// §8.1 — Icons paired with each state for accessibility (colour+icon, not colour alone)
+export const STATE_ICONS: Record<string, string> = {
+  DRAFT: 'edit_note',
+  SUBMITTED: 'send',
+  KYC_REVIEW: 'fact_check',
+  KYC_APPROVED: 'how_to_reg',
+  KYC_REJECTED: 'person_off',
+  UNDERWRITING: 'analytics',
+  CREDIT_ASSESSMENT: 'scoreboard',
+  COMMITTEE_REVIEW: 'groups',
+  APPROVED: 'check_circle',
+  REJECTED: 'cancel',
+  OFFER: 'mail',
+  ACCEPTED: 'thumb_up',
+  DISBURSED: 'payments',
+  ACTIVE: 'trending_up',
+  CLOSED: 'lock',
+  WITHDRAWN: 'undo',
+  REFERRED_BACK: 'subdirectory_arrow_left',
+};
+
 export const STEPPER_STAGES: { key: string; label: string; states: ApplicationState[] }[] = [
   { key: 'draft', label: 'Draft', states: ['DRAFT'] },
   { key: 'kyc', label: 'KYC Review', states: ['SUBMITTED', 'KYC_REVIEW', 'KYC_APPROVED', 'KYC_REJECTED'] },

@@ -237,11 +237,14 @@ const BorrowerProfileDetail: React.FC = () => {
               </button>
             )}
             {canWrite && (
-              <Link to={`/credit/applications?create=1&borrowerId=${profile.id}`}
-                className="flex items-center gap-2 bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-                style={{ textDecoration: 'none' }}>
-                <span className="material-symbols-outlined text-base">add</span> New Application
-              </Link>
+              <button
+                type="button"
+                onClick={() => navigate(`/credit/applications/new?borrowerId=${profile.id}`)}
+                className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg px-4 py-2 text-sm transition-colors cursor-pointer border-none"
+              >
+                <span className="material-symbols-outlined text-base">add_circle</span>
+                New Application for {displayName(profile)}
+              </button>
             )}
           </div>
         </div>
@@ -563,11 +566,13 @@ const BorrowerProfileDetail: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Credit Applications</h3>
               {canWrite && (
-                <Link to={`/credit/applications?create=1&borrowerId=${profile.id}`}
-                  className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
-                  style={{ textDecoration: 'none' }}>
-                  <span className="material-symbols-outlined text-base">add</span> New Application
-                </Link>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/credit/applications/new?borrowerId=${profile.id}`)}
+                  className="flex items-center gap-1.5 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg px-3 py-1.5 text-sm transition-colors cursor-pointer border-none"
+                >
+                  <span className="material-symbols-outlined text-base">add_circle</span> New Application
+                </button>
               )}
             </div>
             {loadingApps ? (

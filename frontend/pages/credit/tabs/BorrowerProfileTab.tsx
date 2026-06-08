@@ -12,7 +12,7 @@ const ENTITY_CLASSIFICATIONS: { value: FatcaEntityClassification; label: string 
 ];
 
 // ── FATCA/CRS Declaration — §3.4 ───────────────────────────────────────────
-function FatcaCrsSection({ borrowerProfileId }: { borrowerProfileId: string }) {
+function FatcaCrsSection({ borrowerProfileId, onDeclarationLoaded }: { borrowerProfileId: string; onDeclarationLoaded?: (d: FatcaCrsDeclaration | null) => void }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -33,6 +33,7 @@ function FatcaCrsSection({ borrowerProfileId }: { borrowerProfileId: string }) {
     fatcaCrsApi.get(borrowerProfileId)
       .then((d) => {
         setDeclaration(d);
+        onDeclarationLoaded?.(d);
         if (d) {
           setIsUsPerson(d.isUsPerson);
           setUsTin(d.usTin ?? '');
@@ -46,10 +47,11 @@ function FatcaCrsSection({ borrowerProfileId }: { borrowerProfileId: string }) {
       .finally(() => setLoading(false));
   };
 
+  // §8.2 — Load declaration eagerly (not just on open) to check mandatory status
   useEffect(() => {
-    if (open && loading === true && declaration === null) load();
+    if (loading === true && declaration === null) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, []);
 
   const updateResidency = (idx: number, field: keyof CrsResidency, value: string) => {
     setResidencies((rows) => rows.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
@@ -70,6 +72,7 @@ function FatcaCrsSection({ borrowerProfileId }: { borrowerProfileId: string }) {
         expiryDate: expiryDate || null,
       });
       setDeclaration(saved);
+      onDeclarationLoaded?.(saved);
     } catch {
       setError('Failed to save FATCA/CRS declaration');
     } finally {
@@ -83,6 +86,7 @@ function FatcaCrsSection({ borrowerProfileId }: { borrowerProfileId: string }) {
     try {
       const verified = await fatcaCrsApi.verify(borrowerProfileId);
       setDeclaration(verified);
+      onDeclarationLoaded?.(verified);
     } catch {
       setError('Verification failed — verifier must differ from the self-certifying officer');
     } finally {
@@ -248,13 +252,21 @@ type Props = {
   application: CreditApplication;
   onUpdated?: (next: CreditApplication) => void;
   onDirtyChange?: (dirty: boolean) => void;
+  /** §8.2 — Callback to signal whether FATCA/CRS is complete */
+  onFatcaComplete?: (complete: boolean) => void;
 };
 
-const BorrowerProfileTab: React.FC<Props> = ({ application }) => {
+const BorrowerProfileTab: React.FC<Props> = ({ application, onFatcaComplete }) => {
   const bp = application.borrowerProfile;
   const account = bp?.account;
   const contact = bp?.contact;
   const isIndividual = bp?.borrowerType === 'INDIVIDUAL';
+  const isCorporate = bp?.borrowerType === 'CORPORATE' || bp?.borrowerType === 'SOLE_PROPRIETOR';
+
+  // §8.2 — Track FATCA/CRS declaration status
+  const [fatcaDeclaration, setFatcaDeclaration] = useState<FatcaCrsDeclaration | null>(null);
+  const fatcaIsComplete = isIndividual || (!!fatcaDeclaration?.verifiedAt || !!fatcaDeclaration?.selfCertifiedById);
+  useEffect(() => { onFatcaComplete?.(fatcaIsComplete); }, [fatcaIsComplete, onFatcaComplete]);
 
   return (
     <div className="space-y-6">
@@ -346,7 +358,15 @@ const BorrowerProfileTab: React.FC<Props> = ({ application }) => {
       </CaMemoSection>
 
       {/* ── FATCA/CRS Declaration ──────────────────────────── */}
-      {bp?.id && <FatcaCrsSection borrowerProfileId={bp.id} />}
+      {isCorporate && !fatcaIsComplete && (
+        <div className="rounded-lg border border-red-300 bg-red-50 p-3 flex items-center gap-2">
+          <span className="material-symbols-outlined text-red-600">warning</span>
+          <span className="text-sm font-semibold text-red-800">
+            FATCA/CRS declaration is mandatory for corporate borrowers before proceeding.
+          </span>
+        </div>
+      )}
+      {bp?.id && <FatcaCrsSection borrowerProfileId={bp.id} onDeclarationLoaded={setFatcaDeclaration} />}
     </div>
   );
 };

@@ -26,6 +26,7 @@ import RiskMitigatorsTab from './credit/tabs/RiskMitigatorsTab';
 import CollateralTab from './credit/tabs/CollateralTab';
 import SecurityGuaranteesTab from './credit/tabs/SecurityGuaranteesTab';
 import GuarantorFinancialAssessmentTab from './credit/tabs/GuarantorFinancialAssessmentTab';
+import StateBadge from '../src/components/credit/StateBadge';
 import ApprovalsTab from './credit/tabs/ApprovalsTab';
 import SignoffTab from './credit/tabs/SignoffTab';
 import ConditionsTab from './credit/tabs/ConditionsTab';
@@ -49,6 +50,7 @@ import {
   formatCurrency,
   STATE_COLORS,
   STATE_LABELS,
+  STATE_ICONS,
   STEPPER_STAGES,
   PRODUCT_LABELS,
   DetailTab,
@@ -519,9 +521,7 @@ const CreditApplicationDetail: React.FC = () => {
                   {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : 'Application'}
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
-                    {currentState.replace(/_/g, ' ')}
-                  </span>
+                  <StateBadge state={currentState} size="md" />
                   {['SUBMITTED','KYC_REVIEW','UNDERWRITING','CREDIT_ASSESSMENT','COMMITTEE_REVIEW'].includes(currentState) && (
                     <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
                       Pending approval

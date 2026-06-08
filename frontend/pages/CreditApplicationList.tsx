@@ -10,7 +10,8 @@ import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
 import { sortApplications, type SortColumn, type SortDir } from '../src/utils/creditSort';
-import { formatCurrency, formatDate, STATE_COLORS, STATE_LABELS, getSmartDefaults } from './credit/creditUtils';
+import { formatCurrency, formatDate, STATE_COLORS, STATE_LABELS, STATE_ICONS, getSmartDefaults } from './credit/creditUtils';
+import StateBadge from '../src/components/credit/StateBadge';
 import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
 
 const KANBAN_COLUMNS: { key: string; label: string; states: ApplicationState[]; color: string }[] = [
@@ -481,10 +482,7 @@ const CreditApplicationList: React.FC = () => {
                             </div>
                           </td>
                           <td>
-                            <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold"
-                              style={{ background: badge.bg, color: badge.text }}>
-                              {(STATE_LABELS[state] || state.replace(/_/g, ' '))}
-                            </span>
+                            <StateBadge state={state} />
                           </td>
                           <td>
                             <span className="font-semibold" style={{ fontSize: 11, color: sla.color }}>
@@ -585,9 +583,7 @@ const CreditApplicationList: React.FC = () => {
                           className="bg-bg-surface border border-border rounded-xl p-3.5 cursor-pointer hover:border-brand-300 hover:shadow-sm transition-all"
                           style={{ borderLeft: `3px solid ${col.color}` }}>
                           <div className="flex items-center gap-1.5 mb-1.5">
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
-                              {state.replace(/_/g, ' ')}
-                            </span>
+                            <StateBadge state={state} />
                             <span className="flex items-center gap-1 ml-auto">
                               {/* §3.3 — SLA dot indicator */}
                               <span className={`inline-block w-2 h-2 rounded-full ${

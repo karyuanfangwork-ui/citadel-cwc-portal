@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import creditService, { CreditAuditEvent } from '../../../src/services/credit.service';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
-import { formatDateTime, STATE_COLORS } from '../creditUtils';
+import { formatDateTime, STATE_COLORS, STATE_ICONS } from '../creditUtils';
+import StateBadge from '../../../src/components/credit/StateBadge';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import EmptyState from '../../../src/components/EmptyState';
 
@@ -49,10 +50,10 @@ const AuditTab: React.FC<AuditTabProps> = () => {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-bold text-text-primary">{a.action.replace(/_/g, ' ')}</span>
                     {isStateChange && (
-                      <span className="text-xs">
-                        <span className="font-medium" style={{ color: (STATE_COLORS[a.oldState!]?.text) || '#6366f1' }}>{a.oldState!.replace(/_/g, ' ')}</span>
+                      <span className="text-xs flex items-center gap-1">
+                        <StateBadge state={a.oldState!} />
                         <span className="text-text-secondary mx-1">→</span>
-                        <span className="font-medium" style={{ color: (STATE_COLORS[a.newState!]?.text) || '#6366f1' }}>{a.newState!.replace(/_/g, ' ')}</span>
+                        <StateBadge state={a.newState!} />
                       </span>
                     )}
                   </div>
