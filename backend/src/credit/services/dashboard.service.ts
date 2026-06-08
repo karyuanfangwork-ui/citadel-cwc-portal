@@ -12,10 +12,40 @@ export interface PipelineStateCount {
   avgDaysInState: number;
 }
 
+export interface SlaBreachItem {
+  id: string;
+  applicationId: string;
+  applicationNo: string;
+  borrowerName: string;
+  currentState: string;
+  breachedAt: string;
+  daysOverdue: number;
+  policyName: string;
+}
+
 export interface PipelineDashboardResult {
   states: PipelineStateCount[];
   totalApplications: number;
   slaBreachCount: number;
+  slaBreaches: SlaBreachItem[];
+}
+
+export interface MyWorkItem {
+  id: string;
+  applicationNo: string;
+  state: string;
+  borrowerName: string;
+  productType: string;
+  updatedAt: string;
+}
+
+export interface MyWorkDashboardResult {
+  myApprovalCount: number;
+  myAssignedCount: number;
+  mySlaBreaches: number;
+  mySlaBreachItems: SlaBreachItem[];
+  recentAssigned: MyWorkItem[];
+  recentApprovals: MyWorkItem[];
 }
 
 export interface ApprovalInboxItem {
@@ -132,12 +162,13 @@ function classifyUrgency(daysWaiting: number): 'HIGH' | 'MEDIUM' | 'LOW' {
 class DashboardService {
   /**
    * Get pipeline dashboard — application counts by state, avg days in state,
-   * SLA breach count.
+   * SLA breach count, and itemized SLA breaches.
    */
   async getPipelineDashboard(filters?: {
     dateFrom?: Date;
     dateTo?: Date;
     branchId?: string;
+    assignedToMe?: string;
   }): Promise<PipelineDashboardResult> {
     const where: any = { deletedAt: null };
     if (filters?.dateFrom || filters?.dateTo) {
@@ -146,6 +177,12 @@ class DashboardService {
       if (filters.dateTo) where.createdAt.lte = filters.dateTo;
     }
     if (filters?.branchId) where.branchId = filters.branchId;
+    if (filters?.assignedToMe) {
+      where.OR = [
+        { assignedRmId: filters.assignedToMe },
+        { assignedAnalystId: filters.assignedToMe },
+      ];
+    }
 
     // Fetch all non-deleted applications
     const applications = await prisma.creditApplication.findMany({
@@ -189,10 +226,182 @@ class DashboardService {
 
     const slaBreachCount = Array.from(stateMap.values()).reduce((sum, d) => sum + d.breached, 0);
 
+    // Fetch itemized SLA breaches from the CreditSlaBreach table (authoritative source)
+    const activeBreaches = await prisma.creditSlaBreach.findMany({
+      where: { resolvedAt: null },
+      include: {
+        application: {
+          select: {
+            id: true,
+            applicationNo: true,
+            state: true,
+            borrowerProfile: {
+              select: {
+                id: true,
+                name: true,
+                account: { select: { name: true } },
+                contact: { select: { firstName: true, lastName: true } },
+              },
+            },
+          },
+        },
+        policy: { select: { name: true, targetState: true } },
+      },
+      orderBy: { breachedAt: 'asc' },
+      take: 50,
+    });
+
+    const slaBreaches: SlaBreachItem[] = activeBreaches.map(b => {
+      const bp = b.application.borrowerProfile;
+      const borrowerName = bp?.account?.name
+        ?? (bp?.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : null)
+        ?? bp?.name
+        ?? 'Unknown';
+      return {
+        id: b.id,
+        applicationId: b.application.id,
+        applicationNo: b.application.applicationNo,
+        borrowerName,
+        currentState: b.application.state,
+        breachedAt: b.breachedAt.toISOString(),
+        daysOverdue: Math.floor((Date.now() - b.breachedAt.getTime()) / 86400000),
+        policyName: b.policy.name,
+      };
+    });
+
     return {
       states,
       totalApplications: applications.length,
       slaBreachCount,
+      slaBreaches,
+    };
+  }
+
+  /**
+   * Get My Work dashboard — pending approvals, assigned cases, and SLA breaches
+   * for the current user.
+   */
+  async getMyWorkDashboard(userId: string, branchId?: string): Promise<MyWorkDashboardResult> {
+    const branchFilter = branchId ? { branchId } : {};
+
+    // Pending approvals where user is RM/analyst and app is in an approval-pending state
+    const myApprovals = await prisma.creditApplication.findMany({
+      where: {
+        state: { in: APPROVAL_PENDING_STATES },
+        deletedAt: null,
+        OR: [
+          { assignedRmId: userId },
+          { assignedAnalystId: userId },
+        ],
+        ...branchFilter,
+      },
+      select: {
+        id: true,
+        applicationNo: true,
+        state: true,
+        productType: true,
+        updatedAt: true,
+        borrowerProfile: {
+          select: {
+            id: true,
+            name: true,
+            account: { select: { name: true } },
+            contact: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+    });
+
+    // My assigned cases (RM or analyst) that are not closed/withdrawn
+    const myAssigned = await prisma.creditApplication.findMany({
+      where: {
+        deletedAt: null,
+        state: { notIn: ['CLOSED', 'WITHDRAWN'] as any[] },
+        OR: [
+          { assignedRmId: userId },
+          { assignedAnalystId: userId },
+        ],
+        ...branchFilter,
+      },
+      select: {
+        id: true,
+        applicationNo: true,
+        state: true,
+        productType: true,
+        updatedAt: true,
+        borrowerProfile: {
+          select: {
+            id: true,
+            name: true,
+            account: { select: { name: true } },
+            contact: { select: { firstName: true, lastName: true } },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+    });
+
+    // My SLA breaches — unresolved breaches on applications where user is RM or analyst
+    const myBreaches = await prisma.creditSlaBreach.findMany({
+      where: {
+        resolvedAt: null,
+        application: {
+          OR: [
+            { assignedRmId: userId },
+            { assignedAnalystId: userId },
+          ],
+        },
+      },
+      include: {
+        application: { select: { id: true, applicationNo: true, state: true, borrowerProfile: { select: { id: true, name: true, account: { select: { name: true } }, contact: { select: { firstName: true, lastName: true } } } } } },
+        policy: { select: { name: true } },
+      },
+    });
+
+    const toMyWorkItem = (app: any): MyWorkItem => {
+      const bp = app.borrowerProfile;
+      const borrowerName = bp?.account?.name
+        ?? (bp?.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : null)
+        ?? bp?.name
+        ?? 'Unknown';
+      return {
+        id: app.id,
+        applicationNo: app.applicationNo ?? '',
+        state: app.state as string,
+        borrowerName,
+        productType: app.productType ?? '',
+        updatedAt: app.updatedAt.toISOString(),
+      };
+    };
+
+    const mySlaBreachItems: SlaBreachItem[] = myBreaches.map(b => {
+      const bp = (b as any).application?.borrowerProfile;
+      const borrowerName = bp?.account?.name
+        ?? (bp?.contact ? `${bp.contact.firstName} ${bp.contact.lastName}` : null)
+        ?? bp?.name
+        ?? 'Unknown';
+      return {
+        id: b.id,
+        applicationId: b.application.id,
+        applicationNo: b.application.applicationNo,
+        borrowerName,
+        currentState: b.application.state,
+        breachedAt: b.breachedAt.toISOString(),
+        daysOverdue: Math.floor((Date.now() - b.breachedAt.getTime()) / 86400000),
+        policyName: b.policy.name,
+      };
+    });
+
+    return {
+      myApprovalCount: myApprovals.length,
+      myAssignedCount: myAssigned.length,
+      mySlaBreaches: myBreaches.length,
+      mySlaBreachItems,
+      recentAssigned: myAssigned.map(toMyWorkItem),
+      recentApprovals: myApprovals.map(toMyWorkItem),
     };
   }
 

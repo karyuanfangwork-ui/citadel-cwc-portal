@@ -7,12 +7,25 @@ import {
   approvalInboxSchema,
   exposureDashboardSchema,
   committeeCalendarSchema,
+  myWorkDashboardSchema,
 } from '../validators/dashboard.validator';
 
 const router = Router();
 
 // All dashboard routes require authentication
 router.use(authenticate);
+
+/**
+ * GET /credit/dashboard/my-work
+ * My Work dashboard — pending approvals, assigned cases, SLA breaches for the current user
+ * Requires: credit:read
+ */
+router.get(
+  '/my-work',
+  requirePermission('credit:read'),
+  validate(myWorkDashboardSchema),
+  dashboardController.getMyWork,
+);
 
 /**
  * GET /credit/dashboard/pipeline

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Modal from '../ui/Modal';
 import { Button } from '../ui/Button';
-import creditService, { CreateBorrowerProfilePayload } from '../../services/credit.service';
+import creditService, { CreateBorrowerProfilePayload, DuplicateMatch } from '../../services/credit.service';
 import crmService from '../../services/crm.service';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -64,6 +64,10 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
   const [crmSearching, setCrmSearching] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // §2.3 — 409 conflict handling
+  const [duplicateConflict, setDuplicateConflict] = useState<DuplicateMatch[]>([]);
+  const [showConflictModal, setShowConflictModal] = useState(false);
 
   const isIndividual = s1.borrowerType === 'INDIVIDUAL';
   const isCorporateType = s1.borrowerType === 'CORPORATE' || s1.borrowerType === 'SOLE_PROPRIETOR';
@@ -147,7 +151,7 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
 
   // ── Submit ─────────────────────────────────────────────────────────────────
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (overrideDuplicate = false) => {
     setError(null);
     setSaving(true);
     try {
@@ -156,6 +160,7 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
         name: s1.name,
         accountId: (isCorporateType && selectedCrm) ? selectedCrm.id : null,
         contactId: (isIndividual && selectedCrm) ? selectedCrm.id : null,
+        ...(overrideDuplicate && { overrideDuplicate: true }),
       };
       const profile = await creditService.createBorrowerProfile(payload);
       onCreated?.(profile.id);
@@ -164,6 +169,13 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
       }
       handleClose();
     } catch (e: any) {
+      if (e?.response?.status === 409) {
+        // Duplicate detected — show conflict modal
+        const conflicts: DuplicateMatch[] = e?.response?.data?.data?.duplicates ?? e?.response?.data?.data ?? [];
+        setDuplicateConflict(Array.isArray(conflicts) ? conflicts : []);
+        setShowConflictModal(true);
+        return;
+      }
       setError(e?.response?.data?.message || 'Failed to create borrower. Please try again.');
     } finally {
       setSaving(false);
@@ -181,6 +193,8 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
     setCrmResults([]);
     setSelectedCrm(null);
     setError(null);
+    setDuplicateConflict([]);
+    setShowConflictModal(false);
     onClose();
   };
 
@@ -228,7 +242,7 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
               variant="primary"
               icon="person_add"
               loading={saving}
-              onClick={handleSubmit}
+              onClick={() => handleSubmit()}
             >
               Create Borrower
             </Button>
@@ -468,7 +482,7 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
           {/* Skip */}
           <button
             type="button"
-            onClick={handleSubmit}
+            onClick={() => handleSubmit()}
             className="flex items-center gap-3 px-3 py-3 border-[1.5px] border-dashed border-cwc-border rounded-cwc-md hover:bg-surface-muted transition-colors cursor-pointer text-left bg-none font-sans w-full"
           >
             <div className="w-8 h-8 rounded-cwc-md bg-surface-muted text-text-tertiary flex items-center justify-center shrink-0">
@@ -487,6 +501,67 @@ const NewBorrowerWizard: React.FC<NewBorrowerWizardProps> = ({
               {error}
             </div>
           )}
+        </div>
+      )}
+
+      {/* §2.3 — Duplicate Conflict Modal */}
+      {showConflictModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowConflictModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <span className="material-symbols-outlined text-2xl text-amber-500">warning</span>
+              <h3 className="text-lg font-bold text-text-primary">Duplicate Borrower Detected</h3>
+            </div>
+            <p className="text-sm text-text-secondary mb-4">
+              The following borrower(s) were found with matching details. Please review before proceeding.
+            </p>
+            <div className="overflow-x-auto mb-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left px-2 py-1.5 text-xs font-bold text-text-secondary uppercase">Name</th>
+                    <th className="text-left px-2 py-1.5 text-xs font-bold text-text-secondary uppercase">Type</th>
+                    <th className="text-left px-2 py-1.5 text-xs font-bold text-text-secondary uppercase">Match Field</th>
+                    <th className="px-2 py-1.5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {duplicateConflict.map(dup => (
+                    <tr key={dup.borrowerId} className="border-b border-border last:border-0">
+                      <td className="px-2 py-1.5 font-semibold text-text-primary">{dup.name}</td>
+                      <td className="px-2 py-1.5 text-text-secondary">{dup.borrowerType}</td>
+                      <td className="px-2 py-1.5 text-text-secondary">{dup.matchField}</td>
+                      <td className="px-2 py-1.5 text-right">
+                        <Link
+                          to={`/credit/borrowers/${dup.borrowerId}`}
+                          className="text-brand-700 text-xs font-bold hover:underline"
+                          onClick={() => setShowConflictModal(false)}
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex items-center justify-end gap-3">
+              <Button variant="ghost" onClick={() => setShowConflictModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                icon="verified_user"
+                loading={saving}
+                onClick={() => {
+                  setShowConflictModal(false);
+                  handleSubmit(true);
+                }}
+              >
+                Create Anyway (Admin Override)
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </Modal>

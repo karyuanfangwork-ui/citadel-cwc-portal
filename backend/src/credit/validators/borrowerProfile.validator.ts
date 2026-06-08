@@ -28,6 +28,8 @@ export const createBorrowerProfileSchema = z.object({
     annualIncomeEncrypted: z.string().optional().nullable(),
     netWorthEncrypted: z.string().optional().nullable(),
     sourceOfWealthEncrypted: z.string().optional().nullable(),
+    // §2.3 Duplicate override — admin can set true to bypass duplicate check
+    overrideDuplicate: z.boolean().default(false).optional(),
   }),
 });
 

@@ -165,6 +165,14 @@ export interface CreateBorrowerProfilePayload {
   name?: string | null;
   accountId?: string | null;
   contactId?: string | null;
+  overrideDuplicate?: boolean;
+}
+
+export interface DuplicateMatch {
+  borrowerId: string;
+  name: string;
+  borrowerType: string;
+  matchField: string;
 }
 
 export interface CreditDocument {
@@ -1754,9 +1762,46 @@ export const conditionApi = {
 
 // ── Sprint 5: Dashboard API ─────────────────────────────────
 
+export interface SlaBreachItem {
+  id: string;
+  applicationId: string;
+  applicationNo: string;
+  borrowerName: string;
+  currentState: string;
+  breachedAt: string;
+  daysOverdue: number;
+  policyName: string;
+}
+
+export interface PipelineDashboard {
+  states: PipelineStateCount[];
+  totalApplications: number;
+  slaBreachCount: number;
+  slaBreaches: SlaBreachItem[];
+}
+
+export interface MyWorkItem {
+  id: string;
+  applicationNo: string;
+  state: string;
+  borrowerName: string;
+  productType: string;
+  updatedAt: string;
+}
+
+export interface MyWorkDashboard {
+  myApprovalCount: number;
+  myAssignedCount: number;
+  mySlaBreaches: number;
+  mySlaBreachItems: SlaBreachItem[];
+  recentAssigned: MyWorkItem[];
+  recentApprovals: MyWorkItem[];
+}
+
 export const dashboardApi = {
-  getPipelineDashboard: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/pipeline', { params }),
+  getPipelineDashboard: (params?: { branchId?: string; assignedToMe?: boolean }) => apiClient.get('/credit/dashboard/pipeline', { params }),
   getApprovalInbox: () => apiClient.get('/credit/dashboard/approval-inbox'),
+  getMyWork: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/my-work', { params }),
   getExposureDashboard: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/exposure', { params }),
   getCommitteeCalendar: () => apiClient.get('/credit/dashboard/committee-calendar'),
   // §2.6 — Exposure Summary

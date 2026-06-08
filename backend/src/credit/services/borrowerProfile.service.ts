@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { AppError } from '../../middleware/error.middleware';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +62,13 @@ export interface ListBorrowerProfilesOptions {
   search?: string;
 }
 
+export interface DuplicateMatch {
+  borrowerId: string;
+  name: string;
+  borrowerType: string;
+  matchField: string;
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -92,6 +100,116 @@ class BorrowerProfileService {
     }
 
     return { exists: false };
+  }
+
+  /**
+   * Enhanced duplicate check — checks SSM (via CrmAccount), NRIC (via CrmContact),
+   * and name+type (via BorrowerProfile) for potential duplicates.
+   * Used server-side during creation to prevent duplicate borrowers.
+   */
+  async checkDuplicateEnhanced(params: {
+    accountId?: string | null;
+    contactId?: string | null;
+    name?: string | null;
+    borrowerType?: string;
+  }): Promise<{ duplicates: DuplicateMatch[] }> {
+    const duplicates: DuplicateMatch[] = [];
+    const seenIds = new Set<string>();
+
+    // 1. Check by SSM registration number via linked CrmAccount
+    if (params.accountId) {
+      const account = await prisma.crmAccount.findUnique({
+        where: { id: params.accountId },
+        select: { registrationNumber: true, name: true, borrowerProfile: { select: { id: true, name: true, borrowerType: true } } },
+      });
+      if (account?.registrationNumber) {
+        // Find other accounts with the same registration number that have borrower profiles
+        const matchingAccounts = await prisma.crmAccount.findMany({
+          where: {
+            registrationNumber: account.registrationNumber,
+            id: { not: params.accountId },
+            borrowerProfile: { isNot: null },
+          },
+          select: { name: true, borrowerProfile: { select: { id: true, name: true, borrowerType: true } } },
+        });
+        for (const ma of matchingAccounts) {
+          if (ma.borrowerProfile && !seenIds.has(ma.borrowerProfile.id)) {
+            seenIds.add(ma.borrowerProfile.id);
+            duplicates.push({
+              borrowerId: ma.borrowerProfile.id,
+              name: ma.borrowerProfile.name || ma.name || 'Unknown',
+              borrowerType: ma.borrowerProfile.borrowerType,
+              matchField: 'SSM Registration Number',
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Check by NRIC via linked CrmContact
+    if (params.contactId) {
+      const contact = await prisma.crmContact.findUnique({
+        where: { id: params.contactId },
+        select: { nricPassport: true, firstName: true, lastName: true, borrowerProfile: { select: { id: true, name: true, borrowerType: true } } },
+      });
+      if (contact?.nricPassport) {
+        const matchingContacts = await prisma.crmContact.findMany({
+          where: {
+            nricPassport: contact.nricPassport,
+            id: { not: params.contactId },
+            borrowerProfile: { isNot: null },
+          },
+          select: { firstName: true, lastName: true, borrowerProfile: { select: { id: true, name: true, borrowerType: true } } },
+        });
+        for (const mc of matchingContacts) {
+          if (mc.borrowerProfile && !seenIds.has(mc.borrowerProfile.id)) {
+            seenIds.add(mc.borrowerProfile.id);
+            duplicates.push({
+              borrowerId: mc.borrowerProfile.id,
+              name: mc.borrowerProfile.name || `${mc.firstName} ${mc.lastName}`.trim(),
+              borrowerType: mc.borrowerProfile.borrowerType,
+              matchField: 'NRIC/Passport',
+            });
+          }
+        }
+      }
+      // Also check if this contact already has a borrower profile linked
+      if (contact?.borrowerProfile && !seenIds.has(contact.borrowerProfile.id)) {
+        seenIds.add(contact.borrowerProfile.id);
+        duplicates.push({
+          borrowerId: contact.borrowerProfile.id,
+          name: contact.borrowerProfile.name || `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Unknown',
+          borrowerType: contact.borrowerProfile.borrowerType,
+          matchField: 'NRIC/Passport',
+        });
+      }
+    }
+
+    // 3. Check by name + borrower type (catches manual duplicates)
+    if (params.name && params.borrowerType) {
+      const byName = await prisma.borrowerProfile.findMany({
+        where: {
+          name: { equals: params.name, mode: 'insensitive' },
+          borrowerType: params.borrowerType as any,
+          deletedAt: null,
+        },
+        select: { id: true, name: true, borrowerType: true },
+        take: 5,
+      });
+      for (const d of byName) {
+        if (!seenIds.has(d.id)) {
+          seenIds.add(d.id);
+          duplicates.push({
+            borrowerId: d.id,
+            name: d.name || 'Unknown',
+            borrowerType: d.borrowerType,
+            matchField: 'Name',
+          });
+        }
+      }
+    }
+
+    return { duplicates };
   }
 
   /**
@@ -186,14 +304,31 @@ class BorrowerProfileService {
 
   /**
    * Create a new borrower profile.
+   * If overrideDuplicate is false (default), runs checkDuplicateEnhanced first
+   * and throws 409 if duplicates are found.
+   * If overrideDuplicate is true, skips the duplicate check (admin override).
    */
-  async createBorrowerProfile(data: CreateBorrowerProfileData) {
+  async createBorrowerProfile(data: CreateBorrowerProfileData, options?: { overrideDuplicate?: boolean; userId?: string }) {
     // Validate: cannot have both accountId and contactId
     if (data.accountId && data.contactId) {
       throw new Error('Only one of accountId or contactId may be provided, not both');
     }
     if (!data.accountId && !data.contactId && !data.name) {
       throw new Error('name is required when no CRM account or contact is linked');
+    }
+
+    // Server-side duplicate check (unless admin override)
+    const overrideDuplicate = options?.overrideDuplicate ?? false;
+    if (!overrideDuplicate) {
+      const duplicateCheck = await this.checkDuplicateEnhanced({
+        accountId: data.accountId,
+        contactId: data.contactId,
+        name: data.name,
+        borrowerType: data.borrowerType,
+      });
+      if (duplicateCheck.duplicates.length > 0) {
+        throw new AppError('Duplicate borrower detected', 409, { duplicates: duplicateCheck.duplicates });
+      }
     }
 
     const createData: Prisma.BorrowerProfileCreateInput = {
@@ -217,13 +352,36 @@ class BorrowerProfileService {
       netWorthEncrypted: data.netWorthEncrypted ?? undefined,
     };
 
-    return prisma.borrowerProfile.create({
+    const profile = await prisma.borrowerProfile.create({
       data: createData,
       include: {
         account: { select: { id: true, name: true } },
         contact: { select: { id: true, firstName: true, lastName: true } },
       },
     });
+
+    // Audit log for admin override of duplicate detection
+    if (overrideDuplicate && options?.userId) {
+      await prisma.auditLog.create({
+        data: {
+          userId: options.userId,
+          action: 'BORROWER_DUPLICATE_OVERRIDE',
+          resourceType: 'BorrowerProfile',
+          resourceId: profile.id,
+          newValues: {
+            overrideDuplicate: true,
+            borrowerType: data.borrowerType,
+            name: data.name,
+            accountId: data.accountId,
+            contactId: data.contactId,
+          } as any,
+        },
+      }).catch(() => {
+        // Audit failures must never break the main operation
+      });
+    }
+
+    return profile;
   }
 
   /**

@@ -62,10 +62,38 @@ class BorrowerProfileController {
 
   /**
    * POST /borrowers — Create a new borrower profile
+   * Supports ?overrideDuplicate=true (admin override) to skip duplicate detection.
    */
   create = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const profile = await borrowerProfileService.createBorrowerProfile(req.body);
-    res.status(201).json({ status: 'success', data: { profile } });
+    const overrideDuplicate = req.body.overrideDuplicate === true;
+    const userId = req.user?.id;
+
+    // If overrideDuplicate is requested but user lacks credit:admin, deny
+    if (overrideDuplicate && userId) {
+      const userPermissions: string[] = (req.user as any)?.permissions ?? [];
+      if (!userPermissions.includes('credit:admin')) {
+        throw new AppError('Only administrators can override duplicate detection', 403);
+      }
+    }
+
+    try {
+      const profile = await borrowerProfileService.createBorrowerProfile(req.body, {
+        overrideDuplicate,
+        userId,
+      });
+      res.status(201).json({ status: 'success', data: { profile } });
+    } catch (err: any) {
+      if (err instanceof AppError && err.statusCode === 409) {
+        // Duplicate detected — return conflict with details
+        res.status(409).json({
+          status: 'conflict',
+          message: err.message,
+          data: err.details,
+        });
+        return;
+      }
+      throw err;
+    }
   });
 
   /**

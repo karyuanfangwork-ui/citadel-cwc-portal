@@ -66,9 +66,12 @@ class CreditSlaController {
   // Breach Management
   // -------------------------------------------------------------------------
 
-  /** GET /sla/breaches — Get all active breaches (dashboard widget) */
-  getActiveBreaches = asyncHandler(async (_req: AuthRequest, res: Response) => {
-    const breaches = await creditSlaService.getAllActiveBreaches();
+  /** GET /sla/breaches — Get all active breaches (dashboard widget), optionally filtered by assignedToMe */
+  getActiveBreaches = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const assignedToMe = req.query.assignedToMe === 'true' ? req.user!.id : undefined;
+    const breaches = assignedToMe
+      ? await creditSlaService.getMyActiveBreaches(assignedToMe)
+      : await creditSlaService.getAllActiveBreaches();
     res.json({ status: 'success', data: { breaches } });
   });
 

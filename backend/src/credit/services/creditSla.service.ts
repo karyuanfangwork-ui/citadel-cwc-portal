@@ -314,6 +314,37 @@ class CreditSlaService {
       orderBy: { breachedAt: 'asc' },
     });
   }
+
+  /** Get active breaches for applications assigned to a specific user (RM or analyst) */
+  async getMyActiveBreaches(userId: string) {
+    return prisma.creditSlaBreach.findMany({
+      where: {
+        resolvedAt: null,
+        application: {
+          OR: [
+            { assignedRmId: userId },
+            { assignedAnalystId: userId },
+          ],
+        },
+      },
+      include: {
+        policy: true,
+        application: {
+          select: {
+            id: true,
+            applicationNo: true,
+            state: true,
+            assignedRmId: true,
+            assignedAnalystId: true,
+            borrowerProfile: {
+              select: { id: true },
+            },
+          },
+        },
+      },
+      orderBy: { breachedAt: 'asc' },
+    });
+  }
 }
 
 export const creditSlaService = new CreditSlaService();

@@ -13,8 +13,9 @@ class DashboardController {
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : undefined;
     const branchId = req.query.branchId as string | undefined;
+    const assignedToMe = req.query.assignedToMe === 'true' ? req.user!.id : undefined;
 
-    const result = await dashboardService.getPipelineDashboard({ dateFrom, dateTo, branchId });
+    const result = await dashboardService.getPipelineDashboard({ dateFrom, dateTo, branchId, assignedToMe });
     res.json({ status: 'success', data: result });
   });
 
@@ -27,6 +28,18 @@ class DashboardController {
     const urgency = req.query.urgency as 'HIGH' | 'MEDIUM' | 'LOW' | undefined;
 
     const result = await dashboardService.getApprovalInbox(userId, { urgency });
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * GET /credit/dashboard/my-work
+   * My Work dashboard — pending approvals, assigned cases, SLA breaches for the current user
+   */
+  getMyWork = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = requireUser(req).id;
+    const branchId = req.query.branchId as string | undefined;
+
+    const result = await dashboardService.getMyWorkDashboard(userId, branchId);
     res.json({ status: 'success', data: result });
   });
 

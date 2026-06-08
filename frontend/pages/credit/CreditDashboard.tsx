@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { dashboardApi, branchApi, Branch, ExposureSummary } from '../../src/services/credit.service';
+import { dashboardApi, branchApi, Branch, ExposureSummary, SlaBreachItem, MyWorkDashboard } from '../../src/services/credit.service';
 import CreditNav from '../../src/components/CreditNav';
+import SlaBreachWidget from '../../src/components/credit/SlaBreachWidget';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../src/utils/errorMessages';
 
@@ -19,6 +20,7 @@ interface PipelineDashboard {
   states: PipelineStateCount[];
   totalApplications: number;
   slaBreachCount: number;
+  slaBreaches: SlaBreachItem[];
 }
 
 interface ApprovalInboxItem {
@@ -123,15 +125,16 @@ const RATING_ORDER = ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D',
 // Component
 // ---------------------------------------------------------------------------
 
-type TabKey = 'pipeline' | 'approval' | 'exposure' | 'calendar';
+type TabKey = 'myWork' | 'pipeline' | 'approval' | 'exposure' | 'calendar';
 
 const CreditDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabKey>('pipeline');
+  const [activeTab, setActiveTab] = useState<TabKey>('myWork');
   const [pipeline, setPipeline] = useState<PipelineDashboard | null>(null);
   const [approvalInbox, setApprovalInbox] = useState<ApprovalInbox | null>(null);
   const [exposure, setExposure] = useState<ExposureDashboard | null>(null);
   const [exposureSummary, setExposureSummary] = useState<ExposureSummary | null>(null);
   const [calendar, setCalendar] = useState<CommitteeCalendar | null>(null);
+  const [myWork, setMyWork] = useState<MyWorkDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // §3.1 — Multi-branch support: branch filter dropdown (visible to Admin)
@@ -146,13 +149,28 @@ const CreditDashboard: React.FC = () => {
     setLoading(true);
     setError(null);
 
+    if (activeTab === 'myWork') {
+      dashboardApi.getMyWork(branchFilter ? { branchId: branchFilter } : undefined)
+        .then((res: any) => {
+          const payload = res.data?.data ?? res.data ?? res;
+          setMyWork(payload);
+        })
+        .catch((err: any) => {
+          console.error(err);
+          toast.error(friendlyMessage(err, 'Failed to load My Work data'));
+          setError(err.message ?? 'Failed to load My Work data');
+        })
+        .finally(() => setLoading(false));
+      return;
+    }
+
     if (activeTab === 'exposure') {
       Promise.all([
-        dashboardApi.getExposureDashboard(branchFilter ? { branchId: branchFilter } : undefined).then((res: any) => res.data?.data ?? res.data ?? res),
-        dashboardApi.getExposureSummary().then((res: any) => res.data?.data ?? res.data ?? res),
+        dashboardApi.getExposureDashboard(branchFilter ? { branchId: branchFilter } : undefined),
+        dashboardApi.getExposureSummary(),
       ])
-        .then(([dashboard, summary]) => {
-          setExposure(dashboard);
+        .then(([dashboard, summary]: any[]) => {
+          setExposure(dashboard.data?.data ?? dashboard.data ?? dashboard);
           setExposureSummary(summary);
         })
         .catch((err: any) => {
@@ -168,8 +186,8 @@ const CreditDashboard: React.FC = () => {
       activeTab === 'pipeline'
         ? () => dashboardApi.getPipelineDashboard(branchFilter ? { branchId: branchFilter } : undefined)
         : activeTab === 'approval'
-          ? dashboardApi.getApprovalInbox
-          : dashboardApi.getCommitteeCalendar;
+          ? () => dashboardApi.getApprovalInbox()
+          : () => dashboardApi.getCommitteeCalendar();
 
     fetcher()
       .then((res: any) => {
@@ -187,6 +205,7 @@ const CreditDashboard: React.FC = () => {
   }, [activeTab, branchFilter]);
 
   const tabs: { key: TabKey; label: string; icon: string }[] = [
+    { key: 'myWork', label: 'My Work', icon: 'assignment_ind' },
     { key: 'pipeline', label: 'Pipeline', icon: 'water' },
     { key: 'approval', label: 'Approval Inbox', icon: 'approval' },
     { key: 'exposure', label: 'Exposure', icon: 'account_balance_wallet' },
@@ -233,6 +252,9 @@ const CreditDashboard: React.FC = () => {
         {/* Content */}
         {loading && <p className="text-sm text-text-secondary">Loading...</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
+        {!loading && !error && activeTab === 'myWork' && myWork && (
+          <MyWorkSection data={myWork} />
+        )}
         {!loading && !error && activeTab === 'pipeline' && pipeline && (
           <PipelineSection data={pipeline} />
         )}
@@ -251,6 +273,146 @@ const CreditDashboard: React.FC = () => {
 };
 
 // ---------------------------------------------------------------------------
+// My Work Section
+// ---------------------------------------------------------------------------
+
+const MyWorkSection: React.FC<{ data: MyWorkDashboard }> = ({ data }) => {
+  return (
+    <div className="space-y-6">
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Link to="/credit/dashboard" onClick={() => {}} className="bg-amber-50 border border-amber-200 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-2xl text-amber-600">approval</span>
+            <div>
+              <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">Pending Approvals</p>
+              <p className="text-2xl font-black text-amber-700">{data.myApprovalCount}</p>
+            </div>
+          </div>
+        </Link>
+        <Link to="/credit/dashboard" onClick={() => {}} className="bg-blue-50 border border-blue-200 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-2xl text-blue-600">assignment_ind</span>
+            <div>
+              <p className="text-xs font-bold text-blue-800 uppercase tracking-wider">My Cases</p>
+              <p className="text-2xl font-black text-blue-700">{data.myAssignedCount}</p>
+            </div>
+          </div>
+        </Link>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-5">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-2xl text-red-600">schedule</span>
+            <div>
+              <p className="text-xs font-bold text-red-800 uppercase tracking-wider">SLA Breaches</p>
+              <p className="text-2xl font-black text-red-700">{data.mySlaBreaches}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Assigned Cases */}
+      {data.recentAssigned.length > 0 && (
+        <div className="bg-bg-surface border border-border rounded-xl p-5">
+          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">My Recent Cases</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[500px]">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">App No</th>
+                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Borrower</th>
+                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">State</th>
+                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Product</th>
+                  <th className="text-right px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Updated</th>
+                  <th className="px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentAssigned.map(item => (
+                  <tr key={item.id} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
+                    <td className="px-2 py-2 font-semibold text-text-primary">{item.applicationNo || '—'}</td>
+                    <td className="px-2 py-2 text-text-secondary">{item.borrowerName}</td>
+                    <td className="px-2 py-2">
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700">
+                        {STATE_LABELS[item.state] ?? item.state}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-text-secondary">{item.productType || '—'}</td>
+                    <td className="px-2 py-2 text-right text-xs text-text-secondary">
+                      {item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—'}
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <Link to={`/credit/applications/${item.id}`} className="text-brand-700 text-xs font-bold hover:underline">
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Recent Approvals */}
+      {data.recentApprovals.length > 0 && (
+        <div className="bg-bg-surface border border-border rounded-xl p-5">
+          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Pending Approvals</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[500px]">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">App No</th>
+                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Borrower</th>
+                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">State</th>
+                  <th className="text-left px-2 py-2 text-xs font-bold text-text-secondary uppercase tracking-wider">Product</th>
+                  <th className="px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentApprovals.map(item => (
+                  <tr key={item.id} className="border-b border-border last:border-0 hover:bg-surface-muted transition-colors">
+                    <td className="px-2 py-2 font-semibold text-text-primary">{item.applicationNo || '—'}</td>
+                    <td className="px-2 py-2 text-text-secondary">{item.borrowerName}</td>
+                    <td className="px-2 py-2">
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700">
+                        {STATE_LABELS[item.state] ?? item.state}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2 text-text-secondary">{item.productType || '—'}</td>
+                    <td className="px-2 py-2 text-right">
+                      <Link to={`/credit/applications/${item.id}`} className="text-brand-700 text-xs font-bold hover:underline">
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* My SLA Breaches */}
+      {data.mySlaBreachItems.length > 0 && (
+        <SlaBreachWidget
+          breaches={data.mySlaBreachItems}
+          totalCount={data.mySlaBreaches}
+          filterMode="mine"
+        />
+      )}
+
+      {/* Empty state */}
+      {data.myApprovalCount === 0 && data.myAssignedCount === 0 && data.mySlaBreaches === 0 && (
+        <div className="bg-bg-surface border border-border rounded-xl p-8 text-center">
+          <span className="material-symbols-outlined text-4xl text-text-secondary mb-2">check_circle</span>
+          <p className="text-sm text-text-secondary">No pending work items. You're all caught up!</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Pipeline Section
 // ---------------------------------------------------------------------------
 
@@ -260,22 +422,23 @@ const PipelineSection: React.FC<{ data: PipelineDashboard }> = ({ data }) => {
   return (
     <div className="space-y-6">
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="bg-bg-surface border border-border rounded-xl p-5">
           <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Total Applications</p>
           <p className="text-2xl font-black text-text-primary">{data.totalApplications}</p>
-        </div>
-        <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">SLA Breaches</p>
-          <p className={`text-2xl font-black ${data.slaBreachCount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-            {data.slaBreachCount}
-          </p>
         </div>
         <div className="bg-bg-surface border border-border rounded-xl p-5">
           <p className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Active States</p>
           <p className="text-2xl font-black text-text-primary">{data.states.filter(s => s.count > 0).length}</p>
         </div>
       </div>
+
+      {/* SLA Breach Widget */}
+      <SlaBreachWidget
+        breaches={data.slaBreaches ?? []}
+        totalCount={data.slaBreachCount}
+        filterMode="all"
+      />
 
       {/* Bar chart */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">

@@ -8,14 +8,22 @@ export const pipelineDashboardSchema = z.object({
   query: z.object({
     dateFrom: z.coerce.date().optional(),
     dateTo: z.coerce.date().optional(),
+    branchId: z.string().uuid().optional(),
+    assignedToMe: z.enum(['true', 'false']).optional(),
   }),
 });
 
 export const approvalInboxSchema = z.object({
   query: z.object({
     urgency: z.enum(['HIGH', 'MEDIUM', 'LOW']).optional(),
-  page: z.coerce.number().int().min(1).default(1),
+    page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(20),
+  }),
+});
+
+export const myWorkDashboardSchema = z.object({
+  query: z.object({
+    branchId: z.string().uuid().optional(),
   }),
 });
 
