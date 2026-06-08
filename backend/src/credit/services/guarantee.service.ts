@@ -20,7 +20,16 @@ export interface UpdateGuaranteeData {
   guaranteeType?: string;
   amount?: string | number;
   isLimited?: boolean;
+  // S7.3 — Guarantor Financial Assessment
+  contingentLiabilities?: string | number | null;
+  estimatedNetWorth?: string | number | null;
+  guarantorRiskRatingSnapshot?: string | null;
+  remarks?: string | null;
 }
+
+// Risk rating values allowed for guarantor risk rating snapshot
+export const GUARANTOR_RISK_RATINGS = ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D'] as const;
+export type GuarantorRiskRating = (typeof GUARANTOR_RISK_RATINGS)[number];
 
 // ---------------------------------------------------------------------------
 // Service
@@ -88,7 +97,56 @@ class GuaranteeService {
     if (data.amount !== undefined) updateData.amount = new Prisma.Decimal(data.amount);
     if (data.isLimited !== undefined) updateData.isLimited = data.isLimited;
 
+    // S7.3 — Guarantor Financial Assessment fields
+    if (data.contingentLiabilities !== undefined) {
+      updateData.contingentLiabilities = data.contingentLiabilities === null ? null : new Prisma.Decimal(data.contingentLiabilities);
+    }
+    if (data.estimatedNetWorth !== undefined) {
+      updateData.estimatedNetWorth = data.estimatedNetWorth === null ? null : new Prisma.Decimal(data.estimatedNetWorth);
+    }
+    if (data.guarantorRiskRatingSnapshot !== undefined) {
+      updateData.guarantorRiskRatingSnapshot = data.guarantorRiskRatingSnapshot;
+    }
+    if (data.remarks !== undefined) {
+      updateData.remarks = data.remarks;
+    }
+
     return prisma.guarantee.update({ where: { id }, data: updateData });
+  }
+
+  /**
+   * S7.3 — Update guarantor financial assessment fields only.
+   * Accepts the four Phase 4 / S7.3 fields.
+   */
+  async updateFinancialAssessment(id: string, data: {
+    contingentLiabilities?: string | number | null;
+    estimatedNetWorth?: string | number | null;
+    guarantorRiskRatingSnapshot?: string | null;
+    remarks?: string | null;
+  }) {
+    const existing = await prisma.guarantee.findUnique({ where: { id } });
+    if (!existing) return null;
+
+    const updateData: Prisma.GuaranteeUpdateInput = {};
+
+    if (data.contingentLiabilities !== undefined) {
+      updateData.contingentLiabilities = data.contingentLiabilities === null ? null : new Prisma.Decimal(data.contingentLiabilities);
+    }
+    if (data.estimatedNetWorth !== undefined) {
+      updateData.estimatedNetWorth = data.estimatedNetWorth === null ? null : new Prisma.Decimal(data.estimatedNetWorth);
+    }
+    if (data.guarantorRiskRatingSnapshot !== undefined) {
+      updateData.guarantorRiskRatingSnapshot = data.guarantorRiskRatingSnapshot;
+    }
+    if (data.remarks !== undefined) {
+      updateData.remarks = data.remarks;
+    }
+
+    return prisma.guarantee.update({
+      where: { id },
+      data: updateData,
+      include: { guarantorProfile: true },
+    });
   }
 
   /**

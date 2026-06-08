@@ -123,6 +123,7 @@ export type DetailTab =
   // S7 — Decision
   | 'approvals'
   | 'signoff'
+  | 'guarantor-assessment'
   | 'conditions'
   | 'summary'
   // META — Operations
@@ -209,6 +210,7 @@ export const TAB_GROUPS: TabGroup[] = [
     tabs: [
       { id: 'signoff', label: 'Sign-off' },
       { id: 'approvals', label: 'Approval Chain' },
+      { id: 'guarantor-assessment', label: 'Guarantor Assessment' },
       { id: 'conditions', label: 'Conditions' },
       { id: 'summary', label: 'Summary' },
     ],

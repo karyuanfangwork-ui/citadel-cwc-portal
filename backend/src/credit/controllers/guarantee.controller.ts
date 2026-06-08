@@ -46,6 +46,19 @@ class GuaranteeController {
   });
 
   /**
+   * PATCH /guarantees/:id/financial-assessment
+   * S7.3 — Guarantor Financial Assessment (dedicated endpoint)
+   */
+  updateFinancialAssessment = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const guarantee = await guaranteeService.updateFinancialAssessment(id, req.body);
+    if (!guarantee) {
+      throw new AppError('Guarantee not found', 404);
+    }
+    res.json({ status: 'success', data: { guarantee } });
+  });
+
+  /**
    * DELETE /guarantees/:id
    */
   delete = asyncHandler(async (req: AuthRequest, res: Response) => {

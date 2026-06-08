@@ -25,6 +25,7 @@ import IndustryOutlookTab from './credit/tabs/IndustryOutlookTab';
 import RiskMitigatorsTab from './credit/tabs/RiskMitigatorsTab';
 import CollateralTab from './credit/tabs/CollateralTab';
 import SecurityGuaranteesTab from './credit/tabs/SecurityGuaranteesTab';
+import GuarantorFinancialAssessmentTab from './credit/tabs/GuarantorFinancialAssessmentTab';
 import ApprovalsTab from './credit/tabs/ApprovalsTab';
 import SignoffTab from './credit/tabs/SignoffTab';
 import ConditionsTab from './credit/tabs/ConditionsTab';
@@ -400,6 +401,7 @@ const CreditApplicationDetail: React.FC = () => {
       // S6 — Collateral & Guarantees
       case 'collateral': return <CollateralTab />;
       case 'security': return <SecurityGuaranteesTab application={app!} onUpdated={setApp} />;
+      case 'guarantor-assessment': return <GuarantorFinancialAssessmentTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
 
       // S7 — Decision
       case 'approvals': return <ApprovalsTab app={app!} onRefresh={fetchApp} />;

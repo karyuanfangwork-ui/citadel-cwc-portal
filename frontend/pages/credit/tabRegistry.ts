@@ -50,6 +50,7 @@ export const SECTIONS: SectionDef[] = [
   { id: 'security', label: 'Security & Guarantees', shortLabel: 'Security', step: 3, order: 11 },
   { id: 'approvals', label: 'Approvals', shortLabel: 'Approvals', step: 3, order: 12 },
   { id: 'signoff', label: 'Sign-off', shortLabel: 'Signoff', step: 3, order: 13 },
+  { id: 'guarantor-assessment', label: 'Guarantor Assessment', shortLabel: 'Guarantor', step: 3, order: 13.5 },
   { id: 'conditions', label: 'Conditions Precedent', shortLabel: 'Conditions', step: 3, order: 14 },
   { id: 'disbursement', label: 'Disbursement', shortLabel: 'Disbursement', step: 3, order: 15, advancedOnly: false },
   { id: 'summary', label: 'Summary', shortLabel: 'Summary', step: 3, order: 16 },
@@ -91,6 +92,7 @@ export const WIZARD_GROUPS: GroupDef[] = [
   // Step 3: Decision
   { id: 'g-collateral', label: 'Collateral & Guarantees', step: 3, sections: ['collateral', 'security'] },
   { id: 'g-approvals', label: 'Approvals & Signoff', step: 3, sections: ['approvals', 'signoff'] },
+  { id: 'g-guarantor', label: 'Guarantor Assessment', step: 3, sections: ['guarantor-assessment'] },
   { id: 'g-conditions', label: 'Conditions & Disbursement', step: 3, sections: ['conditions', 'disbursement', 'summary'] },
   { id: 'g-meta', label: 'Operations', step: 3, sections: ['documents', 'audit'] },
 
@@ -147,6 +149,7 @@ export const LEGACY_TAB_MAP: Record<string, { step: WizardStep; section: DetailT
   'security': { step: 3, section: 'security' },
   'approvals': { step: 3, section: 'approvals' },
   'signoff': { step: 3, section: 'signoff' },
+  'guarantor-assessment': { step: 3, section: 'guarantor-assessment' },
   'conditions': { step: 3, section: 'conditions' },
   'disbursement': { step: 3, section: 'disbursement' },
   'summary': { step: 3, section: 'summary' },

@@ -28,3 +28,13 @@ export const updateGuaranteeSchema = z.object({
     ...phase4GuaranteeFields,
   }),
 });
+
+// S7.3 — Guarantor Financial Assessment validation
+export const updateFinancialAssessmentSchema = z.object({
+  body: z.object({
+    contingentLiabilities: decimalString.optional().nullable(),
+    estimatedNetWorth: decimalString.optional().nullable(),
+    guarantorRiskRatingSnapshot: z.enum(['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D']).optional().nullable(),
+    remarks: z.string().max(2000).optional().nullable(),
+  }),
+});

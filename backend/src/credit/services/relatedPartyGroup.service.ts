@@ -184,6 +184,137 @@ class RelatedPartyGroupService {
 
     return prisma.relatedPartyMember.delete({ where: { id: memberId } });
   }
+
+  /**
+   * §7.2 — Group Exposure Aggregation
+   * Computes the aggregate exposure across all member borrower profiles in a group.
+   * Sums totalExposure and exposureLimit from each member's BorrowerProfile,
+   * and breaks down exposure by currency from active CreditApplication facilities.
+   */
+  async getGroupExposure(groupId: string) {
+    const group = await prisma.relatedPartyGroup.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          include: {
+            borrowerProfile: {
+              select: {
+                id: true,
+                borrowerType: true,
+                name: true,
+                totalExposure: true,
+                exposureLimit: true,
+                creditRiskRating: true,
+                account: { select: { id: true, name: true } },
+                contact: { select: { id: true, firstName: true, lastName: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!group) return null;
+
+    // Aggregate totals
+    let aggregateTotalExposure = 0;
+    let aggregateExposureLimit = 0;
+    const memberExposures: Array<{
+      memberId: string;
+      borrowerProfileId: string;
+      borrowerName: string;
+      borrowerType: string;
+      creditRiskRating: string | null;
+      totalExposure: number;
+      exposureLimit: number | null;
+      utilizationPct: number | null;
+    }> = [];
+
+    for (const member of group.members) {
+      const bp = member.borrowerProfile;
+      const totalExp = bp.totalExposure ? Number(bp.totalExposure) : 0;
+      const expLimit = bp.exposureLimit ? Number(bp.exposureLimit) : null;
+
+      aggregateTotalExposure += totalExp;
+      if (expLimit) aggregateExposureLimit += expLimit;
+
+      const borrowerName = bp.account?.name
+        || (bp.contact ? `${bp.contact.firstName} ${bp.contact.lastName}`.trim() : '')
+        || bp.name
+        || 'Unnamed Borrower';
+
+      memberExposures.push({
+        memberId: member.id,
+        borrowerProfileId: bp.id,
+        borrowerName,
+        borrowerType: bp.borrowerType,
+        creditRiskRating: bp.creditRiskRating,
+        totalExposure: totalExp,
+        exposureLimit: expLimit,
+        utilizationPct: expLimit && expLimit > 0 ? Math.round((totalExp / expLimit) * 10000) / 100 : null,
+      });
+    }
+
+    // Get per-currency breakdown from active facilities for all group members
+    const memberBorrowerIds = group.members.map((m) => m.borrowerProfile.id);
+
+    const activeApplications = await prisma.creditApplication.findMany({
+      where: {
+        borrowerProfileId: { in: memberBorrowerIds },
+        state: { in: ['APPROVED', 'ACTIVE', 'DISBURSED', 'ACCEPTED', 'OFFER'] },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        applicationNo: true,
+        currency: true,
+        borrowerProfileId: true,
+        facilities: {
+          select: {
+            amount: true,
+            approvedAmount: true,
+            outstandingBalance: true,
+            facilityType: true,
+          },
+        },
+      },
+    });
+
+    // Aggregate by currency
+    const currencyBreakdown: Record<string, { totalApproved: number; totalOutstanding: number; facilityCount: number }> = {};
+
+    for (const app of activeApplications) {
+      for (const facility of app.facilities) {
+        const currency = app.currency || 'MYR';
+        if (!currencyBreakdown[currency]) {
+          currencyBreakdown[currency] = { totalApproved: 0, totalOutstanding: 0, facilityCount: 0 };
+        }
+        const approved = facility.approvedAmount ? Number(facility.approvedAmount) : Number(facility.amount);
+        const outstanding = facility.outstandingBalance ? Number(facility.outstandingBalance) : 0;
+        currencyBreakdown[currency].totalApproved += approved;
+        currencyBreakdown[currency].totalOutstanding += outstanding;
+        currencyBreakdown[currency].facilityCount += 1;
+      }
+    }
+
+    const groupUtilization = aggregateExposureLimit > 0
+      ? Math.round((aggregateTotalExposure / aggregateExposureLimit) * 10000) / 100
+      : null;
+
+    return {
+      groupId: group.id,
+      groupName: group.name,
+      relationshipType: group.relationshipType,
+      memberCount: group.members.length,
+      aggregateTotalExposure,
+      aggregateExposureLimit: aggregateExposureLimit || null,
+      groupUtilizationPct: groupUtilization,
+      memberExposures,
+      currencyBreakdown,
+      activeApplicationCount: activeApplications.length,
+    };
+  }
 }
 
 export const relatedPartyGroupService = new RelatedPartyGroupService();

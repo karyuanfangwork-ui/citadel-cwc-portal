@@ -5,6 +5,7 @@ import { validate } from '../../middleware/validate.middleware';
 import {
   createGuaranteeSchema,
   updateGuaranteeSchema,
+  updateFinancialAssessmentSchema,
 } from '../validators/guarantee.validator';
 
 const router = Router();
@@ -56,6 +57,18 @@ router.patch(
   requirePermission('credit:write'),
   validate(updateGuaranteeSchema),
   guaranteeController.update,
+);
+
+/**
+ * PATCH /guarantees/:id/financial-assessment
+ * S7.3 — Update guarantor financial assessment
+ * Requires: credit:write
+ */
+router.patch(
+  '/guarantees/:id/financial-assessment',
+  requirePermission('credit:write'),
+  validate(updateFinancialAssessmentSchema),
+  guaranteeController.updateFinancialAssessment,
 );
 
 /**

@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { AuditChainService } from './auditChain.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -300,6 +301,198 @@ class CollateralService {
       collateralCount: collaterals.length,
       totalMarketValue: total,
     };
+  }
+
+  // -------------------------------------------------------------------------
+  // §7.1 — Collateral Cross-Application Linking
+  // -------------------------------------------------------------------------
+
+  /**
+   * Link a collateral to another application (cross-application sharing).
+   * Creates a CollateralApplicationLink and fires COLLATERAL_LINKED audit event.
+   */
+  async linkToApplication(collateralId: string, applicationId: string, userId: string) {
+    // Verify collateral exists
+    const collateral = await prisma.collateral.findUnique({
+      where: { id: collateralId },
+      include: { facility: { select: { applicationId: true } } },
+    });
+    if (!collateral) {
+      throw new Error('Collateral not found');
+    }
+
+    // Prevent linking a collateral to its own originating application
+    if (collateral.facility.applicationId === applicationId) {
+      throw new Error('Collateral is already owned by this application');
+    }
+
+    // Check for existing link (unique constraint will also catch this)
+    const existing = await prisma.collateralApplicationLink.findUnique({
+      where: { collateralId_applicationId: { collateralId, applicationId } },
+    });
+    if (existing) {
+      throw new Error('Collateral is already linked to this application');
+    }
+
+    const link = await prisma.collateralApplicationLink.create({
+      data: {
+        collateralId,
+        applicationId,
+        linkedById: userId,
+      } as any,
+    });
+
+    // Audit the link on the target application
+    await AuditChainService.appendEvent(
+      applicationId,
+      'COLLATERAL_LINKED',
+      userId,
+      `Collateral ${collateralId} linked to application ${applicationId}`,
+      undefined,
+      undefined,
+      { collateralId, sourceApplicationId: collateral.facility.applicationId },
+    );
+
+    return link;
+  }
+
+  /**
+   * Unlink a collateral from an application.
+   * Deletes the CollateralApplicationLink and fires COLLATERAL_UNLINKED audit event.
+   */
+  async unlinkFromApplication(collateralId: string, applicationId: string, userId: string) {
+    const link = await prisma.collateralApplicationLink.findUnique({
+      where: { collateralId_applicationId: { collateralId, applicationId } },
+    });
+    if (!link) {
+      throw new Error('Link not found');
+    }
+
+    await prisma.collateralApplicationLink.delete({
+      where: { id: link.id },
+    });
+
+    // Audit the unlink
+    await AuditChainService.appendEvent(
+      applicationId,
+      'COLLATERAL_UNLINKED',
+      userId,
+      `Collateral ${collateralId} unlinked from application ${applicationId}`,
+      undefined,
+      undefined,
+      { collateralId },
+    );
+
+    return { deleted: true };
+  }
+
+  /**
+   * Get all applications linked to a collateral (cross-application view).
+   * Returns application summaries: applicationNo, borrowerName, state, amount.
+   */
+  async getLinkedApplications(collateralId: string) {
+    const links = await prisma.collateralApplicationLink.findMany({
+      where: { collateralId },
+      include: {
+        application: {
+          select: {
+            id: true,
+            applicationNo: true,
+            state: true,
+            requestedAmount: true,
+            borrowerProfile: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+      orderBy: { linkedAt: 'desc' },
+    });
+
+    return links.map((l: any) => ({
+      linkId: l.id,
+      applicationId: l.application.id,
+      applicationNo: l.application.applicationNo,
+      borrowerName: l.application.borrowerProfile?.name ?? null,
+      state: l.application.state,
+      amount: l.application.requestedAmount,
+      linkedAt: l.linkedAt,
+      linkedById: l.linkedById,
+    }));
+  }
+
+  /**
+   * Get all collateral linked to a given application (via join table).
+   * Includes collateral details plus the original facility's application
+   * (i.e. where the collateral was first created).
+   */
+  async getLinkedCollateral(applicationId: string) {
+    const links = await prisma.collateralApplicationLink.findMany({
+      where: { applicationId },
+      include: {
+        collateral: {
+          select: {
+            id: true,
+            collateralType: true,
+            description: true,
+            titleReference: true,
+            marketValue: true,
+            forcedSaleValue: true,
+            valuationDate: true,
+            valuer: true,
+            securityCategory: true,
+            securitySubType: true,
+            isExisting: true,
+            isNewToBeObtained: true,
+            createdAt: true,
+            facility: {
+              select: {
+                id: true,
+                applicationId: true,
+                application: {
+                  select: {
+                    id: true,
+                    applicationNo: true,
+                    borrowerProfile: {
+                      select: { name: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { linkedAt: 'desc' },
+    });
+
+    return links.map((l: any) => ({
+      linkId: l.id,
+      linkedAt: l.linkedAt,
+      linkedById: l.linkedById,
+      collateral: {
+        id: l.collateral.id,
+        collateralType: l.collateral.collateralType,
+        description: l.collateral.description,
+        titleReference: l.collateral.titleReference,
+        marketValue: l.collateral.marketValue,
+        forcedSaleValue: l.collateral.forcedSaleValue,
+        valuationDate: l.collateral.valuationDate,
+        valuer: l.collateral.valuer,
+        securityCategory: l.collateral.securityCategory,
+        securitySubType: l.collateral.securitySubType,
+        isExisting: l.collateral.isExisting,
+        isNewToBeObtained: l.collateral.isNewToBeObtained,
+        createdAt: l.collateral.createdAt,
+      },
+      sourceApplication: l.collateral.facility?.application
+        ? {
+            id: l.collateral.facility.application.id,
+            applicationNo: l.collateral.facility.application.applicationNo,
+            borrowerName: l.collateral.facility.application.borrowerProfile?.name ?? null,
+          }
+        : null,
+    }));
   }
 }
 

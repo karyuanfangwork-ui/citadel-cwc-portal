@@ -98,6 +98,21 @@ class RelatedPartyGroupController {
 
     res.json({ status: 'success', message: 'Member removed from group successfully' });
   });
+
+  /**
+   * GET /related-party-groups/:id/exposure
+   * §7.2 — Group Exposure Aggregation
+   */
+  getGroupExposure = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const exposure = await relatedPartyGroupService.getGroupExposure(id);
+
+    if (!exposure) {
+      throw new AppError('Related party group not found', 404);
+    }
+
+    res.json({ status: 'success', data: { exposure } });
+  });
 }
 
 export const relatedPartyGroupController = new RelatedPartyGroupController();

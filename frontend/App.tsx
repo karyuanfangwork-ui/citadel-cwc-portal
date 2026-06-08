@@ -80,6 +80,7 @@ import CrmLeadScoringAdmin from './pages/CrmLeadScoringAdmin';
 import CrmAssignmentRulesAdmin from './pages/CrmAssignmentRulesAdmin';
 import CreditDashboard from './pages/credit/CreditDashboard';
 import CreditReports from './pages/credit/CreditReports';
+import GroupExposurePage from './pages/credit/GroupExposurePage';
 import BorrowerProfileList from './pages/BorrowerProfileList';
 import BorrowerProfileDetail from './pages/BorrowerProfileDetail';
 import CreditApplicationList from './pages/CreditApplicationList';
@@ -295,6 +296,7 @@ const AppShell = () => {
               <Route path="/credit/m/approvals" element={<ProtectedRoute requirePermission="credit:approve"><MobileApprovalInbox /></ProtectedRoute>} />
               <Route path="/credit/collateral" element={<ProtectedRoute requirePermission="credit:read"><CollateralManagement /></ProtectedRoute>} />
               <Route path="/credit/reports" element={<ProtectedRoute requirePermission="credit:read"><CreditReports /></ProtectedRoute>} />
+              <Route path="/credit/group-exposure" element={<ProtectedRoute requirePermission="credit:read"><GroupExposurePage /></ProtectedRoute>} />
               <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute requirePermission="admin:access"><ErrorBoundary><AdminSettings /></ErrorBoundary></ProtectedRoute>} />
               <Route path="/admin/audit" element={<ProtectedRoute requirePermission="admin:access"><ErrorBoundary><AuditTrail /></ErrorBoundary></ProtectedRoute>} />

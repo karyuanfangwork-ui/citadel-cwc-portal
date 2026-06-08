@@ -1687,6 +1687,33 @@ export const collateralApi = {
     const res = await apiClient.get(`/credit/collateral/${collateralId}/insurance`);
     return res.data.data.insurance as InsuranceCover[];
   },
+
+  // §7.1 — Collateral Cross-Application Linking
+  async linkToApplication(collateralId: string, applicationId: string) {
+    const res = await apiClient.post(`/credit/applications/collateral/${collateralId}/link`, { applicationId });
+    return res.data.data as { id: string; collateralId: string; applicationId: string; linkedAt: string };
+  },
+
+  async unlinkFromApplication(collateralId: string, applicationId: string) {
+    await apiClient.delete(`/credit/applications/collateral/${collateralId}/link/${applicationId}`);
+  },
+
+  async getLinkedApplications(collateralId: string) {
+    const res = await apiClient.get(`/credit/applications/collateral/${collateralId}/linked-apps`);
+    return res.data.data as Array<{
+      applicationId: string; applicationNo: string; borrowerName: string;
+      state: string; amount: number; linkedAt: string;
+    }>;
+  },
+
+  async getLinkedCollateral(applicationId: string) {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/linked-collateral`);
+    return res.data.data as Array<{
+      collateralId: string; collateralType: string; description: string;
+      marketValue: number | null; linkedAt: string;
+      sourceApplication: { applicationNo: string; borrowerName: string } | null;
+    }>;
+  },
 };
 
 // ── Sprint 4: Guarantee API ─────────────────────────────────
@@ -1716,6 +1743,17 @@ export const guaranteeApi = {
 
   async update(id: string, data: Partial<Guarantee>) {
     const res = await apiClient.patch(`/credit/guarantees/${id}`, data);
+    return res.data.data.guarantee as Guarantee;
+  },
+
+  // S7.3 — Guarantor Financial Assessment
+  async updateFinancialAssessment(id: string, data: {
+    contingentLiabilities?: number | string | null;
+    estimatedNetWorth?: number | string | null;
+    guarantorRiskRatingSnapshot?: string | null;
+    remarks?: string | null;
+  }) {
+    const res = await apiClient.patch(`/credit/guarantees/${id}/financial-assessment`, data);
     return res.data.data.guarantee as Guarantee;
   },
 
@@ -2658,5 +2696,109 @@ export const amlRescreenApi = {
   reviewEvent: async (eventId: string, reviewNotes?: string) => {
     const res = await apiClient.patch(`/credit/aml-rescreen/${eventId}/review`, { reviewNotes });
     return res.data.data as AmlRescreenEvent;
+  },
+};
+
+// ── §7.2 — Related Party Group + Group Exposure Aggregation API ──────────
+
+export interface RelatedPartyGroupMember {
+  id: string;
+  groupId: string;
+  borrowerProfileId: string;
+  role: string | null;
+  createdAt: string;
+  updatedAt: string;
+  borrowerProfile?: {
+    id: string;
+    borrowerType: string;
+    name?: string | null;
+    account: { id: string; name: string } | null;
+    contact: { id: string; firstName: string; lastName: string } | null;
+  } | null;
+}
+
+export interface RelatedPartyGroup {
+  id: string;
+  name: string;
+  description: string | null;
+  relationshipType: string | null;
+  createdAt: string;
+  updatedAt: string;
+  members: RelatedPartyGroupMember[];
+  _count?: { members: number };
+}
+
+export interface GroupExposureData {
+  groupId: string;
+  groupName: string;
+  relationshipType: string | null;
+  memberCount: number;
+  aggregateTotalExposure: number;
+  aggregateExposureLimit: number | null;
+  groupUtilizationPct: number | null;
+  memberExposures: Array<{
+    memberId: string;
+    borrowerProfileId: string;
+    borrowerName: string;
+    borrowerType: string;
+    creditRiskRating: string | null;
+    totalExposure: number;
+    exposureLimit: number | null;
+    utilizationPct: number | null;
+  }>;
+  currencyBreakdown: Record<string, {
+    totalApproved: number;
+    totalOutstanding: number;
+    facilityCount: number;
+  }>;
+  activeApplicationCount: number;
+}
+
+export interface ListRelatedPartyGroupsResult {
+  groups: RelatedPartyGroup[];
+  pagination: Pagination;
+}
+
+export const relatedPartyGroupApi = {
+  list: async (params?: { page?: number; limit?: number; search?: string }): Promise<ListRelatedPartyGroupsResult> => {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.search) query.set('search', params.search);
+    const res = await apiClient.get(`/credit/related-party-groups?${query.toString()}`);
+    return res.data.data as ListRelatedPartyGroupsResult;
+  },
+
+  get: async (id: string): Promise<{ group: RelatedPartyGroup }> => {
+    const res = await apiClient.get(`/credit/related-party-groups/${id}`);
+    return res.data.data as { group: RelatedPartyGroup };
+  },
+
+  create: async (data: { name: string; description?: string | null; relationshipType?: string | null }): Promise<{ group: RelatedPartyGroup }> => {
+    const res = await apiClient.post('/credit/related-party-groups', data);
+    return res.data.data as { group: RelatedPartyGroup };
+  },
+
+  update: async (id: string, data: { name?: string; description?: string | null; relationshipType?: string | null }): Promise<{ group: RelatedPartyGroup }> => {
+    const res = await apiClient.patch(`/credit/related-party-groups/${id}`, data);
+    return res.data.data as { group: RelatedPartyGroup };
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await apiClient.delete(`/credit/related-party-groups/${id}`);
+  },
+
+  addMember: async (groupId: string, data: { borrowerProfileId: string; role?: string | null }): Promise<{ member: RelatedPartyGroupMember }> => {
+    const res = await apiClient.post(`/credit/related-party-groups/${groupId}/members`, data);
+    return res.data.data as { member: RelatedPartyGroupMember };
+  },
+
+  removeMember: async (memberId: string): Promise<void> => {
+    await apiClient.delete(`/credit/related-party-members/${memberId}`);
+  },
+
+  getExposure: async (groupId: string): Promise<GroupExposureData> => {
+    const res = await apiClient.get(`/credit/related-party-groups/${groupId}/exposure`);
+    return res.data.data.exposure as GroupExposureData;
   },
 };

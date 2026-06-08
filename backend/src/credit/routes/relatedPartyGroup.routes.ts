@@ -93,4 +93,16 @@ router.delete(
   relatedPartyGroupController.removeMember,
 );
 
+/**
+ * GET /related-party-groups/:id/exposure
+ * §7.2 — Group Exposure Aggregation
+ * Aggregates total exposure across all group members
+ * Requires: credit:read
+ */
+router.get(
+  '/:id/exposure',
+  requirePermission('credit:read'),
+  relatedPartyGroupController.getGroupExposure,
+);
+
 export default router;

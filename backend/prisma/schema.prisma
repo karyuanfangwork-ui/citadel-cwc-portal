@@ -200,6 +200,8 @@ model User {
   fatcaCrsVerified            FatcaCrsDeclaration[]   @relation("FatcaVerifiedBy")
   // §6.2 — Credit Policy Limits
   createdPolicyLimits        CreditPolicyLimit[]     @relation("PolicyLimitCreatedBy")
+  // §7.1 — Collateral Cross-Linking
+  linkedCollateral          CollateralApplicationLink[] @relation("CollateralLinkedBy")
 
   @@index([email])
   @@index([managerId])
@@ -3287,6 +3289,7 @@ model CreditApplication {
   looVersion       Int       @default(1) @map("loo_version")
   looGeneratedBy   User?     @relation("CreditApplicationLooGeneratedBy", fields: [looGeneratedById], references: [id])
   amlRescreenEvents AmlRescreenEvent[]
+  collateralApplicationLinks CollateralApplicationLink[]
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -3774,9 +3777,28 @@ model Collateral {
   valuations     CollateralValuation[]
   liens          CollateralLien[]
   insuranceCovers InsuranceCover[]
+  applicationLinks CollateralApplicationLink[]
 
   @@index([facilityId])
   @@map("collaterals")
+}
+
+// §7.1 — Collateral Cross-Application Linking
+model CollateralApplicationLink {
+  id            String   @id @default(uuid()) @db.Uuid
+  collateralId  String   @map("collateral_id") @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  linkedAt      DateTime @default(now()) @map("linked_at") @db.Timestamp(6)
+  linkedById    String   @map("linked_by_id") @db.Uuid
+
+  collateral  Collateral        @relation(fields: [collateralId], references: [id], onDelete: Cascade)
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  linkedBy    User               @relation("CollateralLinkedBy", fields: [linkedById], references: [id])
+
+  @@unique([collateralId, applicationId])
+  @@index([collateralId])
+  @@index([applicationId])
+  @@map("collateral_application_links")
 }
 
 model CollateralValuation {

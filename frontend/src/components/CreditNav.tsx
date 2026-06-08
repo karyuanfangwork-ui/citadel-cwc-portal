@@ -15,6 +15,7 @@ const ALL_ITEMS: CreditNavItem[] = [
   { to: '/credit', label: 'Dashboard', icon: 'dashboard' },
   { to: '/credit/borrowers', label: 'Borrowers', icon: 'person' },
   { to: '/credit/applications', label: 'Applications', icon: 'description' },
+  { to: '/credit/group-exposure', label: 'Group Exposure', icon: 'scatter_plot', permission: 'credit:read' },
   { to: '/credit/approvals', label: 'My Approvals', icon: 'approval', permission: 'credit:approve' },
   { to: '/credit/committee', label: 'Committee', icon: 'groups', permission: 'credit:read' },
   { to: '/credit/scorecards', label: 'Scorecards', icon: 'dashboard_customize', permission: 'credit:admin' },
