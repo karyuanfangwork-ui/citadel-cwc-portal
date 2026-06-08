@@ -565,7 +565,15 @@ const CreditApplicationList: React.FC = () => {
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: badge.bg, color: badge.text }}>
                               {state.replace(/_/g, ' ')}
                             </span>
-                            <span className="text-[10px] font-semibold ml-auto" style={{ color: sla.color }}>{sla.text}</span>
+                            <span className="flex items-center gap-1 ml-auto">
+                              {/* §3.3 — SLA dot indicator */}
+                              <span className={`inline-block w-2 h-2 rounded-full ${
+                                sla.color === '#dc2626' ? 'bg-red-500' :
+                                sla.color === '#ea580c' ? 'bg-amber-500' :
+                                sla.color === '#16a34a' ? 'bg-green-500' : 'bg-gray-300'
+                              }`} />
+                              <span className="text-[10px] font-semibold" style={{ color: sla.color }}>{sla.text}</span>
+                            </span>
                           </div>
                           <p className="text-sm font-bold text-text-primary truncate mb-0.5">
                             {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : PRODUCT_LABELS[app.productType || app.productName || ''] || '\u2014'}

@@ -11,6 +11,8 @@ import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
 import { useDirtyFormGuard } from '../src/hooks/useDirtyFormGuard';
+import ReadinessChecklistModal from '../src/components/credit/ReadinessChecklistModal';
+import { PHASE_TO_TAB_MAP } from './credit/creditUtils';
 
 // ── New 7-Section Tabs ───────────────────────────────────
 import LoanRequestTab from './credit/tabs/LoanRequestTab';
@@ -90,9 +92,7 @@ const ProgressRing: React.FC<{ pct: number; color: string; size?: number }> = ({
 const CreditApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const wizardMode = searchParams.get('mode') === 'wizard';
-  const isNewApplication = searchParams.get('new') === '1';
+  // §3.4 — Single useSearchParams for both mode/new params and tab state
   const { user } = useAuth();
 
   // Dirty form guard — warns on tab change / navigation if any tab has unsaved changes
@@ -100,7 +100,25 @@ const CreditApplicationDetail: React.FC = () => {
 
   const [app, setApp] = useState<CreditApplication | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<DetailTab>('loan-request');
+
+  // §3.4 — Tab state persisted in URL search params (survives navigation away/back)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const wizardMode = searchParams.get('mode') === 'wizard';
+  const isNewApplication = searchParams.get('new') === '1';
+
+  const getDefaultTab = (state: string): DetailTab => {
+    // Later-stage applications default to S7 (Decision)
+    if (['COMMITTEE_REVIEW', 'REFERRED_BACK', 'ACCEPTED', 'REJECTED'].includes(state)) return 'approvals';
+    return 'loan-request';
+  };
+
+  const activeTab = (searchParams.get('tab') as DetailTab) || (app ? getDefaultTab(app.state || app.status || 'DRAFT') : 'loan-request');
+  const setActiveTab = useCallback((tab: DetailTab) => {
+    setSearchParams(prev => {
+      prev.set('tab', tab);
+      return prev;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // Feature flag: credit:advanced_memo — enables bank-only sections
   // TODO (Wave E): wire to FeatureFlag API. For now, default false.
@@ -128,7 +146,7 @@ const CreditApplicationDetail: React.FC = () => {
   const handleTabChange = useCallback((tab: DetailTab) => {
     if (isDirty && !confirmTabSwitch()) return;
     setActiveTab(tab);
-  }, [isDirty, confirmTabSwitch]);
+  }, [isDirty, confirmTabSwitch, setActiveTab]);
   const [transitions, setTransitions] = useState<ApplicationTransition[]>([]);
   const [facilities, setFacilities] = useState<CreditFacility[]>([]);
   const [readiness, setReadiness] = useState<{
@@ -146,6 +164,8 @@ const CreditApplicationDetail: React.FC = () => {
   const [transitionReason, setTransitionReason] = useState('');
   const [showTransitionDialog, setShowTransitionDialog] = useState<string | null>(null);
   const [reasonError, setReasonError] = useState(false);
+  const [readinessModalOpen, setReadinessModalOpen] = useState(false);
+  const pendingTransitionRef = useRef<string | null>(null);
   const transitionDialogCancelRef = useRef<HTMLButtonElement>(null);
   const transitionTriggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -784,9 +804,20 @@ const CreditApplicationDetail: React.FC = () => {
                 const isEsignBlocked = t.action === 'accept_offer' && esignReady !== null && !esignReady.ready;
                 const isAdminAction = t.action === 'close';
                 const isAdminBlocked = isAdminAction && !canAdmin;
+                // §3.1 — Submission readiness check: show readiness modal if sections are incomplete
+                const isSubmitAction = currentState === 'DRAFT' || currentState === 'REFERRED_BACK' || t.action === 'submit_to_committee';
+                const handleTransitionClick = () => {
+                  if (isSignoffBlocked || isEsignBlocked || isAdminBlocked) return;
+                  if (isSubmitAction && incompleteCount > 0) {
+                    pendingTransitionRef.current = t.action;
+                    setReadinessModalOpen(true);
+                    return;
+                  }
+                  setShowTransitionDialog(t.action);
+                };
                 return (
                   <button key={t.action} ref={el => { if (t.action === showTransitionDialog) transitionTriggerRef.current = el; }}
-                    onClick={() => !isSignoffBlocked && !isEsignBlocked && !isAdminBlocked && setShowTransitionDialog(t.action)}
+                    onClick={handleTransitionClick}
                     disabled={isSignoffBlocked || isEsignBlocked || isAdminBlocked}
                     title={isSignoffBlocked ? 'Blocked: Complete all CA Memo sign-offs (Prepared By, Reviewed By, Concurred By) first' :
                       isEsignBlocked ? 'Blocked: Upload and verify a signed Letter of Offer before accepting the offer.' :
@@ -1272,6 +1303,23 @@ const CreditApplicationDetail: React.FC = () => {
           );
         })()}
       </div>
+      {/* §3.1 — Readiness Checklist Modal */}
+      <ReadinessChecklistModal
+        open={readinessModalOpen}
+        onClose={() => { setReadinessModalOpen(false); pendingTransitionRef.current = null; }}
+        phaseCompletion={phaseCompletion}
+        onSubmitAnyway={() => {
+          const action = pendingTransitionRef.current;
+          setReadinessModalOpen(false);
+          pendingTransitionRef.current = null;
+          if (action) {
+            setShowTransitionDialog(action);
+          }
+        }}
+        onNavigateToSection={(tabId) => {
+          handleTabChange(tabId as DetailTab);
+        }}
+      />
       {DirtyGuardDialog}
     </>
   );

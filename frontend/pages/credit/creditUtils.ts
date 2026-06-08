@@ -396,6 +396,18 @@ export function getIncompletePhaseCount(completion: Record<string, PhaseStatus>)
   return Object.values(completion).filter(s => s === 'incomplete').length;
 }
 
+/** Map section/phase completion keys to their default tab ID for navigation. */
+export const PHASE_TO_TAB_MAP: Record<string, string> = {
+  s1: 'loan-request',
+  s2: 'borrower-profile',
+  s3: 'financials',
+  s4: 'risk-score',
+  s5: 'credit-checks',
+  s6: 'collateral',
+  s7: 'approvals',
+  meta: 'documents',
+};
+
 /**
  * Returns the first tab ID belonging to the first incomplete (non-optional) section,
  * or null if all sections are complete.

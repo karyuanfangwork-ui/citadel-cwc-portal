@@ -101,6 +101,17 @@
   animation: modal-fade-in 0.2s ease-out;
 }
 
+/* §3.5 — Autosave flash: "✓ Saved just now" fades out */
+@keyframes autosave-fade-out {
+  0% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+.autosave-flash {
+  animation: autosave-fade-out 2s ease-out forwards;
+}
+
 /* ── SUPPRESS BROWSER EXTENSION OVERLAYS ── */
 /* When a modal is open, <body> gets .modal-open.
    JS in ModalPortal/ModalWrapper also hides elements with inline z-index ≥ 1 000 000

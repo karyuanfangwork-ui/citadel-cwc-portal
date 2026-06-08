@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 /**
  * Shared section wrapper for all CA Memo tabs.
@@ -6,13 +6,14 @@ import React from 'react';
  * Provides:
  *  - Section title with phase context
  *  - Read-only badge (amber pill) when section is not editable
- *  - "Last saved" timestamp indicator
+ *  - "Last saved" timestamp indicator with flash animation
  *  - Saving spinner
  *  - Error banner
  *  - Consistent layout envelope
  *
  * Addresses FINDING F-02: inconsistent tab maturity.
  * All editable tabs must wrap their sections with this component.
+ * §3.5 — Enhanced with flash animation on save.
  */
 
 type CaMemoSectionProps = {
@@ -47,6 +48,39 @@ const CaMemoSection: React.FC<CaMemoSectionProps> = ({
   actions,
   className = '',
 }) => {
+  // §3.5 — Flash animation: "✓ Saved just now" → fades to "↳ Saved X ago"
+  const [justSaved, setJustSaved] = useState(false);
+  const prevSavedAt = useRef<Date | null>(null);
+
+  useEffect(() => {
+    if (savedAt && savedAt !== prevSavedAt.current) {
+      // Only flash on actual saves (not on initial load)
+      if (prevSavedAt.current !== null) {
+        setJustSaved(true);
+        const timer = setTimeout(() => setJustSaved(false), 2000);
+        return () => clearTimeout(timer);
+      }
+      prevSavedAt.current = savedAt;
+    }
+  }, [savedAt]);
+
+  // Track prevSavedAt outside of effect for the initial-load check
+  useEffect(() => {
+    if (savedAt && !prevSavedAt.current) {
+      prevSavedAt.current = savedAt;
+    }
+  }, [savedAt]);
+
+  const formatSavedAgo = (date: Date): string => {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 5) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    return `${hours}h ago`;
+  };
+
   return (
     <section className={`bg-white border border-gray-200 rounded ${className}`}>
       <header className="px-4 py-3 border-b border-gray-200 flex items-center justify-between flex-wrap gap-2">
@@ -71,10 +105,16 @@ const CaMemoSection: React.FC<CaMemoSectionProps> = ({
               Saving…
             </span>
           )}
-          {!saving && savedAt && (
+          {!saving && justSaved && (
+            <span className="text-[11px] text-green-600 font-medium flex items-center gap-1 autosave-flash">
+              <span className="material-symbols-outlined text-[14px]">check_circle</span>
+              ✓ Saved just now
+            </span>
+          )}
+          {!saving && !justSaved && savedAt && (
             <span className="text-[11px] text-text-secondary flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px] text-green-500">check_circle</span>
-              Saved {savedAt.toLocaleTimeString()}
+              <span className="material-symbols-outlined text-[14px] text-green-500 opacity-60">check_circle</span>
+              ↳ Saved {formatSavedAgo(savedAt)}
             </span>
           )}
           {error && (
