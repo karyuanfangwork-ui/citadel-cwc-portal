@@ -55,9 +55,42 @@ export const updateApprovalMatrixSchema = z.object({
 
 export const submitApprovalActionSchema = z.object({
   body: z.object({
-    decision: z.enum(['APPROVE', 'REJECT', 'RETURN', 'ESCALATE']),
+    decision: z.enum(['APPROVE', 'REJECT', 'RETURN', 'ESCALATE', 'CONDITIONAL']),
     comment: z.string().max(5000).optional(),
     isCommitteeVote: z.boolean().default(false),
+    rejectionReasonCode: z.string().optional(),
+    conditions: z.array(z.object({
+      title: z.string().min(1),
+      description: z.string().optional(),
+      category: z.string().optional(),
+      conditionType: z.enum(['PRE_DISBURSEMENT', 'POST_DISBURSEMENT']).default('PRE_DISBURSEMENT'),
+      dueDate: z.string().optional().nullable(),
+    })).optional(),
+  }).superRefine((data, ctx) => {
+    // Mandatory comment for REJECT or CONDITIONAL decisions (min 10 chars)
+    if ((data.decision === 'REJECT' || data.decision === 'CONDITIONAL') && (!data.comment || data.comment.trim().length < 10)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Comment is required (minimum 10 characters) for REJECT and CONDITIONAL decisions',
+        path: ['comment'],
+      });
+    }
+    // Mandatory rejectionReasonCode for REJECT
+    if (data.decision === 'REJECT' && !data.rejectionReasonCode) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Rejection reason code is required for REJECT decisions',
+        path: ['rejectionReasonCode'],
+      });
+    }
+    // Mandatory conditions for CONDITIONAL
+    if (data.decision === 'CONDITIONAL' && (!data.conditions || data.conditions.length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'At least one condition is required for CONDITIONAL decisions',
+        path: ['conditions'],
+      });
+    }
   }),
 });
 

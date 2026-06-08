@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import { CommitteeAttendance, AgendaItemDecisionType, ApplicationState } from '@prisma/client';
 import { creditApplicationService } from './creditApplication.service';
+import { AuditChainService } from './auditChain.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -452,7 +453,7 @@ class CommitteeService {
    * - Majority REJECT → decisionResult=REJECT, transition app to REJECTED
    * - Otherwise → DEFER, do not change app state
    */
-  async finalizeDecision(agendaItemId: string, actorId?: string) {
+  async finalizeDecision(agendaItemId: string, actorId?: string, comment?: string) {
     const agendaItem = await prisma.committeeAgendaItem.findUnique({
       where: { id: agendaItemId },
       include: {
@@ -543,6 +544,19 @@ class CommitteeService {
           err,
         );
       }
+    }
+
+    // Record finalize comment as an audit event if provided
+    if (comment) {
+      await AuditChainService.appendEvent(
+        application?.id ?? agendaItem.applicationId ?? '',
+        'COMMITTEE_FINALIZE',
+        actorId ?? '',
+        `finalize_${decisionResult.toLowerCase()}`,
+        undefined,
+        undefined,
+        { comment },
+      );
     }
 
     return {

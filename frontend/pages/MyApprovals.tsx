@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import creditService, {
   CreditApplication, CreditApproval, ApplicationState, ApprovalDecision,
@@ -10,6 +10,7 @@ import { formatCurrency, formatDate } from './credit/creditUtils';
 import StateBadge from '../src/components/credit/StateBadge';
 import RiskBadge from '../src/components/credit/RiskBadge';
 import ApprovalQuickView from '../src/components/credit/ApprovalQuickView';
+import { useIsMobile } from '../src/hooks/useIsMobile';
 
 function getUrgency(createdAt: string, state: ApplicationState): { level: 'overdue' | 'urgent' | 'normal'; text: string; color: string; icon: string } {
   const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
@@ -31,6 +32,16 @@ const APPROVAL_STATES: ApplicationState[] = ['KYC_REVIEW', 'COMMITTEE_REVIEW', '
 const MyApprovals: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isMobile = useIsMobile();
+  const hasRedirected = useRef(false);
+
+  // Sprint 4: Mobile redirect to dedicated mobile approval inbox
+  useEffect(() => {
+    if (isMobile && !hasRedirected.current) {
+      hasRedirected.current = true;
+      navigate('/credit/m/approvals', { replace: true });
+    }
+  }, [isMobile, navigate]);
   const [applications, setApplications] = useState<CreditApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [quickViewApp, setQuickViewApp] = useState<CreditApplication | null>(null);

@@ -102,10 +102,19 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
   const isChainComplete = activeStageIdx === -1;
   const commentRequired = requiredCount >= 3;
 
+  const commentMinLength = selectedDecision === 'REJECT' || selectedDecision === 'CONDITIONAL' ? 10 : 0;
+
   const handleSubmit = async () => {
     if (!selectedDecision || !application.id) return;
     if (commentRequired && !comment.trim()) {
       toast.error('Comment is required for this approval tier');
+      return;
+    }
+    // Sprint 4: 10-char minimum comment for REJECT / CONDITIONAL
+    const COMMENT_MIN_LENGTH = 10;
+    const needsMinComment = selectedDecision === 'REJECT' || selectedDecision === 'CONDITIONAL';
+    if (needsMinComment && comment.trim().length < COMMENT_MIN_LENGTH) {
+      toast.error(`Comment must be at least ${COMMENT_MIN_LENGTH} characters for ${selectedDecision === 'REJECT' ? 'rejection' : 'conditional approval'}`);
       return;
     }
     // §2.7 — Require rejection reason code when rejecting
@@ -414,21 +423,32 @@ const ApprovalChainPanel: React.FC<Props> = ({ application, approvals, signoffsC
 
           <div>
             <label className="block text-sm font-semibold text-gray-800 mb-1">
-              Comment{commentRequired ? ' *' : ''}
+              Comment{commentRequired || commentMinLength > 0 ? ' *' : ''}
             </label>
             <textarea
               rows={3}
               value={comment}
               onChange={e => setComment(e.target.value)}
-              placeholder={commentRequired ? 'Required at this approval tier…' : 'Optional comments…'}
+              placeholder={
+                commentMinLength > 0
+                  ? `Minimum ${commentMinLength} characters required…`
+                  : commentRequired
+                  ? 'Required at this approval tier…'
+                  : 'Optional comments…'
+              }
               className="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-brand-200 resize-none"
               style={{ fontFamily: 'var(--font-sans)' }}
             />
+            {commentMinLength > 0 && comment.trim().length > 0 && comment.trim().length < commentMinLength && (
+              <p className="text-xs text-amber-500 mt-1">
+                {comment.trim().length}/{commentMinLength} characters minimum
+              </p>
+            )}
           </div>
 
           <button
             onClick={handleSubmit}
-            disabled={!selectedDecision || submitting || (commentRequired && !comment.trim())}
+            disabled={!selectedDecision || submitting || (commentRequired && !comment.trim()) || (commentMinLength > 0 && comment.trim().length < commentMinLength)}
             className="w-full px-4 py-2.5 bg-brand-700 text-white rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors disabled:opacity-50"
             style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
           >

@@ -10,6 +10,7 @@ import {
   updateAttendanceSchema,
   addAgendaItemSchema,
   castVoteSchema,
+  finalizeDecisionSchema,
   listMeetingsSchema,
 } from '../validators/committee.validator';
 
@@ -213,6 +214,7 @@ router.post(
   '/agenda/:itemId/finalize',
   requirePermission('credit:admin'),
   enforceCommitteeSOD(),
+  validate(finalizeDecisionSchema),
   committeeController.finalizeDecision,
 );
 

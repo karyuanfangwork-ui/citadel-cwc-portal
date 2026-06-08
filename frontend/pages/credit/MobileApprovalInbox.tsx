@@ -41,7 +41,8 @@ const MobileApprovalInbox: React.FC = () => {
   const [decision, setDecision] = useState<ApprovalDecision | ''>('');
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showCommentModal, setShowCommentModal] = useState(false); // for REJECT / CONDITIONAL
+  const COMMENT_MIN_LENGTH = 10;
 
   const fetchInbox = useCallback(async () => {
     try {
@@ -81,9 +82,9 @@ const MobileApprovalInbox: React.FC = () => {
 
   const handleQuickDecision = async (d: ApprovalDecision) => {
     if (!selectedId || !canApprove) return;
-    if (d === 'REJECT') {
+    if (d === 'REJECT' || d === 'CONDITIONAL') {
       setDecision(d);
-      setShowRejectModal(true);
+      setShowCommentModal(true);
       return;
     }
     setSubmitting(true);
@@ -99,14 +100,15 @@ const MobileApprovalInbox: React.FC = () => {
     }
   };
 
-  const handleRejectSubmit = async () => {
-    if (!selectedId || !comment.trim()) return;
+  const handleCommentSubmit = async () => {
+    if (!selectedId || !decision || comment.trim().length < COMMENT_MIN_LENGTH) return;
     setSubmitting(true);
     try {
-      await creditService.submitApproval(selectedId, { decision: 'REJECT', comment: comment.trim() });
-      toast.success('Rejected');
-      setShowRejectModal(false);
+      await creditService.submitApproval(selectedId, { decision, comment: comment.trim() });
+      toast.success(decision === 'REJECT' ? 'Rejected' : 'Conditionally Approved');
+      setShowCommentModal(false);
       setComment('');
+      setDecision('');
       setSelectedId(null);
       fetchInbox();
     } catch (e) {
@@ -259,23 +261,32 @@ const MobileApprovalInbox: React.FC = () => {
               {/* Action bar */}
               {canApprove && (
                 <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Approval decision">
+                  <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Approval decision">
                     <button
                       onClick={() => handleQuickDecision('APPROVE')}
                       disabled={submitting}
-                      className="flex items-center justify-center gap-1.5 py-3 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 active:bg-green-800 disabled:opacity-50 min-h-[44px]"
+                      className="flex items-center justify-center gap-1 py-3 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 active:bg-green-800 disabled:opacity-50 min-h-[44px]"
                       aria-label="Approve this application"
                     >
-                      <span className="material-symbols-outlined text-lg">check_circle</span>
+                      <span className="material-symbols-outlined text-base">check_circle</span>
                       Approve
+                    </button>
+                    <button
+                      onClick={() => handleQuickDecision('CONDITIONAL')}
+                      disabled={submitting}
+                      className="flex items-center justify-center gap-1 py-3 rounded-xl bg-amber-500 text-white font-bold text-sm hover:bg-amber-600 active:bg-amber-700 disabled:opacity-50 min-h-[44px]"
+                      aria-label="Conditionally approve this application"
+                    >
+                      <span className="material-symbols-outlined text-base">rule</span>
+                      Conditional
                     </button>
                     <button
                       onClick={() => handleQuickDecision('REJECT')}
                       disabled={submitting}
-                      className="flex items-center justify-center gap-1.5 py-3 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-700 active:bg-red-800 disabled:opacity-50 min-h-[44px]"
+                      className="flex items-center justify-center gap-1 py-3 rounded-xl bg-red-600 text-white font-bold text-sm hover:bg-red-700 active:bg-red-800 disabled:opacity-50 min-h-[44px]"
                       aria-label="Reject this application"
                     >
-                      <span className="material-symbols-outlined text-lg">cancel</span>
+                      <span className="material-symbols-outlined text-base">cancel</span>
                       Reject
                     </button>
                   </div>
@@ -295,39 +306,52 @@ const MobileApprovalInbox: React.FC = () => {
         </div>
       )}
 
-      {/* ── Reject Comment Modal ──────────────────────────── │ */}
-      {showRejectModal && selectedId && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center" onClick={() => setShowRejectModal(false)}>
+      {/* ── Comment Modal (REJECT / CONDITIONAL) ──────────── │ */}
+      {showCommentModal && selectedId && decision && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center" onClick={() => { setShowCommentModal(false); setComment(''); setDecision(''); }}>
           <div
             className="w-full max-w-lg bg-white rounded-t-2xl p-5 animate-slide-up"
             onClick={e => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-label="Rejection reason"
+            aria-label={decision === 'REJECT' ? 'Rejection reason' : 'Conditional approval reason'}
           >
-            <h3 className="text-base font-bold text-gray-900 mb-3">Reason for rejection *</h3>
+            <h3 className="text-base font-bold text-gray-900 mb-3">
+              {decision === 'REJECT' ? 'Reason for rejection *' : 'Reason for conditional approval *'}
+            </h3>
             <textarea
               value={comment}
               onChange={e => setComment(e.target.value)}
               rows={4}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 resize-none"
-              placeholder="Why are you rejecting this application? This is required."
+              className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 resize-none ${
+                decision === 'REJECT'
+                  ? 'border-red-200 focus:ring-red-500/30 focus:border-red-500'
+                  : 'border-amber-200 focus:ring-amber-500/30 focus:border-amber-500'
+              }`}
+              placeholder={`Minimum ${COMMENT_MIN_LENGTH} characters required…`}
               required
               autoFocus
             />
+            {comment.trim().length > 0 && comment.trim().length < COMMENT_MIN_LENGTH && (
+              <p className="text-xs text-amber-500 mt-1">
+                {comment.trim().length}/{COMMENT_MIN_LENGTH} characters minimum
+              </p>
+            )}
             <div className="flex gap-2 mt-3">
               <button
-                onClick={() => { setShowRejectModal(false); setComment(''); }}
+                onClick={() => { setShowCommentModal(false); setComment(''); setDecision(''); }}
                 className="flex-1 py-3 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 min-h-[44px]"
               >
                 Cancel
               </button>
               <button
-                onClick={handleRejectSubmit}
-                disabled={!comment.trim() || submitting}
-                className="flex-1 py-3 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50 min-h-[44px]"
+                onClick={handleCommentSubmit}
+                disabled={comment.trim().length < COMMENT_MIN_LENGTH || submitting}
+                className={`flex-1 py-3 rounded-xl text-white text-sm font-bold disabled:opacity-50 min-h-[44px] ${
+                  decision === 'REJECT' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-500 hover:bg-amber-600'
+                }`}
               >
-                {submitting ? 'Submitting...' : 'Confirm Rejection'}
+                {submitting ? 'Submitting...' : decision === 'REJECT' ? 'Confirm Rejection' : 'Confirm Conditional'}
               </button>
             </div>
           </div>

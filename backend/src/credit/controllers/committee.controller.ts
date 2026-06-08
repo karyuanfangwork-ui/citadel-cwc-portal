@@ -224,9 +224,10 @@ class CommitteeController {
   finalizeDecision = asyncHandler(async (req: AuthRequest, res: Response) => {
     const agendaItemId = String(req.params.itemId);
     const actorId = requireUser(req).id;
+    const { comment } = req.body;
 
     try {
-      const result = await committeeService.finalizeDecision(agendaItemId, actorId);
+      const result = await committeeService.finalizeDecision(agendaItemId, actorId, comment);
       res.json({ status: 'success', data: result });
     } catch (error: any) {
       if (error.message?.includes('already been finalized')) {

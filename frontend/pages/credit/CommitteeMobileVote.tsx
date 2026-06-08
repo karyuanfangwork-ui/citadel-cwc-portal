@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { committeeApi, CommitteeMeeting, CommitteeAgendaItem, VoteChoice } from '../../src/services/credit.service';
+import { committeeApi, CommitteeMeeting, CommitteeAgendaItem, VoteChoice, DecisionType } from '../../src/services/credit.service';
 import { useAuth } from '../../src/context/AuthContext';
 import toast from 'react-hot-toast';
+
+const COMMENT_MIN_LENGTH = 10;
 
 /**
  * CommitteeMobileVote — Mobile-optimized committee voting view (§3.2).
@@ -62,8 +64,8 @@ const CommitteeMobileVote: React.FC = () => {
 
   const handleVote = async () => {
     if (!currentItem || !user) return;
-    if (voteChoice === 'REJECT' && !comment.trim()) {
-      toast.error('Comment is required when rejecting');
+    if (voteChoice === 'REJECT' && comment.trim().length < COMMENT_MIN_LENGTH) {
+      toast.error(`Comment must be at least ${COMMENT_MIN_LENGTH} characters when rejecting`);
       return;
     }
     setVoteState('voting');
@@ -104,6 +106,44 @@ const CommitteeMobileVote: React.FC = () => {
   const handlePrev = () => {
     if (currentIndex > 0) {
       setCurrentIndex(i => i - 1);
+    }
+  };
+
+  // ── Finalize capability for Chair/Secretary ───────────────────────
+  const [finalizing, setFinalizing] = useState(false);
+  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  const [finalizeDecision, setFinalizeDecision] = useState<DecisionType | null>(null);
+  const [finalizeComment, setFinalizeComment] = useState('');
+
+  const members = meeting?.members ?? [];
+  const isChairOrSecretary = members.some(
+    m => (m.role === 'CHAIR' || m.role === 'SECRETARY') && m.userId === user?.id
+  );
+
+  const presentMembers = members.filter(m => m.attendance === 'PRESENT' || (m as any).present === true);
+  const allVotesCastForItem = currentItem && currentItem.votes && currentItem.votes.length >= presentMembers.length;
+
+  const handleFinalize = async () => {
+    if (!currentItem || !finalizeDecision) return;
+    if (finalizeDecision === 'REJECT' && finalizeComment.trim().length < COMMENT_MIN_LENGTH) {
+      toast.error(`Comment must be at least ${COMMENT_MIN_LENGTH} characters when finalizing as rejected`);
+      return;
+    }
+    setFinalizing(true);
+    try {
+      await committeeApi.finalizeDecision(currentItem.id, {
+        decision: finalizeDecision,
+        comment: finalizeComment.trim() || undefined,
+      });
+      toast.success('Decision finalized');
+      setShowFinalizeConfirm(false);
+      setFinalizeDecision(null);
+      setFinalizeComment('');
+      await fetchMeeting();
+    } catch (e) {
+      toast.error('Failed to finalize decision');
+    } finally {
+      setFinalizing(false);
     }
   };
 
@@ -255,6 +295,80 @@ const CommitteeMobileVote: React.FC = () => {
               </div>
             )}
 
+            {/* ── All votes cast — Finalize banner for Chair/Secretary ── */}
+            {allVotesCastForItem && !currentItem.decisionResult && isChairOrSecretary && (
+              <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="material-symbols-outlined text-blue-600">how_to_vote</span>
+                  <span className="font-bold text-blue-900 text-sm">All votes cast — Finalize decision</span>
+                </div>
+                {showFinalizeConfirm ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['APPROVE', 'REJECT', 'DEFER'] as DecisionType[]).map(d => (
+                        <button
+                          key={d}
+                          onClick={() => setFinalizeDecision(d)}
+                          className={`py-3 rounded-xl text-xs font-bold min-h-[44px] ${
+                            finalizeDecision === d ? 'ring-2 ring-offset-1 ring-blue-400' : ''
+                          } ${
+                            d === 'APPROVE' ? 'bg-green-600 text-white' :
+                            d === 'REJECT' ? 'bg-red-600 text-white' :
+                            'bg-gray-500 text-white'
+                          }`}
+                        >
+                          {d.charAt(0) + d.slice(1).toLowerCase()}
+                        </button>
+                      ))}
+                    </div>
+                    {finalizeDecision === 'REJECT' && (
+                      <div>
+                        <textarea
+                          value={finalizeComment}
+                          onChange={e => setFinalizeComment(e.target.value)}
+                          rows={3}
+                          className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 resize-none"
+                          placeholder={`Minimum ${COMMENT_MIN_LENGTH} characters required…`}
+                        />
+                        {finalizeComment.trim().length > 0 && finalizeComment.trim().length < COMMENT_MIN_LENGTH && (
+                          <p className="text-xs text-amber-500 mt-1">
+                            {finalizeComment.trim().length}/{COMMENT_MIN_LENGTH} characters minimum
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setShowFinalizeConfirm(false); setFinalizeDecision(null); setFinalizeComment(''); }}
+                        className="flex-1 py-3 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 min-h-[44px]"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleFinalize}
+                        disabled={!finalizeDecision || finalizing || (finalizeDecision === 'REJECT' && finalizeComment.trim().length < COMMENT_MIN_LENGTH)}
+                        className="flex-1 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold disabled:opacity-50 min-h-[44px]"
+                      >
+                        {finalizing ? 'Finalizing...' : 'Confirm'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowFinalizeConfirm(true)}
+                    className="w-full py-3 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 min-h-[44px]"
+                  >
+                    Finalize Decision
+                  </button>
+                )}
+              </div>
+            )}
+            {allVotesCastForItem && !currentItem.decisionResult && !isChairOrSecretary && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-center">
+                <p className="text-xs text-blue-700 italic">All votes cast — awaiting finalization by Chair/Secretary</p>
+              </div>
+            )}
+
             {/* ── Vote Actions ────────────────────────────────── */}
             {voteState === 'submitted' ? (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
@@ -286,7 +400,7 @@ const CommitteeMobileVote: React.FC = () => {
                   ))}
                 </div>
 
-                {/* Comment (mandatory for REJECT, collapsible for others) */}
+                {/* Comment (mandatory 10+ chars for REJECT, collapsible for others) */}
                 {voteChoice && (
                   <div className="bg-white rounded-xl border border-gray-200 p-4">
                     {voteChoice !== 'REJECT' && !showComment && (
@@ -308,14 +422,19 @@ const CommitteeMobileVote: React.FC = () => {
                           onChange={e => setComment(e.target.value)}
                           rows={3}
                           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 resize-none"
-                          placeholder={voteChoice === 'REJECT' ? 'Required: explain why you reject this deal...' : 'Optional comments...'}
+                          placeholder={voteChoice === 'REJECT' ? `Required: minimum ${COMMENT_MIN_LENGTH} characters...` : 'Optional comments...'}
                           required={voteChoice === 'REJECT'}
                         />
+                        {voteChoice === 'REJECT' && comment.trim().length > 0 && comment.trim().length < COMMENT_MIN_LENGTH && (
+                          <p className="text-xs text-amber-500 mt-1">
+                            {comment.trim().length}/{COMMENT_MIN_LENGTH} characters minimum
+                          </p>
+                        )}
                       </div>
                     )}
                     <button
                       onClick={handleVote}
-                      disabled={voteState === 'voting' || (voteChoice === 'REJECT' && !comment.trim())}
+                      disabled={voteState === 'voting' || (voteChoice === 'REJECT' && comment.trim().length < COMMENT_MIN_LENGTH)}
                       className="mt-3 w-full py-3 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
                     >
                       {voteState === 'voting' ? 'Submitting...' : `Submit — ${voteChoice.charAt(0) + voteChoice.slice(1).toLowerCase()}`}

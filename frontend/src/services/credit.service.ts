@@ -1579,7 +1579,7 @@ export const committeeApi = {
     return res.data.data as { approve: number; reject: number; abstain: number; total: number; votes: CommitteeVote[] };
   },
 
-  async finalizeDecision(agendaItemId: string, data: { decision: DecisionType }) {
+  async finalizeDecision(agendaItemId: string, data: { decision: DecisionType; comment?: string }) {
     const res = await apiClient.post(`/credit/committee/agenda/${agendaItemId}/finalize`, data);
     return res.data.data.agendaItem as CommitteeAgendaItem;
   },

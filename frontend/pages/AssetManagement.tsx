@@ -121,7 +121,7 @@ function AssetRegistryTab() {
         status: (filterStatus as AssetStatus) || undefined,
         category: (filterCategory as AssetCategory) || undefined,
         limit: PAGE_SIZE,
-        offset: currentOffset,
+        page: Math.floor(currentOffset / PAGE_SIZE) + 1,
       });
       setAssets(prev => currentOffset === 0 ? result.assets : [...prev, ...result.assets]);
       setTotal(result.total);

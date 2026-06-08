@@ -4,6 +4,9 @@ import { approvalMatrixService } from './approvalMatrix.service';
 import { checkSodConflict } from '../middleware/sod.middleware';
 import { formatCurrency } from '../utils/formatCurrency';
 import { AuditChainService } from './auditChain.service';
+import { notify } from '../../services/notification.service';
+import { pushToUser } from '../../utils/sseClients';
+import { logger } from '../../utils/logger';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,6 +54,21 @@ function hasSufficientAuthority(userAuthority: string, requiredAuthority: string
   const userLevel = AUTHORITY_HIERARCHY[userAuthority] ?? 0;
   const requiredLevel = AUTHORITY_HIERARCHY[requiredAuthority] ?? 0;
   return userLevel >= requiredLevel;
+}
+
+/**
+ * Map authority level number to the role names that hold that authority.
+ * Used by autoRouteNextApprover to find next-level approvers.
+ */
+export function getRoleNamesForAuthorityLevel(level: number): string[] {
+  const mapping: Record<number, string[]> = {
+    1: ['CREDIT_RM'],
+    2: ['CREDIT_MANAGER'],
+    3: ['SENIOR_CREDIT_OFFICER'],
+    4: ['CREDIT_COMMITTEE'],
+    5: ['BOARD_RISK_COMMITTEE'],
+  };
+  return mapping[level] ?? ['CREDIT_ADMIN']; // Fallback
 }
 
 // ---------------------------------------------------------------------------
@@ -277,6 +295,23 @@ class ApprovalActionService {
       await rejectionService.notifyRejection(applicationId, rejectionReasonCode ?? 'OTHER', comment ?? null).catch(() => {});
     }
 
+    // §4.2 — Auto-route next approver when more approvals are needed
+    if ((decision === 'APPROVE' || decision === 'CONDITIONAL') && !isComplete) {
+      const authorityLevelNum = authorityLevel
+        ? AUTHORITY_HIERARCHY[authorityLevel] ?? 0
+        : 0;
+      await this.autoRouteNextApprover(
+        applicationId,
+        application.applicationNo ?? null,
+        authorityLevelNum,
+        requiredApproverCount,
+        approvalsCollected,
+        actorId,
+      ).catch((err) => {
+        logger.error(`[AutoRoute] Failed to route next approver for application ${applicationId}:`, err);
+      });
+    }
+
     return {
       decision: {
         id: creditDecision.id,
@@ -357,6 +392,148 @@ class ApprovalActionService {
       newState,
       metadata,
     );
+  }
+
+  // -----------------------------------------------------------------------
+  // Auto-routing: notify the next-level approver(s) after an approval action
+  // -----------------------------------------------------------------------
+
+  /**
+   * After an approval is submitted, if more approvals are needed,
+   * find the next-level approvers and send them notifications.
+   *
+   * For committee-level (authority 4), this does NOT create individual
+   * CreditDecision records — the committee meeting process handles that.
+   */
+  async autoRouteNextApprover(
+    applicationId: string,
+    applicationNo: string | null,
+    currentAuthorityLevel: number,
+    requiredApproverCount: number,
+    approvalsCollected: number,
+    currentApproverId: string,
+  ): Promise<void> {
+    // If all required approvals are collected, no routing needed — state will advance
+    if (approvalsCollected >= requiredApproverCount) return;
+
+    // Determine next authority level
+    const nextLevel = currentAuthorityLevel + 1;
+    const levelNames: Record<number, string> = {
+      1: 'Relationship Manager',
+      2: 'Credit Manager',
+      3: 'Senior Credit Officer',
+      4: 'Credit Committee',
+      5: 'Board Risk Committee',
+    };
+
+    // Authority level 4 = committee — handled through CommitteeMeeting, not individual decisions
+    if (nextLevel >= 4) {
+      logger.info(
+        `[AutoRoute] Application ${applicationId} requires committee-level approval (level ${nextLevel}). ` +
+        'Committee meetings should be scheduled separately.',
+      );
+      // Notify the RM that committee review is needed
+      const application = await prisma.creditApplication.findUnique({
+        where: { id: applicationId },
+        select: { assignedRmId: true },
+      });
+      if (application?.assignedRmId) {
+        await this.notifyNextApprover(
+          application.assignedRmId,
+          applicationId,
+          applicationNo,
+          nextLevel,
+          levelNames[nextLevel] ?? `Level ${nextLevel}`,
+        );
+      }
+      return;
+    }
+
+    // Find users with the next authority level who can approve (SOD: exclude current approver)
+    const nextAuthorityRoles = getRoleNamesForAuthorityLevel(nextLevel);
+    const nextApprovers = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        id: { not: currentApproverId }, // SOD: exclude current approver
+        roles: {
+          some: {
+            role: {
+              name: { in: nextAuthorityRoles },
+              permissions: {
+                some: {
+                  permission: { name: 'credit:approve' },
+                },
+              },
+            },
+          },
+        },
+      },
+      select: { id: true, firstName: true, lastName: true },
+    });
+
+    if (nextApprovers.length === 0) {
+      // Fallback: route to credit admin
+      logger.warn(
+        `[AutoRoute] No approvers found for authority level ${nextLevel}, falling back to CREDIT_ADMIN`,
+      );
+      const creditAdmins = await prisma.user.findMany({
+        where: { isActive: true, roles: { some: { role: { name: 'CREDIT_ADMIN' } } } },
+        select: { id: true, firstName: true, lastName: true },
+      });
+      if (creditAdmins.length === 0) {
+        logger.warn(`[AutoRoute] No CREDIT_ADMIN users found either. Manual follow-up required for application ${applicationId}`);
+        return;
+      }
+      for (const admin of creditAdmins) {
+        await this.notifyNextApprover(admin.id, applicationId, applicationNo, nextLevel, 'Credit Admin (fallback)');
+      }
+      return;
+    }
+
+    // Notify all next-level approvers
+    for (const approver of nextApprovers) {
+      await this.notifyNextApprover(
+        approver.id,
+        applicationId,
+        applicationNo,
+        nextLevel,
+        levelNames[nextLevel] ?? `Level ${nextLevel}`,
+      );
+    }
+  }
+
+  /**
+   * Send an in-app notification + SSE push to a single approver.
+   */
+  private async notifyNextApprover(
+    userId: string,
+    applicationId: string,
+    applicationNo: string | null,
+    authorityLevel: number,
+    levelName: string,
+  ): Promise<void> {
+    const displayId = applicationNo ?? applicationId.slice(0, 8);
+    try {
+      await notify({
+        userId,
+        eventType: 'credit_approval_requested',
+        variables: {
+          applicationId,
+          applicationNo: displayId,
+          authorityLevel: String(authorityLevel),
+          levelName,
+        },
+      });
+
+      // SSE push for My Work tab
+      pushToUser(userId, 'approval_routed', {
+        applicationId,
+        authorityLevel,
+        levelName,
+      });
+    } catch (err) {
+      logger.error(`[AutoRoute] Failed to notify approver ${userId}:`, err);
+    }
   }
 }
 

@@ -71,6 +71,25 @@ export const castVoteSchema = z.object({
     vote: z.enum(['APPROVE', 'REJECT', 'ABSTAIN']),
     comments: z.string().max(5000).optional(),
   }),
+}).superRefine((data, ctx) => {
+  // Mandatory comment for REJECT votes (min 10 chars)
+  if (data.body.vote === 'REJECT' && (!data.body.comments || data.body.comments.trim().length < 10)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Comment is required (minimum 10 characters) for REJECT votes',
+      path: ['body', 'comments'],
+    });
+  }
+});
+
+// ============================================================================
+// Committee Decision Finalize validator
+// ============================================================================
+
+export const finalizeDecisionSchema = z.object({
+  body: z.object({
+    comment: z.string().max(5000).optional(),
+  }),
 });
 
 // ============================================================================
@@ -92,3 +111,4 @@ export type AddMemberInput = z.infer<typeof addMemberSchema>['body'];
 export type UpdateAttendanceInput = z.infer<typeof updateAttendanceSchema>['body'];
 export type AddAgendaItemInput = z.infer<typeof addAgendaItemSchema>['body'];
 export type CastVoteInput = z.infer<typeof castVoteSchema>['body'];
+export type FinalizeDecisionInput = z.infer<typeof finalizeDecisionSchema>['body'];
