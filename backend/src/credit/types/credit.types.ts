@@ -180,10 +180,10 @@ export const PHASE2_FACILITY_TYPES: FacilityType[] = [
 // ---- Approval Authority Levels ----
 
 export enum ApprovalAuthorityLevel {
-  CREDIT_MANAGER = 'CREDIT_MANAGER',
-  SENIOR_CREDIT_OFFICER = 'SENIOR_CREDIT_OFFICER',
-  CREDIT_COMMITTEE = 'CREDIT_COMMITTEE',
-  BOARD_RISK_COMMITTEE = 'BOARD_RISK_COMMITTEE',
+  RM = 'RM',
+  MANAGER = 'MANAGER',
+  COMMITTEE = 'COMMITTEE',
+  BOARD = 'BOARD',
 }
 
 // ---- Committee ----

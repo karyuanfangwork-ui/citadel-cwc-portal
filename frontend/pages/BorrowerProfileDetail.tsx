@@ -378,6 +378,36 @@ const BorrowerProfileDetail: React.FC = () => {
               )}
             </div>
 
+            {/* Related Party Groups */}
+            {(profile.relatedPartyMembers ?? []).length > 0 && (
+              <div className="bg-bg-surface border border-border rounded-xl p-5 md:col-span-2">
+                <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Related Party Groups</h3>
+                <div className="flex flex-col gap-2">
+                  {(profile.relatedPartyMembers as any[]).map((m: any) => (
+                    <Link
+                      key={m.group.id}
+                      to={`/credit/group-exposure?groupId=${m.group.id}`}
+                      style={{ textDecoration: 'none' }}
+                    >
+                      <div className="flex items-center gap-3 p-3 bg-bg-subtle border border-border rounded-lg hover:border-brand-300 transition-colors">
+                        <span className="material-symbols-outlined text-brand-700">account_tree</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-text-primary">{m.group.name}</p>
+                          {m.group.relationshipType && (
+                            <p className="text-xs text-text-secondary">{m.group.relationshipType}{m.role ? ` · ${m.role}` : ''}</p>
+                          )}
+                        </div>
+                        <span className="text-xs font-semibold text-brand-700 flex items-center gap-0.5">
+                          View Group Exposure
+                          <span className="material-symbols-outlined text-sm">chevron_right</span>
+                        </span>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Timestamps */}
             <div className="bg-bg-surface border border-border rounded-xl p-5 md:col-span-2">
               <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Record Info</h3>

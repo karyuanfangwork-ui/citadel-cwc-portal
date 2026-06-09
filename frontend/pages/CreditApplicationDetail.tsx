@@ -554,6 +554,12 @@ const isIdPlaceholder = id === 'new';
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5">
                   <StateBadge state={currentState} size="md" />
+                  {app.riskRating && (
+                    <span className="flex items-center gap-1 text-[10px] font-semibold text-text-secondary bg-bg-subtle px-1.5 py-0.5 rounded-full border border-border" title="Risk rating">
+                      <span className="material-symbols-outlined text-[12px]">speed</span>
+                      {app.riskRating}
+                    </span>
+                  )}
                   {['SUBMITTED','KYC_REVIEW','UNDERWRITING','CREDIT_ASSESSMENT','COMMITTEE_REVIEW'].includes(currentState) && (
                     <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
                       Pending approval
@@ -666,39 +672,44 @@ const isIdPlaceholder = id === 'new';
           </div>
         </div>
 
-        {/* Key Info Chips */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          {[
-            { label: 'Amount', value: formatCurrency(app.requestedAmount, app.currency), icon: 'payments' },
-            { label: 'Approved', value: facilities.length > 0 && facilities.some(f => f.approvedAmount != null) ? formatCurrency(Number(facilities.reduce((s, f) => s + Number(f.approvedAmount || 0), 0)), app.currency) : '—', icon: 'check_circle' },
-            { label: 'Tenor', value: app.requestedTenor != null ? `${app.requestedTenor} mo` : '—', icon: 'schedule' },
-            { label: 'Currency', value: app.currency, icon: 'currency_exchange' },
-            { label: 'Risk', value: app.riskRating || '—', icon: 'speed' },
-          ].map(s => (
-            <div key={s.label} className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm">
-              <span className="material-symbols-outlined text-base text-brand-700">{s.icon}</span>
-              <span className="font-bold text-text-primary">{s.value}</span>
-              <span className="text-text-secondary">{s.label}</span>
-            </div>
-          ))}
-          <UserAssignChip
-            label="RM"
-            value={app.rm ?? null}
-            applicationId={app.id}
-            field="assignedRmId"
-            roleFilters={['CREDIT_RM', 'CREDIT_MANAGER', 'ADMIN']}
-            disabled={['CLOSED', 'WITHDRAWN', 'ACTIVE', 'DISBURSED'].includes(app.state)}
-            onUpdated={setApp}
-          />
-          <UserAssignChip
-            label="Analyst"
-            value={app.analyst ?? null}
-            applicationId={app.id}
-            field="assignedAnalystId"
-            roleFilters={['CREDIT_ANALYST', 'CREDIT_MANAGER', 'ADMIN']}
-            disabled={['CLOSED', 'WITHDRAWN', 'ACTIVE', 'DISBURSED'].includes(app.state)}
-            onUpdated={setApp}
-          />
+        {/* Key Info Chips — read-only facts vs. editable assignments are visually distinguished */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <div className="flex flex-wrap gap-3">
+            {[
+              { label: 'Amount', value: formatCurrency(app.requestedAmount, app.currency), icon: 'payments' },
+              { label: 'Tenor', value: app.requestedTenor != null ? `${app.requestedTenor} mo` : '—', icon: 'schedule' },
+              ...(['APPROVED', 'ACCEPTED', 'OFFER', 'ACTIVE', 'DISBURSED', 'CLOSED'].includes(app.state) && facilities.some(f => f.approvedAmount != null)
+                ? [{ label: 'Approved', value: formatCurrency(Number(facilities.reduce((s, f) => s + Number(f.approvedAmount || 0), 0)), app.currency), icon: 'check_circle' }]
+                : []),
+            ].map(s => (
+              <div key={s.label} className="flex items-center gap-2 bg-bg-subtle border border-border px-4 py-2 rounded-xl text-sm">
+                <span className="material-symbols-outlined text-base text-brand-700">{s.icon}</span>
+                <span className="font-bold text-text-primary">{s.value}</span>
+                <span className="text-text-secondary">{s.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="w-px self-stretch bg-border hidden sm:block" />
+          <div className="flex flex-wrap gap-3">
+            <UserAssignChip
+              label="RM"
+              value={app.rm ?? null}
+              applicationId={app.id}
+              field="assignedRmId"
+              roleFilters={['CREDIT_RM', 'CREDIT_MANAGER', 'ADMIN']}
+              disabled={['CLOSED', 'WITHDRAWN', 'ACTIVE', 'DISBURSED'].includes(app.state)}
+              onUpdated={setApp}
+            />
+            <UserAssignChip
+              label="Analyst"
+              value={app.analyst ?? null}
+              applicationId={app.id}
+              field="assignedAnalystId"
+              roleFilters={['CREDIT_ANALYST', 'CREDIT_MANAGER', 'ADMIN']}
+              disabled={['CLOSED', 'WITHDRAWN', 'ACTIVE', 'DISBURSED'].includes(app.state)}
+              onUpdated={setApp}
+            />
+          </div>
         </div>
 
         {/* Onboarding banner — shown once for newly created applications */}
@@ -1121,8 +1132,15 @@ const isIdPlaceholder = id === 'new';
           </div>
         )}
 
+        {/* S7 — Guarantor Financial Assessment */}
+        {activeTab === 'guarantor-assessment' && (
+          <div role="tabpanel" id="panel-guarantor-assessment" aria-labelledby="tab-guarantor-assessment" tabIndex={0}>
+            <GuarantorFinancialAssessmentTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
+          </div>
+        )}
+
         {/* S7 — Decision Process Banner */}
-        {['signoff', 'approvals', 'conditions', 'summary'].includes(activeTab) && (
+        {['signoff', 'approvals', 'guarantor-assessment', 'conditions', 'summary'].includes(activeTab) && (
           <S7ProcessBanner
             app={app}
             signoffs={signoffs}

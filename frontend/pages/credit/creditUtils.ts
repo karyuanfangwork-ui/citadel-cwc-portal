@@ -528,8 +528,8 @@ export function getSmartDefaults(options: SmartDefaultOptions): SmartDefaults {
   // Tenor: product default or 60 months
   const tenorMonths = (productType && PRODUCT_DEFAULT_TENOR[productType]) || 60;
 
-  // Assigned RM: current user if they have credit:rm role
-  const isRm = currentUser?.roles?.some(r => r === 'credit:rm' || r === 'CREDIT_RM') ?? false;
+  // Assigned RM: current user if they have CREDIT_RM role
+  const isRm = currentUser?.roles?.some(r => r === 'CREDIT_RM') ?? false;
   const assignedRmId = isRm ? currentUser!.id : null;
 
   // Suggested reviewer: first approval user who isn't the current user

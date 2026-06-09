@@ -12,13 +12,13 @@ const router = Router();
 router.post(
   '/borrowers/:borrowerId/aml-rescreen',
   authenticate,
-  requirePermission('credit:aml_rescreen:create'),
+  requirePermission('credit:write'),
   triggerRescreen,
 );
 router.get(
   '/borrowers/:borrowerId/aml-rescreen',
   authenticate,
-  requirePermission('credit:aml_rescreen:read'),
+  requirePermission('credit:read'),
   getRescreenHistory,
 );
 
@@ -26,7 +26,7 @@ router.get(
 router.patch(
   '/aml-rescreen/:eventId/review',
   authenticate,
-  requirePermission('credit:aml_rescreen:review'),
+  requirePermission('credit:compliance'),
   reviewRescreenEvent,
 );
 

@@ -196,24 +196,9 @@ async function main() {
         create: { name: 'CREDIT_MANAGER', description: 'Credit Manager — approves applications within authority, manages team' }
     });
     await prisma.role.upsert({
-        where: { name: 'CREDIT_SENIOR' },
-        update: {},
-        create: { name: 'CREDIT_SENIOR', description: 'Senior Credit Officer — approves higher-value applications, risk oversight' }
-    });
-    await prisma.role.upsert({
-        where: { name: 'CREDIT_COMMITTEE' },
-        update: {},
-        create: { name: 'CREDIT_COMMITTEE', description: 'Credit Committee Member — votes on committee-level decisions' }
-    });
-    await prisma.role.upsert({
         where: { name: 'CREDIT_ADMIN' },
         update: {},
         create: { name: 'CREDIT_ADMIN', description: 'Credit Administrator — full credit module configuration and management' }
-    });
-    await prisma.role.upsert({
-        where: { name: 'CREDIT_OPS' },
-        update: {},
-        create: { name: 'CREDIT_OPS', description: 'Credit Operations — disbursement and post-disbursement operations' }
     });
 
     console.log('✅ Roles created');
@@ -249,24 +234,15 @@ async function main() {
         { name: 'announcement:read', resource: 'announcement', action: 'read', description: 'View announcements' },
         { name: 'announcement:write', resource: 'announcement', action: 'write', description: 'Create and edit announcements' },
         { name: 'announcement:admin', resource: 'announcement', action: 'admin', description: 'Delete and manage announcements' },
-        // Credit module permissions
+        // Credit module permissions (8 core — 9 deprecated removed)
         { name: 'credit:read', resource: 'credit', action: 'read', description: 'View credit module data' },
         { name: 'credit:write', resource: 'credit', action: 'write', description: 'Create and edit credit data' },
-        { name: 'credit:delete', resource: 'credit', action: 'delete', description: 'Delete credit data' },
         { name: 'credit:approve', resource: 'credit', action: 'approve', description: 'Approve or reject credit applications' },
-        { name: 'credit:committee', resource: 'credit', action: 'committee', description: 'Participate in credit committee votes' },
-        { name: 'credit:score', resource: 'credit', action: 'score', description: 'Run scorecards and manage credit scoring' },
-        { name: 'credit:spread', resource: 'credit', action: 'spread', description: 'Enter and review financial spreading' },
-        { name: 'credit:analyze', resource: 'credit', action: 'analyze', description: 'Access credit analytics and dashboards' },
+        { name: 'credit:create', resource: 'credit', action: 'create', description: 'Create new credit applications — restricted to RM and ADMIN (maker role only)' },
         { name: 'credit:admin', resource: 'credit', action: 'admin', description: 'Configure credit module settings' },
         { name: 'credit:disburse', resource: 'credit', action: 'disburse', description: 'Disburse approved credit facilities (SOD: separated from admin)' },
         { name: 'credit:compliance', resource: 'credit', action: 'compliance', description: 'Access credit compliance and AML functions' },
-        { name: 'credit:risk', resource: 'credit', action: 'risk', description: 'Access credit risk management functions' },
         { name: 'credit:export', resource: 'credit', action: 'export', description: 'Export credit data with reason capture' },
-        { name: 'credit:override', resource: 'credit', action: 'override', description: 'Override automated credit decisions with justification' },
-        { name: 'credit:monitor', resource: 'credit', action: 'monitor', description: 'Access post-disbursement credit monitoring' },
-        { name: 'credit:document', resource: 'credit', action: 'document', description: 'Manage credit documents, upload and download' },
-        { name: 'credit:create', resource: 'credit', action: 'create', description: 'Create new credit applications — restricted to RM and ADMIN (maker role only)' },
     ];
 
     for (const perm of permissions) {
@@ -312,10 +288,8 @@ async function main() {
         'asset:read', 'asset:write', 'asset:import', 'asset:delete',
         'crm:read', 'crm:write', 'crm:delete', 'crm:admin', 'crm:read:team',
         'announcement:read', 'announcement:write', 'announcement:admin',
-        'credit:read', 'credit:write', 'credit:delete', 'credit:approve', 'credit:create',
-        'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze',
-        'credit:admin', 'credit:disburse', 'credit:compliance', 'credit:risk', 'credit:export',
-        'credit:override', 'credit:monitor', 'credit:document',
+        'credit:read', 'credit:write', 'credit:approve', 'credit:create',
+        'credit:admin', 'credit:disburse', 'credit:compliance', 'credit:export',
     ];
 
     // AGENT gets full request CRUD + assign + confidential, no admin/user/report/banner/workflow
@@ -363,13 +337,10 @@ async function main() {
         FINANCE_HEAD: executivePerms,
         SALES_MANAGER: ['crm:read', 'crm:read:team', 'crm:write', 'crm:delete'],
         SALES_REP: ['crm:read', 'crm:write'],
-        CREDIT_RM: ['credit:read', 'credit:write', 'credit:create', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
-        CREDIT_ANALYST: ['credit:read', 'credit:write', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:export', 'credit:monitor', 'credit:document'],
-        CREDIT_MANAGER: ['credit:read', 'credit:write', 'credit:approve', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
-        CREDIT_SENIOR: ['credit:read', 'credit:write', 'credit:approve', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
-        CREDIT_COMMITTEE: ['credit:read', 'credit:approve', 'credit:committee', 'credit:analyze', 'credit:risk', 'credit:monitor'],
-        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:delete', 'credit:approve', 'credit:create', 'credit:committee', 'credit:score', 'credit:spread', 'credit:analyze', 'credit:admin', 'credit:compliance', 'credit:risk', 'credit:export', 'credit:override', 'credit:monitor', 'credit:document'],
-        CREDIT_OPS: ['credit:read', 'credit:write', 'credit:disburse', 'credit:monitor', 'credit:document'],
+        CREDIT_RM: ['credit:read', 'credit:write', 'credit:create', 'credit:export', 'credit:disburse'],
+        CREDIT_ANALYST: ['credit:read', 'credit:write', 'credit:export'],
+        CREDIT_MANAGER: ['credit:read', 'credit:write', 'credit:approve', 'credit:export'],
+        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:create', 'credit:approve', 'credit:admin', 'credit:disburse', 'credit:compliance', 'credit:export'],
     };
 
     // Upsert RolePermission records: only add seed-default assignments,
@@ -478,6 +449,120 @@ async function main() {
     }
     if (cleanedUp > 0) {
         console.log(`✅ Cleaned up ${cleanedUp} stale permission(s)`);
+    }
+
+    // §3.1 — Cleanup: Remove deprecated permissions from all roles
+    // These 9 permissions were never enforced on backend routes and are now consolidated
+    // into the 8 core permissions (read, write, create, approve, admin, disburse, compliance, export)
+    const deprecatedPerms = [
+        'credit:delete', 'credit:committee', 'credit:score', 'credit:spread',
+        'credit:analyze', 'credit:risk', 'credit:override', 'credit:monitor', 'credit:document',
+    ];
+    let deprecatedRemoved = 0;
+    for (const permName of deprecatedPerms) {
+        const permId = permMap.get(permName);
+        if (permId) {
+            const deleted = await prisma.rolePermission.deleteMany({
+                where: { permissionId: permId },
+            });
+            if (deleted.count > 0) {
+                console.log(`  🧹 Removed deprecated permission ${permName} from ${deleted.count} role assignment(s)`);
+                deprecatedRemoved += deleted.count;
+            }
+        }
+    }
+    if (deprecatedRemoved > 0) {
+        console.log(`✅ Cleaned up ${deprecatedRemoved} deprecated permission assignment(s)`);
+    }
+
+    // §3.2 — Cleanup: Migrate CREDIT_SENIOR and CREDIT_COMMITTEE users to CREDIT_MANAGER
+    const mergedRoles = ['CREDIT_SENIOR', 'CREDIT_COMMITTEE'];
+    const managerRole = await prisma.role.findUnique({ where: { name: 'CREDIT_MANAGER' } });
+    if (managerRole) {
+        for (const oldRoleName of mergedRoles) {
+            const oldRole = await prisma.role.findUnique({ where: { name: oldRoleName } });
+            if (!oldRole) continue;
+            const userRoles = await prisma.userRole.findMany({ where: { roleId: oldRole.id } });
+            for (const ur of userRoles) {
+                const existing = await prisma.userRole.findUnique({
+                    where: { userId_roleId: { userId: ur.userId, roleId: managerRole.id } },
+                });
+                if (!existing) {
+                    await prisma.userRole.create({
+                        data: { userId: ur.userId, roleId: managerRole.id },
+                    });
+                }
+            }
+            // Remove old role's permission assignments, then remove old UserRole rows
+            await prisma.rolePermission.deleteMany({ where: { roleId: oldRole.id } });
+            const deletedUserRoles = await prisma.userRole.deleteMany({ where: { roleId: oldRole.id } });
+            console.log(`  🔄 Migrated ${userRoles.length} users from ${oldRoleName} to CREDIT_MANAGER (removed ${deletedUserRoles.count} stale UserRole rows)`);
+        }
+    }
+
+    // §3.3 — Cleanup: Migrate CREDIT_OPS users to CREDIT_RM (disburse moves to RM)
+    const opsRole = await prisma.role.findUnique({ where: { name: 'CREDIT_OPS' } });
+    if (opsRole) {
+        const rmRole = await prisma.role.findUnique({ where: { name: 'CREDIT_RM' } });
+        if (rmRole) {
+            const opsUserRoles = await prisma.userRole.findMany({ where: { roleId: opsRole.id } });
+            for (const ur of opsUserRoles) {
+                const existing = await prisma.userRole.findUnique({
+                    where: { userId_roleId: { userId: ur.userId, roleId: rmRole.id } },
+                });
+                if (!existing) {
+                    await prisma.userRole.create({
+                        data: { userId: ur.userId, roleId: rmRole.id },
+                    });
+                }
+            }
+            await prisma.rolePermission.deleteMany({ where: { roleId: opsRole.id } });
+            const deletedOpsUserRoles = await prisma.userRole.deleteMany({ where: { roleId: opsRole.id } });
+            console.log(`  🔄 Migrated ${opsUserRoles.length} CREDIT_OPS users to CREDIT_RM (removed ${deletedOpsUserRoles.count} stale UserRole rows)`);
+        }
+    }
+
+    // §3.4 — Cleanup: Delete deprecated permission rows from Permission table
+    // These 9 permissions were never enforced on backend routes and are now fully removed
+    let permsDeleted = 0;
+    for (const permName of deprecatedPerms) {
+        const deleted = await prisma.permission.deleteMany({
+            where: { name: permName },
+        });
+        if (deleted.count > 0) {
+            console.log(`  🗑️  Deleted deprecated permission row: ${permName}`);
+            permsDeleted += deleted.count;
+        }
+    }
+    if (permsDeleted > 0) {
+        console.log(`✅ Deleted ${permsDeleted} deprecated permission row(s) from Permission table`);
+        // Rebuild permMap after deletions so subsequent lookups don't reference stale IDs
+        const updatedPerms = await prisma.permission.findMany();
+        for (const p of updatedPerms) {
+            permMap.set(p.name, p.id);
+        }
+    }
+
+    // §3.5 — Cleanup: Delete deprecated role rows from Role table
+    // Users have been migrated; permissions have been removed; safe to delete the role rows entirely
+    const deprecatedRoleNames = ['CREDIT_SENIOR', 'CREDIT_COMMITTEE', 'CREDIT_OPS'];
+    let rolesDeleted = 0;
+    for (const roleName of deprecatedRoleNames) {
+        const deleted = await prisma.role.deleteMany({
+            where: { name: roleName },
+        });
+        if (deleted.count > 0) {
+            console.log(`  🗑️  Deleted deprecated role: ${roleName}`);
+            rolesDeleted += deleted.count;
+        }
+    }
+    if (rolesDeleted > 0) {
+        console.log(`✅ Deleted ${rolesDeleted} deprecated role(s) from Role table`);
+        // Rebuild roleMap after deletions
+        const updatedRoles = await prisma.role.findMany();
+        for (const r of updatedRoles) {
+            roleMap.set(r.name, r.id);
+        }
     }
 
     const hiringManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'HIRING_MANAGER' } });
@@ -693,7 +778,6 @@ async function main() {
     const creditRmRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_RM' } });
     const creditAnalystRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_ANALYST' } });
     const creditManagerRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_MANAGER' } });
-    const creditSeniorRole = await prisma.role.findUniqueOrThrow({ where: { name: 'CREDIT_SENIOR' } });
 
     const creditManagerUser = await prisma.user.upsert({
         where: { email: 'credit.manager@test.local' },
@@ -740,8 +824,8 @@ async function main() {
             isActive: true,
         },
     });
-    await assignRoles(creditSeniorUser.id, [creditSeniorRole.id, normalStaffRole.id]);
-    console.log('✅ Credit Senior user created (email: credit.senior@test.local, password: abc@123)');
+    await assignRoles(creditSeniorUser.id, [creditManagerRole.id, normalStaffRole.id]);
+    console.log('✅ Credit Senior user created (email: credit.senior@test.local, password: abc@123) — assigned CREDIT_MANAGER role');
 
     // john.doe also gets CREDIT_RM role (existing user, add role only)
     await assignRoles(johnDoeUser.id, [creditRmRole.id]);

@@ -46,9 +46,13 @@ const CreditApplicationWizard: React.FC<CreditApplicationWizardProps> = ({
     SECTIONS.find(s => s.id === urlSection) ? urlSection! : 'header'
   );
 
-  // Sync URL params
+  // Sync URL params — preserve mode=wizard so wizard mode survives refresh/re-render
   useEffect(() => {
-    setSearchParams({ step: String(currentStep), section: activeSection }, { replace: true });
+    setSearchParams(prev => {
+      prev.set('step', String(currentStep));
+      prev.set('section', activeSection);
+      return prev;
+    }, { replace: true });
   }, [currentStep, activeSection, setSearchParams]);
 
   const stepSections = useMemo(() => getSectionsForStep(currentStep), [currentStep]);

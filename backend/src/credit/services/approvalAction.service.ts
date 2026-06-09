@@ -43,6 +43,12 @@ interface CreditDecisionRow {
 
 // Authority level hierarchy — higher number = higher authority
 const AUTHORITY_HIERARCHY: Record<string, number> = {
+  // New authority levels
+  RM: 1,
+  MANAGER: 2,
+  COMMITTEE: 3,
+  BOARD: 4,
+  // Legacy aliases (remove after full DB migration)
   CREDIT_RM: 1,
   CREDIT_MANAGER: 2,
   SENIOR_CREDIT_OFFICER: 3,
@@ -61,14 +67,15 @@ function hasSufficientAuthority(userAuthority: string, requiredAuthority: string
  * Used by autoRouteNextApprover to find next-level approvers.
  */
 export function getRoleNamesForAuthorityLevel(level: number): string[] {
+  // Committee-level approval: find all CREDIT_MANAGER users
+  // Board-level approval: find CREDIT_ADMIN and ADMIN users
   const mapping: Record<number, string[]> = {
-    1: ['CREDIT_RM'],
-    2: ['CREDIT_MANAGER'],
-    3: ['SENIOR_CREDIT_OFFICER'],
-    4: ['CREDIT_COMMITTEE'],
-    5: ['BOARD_RISK_COMMITTEE'],
+    1: ['CREDIT_RM'],         // Tier 1: RM self-approval
+    2: ['CREDIT_MANAGER'],    // Tier 2: Single manager approval
+    3: ['CREDIT_MANAGER'],    // Tier 3: Committee (multiple managers)
+    4: ['CREDIT_ADMIN'],      // Tier 4: Board/admin override
   };
-  return mapping[level] ?? ['CREDIT_ADMIN']; // Fallback
+  return mapping[level] ?? ['CREDIT_ADMIN'];
 }
 
 // ---------------------------------------------------------------------------

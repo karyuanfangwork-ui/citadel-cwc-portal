@@ -298,6 +298,7 @@ class BorrowerProfileService {
         directors: { where: { resignationDate: null }, orderBy: { appointmentDate: 'desc' } },
         shareholders: { orderBy: { shareholdingPct: 'desc' } },
         beneficialOwners: { orderBy: { createdAt: 'desc' } },
+        relatedPartyMembers: { include: { group: { select: { id: true, name: true, relationshipType: true } } } },
       },
     });
   }

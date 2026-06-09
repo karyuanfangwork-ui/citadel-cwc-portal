@@ -449,7 +449,7 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
       data: { applicationId: leanA.id, provider: 'CCRIS_BORROWER_UPLOAD' as any, subjectName: 'High Net Worth Individual', runDate: new Date('2026-05-01'), runById: adminId, hasHits: false, findings: 'CCRIS clean — no adverse credit history. No existing credit facilities.' },
     });
     await prisma.creditDecision.create({
-      data: { applicationId: leanA.id, decisionType: 'APPROVE' as any, authorityLevel: 'CREDIT_RM', decisionById: adminId, decisionAt: new Date('2026-05-03'), comments: 'Straight-through approval — score 78/100, BB rating, clean bureau, adequate income coverage.' },
+      data: { applicationId: leanA.id, decisionType: 'APPROVE' as any, authorityLevel: 'RM', decisionById: adminId, decisionAt: new Date('2026-05-03'), comments: 'Straight-through approval — score 78/100, BB rating, clean bureau, adequate income coverage.' },
     });
     createdApps.push(leanA);
     console.log('  ✅ Lean App A: CA-LEAN-001 (RM80K personal loan, APPROVED)');
@@ -487,10 +487,10 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
       data: { applicationId: leanB.id, provider: 'CTOS' as any, subjectName: 'SME Manufacturing Sdn Bhd', runDate: new Date('2026-05-05'), runById: adminId, hasHits: false, findings: 'CTOS clean. No litigation, no bankruptcy proceedings.' },
     });
     await prisma.creditDecision.create({
-      data: { applicationId: leanB.id, decisionType: 'APPROVE' as any, authorityLevel: 'CREDIT_RM', decisionById: adminId, decisionAt: new Date('2026-05-08'), comments: 'Stage 1 approved. DSCR 1.72x, BBB rating.' },
+      data: { applicationId: leanB.id, decisionType: 'APPROVE' as any, authorityLevel: 'RM', decisionById: adminId, decisionAt: new Date('2026-05-08'), comments: 'Stage 1 approved. DSCR 1.72x, BBB rating.' },
     });
     await prisma.creditDecision.create({
-      data: { applicationId: leanB.id, decisionType: 'APPROVE' as any, authorityLevel: 'CREDIT_MANAGER', decisionById: analystId, decisionAt: new Date('2026-05-12'), comments: 'Stage 2 approved. Conditions: quarterly financial statements required within 30 days of quarter end.' },
+      data: { applicationId: leanB.id, decisionType: 'APPROVE' as any, authorityLevel: 'MANAGER', decisionById: analystId, decisionAt: new Date('2026-05-12'), comments: 'Stage 2 approved. Conditions: quarterly financial statements required within 30 days of quarter end.' },
     });
     await prisma.condition.create({
       data: { applicationId: leanB.id, title: 'Submit latest 3 months bank statements prior to first drawdown.', category: 'PRE_DISBURSEMENT' as any, conditionType: 'PRECEDENT' as any, description: 'Submit latest 3 months bank statements prior to first drawdown.', dueDate: new Date('2026-06-01'), status: 'PENDING' as any },
@@ -530,7 +530,7 @@ async function seedCreditApplications(profiles: any[], adminId: string, analystI
       data: { applicationId: leanC.id, provider: 'CTOS' as any, subjectName: 'SME Manufacturing Sdn Bhd', runDate: new Date('2026-05-10'), runById: adminId, hasHits: false, findings: 'CTOS clean.' },
     });
     await prisma.creditDecision.create({
-      data: { applicationId: leanC.id, decisionType: 'APPROVE' as any, authorityLevel: 'CREDIT_RM', decisionById: adminId, decisionAt: new Date('2026-05-14'), comments: 'Stage 1 approved. Strong project fundamentals. Escalating to CREDIT_MANAGER for stage 2.' },
+      data: { applicationId: leanC.id, decisionType: 'APPROVE' as any, authorityLevel: 'RM', decisionById: adminId, decisionAt: new Date('2026-05-14'), comments: 'Stage 1 approved. Strong project fundamentals. Escalating to CREDIT_MANAGER for stage 2.' },
     });
     createdApps.push(leanC);
     console.log('  ✅ Lean App C: CA-LEAN-003 (RM6M project finance, COMMITTEE_REVIEW, 3-stage chain 1/3 done)');
@@ -705,11 +705,11 @@ async function seedAuditEvents(apps: any[], adminId: string) {
 // ---------------------------------------------------------------------------
 async function seedCreditDecisions(apps: any[], adminId: string) {
   const decisionDefs = [
-    { stateIdx: 4, decisionType: ApprovalDecisionType.ESCALATE, authorityLevel: 'CREDIT_MANAGER', comments: 'Escalated to Credit Committee — exposure RM10M exceeds Tier 2 limit. Senior Manager recommends approval; pending final committee vote on 2026-05-15.' },
-    { stateIdx: 5, decisionType: ApprovalDecisionType.APPROVE, authorityLevel: 'CREDIT_MANAGER', comments: 'Approved based on strong financials and adequate collateral coverage. DSCR at 1.85x exceeds minimum 1.25x threshold.' },
-    { stateIdx: 6, decisionType: ApprovalDecisionType.REJECT, authorityLevel: 'CREDIT_RM', comments: 'DSR exceeds policy threshold at 61.2%. Insufficient income documentation provided.' },
-    { stateIdx: 8, decisionType: ApprovalDecisionType.APPROVE, authorityLevel: 'CREDIT_RM', comments: 'Approved — strong repayment track record with existing facilities. All covenants met.' },
-    { stateIdx: 9, decisionType: ApprovalDecisionType.APPROVE, authorityLevel: 'CREDIT_COMMITTEE', comments: 'Committee approved with conditions. Quarterly covenant monitoring required.' },
+    { stateIdx: 4, decisionType: ApprovalDecisionType.ESCALATE, authorityLevel: 'MANAGER', comments: 'Escalated to Credit Committee — exposure RM10M exceeds Tier 2 limit. Senior Manager recommends approval; pending final committee vote on 2026-05-15.' },
+    { stateIdx: 5, decisionType: ApprovalDecisionType.APPROVE, authorityLevel: 'MANAGER', comments: 'Approved based on strong financials and adequate collateral coverage. DSCR at 1.85x exceeds minimum 1.25x threshold.' },
+    { stateIdx: 6, decisionType: ApprovalDecisionType.REJECT, authorityLevel: 'RM', comments: 'DSR exceeds policy threshold at 61.2%. Insufficient income documentation provided.' },
+    { stateIdx: 8, decisionType: ApprovalDecisionType.APPROVE, authorityLevel: 'RM', comments: 'Approved — strong repayment track record with existing facilities. All covenants met.' },
+    { stateIdx: 9, decisionType: ApprovalDecisionType.APPROVE, authorityLevel: 'COMMITTEE', comments: 'Committee approved with conditions. Quarterly covenant monitoring required.' },
   ];
 
   let count = 0;
@@ -740,9 +740,9 @@ async function seedCreditDecisions(apps: any[], adminId: string) {
 // ---------------------------------------------------------------------------
 async function seedApprovalMatrices(adminId: string) {
   const matrices = [
-    { name: 'Tier 1 — RM Authority', description: 'Relationship Manager can approve exposures up to RM500,000 for all risk ratings', minExposure: 0, maxExposure: 500000, minRating: 'AAA', maxRating: 'D', authorityLevel: 'CREDIT_RM', requiredApproverCount: 1 },
-    { name: 'Tier 2 — Senior Manager Authority', description: 'Senior Manager approval required for exposures RM500,001 to RM5,000,000', minExposure: 500001, maxExposure: 5000000, minRating: 'AAA', maxRating: 'D', authorityLevel: 'CREDIT_MANAGER', requiredApproverCount: 2 },
-    { name: 'Tier 3 — Credit Committee Authority', description: 'Credit Committee approval required for exposures above RM5,000,000', minExposure: 5000001, maxExposure: 999999999, minRating: 'AAA', maxRating: 'D', authorityLevel: 'CREDIT_COMMITTEE', requiredApproverCount: 3 },
+    { name: 'Tier 1 — RM Authority', description: 'Relationship Manager can approve exposures up to RM500,000 for all risk ratings', minExposure: 0, maxExposure: 500000, minRating: 'AAA', maxRating: 'D', authorityLevel: 'RM', requiredApproverCount: 1 },
+    { name: 'Tier 2 — Senior Manager Authority', description: 'Senior Manager approval required for exposures RM500,001 to RM5,000,000', minExposure: 500001, maxExposure: 5000000, minRating: 'AAA', maxRating: 'D', authorityLevel: 'MANAGER', requiredApproverCount: 2 },
+    { name: 'Tier 3 — Credit Committee Authority', description: 'Credit Committee approval required for exposures above RM5,000,000', minExposure: 5000001, maxExposure: 999999999, minRating: 'AAA', maxRating: 'D', authorityLevel: 'COMMITTEE', requiredApproverCount: 3 },
   ];
 
   let count = 0;
@@ -1177,14 +1177,14 @@ async function seedConditions(apps: any[], adminId: string) {
 async function seedCaMemoData(apps: any[], profiles: any[], adminId: string, hrId: string, itId: string, bankGrade = false) {
   // ── Phase 2: Request Items ──────────────────────────────────────────────
   const requestDefs = [
-    { stateIdx: 0, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'CREDIT_MANAGER', rationale: 'Renewal of existing term loan facility — borrower has maintained good repayment track record for past 36 months. Recommended for renewal at BLR + 1.5%.' },
-    { stateIdx: 0, type: CaRequestType.VARIATION, approvLevel: 'CREDIT_MANAGER', rationale: 'Variation to increase facility limit from RM1.5M to RM2.0M to support production line expansion (CNC machines & tooling).' },
-    { stateIdx: 1, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'CREDIT_RM', rationale: 'Renewal of revolving credit facility to support daily operations and payroll expansion for growing team.' },
-    { stateIdx: 2, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'CREDIT_COMMITTEE', rationale: 'Annual renewal of trade finance facility. Continued import of raw materials from China for township project Phase 1.' },
-    { stateIdx: 3, type: CaRequestType.POLICY_BREACH_RATIFICATION, approvLevel: 'CREDIT_COMMITTEE', rationale: 'Policy breach — concentration ratio in semiconductor sector at 65% (policy limit 50%). Ratification requested given borrower strong cashflows and DSCR at 1.85x.' },
-    { stateIdx: 3, type: CaRequestType.VARIATION, approvLevel: 'CREDIT_MANAGER', rationale: 'Variation to extend tenor from 60 to 84 months for factory expansion Phase 2.' },
-    { stateIdx: 4, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'CREDIT_COMMITTEE', rationale: 'Renewal of RM10M project finance facility. Property Developer group exposure at RM30M (60% utilization).' },
-    { stateIdx: 5, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'CREDIT_MANAGER', rationale: 'Renewal of approved RM3M term loan. All covenants met, DSCR at 1.85x.' },
+    { stateIdx: 0, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'MANAGER', rationale: 'Renewal of existing term loan facility — borrower has maintained good repayment track record for past 36 months. Recommended for renewal at BLR + 1.5%.' },
+    { stateIdx: 0, type: CaRequestType.VARIATION, approvLevel: 'MANAGER', rationale: 'Variation to increase facility limit from RM1.5M to RM2.0M to support production line expansion (CNC machines & tooling).' },
+    { stateIdx: 1, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'RM', rationale: 'Renewal of revolving credit facility to support daily operations and payroll expansion for growing team.' },
+    { stateIdx: 2, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'COMMITTEE', rationale: 'Annual renewal of trade finance facility. Continued import of raw materials from China for township project Phase 1.' },
+    { stateIdx: 3, type: CaRequestType.POLICY_BREACH_RATIFICATION, approvLevel: 'COMMITTEE', rationale: 'Policy breach — concentration ratio in semiconductor sector at 65% (policy limit 50%). Ratification requested given borrower strong cashflows and DSCR at 1.85x.' },
+    { stateIdx: 3, type: CaRequestType.VARIATION, approvLevel: 'MANAGER', rationale: 'Variation to extend tenor from 60 to 84 months for factory expansion Phase 2.' },
+    { stateIdx: 4, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'COMMITTEE', rationale: 'Renewal of RM10M project finance facility. Property Developer group exposure at RM30M (60% utilization).' },
+    { stateIdx: 5, type: CaRequestType.FACILITY_RENEWAL, approvLevel: 'MANAGER', rationale: 'Renewal of approved RM3M term loan. All covenants met, DSCR at 1.85x.' },
   ];
   let riCount = 0;
   for (const rd of requestDefs) {

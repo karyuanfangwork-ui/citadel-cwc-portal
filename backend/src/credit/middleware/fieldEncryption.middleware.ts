@@ -79,7 +79,7 @@ export function decryptBorrowerFields() {
 
           // Determine if the user should see full values or masked
           const shouldMask = !req.user?.roles?.some(r =>
-            ['ADMIN', 'CREDIT_ADMIN', 'CREDIT_MANAGER', 'CREDIT_SENIOR'].includes(r)
+            ['ADMIN', 'CREDIT_ADMIN', 'CREDIT_MANAGER'].includes(r)
           );
           const shouldMaskPermission = !req.user?.permissions?.includes('credit:admin');
 

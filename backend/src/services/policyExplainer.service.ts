@@ -290,6 +290,11 @@ async function explainCreditPolicy(applicationId: string, currentUserId: string)
 
   if (authorityResult) {
     const roleLabels: Record<string, string> = {
+      RM: 'Relationship Manager',
+      MANAGER: 'Credit Manager',
+      COMMITTEE: 'Credit Committee',
+      BOARD: 'Board / Risk Committee',
+      // Legacy aliases (remove after full DB migration)
       CREDIT_RM: 'Relationship Manager',
       CREDIT_MANAGER: 'Credit Manager',
       SENIOR_CREDIT_OFFICER: 'Senior Credit Officer',

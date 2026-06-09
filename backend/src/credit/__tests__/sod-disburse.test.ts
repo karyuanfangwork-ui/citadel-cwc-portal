@@ -38,15 +38,15 @@ describe('1.1 SOD — credit:disburse separated from credit:admin', () => {
     expect(perm!.action).toBe('disburse');
   });
 
-  it('CREDIT_OPS role has credit:disburse but NOT credit:admin', async () => {
-    const opsRole = await prisma.role.findUnique({
-      where: { name: 'CREDIT_OPS' },
+  it('CREDIT_RM (formerly CREDIT_OPS) role has credit:disburse', async () => {
+    const rmRole = await prisma.role.findUnique({
+      where: { name: 'CREDIT_RM' },
       include: { permissions: { include: { permission: true } } },
     });
 
-    expect(opsRole).toBeDefined();
+    expect(rmRole).toBeDefined();
 
-    const permNames = opsRole!.permissions.map((rp: any) => rp.permission.name);
+    const permNames = rmRole!.permissions.map((rp: any) => rp.permission.name);
     expect(permNames).toContain('credit:disburse');
     expect(permNames).not.toContain('credit:admin');
   });

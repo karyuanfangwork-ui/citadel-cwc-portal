@@ -21,7 +21,7 @@ import { Prisma } from '@prisma/client';
  */
 
 // Roles that bypass RM scoping — they can see all applications
-const RM_SCOPE_BYPASS_ROLES = ['ADMIN', 'CREDIT_ADMIN', 'CREDIT_MANAGER', 'CREDIT_SENIOR', 'CREDIT_COMMITTEE'];
+const RM_SCOPE_BYPASS_ROLES = ['ADMIN', 'CREDIT_ADMIN', 'CREDIT_MANAGER'];
 
 export interface RmScopedRequest extends AuthRequest {
   rmScopeFilter?: Prisma.CreditApplicationWhereInput;

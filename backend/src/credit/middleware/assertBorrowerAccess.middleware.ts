@@ -7,7 +7,7 @@ import prisma from '../../utils/prisma';
  * Roles that can access any borrower profile regardless of RM assignment.
  * CREDIT_RM users can only access borrowers they are assigned to via a CreditApplication.
  */
-const ADMIN_ROLES = ['ADMIN', 'CREDIT_ADMIN', 'CREDIT_MANAGER', 'CREDIT_SENIOR', 'CREDIT_COMMITTEE'];
+const ADMIN_ROLES = ['ADMIN', 'CREDIT_ADMIN', 'CREDIT_MANAGER'];
 
 /**
  * Middleware that verifies the requesting user has access to the borrower profile

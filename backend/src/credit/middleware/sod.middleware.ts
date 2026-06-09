@@ -23,7 +23,7 @@ import { logger } from '../../utils/logger';
 const ORIGINATOR_ROLES = ['CREDIT_RM'];
 
 // Roles that are considered "approver" roles
-const APPROVER_ROLES = ['CREDIT_MANAGER', 'CREDIT_SENIOR', 'CREDIT_COMMITTEE'];
+const APPROVER_ROLES = ['CREDIT_MANAGER'];
 
 // Roles that bypass all SOD checks
 const ADMIN_BYPASS_ROLES = ['ADMIN', 'CREDIT_ADMIN'];

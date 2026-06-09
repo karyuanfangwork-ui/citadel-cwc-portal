@@ -153,6 +153,7 @@ export interface BorrowerProfile {
   directors?: Director[];
   shareholders?: Shareholder[];
   beneficialOwners?: UltimateBeneficialOwner[];
+  relatedPartyMembers?: Array<{ id: string; role: string | null; group: { id: string; name: string; relationshipType: string | null } }>;
   // Legacy compat — may be populated by list endpoints
   documents?: CreditDocument[];
   applications?: CreditApplication[];

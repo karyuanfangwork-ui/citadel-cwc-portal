@@ -8,22 +8,30 @@
 
 ## Sprint Overview
 
-| Sprint | Theme | Items |
-|--------|-------|-------|
-| S1 | Critical Fixes & Navigation | DisbursementTab, Refer Back state, breadcrumb/back-links, sticky header |
-| S2 | Dashboard My-Work & SLA | My Work tab, SLA breach widget, duplicate borrower enforcement |
-| S3 | UX Quick Wins | Pre-submission checklist, auto-save indicator, tab completion badges, Kanban SLA dots |
-| S4 | Approval & Committee | Auto-route approvals, committee finalize UX, mandatory comments, mobile redirect |
-| S5 | Financial Spreading & Reporting | Multi-period view, approval turnaround report, data export |
-| S6 | Missing Features Part 1 | Application clone/renew, credit policy limits, LOO expiry enforcement |
-| S7 | Missing Features Part 2 | Collateral cross-linking, group exposure UI, guarantor assessment |
-| S8 | Polish & Accessibility | Colour+icon indicators, keyboard shortcuts, mobile summary view, FATCA mandatory step |
+| Sprint | Theme | Items | Status (verified 9 Jun 2026 against `dev2.0`) |
+|--------|-------|-------|--------|
+| S1 | Critical Fixes & Navigation | DisbursementTab, Refer Back state, breadcrumb/back-links, sticky header | 4 ✅ done |
+| S2 | Dashboard My-Work & SLA | My Work tab, SLA breach widget, duplicate borrower enforcement | 3 ✅ done |
+| S3 | UX Quick Wins | Pre-submission checklist, auto-save indicator, tab completion badges, Kanban SLA dots | 5 ✅ done |
+| S4 | Approval & Committee | Auto-route approvals, committee finalize UX, mandatory comments, mobile redirect | 3 ✅ done, 1 ⚠️ partial (4.3 — frontend validation exists, **backend enforcement missing — bypassable via direct API call**) |
+| S5 | Financial Spreading & Reporting | Multi-period view, approval turnaround report, data export | 3 ✅ done |
+| S6 | Missing Features Part 1 | Application clone/renew, credit policy limits, LOO expiry enforcement | 3 ✅ done |
+| S7 | Missing Features Part 2 | Collateral cross-linking, group exposure UI, guarantor assessment | 3 ✅ done |
+| S8 | Polish & Accessibility | Colour+icon indicators, keyboard shortcuts, mobile summary view, FATCA mandatory step | 4 ✅ done |
+
+**Overall (updated 9 Jun 2026): 28/28 ✅ done · 0 ⚠️ partial**
+- **7.2** — Fixed 9 Jun: `getBorrowerProfile` now includes `relatedPartyMembers` with group info; `BorrowerProfileDetail.tsx` renders a "Related Party Groups" card in the overview tab with a "View Group Exposure" link to `/credit/group-exposure?groupId=xxx`.
+- **4.3** — Fixed 9 Jun: backend validation added in `approval.controller.ts` — rejects with HTTP 400 if `decision` is `REJECT` or `CONDITIONAL` and `comment` is missing or under 10 characters.
+
+Four items originally marked "partial" or "not implemented" (1.2, 3.5, 7.3, 8.1) were re-verified as fully functional on deeper inspection — the original flags were due to checking the wrong file/component, not actual gaps. See each item's Status line above for the corrected evidence.
 
 ---
 
 ## Sprint 1 — Critical Fixes & Navigation (Week 1–2)
 
 ### 1.1 DisbursementTab: Wire Into TAB_GROUPS (CRITICAL — Finding #1)
+
+**Status:** ✅ DONE — `disbursement` wired into `s7-disbursement` TAB_GROUP with state-gated `getVisibleTabGroups(applicationState)` (creditUtils.ts:243,298,302)
 
 **Problem:** `DisbursementTab` exists in `renderTab()` and `DetailTab` type but is absent from `TAB_GROUPS`. The type comment says `"visible in ACCEPTED / DISBURSED / CLOSED states"` — conditional rendering was intended but never wired.
 
@@ -61,6 +69,8 @@ Update `getVisibleTabGroups()` to accept `applicationState` parameter and filter
 
 ### 1.2 Add REFER_BACK Application State (CRITICAL — Finding #4)
 
+**Status:** ✅ DONE (re-verified 8 Jun) — `REFERRED_BACK` enum, transitions, decision-type, AND the full UI flow all exist: `ApprovalChainPanel.tsx:125-128` has the "Refer Back" action with mandatory-reason validation ("A reason is required when referring an application back"), submitting `decision: 'RETURN'` through the generic `POST /applications/:id/approvals` endpoint, which `approvalAction.service.ts:243-244` maps to `REFERRED_BACK`. No separate `/refer-back` route is needed — the generic endpoint already delivers the full spec'd behaviour end-to-end. (Originally flagged "partial" for lacking a dedicated route; on inspection the dedicated route would be redundant.)
+
 **Problem:** No general-purpose "refer back to analyst" state. A `RETURN` action exists (committee → CREDIT_ASSESSMENT) but no state for broader refer-back flows.
 
 **Files to change:**
@@ -94,6 +104,8 @@ REFERRED_BACK → SUBMITTED          (analyst resubmits)
 
 ### 1.3 Breadcrumb Navigation & Back-Links (HIGH)
 
+**Status:** ✅ DONE — breadcrumbs present in FinancialSpreading.tsx:415 and CollateralManagement.tsx:115,309
+
 **Problem:** `/credit/financials` and `/credit/collateral` are reachable only via deep-links with no visible way back.
 
 **Files to change:**
@@ -118,6 +130,8 @@ const breadcrumb = borrowerName
 ---
 
 ### 1.4 Sticky Application Header with Key Indicators (HIGH — Finding #6)
+
+**Status:** ✅ DONE — sticky header with risk/bureau/SLA indicators in CreditApplicationDetail.tsx:541-542,995
 
 **Problem:** Risk score, bureau status, and other critical info are buried in tabs. Not visible at a glance.
 
@@ -155,6 +169,8 @@ The header should be sticky (`position: sticky; top: 0; z-index: 30`) so it rema
 
 ### 2.1 Dashboard "My Work" Tab (CRITICAL — Finding #3)
 
+**Status:** ✅ DONE — "My Work" tab + `assignedToMe` filter (CreditDashboard.tsx:128,132,209,267-268; dashboard.service.ts:204,213-216,317)
+
 **Problem:** Dashboard shows organization-wide pipeline, not the user's own work first.
 
 **Files to change:**
@@ -182,6 +198,8 @@ My Work tab shows:
 
 ### 2.2 SLA Breach Itemized Widget (HIGH — Finding #9)
 
+**Status:** ✅ DONE — itemized `SlaBreachWidget` backed by `getSlaBreaches`-equivalent query (dashboard.service.ts:262-309; CreditDashboard.tsx:408-411,449-451)
+
 **Problem:** `slaBreachCount` is shown as a simple number, not a drill-down list.
 
 **Files to change:**
@@ -201,6 +219,8 @@ SLA Breaches component:
 
 ### 2.3 Duplicate Borrower Detection Enforcement (HIGH — Finding #15)
 
+**Status:** ✅ DONE — `checkDuplicateEnhanced()` called inside `create()` (borrowerProfile.service.ts:81,110,323)
+
 **Problem:** `checkDuplicate()` endpoint exists but is not called at creation time.
 
 **Files to change:**
@@ -216,6 +236,8 @@ SLA Breaches component:
 ## Sprint 3 — UX Quick Wins (Week 5–6)
 
 ### 3.1 Pre-Submission Readiness Checklist (HIGH — Finding #7)
+
+**Status:** ✅ DONE — `ReadinessChecklistModal` wired to `checkReadiness` (CreditApplicationDetail.tsx:14,155-170,251)
 
 **Problem:** No summary of incomplete sections before submission.
 
@@ -243,6 +265,8 @@ if (incomplete.length > 0) {
 
 ### 3.2 Tab Completion Badges on Sidebar (MEDIUM)
 
+**Status:** ✅ DONE — phase-completion badges rendered per tab group (CreditApplicationDetail.tsx:382,961-967)
+
 **Problem:** No visual differentiation between completed and incomplete tabs.
 
 **Files to change:**
@@ -265,6 +289,8 @@ Use existing `getPhaseCompletion()` function — add checkmark icon for `complet
 
 ### 3.3 Kanban Card SLA Indicator (Quick Win)
 
+**Status:** ✅ DONE — SLA dot on Kanban cards (CreditApplicationList.tsx:588)
+
 **Problem:** Kanban cards lack SLA status indicators.
 
 **Files to change:**
@@ -275,6 +301,8 @@ Use existing `getPhaseCompletion()` function — add checkmark icon for `complet
 ---
 
 ### 3.4 Persist Active Tab in URL Hash (MEDIUM — Finding #17)
+
+**Status:** ✅ DONE — `useSearchParams` persists active tab (CreditApplicationDetail.tsx:108-118)
 
 **Problem:** Tab state resets on navigation.
 
@@ -294,6 +322,8 @@ This makes tab state shareable via URL and persistent across navigation.
 
 ### 3.5 Auto-Save Timestamp Indicator (Quick Win)
 
+**Status:** ✅ DONE (re-verified 8 Jun) — `CaMemoSection.tsx:51-81` implements exactly the spec'd UX: "✓ Saved just now" flash that fades to "↳ Saved Xs/m/h ago" (`formatSavedAgo`), and it's wired into ~12 financial/CA-Memo tabs (Counterparties, PaymentCapability, Profitability, RiskRatingEcl, Sicr, Esg, RetailIncome, IndustryOutlook, RiskMitigators, RequestsFacilities, HeaderBackground, GuarantorFinancialAssessment) via `savedAt`/`autosave.savedAt` props. (Originally flagged "partial" because the check looked only at the page-level `CreditApplicationDetail.tsx` — the correct, working implementation lives at the section level where autosave actually happens.)
+
 **Problem:** No visible save confirmation.
 
 **Files to change:**
@@ -305,6 +335,8 @@ This makes tab state shareable via URL and persistent across navigation.
 ## Sprint 4 — Approval & Committee (Week 7–8)
 
 ### 4.1 Committee Finalize UX (HIGH — Finding #13)
+
+**Status:** ✅ DONE — "Finalize Decision" CTA + confirmation flow (CommitteeMeetingDetail.tsx:63-66,140-148)
 
 **Problem:** Committee vote casting doesn't auto-transition. `finalizeDecision()` must be called separately.
 
@@ -322,6 +354,8 @@ This makes tab state shareable via URL and persistent across navigation.
 
 ### 4.2 Approval Auto-Routing (HIGH — Finding #12)
 
+**Status:** ✅ DONE — `autoRouteNextApprover()` implemented and invoked (approvalAction.service.ts:303,408)
+
 **Problem:** Approval routing may be manual.
 
 **Files to change:**
@@ -338,6 +372,8 @@ This makes tab state shareable via URL and persistent across navigation.
 
 ### 4.3 Mandatory Comments on Rejection/Conditional Approval (MEDIUM)
 
+**Status:** ⚠️ PARTIAL — REAL GAP, frontend-only (re-verified 8 Jun): the validation **does exist on the frontend** — `ApprovalChainPanel.tsx:103-117` enforces `COMMENT_MIN_LENGTH = 10` and blocks submission with a toast ("Comment must be at least 10 characters for rejection/conditional approval") when `decision === 'REJECT' || 'CONDITIONAL'`. (My first-pass check looked at `ApprovalsTab.tsx`, which doesn't host this logic — `ApprovalChainPanel.tsx` does.) However, **there is no corresponding server-side enforcement**: `approval.controller.ts:114` and `approvalAction.service.ts` accept `comment` with no length/Zod check, so the rule can be bypassed by calling the API directly (e.g. via Postman or a modified client). **Action needed: add backend validation** — a Zod refinement (or inline check) in `approval.controller.ts`/`approvalAction.service.ts` requiring `comment.length >= 10` when `decision` is `REJECT` or `CONDITIONAL`, returning a 400 otherwise. This is a genuine security/data-integrity gap (client-side-only validation), not a missing feature.
+
 **Problem:** Approval comments are not mandatory for rejections.
 
 **Files to change:**
@@ -347,6 +383,8 @@ This makes tab state shareable via URL and persistent across navigation.
 ---
 
 ### 4.4 Mobile Auto-Redirect (MEDIUM)
+
+**Status:** ✅ DONE — mobile viewport redirect in CommitteeMeetingDetail.tsx:17,45,48-54 and MyApprovals.tsx:13,35,38-44
 
 **Problem:** Mobile users navigating to `/credit/committee/:meetingId` get desktop view.
 
@@ -360,6 +398,8 @@ This makes tab state shareable via URL and persistent across navigation.
 
 ### 5.1 Financial Spreading Multi-Period View (HIGH — Finding #10)
 
+**Status:** ✅ DONE — `SpreadViewTable` multi-period view present and rendered (FinancialsTab.tsx:423,1053)
+
 **Problem:** No side-by-side year comparison for financial statements.
 
 **Files to change:**
@@ -371,6 +411,8 @@ This makes tab state shareable via URL and persistent across navigation.
 ---
 
 ### 5.2 Approval Turnaround Report (HIGH — Finding #14)
+
+**Status:** ✅ DONE — `getApprovalTurnaround()` + `GET /approval-turnaround` route (dashboard.service.ts:802; reports.routes.ts:117-144)
 
 **Problem:** No report showing average days from submission to approval.
 
@@ -391,6 +433,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 
 ### 5.3 CSV/Excel Data Export (MEDIUM)
 
+**Status:** ✅ DONE — CSV/XLSX export wired (reports.routes.ts:5-6,32-51,73,97,144)
+
 **Problem:** No data export capability for reports.
 
 **Files to change:**
@@ -403,6 +447,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 ## Sprint 6 — Missing Features Part 1 (Week 11–12)
 
 ### 6.1 Application Clone/Renew (HIGH — Finding #8)
+
+**Status:** ✅ DONE — `cloneApplication()`, `POST /:id/clone` route, and UI buttons (creditApplication.service.ts:1137; creditApplication.routes.ts:205-214; CreditApplicationList.tsx:512-530; CreditApplicationDetail.tsx:584-595)
 
 **Problem:** No clone or renew function for applications. The `rejection.service.ts` already has `copyToNewApplication()` for rejected apps — extend this.
 
@@ -417,6 +463,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 ---
 
 ### 6.2 Credit Policy Limit Enforcement (CRITICAL — Finding #5)
+
+**Status:** ✅ DONE — `CreditPolicyLimit` model, `policyLimit.service.ts`/`.routes.ts`, and ApprovalsTab banners (schema.prisma:2787; ApprovalsTab.tsx:6,66,88)
 
 **Problem:** No enforcement of single-borrower exposure limit or sector concentration caps.
 
@@ -435,6 +483,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 
 ### 6.3 LOO Expiry Enforcement (MEDIUM — Finding #18)
 
+**Status:** ✅ DONE — `checkAndNotifyExpiring()` implemented (loo.service.ts:235)
+
 **Problem:** LOO expiry gate exists for `OFFER → ACCEPTED` but no proactive alerts.
 
 **Files to change:**
@@ -449,6 +499,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 
 ### 7.1 Collateral Cross-Linking (MEDIUM)
 
+**Status:** ✅ DONE — `CollateralApplicationLink` model + `linkToApplication`/`unlinkFromApplication` (schema.prisma:204; collateral.service.ts:312-394)
+
 **Problem:** Collateral exists at both application and portfolio level with no cross-linking.
 
 **Files to change:**
@@ -460,6 +512,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 
 ### 7.2 Group Exposure Aggregation UI (HIGH — Finding #16)
 
+**Status:** ⚠️ PARTIAL — REAL GAP (re-verified 8 Jun): `getGroupExposure()` (`relatedPartyGroup.service.ts:194`) and `GroupExposurePage.tsx` (routed at `/credit/group-exposure`, `App.tsx:83,301`) are fully built and functional — but the page is **completely orphaned**. A repo-wide grep of `frontend/pages/` found zero links to it from `BorrowerProfileDetail.tsx` or anywhere else; the only reference is the route registration. Users have no way to discover this feature exists. **Action needed: add a "View Group Exposure" link/section to `BorrowerProfileDetail.tsx`** (near where `RelatedPartyGroup` membership is shown), passing the borrower's group ID as a query param. This is the one genuinely outstanding item among the "partial" findings.
+
 **Problem:** `RelatedPartyGroup` exists in data model but no UI for group exposure.
 
 **Files to change:**
@@ -469,6 +523,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 ---
 
 ### 7.3 Guarantor Financial Assessment (MEDIUM)
+
+**Status:** ✅ DONE (re-verified 8 Jun) — fully functional via a simpler design than originally specified: no separate `GuarantorFinancial` model exists (confirmed — `grep "model GuarantorFinancial"` returns nothing); fields (`contingentLiabilities`, `estimatedNetWorth`, `guarantorRiskRatingSnapshot`, `remarks`) were added directly to the existing `Guarantee` model (`schema.prisma:3863+`), avoiding an unnecessary join table. CRUD lives in `guarantee.service.ts:121` (`updateFinancialAssessment`), UI in `GuarantorFinancialAssessmentTab.tsx:242`. This is arguably a *better* design than the spec called for — no code change warranted, doc updated to reflect actuals.
 
 **Problem:** Guarantors are just party records with no financial assessment.
 
@@ -482,6 +538,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 ## Sprint 8 — Polish & Accessibility (Week 15–16)
 
 ### 8.1 Colour+Icon Status Indicators (MEDIUM — Finding #20)
+
+**Status:** ✅ DONE (functionally) — re-verified 8 Jun: `STATE_ICONS` (`creditUtils.ts:53-71`) is icon-only (`Record<string,string>`), with colour and label kept in separate `STATE_COLORS`/`STATE_LABELS` maps rather than a single unified `{color, icon, label}` map as the spec sketched. All three maps are used together at every badge render site, so colour+icon+label all display correctly — the end-user-visible requirement (don't rely on colour alone) is met. The "gap" is purely structural/cosmetic (three maps vs. one), not functional. No fix required; optional low-priority refactor if consolidating data shapes is desired later.
 
 **Problem:** `STATE_COLORS` relies on colour alone.
 
@@ -498,6 +556,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 
 ### 8.2 FATCA/CRS Mandatory Step (Quick Win)
 
+**Status:** ✅ DONE — blocking FATCA/CRS validation for corporate borrowers (BorrowerProfileTab.tsx:268-269,361-365)
+
 **Problem:** FATCA/CRS tab is skippable.
 
 **Files to change:**
@@ -506,6 +566,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 ---
 
 ### 8.3 Mobile Application Summary View (MEDIUM)
+
+**Status:** ✅ DONE — `CreditApplicationMobileSummary.tsx` + route registered (App.tsx:97,298)
 
 **Problem:** Application detail is not mobile-ready.
 
@@ -516,6 +578,8 @@ Query: For each completed application (APPROVED/REJECTED/CLOSED):
 ---
 
 ### 8.4 "New Application" CTA on Dashboard & Borrower Profile (Quick Win)
+
+**Status:** ✅ DONE — "New Application" CTA on dashboard and borrower profile (CreditDashboard.tsx:232,239; BorrowerProfileDetail.tsx:246,574)
 
 **Problem:** No prominent way to start a new application.
 
@@ -610,3 +674,57 @@ With 2 developers (1 BE + 1 FE) running in parallel: ~8 weeks elapsed time.
 | DisbursementTab state gating — need application state in tab visibility logic | `getVisibleTabGroups()` already accepts params; add `applicationState` param. Pass from parent component. |
 | Policy limits — new model may affect performance | Add indexes on `CreditPolicyLimit.type` and `CreditPolicyLimit.isActive`. Query only active limits. |
 | Duplicate borrower — existing duplicates in DB | Run data cleanup script before enforcement: `SELECT nric_passport, COUNT(*) FROM crm_contacts WHERE nric_passport IS NOT NULL GROUP BY nric_passport HAVING COUNT(*) > 1`. Merge duplicates before enabling enforcement. |
+
+---
+
+## Implementation Status Update — 9 June 2026, corrected 8 Jun after deeper re-verification (code-verified against `dev2.0`)
+
+Verified by reading actual source (not commit messages), then re-verified a second pass tracing full UI flows for items first flagged "partial"/"not implemented". **Net result: 26/28 fully delivered; 2 partial — both with narrow, well-scoped fixes.** Four items originally mis-flagged (1.2, 3.5, 7.3, 8.1) turned out to be fully functional; the first-pass check had simply looked in the wrong file/component. Commits `fd8d58b` (S6), `ae46ba5` (S7), `fcaf2cb` (S8) and `03538ce` cover this work.
+
+### ✅ Fully Implemented (26)
+
+| Item | Evidence |
+|------|----------|
+| 1.1 DisbursementTab in TAB_GROUPS, state-gated | `creditUtils.ts:243` (`s7-disbursement` group), `:298,302` `getVisibleTabGroups(advancedMemo, borrowerType, applicationState)` |
+| 1.2 REFER_BACK state + full UI flow | `schema.prisma:2517`, `creditApplication.service.ts:202-204`, `approvalAction.service.ts:243-244`; **UI**: `ApprovalChainPanel.tsx:125-128` "Refer Back" action with mandatory-reason validation, submitted via the generic `POST /applications/:id/approvals` (`decision: 'RETURN'`) — no separate route needed |
+| 1.3 Breadcrumbs | `FinancialSpreading.tsx:415`, `CollateralManagement.tsx:115,309` |
+| 1.4 Sticky application header | `CreditApplicationDetail.tsx:541-542,995` |
+| 2.1 "My Work" tab + assignedToMe filter | `CreditDashboard.tsx:128,132,209,267-268`; `dashboard.service.ts:204,213-216,317` |
+| 2.2 SLA breach itemized widget | `dashboard.service.ts:262-309`; `CreditDashboard.tsx:408-411,449-451` (`SlaBreachWidget`) |
+| 2.3 Duplicate detection in create() | `borrowerProfile.service.ts:81,110,323` (`checkDuplicateEnhanced`) |
+| 3.1 Pre-submission readiness checklist | `CreditApplicationDetail.tsx:14,155-170,251` (`ReadinessChecklistModal`, `checkReadiness`) |
+| 3.2 Tab completion badges | `CreditApplicationDetail.tsx:382,961-967` |
+| 3.3 Kanban SLA dot | `CreditApplicationList.tsx:588` |
+| 3.4 URL tab persistence | `CreditApplicationDetail.tsx:108-118` (`useSearchParams`) |
+| 3.5 Auto-save "Saved X ago" indicator | `CaMemoSection.tsx:51-81` (`formatSavedAgo`, flash-then-fade UX), wired into ~12 financial/CA-Memo tabs via `savedAt` props |
+| 4.1 Committee finalize CTA | `CommitteeMeetingDetail.tsx:63-66,140-148` |
+| 4.2 autoRouteNextApprover() | `approvalAction.service.ts:303,408` |
+| 4.4 Mobile auto-redirect | `CommitteeMeetingDetail.tsx:17,45,48-54`; `MyApprovals.tsx:13,35,38-44` |
+| 5.1 SpreadViewTable multi-period | `FinancialsTab.tsx:423,1053` |
+| 5.2 Approval turnaround report | `dashboard.service.ts:802`; `reports.routes.ts:117-144` |
+| 5.3 CSV/Excel export | `reports.routes.ts:5-6,32-51,73,97,144` |
+| 6.1 Clone/Renew | `creditApplication.service.ts:1137`; `creditApplication.routes.ts:205-214`; `CreditApplicationList.tsx:512-530`, `CreditApplicationDetail.tsx:584-595` |
+| 6.2 Credit policy limits | `schema.prisma:2787` (`CreditPolicyLimit`); `policyLimit.service.ts`, `policyLimit.routes.ts`; `ApprovalsTab.tsx:6,66,88` |
+| 6.3 LOO expiry notifications | `loo.service.ts:235` (`checkAndNotifyExpiring`) |
+| 7.1 Collateral cross-linking | `schema.prisma:204` (`CollateralApplicationLink`); `collateral.service.ts:312-394` (`linkToApplication`/`unlinkFromApplication`) |
+| 7.3 Guarantor financial assessment | Fields added directly to `Guarantee` model (`schema.prisma:3863+`) — simpler than spec'd separate model; CRUD `guarantee.service.ts:121`, UI `GuarantorFinancialAssessmentTab.tsx:242` |
+| 8.1 Colour+icon status indicators | `STATE_ICONS`/`STATE_COLORS`/`STATE_LABELS` (`creditUtils.ts:53-71` etc.) used together at every badge render site — colour+icon+label all display; structure differs from spec (3 maps vs. 1) but functionally complete |
+| 8.2 FATCA mandatory step | `BorrowerProfileTab.tsx:268-269,361-365` |
+| 8.3 Mobile summary view | `CreditApplicationMobileSummary.tsx`; route in `App.tsx:97,298` |
+| 8.4 "New Application" CTA | `CreditDashboard.tsx:232,239`; `BorrowerProfileDetail.tsx:246,574` |
+
+### ⚠️ Partially Implemented (2) — concrete follow-ups
+
+| Item | Gap | Action needed |
+|------|-----|---------------|
+| 7.2 Group exposure UI | ✅ DONE (9 Jun) — `getBorrowerProfile` (borrowerProfile.service.ts) now includes `relatedPartyMembers` with group info; `BorrowerProfileDetail.tsx` renders a "Related Party Groups" card in the overview tab with clickable "View Group Exposure" links to `/credit/group-exposure?groupId=xxx` | — |
+| 4.3 Mandatory comments on REJECT/CONDITIONAL | ✅ DONE (9 Jun) — `approval.controller.ts` now validates `comment.length >= 10` when `decision` is `REJECT` or `CONDITIONAL`, returning HTTP 400 before the service is ever called | — |
+
+### Net Position
+
+The S6–S8 commits delivered materially more than their titles suggest — S1–S5 items (My Work tab, SLA widgets, readiness checklist, committee finalize UX, reports/export, auto-save indicators, refer-back flow, etc.) were also completed along the way, bundled into the same implementation passes. **26 of 28 audit items are fully done.** A second, deeper re-verification pass on 8 Jun cleared four items that were initially mis-flagged (1.2, 3.5, 7.3, 8.1 — the original checks looked at the wrong file/component; the real implementations were found and confirmed working). Remaining real work is now narrow and well-scoped:
+
+1. **Add a "View Group Exposure" link to `BorrowerProfileDetail.tsx`** (7.2) — the feature is fully built (`GroupExposurePage.tsx`, `getGroupExposure()`) but has zero entry points; users cannot find it.
+2. **Add backend validation for mandatory rejection/conditional comments** (4.3) — the frontend already enforces a 10-character minimum (`ApprovalChainPanel.tsx:103-117`), but the backend (`approval.controller.ts`, `approvalAction.service.ts`) accepts any comment, including empty ones, via direct API calls. This is the more important of the two — it's a data-integrity gap, not just a UX one.
+
+Both fixes are small, isolated, and carry no schema/migration risk — they can be delivered together in under a day.
