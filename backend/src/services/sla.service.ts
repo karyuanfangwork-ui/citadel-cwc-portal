@@ -1,5 +1,5 @@
 import prisma from '../utils/prisma';
-import { notifyMultiple } from './notification.service';
+import { notify } from './notification.service';
 import { logger } from '../utils/logger';
 
 export async function checkSlaBreaches(): Promise<number> {
@@ -46,16 +46,30 @@ export async function checkSlaBreaches(): Promise<number> {
         },
       });
 
-      const notifyIds: string[] = [];
-      if (req.assignedToId) notifyIds.push(req.assignedToId);
-      adminIds.forEach((id) => {
-        if (!notifyIds.includes(id)) notifyIds.push(id);
-      });
-
-      await notifyMultiple(notifyIds, 'SLA_BREACHED', {
-        referenceNumber: req.referenceNumber,
-        slaDeadline: req.slaDueAt?.toISOString() ?? '',
-      }, req.id);
+      // Single-recipient: notify assigned agent only.
+      // If no agent is assigned, fall back to a single admin.
+      if (req.assignedToId) {
+        await notify({
+          userId: req.assignedToId,
+          eventType: 'SLA_BREACHED',
+          variables: {
+            referenceNumber: req.referenceNumber,
+            slaDeadline: req.slaDueAt?.toISOString() ?? '',
+          },
+          relatedRequestId: req.id,
+        });
+      } else if (adminIds.length > 0) {
+        // No agent assigned — notify the single most senior admin
+        await notify({
+          userId: adminIds[0],
+          eventType: 'SLA_BREACHED',
+          variables: {
+            referenceNumber: req.referenceNumber,
+            slaDeadline: req.slaDueAt?.toISOString() ?? '',
+          },
+          relatedRequestId: req.id,
+        });
+      }
       logger.warn(`SLA breach detected for request ${req.referenceNumber}`);
     }
 
@@ -128,19 +142,31 @@ export async function checkEscalations(): Promise<number> {
           },
         });
 
-        const usersToNotify = await prisma.user.findMany({
-          where: { roles: { some: { role: { name: { in: rule.notifyRoles } } } } },
+        // Single-recipient: notify one escalation handler (senior-most matching the role).
+        // Instead of blasting all users in the escalation roles, pick the most senior
+        // active user so that one dedicated person is responsible for acting on it.
+        const escalationHandlers = await prisma.user.findMany({
+          where: {
+            isActive: true,
+            roles: { some: { role: { name: { in: rule.notifyRoles } } } },
+          },
           select: { id: true },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
         });
-        const notifyIds = usersToNotify.map((u) => u.id);
 
-        if (notifyIds.length > 0) {
-          await notifyMultiple(notifyIds, 'SLA_ESCALATED', {
-            referenceNumber: req.referenceNumber,
-            escalationHours: String(rule.triggerHoursAfterBreach),
-            escalationLabel: rule.label || '',
-            notifyRoles: rule.notifyRoles.join(', '),
-          }, req.id);
+        if (escalationHandlers.length > 0) {
+          await notify({
+            userId: escalationHandlers[0].id,
+            eventType: 'SLA_ESCALATED',
+            variables: {
+              referenceNumber: req.referenceNumber,
+              escalationHours: String(rule.triggerHoursAfterBreach),
+              escalationLabel: rule.label || '',
+              notifyRoles: rule.notifyRoles.join(', '),
+            },
+            relatedRequestId: req.id,
+          });
         }
 
         logger.warn(`SLA escalation fired for request ${req.referenceNumber} (rule: ${rule.id}, +${rule.triggerHoursAfterBreach}h)`);

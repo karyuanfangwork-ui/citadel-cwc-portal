@@ -159,7 +159,9 @@ export type DetailTab =
   | 'conduct'
   | 'forward-looking-risk'
   | 'facilities'
-  | 'header';
+  | 'header'
+  // AI Insights (A4/A5/A6/A13/A15)
+  | 'ai-insights';
 
 export interface TabDefinition {
   id: DetailTab;
@@ -215,6 +217,7 @@ export const TAB_GROUPS: TabGroup[] = [
       { id: 'credit-checks', label: 'Bureau Checks' },
       { id: 'industry', label: 'Industry Outlook' },
       { id: 'risk', label: 'Risk & Mitigators' },
+      { id: 'ai-insights', label: 'AI Insights' },
     ],
   },
   {

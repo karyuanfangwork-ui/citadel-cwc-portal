@@ -202,6 +202,9 @@ model User {
   createdPolicyLimits        CreditPolicyLimit[]     @relation("PolicyLimitCreatedBy")
   // §7.1 — Collateral Cross-Linking
   linkedCollateral          CollateralApplicationLink[] @relation("CollateralLinkedBy")
+  // AI Governance Relations
+  aiInteractions            AiInteraction[]              @relation("AiInteractionUser")
+  aiOverrides               AiOverride[]                 @relation("AiOverrideUser")
 
   @@index([email])
   @@index([managerId])
@@ -4963,4 +4966,64 @@ model CrmDuplicateMatch {
   @@unique([entityAId, entityBId])
   @@index([entityType, status])
   @@map("crm_duplicate_matches")
+}
+
+// === AI Governance ===
+
+model AiPromptVersion {
+  id          String   @id @default(cuid())
+  feature     String   @db.VarChar(50)
+  version     Int
+  promptHash  String   @map("prompt_hash") @db.VarChar(64)
+  template    String   @db.Text
+  model       String   @db.VarChar(50)
+  params      Json     @default("{}")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  interactions AiInteraction[]
+
+  @@unique([feature, version])
+  @@index([feature, active])
+  @@map("ai_prompt_versions")
+}
+
+model AiInteraction {
+  id              String   @id @default(cuid())
+  promptVersionId String   @map("prompt_version_id")
+  entityType      String   @map("entity_type") @db.VarChar(50)
+  entityId        String   @map("entity_id") @db.VarChar(100)
+  userId          String   @map("user_id") @db.Uuid
+  inputHash       String   @map("input_hash") @db.VarChar(64)
+  inputTokens     Int      @map("input_tokens")
+  outputTokens    Int      @map("output_tokens")
+  latencyMs       Int      @map("latency_ms")
+  costUsd         Float    @map("cost_usd")
+  output          Json
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  promptVersion AiPromptVersion @relation(fields: [promptVersionId], references: [id])
+  user          User            @relation("AiInteractionUser", fields: [userId], references: [id])
+  overrides     AiOverride[]
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("ai_interactions")
+}
+
+model AiOverride {
+  id             String   @id @default(cuid())
+  interactionId  String   @map("interaction_id")
+  userId         String   @map("user_id") @db.Uuid
+  overrideReason String   @map("override_reason") @db.Text
+  originalOutput Json     @map("original_output")
+  overrideValue  Json     @map("override_value")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  interaction AiInteraction @relation(fields: [interactionId], references: [id])
+  user        User          @relation("AiOverrideUser", fields: [userId], references: [id])
+
+  @@index([interactionId])
+  @@map("ai_overrides")
 }

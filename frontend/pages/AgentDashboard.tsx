@@ -42,11 +42,20 @@ const PRIORITY_CONFIG: Record<string, { label: string; color: string; bg: string
   LOW: { label: 'Low', color: 'text-gray-600', bg: 'bg-gray-100' },
 };
 
+const TEAM_LABELS: Record<string, string> = {
+  IT: 'IT',
+  HR: 'HR',
+  FINANCE: 'Finance',
+};
+
 export default function AgentDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   const isAdmin = user?.roles?.includes('ADMIN') ?? false;
+  const isAgent = user?.roles?.includes('AGENT') ?? false;
+  const showAllTab = isAdmin || isAgent;
+  const allTabLabel = isAdmin ? 'All Tickets' : `All ${TEAM_LABELS[user?.agentTeam ?? ''] ?? user?.agentTeam ?? ''} Tickets`;
   const [activeTab, setActiveTab] = useState<'mine' | 'unassigned' | 'all' | 'resolved'>('mine');
   const [refreshKey, setRefreshKey] = useState(0);
   const [myTickets, setMyTickets] = useState<TicketRow[]>([]);
@@ -90,7 +99,7 @@ export default function AgentDashboard() {
           api.get('/requests', { params: myParams }),
           api.get('/requests', { params: resolvedParams }),
           api.get('/requests', { params: unParams }),
-          ...(isAdmin ? [api.get('/requests', { params: allParams })] : []),
+          ...(showAllTab ? [api.get('/requests', { params: allParams })] : []),
         ];
 
         const ticketResults = await Promise.all(ticketRequests);
@@ -114,7 +123,7 @@ export default function AgentDashboard() {
         setMyTickets(extractTickets(myRes));
         setResolvedTicketsFetched(extractTickets(resolvedRes));
         setUnassignedTickets(extractTickets(unRes));
-        if (isAdmin && allRes) setAllTickets(extractTickets(allRes));
+        if (showAllTab && allRes) setAllTickets(extractTickets(allRes));
       } catch (err) {
         console.error('AgentDashboard fetch error:', err);
       } finally {
@@ -138,7 +147,7 @@ export default function AgentDashboard() {
   }, [myTickets, resolvedTicketsFetched, unassignedTickets, allTickets]);
 
   const openTickets = myTickets;
-  const resolvedTickets = isAdmin
+  const resolvedTickets = showAllTab
     ? allTickets.filter(t => CLOSED_STATUSES.includes(t.status))
     : resolvedTicketsFetched;
 
@@ -268,7 +277,7 @@ export default function AgentDashboard() {
             </span>
           )}
         </button>
-        {isAdmin && (
+        {showAllTab && (
           <button
             onClick={() => setActiveTab('all')}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -277,7 +286,7 @@ export default function AgentDashboard() {
                 : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            All Tickets
+            {allTabLabel}
             {!loading && allTickets.length > 0 && (
               <span className="ml-2 bg-purple-100 text-purple-700 text-xs font-semibold px-1.5 py-0.5 rounded-full">
                 {allTickets.length}
@@ -340,6 +349,8 @@ export default function AgentDashboard() {
                 ? 'You have no active tickets assigned to you.'
                 : activeTab === 'resolved'
                 ? 'You have no resolved tickets yet.'
+                : activeTab === 'all'
+                ? 'No tickets found in your team queue.'
                 : 'No unassigned tickets at the moment.'}
             </p>
           </div>

@@ -178,7 +178,8 @@ export async function notifyMultiple(
   variables: Record<string, string>,
   relatedRequestId?: string
 ): Promise<void> {
+  const unique = [...new Set(userIds)];
   await Promise.allSettled(
-    userIds.map((userId) => notify({ userId, eventType, variables, relatedRequestId }))
+    unique.map((userId) => notify({ userId, eventType, variables, relatedRequestId }))
   );
 }

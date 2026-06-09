@@ -1872,6 +1872,58 @@ async function main() {
         console.warn('⚠️  Credit demo seed skipped:', e.message || e);
     }
 
+    // ── AI Prompt Versions (governance registry for AI advisory features) ──
+    const AI_PROMPT_VERSIONS = [
+        {
+            feature: 'A4_RISK_NARRATIVE',
+            version: 1,
+            promptHash: 'v1',
+            template: 'You are a senior credit analyst. Draft a concise risk narrative for the credit memo based on the provided application data. Return JSON: { "narrative": "string", "keyRisks": ["string"], "keyStrengths": ["string"], "citedFields": ["string"] }',
+            model: 'gpt-4o',
+            params: { max_tokens: 1200, temperature: 0.3 },
+        },
+        {
+            feature: 'A5_RED_FLAG',
+            version: 1,
+            promptHash: 'v1',
+            template: 'You are a credit risk specialist. Analyse the financial ratios and flag anomalies. Return JSON: { "flags": [{ "severity": "HIGH|MEDIUM|LOW", "title": "string", "evidence": "string", "rationale": "string" }], "overallRisk": "HIGH|MEDIUM|LOW" }',
+            model: 'gpt-4o-mini',
+            params: { max_tokens: 800, temperature: 0.1 },
+        },
+        {
+            feature: 'A13_COMPLIANCE',
+            version: 1,
+            promptHash: 'v1',
+            template: 'You are a credit compliance officer. Review the application checklist data and identify soft compliance concerns not caught by deterministic rules. Return JSON: { "concerns": [{ "severity": "HIGH|MEDIUM|LOW", "field": "string", "issue": "string", "recommendation": "string" }] }',
+            model: 'gpt-4o-mini',
+            params: { max_tokens: 600, temperature: 0.1 },
+        },
+        {
+            feature: 'A15_EXCEPTION',
+            version: 1,
+            promptHash: 'v1',
+            template: 'You are a credit policy officer. Identify policy exceptions in this application and explain each in plain language. Return JSON: { "exceptions": [{ "policyRef": "string", "description": "string", "severity": "HIGH|MEDIUM|LOW", "recommendation": "string" }] }',
+            model: 'gpt-4o-mini',
+            params: { max_tokens: 600, temperature: 0.1 },
+        },
+    ] as const;
+    for (const pv of AI_PROMPT_VERSIONS) {
+        await prisma.aiPromptVersion.upsert({
+            where: { feature_version: { feature: pv.feature, version: pv.version } },
+            update: {},
+            create: {
+                feature: pv.feature,
+                version: pv.version,
+                promptHash: pv.promptHash,
+                template: pv.template,
+                model: pv.model,
+                params: pv.params as any,
+                active: true,
+            },
+        });
+    }
+    console.log('✅ AI prompt versions seeded');
+
     // ── Feature Flags (always ensure they exist so credit module isn't locked out after a re-seed) ──
     const featureFlags = [
         { key: 'credit:module',      description: 'Master toggle for the Credit Assessment Module', enabled: true, category: 'credit' },

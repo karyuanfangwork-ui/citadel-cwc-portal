@@ -46,6 +46,9 @@ import HeaderBackgroundTab from './credit/tabs/HeaderBackgroundTab';
 import FacilitiesTab from './credit/tabs/FacilitiesTab';
 import RequestsFacilitiesTab from './credit/tabs/RequestsFacilitiesTab';
 
+// ── AI Insights panels (A4/A5/A6/A13/A15) ──
+import { AiDuplicateAlert, AiRedFlagPanel, AiNarrativePanel, AiCompliancePanel, AiAutoExceptionPanel } from '../src/components/credit-ai';
+
 import {
   formatCurrency,
   STATE_COLORS,
@@ -431,6 +434,23 @@ const isIdPlaceholder = id === 'new';
       case 'credit-checks': return <CreditChecksTab application={app!} onUpdated={setApp} />;
       case 'industry': return <IndustryOutlookTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
       case 'risk': return <RiskMitigatorsTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+
+      // AI Insights (A4/A5/A6/A13/A15)
+      case 'ai-insights': return (
+        <div className="space-y-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 flex items-center gap-2">
+            <span className="material-icons text-base">smart_toy</span>
+            AI proposes, humans dispose. All AI outputs are advisory — officers must exercise independent judgement.
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <AiDuplicateAlert applicationId={app!.id} />
+            <AiRedFlagPanel applicationId={app!.id} />
+            <AiCompliancePanel applicationId={app!.id} />
+            <AiAutoExceptionPanel applicationId={app!.id} />
+          </div>
+          <AiNarrativePanel applicationId={app!.id} />
+        </div>
+      );
 
       // S6 — Collateral & Guarantees
       case 'collateral': return <CollateralTab />;
@@ -1115,6 +1135,25 @@ const isIdPlaceholder = id === 'new';
         {activeTab === 'risk' && (
           <div role="tabpanel" id="panel-risk" aria-labelledby="tab-risk" tabIndex={0}>
             <RiskMitigatorsTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
+          </div>
+        )}
+
+        {/* AI Insights (A4/A5/A6/A13/A15) */}
+        {activeTab === 'ai-insights' && (
+          <div role="tabpanel" id="panel-ai-insights" aria-labelledby="tab-ai-insights" tabIndex={0}>
+            <div className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 flex items-center gap-2">
+                <span className="material-icons text-base">smart_toy</span>
+                AI proposes, humans dispose. All AI outputs are advisory — officers must exercise independent judgement.
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <AiDuplicateAlert applicationId={app.id} />
+                <AiRedFlagPanel applicationId={app.id} />
+                <AiCompliancePanel applicationId={app.id} />
+                <AiAutoExceptionPanel applicationId={app.id} />
+              </div>
+              <AiNarrativePanel applicationId={app.id} />
+            </div>
           </div>
         )}
 

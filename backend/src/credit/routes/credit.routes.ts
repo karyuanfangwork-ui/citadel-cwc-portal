@@ -104,6 +104,9 @@ import amlRescreenRoutes from './amlRescreen.routes';
 // §6.2 — Credit Policy Limits
 import policyLimitRoutes from './policyLimit.routes';
 
+// AI & Automation (A4/A5/A6/A13/A15)
+import creditAiRoutes from './creditAi.routes';
+
 const router = Router();
 
 // Feature flag admin routes (outside feature flag gate)
@@ -255,5 +258,8 @@ router.use('/', amlRescreenRoutes);
 
 // §6.2 — Credit Policy Limits
 router.use('/policy-limits', policyLimitRoutes);
+
+// AI & Automation (A4/A5/A6/A13/A15)
+router.use('/applications', creditAiRoutes);
 
 export default router;

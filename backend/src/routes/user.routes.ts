@@ -44,6 +44,13 @@ router.post(
 router.get('/agents', authorize('ADMIN', 'AGENT'), userController.getAgents);
 
 /**
+ * @route   GET /api/v1/users/staff
+ * @desc    Get all active staff (any role) — for ticket reassignment
+ * @access  Private (Admin, Agent)
+ */
+router.get('/staff', authorize('ADMIN', 'AGENT'), userController.getStaff);
+
+/**
  * @route   GET /api/v1/users/executives
  * @desc    Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_DCEO / etc.)
  *          Used by workflow modals so the routing agent can override the auto-selected approver.

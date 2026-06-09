@@ -1298,20 +1298,10 @@ class RequestController {
             relatedRequestId: request.id,
         });
 
-        // Notify the assigned agent (if auto-assigned, they already got REQUEST_ASSIGNED above;
-        // this covers the case where no auto-assignment happened —admins with dashboard access
-        // see new requests anyway, no need to email all of them)
-        if (!assignResult.success && request.assignedToId) {
-            await notify({
-                userId: request.assignedToId,
-                eventType: 'REQUEST_CREATED',
-                variables: {
-                    referenceNumber: request.referenceNumber,
-                    summary: request.summary,
-                },
-                relatedRequestId: request.id,
-            });
-        }
+        // NOTE: We no longer send REQUEST_CREATED to the assigned agent.
+        // The agent receives REQUEST_ASSIGNED separately (above), which is the appropriate
+        // single-recipient notification for their role. REQUEST_CREATED is dedicated
+        // to the requester only — no multi-recipient email blast.
 
         await auditLog(req, 'REQUEST_CREATED', 'request', request.id, {
             referenceNumber: request.referenceNumber,

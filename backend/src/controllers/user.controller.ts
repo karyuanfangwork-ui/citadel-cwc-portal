@@ -377,6 +377,26 @@ class UserController {
     });
 
     /**
+     * Get all active staff (any role) — used by reassignment modal so Agent/Admin
+     * can reassign a ticket to any person in the system, not just agents.
+     */
+    getStaff = asyncHandler(async (_req: AuthRequest, res: Response) => {
+        const staff = await prisma.user.findMany({
+            where: { isActive: true },
+            select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                roles: { select: { role: { select: { name: true } } } },
+            },
+            orderBy: { firstName: 'asc' },
+        });
+
+        res.json({ success: true, data: { staff } });
+    });
+
+    /**
      * Get active users with a given executiveRole (CEO / CTO / CFO / GROUP_DCEO / etc.)
      * Used by workflow modals (AcknowledgeModal, CeoDecisionModal, etc.) to let the
      * agent override the auto-selected approver before routing.
