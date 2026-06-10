@@ -123,6 +123,22 @@ export async function createOrder(
     throw new AppError(`Cannot create disbursement order: ${reasons}`, 400);
   }
 
+  // Validate totalAmount does not exceed sum of approved facility amounts (F22)
+  const facilities = await prisma.applicationFacility.findMany({
+    where: { applicationId, deletedAt: null },
+    select: { approvedAmount: true, amount: true },
+  });
+  const approvedTotal = facilities.reduce(
+    (sum, f) => sum + Number(f.approvedAmount ?? f.amount),
+    0,
+  );
+  if (dto.totalAmount > approvedTotal) {
+    throw new AppError(
+      `Disbursement amount (${dto.totalAmount}) exceeds the total approved facility amount (${approvedTotal}).`,
+      400,
+    );
+  }
+
   // Check no existing PENDING/APPROVED order
   const existing = await prisma.disbursementOrder.findUnique({
     where: { applicationId },

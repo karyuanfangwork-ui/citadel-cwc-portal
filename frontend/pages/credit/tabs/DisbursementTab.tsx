@@ -70,8 +70,9 @@ const ReadinessChecklist: React.FC<{ appId: string }> = ({ appId }) => {
 
 const DisbursementOrderForm: React.FC<{
   appId: string;
+  approvedTotal: number;
   onCreated: (order: DisbursementOrder) => void;
-}> = ({ appId, onCreated }) => {
+}> = ({ appId, approvedTotal, onCreated }) => {
   const [form, setForm] = useState({
     totalAmount: '',
     currency: 'MYR',
@@ -81,10 +82,16 @@ const DisbursementOrderForm: React.FC<{
     referenceNote: '',
   });
   const [saving, setSaving] = useState(false);
+  const [amountError, setAmountError] = useState('');
 
   const submit = async () => {
+    setAmountError('');
     if (!form.totalAmount || parseFloat(form.totalAmount) <= 0) {
-      toast.error('Total amount is required');
+      setAmountError('Total amount is required');
+      return;
+    }
+    if (approvedTotal > 0 && parseFloat(form.totalAmount) > approvedTotal) {
+      setAmountError(`Amount exceeds approved total (${approvedTotal.toLocaleString('en-MY', { minimumFractionDigits: 2 })})`);
       return;
     }
     setSaving(true);
@@ -112,8 +119,9 @@ const DisbursementOrderForm: React.FC<{
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs text-gray-500 mb-1">Total Amount *</label>
-          <input type="number" step="0.01" min="0" className="border rounded px-2 py-1 text-sm w-full"
-            value={form.totalAmount} onChange={e => setForm(f => ({ ...f, totalAmount: e.target.value }))} />
+          <input type="number" step="0.01" min="0" className={`border rounded px-2 py-1 text-sm w-full${amountError ? ' border-red-400' : ''}`}
+            value={form.totalAmount} onChange={e => { setForm(f => ({ ...f, totalAmount: e.target.value })); setAmountError(''); }} />
+          {amountError && <p className="text-xs text-red-600 mt-0.5">{amountError}</p>}
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Currency</label>
@@ -200,6 +208,12 @@ const DisbursementTab: React.FC<Props> = ({ application, onUpdated }) => {
   const isApprover = order?.approvedById === user?.id;
   const isDisburser = order?.disbursedById === user?.id;
   const readOnly = application.state !== 'ACCEPTED';
+
+  // Compute approved total from facilities (F22)
+  const approvedTotal = (application.facilities ?? []).reduce(
+    (sum, f) => sum + Number(f.approvedAmount ?? f.amount),
+    0,
+  );
 
   const loadOrder = useCallback(async () => {
     try {
@@ -348,7 +362,7 @@ const DisbursementTab: React.FC<Props> = ({ application, onUpdated }) => {
         </CaMemoSection>
       ) : (
         !readOnly && canWrite ? (
-          <DisbursementOrderForm appId={appId} onCreated={handleCreated} />
+          <DisbursementOrderForm appId={appId} approvedTotal={approvedTotal} onCreated={handleCreated} />
         ) : (
           <CaMemoSection title="Disbursement Order" phase="S7">
             <p className="text-sm text-gray-400 italic">No disbursement order has been created yet.
