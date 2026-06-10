@@ -180,10 +180,19 @@ export default function AgentDashboard() {
     if (selectedIds.size === 0) return;
     setExportingXlsx(true);
     try {
-      await requestService.exportXlsx(Array.from(selectedIds));
+      const blob = await requestService.exportXlsx(Array.from(selectedIds));
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tickets-export-${timestamp}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
       setSelectedIds(new Set());
-    } catch (err) {
-      console.error('Excel export failed:', err);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to export Excel');
     } finally {
       setExportingXlsx(false);
     }
