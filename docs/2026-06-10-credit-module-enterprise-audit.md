@@ -199,6 +199,39 @@ Genuine effort in the assessment screen: role=tab/tabpanel with Arrow/Home/End k
 
 ---
 
+## PHASE 15 — Supplementary Sweep (Round 2, post-approval lifecycle & cross-cutting)
+
+A second pass over areas under-covered in the first round (post-approval lifecycle, notifications, pricing, concurrency, multi-currency, PDF outputs).
+
+### Critical
+- **Three background jobs never run:** `startCreditSlaChecker()` (jobs/creditSlaChecker.ts:32), `startAmlRescreenChecker()` (jobs/amlRescreenChecker.ts:33), and `auditRetention.job.ts` are exported but registered nowhere — scheduler.service.ts:33-34 registers only `credit.monitor` and `credit.loo_expiry`. **Credit SLA breach detection/escalation, AML re-screening, and audit-retention/hash-verification do not execute in production.** All SLA dashboards/widgets ride a breach table nothing populates on schedule.
+- **Disbursement amount unvalidated against approval:** `createOrder` accepts any positive `totalAmount` (frontend checks only >0, DisbursementTab.tsx:86); an officer can create and dual-approve a disbursement exceeding the approved facility total (disbursement.service.ts:45-110 checks CPs/LOO/decision, never amount).
+
+### High
+- **No FX layer anywhere in the credit module:** exposure and policy-limit aggregation sum raw amounts across currencies (`policyLimit.service.ts:125-127`) — a USD 10M facility counts as 10M against MYR limits. No FX rate table, snapshotting, or revaluation; LOO hardcodes "MYR" prefix regardless of facility currency (loo.service.ts:47-48).
+- **Monitoring is a silent loop:** the daily monitor job creates EarlyWarningSignal rows for covenant breaches, LATE_90/missed payments, and overdue reviews, but **notifies no one** — no email/SSE/in-app call exists in the path (monitor.job.ts). Covenant staleness uses a hardcoded 60-day heuristic that ignores the covenant's own `frequency`; signal dedupe string-matches covenantId inside free-text descriptions.
+- **Condition due dates never checked post-approval** — no job or notification flags overdue conditions subsequent; after disbursement they are honor-system (condition.service.ts has dueDate, nothing consumes it).
+- **Concurrency:** OCC exists only on the core application record and is opt-in (clients omitting `version` bypass it — creditApplication.controller.ts:105); all tab sub-resources are last-write-wins upserts (e.g. exposureSummary.service.ts:39-43). State transitions are read-then-update without a state guard in the where clause or transaction (creditApplication.service.ts:962) — concurrent transitions can both succeed. (Decision submission, by contrast, is properly transactional and idempotent.)
+- Approval-pending notifications fan out to **every** user with `credit:approve` with no authority-level filtering — spam plus information leakage (creditNotification.service.ts:180-211).
+
+### Medium
+- LOO expiry warns (in-app only, bypassing the email/SSE pipeline) but never transitions state — expired offers sit in OFFER/ACCEPTED indefinitely (loo.service.ts:298-333); `regenerate()` doesn't invalidate the prior LOO PDF, which stays VERIFIED-eligible.
+- Facilities/conditions remain editable in OFFER state with no LOO invalidation trigger — the issued offer document can silently diverge from the underlying data (stateGuard.util.ts).
+- Pricing is orphaned from the decision flow: no readiness/approval gate references the pricing worksheet; rate math is admittedly simplified (admin fee flat, tenor ignored — pricing.service.ts:41); approvers can approve unpriced facilities.
+- No disbursement tranches (`unique applicationId` on DisbursementOrder) — progressive drawdown impossible.
+- PDF generation: puppeteer-core with hardcoded desktop Chrome paths (htmlToPdf.service.ts:3-9) — fails on a server without Chrome/CHROME_PATH; fresh browser per request (no pool). **No watermark on CA memo or LOO PDFs** (DLP watermarking covers JSON/CSV exports only); CA memo with full PII/financials downloadable at `credit:read`.
+- Hardcoded lender name/address and "Address on file" fallback inside the legal LOO document (loo.service.ts:75, 86-87).
+- All date math uses server-local time (`new Date()`/`setDate`) — LOO expiry day-matching and covenant staleness shift with deployment timezone.
+- Payment events are manually asserted (status user-entered, not computed from due dates); no core-banking feed.
+
+### Low
+- Renewal = `cloneApplication(asRenewal)` only; no maturity-driven review scheduling or review workflow. No closure checklist (balance, collateral release, open conditions).
+- `loo.service.ts:8` and `pricing.service.ts:5` instantiate their own PrismaClient instead of the shared client.
+- Disbursement order-number generation is read-then-insert (collision-prone); audit-chain append after disbursement is non-blocking — a failed append leaves a completed disbursement without its chain record.
+- LOO 7/3/1-day warnings dedupe by exact day match — a missed job day skips the warning permanently.
+
+---
+
 # FINAL DELIVERABLE
 
 ## 1. Executive Summary
@@ -212,8 +245,8 @@ The module is architecturally ambitious and unusually deep for an internal build
 | User Journey | **58/100** |
 | Dashboard Effectiveness | **50/100** |
 | Credit Assessment Readiness | **70/100** |
-| Production Readiness | **55/100** |
-| **Overall** | **66/100 — FAIR** |
+| Production Readiness | **50/100** (revised down from 55 after Round 2: SLA/AML/audit-retention jobs unregistered, no FX layer, opt-in OCC) |
+| **Overall** | **64/100 — FAIR** |
 
 ## 8. Top 20 Findings (priority order)
 1. **Committee vote forgery** — castVote trusts client memberId (Critical, governance integrity).
@@ -237,7 +270,14 @@ The module is architecturally ambitious and unusually deep for an internal build
 19. Dead Add Director/Shareholder/UBO buttons; UUID-paste group membership (Medium).
 20. ECL/SICR/ESG manual-only behind volatile feature toggle (Medium, roadmap).
 
-## 9. Critical Issues — items 1–7 above. None are large builds; 1, 3, 5, 6 are days-of-work fixes.
+**Round-2 additions (re-ranked into the critical set):**
+21. **SLA checker / AML rescreen / audit-retention jobs never registered — they do not run** (Critical; one-line fixes in scheduler.service.ts).
+22. **Disbursement amount not validated against approved facility total** (Critical, dual-approvable over-disbursement).
+23. **No FX conversion in exposure/limit aggregation** — foreign-currency facilities counted raw against MYR limits (High).
+24. Monitoring EWS signals and overdue conditions notify no one (High).
+25. Opt-in OCC + non-race-safe state transitions; sub-resource edits last-write-wins (High).
+
+## 9. Critical Issues — items 1–7, 21, 22 above. None are large builds; 1, 3, 5, 6, 21 are days-of-work fixes.
 
 ## 10. High Priority — items 8–17, plus: backend Zod rollout on mutation routes; exposure recomputation hook on facility/disbursement events; scope inbox by approval authority.
 
@@ -254,6 +294,8 @@ The module is architecturally ambitious and unusually deep for an internal build
 - onClick handlers for Add Director/Shareholder/UBO (routes already exist).
 - Mask borrower NRIC behind existing NricReveal component.
 - Gate "Create Anyway" override button by permission.
+- Register `startCreditSlaChecker`, `startAmlRescreenChecker`, and the audit-retention job in scheduler.service.ts (currently dead code).
+- Validate disbursement `totalAmount` ≤ sum of approved facility amounts in disbursement.service.ts `createOrder`.
 
 ## 14. Missing Features (build list)
 Bureau API integration · live exposure recomputation · covenant monitoring · statement import (Excel/OCR) · portfolio risk & trend reporting · report scheduling/PDF · inline approvals from inbox · bulk reassignment + workload view · saved list views · delegation with expiry + onBehalfOf · approval-pack snapshots · committee minutes & recusal · document retention/legal hold · borrower-level bureau history, documents, FATCA/CRS, rating-history sections on profile.
@@ -270,4 +312,4 @@ Server-side "my work" model (assignedTo=me, overdue=true params) as the spine of
 - **Phase C:** bureau/AML/CBS live adapters; statement OCR import; portfolio analytics (concentration, vintage, IFRS9); borrower portal; e-sign LOO.
 
 ## 18. Final Verdict
-**FAIR — 66/100.** Not production-ready for live lending decisions today: governance integrity (vote forgery, stale exposure in authority lookup) and data-protection (plaintext NRIC) defects are disqualifying until fixed, and near-zero test coverage makes regression risk unacceptable for a credit system. The foundations, however, are above-average for this class of system — the gap to "Good (75–89)" is concentrated, well-identified, and mostly weeks not months of work.
+**FAIR — 64/100.** Not production-ready for live lending decisions today: governance integrity (vote forgery, stale exposure in authority lookup) and data-protection (plaintext NRIC) defects are disqualifying until fixed, and near-zero test coverage makes regression risk unacceptable for a credit system. The foundations, however, are above-average for this class of system — the gap to "Good (75–89)" is concentrated, well-identified, and mostly weeks not months of work.
