@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
+import { computeBorrowerExposure } from './exposureCompute.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -202,7 +203,6 @@ class RelatedPartyGroupService {
                 id: true,
                 borrowerType: true,
                 name: true,
-                totalExposure: true,
                 exposureLimit: true,
                 creditRiskRating: true,
                 account: { select: { id: true, name: true } },
@@ -233,7 +233,9 @@ class RelatedPartyGroupService {
 
     for (const member of group.members) {
       const bp = member.borrowerProfile;
-      const totalExp = bp.totalExposure ? Number(bp.totalExposure) : 0;
+      // §F2 — Use canonical exposure computation instead of stale bp.totalExposure
+      const { totalExposure: computedExp } = await computeBorrowerExposure(bp.id);
+      const totalExp = computedExp;
       const expLimit = bp.exposureLimit ? Number(bp.exposureLimit) : null;
 
       aggregateTotalExposure += totalExp;

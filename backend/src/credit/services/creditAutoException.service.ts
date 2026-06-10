@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { callAi } from './credit-ai.service';
+import { computeBorrowerExposure } from './exposureCompute.service';
 
 export interface PolicyException {
   policyRef: string;
@@ -22,7 +23,6 @@ export async function detectPolicyExceptions(applicationId: string, userId: stri
       borrowerProfile: {
         select: {
           creditRiskRating: true,
-          totalExposure: true,
           exposureLimit: true,
           borrowerType: true,
         },
@@ -47,7 +47,9 @@ export async function detectPolicyExceptions(applicationId: string, userId: stri
   const totalRequested = application.facilities.reduce(
     (sum: number, f: any) => sum + Number(f.amount ?? 0), 0
   );
-  const projectedExposure = Number(bp?.totalExposure ?? 0) + totalRequested;
+  // §F2 — Use canonical exposure computation instead of stale bp.totalExposure
+  const { totalExposure: liveExposure } = await computeBorrowerExposure(application.borrowerProfileId);
+  const projectedExposure = liveExposure + totalRequested;
 
   const detectedRuleBreaches: string[] = [];
   if (bp?.exposureLimit && projectedExposure > Number(bp.exposureLimit)) {
@@ -69,7 +71,7 @@ export async function detectPolicyExceptions(applicationId: string, userId: stri
         content: JSON.stringify({
           borrowerType: bp?.borrowerType,
           riskRating: bp?.creditRiskRating,
-          totalExposure: bp?.totalExposure,
+          totalExposure: liveExposure,
           exposureLimit: bp?.exposureLimit,
           projectedExposure,
           facilities: application.facilities,

@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
 import { formatCurrency } from '../utils/formatCurrency';
+import { computeBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -861,14 +862,20 @@ class FinancialService {
   // ==========================================================================
 
   /**
-   * Get total exposure for a borrower by summing all ACTIVE/DISBURSED facility amounts.
+   * Get total exposure for a borrower by summing all facilities in
+   * APPROVED/OFFER/ACCEPTED/DISBURSED/ACTIVE applications.
+   * §F2 — Delegates total computation to computeBorrowerExposure so the
+   * two views can never diverge.
    */
   async getExposure(borrowerProfileId: string) {
-    // Find all applications for this borrower that are in ACTIVE or DISBURSED state
+    // §F2 — Use canonical exposure computation for the total figure
+    const { totalExposure: canonicalTotal } = await computeBorrowerExposure(borrowerProfileId);
+
+    // Still fetch facility-level detail for the breakdown, using the same EXPOSURE_STATES
     const applications = await prisma.creditApplication.findMany({
       where: {
         borrowerProfileId,
-        state: { in: ['ACTIVE', 'DISBURSED'] },
+        state: { in: EXPOSURE_STATES },
         deletedAt: null,
       },
       include: {
@@ -883,7 +890,6 @@ class FinancialService {
       },
     });
 
-    let totalExposure = new Prisma.Decimal(0);
     const facilities: {
       applicationId: string;
       facilityType: string;
@@ -894,8 +900,6 @@ class FinancialService {
 
     for (const app of applications) {
       for (const fac of app.facilities) {
-        const effectiveAmount = fac.approvedAmount ?? fac.amount;
-        totalExposure = totalExposure.add(effectiveAmount);
         facilities.push({
           applicationId: app.id,
           facilityType: fac.facilityType,
@@ -909,7 +913,7 @@ class FinancialService {
     // Get borrower's exposure limit
     const borrower = await prisma.borrowerProfile.findUnique({
       where: { id: borrowerProfileId },
-      select: { exposureLimit: true, totalExposure: true },
+      select: { exposureLimit: true },
     });
 
     const exposureLimit = borrower?.exposureLimit
@@ -917,13 +921,13 @@ class FinancialService {
       : null;
 
     return {
-      totalExposure: formatCurrency(totalExposure),
+      totalExposure: canonicalTotal,
       facilities,
       limits: {
         exposureLimit,
         utilizationPct:
           exposureLimit && exposureLimit > 0
-            ? Math.round((formatCurrency(totalExposure)! / exposureLimit) * 10000) / 100
+            ? Math.round((canonicalTotal / exposureLimit) * 10000) / 100
             : null,
       },
     };

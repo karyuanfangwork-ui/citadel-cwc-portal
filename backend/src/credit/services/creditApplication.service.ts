@@ -7,6 +7,7 @@ import { deriveAndSetConnectedPartyFlag } from './connectedParty.service';
 import { validateSubmissionReadiness } from './submissionReadiness.service';
 import { approvalMatrixService } from './approvalMatrix.service';
 import { formatCurrency } from '../utils/formatCurrency';
+import { computeBorrowerExposure, refreshBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -828,14 +829,16 @@ class CreditApplicationService {
       const appWithBorrower = await prisma.creditApplication.findUnique({
         where: { id },
         include: {
-          borrowerProfile: { select: { creditRiskRating: true, totalExposure: true } },
+          borrowerProfile: { select: { creditRiskRating: true } },
         },
       });
 
       if (appWithBorrower) {
         const borrowerRating = appWithBorrower.borrowerProfile?.creditRiskRating ?? 'NR';
+        // §F2 — Use canonical exposure computation instead of stale totalExposure
+        const { totalExposure: liveExposure } = await computeBorrowerExposure(appWithBorrower.borrowerProfileId);
         const totalExposure = formatCurrency(
-          appWithBorrower.borrowerProfile?.totalExposure ?? appWithBorrower.requestedAmount,
+          liveExposure || appWithBorrower.requestedAmount,
         ) ?? 0;
 
         const authorityResult = await approvalMatrixService.lookupApprovalAuthority(
@@ -1019,6 +1022,19 @@ class CreditApplicationService {
     } catch (err) {
       // Notification failures must never block the business flow
       console.error(`[CreditApplication] Notification dispatch failed for ${action} on ${id}:`, err);
+    }
+
+    // §F2 — Sync borrower exposure whenever a transition enters or leaves EXPOSURE_STATES
+    // (APPROVED, OFFER, ACCEPTED, DISBURSED, ACTIVE). This keeps the denormalised
+    // BorrowerProfile.totalExposure in lockstep with the canonical computation.
+    const oldInExposure = (EXPOSURE_STATES as readonly string[]).includes(existing.state as string);
+    const newInExposure = (EXPOSURE_STATES as readonly string[]).includes(transition.to as string);
+    if (oldInExposure !== newInExposure) {
+      try {
+        await refreshBorrowerExposure(application.borrowerProfileId);
+      } catch (err: any) {
+        console.error(`[CreditApplication] Failed to refresh exposure for ${application.borrowerProfileId}: ${err.message}`);
+      }
     }
 
     return application;

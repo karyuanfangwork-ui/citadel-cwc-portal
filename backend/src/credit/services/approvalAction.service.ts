@@ -7,6 +7,7 @@ import { AuditChainService } from './auditChain.service';
 import { notify } from '../../services/notification.service';
 import { pushToUser } from '../../utils/sseClients';
 import { logger } from '../../utils/logger';
+import { computeBorrowerExposure } from './exposureCompute.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -100,7 +101,7 @@ class ApprovalActionService {
     const application = await prisma.creditApplication.findUnique({
       where: { id: applicationId },
       include: {
-        borrowerProfile: { select: { creditRiskRating: true, totalExposure: true } },
+        borrowerProfile: { select: { creditRiskRating: true } },
         decisions: {
           where: { decisionType: ApprovalDecisionType.APPROVE },
           take: 20,
@@ -145,8 +146,10 @@ class ApprovalActionService {
     }
 
     // 3. Lookup authority from approval matrix
+    // §F2 — Use canonical exposure computation instead of stale BorrowerProfile.totalExposure
     const borrowerRating = application.borrowerProfile?.creditRiskRating ?? 'NR';
-    const totalExposure = formatCurrency(application.borrowerProfile?.totalExposure ?? application.requestedAmount) ?? 0;
+    const { totalExposure: liveExposure } = await computeBorrowerExposure(application.borrowerProfileId);
+    const totalExposure = formatCurrency(liveExposure || application.requestedAmount) ?? 0;
 
     const authorityResult = await approvalMatrixService.lookupApprovalAuthority(totalExposure, borrowerRating ?? 'NR', application.branchId);
 
