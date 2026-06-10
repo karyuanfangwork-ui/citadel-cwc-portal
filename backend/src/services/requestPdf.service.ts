@@ -28,11 +28,11 @@ interface RequestForPdf {
   assignedTo?: { firstName: string; lastName: string; email: string } | null;
   assignedTeam?: string | null;
   serviceDesk?: { code: string; name: string } | null;
-  requestType?: { name: string } | null;
+  requestType?: { name: string; formConfig?: any[] | null } | null;
   approvals?: { approver?: { firstName: string; lastName: string }; status: string; createdAt: Date }[];
   participants?: { user?: { firstName: string; lastName: string; email: string } }[];
   activities?: { authorName: string; activityType: string; message: string; createdAt: Date; isInternal: boolean }[];
-  requestTypeWorkflowSteps?: { name: string; displayOrder: number }[];
+  requestTypeWorkflowSteps?: { label: string; status: string; displayOrder: number }[];
 }
 
 // ── Data Fetching ─────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export async function getRequestDataForPdf(idOrRef: string): Promise<RequestForP
 
   // Flatten workflow steps from requestType
   const workflowSteps = (request as any).requestType?.workflow?.steps?.map(
-    (s: any) => ({ name: s.name, displayOrder: s.displayOrder })
+    (s: any) => ({ label: s.label, status: s.status, displayOrder: s.displayOrder })
   ) ?? [];
 
   return {
@@ -111,6 +111,127 @@ function priorityColor(priority: string): string {
   return '#6b7280';
 }
 
+// ── Custom Field Helpers ──────────────────────────────────────────────────
+const HIDDEN_FIELD_KEYS = new Set([
+  'selectedCandidateId', 'selectedCandidateIds', 'selectedCandidateNames',
+]);
+
+/** Standard field key → label overrides (mirrors frontend CustomFieldsPanel) */
+const STANDARD_FIELD_LABELS: Record<string, string> = {
+  position: 'Job Title',
+  jobTitle: 'Job Title',
+  department: 'Department',
+  headcount: 'Role Category',
+  employmentType: 'Employment Type',
+  salary: 'Salary Range',
+  salaryRange: 'Salary Range',
+  justification: 'Justification',
+  reportingTo: 'Reporting To',
+  startDate: 'Desired Start Date',
+  location: 'Location',
+  jobDescription: 'Job Description',
+  requirements: 'Requirements',
+  budget: 'Budget',
+  position_title: 'Position Title',
+  selectedCandidateName: 'Candidate Name',
+  jobPostedAt: 'Job Posted At',
+  jobPostingUrl: 'Job Posting URL',
+  jobPostingNotes: 'Job Posting Notes',
+  employeeName: 'Employee Name',
+  employeeEmail: 'Employee Email',
+  lastDay: 'Last Working Day',
+  reason: 'Reason for Departure',
+  hardwareName: 'Hardware Name',
+  hardwareModel: 'Model / Specifications',
+  estimatedPrice: 'Estimated Price (USD)',
+  preferredVendor: 'Preferred Vendor',
+  productUrl: 'Product URL',
+  businessJustification: 'Business Justification',
+  businessUnit: 'Business Unit',
+  serialNumber: 'Serial Number',
+  assetTag: 'Asset Tag',
+  payment: 'Payment',
+  estimatedCost: 'Estimated Cost (RM)',
+  finalizedAmount: 'Finalized Amount (MYR)',
+  paymentReference: 'Payment Reference',
+  costCenter: 'Cost Center',
+  projectCode: 'Project Code',
+  expenseType: 'Expense Type',
+  amount: 'Amount',
+  currency: 'Currency',
+  receiptDate: 'Receipt Date',
+  vendor: 'Vendor',
+  itemName: 'Item / Service Name',
+  quantity: 'Quantity',
+};
+
+function resolveFieldLabel(key: string, formConfig?: any[] | null): string {
+  // 1. Standard hardcoded labels
+  if (STANDARD_FIELD_LABELS[key]) return STANDARD_FIELD_LABELS[key];
+  // 2. Dynamic formConfig lookup
+  if (formConfig && Array.isArray(formConfig)) {
+    const field = formConfig.find((f: any) => f.id === key);
+    if (field?.label) return field.label;
+  }
+  // 3. Fallback: camelCase → words
+  return key.replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
+}
+
+function resolveFieldType(key: string, formConfig?: any[] | null): string | undefined {
+  if (formConfig && Array.isArray(formConfig)) {
+    const field = formConfig.find((f: any) => f.id === key);
+    return field?.type;
+  }
+  return undefined;
+}
+
+function formatCustomFieldValue(key: string, value: any, formConfig?: any[] | null): string {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return value.map(v => formatCustomFieldValue(key, v, formConfig)).join(', ');
+
+  if (typeof value === 'object') {
+    // File object: { s3Key, fileName, fileSize, mimeType }
+    if (value.s3Key && value.fileName) {
+      const size = value.fileSize
+        ? value.fileSize > 1024 * 1024
+          ? ` (${(value.fileSize / (1024 * 1024)).toFixed(1)} MB)`
+          : ` (${Math.round(value.fileSize / 1024)} KB)`
+        : '';
+      return `${value.fileName}${size}`;
+    }
+    // Payment object
+    if (key === 'payment' && (value.amount !== undefined || value.paymentReference)) {
+      const parts: string[] = [];
+      if (value.amount !== undefined) parts.push(`Amount: MYR ${value.amount}`);
+      if (value.paymentReference) parts.push(`Reference: ${value.paymentReference}`);
+      if (value.paymentDate) parts.push(`Date: ${value.paymentDate}`);
+      if (value.completedAt) parts.push(`Completed: ${new Date(value.completedAt).toLocaleString()}`);
+      return parts.join('; ') || JSON.stringify(value);
+    }
+    // Candidate documents — skip (shown in dedicated section)
+    return JSON.stringify(value);
+  }
+
+  const fieldType = resolveFieldType(key, formConfig);
+  // Currency formatting
+  if (fieldType === 'currency') {
+    const num = Number(value);
+    if (!isNaN(num)) return `MYR ${num.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  // Date keys
+  const DATE_KEYS = new Set([
+    'jobPostedAt', 'startedAt', 'completedAt', 'receiptDate',
+    'approvalDate', 'acceptedDate', 'lastDay', 'startDate',
+  ]);
+  if (DATE_KEYS.has(key) && typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    const d = value.includes('T') ? new Date(value) : new Date(value + 'T00:00:00Z');
+    return d.toLocaleDateString('en-MY', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
+  }
+
+  return String(value);
+}
+
 function buildHtml(req: RequestForPdf): string {
   const confidentialWatermark = req.isConfidential
     ? `<div style="position:fixed; top:40%; left:50%; transform:translate(-50%,-50%) rotate(-35deg); font-size:90px; color:rgba(220,38,38,0.12); font-weight:bold; pointer-events:none; z-index:0; white-space:nowrap;">CONFIDENTIAL</div>`
@@ -124,16 +245,22 @@ function buildHtml(req: RequestForPdf): string {
     ? `${escapeHtml(req.assignedTo.firstName)} ${escapeHtml(req.assignedTo.lastName)}`
     : req.assignedTeam || 'Unassigned';
 
-  // Custom fields
+  // Custom fields — resolve labels from formConfig, format values, hide internal keys
   let customFieldsHtml = '';
   if (req.customFields && typeof req.customFields === 'object') {
-    const entries = Object.entries(req.customFields).filter(([, v]) => v != null && v !== '');
+    const formConfig = req.requestType?.formConfig;
+    const entries = Object.entries(req.customFields)
+      .filter(([k, v]) => !HIDDEN_FIELD_KEYS.has(k) && v != null && v !== '');
     if (entries.length > 0) {
       customFieldsHtml = `
         <div class="section">
-          <h2>Custom Fields</h2>
+          <h2>Request Details</h2>
           <table class="kv-table">
-            ${entries.map(([k, v]) => `<tr><td class="kv-key">${escapeHtml(k)}</td><td class="kv-val">${escapeHtml(String(v))}</td></tr>`).join('')}
+            ${entries.map(([k, v]) => {
+              const label = resolveFieldLabel(k, formConfig);
+              const displayVal = formatCustomFieldValue(k, v, formConfig);
+              return `<tr><td class="kv-key">${escapeHtml(label)}</td><td class="kv-val">${escapeHtml(displayVal)}</td></tr>`;
+            }).join('')}
           </table>
         </div>`;
     }
@@ -146,7 +273,7 @@ function buildHtml(req: RequestForPdf): string {
       <div class="section">
         <h2>Workflow</h2>
         <div class="workflow-steps">
-          ${req.requestTypeWorkflowSteps.map(s => `<div class="step">${escapeHtml(s.name)}</div>`).join('<div class="step-arrow">→</div>')}
+          ${req.requestTypeWorkflowSteps.map(s => `<div class="step">${escapeHtml(s.label)}</div>`).join('<div class="step-arrow">→</div>')}
         </div>
       </div>`;
   }

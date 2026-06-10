@@ -100,6 +100,11 @@ interface WorkflowCockpitProps {
 
   /** Opens the proper Upload Resume modal (with file picker, candidate name, doc type) */
   onUploadResume?: () => void;
+
+  /** PDF export */
+  canExportPdf?: boolean;
+  exportingPdf?: boolean;
+  onExportPdf?: () => void;
 }
 
 const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
@@ -130,6 +135,9 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
   onResolveRequest,
   offboardingPreConditionsMet = true,
   onUploadResume,
+  canExportPdf,
+  exportingPdf,
+  onExportPdf,
 }) => {
   const [mobileExpanded, setMobileExpanded] = useState(false);
 
@@ -137,6 +145,21 @@ const WorkflowCockpit: React.FC<WorkflowCockpitProps> = ({
     <>
       {/* Desktop layout — sticky sidebar */}
       <div className="hidden lg:block sticky top-16 h-[calc(100vh-4rem)] overflow-y-auto">
+        {/* Export toolbar — right-aligned, compact */}
+        {canExportPdf && (
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={onExportPdf}
+              disabled={exportingPdf}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#0052cc] text-[#0052cc] text-xs font-medium rounded-lg hover:bg-[#0052cc] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-sm">
+                {exportingPdf ? 'hourglass_top' : 'picture_as_pdf'}
+              </span>
+              {exportingPdf ? 'Exporting...' : 'Export PDF'}
+            </button>
+          </div>
+        )}
         <div className="bg-white border border-gray-100 rounded-xl shadow-sm divide-y divide-gray-100">
           {/* WorkflowStepper */}
           <div className="p-4">

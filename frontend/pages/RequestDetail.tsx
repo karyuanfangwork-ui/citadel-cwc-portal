@@ -129,22 +129,6 @@ const RequestDetailContainer: React.FC = () => {
                 onManagerDecision={() => rq.setShowManagerDecisionModal(true)}
             />
 
-            {/* Export toolbar — agents/admins only */}
-            {canExport && (
-                <div className="flex items-center gap-3 mb-6">
-                    <button
-                        onClick={handleExportPdf}
-                        disabled={exportingPdf}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-[#0052cc] text-[#0052cc] text-sm font-medium rounded-lg hover:bg-[#0052cc] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <span className="material-symbols-outlined text-base">
-                            {exportingPdf ? 'hourglass_top' : 'picture_as_pdf'}
-                        </span>
-                        {exportingPdf ? 'Exporting...' : 'Export PDF'}
-                    </button>
-                </div>
-            )}
-
             {/* Confidentiality Notice */}
             {request.isConfidential && (
                 <div className="flex items-center gap-3 p-4 mb-6 bg-amber-50 border border-amber-300 rounded-xl">
@@ -311,6 +295,9 @@ const RequestDetailContainer: React.FC = () => {
                     onResolveRequest={() => rq.handleStatusChange('RESOLVED')}
                     onUploadResume={() => rq.setShowUploadModal(true)}
                     offboardingPreConditionsMet={offboardingPreConditions.preConditionsMet}
+                    canExportPdf={canExport}
+                    exportingPdf={exportingPdf}
+                    onExportPdf={handleExportPdf}
                 />
             </div>
 
