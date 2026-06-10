@@ -7,6 +7,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 import { announcementService } from '../services/announcement.service';
 import { s3Service } from '../services/s3.service';
 import { config } from '../config';
+import { auditLog } from '../utils/audit';
 
 const memoryUpload = multer({
   storage: multer.memoryStorage(),
@@ -40,6 +41,23 @@ export const uploadImageMiddleware = imageUpload.single('image');
 
 class AnnouncementController {
   /**
+   * Check that the requesting user is the author of the announcement or has announcement:admin.
+   * Throws 403 if neither condition is met.
+   */
+  private async requireAuthorOrAdmin(id: string, userId: string, permissions: string[]): Promise<void> {
+    const isAdmin = permissions.includes('announcement:admin');
+    if (isAdmin) return;
+
+    const announcement = await announcementService.getAnnouncementForAuthCheck(id);
+    if (!announcement) {
+      throw new AppError('Announcement not found', 404);
+    }
+    if (announcement.authorId !== userId) {
+      throw new AppError('You can only modify your own announcements', 403);
+    }
+  }
+
+  /**
    * GET /announcements — List published announcements (for all authenticated users)
    */
   list = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -48,6 +66,8 @@ class AnnouncementController {
     const category = req.query.category as string | undefined;
     const priority = req.query.priority as string | undefined;
     const search = req.query.search as string | undefined;
+    const sortBy = (req.query.sortBy as string || 'publishedAt') as 'publishedAt' | 'priority' | 'category' | 'createdAt';
+    const sortOrder = (req.query.sortOrder as string || 'desc') as 'asc' | 'desc';
 
     const result = await announcementService.listAnnouncements({
       page,
@@ -56,6 +76,10 @@ class AnnouncementController {
       priority,
       search,
       publishedOnly: true,
+      userId: req.user!.id,
+      userRoles: req.user!.roles,
+      sortBy,
+      sortOrder,
     });
 
     res.json({ status: 'success', data: result });
@@ -67,6 +91,7 @@ class AnnouncementController {
   dashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
     const result = await announcementService.getDashboardAnnouncements({
       userId: req.user!.id,
+      userRoles: req.user!.roles,
       limit: 5,
     });
 
@@ -99,12 +124,11 @@ class AnnouncementController {
    * POST /announcements — Create announcement (announcement:write)
    */
   create = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const { title, content, excerpt, category, priority, targetAudience, isPinned, isPublished, expiresAt, attachmentUrl } = req.body;
+    const { title, content, category, priority, targetAudience, isPinned, isPublished, expiresAt, attachmentUrl } = req.body;
 
     const announcement = await announcementService.createAnnouncement({
       title,
       content,
-      excerpt,
       category,
       priority,
       targetAudience,
@@ -115,6 +139,10 @@ class AnnouncementController {
       authorId: req.user!.id,
     });
 
+    await auditLog(req, isPublished ? 'announcement.publish' : 'announcement.create', 'announcement', announcement.id, {
+      title, category, priority, targetAudience, isPinned, isPublished,
+    });
+
     res.status(201).json({ status: 'success', data: { announcement } });
   });
 
@@ -123,12 +151,12 @@ class AnnouncementController {
    */
   update = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const { title, content, excerpt, category, priority, targetAudience, isPinned, isPublished, expiresAt, attachmentUrl } = req.body;
+    await this.requireAuthorOrAdmin(id, req.user!.id, req.user!.permissions);
+    const { title, content, category, priority, targetAudience, isPinned, isPublished, expiresAt, attachmentUrl } = req.body;
 
     const announcement = await announcementService.updateAnnouncement(id, {
       title,
       content,
-      excerpt,
       category,
       priority,
       targetAudience,
@@ -136,6 +164,10 @@ class AnnouncementController {
       isPublished,
       expiresAt,
       attachmentUrl,
+    });
+
+    await auditLog(req, isPublished === false ? 'announcement.unpublish' : 'announcement.update', 'announcement', id, {
+      title, category, priority, targetAudience, isPinned, isPublished,
     });
 
     res.json({ status: 'success', data: { announcement } });
@@ -146,7 +178,9 @@ class AnnouncementController {
    */
   publish = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
+    await this.requireAuthorOrAdmin(id, req.user!.id, req.user!.permissions);
     const announcement = await announcementService.publishAnnouncement(id);
+    await auditLog(req, 'announcement.publish', 'announcement', id, { isPublished: true });
     res.json({ status: 'success', data: { announcement } });
   });
 
@@ -155,8 +189,10 @@ class AnnouncementController {
    */
   togglePin = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
+    await this.requireAuthorOrAdmin(id, req.user!.id, req.user!.permissions);
     const { isPinned } = req.body;
     const announcement = await announcementService.togglePin(id, isPinned ?? true);
+    await auditLog(req, 'announcement.pin', 'announcement', id, { isPinned: isPinned ?? true });
     res.json({ status: 'success', data: { announcement } });
   });
 
@@ -183,7 +219,28 @@ class AnnouncementController {
   delete = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
     await announcementService.deleteAnnouncement(id);
+    await auditLog(req, 'announcement.delete', 'announcement', id, {});
     res.json({ status: 'success', message: 'Announcement deleted successfully' });
+  });
+
+  /**
+   * PATCH /announcements/:id/restore — Restore a soft-deleted announcement (announcement:admin)
+   */
+  restore = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const announcement = await announcementService.restoreAnnouncement(id);
+    await auditLog(req, 'announcement.restore', 'announcement', id, {});
+    res.json({ status: 'success', data: { announcement } });
+  });
+
+  /**
+   * GET /announcements/admin/trash — List soft-deleted announcements (announcement:admin)
+   */
+  trashList = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 20;
+    const result = await announcementService.listDeletedAnnouncements(page, limit);
+    res.json({ status: 'success', data: result });
   });
 
   // ── Admin endpoints ──────────────────────────────────────────────────
@@ -199,6 +256,8 @@ class AnnouncementController {
     const search = req.query.search as string | undefined;
     const isPublishedParam = req.query.isPublished as string | undefined;
     const isPublished = isPublishedParam === 'true' ? true : isPublishedParam === 'false' ? false : undefined;
+    const sortBy = (req.query.sortBy as string || 'publishedAt') as 'publishedAt' | 'priority' | 'category' | 'createdAt';
+    const sortOrder = (req.query.sortOrder as string || 'desc') as 'asc' | 'desc';
 
     const result = await announcementService.listAnnouncements({
       page,
@@ -209,6 +268,9 @@ class AnnouncementController {
       // When filtering by isPublished: true → only published; false → only drafts; undefined → all
       publishedOnly: isPublished === true,
       unpublishedOnly: isPublished === false,
+      userId: req.user!.id,
+      sortBy,
+      sortOrder,
     });
 
     res.json({ status: 'success', data: result });

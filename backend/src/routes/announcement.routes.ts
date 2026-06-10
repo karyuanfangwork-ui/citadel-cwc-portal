@@ -64,6 +64,13 @@ router.post(
 router.get('/admin/all', requirePermission('announcement:write'), announcementController.adminList);
 
 /**
+ * GET /announcements/admin/trash
+ * List soft-deleted announcements (trash view)
+ * Requires announcement:admin
+ */
+router.get('/admin/trash', requirePermission('announcement:admin'), announcementController.trashList);
+
+/**
  * GET /announcements
  * List published, non-expired announcements
  * All authenticated users
@@ -118,5 +125,12 @@ router.patch('/:id/pin', requirePermission('announcement:write'), announcementCo
  * Requires announcement:admin
  */
 router.delete('/:id', requirePermission('announcement:admin'), announcementController.delete);
+
+/**
+ * PATCH /announcements/:id/restore
+ * Restore a soft-deleted announcement
+ * Requires announcement:admin
+ */
+router.patch('/:id/restore', requirePermission('announcement:admin'), announcementController.restore);
 
 export default router;

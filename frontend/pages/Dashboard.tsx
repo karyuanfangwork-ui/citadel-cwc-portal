@@ -144,15 +144,6 @@ const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ pinned, latest,
                   }}>
                     {a.title}
                   </div>
-                  {a.excerpt && (
-                    <div style={{
-                      fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      marginTop: 2,
-                    }}>
-                      {a.excerpt}
-                    </div>
-                  )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', flexShrink: 0 }}>
                   {pri && (

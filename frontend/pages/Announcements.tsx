@@ -35,25 +35,48 @@ const CATEGORIES: { value: string; label: string }[] = [
   { value: 'GENERAL', label: 'General' },
 ];
 
+const PRIORITIES: { value: string; label: string }[] = [
+  { value: '', label: 'All Priorities' },
+  { value: 'LOW', label: 'Low' },
+  { value: 'MEDIUM', label: 'Medium' },
+  { value: 'HIGH', label: 'High' },
+  { value: 'CRITICAL', label: 'Critical' },
+];
+
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'publishedAt_desc', label: 'Newest First' },
+  { value: 'publishedAt_asc', label: 'Oldest First' },
+  { value: 'priority_desc', label: 'Priority (High→Low)' },
+  { value: 'category_asc', label: 'Category A→Z' },
+  { value: 'createdAt_desc', label: 'Recently Created' },
+];
+
 export default function Announcements() {
   const [searchParams, setSearchParams] = useSearchParams();
   const toast = useToast();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [loading, setLoading] = useState(true);
-  const [category, setCategory] = useState<AnnouncementCategory | ''>('');
+  const [category, setCategory] = useState<AnnouncementCategory | ''>((searchParams.get('category') as AnnouncementCategory) || '');
+  const [priority, setPriority] = useState<AnnouncementPriority | ''>((searchParams.get('priority') as AnnouncementPriority) || '');
+  const [sortValue, setSortValue] = useState('publishedAt_desc');
   const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('open'));
   const [selected, setSelected] = useState<Announcement | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   const fetchAnnouncements = useCallback(async () => {
     setLoading(true);
     try {
+      const [sortBy, sortOrder] = sortValue.split('_');
       const result = await announcementService.list({
         page,
         limit: 20,
         category: category as AnnouncementCategory || undefined,
+        priority: priority as AnnouncementPriority || undefined,
+        sortBy,
+        sortOrder,
       });
       setAnnouncements(result.announcements);
       setTotalPages(result.pagination.totalPages);
@@ -62,7 +85,7 @@ export default function Announcements() {
     } finally {
       setLoading(false);
     }
-  }, [page, category]);
+  }, [page, category, priority, sortValue]);
 
   useEffect(() => { fetchAnnouncements(); }, [fetchAnnouncements]);
 
@@ -74,6 +97,19 @@ export default function Announcements() {
       .catch(() => toast.error('Error', 'Failed to load announcement'))
       .finally(() => setModalLoading(false));
   }, [selectedId]);
+
+  const handleMarkAllRead = async () => {
+    setMarkingAllRead(true);
+    try {
+      await announcementService.markAllRead();
+      toast.success('Marked All Read', 'All announcements marked as read');
+      fetchAnnouncements();
+    } catch {
+      toast.error('Error', 'Failed to mark all as read');
+    } finally {
+      setMarkingAllRead(false);
+    }
+  };
 
   const pinned = announcements.filter(a => a.isPinned);
   const rest = announcements.filter(a => !a.isPinned);
@@ -102,18 +138,13 @@ export default function Announcements() {
           {pri && (
             <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '1px 7px', borderRadius: 'var(--radius-full)', background: pri.bg, color: pri.color }}>{pri.label}</span>
           )}
-          {!a.isRead && (
+          {a.isRead === false && (
             <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '1px 7px', borderRadius: 'var(--radius-full)', background: 'var(--color-brand-50)', color: 'var(--color-brand-700)' }}>New</span>
           )}
         </div>
         <div style={{ fontSize: 'var(--text-base)', fontWeight: a.isRead ? 600 : 800, color: 'var(--color-text-primary)', marginBottom: 'var(--space-1)' }}>
           {a.title}
         </div>
-        {a.excerpt && (
-          <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: 'var(--space-3)', lineHeight: 1.5 }}>
-            {a.excerpt}
-          </div>
-        )}
         <div style={{ display: 'flex', gap: 'var(--space-3)', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
           {a.author && <span>{a.author.firstName} {a.author.lastName}</span>}
           {a.publishedAt && <span>{formatDate(a.publishedAt)}</span>}
@@ -127,13 +158,37 @@ export default function Announcements() {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-6)', flexWrap: 'wrap', gap: 'var(--space-3)' }}>
         <h1 style={{ fontSize: 'var(--text-2xl)', fontWeight: 800, color: 'var(--color-text-primary)' }}>Announcements</h1>
-        <select
-          value={category}
-          onChange={e => { setCategory(e.target.value as AnnouncementCategory | ''); setPage(1); }}
-          style={{ padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)' }}
-        >
-          {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-        </select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          <select
+            value={category}
+            onChange={e => { setCategory(e.target.value as AnnouncementCategory | ''); setPage(1); }}
+            style={{ padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)' }}
+          >
+            {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+          <select
+            value={priority}
+            onChange={e => { setPriority(e.target.value as AnnouncementPriority | ''); setPage(1); }}
+            style={{ padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)' }}
+          >
+            {PRIORITIES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+          <select
+            value={sortValue}
+            onChange={e => { setSortValue(e.target.value); setPage(1); }}
+            style={{ padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)' }}
+          >
+            {SORT_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+          <button
+            onClick={handleMarkAllRead}
+            disabled={markingAllRead}
+            style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-1)', padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', fontWeight: 600, background: 'var(--color-surface)', color: 'var(--color-text-primary)', cursor: markingAllRead ? 'default' : 'pointer', fontFamily: 'var(--font-sans)', opacity: markingAllRead ? 0.6 : 1 }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 16 }}>done_all</span>
+            {markingAllRead ? 'Marking...' : 'Mark All Read'}
+          </button>
+        </div>
       </div>
 
       {/* Content */}

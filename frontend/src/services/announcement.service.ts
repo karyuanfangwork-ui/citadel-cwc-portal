@@ -2,12 +2,12 @@ import api from './api';
 
 export type AnnouncementCategory = 'HR' | 'MARKETING' | 'IT' | 'GENERAL' | 'FINANCE' | 'POLICY';
 export type AnnouncementPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+export type TargetAudience = 'ALL' | 'IT_ONLY' | 'HR_ONLY' | 'FINANCE_ONLY' | 'MANAGEMENT';
 
 export interface Announcement {
   id: string;
   title: string;
   content: string;
-  excerpt: string | null;
   category: AnnouncementCategory;
   priority: AnnouncementPriority;
   targetAudience: string | null;
@@ -19,16 +19,16 @@ export interface Announcement {
   authorId: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
   author?: { id: string; firstName: string; lastName: string; email?: string };
   isRead?: boolean;
-  _count?: { readBy: number };
-  readBy?: { id: string }[];
+  _count?: { reads: number };
+  reads?: { id: string }[];
 }
 
 export interface DashboardAnnouncement {
   id: string;
   title: string;
-  excerpt: string | null;
   category: AnnouncementCategory;
   priority: AnnouncementPriority;
   isPinned: boolean;
@@ -74,6 +74,8 @@ const announcementService = {
     category?: AnnouncementCategory;
     priority?: AnnouncementPriority;
     search?: string;
+    sortBy?: string;
+    sortOrder?: string;
   }): Promise<PaginatedAnnouncements> {
     const res = await api.get('/announcements', { params });
     return res.data?.data ?? res.data;
@@ -101,6 +103,8 @@ const announcementService = {
     priority?: AnnouncementPriority;
     isPublished?: boolean;
     search?: string;
+    sortBy?: string;
+    sortOrder?: string;
   }): Promise<PaginatedAnnouncements> {
     const res = await api.get('/announcements/admin/all', { params });
     return res.data?.data ?? res.data;
@@ -109,7 +113,6 @@ const announcementService = {
   async create(data: {
     title: string;
     content: string;
-    excerpt?: string;
     category: AnnouncementCategory;
     priority: AnnouncementPriority;
     targetAudience?: string;
@@ -125,7 +128,6 @@ const announcementService = {
   async update(id: string, data: {
     title?: string;
     content?: string;
-    excerpt?: string | null;
     category?: AnnouncementCategory;
     priority?: AnnouncementPriority;
     targetAudience?: string;
@@ -150,6 +152,16 @@ const announcementService = {
 
   async remove(id: string): Promise<void> {
     await api.delete(`/announcements/${id}`);
+  },
+
+  async restore(id: string): Promise<Announcement> {
+    const res = await api.patch(`/announcements/${id}/restore`);
+    return res.data?.data?.announcement ?? res.data?.data ?? res.data;
+  },
+
+  async trashList(params?: { page?: number; limit?: number }): Promise<PaginatedAnnouncements> {
+    const res = await api.get('/announcements/admin/trash', { params });
+    return res.data?.data ?? res.data;
   },
 
   async parseDocument(file: File): Promise<ParseDocResult> {

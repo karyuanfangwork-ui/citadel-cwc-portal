@@ -40,8 +40,6 @@ const AnnouncementDetail = () => {
         setError(null);
         const data = await announcementService.getOne(id);
         setAnnouncement(data);
-        // Auto-mark as read
-        try { await announcementService.markRead(id); } catch { /* silent */ }
       } catch (err: any) {
         setError('Failed to load announcement.');
       } finally {
@@ -76,7 +74,7 @@ const AnnouncementDetail = () => {
 
   const prio = PRIORITY_BADGE[announcement.priority] || PRIORITY_BADGE.MEDIUM;
   const catStyle = CATEGORY_STYLE[announcement.category] || CATEGORY_STYLE.GENERAL;
-  const readCount = announcement._count?.readBy || announcement.readBy?.length || 0;
+  const readCount = announcement._count?.reads || announcement.reads?.length || 0;
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto' }} className="px-4 sm:px-8 py-4 sm:py-8">

@@ -2,20 +2,27 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
-import announcementService, { Announcement, AnnouncementCategory, AnnouncementPriority } from '../src/services/announcement.service';
+import announcementService, { Announcement, AnnouncementCategory, AnnouncementPriority, TargetAudience } from '../src/services/announcement.service';
 import { useToast } from '../src/context/ToastContext';
 import RichTextEditor from '../src/components/RichTextEditor';
 
-
-const CATEGORIES: AnnouncementCategory[] = ['HR', 'IT', 'FINANCE', 'POLICY', 'MARKETING', 'GENERAL'];
+const CATEGORIES: AnnouncementCategory[] = ['GENERAL', 'HR', 'IT', 'FINANCE', 'MARKETING', 'POLICY'];
 const PRIORITIES: AnnouncementPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
+
+const ADMIN_SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'publishedAt_desc', label: 'Published (Newest)' },
+  { value: 'publishedAt_asc', label: 'Published (Oldest)' },
+  { value: 'createdAt_desc', label: 'Created (Newest)' },
+  { value: 'priority_desc', label: 'Priority (High→Low)' },
+  { value: 'category_asc', label: 'Category A→Z' },
+];
 
 const EMPTY_FORM = {
   title: '',
   content: '',
-  excerpt: '',
   category: 'GENERAL' as AnnouncementCategory,
   priority: 'MEDIUM' as AnnouncementPriority,
+  targetAudience: 'ALL' as TargetAudience,
   isPinned: false,
   isPublished: false,
   expiresAt: '',
@@ -40,7 +47,16 @@ export default function AnnouncementsManage() {
   const [saving, setSaving] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'published'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'draft' | 'published' | 'trash'>('all');
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [sortValue, setSortValue] = useState('publishedAt_desc');
+  const [trashAnnouncements, setTrashAnnouncements] = useState<Announcement[]>([]);
+  const [trashPage, setTrashPage] = useState(1);
+  const [trashTotalPages, setTrashTotalPages] = useState(1);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Permission guard
@@ -54,17 +70,47 @@ export default function AnnouncementsManage() {
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
+      const [sortBy, sortOrder] = sortValue.split('_');
       const result = await announcementService.adminList({
-        limit: 50,
+        page,
+        limit: 20,
         isPublished: filterStatus === 'all' ? undefined : filterStatus === 'published',
+        search: search || undefined,
+        sortBy,
+        sortOrder,
       });
       setAnnouncements(result.announcements);
+      setTotalPages(result.pagination.totalPages);
+      setTotal(result.pagination.total);
     } catch {
       toast.error('Error', 'Failed to load announcements');
     } finally {
       setLoading(false);
     }
-  }, [filterStatus]);
+  }, [page, filterStatus, search, sortValue]);
+
+  const fetchTrash = useCallback(async () => {
+    try {
+      const result = await announcementService.trashList({ page: trashPage, limit: 20 });
+      setTrashAnnouncements(result.announcements);
+      setTrashTotalPages(result.pagination.totalPages);
+    } catch {
+      toast.error('Error', 'Failed to load trash');
+    }
+  }, [trashPage]);
+
+  useEffect(() => { if (filterStatus === 'trash') fetchTrash(); }, [fetchTrash, filterStatus]);
+
+  const handleRestore = async (id: string) => {
+    try {
+      await announcementService.restore(id);
+      toast.success('Restored', 'Announcement restored successfully');
+      fetchTrash();
+      if (filterStatus !== 'trash') fetchAll();
+    } catch {
+      toast.error('Error', 'Failed to restore announcement');
+    }
+  };
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -79,9 +125,9 @@ export default function AnnouncementsManage() {
     setForm({
       title: a.title,
       content: a.content,
-      excerpt: a.excerpt ?? '',
       category: a.category,
       priority: a.priority,
+      targetAudience: (a.targetAudience as TargetAudience) || 'ALL',
       isPinned: a.isPinned,
       isPublished: a.isPublished,
       expiresAt: a.expiresAt ? a.expiresAt.slice(0, 10) : '',
@@ -126,9 +172,9 @@ export default function AnnouncementsManage() {
       const data = {
         title: form.title.trim(),
         content: form.content.trim(),
-        excerpt: form.excerpt.trim() || undefined,
         category: form.category,
         priority: form.priority,
+        targetAudience: form.targetAudience,
         isPinned: form.isPinned,
         isPublished: publishNow,
         expiresAt: form.expiresAt ? new Date(form.expiresAt + 'T23:59:59').toISOString() : null,
@@ -156,6 +202,16 @@ export default function AnnouncementsManage() {
       fetchAll();
     } catch {
       toast.error('Error', 'Failed to publish');
+    }
+  }
+
+  async function handleUnpublish(id: string) {
+    try {
+      await announcementService.update(id, { isPublished: false });
+      toast.success('Unpublished', 'Announcement reverted to draft');
+      fetchAll();
+    } catch {
+      toast.error('Error', 'Failed to unpublish');
     }
   }
 
@@ -196,23 +252,91 @@ export default function AnnouncementsManage() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: 'var(--space-2)', marginBottom: 'var(--space-5)' }}>
-        {(['all', 'draft', 'published'] as const).map(s => (
-          <button key={s} onClick={() => setFilterStatus(s)} style={{ padding: 'var(--space-1) var(--space-4)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)', background: filterStatus === s ? 'var(--color-brand-700)' : 'var(--color-surface)', color: filterStatus === s ? '#fff' : 'var(--color-text-primary)' }}>
+      {/* Filters + Search */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)', flexWrap: 'wrap' }}>
+        {(['all', 'draft', 'published', 'trash'] as const).map(s => (
+          <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }} style={{ padding: 'var(--space-1) var(--space-4)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-full)', fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)', background: filterStatus === s ? (s === 'trash' ? '#dc2626' : 'var(--color-brand-700)') : 'var(--color-surface)', color: filterStatus === s ? '#fff' : 'var(--color-text-primary)' }}>
             {s.charAt(0).toUpperCase() + s.slice(1)}
           </button>
         ))}
+        <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>
+          <span className="material-symbols-outlined" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 18, color: 'var(--color-text-tertiary)' }}>search</span>
+          <input
+            type="text"
+            placeholder="Search announcements..."
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { setSearch(searchInput.trim()); setPage(1); } }}
+            style={{ ...inputStyle, paddingLeft: 'var(--space-8)' }}
+          />
+          {searchInput && (
+            <button
+              onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }}
+              style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-tertiary)', fontSize: 16, lineHeight: 1 }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
+        <select
+          value={sortValue}
+          onChange={e => { setSortValue(e.target.value); setPage(1); }}
+          style={{ padding: 'var(--space-2) var(--space-3)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)', background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)' }}
+        >
+          {ADMIN_SORT_OPTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </select>
       </div>
 
-      {/* Table */}
+      {/* Table — Normal or Trash */}
+      {filterStatus === 'trash' ? (
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+          {trashAnnouncements.length === 0 ? (
+            <div style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 48, display: 'block', opacity: .3, marginBottom: 'var(--space-3)' }}>delete</span>
+              <p style={{ fontWeight: 700 }}>Trash is empty</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: 'var(--color-surface-muted)' }}>
+                    {['Title', 'Category', 'Deleted', 'Actions'].map(h => (
+                      <th key={h} style={{ padding: 'var(--space-3) var(--space-4)', textAlign: 'left', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '.08em', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {trashAnnouncements.map(a => (
+                    <tr key={a.id} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+                      <td style={{ padding: 'var(--space-3) var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</td>
+                      <td style={{ padding: 'var(--space-3) var(--space-4)', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)' }}>{a.category}</td>
+                      <td style={{ padding: 'var(--space-3) var(--space-4)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{a.deletedAt ? formatDate(a.deletedAt) : '—'}</td>
+                      <td style={{ padding: 'var(--space-3) var(--space-4)', whiteSpace: 'nowrap' }}>
+                        <button onClick={() => handleRestore(a.id)} style={{ padding: '4px 10px', border: '1px solid #16a34a', borderRadius: 'var(--radius-md)', background: '#f0fdf4', fontSize: 'var(--text-xs)', fontWeight: 600, color: '#16a34a', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Restore</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {/* Trash Pagination */}
+          {trashTotalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-2)', padding: 'var(--space-4)', borderTop: '1px solid var(--color-border)' }}>
+              <button disabled={trashPage <= 1} onClick={() => setTrashPage(p => p - 1)} style={{ padding: 'var(--space-2) var(--space-4)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', cursor: trashPage <= 1 ? 'default' : 'pointer', opacity: trashPage <= 1 ? .4 : 1, fontFamily: 'var(--font-sans)' }}>← Prev</button>
+              <span style={{ padding: 'var(--space-2) var(--space-3)', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>{trashPage} / {trashTotalPages}</span>
+              <button disabled={trashPage >= trashTotalPages} onClick={() => setTrashPage(p => p + 1)} style={{ padding: 'var(--space-2) var(--space-4)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', cursor: trashPage >= trashTotalPages ? 'default' : 'pointer', opacity: trashPage >= trashTotalPages ? .4 : 1, fontFamily: 'var(--font-sans)' }}>Next →</button>
+            </div>
+          )}
+        </div>
+      ) : (
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
         {loading ? (
           <div style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>Loading...</div>
         ) : announcements.length === 0 ? (
           <div style={{ padding: 'var(--space-12)', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 48, display: 'block', opacity: .3, marginBottom: 'var(--space-3)' }}>campaign</span>
-            <p style={{ fontWeight: 700 }}>No announcements yet</p>
+            <p style={{ fontWeight: 700 }}>{search ? 'No announcements match your search' : 'No announcements yet'}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -228,7 +352,7 @@ export default function AnnouncementsManage() {
                 {announcements.map(a => (
                   <tr key={a.id} style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--color-text-primary)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.title}</td>
-                    <td style={{ padding: 'var(--space-3) var(--space-4)', fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--color-text-secondary)' }}>{a.category}</td>
+                    <td style={{ padding: 'var(--space-3) var(--space-4)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{a.category}</td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{a.priority}</td>
                     <td style={{ padding: 'var(--space-3) var(--space-4)' }}>
                       <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, padding: '2px 8px', borderRadius: 'var(--radius-full)', background: a.isPublished ? '#f0fdf4' : '#f8fafc', color: a.isPublished ? '#16a34a' : '#64748b' }}>
@@ -241,7 +365,9 @@ export default function AnnouncementsManage() {
                     <td style={{ padding: 'var(--space-3) var(--space-4)', whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
                         <button onClick={() => openEdit(a)} style={{ padding: '4px 10px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Edit</button>
-                        {!a.isPublished && (
+                        {a.isPublished ? (
+                          <button onClick={() => handleUnpublish(a.id)} style={{ padding: '4px 10px', border: '1px solid #64748b', borderRadius: 'var(--radius-md)', background: '#f8fafc', fontSize: 'var(--text-xs)', fontWeight: 600, color: '#64748b', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Unpublish</button>
+                        ) : (
                           <button onClick={() => handlePublish(a.id)} style={{ padding: '4px 10px', border: '1px solid #16a34a', borderRadius: 'var(--radius-md)', background: '#f0fdf4', fontSize: 'var(--text-xs)', fontWeight: 600, color: '#16a34a', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Publish</button>
                         )}
                         <button onClick={() => setDeleteConfirmId(a.id)} style={{ padding: '4px 10px', border: '1px solid #fecaca', borderRadius: 'var(--radius-md)', background: '#fef2f2', fontSize: 'var(--text-xs)', fontWeight: 600, color: '#dc2626', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Delete</button>
@@ -254,6 +380,28 @@ export default function AnnouncementsManage() {
           </div>
         )}
       </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'var(--space-5)' }}>
+          <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
+            {total} announcement{total !== 1 ? 's' : ''} · Page {page} of {totalPages}
+          </span>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <button
+              disabled={page <= 1}
+              onClick={() => setPage(p => p - 1)}
+              style={{ padding: 'var(--space-2) var(--space-4)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', cursor: page <= 1 ? 'default' : 'pointer', opacity: page <= 1 ? .4 : 1, fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 600 }}
+            >← Prev</button>
+            <button
+              disabled={page >= totalPages}
+              onClick={() => setPage(p => p + 1)}
+              style={{ padding: 'var(--space-2) var(--space-4)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', cursor: page >= totalPages ? 'default' : 'pointer', opacity: page >= totalPages ? .4 : 1, fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)', fontWeight: 600 }}
+            >Next →</button>
+          </div>
+        </div>
+      )}
 
       {/* Slide-over */}
       {slideOverOpen && (
@@ -285,12 +433,6 @@ export default function AnnouncementsManage() {
                   {PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-            </div>
-
-            {/* Excerpt */}
-            <div>
-              <label style={{ display: 'block', fontSize: 'var(--text-xs)', fontWeight: 700, marginBottom: 'var(--space-1)', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Excerpt (optional preview text)</label>
-              <input style={inputStyle} value={form.excerpt} onChange={e => setForm(f => ({ ...f, excerpt: e.target.value }))} placeholder="Short summary shown in dashboard widget" />
             </div>
 
             {/* Document Upload */}
