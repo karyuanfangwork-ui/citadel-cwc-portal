@@ -5,6 +5,9 @@ import { startSlaChecker, stopSlaChecker, runSlaChecks, JobConfig } from '../job
 import { startCrmJob, stopCrmJob, CrmJobKey, CRM_JOB_FNS } from '../jobs/crm-checker';
 import { startMonitorJob, stopMonitorJob, processDailyCheck } from '../credit/jobs/monitor.job';
 import { startLooExpiryJob, stopLooExpiryJob, runLooExpiryCheck } from '../credit/jobs/looExpiry.job';
+import { startCreditSlaChecker, stopCreditSlaChecker, runCreditSlaChecks } from '../credit/jobs/creditSlaChecker';
+import { startAmlRescreenChecker, stopAmlRescreenChecker, runAmlRescreen } from '../credit/jobs/amlRescreenChecker';
+import { startAuditRetentionJob, stopAuditRetentionJob, runAuditRetentionCheck } from '../credit/jobs/auditRetention.job';
 
 export interface SchedulerConfigRow {
   id: string;
@@ -32,6 +35,9 @@ const DEFAULT_CONFIGS: Omit<SchedulerConfigRow, 'id' | 'updatedAt'>[] = [
   { jobKey: 'crm.rep_inactivity',     label: 'CRM: Rep Inactivity',      enabled: true, mode: 'cron', cronExpr: '0 16 * * 1-5',  intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'credit.monitor',         label: 'Credit Daily Monitor',     enabled: true, mode: 'interval', cronExpr: null, intervalMs: 86400000, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
   { jobKey: 'credit.loo_expiry',      label: 'LOO Expiry Check',         enabled: true, mode: 'interval', cronExpr: null, intervalMs: 86400000, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
+  { jobKey: 'credit.sla_checker',     label: 'Credit SLA Breach Check',  enabled: true, mode: 'cron', cronExpr: '*/15 * * * *', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
+  { jobKey: 'credit.aml_rescreen',    label: 'AML Quarterly Re-Screen',   enabled: true, mode: 'cron', cronExpr: '0 2 1 1,4,7,10 *', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
+  { jobKey: 'credit.audit_retention', label: 'Audit Retention & Hash Check', enabled: true, mode: 'cron', cronExpr: '0 3 * * *', intervalMs: null, lastRunAt: null, lastStatus: null, lastError: null, updatedBy: null },
 ];
 
 async function seedDefaults(): Promise<void> {
@@ -67,6 +73,12 @@ function startJobByKey(row: SchedulerConfigRow): void {
     startMonitorJob(cfg);
   } else if (row.jobKey === 'credit.loo_expiry') {
     startLooExpiryJob(cfg);
+  } else if (row.jobKey === 'credit.sla_checker') {
+    startCreditSlaChecker();
+  } else if (row.jobKey === 'credit.aml_rescreen') {
+    startAmlRescreenChecker();
+  } else if (row.jobKey === 'credit.audit_retention') {
+    startAuditRetentionJob(cfg);
   }
 }
 
@@ -79,6 +91,12 @@ function stopJobByKey(jobKey: string): void {
     stopMonitorJob();
   } else if (jobKey === 'credit.loo_expiry') {
     stopLooExpiryJob();
+  } else if (jobKey === 'credit.sla_checker') {
+    stopCreditSlaChecker();
+  } else if (jobKey === 'credit.aml_rescreen') {
+    stopAmlRescreenChecker();
+  } else if (jobKey === 'credit.audit_retention') {
+    stopAuditRetentionJob();
   }
 }
 
@@ -98,6 +116,9 @@ export async function shutdownScheduler(): Promise<void> {
   (Object.keys(CRM_JOB_FNS) as CrmJobKey[]).forEach(stopCrmJob);
   await stopMonitorJob();
   stopLooExpiryJob();
+  stopCreditSlaChecker();
+  stopAmlRescreenChecker();
+  stopAuditRetentionJob();
   logger.info('[Scheduler] All jobs stopped');
 }
 
@@ -148,6 +169,12 @@ export async function triggerJob(jobKey: string): Promise<void> {
       await processDailyCheck();
     } else if (jobKey === 'credit.loo_expiry') {
       await runLooExpiryCheck();
+    } else if (jobKey === 'credit.sla_checker') {
+      await runCreditSlaChecks();
+    } else if (jobKey === 'credit.aml_rescreen') {
+      await runAmlRescreen();
+    } else if (jobKey === 'credit.audit_retention') {
+      await runAuditRetentionCheck();
     }
     await prisma.schedulerConfig.update({
       where: { jobKey },

@@ -167,6 +167,64 @@ async function main() {
   await prisma.$disconnect();
 }
 
+// ---------------------------------------------------------------------------
+// Scheduler integration — start/stop/run for the scheduler.service
+// ---------------------------------------------------------------------------
+
+import { JobConfig } from '../../jobs/sla-checker';
+import cron, { ScheduledTask } from 'node-cron';
+
+let cronTask: ScheduledTask | null = null;
+
+/**
+ * Start the audit retention job on a cron schedule.
+ * Default: daily at 3:00 AM. Configurable via AUDIT_RETENTION_CRON env var.
+ */
+export function startAuditRetentionJob(cfg?: JobConfig): void {
+  stopAuditRetentionJob();
+
+  const effectiveCfg = cfg ?? { enabled: true, mode: 'cron', cronExpr: '0 3 * * *' };
+  if (!effectiveCfg.enabled) {
+    logger.info('[AuditRetention] Job disabled — skipping');
+    return;
+  }
+
+  const expression = process.env.AUDIT_RETENTION_CRON ?? effectiveCfg.cronExpr ?? '0 3 * * *';
+
+  if (!cron.validate(expression)) {
+    logger.error(`[AuditRetention] Invalid cron expression: "${expression}". Falling back to daily 03:00.`);
+    cronTask = cron.schedule('0 3 * * *', () => checkAuditRetention());
+  } else {
+    cronTask = cron.schedule(expression, () => {
+      logger.info(`[AuditRetention] Running (cron: ${expression})`);
+      checkAuditRetention();
+    });
+  }
+
+  logger.info(`[AuditRetention] Job started (cron: ${expression})`);
+
+  // Run immediately on start
+  checkAuditRetention();
+}
+
+/**
+ * Stop the audit retention job.
+ */
+export function stopAuditRetentionJob(): void {
+  if (cronTask) {
+    cronTask.stop();
+    cronTask = null;
+    logger.info('[AuditRetention] Job stopped');
+  }
+}
+
+/**
+ * Run a single audit retention check (for manual trigger from scheduler).
+ */
+export async function runAuditRetentionCheck(): Promise<RetentionReport> {
+  return checkAuditRetention();
+}
+
 // Run if called directly
 main().catch(err => {
   console.error('❌ Audit retention check failed:', err);
