@@ -54,6 +54,7 @@ class RequestController {
             search,
             requestTypeId,
             requesterId,
+            participantId,
         }  = req.query as Record<string, string>;
 
         const pageNum = parseInt(page as string, 10);
@@ -83,6 +84,7 @@ class RequestController {
                     { status: 'PENDING_FROM_ENTITY_APPROVAL' },
                     { status: 'PENDING_TO_ENTITY_APPROVAL' },
                     { approvals: { some: { approverId: req.user!.id } } },
+                    { participants: { some: { userId: req.user!.id } } },
                 ];
             } else if (hasRole(req, 'CTO')) {
                 // CTO can see their own requests and any IT request pending CTO approval
@@ -90,6 +92,7 @@ class RequestController {
                     { requesterId: req.user!.id },
                     { status: 'PENDING_CTO_APPROVAL_IT' },
                     { approvals: { some: { approverId: req.user!.id } } },
+                    { participants: { some: { userId: req.user!.id } } },
                 ];
             } else if (hasRole(req, 'CFO')) {
                 // CFO can see their own requests, IT requests pending CFO approval, Finance Purchase Requisitions pending CFO approval, and Expense Reimbursement requests pending Finance Head approval
@@ -99,6 +102,7 @@ class RequestController {
                     { status: 'PENDING_CFO_APPROVAL_FIN' },
                     { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
                     { approvals: { some: { approverId: req.user!.id } } },
+                    { participants: { some: { userId: req.user!.id } } },
                 ];
             } else if (hasRole(req, 'FINANCE_HEAD')) {
                 // FINANCE_HEAD can see their own requests and Expense Reimbursement requests pending Finance Head approval
@@ -106,6 +110,7 @@ class RequestController {
                     { requesterId: req.user!.id },
                     { status: 'PENDING_FINANCE_HEAD_APPROVAL' },
                     { approvals: { some: { approverId: req.user!.id } } },
+                    { participants: { some: { userId: req.user!.id } } },
                 ];
             } else if (hasRole(req, 'GROUP_DCEO')) {
                 // GROUP_DCEO can see their own requests, Finance Purchase Requisitions pending their approval,
@@ -118,12 +123,14 @@ class RequestController {
                     { status: 'CHARGEBACK_FINANCE_REVIEW' },
                     { assignedToId: req.user!.id },
                     { approvals: { some: { approverId: req.user!.id } } },
+                    { participants: { some: { userId: req.user!.id } } },
                 ];
             } else {
-                // Regular users see their own requests + any requests where they are a designated approver (e.g. entity approver for chargeback)
+                // Regular users see their own requests + any requests where they are a designated approver (e.g. entity approver for chargeback) or a participant
                 where.OR = [
                     { requesterId: req.user!.id },
                     { approvals: { some: { approverId: req.user!.id } } },
+                    { participants: { some: { userId: req.user!.id } } },
                 ];
             }
         }
@@ -164,6 +171,7 @@ class RequestController {
                             { requesterId: req.user!.id },
                             { approvals: { some: { approverId: req.user!.id } } },
                             { assignedToId: req.user!.id },
+                            { participants: { some: { userId: req.user!.id } } },
                         ],
                     },
                 ];
@@ -175,6 +183,7 @@ class RequestController {
                     { requesterId: req.user!.id },
                     { approvals: { some: { approverId: req.user!.id } } },
                     { assignedToId: req.user!.id },
+                    { participants: { some: { userId: req.user!.id } } },
                 ];
             }
         }
@@ -234,6 +243,14 @@ class RequestController {
             where.requesterId = requesterId as string;
         }
 
+        // Filter by participant (for "Shared with me" view)
+        if (participantId) {
+            where.AND = [
+                ...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []),
+                { participants: { some: { userId: participantId as string } } },
+            ];
+        }
+
         if (search) {
             const searchConditions = [
                 { referenceNumber: { contains: search as string, mode: 'insensitive' } },
@@ -274,6 +291,11 @@ class RequestController {
                     },
                     serviceDesk: true,
                     requestType: true,
+                    participants: {
+                        select: {
+                            userId: true,
+                        },
+                    },
                 },
                 orderBy: {
                     createdAt: 'desc',

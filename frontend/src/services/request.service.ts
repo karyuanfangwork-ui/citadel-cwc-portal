@@ -8,6 +8,7 @@ interface RequestFilters {
     excludedStatuses?: string;  // Comma-separated statuses to exclude
     serviceDeskId?: string;
     requesterId?: string;
+    participantId?: string;
     search?: string;
     requestTypeId?: string;
 }
@@ -50,6 +51,7 @@ export const requestService = {
         if (filters.excludedStatuses) params.append('excludedStatuses', filters.excludedStatuses);
         if (filters.serviceDeskId) params.append('serviceDeskId', filters.serviceDeskId);
         if (filters.requesterId) params.append('requesterId', filters.requesterId);
+        if (filters.participantId) params.append('participantId', filters.participantId);
         if (filters.search) params.append('search', filters.search);
         if (filters.requestTypeId) params.append('requestTypeId', filters.requestTypeId);
 

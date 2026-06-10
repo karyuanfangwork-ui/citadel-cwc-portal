@@ -213,7 +213,7 @@ const Dashboard = () => {
         setError(null);
         const [desksData, requestsData, dashboardData] = await Promise.all([
           serviceDeskService.getAllServiceDesks(),
-          requestService.getAllRequests({ limit: 50, requesterId: user?.id }),
+          requestService.getAllRequests({ limit: 50 }),
           announcementService.getDashboard().catch(() => ({ pinned: [], latest: [] })),
         ]);
         setServiceDesks(desksData);
