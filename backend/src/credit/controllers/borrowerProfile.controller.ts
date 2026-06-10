@@ -61,6 +61,17 @@ class BorrowerProfileController {
   });
 
   /**
+   * GET /borrowers/:id/contact-nric/reveal — Reveal plaintext contact NRIC (PII-logged)
+   */
+  revealContactNric = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    if (!req.user?.id) throw new AppError('Unauthenticated', 401);
+    const nric = await borrowerProfileService.revealContactNric(id, req.user.id);
+    if (nric === null) throw new AppError('Borrower profile not found or no NRIC on record', 404);
+    res.json({ status: 'success', data: { nric } });
+  });
+
+  /**
    * POST /borrowers — Create a new borrower profile
    * Supports ?overrideDuplicate=true (admin override) to skip duplicate detection.
    */

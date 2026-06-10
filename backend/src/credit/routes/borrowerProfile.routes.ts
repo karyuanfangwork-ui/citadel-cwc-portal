@@ -36,6 +36,18 @@ router.get(
 );
 
 /**
+ * GET /borrowers/:id/contact-nric/reveal
+ * Reveal plaintext contact NRIC — PII-logged
+ * Requires: credit:write
+ * NOTE: Must be registered before /:id to avoid Express matching "contact-nric" as an id.
+ */
+router.get(
+  '/:id/contact-nric/reveal',
+  requirePermission('credit:write'),
+  borrowerProfileController.revealContactNric,
+);
+
+/**
  * GET /borrowers/:id
  * Get a single borrower profile
  * Requires: credit:read

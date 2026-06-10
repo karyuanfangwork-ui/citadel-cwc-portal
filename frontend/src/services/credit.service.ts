@@ -2348,6 +2348,10 @@ export const piiRevealApi = {
     const res = await apiClient.get(`/credit/ubos/${id}/nric-reveal`);
     return res.data.data.nric as string;
   },
+  borrowerContactNric: async (borrowerProfileId: string): Promise<string> => {
+    const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/contact-nric/reveal`);
+    return res.data.data.nric as string;
+  },
 };
 
 export const bureauChecklistApi = {

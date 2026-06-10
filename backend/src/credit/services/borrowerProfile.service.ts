@@ -1,6 +1,8 @@
 import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
+import { maskNric } from '../utils/maskNric';
+import { PiiReadLogService } from './piiReadLog.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -288,9 +290,10 @@ class BorrowerProfileService {
 
   /**
    * Get a single borrower profile by ID.
+   * Contact NRIC is masked (last 4 chars only) — use revealContactNric for plaintext.
    */
   async getBorrowerProfile(id: string) {
-    return prisma.borrowerProfile.findFirst({
+    const profile = await prisma.borrowerProfile.findFirst({
       where: { id, deletedAt: null },
       include: {
         account: { select: { id: true, name: true } },
@@ -301,6 +304,23 @@ class BorrowerProfileService {
         relatedPartyMembers: { include: { group: { select: { id: true, name: true, relationshipType: true } } } },
       },
     });
+    if (profile?.contact?.nricPassport) {
+      profile.contact.nricPassport = maskNric(profile.contact.nricPassport);
+    }
+    return profile;
+  }
+
+  /**
+   * Reveal the plaintext NRIC for a borrower profile's contact (PII-logged).
+   */
+  async revealContactNric(borrowerProfileId: string, requestingUserId: string) {
+    const profile = await prisma.borrowerProfile.findFirst({
+      where: { id: borrowerProfileId, deletedAt: null },
+      include: { contact: { select: { nricPassport: true } } },
+    });
+    if (!profile?.contact?.nricPassport) return null;
+    await PiiReadLogService.logPiiAccess(requestingUserId, 'BorrowerProfile', borrowerProfileId, 'contact.nricPassport').catch(() => {});
+    return profile.contact.nricPassport;
   }
 
   /**

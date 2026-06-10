@@ -6,6 +6,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import StateBadge from '../src/components/ui/StateBadge';
 import EditBorrowerModal from '../src/components/credit/EditBorrowerModal';
+import toast from 'react-hot-toast';
 
 // ── Helpers ──────────────────────────────────────────────────
 const formatCurrency = (val: number | string | null) => {
@@ -51,7 +52,9 @@ const NricReveal: React.FC<{ maskedNric: string | null; revealFn: () => Promise<
     try {
       const full = await revealFn();
       setRevealed(full);
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch {
+      toast.error('Failed to reveal NRIC. You may not have permission or the record was not found.');
+    } finally { setLoading(false); }
   };
 
   return (
@@ -366,7 +369,6 @@ const BorrowerProfileDetail: React.FC = () => {
                     { label: 'Phone', value: profile.contact.phone ?? '—', icon: 'call' },
                     { label: 'Mobile', value: profile.contact.mobile ?? '—', icon: 'smartphone' },
                     { label: 'Date of Birth', value: profile.contact.dateOfBirth ? new Date(profile.contact.dateOfBirth).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—', icon: 'cake' },
-                    { label: 'NRIC / Passport', value: profile.contact.nricPassport ?? '—', icon: 'badge' },
                   ].filter(f => f.value !== '—' || ['Full Name', 'Email'].includes(f.label)).map(f => (
                     <div key={f.label} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
                       <span className="material-symbols-outlined text-base text-text-secondary w-5">{f.icon}</span>
@@ -374,6 +376,15 @@ const BorrowerProfileDetail: React.FC = () => {
                       <span className="text-sm text-text-primary">{f.value}</span>
                     </div>
                   ))}
+                  {profile.contact.nricPassport && (
+                    <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                      <span className="material-symbols-outlined text-base text-text-secondary w-5">badge</span>
+                      <span className="text-xs text-text-secondary w-28 shrink-0">NRIC / Passport</span>
+                      <span className="text-sm text-text-primary">
+                        <NricReveal maskedNric={profile.contact.nricPassport} revealFn={() => piiRevealApi.borrowerContactNric(profile.id)} />
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
