@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { NotificationProvider, useNotifications } from './src/context/NotificationContext';
+import notificationService from './src/services/notification.service';
 
 /** Strip HTML tags so raw HTML bodies display as readable plain text */
 function stripHtml(html: string): string {
@@ -127,12 +128,17 @@ const Footer = () => (
 
 const NotificationToast = () => {
   const navigate = useNavigate();
-  const { toast, dismissToast } = useNotifications();
+  const { toast, dismissToast, setUnreadCount } = useNotifications();
   if (!toast) return null;
 
   const handleClick = () => {
     if (toast.relatedRequestId) {
       navigate(`/request/${toast.relatedRequestId}`);
+    }
+    // Mark the notification as read when the user clicks the toast
+    if (toast.id) {
+      notificationService.markAsRead(toast.id).catch(() => {});
+      setUnreadCount(prev => Math.max(0, prev - 1));
     }
     dismissToast();
   };

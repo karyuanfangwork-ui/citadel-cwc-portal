@@ -78,6 +78,14 @@ export interface InterviewDetails {
     feedbacks: InterviewFeedback[];
 }
 
+export interface Attachment {
+    id: string;
+    fileName: string;
+    storageUrl: string;
+    mimeType: string | null;
+    fileSize: string;  // BigInt serialized as string
+}
+
 export interface Activity {
     id: string;
     activityType: string;
@@ -89,6 +97,7 @@ export interface Activity {
     isInternal: boolean;
     createdAt: string;
     user?: { firstName: string; lastName: string; email: string };
+    attachments?: Attachment[];
 }
 
 export interface Request {

@@ -1,27 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useToast } from '../../context/ToastContext';
-
-interface Activity {
-  id: string;
-  activityType: string;
-  message: string;
-  authorName: string;
-  authorRole: string | null;
-  isSystemGenerated: boolean;
-  isInternal: boolean;
-  createdAt: string;
-}
+import { requestService } from '../../services/request.service';
+import apiClient from '../../services/api';
+import type { Attachment, Activity } from '../request/useRequestDetail';
 
 type TabType = 'all' | 'comments' | 'system' | 'internal';
 
 interface ActivityFeedProps {
+  requestId: string;
   activities: Activity[];
-  onSubmitComment: (text: string, isInternal: boolean) => Promise<void>;
+  onSubmitComment: (text: string, isInternal: boolean) => Promise<any>;
+  onActivityChange?: () => Promise<void>;
   canPostInternal: boolean;
   currentUser?: { firstName: string; lastName: string } | null;
+  currentUserId?: string;
 }
 
-const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment, canPostInternal, currentUser }) => {
+const MAX_FILES = 5;
+const ACCEPTED_TYPES = 'image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip';
+
+function formatFileSize(bytes: number | string): string {
+  const size = typeof bytes === 'string' ? parseInt(bytes, 10) : bytes;
+  if (isNaN(size) || size < 0) return '0 B';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getFileIcon(mimeType: string | null): string {
+  if (!mimeType) return '📄';
+  if (mimeType.startsWith('image/')) return '🖼️';
+  if (mimeType === 'application/pdf') return '📕';
+  if (mimeType.includes('word') || mimeType.includes('document')) return '📝';
+  if (mimeType.includes('sheet') || mimeType.includes('excel') || mimeType.includes('csv')) return '📊';
+  if (mimeType === 'application/zip' || mimeType.includes('compressed')) return '🗜️';
+  return '📄';
+}
+
+function isImageMimeType(mimeType: string | null): boolean {
+  return !!mimeType && mimeType.startsWith('image/');
+}
+
+const ActivityFeed: React.FC<ActivityFeedProps> = ({
+  requestId,
+  activities,
+  onSubmitComment,
+  onActivityChange,
+  canPostInternal,
+  currentUser,
+  currentUserId,
+}) => {
   const toast = useToast();
   const [tab, setTab] = useState<TabType>('all');
   const [comment, setComment] = useState('');
@@ -29,12 +57,15 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
   const [submitting, setSubmitting] = useState(false);
   const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
 
-  // Merge server activities with any optimistic entries that haven't been confirmed yet.
-  // Optimistic entries use ids starting with "temp-". When the server returns the real
-  // activity via the parent's activities prop (after onSubmitComment resolves and the
-  // parent appends it), the optimistic entry with the matching temp-id will naturally
-  // be superseded because we only show optimistic entries whose id is NOT already in
-  // the server-supplied activities list.
+  // Attachment state
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Store optimistic comment text keyed by temp id
+  const [optimisticMessages, setOptimisticMessages] = useState<Record<string, string>>({});
+
   const serverIds = new Set(activities.map(a => a.id));
 
   const mergedActivities = (() => {
@@ -43,19 +74,15 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
       .map(id => ({
         id,
         activityType: 'COMMENT',
-        message: '', // placeholder — we store the real data separately below
+        message: '',
         authorName: currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'You',
         authorRole: null,
         isSystemGenerated: false,
         isInternal: isInternal,
         createdAt: new Date().toISOString(),
       }));
-    // We'll track the message text via a separate map
     return [...optimistic, ...activities];
   })();
-
-  // Store optimistic comment text keyed by temp id
-  const [optimisticMessages, setOptimisticMessages] = useState<Record<string, string>>({});
 
   const commentCount  = activities.filter(a => !a.isSystemGenerated && !a.isInternal).length;
   const internalCount = activities.filter(a => a.isInternal).length;
@@ -70,25 +97,89 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
   // Sort by createdAt descending so optimistic entries (just created) appear at the top
   const sortedFiltered = [...filtered].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+  const addPendingFile = (file: File) => {
+    setPendingFiles(prev => {
+      if (prev.length >= MAX_FILES) return prev;
+      return [...prev, file];
+    });
+  };
+
+  const removePendingFile = (index: number) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const remaining = MAX_FILES - pendingFiles.length;
+    files.slice(0, remaining).forEach(f => addPendingFile(f));
+    // Reset the input value so the same file can be selected again
+    e.target.value = '';
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) addPendingFile(file);
+      }
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    const remaining = MAX_FILES - pendingFiles.length;
+    files.slice(0, remaining).forEach(f => addPendingFile(f));
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setDragOver(false);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!comment.trim()) return;
+    if (!comment.trim() && pendingFiles.length === 0) return;
 
     const tempId = `temp-${Date.now()}`;
     const commentText = comment;
     const isInternalComment = isInternal;
+    const filesToUpload = [...pendingFiles];
 
     // Optimistically add the entry
     setOptimisticIds(prev => new Set(prev).add(tempId));
     setOptimisticMessages(prev => ({ ...prev, [tempId]: commentText }));
     setComment('');
     setIsInternal(false);
+    setPendingFiles([]);
     setSubmitting(true);
 
     try {
+      // Upload all pending files in parallel
+      if (filesToUpload.length > 0) {
+        setUploadingFiles(true);
+        const uploadPromises = filesToUpload.map(file =>
+          requestService.uploadAttachment(requestId, file).catch(err => {
+            console.error('Failed to upload file:', file.name, err);
+            toast.error('Upload Failed', `Failed to upload ${file.name}`);
+            return null;
+          })
+        );
+        await Promise.all(uploadPromises);
+        setUploadingFiles(false);
+      }
+
+      // Submit the comment — backend auto-links pending attachments
       await onSubmitComment(commentText, isInternalComment);
-      // On success, the parent will have appended the real activity.
-      // Remove our optimistic entry since the server data is now authoritative.
+
+      // Remove optimistic entry since the server data is now authoritative
       setOptimisticIds(prev => {
         const next = new Set(prev);
         next.delete(tempId);
@@ -114,6 +205,19 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
       toast.error('Comment failed', 'Failed to post comment. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    try {
+      await requestService.deleteAttachment(requestId, attachmentId);
+      toast.success('Attachment Removed', 'The attachment has been removed.');
+      // Refresh activities from server to reflect the deletion
+      if (onActivityChange) {
+        await onActivityChange();
+      }
+    } catch {
+      toast.error('Delete Failed', 'Failed to remove attachment.');
     }
   };
 
@@ -184,6 +288,20 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
                 }`}>
                   {displayMessage}
                 </p>
+                {/* Attachment grid */}
+                {a.attachments && a.attachments.length > 0 && (
+                  <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {a.attachments.map(att => (
+                      <AttachmentCard
+                        key={att.id}
+                        attachment={att}
+                        requestId={requestId}
+                        canDelete={currentUserId && a.authorName === `${currentUser?.firstName} ${currentUser?.lastName}`}
+                        onDelete={handleDeleteAttachment}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             );
@@ -200,15 +318,60 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
           </div>
         )}
         <form onSubmit={handleSubmit}>
-          <textarea
-            value={comment}
-            onChange={e => setComment(e.target.value)}
-            rows={3}
-            placeholder={isInternal ? 'Leave an internal note for the team…' : 'Reply to requester…'}
-            className={`w-full px-3 py-2.5 text-sm border rounded-lg focus:outline-none resize-none transition-colors ${
-              isInternal ? 'border-amber-300 focus:border-amber-500 bg-amber-50' : 'border-gray-200 focus:border-[#0052cc]'
+          <div
+            className={`relative rounded-lg border-2 border-dashed transition-colors ${
+              dragOver ? 'border-[#0052cc] bg-blue-50' : 'border-transparent'
             }`}
-          />
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              onPaste={handlePaste}
+              rows={3}
+              placeholder={isInternal ? 'Leave an internal note for the team…' : 'Reply to requester…'}
+              className={`w-full px-3 py-2.5 text-sm border rounded-lg focus:outline-none resize-none transition-colors ${
+                isInternal ? 'border-amber-300 focus:border-amber-500 bg-amber-50' : 'border-gray-200 focus:border-[#0052cc]'
+              }`}
+            />
+            {dragOver && (
+              <div className="absolute inset-0 flex items-center justify-center bg-blue-50/80 rounded-lg pointer-events-none">
+                <p className="text-sm font-bold text-[#0052cc]">Drop files here…</p>
+              </div>
+            )}
+          </div>
+
+          {/* Pending files preview */}
+          {pendingFiles.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {pendingFiles.map((file, idx) => (
+                <div key={idx} className="relative group flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs">
+                  {file.type.startsWith('image/') ? (
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      className="w-8 h-8 object-cover rounded"
+                    />
+                  ) : (
+                    <span className="text-base">{getFileIcon(file.type)}</span>
+                  )}
+                  <span className="max-w-[100px] truncate text-gray-700 font-medium">{file.name}</span>
+                  <span className="text-gray-400">({formatFileSize(file.size)})</span>
+                  <button
+                    type="button"
+                    onClick={() => removePendingFile(idx)}
+                    className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
+                    title="Remove file"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center justify-between mt-2">
             {canPostInternal ? (
               <button
@@ -224,13 +387,31 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
                 Internal note
               </button>
             ) : <div />}
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ACCEPTED_TYPES}
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={pendingFiles.length >= MAX_FILES || submitting}
+                className="flex items-center gap-1 px-3 py-2 text-xs font-bold text-gray-500 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                title={`Attach file (${pendingFiles.length}/${MAX_FILES})`}
+              >
+                <span className="text-sm">📎</span>
+                Attach
+              </button>
               <button
                 type="submit"
-                disabled={!comment.trim() || submitting}
+                disabled={(!comment.trim() && pendingFiles.length === 0) || submitting || uploadingFiles}
                 className="px-4 py-2 text-xs font-bold text-white bg-[#0052cc] rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
-                {submitting ? 'Sending…' : 'Send Reply'}
+                {submitting || uploadingFiles ? 'Sending…' : 'Send Reply'}
               </button>
             </div>
           </div>
@@ -239,5 +420,130 @@ const ActivityFeed: React.FC<ActivityFeedProps> = ({ activities, onSubmitComment
     </div>
   );
 };
+
+/* ── Attachment Card Component ── */
+
+interface AttachmentCardProps {
+  attachment: Attachment;
+  requestId: string;
+  canDelete?: boolean;
+  onDelete: (attachmentId: string) => void;
+}
+
+function AttachmentCard({ attachment, requestId, canDelete, onDelete }: AttachmentCardProps) {
+  const isImage = isImageMimeType(attachment.mimeType);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(isImage); // only fetch blob for images
+
+  // Fetch image via axios (with auth cookies) and create a blob URL for <img src>
+  const blobUrlRef = useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!isImage) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const blob = await requestService.downloadAttachment(requestId, attachment.id);
+        if (!cancelled) {
+          const url = URL.createObjectURL(blob);
+          blobUrlRef.current = url;
+          setBlobUrl(url);
+        }
+      } catch {
+        // Failed to load image preview — show fallback
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    };
+  }, [requestId, attachment.id, isImage]);
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    try {
+      const blob = await requestService.downloadAttachment(requestId, attachment.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = attachment.fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // fallback: open the API URL directly (may work for top-level nav with lax cookies)
+      const apiBase = (apiClient.defaults as any).baseURL || '/api/v1';
+      window.open(`${apiBase}/requests/${requestId}/attachments/${attachment.id}`, '_blank');
+    }
+  };
+
+  if (isImage) {
+    return (
+      <div
+        className="block relative group rounded-lg overflow-hidden border border-gray-200 hover:border-[#0052cc] transition-colors cursor-pointer"
+        onClick={handleDownload}
+      >
+        {loading ? (
+          <div className="w-full h-24 bg-gray-100 flex items-center justify-center">
+            <span className="text-gray-400 text-xs animate-pulse">Loading…</span>
+          </div>
+        ) : blobUrl ? (
+          <img
+            src={blobUrl}
+            alt={attachment.fileName}
+            className="w-full h-24 object-cover"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-24 bg-gray-100 flex items-center justify-center">
+            <span className="text-gray-400 text-lg">🖼️</span>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+          <span className="opacity-0 group-hover:opacity-100 text-white text-xs font-bold transition-opacity">🔍</span>
+        </div>
+        <div className="px-2 py-1 text-[10px] text-gray-500 truncate">{attachment.fileName}</div>
+        {canDelete && (
+          <button
+            onClick={e => { e.preventDefault(); e.stopPropagation(); onDelete(attachment.id); }}
+            className="absolute top-1 right-1 size-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+            title="Remove attachment"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 group hover:border-[#0052cc] transition-colors">
+      <span className="text-lg">{getFileIcon(attachment.mimeType)}</span>
+      <div className="flex-1 min-w-0">
+        <button
+          onClick={handleDownload}
+          className="text-xs font-bold text-gray-700 hover:text-[#0052cc] truncate block text-left"
+        >
+          {attachment.fileName}
+        </button>
+        <span className="text-[10px] text-gray-400">{formatFileSize(attachment.fileSize)}</span>
+      </div>
+      {canDelete && (
+        <button
+          onClick={() => onDelete(attachment.id)}
+          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Remove attachment"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default ActivityFeed;

@@ -1392,6 +1392,7 @@ class RequestController {
                     orderBy: {
                         createdAt: 'asc',
                     },
+                    include: { attachments: { where: { deletedAt: null } } },
                 },
                 attachments: {
                     where: {
@@ -1446,6 +1447,17 @@ class RequestController {
             (request as any).attachments = (request as any).attachments.map((att: any) => ({
                 ...att,
                 fileSize: att.fileSize?.toString() ?? '0',
+            }));
+        }
+
+        // Transform BigInt to string in activity attachments for JSON serialization
+        if ((request as any).activities) {
+            (request as any).activities = (request as any).activities.map((a: any) => ({
+                ...a,
+                attachments: (a.attachments || []).map((att: any) => ({
+                    ...att,
+                    fileSize: att.fileSize?.toString() ?? '0',
+                })),
             }));
         }
 
@@ -1656,6 +1668,7 @@ class RequestController {
         const activities = await prisma.requestActivity.findMany({
             where: { requestId: id },
             orderBy: { createdAt: 'asc' },
+            include: { attachments: { where: { deletedAt: null } } },
         });
 
         // Filter internal activities for non-agent/admin users
@@ -1665,9 +1678,18 @@ class RequestController {
           ? activities
           : activities.filter((a: any) => !a.isInternal);
 
+        // Transform BigInt fileSize in attachments to string for JSON serialization
+        const transformed = filteredActivities.map((a: any) => ({
+            ...a,
+            attachments: (a.attachments || []).map((att: any) => ({
+                ...att,
+                fileSize: att.fileSize?.toString() ?? '0',
+            })),
+        }));
+
         res.json({
             status: 'success',
-            data: { activities: filteredActivities },
+            data: { activities: transformed },
         });
     });
 
@@ -1726,9 +1748,39 @@ class RequestController {
             });
         }
 
+        // Auto-link any pending unlinked attachments uploaded by this user for this request
+        await prisma.requestAttachment.updateMany({
+            where: {
+                requestId: id,
+                activityId: null,
+                uploadedById: req.user!.id,
+                deletedAt: null,
+            },
+            data: {
+                activityId: activity.id,
+            },
+        });
+
+        // Fetch the activity with linked attachments included
+        const fullActivity = await prisma.requestActivity.findUnique({
+            where: { id: activity.id },
+            include: { attachments: { where: { deletedAt: null } } },
+        });
+
+        // Transform BigInt fileSize to string for JSON serialization
+        const serializedAttachments = (fullActivity!.attachments || []).map((a: any) => ({
+            ...a,
+            fileSize: a.fileSize?.toString() ?? '0',
+        }));
+
         res.status(201).json({
             status: 'success',
-            data: { activity },
+            data: {
+                activity: {
+                    ...fullActivity!,
+                    attachments: serializedAttachments,
+                },
+            },
         });
     });
 
@@ -1844,22 +1896,21 @@ class RequestController {
         const isInline = req.query.inline === 'true';
 
         try {
-            const overrideParams: Record<string, string> = {
-                'response-content-type': attachment.mimeType || 'application/octet-stream',
-            };
-
+            // Set appropriate headers for the response
+            res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
             if (isInline) {
-                overrideParams['response-content-disposition'] = `inline; filename="${encodeURIComponent(attachment.fileName)}"`;
+                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(attachment.fileName)}"`);
             } else {
-                overrideParams['response-content-disposition'] = `attachment; filename="${encodeURIComponent(attachment.fileName)}"`;
+                res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(attachment.fileName)}"`);
             }
 
-            // Generate a presigned URL (valid for 15 minutes)
-            const presignedUrl = await s3Service.getPresignedUrl(s3Key, 0.25, overrideParams);
-            return res.redirect(presignedUrl);
+            // Stream the file from S3 through the backend to avoid CORS issues
+            // (direct 302 redirect to S3 presigned URL fails on cross-origin XHR/fetch)
+            const stream = await s3Service.streamObject(s3Key);
+            stream.pipe(res);
         } catch (error: any) {
-            logger.error(`[DOWNLOAD] Failed to generate presigned URL for key ${s3Key}: ${error?.message || error}`);
-            throw new AppError('Could not generate download link', 500);
+            logger.error(`[DOWNLOAD] Failed to stream file for key ${s3Key}: ${error?.message || error}`);
+            throw new AppError('Could not download file', 500);
         }
     });
 

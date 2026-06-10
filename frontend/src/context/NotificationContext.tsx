@@ -51,8 +51,8 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       .catch(() => {});
   }, [userId]);
 
-  const showToast = useCallback((subject: string, body: string, relatedRequestId?: string | null) => {
-    const id = Math.random().toString(36).slice(2);
+  const showToast = useCallback((subject: string, body: string, relatedRequestId?: string | null, notificationId?: string) => {
+    const id = notificationId || Math.random().toString(36).slice(2);
     setToast({ id, subject, body, relatedRequestId: relatedRequestId ?? null });
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => setToast(null), 5000);
@@ -74,7 +74,7 @@ export const NotificationProvider: React.FC<{ userId: string | null; children: R
       const data = JSON.parse(e.data) as Notification;
       setUnreadCount((prev) => prev + 1);
       setRecentNotification(data);
-      showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId);
+      showToast(data.subject ?? 'New notification', data.body, data.relatedRequestId, data.id);
     });
 
     es.addEventListener('crm_update', (e: MessageEvent) => {

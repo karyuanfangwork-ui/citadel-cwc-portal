@@ -29,6 +29,23 @@ const TIME_FRAMES = [
   { value: 'month', label: 'This Month' },
 ] as const;
 
+/** Strip HTML tags so raw HTML bodies display as readable plain text */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<li>/gi, '• ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function withinTimeFrame(dateStr: string, tf: string): boolean {
   if (tf === 'all') return true;
   const d = new Date(dateStr).getTime();
@@ -118,7 +135,7 @@ const UnifiedInbox: React.FC = () => {
       </span>
       <div className="flex-1 min-w-0">
         {item.subject && <p className={`text-sm font-semibold ${item.readAt ? 'text-text-primary' : 'text-brand-900'}`}>{item.subject}</p>}
-        <p className="text-sm text-text-secondary line-clamp-2">{item.body}</p>
+        <p className="text-sm text-text-secondary line-clamp-2">{stripHtml(item.body)}</p>
         <p className="text-xs text-text-tertiary mt-0.5">{new Date(item.createdAt).toLocaleString()}</p>
       </div>
       {item.relatedRequestId && (

@@ -16,13 +16,13 @@ class NotificationController {
 
         const [notifications, total] = await Promise.all([
             prisma.notification.findMany({
-                where: { userId: req.user!.id },
+                where: { userId: req.user!.id, channel: 'IN_APP' },
                 skip,
                 take: limitNum,
                 orderBy: { createdAt: 'desc' },
             }),
             prisma.notification.count({
-                where: { userId: req.user!.id },
+                where: { userId: req.user!.id, channel: 'IN_APP' },
             }),
         ]);
 
@@ -44,6 +44,7 @@ class NotificationController {
         const count = await prisma.notification.count({
             where: {
                 userId: req.user!.id,
+                channel: 'IN_APP',
                 readAt: null,
             },
         });
@@ -72,6 +73,7 @@ class NotificationController {
         await prisma.notification.updateMany({
             where: {
                 userId: req.user!.id,
+                channel: 'IN_APP',
                 readAt: null,
             },
             data: { readAt: new Date() },

@@ -184,13 +184,19 @@ const RequestDetailContainer: React.FC = () => {
                     ) : null}
 
                     <ActivityFeed
+                        requestId={request.id}
                         activities={activities}
                         onSubmitComment={async (text, isInternal) => {
                             const newActivity = await requestService.addActivity(request.id, text, isInternal);
                             rq.setActivities(prev => [...prev, newActivity]);
                         }}
+                        onActivityChange={async () => {
+                            const updatedActivities = await requestService.getRequestActivities(request.id);
+                            rq.setActivities(updatedActivities);
+                        }}
                         canPostInternal={!!(user?.roles?.includes('AGENT') || user?.roles?.includes('ADMIN'))}
                         currentUser={user}
+                        currentUserId={user?.id}
                     />
                 </div>
 

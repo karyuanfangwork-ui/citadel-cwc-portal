@@ -1,5 +1,6 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { Readable } from 'stream';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
@@ -71,6 +72,17 @@ export class S3Service {
             logger.error(`Error uploading buffer to S3: ${error}`);
             throw error;
         }
+    }
+
+    /**
+     * Streams an object directly from S3 as a Node.js Readable stream.
+     * Used by downloadAttachment to proxy file content through the backend,
+     * avoiding CORS issues with presigned-URL redirects.
+     */
+    async streamObject(key: string): Promise<Readable> {
+        const command = new GetObjectCommand({ Bucket: config.s3.bucket, Key: key });
+        const response = await this.client.send(command);
+        return response.Body as Readable;
     }
 }
 
