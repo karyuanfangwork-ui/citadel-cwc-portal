@@ -327,22 +327,22 @@ const MyRequests = () => {
 
           {/* Export toolbar — agents/admins only */}
           {canExport && selectedIds.size > 0 && (
-            <div className="mb-4 flex items-center gap-3">
+            <div className="mb-4 flex flex-wrap items-center gap-3">
               <button
                 onClick={handleExportXlsx}
                 disabled={exportingXlsx}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white text-sm font-medium rounded-lg hover:bg-[#003d99] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white text-sm font-medium rounded-lg hover:bg-[#003d99] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               >
                 <span className="material-symbols-outlined text-base">
-                  {exportingXlsx ? 'hourglass_top' : 'table_export'}
+                  {exportingXlsx ? 'hourglass_top' : 'download'}
                 </span>
-                {exportingXlsx ? 'Exporting...' : `Export Excel (${selectedIds.size})`}
+                {exportingXlsx ? 'Exporting...' : `Export (${selectedIds.size})`}
               </button>
               <button
                 onClick={() => setSelectedIds(new Set())}
-                className="text-sm text-[#44546f] hover:text-[#0052cc] underline"
+                className="text-sm text-[#44546f] hover:text-[#0052cc] underline whitespace-nowrap"
               >
-                Clear selection
+                Clear
               </button>
             </div>
           )}
