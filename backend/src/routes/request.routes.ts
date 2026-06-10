@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { requestController } from '../controllers/request.controller';
+import { exportRequestPdf } from '../controllers/requestPdf.controller';
+import { exportRequestsXlsx } from '../controllers/requestExport.controller';
 import participantRoutes from './participant.routes';
 import { authenticate, requirePermission } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
@@ -51,6 +53,13 @@ router.post('/bulk-action', requirePermission('request:approve'), requestControl
 router.get('/recent-services', requestController.recentServices);
 
 /**
+ * @route   POST /api/v1/requests/export/xlsx
+ * @desc    Export multiple tickets as Excel
+ * @access  Private (Agent/Admin — request:export)
+ */
+router.post('/export/xlsx', requirePermission('request:export'), exportRequestsXlsx);
+
+/**
  * @route   GET /api/v1/requests/:id
  * @desc    Get request by ID
  * @access  Private
@@ -70,6 +79,13 @@ router.put('/:id', validate(updateRequestSchema), requestController.updateReques
  * @access  Private
  */
 router.delete('/:id', requirePermission('request:delete'), requestController.deleteRequest);
+
+/**
+ * @route   GET /api/v1/requests/:id/export/pdf
+ * @desc    Export single ticket as PDF
+ * @access  Private (Agent/Admin — request:export)
+ */
+router.get('/:id/export/pdf', requirePermission('request:export'), exportRequestPdf);
 
 /**
  * @route   GET /api/v1/requests/:id/activities

@@ -21,6 +21,18 @@ import CEODecisionModal from '../src/components/request/modals/CEODecisionModal'
 import ManagerDecisionModal from '../src/components/request/modals/ManagerDecisionModal';
 import BatchUploadModal from '../src/components/request-detail/BatchUploadModal';
 
+/** Download a Blob as a file */
+function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
 const RequestDetailContainer: React.FC = () => {
     const { user } = useAuth();
     const rq = useRequestDetail();
@@ -30,6 +42,22 @@ const RequestDetailContainer: React.FC = () => {
         isAdvancingToFinalWeek: boolean;
         preConditionsMet: boolean;
     }>({ isAdvancingToFinalWeek: false, preConditionsMet: true });
+
+    const [exportingPdf, setExportingPdf] = React.useState(false);
+    const canExport = !!(user?.roles?.some(r => ['ADMIN', 'AGENT'].includes(r)));
+
+    const handleExportPdf = async () => {
+        if (!rq.request) return;
+        setExportingPdf(true);
+        try {
+            const blob = await requestService.exportPdf(rq.request.referenceNumber || rq.id!);
+            downloadBlob(blob, `${rq.request.referenceNumber || rq.id}.pdf`);
+        } catch (err: any) {
+            alert(err?.response?.data?.message || err?.message || 'Failed to export PDF');
+        } finally {
+            setExportingPdf(false);
+        }
+    };
 
     if (!rq.request || !rq.id) {
         if (rq.loading) {
@@ -100,6 +128,22 @@ const RequestDetailContainer: React.FC = () => {
                 onMarkLOAIssued={rq.handleMarkLOAIssued}
                 onManagerDecision={() => rq.setShowManagerDecisionModal(true)}
             />
+
+            {/* Export toolbar — agents/admins only */}
+            {canExport && (
+                <div className="flex items-center gap-3 mb-6">
+                    <button
+                        onClick={handleExportPdf}
+                        disabled={exportingPdf}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-[#0052cc] text-[#0052cc] text-sm font-medium rounded-lg hover:bg-[#0052cc] hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <span className="material-symbols-outlined text-base">
+                            {exportingPdf ? 'hourglass_top' : 'picture_as_pdf'}
+                        </span>
+                        {exportingPdf ? 'Exporting...' : 'Export PDF'}
+                    </button>
+                </div>
+            )}
 
             {/* Confidentiality Notice */}
             {request.isConfidential && (

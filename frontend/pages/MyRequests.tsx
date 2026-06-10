@@ -48,10 +48,14 @@ const MyRequests = () => {
   const [total, setTotal] = useState(0);
   const [selectedRequestTypeId, setSelectedRequestTypeId] = useState<string | null>(null);
   const [requestTypeOptions, setRequestTypeOptions] = useState<{ id: string; name: string }[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exportingXlsx, setExportingXlsx] = useState(false);
+  const canExport = !!(user?.roles?.some(r => ['ADMIN', 'AGENT'].includes(r)));
   const limit = 10;
 
   useEffect(() => {
     const controller = new AbortController();
+    setSelectedIds(new Set()); // clear selections on filter change
     fetchRequests(controller.signal);
     return () => controller.abort();
   }, [statusFilter, viewMode, debouncedSearch, page, selectedRequestTypeId]);
@@ -149,6 +153,46 @@ const MyRequests = () => {
     if (viewMode === 'created') return 'Created by me';
     if (viewMode === 'shared') return 'Shared with me';
     return 'All requests';
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === requests.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(requests.map(r => r.id)));
+    }
+  };
+
+  const handleExportXlsx = async () => {
+    if (selectedIds.size === 0) {
+      alert('Please select at least one ticket to export.');
+      return;
+    }
+    setExportingXlsx(true);
+    try {
+      const blob = await requestService.exportXlsx(Array.from(selectedIds));
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tickets-export-${timestamp}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err?.response?.data?.message || err?.message || 'Failed to export Excel');
+    } finally {
+      setExportingXlsx(false);
+    }
   };
 
   return (
@@ -281,6 +325,28 @@ const MyRequests = () => {
             </div>
           )}
 
+          {/* Export toolbar — agents/admins only */}
+          {canExport && selectedIds.size > 0 && (
+            <div className="mb-4 flex items-center gap-3">
+              <button
+                onClick={handleExportXlsx}
+                disabled={exportingXlsx}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white text-sm font-medium rounded-lg hover:bg-[#003d99] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="material-symbols-outlined text-base">
+                  {exportingXlsx ? 'hourglass_top' : 'table_export'}
+                </span>
+                {exportingXlsx ? 'Exporting...' : `Export Excel (${selectedIds.size})`}
+              </button>
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="text-sm text-[#44546f] hover:text-[#0052cc] underline"
+              >
+                Clear selection
+              </button>
+            </div>
+          )}
+
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#0052cc]"></div>
@@ -312,6 +378,16 @@ const MyRequests = () => {
                     <table className="w-full text-left">
                       <thead>
                         <tr className="bg-gray-50 text-[#44546f] text-[11px] uppercase tracking-widest font-bold">
+                          {canExport && (
+                            <th className="px-4 py-4 w-10 text-center">
+                              <input
+                                type="checkbox"
+                                checked={requests.length > 0 && selectedIds.size === requests.length}
+                                onChange={toggleSelectAll}
+                                className="rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                              />
+                            </th>
+                          )}
                           <th className="px-6 py-4 w-12 text-center">Type</th>
                           <th className="px-6 py-4">Reference</th>
                           <th className="px-6 py-4">Summary</th>
@@ -325,9 +401,19 @@ const MyRequests = () => {
                         {requests.map((req) => (
                           <tr
                             key={req.id}
-                            className="hover:bg-gray-50 border-t border-gray-100 cursor-pointer transition-colors"
+                            className={`hover:bg-gray-50 border-t border-gray-100 cursor-pointer transition-colors ${selectedIds.has(req.id) ? 'bg-[#0052cc]/5' : ''}`}
                             onClick={() => navigate(`/request/${req.referenceNumber || req.id}`)}
                           >
+                            {canExport && (
+                              <td className="px-4 py-4 text-center" onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.has(req.id)}
+                                  onChange={() => toggleSelect(req.id)}
+                                  className="rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                                />
+                              </td>
+                            )}
                             <td className="px-6 py-4 text-center">
                               <span
                                 className={`material-symbols-outlined text-[20px] ${getServiceColor(

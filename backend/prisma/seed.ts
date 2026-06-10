@@ -212,6 +212,7 @@ async function main() {
         { name: 'request:approve', resource: 'request', action: 'approve', description: 'Approve requests' },
         { name: 'request:assign', resource: 'request', action: 'assign', description: 'Assign requests to agents' },
         { name: 'request:confidential', resource: 'request', action: 'confidential', description: 'View confidential requests' },
+        { name: 'request:export', resource: 'request', action: 'export', description: 'Export requests as PDF or Excel' },
         { name: 'user:manage', resource: 'user', action: 'manage', description: 'Manage users' },
         { name: 'admin:access', resource: 'admin', action: 'access', description: 'Access admin panel' },
         { name: 'admin:settings', resource: 'admin', action: 'settings', description: 'Modify system settings' },
@@ -278,7 +279,7 @@ async function main() {
     // ADMIN gets everything
     const adminPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
-        'request:assign', 'request:confidential',
+        'request:assign', 'request:confidential', 'request:export',
         'user:manage',
         'admin:access', 'admin:settings',
         'report:read',
@@ -296,7 +297,7 @@ async function main() {
     // Note: asset permissions are NOT on AGENT — they are on IT_AGENT only
     const agentPerms = [
         'request:create', 'request:read', 'request:update', 'request:delete',
-        'request:approve', 'request:assign', 'request:confidential',
+        'request:approve', 'request:assign', 'request:confidential', 'request:export',
         'announcement:read',
     ];
 

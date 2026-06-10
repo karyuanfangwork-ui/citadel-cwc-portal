@@ -146,4 +146,19 @@ export const requestService = {
         const response = await apiClient.get(`/requests/recent-services?limit=${limit}`);
         return response.data.data;
     },
+
+    // ── Export ─────────────────────────────────────────────────────────────
+    async exportPdf(id: string): Promise<Blob> {
+        const response = await apiClient.get(`/requests/${id}/export/pdf`, {
+            responseType: 'blob',
+        });
+        return response.data;
+    },
+
+    async exportXlsx(ids: string[]): Promise<Blob> {
+        const response = await apiClient.post('/requests/export/xlsx', { ids }, {
+            responseType: 'blob',
+        });
+        return response.data;
+    },
 };
