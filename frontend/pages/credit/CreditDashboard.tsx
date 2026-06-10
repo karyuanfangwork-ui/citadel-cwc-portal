@@ -265,7 +265,7 @@ const CreditDashboard: React.FC = () => {
         {loading && <p className="text-sm text-text-secondary">Loading...</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
         {!loading && !error && activeTab === 'myWork' && myWork && (
-          <MyWorkSection data={myWork} />
+          <MyWorkSection data={myWork} setActiveTab={setActiveTab} />
         )}
         {!loading && !error && activeTab === 'pipeline' && pipeline && (
           <PipelineSection data={pipeline} />
@@ -288,12 +288,12 @@ const CreditDashboard: React.FC = () => {
 // My Work Section
 // ---------------------------------------------------------------------------
 
-const MyWorkSection: React.FC<{ data: MyWorkDashboard }> = ({ data }) => {
+const MyWorkSection: React.FC<{ data: MyWorkDashboard; setActiveTab: (tab: TabKey) => void }> = ({ data, setActiveTab }) => {
   return (
     <div className="space-y-6">
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Link to="/credit/dashboard" onClick={() => {}} className="bg-amber-50 border border-amber-200 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer">
+        <button type="button" onClick={() => setActiveTab('approval')} className="bg-amber-50 border border-amber-200 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer text-left w-full">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-2xl text-amber-600">approval</span>
             <div>
@@ -301,8 +301,8 @@ const MyWorkSection: React.FC<{ data: MyWorkDashboard }> = ({ data }) => {
               <p className="text-2xl font-black text-amber-700">{data.myApprovalCount}</p>
             </div>
           </div>
-        </Link>
-        <Link to="/credit/dashboard" onClick={() => {}} className="bg-blue-50 border border-blue-200 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer">
+        </button>
+        <button type="button" onClick={() => setActiveTab('myWork')} className="bg-blue-50 border border-blue-200 rounded-xl p-5 hover:shadow-sm transition-shadow cursor-pointer text-left w-full">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-2xl text-blue-600">assignment_ind</span>
             <div>
@@ -310,7 +310,7 @@ const MyWorkSection: React.FC<{ data: MyWorkDashboard }> = ({ data }) => {
               <p className="text-2xl font-black text-blue-700">{data.myAssignedCount}</p>
             </div>
           </div>
-        </Link>
+        </button>
         <div className="bg-red-50 border border-red-200 rounded-xl p-5">
           <div className="flex items-center gap-3">
             <span className="material-symbols-outlined text-2xl text-red-600">schedule</span>

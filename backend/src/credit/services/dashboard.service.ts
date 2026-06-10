@@ -318,64 +318,59 @@ class DashboardService {
     const branchFilter = branchId ? { branchId } : {};
 
     // Pending approvals where user is RM/analyst and app is in an approval-pending state
-    const myApprovals = await prisma.creditApplication.findMany({
-      where: {
-        state: { in: APPROVAL_PENDING_STATES },
-        deletedAt: null,
-        OR: [
-          { assignedRmId: userId },
-          { assignedAnalystId: userId },
-        ],
-        ...branchFilter,
-      },
-      select: {
-        id: true,
-        applicationNo: true,
-        state: true,
-        productType: true,
-        updatedAt: true,
-        borrowerProfile: {
-          select: {
-            id: true,
-            name: true,
-            account: { select: { name: true } },
-            contact: { select: { firstName: true, lastName: true } },
-          },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 10,
-    });
+    const myApprovalsWhere = {
+      state: { in: APPROVAL_PENDING_STATES },
+      deletedAt: null,
+      OR: [
+        { assignedRmId: userId },
+        { assignedAnalystId: userId },
+      ],
+      ...branchFilter,
+    };
 
     // My assigned cases (RM or analyst) that are not closed/withdrawn
-    const myAssigned = await prisma.creditApplication.findMany({
-      where: {
-        deletedAt: null,
-        state: { notIn: ['CLOSED', 'WITHDRAWN'] as any[] },
-        OR: [
-          { assignedRmId: userId },
-          { assignedAnalystId: userId },
-        ],
-        ...branchFilter,
-      },
-      select: {
-        id: true,
-        applicationNo: true,
-        state: true,
-        productType: true,
-        updatedAt: true,
-        borrowerProfile: {
-          select: {
-            id: true,
-            name: true,
-            account: { select: { name: true } },
-            contact: { select: { firstName: true, lastName: true } },
-          },
+    const myAssignedWhere = {
+      deletedAt: null,
+      state: { notIn: ['CLOSED', 'WITHDRAWN'] as any[] },
+      OR: [
+        { assignedRmId: userId },
+        { assignedAnalystId: userId },
+      ],
+      ...branchFilter,
+    };
+
+    const selectFields = {
+      id: true,
+      applicationNo: true,
+      state: true,
+      productType: true,
+      updatedAt: true,
+      borrowerProfile: {
+        select: {
+          id: true,
+          name: true,
+          account: { select: { name: true } },
+          contact: { select: { firstName: true, lastName: true } },
         },
       },
-      orderBy: { updatedAt: 'desc' },
-      take: 10,
-    });
+    };
+
+    const [myApprovals, myApprovalCount, myAssigned, myAssignedCount] = await Promise.all([
+      prisma.creditApplication.findMany({
+        where: myApprovalsWhere,
+        select: selectFields,
+        orderBy: { updatedAt: 'desc' },
+        take: 10,
+      }),
+      prisma.creditApplication.count({ where: myApprovalsWhere }),
+      prisma.creditApplication.findMany({
+        where: myAssignedWhere,
+        select: selectFields,
+        orderBy: { updatedAt: 'desc' },
+        take: 10,
+      }),
+      prisma.creditApplication.count({ where: myAssignedWhere }),
+    ]);
 
     // My SLA breaches — unresolved breaches on applications where user is RM or analyst
     const myBreaches = await prisma.creditSlaBreach.findMany({
@@ -429,8 +424,8 @@ class DashboardService {
     });
 
     return {
-      myApprovalCount: myApprovals.length,
-      myAssignedCount: myAssigned.length,
+      myApprovalCount,
+      myAssignedCount,
       mySlaBreaches: myBreaches.length,
       mySlaBreachItems,
       recentAssigned: myAssigned.map(toMyWorkItem),
