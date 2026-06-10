@@ -2,6 +2,7 @@ import prisma from '../../utils/prisma';
 import { Prisma } from '@prisma/client';
 import { formatCurrency } from '../utils/formatCurrency';
 import { computeBorrowerExposure, EXPOSURE_STATES } from './exposureCompute.service';
+import { getTemplateForType } from '../constants/financialStatementTemplates';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -332,10 +333,39 @@ class FinancialService {
       status: 'DRAFT',
     };
 
+    // F4 — auto-populate template rows for CORPORATE borrowers
+    let borrowerType: string | null = null;
+    try {
+      const bp = await prisma.borrowerProfile.findUnique({
+        where: { id: data.borrowerProfileId },
+        select: { borrowerType: true },
+      });
+      borrowerType = bp?.borrowerType ?? null;
+    } catch { /* ignore — template is best-effort */ }
+
+    const templateRows = borrowerType === 'CORPORATE'
+      ? getTemplateForType(data.statementType)
+      : [];
+
+    if (templateRows.length > 0) {
+      createData.lineItems = {
+        create: templateRows.map((row, idx) => ({
+          lineKey: row.lineKey,
+          lineLabel: row.lineLabel,
+          amount: new Prisma.Decimal(0),
+          parentLineKey: row.parentLineKey ?? null,
+          displayOrder: idx,
+        })),
+      };
+    }
+
     return prisma.financialStatement.create({
       data: createData,
       include: {
         enteredBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+        lineItems: templateRows.length > 0
+          ? { orderBy: { displayOrder: 'asc' as const } }
+          : false,
       },
     });
   }
@@ -467,6 +497,35 @@ class FinancialService {
       where: {
         statementId,
         lineKey: { in: lineKeys },
+      },
+    });
+  }
+
+  /**
+   * Add a single line item to an existing financial statement.
+   * F4 — convenience method for the "Add Row" UI control.
+   */
+  async addLine(statementId: string, lineKey: string, lineLabel: string, parentLineKey?: string | null) {
+    const stmt = await prisma.financialStatement.findFirst({
+      where: { id: statementId, deletedAt: null },
+    });
+    if (!stmt) return null;
+
+    // Find the current max displayOrder to append at the end
+    const maxOrder = await prisma.financialLineItem.aggregate({
+      where: { statementId },
+      _max: { displayOrder: true },
+    });
+    const nextOrder = (maxOrder._max.displayOrder ?? -1) + 1;
+
+    return prisma.financialLineItem.create({
+      data: {
+        statementId,
+        lineKey,
+        lineLabel,
+        amount: new Prisma.Decimal(0),
+        parentLineKey: parentLineKey ?? null,
+        displayOrder: nextOrder,
       },
     });
   }

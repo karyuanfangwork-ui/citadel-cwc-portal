@@ -1125,6 +1125,12 @@ export const financialApi = {
     return res.data.data.lineItems as FinancialLineItem[];
   },
 
+  /** F4 — Add a single line item to a financial statement */
+  async addLine(statementId: string, lineKey: string, lineLabel: string, parentLineKey?: string) {
+    const res = await apiClient.post(`/credit/financials/${statementId}/lines`, { lineKey, lineLabel, parentLineKey });
+    return res.data.data.lineItem as FinancialLineItem;
+  },
+
   async validateBalanceSheet(statementId: string) {
     const res = await apiClient.post(`/credit/financials/${statementId}/validate`);
     return res.data.data as { valid: boolean; difference: number; totalAssets: number; totalLiabilitiesEquity: number };

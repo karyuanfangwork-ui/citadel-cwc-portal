@@ -133,7 +133,7 @@ const CF_LINE_ITEMS = [
   { key: 'principal', label: 'Principal Repayment' },
 ];
 
-type LineItemRow = { lineKey: string; amount: number };
+type LineItemRow = { lineKey: string; lineLabel?: string; amount: number };
 type StatementFormData = {
   statementType: 'BS' | 'PL' | 'CF';
   period: FinancialPeriod;
@@ -160,13 +160,31 @@ function LineItemEditor({
     }
   };
 
-  const fmt = (n: number) => n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // F4 — humanize snake_case as fallback when no lineLabel
+  const humanize = (key: string) => key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const displayLabel = (item: LineItemRow) => item.lineLabel || humanize(item.lineKey);
 
+  // F4 — Add Row control
+  const [newKey, setNewKey] = useState('');
+  const [newLabel, setNewLabel] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const handleAddRow = () => {
+    const key = newKey.trim() || `custom_${items.length + 1}`;
+    const label = newLabel.trim() || humanize(key);
+    if (items.some(i => i.lineKey === key)) return; // duplicate key
+    onChange([...items, { lineKey: key, lineLabel: label, amount: 0 }]);
+    setNewKey('');
+    setNewLabel('');
+    setAdding(false);
+  };
+
+  const fmt = (n: number) => n.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return (
     <div className="space-y-1">
       {items.map((item) => (
         <div key={item.lineKey} className="flex items-center gap-2 text-sm">
-          <span className="w-56 text-gray-700 shrink-0">{item.lineKey}</span>
+          <span className="w-56 text-gray-700 shrink-0">{displayLabel(item)}</span>
           <input
             type="number"
             value={item.amount || ''}
@@ -178,6 +196,52 @@ function LineItemEditor({
           />
         </div>
       ))}
+      {/* F4 — Add Row button */}
+      {!disabled && (
+        <div className="pt-2">
+          {adding ? (
+            <div className="flex items-center gap-2 text-sm">
+              <input
+                type="text"
+                placeholder="Key (e.g. custom_item)"
+                value={newKey}
+                onChange={e => setNewKey(e.target.value)}
+                className="w-36 border rounded px-2 py-1 text-xs"
+              />
+              <input
+                type="text"
+                placeholder="Label (e.g. Custom Item)"
+                value={newLabel}
+                onChange={e => setNewLabel(e.target.value)}
+                className="w-36 border rounded px-2 py-1 text-xs"
+              />
+              <button
+                type="button"
+                onClick={handleAddRow}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAdding(false); setNewKey(''); setNewLabel(''); }}
+                className="text-xs text-gray-400 hover:text-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-sm">add</span>
+              Add Row
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -210,7 +274,7 @@ function StatementModal({
     if (existing?.id) {
       setLoading(true);
       financialApi.listLineItems(existing.id)
-        .then(items => setLineItems(items.map(i => ({ lineKey: i.lineKey, amount: Number(i.amount) }))))
+        .then(items => setLineItems(items.map(i => ({ lineKey: i.lineKey, lineLabel: i.lineLabel, amount: Number(i.amount) }))))
         .catch(() => setLineItems([]))
         .finally(() => setLoading(false));
     }

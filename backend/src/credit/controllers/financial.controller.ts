@@ -128,6 +128,27 @@ class FinancialController {
     res.json({ status: 'success', data: { lineItems } });
   });
 
+  /**
+   * POST /financials/:id/lines
+   * Add a single line item to a statement (F4 — "Add Row" UI control)
+   */
+  addLine = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const statementId = String(req.params.id);
+    const { lineKey, lineLabel, parentLineKey } = req.body;
+
+    if (!lineKey || !lineLabel) {
+      return res.status(400).json({ status: 'error', message: 'lineKey and lineLabel are required' });
+    }
+
+    const lineItem = await financialService.addLine(statementId, lineKey, lineLabel, parentLineKey ?? null);
+
+    if (!lineItem) {
+      return res.status(404).json({ status: 'error', message: 'Financial statement not found' });
+    }
+
+    res.status(201).json({ status: 'success', data: { lineItem } });
+  });
+
   // ===========================================================================
   // Balance Sheet Validation
   // ===========================================================================

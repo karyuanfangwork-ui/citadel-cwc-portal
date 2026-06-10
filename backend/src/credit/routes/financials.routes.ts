@@ -72,6 +72,17 @@ router.post(
 );
 
 /**
+ * POST /financials/:id/lines
+ * Add a single line item to a statement (F4 — "Add Row" UI control)
+ * Requires: credit:write
+ */
+router.post(
+  '/:id/lines',
+  requirePermission('credit:write'),
+  financialController.addLine,
+);
+
+/**
  * POST /financials/:id/validate
  * Validate balance sheet balance
  * Requires: credit:read
