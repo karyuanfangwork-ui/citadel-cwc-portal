@@ -71,7 +71,7 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
   const isAutoSummary = useMemo(() => {
     if (!selectedRequestType) return false;
     const code = selectedRequestType.code || selectedRequestType.requestTypeCode || '';
-    return code === 'NEW_HIRING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT' || code === 'INTERCOMPANY_CHARGEBACK' || code === 'BUDGET_PROPOSAL';
+    return code === 'NEW_HIRING' || code === 'EMPLOYEE_ONBOARDING' || code === 'EMPLOYEE_OFFBOARDING' || code === 'NEW_HARDWARE' || code === 'GET_IT_HELP' || code === 'REPORT_SYSTEM_PROBLEM' || code === 'SOFTWARE_INSTALLATION' || code === 'PURCHASE_REQUISITION' || code === 'EMAIL_MANAGEMENT' || code === 'INTERCOMPANY_CHARGEBACK' || code === 'BUDGET_PROPOSAL';
   }, [selectedRequestType]);
 
   const autoSummary = useMemo(() => {
@@ -229,6 +229,26 @@ export function useCreateRequestWizard(deskId: string, categoryId: string, deskT
       if (period) parts.push(`(${period})`);
       if (amount) parts.push(`— RM${Number(amount).toLocaleString()}`);
       return parts.join(' ');
+    }
+
+    // EMPLOYEE_ONBOARDING
+    if (code === 'EMPLOYEE_ONBOARDING') {
+      const employeeName = cf.employeeName || '';
+      const jobTitle = cf.jobTitle || '';
+      const department = cf.department || '';
+      const startDate = cf.startDate || '';
+
+      const parts: string[] = [];
+      if (employeeName) parts.push(employeeName);
+      if (jobTitle) parts.push(`— ${jobTitle}`);
+      if (department) {
+        const entityName = entityOptions.find(e => e.code === department)?.name || department;
+        parts.push(`(${entityName})`);
+      }
+      if (startDate) parts.push(`Starting ${startDate}`);
+
+      const summary = parts.join(' ').trim();
+      return summary ? `Onboarding: ${summary}` : '';
     }
 
     // NEW_HIRING default

@@ -32,10 +32,18 @@ export const errorHandler = (
         message = err.message;
     }
 
-    // Strip env-var names and secrets from error messages visible to clients
+    // Strip leaked env-var names and secret values from error messages visible to clients.
+    // Only redact identifiers that look like code (SNAKE_CASE or camelCase containing a
+    // sensitive keyword), NOT plain English words like "password" in "Invalid email or password".
+    // E.g. redacts: JWT_SECRET, DATABASE_PASSWORD, refreshToken, clientSecret
+    //      keeps:  "Invalid email or password", "Token expired", "Reset token is required"
     const sanitizeMessage = (msg: string): string =>
         msg
-            .replace(/[\w_]*(KEY|SECRET|PASSWORD|TOKEN|CREDENTIAL|API_KEY)[\w_]*/gi, '[REDACTED]')
+            // SNAKE_CASE identifiers containing a sensitive keyword (e.g. JWT_SECRET, DATABASE_PASSWORD)
+            .replace(/\b[A-Z][A-Z0-9_]*(?:KEY|SECRET|PASSWORD|TOKEN|CREDENTIAL|API_KEY)[A-Z0-9_]*\b/g, '[REDACTED]')
+            // camelCase identifiers containing a sensitive keyword (e.g. refreshToken, clientSecret)
+            .replace(/\b[a-z]+(?:Key|Secret|Password|Token|Credential)\b/g, '[REDACTED]')
+            // .env file paths
             .replace(/\/\.env\S*/g, '[REDACTED_PATH]');
 
     const safeMessage = sanitizeMessage(message);

@@ -32,7 +32,7 @@ export const SEED_NOTIFICATION_TEMPLATES = [
     "emailBody": "<h2 style='margin:0 0 16px;color:#1a1a2e;'>New Comment</h2><p>Hello {{userName}},</p><p><strong>{{commenterName}}</strong> added a comment on request <strong>#{{requestId}} — {{requestTitle}}</strong>:</p><div style='background:#f4f5f7;padding:16px;border-radius:8px;margin:16px 0;border-left:4px solid #1a1a2e;'>{{commentText}}</div><p style='margin:24px 0 0;'><a href='{{appUrl}}/request/{{requestUuid}}' style='display:inline-block;padding:12px 24px;background:#1a1a2e;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;'>View Request</a></p>",
     "smsBody": "",
     "pushTitle": "New Comment",
-    "pushBody": "New comment on {{referenceNumber}}.",
+    "pushBody": "{{commenterName}} commented on {{referenceNumber}}: {{commentText}}",
     "isActive": true
   },
   {

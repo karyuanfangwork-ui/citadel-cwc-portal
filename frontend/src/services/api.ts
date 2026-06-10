@@ -20,10 +20,29 @@ apiClient.interceptors.response.use(
     async (error: AxiosError) => {
         const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
+        // ── Extract user-friendly message from any error ──────────
+        // Backend returns { status: 'error', message: '...' } — prefer that
+        // over Axios's generic "Request failed with status code NNN".
+        const axiosError = error as any;
+        const serverMessage = axiosError.response?.data?.message;
+        const friendlyMessage = serverMessage || axiosError.message || 'An error occurred';
+
+        // ── 401 handling: attempt silent token refresh ─────────────
         if (error.response?.status === 401 && !originalRequest._retry) {
+            // Auth endpoints (login, forgot-password, reset-password) should NOT
+            // trigger a refresh attempt — the user isn't authenticated yet and
+            // the 401 is the expected error response (e.g. "Invalid email or password").
+            const authEndpoints = ['/auth/login', '/auth/forgot-password', '/auth/reset-password'];
+            const isAuthEndpoint = authEndpoints.some(ep => originalRequest.url?.includes(ep));
+
+            if (isAuthEndpoint) {
+                // Return the server's error message directly — no refresh attempt
+                return Promise.reject(new Error(friendlyMessage));
+            }
+
             // If refresh already failed, immediately reject (no retry loop)
             if (refreshFailed) {
-                return Promise.reject(error);
+                return Promise.reject(new Error(friendlyMessage));
             }
 
             originalRequest._retry = true;
@@ -55,13 +74,12 @@ apiClient.interceptors.response.use(
                 return apiClient(originalRequest);
             } catch {
                 // Refresh failed — already redirected above
-                return Promise.reject(error);
+                return Promise.reject(new Error(friendlyMessage));
             }
         }
 
-        const axiosError = error as any;
-        const errorMessage = axiosError.response?.data?.message || axiosError.message || 'An error occurred';
-        return Promise.reject(new Error(errorMessage));
+        // ── Non-401 errors (or 401 with _retry already set) ───────
+        return Promise.reject(new Error(friendlyMessage));
     }
 );
 

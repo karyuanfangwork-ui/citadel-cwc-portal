@@ -1730,11 +1730,15 @@ class RequestController {
         });
 
         // Notify request owner about new comment
+        const commentVars = {
+            commenterName: `${user!.firstName} ${user!.lastName}`,
+            commentText: message,
+        };
         if (request.requesterId !== req.user!.id) {
             await notify({
                 userId: request.requesterId,
                 eventType: 'COMMENT_ADDED',
-                variables: { referenceNumber: request.referenceNumber },
+                variables: commentVars,
                 relatedRequestId: id,
             });
         }
@@ -1743,7 +1747,7 @@ class RequestController {
             await notify({
                 userId: request.assignedToId,
                 eventType: 'COMMENT_ADDED',
-                variables: { referenceNumber: request.referenceNumber },
+                variables: commentVars,
                 relatedRequestId: id,
             });
         }
