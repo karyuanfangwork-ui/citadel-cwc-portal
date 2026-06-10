@@ -29,6 +29,8 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "prisma:seed:clear-tickets": "tsx prisma/seed-clear-tickets.ts",
+    "clear-tickets": "tsx src/scripts/clear-tickets.ts",
+    "clear-tickets:dry-run": "DRY_RUN=true tsx src/scripts/clear-tickets.ts",
     "import:staff": "tsx scripts/bulk_import_staff.ts",
     "import:staff:deactivate": "tsx scripts/bulk_import_staff.ts --deactivate-missing"
   },
