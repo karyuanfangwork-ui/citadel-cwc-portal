@@ -24,10 +24,15 @@ class DashboardController {
    * Approval inbox for the current user — grouped by urgency
    */
   getApprovalInbox = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const userId = requireUser(req).id;
+    const user = requireUser(req);
     const urgency = req.query.urgency as 'HIGH' | 'MEDIUM' | 'LOW' | undefined;
 
-    const result = await dashboardService.getApprovalInbox(userId, { urgency });
+    const result = await dashboardService.getApprovalInbox(
+      user.id,
+      user.roles ?? [],
+      user.permissions ?? [],
+      { urgency },
+    );
     res.json({ status: 'success', data: result });
   });
 

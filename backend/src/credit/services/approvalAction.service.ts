@@ -43,7 +43,7 @@ interface CreditDecisionRow {
 }
 
 // Authority level hierarchy — higher number = higher authority
-const AUTHORITY_HIERARCHY: Record<string, number> = {
+export const AUTHORITY_HIERARCHY: Record<string, number> = {
   // New authority levels
   RM: 1,
   MANAGER: 2,
@@ -57,7 +57,7 @@ const AUTHORITY_HIERARCHY: Record<string, number> = {
   BOARD_RISK_COMMITTEE: 5,
 };
 
-function hasSufficientAuthority(userAuthority: string, requiredAuthority: string): boolean {
+export function hasSufficientAuthority(userAuthority: string, requiredAuthority: string): boolean {
   const userLevel = AUTHORITY_HIERARCHY[userAuthority] ?? 0;
   const requiredLevel = AUTHORITY_HIERARCHY[requiredAuthority] ?? 0;
   return userLevel >= requiredLevel;
@@ -77,6 +77,28 @@ export function getRoleNamesForAuthorityLevel(level: number): string[] {
     4: ['CREDIT_ADMIN'],      // Tier 4: Board/admin override
   };
   return mapping[level] ?? ['CREDIT_ADMIN'];
+}
+
+/**
+ * Reverse mapping: given a set of user role names, return the highest
+ * authority hierarchy numeric level the user holds.
+ * Returns 0 if no recognised authority role is found.
+ */
+export function getUserAuthorityLevel(userRoles: string[]): number {
+  let maxLevel = 0;
+  for (const role of userRoles) {
+    // Check if the role name itself is an authority key (e.g. CREDIT_MANAGER)
+    if (AUTHORITY_HIERARCHY[role] !== undefined) {
+      maxLevel = Math.max(maxLevel, AUTHORITY_HIERARCHY[role]);
+    }
+    // Also check level-to-role mapping (CREDIT_RM → level 1, CREDIT_MANAGER → level 2, etc.)
+    for (let lvl = 1; lvl <= 4; lvl++) {
+      if (getRoleNamesForAuthorityLevel(lvl).includes(role)) {
+        maxLevel = Math.max(maxLevel, lvl);
+      }
+    }
+  }
+  return maxLevel;
 }
 
 // ---------------------------------------------------------------------------

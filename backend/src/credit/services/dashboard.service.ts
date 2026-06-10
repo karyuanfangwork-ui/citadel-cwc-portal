@@ -1,6 +1,8 @@
 import prisma from '../../utils/prisma';
 import { ApplicationState, CommitteeMeetingStatus } from '@prisma/client';
 import { formatCurrency } from '../utils/formatCurrency';
+import { approvalMatrixService } from './approvalMatrix.service';
+import { getUserAuthorityLevel, AUTHORITY_HIERARCHY } from './approvalAction.service';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -439,12 +441,18 @@ class DashboardService {
    * Queries CreditApplication where:
    *  - state is in an approval-pending state
    *  - user is assigned as RM or analyst, OR user hasn't yet submitted a decision
+   *  - (F6) user has credit:approve permission AND sufficient authority level
    */
-  async getApprovalInbox(userId: string, _filters?: {
+  async getApprovalInbox(userId: string, userRoles: string[], userPermissions: string[], _filters?: {
     urgency?: 'HIGH' | 'MEDIUM' | 'LOW';
     page?: number;
     limit?: number;
   }): Promise<ApprovalInboxResult> {
+    // F6 — Early-return empty inbox if user lacks credit:approve permission
+    if (!userPermissions.includes('credit:approve')) {
+      return { high: [], medium: [], low: [], totalPending: 0 };
+    }
+
     // Find applications in approval-pending states where this user is involved
     const applications = await prisma.creditApplication.findMany({
       where: {
@@ -500,6 +508,9 @@ class DashboardService {
       orderBy: { submittedAt: 'asc' },
     });
 
+    // Resolve the user's highest authority level once
+    const userAuthLevel = getUserAuthorityLevel(userRoles);
+
     // Merge and deduplicate
     const seenIds = new Set<string>();
     const allItems: ApprovalInboxItem[] = [];
@@ -511,6 +522,22 @@ class DashboardService {
       // Skip if user already submitted a decision (from first query)
       const alreadyDecided = app.decisions.length > 0;
       if (alreadyDecided) continue;
+
+      // F6 — Scope to actual authority: resolve required authority via matrix lookup
+      // and keep only apps the user's authority level can approve
+      const exposure = Number((app as any).requestedAmount) || 0;
+      const riskRating = (app.borrowerProfile as any)?.creditRiskRating ?? 'NR';
+      const branchId = (app as any).branchId ?? null;
+      const authorityResult = await approvalMatrixService.lookupApprovalAuthority(
+        exposure,
+        riskRating,
+        branchId,
+      );
+      if (authorityResult) {
+        const requiredLevel = AUTHORITY_HIERARCHY[authorityResult.authorityLevel] ?? 0;
+        if (userAuthLevel < requiredLevel) continue; // user lacks sufficient authority
+      }
+      // If no matrix match, allow through (no matrix restriction applies)
 
       const borrowerName =
         app.borrowerProfile?.account?.name ??
