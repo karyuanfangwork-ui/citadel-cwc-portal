@@ -6,6 +6,7 @@ import Breadcrumbs from '../src/components/Breadcrumbs';
 import reportsService, { ReportSummary, SlaStatus } from '../src/services/reports.service';
 import api from '../src/services/api';
 import SkeletonRow from '../src/components/SkeletonRow';
+import { requestService } from '../src/services/request.service';
 
 interface TicketRow {
   id: string;
@@ -67,6 +68,8 @@ export default function AgentDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedRequestTypeId, setSelectedRequestTypeId] = useState<string | null>(null);
   const [requestTypeOptions, setRequestTypeOptions] = useState<{ id: string; name: string }[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exportingXlsx, setExportingXlsx] = useState(false);
 
   const CLOSED_STATUSES = ['RESOLVED', 'CLOSED', 'REJECTED', 'REIMBURSEMENT_CLOSED', 'CEO_REJECTED', 'MANAGER_REJECTED_FIN', 'FINANCE_HEAD_REJECTED', 'CTO_REJECTED_IT', 'CFO_REJECTED_IT', 'COMPLETED', 'CANDIDATE_REJECTED_INTERVIEW', 'ONBOARDING_COMPLETED', 'OFFBOARDING_COMPLETED', 'PAYMENT_COMPLETED', 'LOA_ACCEPTED', 'TICKET_CLOSED_FIN', 'CFO_REJECTED_FIN', 'GROUP_DCEO_REJECTED', 'PAYMENT_CONFIRMED_FIN', 'CHARGEBACK_COMPLETED', 'FROM_ENTITY_REJECTED', 'TO_ENTITY_REJECTED'];
 
@@ -155,6 +158,39 @@ export default function AgentDashboard() {
     : activeTab === 'resolved' ? resolvedTickets
     : activeTab === 'all' ? allTickets
     : unassignedTickets;
+
+  // ── Multi-select & Export ──
+  const toggleSelectAll = () => {
+    if (selectedIds.size === tickets.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(tickets.map(t => t.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleExportXlsx = async () => {
+    if (selectedIds.size === 0) return;
+    setExportingXlsx(true);
+    try {
+      await requestService.exportXlsx(Array.from(selectedIds));
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error('Excel export failed:', err);
+    } finally {
+      setExportingXlsx(false);
+    }
+  };
+
+  // Clear selections when tab or filter changes
+  useEffect(() => { setSelectedIds(new Set()); }, [activeTab, selectedRequestTypeId]);
 
   const cards = [
     {
@@ -311,6 +347,28 @@ export default function AgentDashboard() {
         </button>
       </div>
 
+      {/* Export toolbar */}
+      {selectedIds.size > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleExportXlsx}
+            disabled={exportingXlsx}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#0052cc] text-white text-sm font-medium rounded-lg hover:bg-[#003d99] transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+          >
+            <span className="material-symbols-outlined text-base">
+              {exportingXlsx ? 'hourglass_top' : 'download'}
+            </span>
+            {exportingXlsx ? 'Exporting...' : `Export (${selectedIds.size})`}
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="text-sm text-[#44546f] hover:text-[#0052cc] underline whitespace-nowrap"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Ticket Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         {loading ? (
@@ -318,6 +376,14 @@ export default function AgentDashboard() {
           <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="text-left px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={tickets.length > 0 && selectedIds.size === tickets.length}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                  />
+                </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Summary</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Request Type</th>
@@ -329,7 +395,7 @@ export default function AgentDashboard() {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {[0, 1, 2, 3, 4, 5].map(i => (
-                <SkeletonRow key={i} cols={7} widths={['w-20', 'w-40', 'w-28', 'w-16', 'w-24', 'w-16', 'w-28']} />
+                <SkeletonRow key={i} cols={8} widths={['w-4', 'w-20', 'w-40', 'w-28', 'w-16', 'w-24', 'w-16', 'w-28']} />
               ))}
             </tbody>
           </table>
@@ -359,6 +425,14 @@ export default function AgentDashboard() {
           <table className="min-w-[800px] w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="text-left px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={tickets.length > 0 && selectedIds.size === tickets.length}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                  />
+                </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-28">Ref</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Summary</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600 w-36">Request Type</th>
@@ -381,8 +455,16 @@ export default function AgentDashboard() {
                   <tr
                     key={ticket.id}
                     onClick={() => navigate(`/request/${ticket.reference || ticket.id}`)}
-                    className={`cursor-pointer transition-colors hover:bg-gray-50 ${sla.breached ? 'bg-red-50 hover:bg-red-100' : ''}`}
+                    className={`cursor-pointer transition-colors hover:bg-gray-50 ${sla.breached ? 'bg-red-50 hover:bg-red-100' : ''} ${selectedIds.has(ticket.id) ? 'bg-blue-50 hover:bg-blue-100' : ''}`}
                   >
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(ticket.id)}
+                        onChange={() => toggleSelect(ticket.id)}
+                        className="w-4 h-4 rounded border-gray-300 text-[#0052cc] focus:ring-[#0052cc]"
+                      />
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs text-gray-600 font-medium">{ticket.reference}</td>
                     <td className="px-4 py-3 text-gray-900 max-w-xs truncate">{ticket.summary}</td>
                     <td className="px-4 py-3 text-gray-500">{ticket.requestType?.name || '—'}</td>
