@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { CommitteeAttendance, AgendaItemDecisionType, ApplicationState } from '@prisma/client';
+import { AppError } from '../../middleware/error.middleware';
 import { creditApplicationService } from './creditApplication.service';
 import { AuditChainService } from './auditChain.service';
 
@@ -316,7 +317,30 @@ class CommitteeService {
   /**
    * Cast a vote on an agenda item.
    */
-  async castVote(agendaItemId: string, memberId: string, data: CastVoteData) {
+  async castVote(agendaItemId: string, memberId: string, data: CastVoteData, userId?: string) {
+    // ── Security check 1: member must exist and belong to the authenticated user ──
+    const member = await prisma.committeeMember.findUnique({ where: { id: memberId } });
+    if (!member) {
+      throw new AppError('Committee member not found', 404);
+    }
+    if (userId && member.userId !== userId) {
+      throw new AppError('You are not authorized to vote as this member', 403);
+    }
+
+    // ── Security check 2: agenda item must belong to the same meeting as the member ──
+    const agendaItem = await prisma.committeeAgendaItem.findUnique({ where: { id: agendaItemId } });
+    if (!agendaItem) {
+      throw new AppError('Agenda item not found', 404);
+    }
+    if (agendaItem.meetingId !== member.meetingId) {
+      throw new AppError('Agenda item does not belong to the same meeting as the member', 403);
+    }
+
+    // ── Security check 3: ABSENT members cannot vote ──
+    if (member.attendance === CommitteeAttendance.ABSENT) {
+      throw new AppError('ABSENT members cannot vote', 403);
+    }
+
     try {
       return await prisma.committeeVote.create({
         data: {
@@ -335,7 +359,7 @@ class CommitteeService {
       });
     } catch (error: any) {
       if (error.code === 'P2002') {
-        throw new Error('This member has already voted on this agenda item');
+        throw new AppError('This member has already voted on this agenda item', 409);
       }
       throw error;
     }

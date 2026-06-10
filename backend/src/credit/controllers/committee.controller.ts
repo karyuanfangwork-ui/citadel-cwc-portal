@@ -192,9 +192,10 @@ class CommitteeController {
    */
   castVote = asyncHandler(async (req: AuthRequest, res: Response) => {
     const agendaItemId = String(req.params.itemId);
+    const userId = req.user?.id;
 
     try {
-      const vote = await committeeService.castVote(agendaItemId, req.body.memberId, req.body);
+      const vote = await committeeService.castVote(agendaItemId, req.body.memberId, req.body, userId);
       res.status(201).json({ status: 'success', data: { vote } });
     } catch (error: any) {
       if (error.message?.includes('already voted')) {
