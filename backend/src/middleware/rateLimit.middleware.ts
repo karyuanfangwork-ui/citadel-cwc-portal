@@ -26,10 +26,28 @@ export const apiLimiter = rateLimit({
     },
 });
 
-// Strict rate limiter for auth endpoints
+/**
+ * Auth rate limiter — keyed by email+IP.
+ *
+ * Per-email tracking means:
+ * - A user mistyping their password doesn't block their entire office (shared IP).
+ * - An attacker brute-forcing one account from one IP is limited to 20 attempts per 15 min.
+ * - An attacker trying one password across many emails from one IP gets 20 attempts per
+ *   unique email, which is still bounded.
+ *
+ * The key includes IP as a second factor so distributed attacks from many IPs against
+ * one email are still limited per source.
+ */
 export const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'development' ? 1000 : 50,
+    max: process.env.NODE_ENV === 'development' ? 1000 : 20,
+    keyGenerator: (_req) => {
+        // Derive key from email (if present in body) + IP.
+        // For login this is the email field; for refresh there's no body so fall back to IP only.
+        const email = _req.body?.email?.toString().toLowerCase().trim();
+        const ip = _req.ip || 'unknown';
+        return email ? `${email}:${ip}` : ip;
+    },
     message: {
         status: 'error',
         statusCode: 429,
@@ -41,6 +59,7 @@ export const authLimiter = rateLimit({
         logger.warn('Auth rate limit exceeded', {
             ip: _req.ip,
             path: _req.path,
+            email: _req.body?.email,
             userAgent: _req.headers['user-agent'],
         });
         res.status(options.statusCode).json(options.message);

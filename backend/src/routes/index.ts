@@ -40,11 +40,14 @@ import insightsRoutes from './insights.routes';
 
 const router = Router();
 
-// Apply rate limiting to all routes
+// Mount auth routes BEFORE the global rate limiter — auth has its own stricter limiter
+// (authLimiter) so applying apiLimiter too would double-count login attempts.
+router.use('/auth', authRoutes);
+
+// Apply general rate limiting to all other routes
 router.use(apiLimiter);
 
 // Mount routes
-router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/requests', requestRoutes);
 router.use('/service-desks', serviceDeskRoutes);
