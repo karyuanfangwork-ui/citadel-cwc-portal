@@ -21,6 +21,8 @@
     "prisma:seed:credit:branches": "tsx prisma/seed-credit.ts --branches",
     "prisma:seed:credit:demo": "tsx prisma/seed-credit.ts --demo",
     "prisma:seed:credit:clear": "tsx prisma/seed-credit.ts --clear",
+    "audit:verify": "tsx prisma/rehash-audit-chain.ts --verify",
+    "audit:rehash": "tsx prisma/rehash-audit-chain.ts",
     "prisma:reset": "prisma migrate reset",
     "test": "jest",
     "test:watch": "jest --watch",

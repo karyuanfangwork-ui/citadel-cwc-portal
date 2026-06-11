@@ -103,6 +103,7 @@ export class AuditChainService {
         metadata,
         hash,
         hashVersion: HASH_VERSION,
+        createdAt,   // must match the timestamp used in hash computation
       },
     });
     return tempId;

@@ -38,8 +38,9 @@ import {
   EsgCategory,
   SicrTriggerType,
   SignoffRole,
-} from '@prisma/client';
 
+} from '@prisma/client';
+import { AuditChainService } from '../src/credit/services/auditChain.service';
 const prisma = new PrismaClient();
 
 async function findExisting(model: any, where: any) {
@@ -652,7 +653,6 @@ async function seedAuditEvents(apps: any[], adminId: string) {
   };
 
   let count = 0;
-  let prevHash = '0000000000000000000000000000000000000000000000000000000000000000';
 
   for (const app of apps) {
     const currentState = app.state as string;
@@ -671,33 +671,30 @@ async function seedAuditEvents(apps: any[], adminId: string) {
       const prevState = i > 0 ? visitedStates[i - 1] : null;
       if (prevState === null && newState === 'DRAFT') continue;
 
-      const existing = await findExisting(prisma.creditAuditEvent, { applicationId: app.id, eventType: 'STATE_CHANGE', newState });
+      const existing = await findExisting(prisma.creditAuditEvent, { applicationId: app.id, eventType: 'STATE_TRANSITION', newState });
       if (!existing) {
-        const event = await prisma.creditAuditEvent.create({
-          data: {
-            applicationId: app.id,
-            eventType: 'STATE_CHANGE',
-            actorId: adminId,
-            action: newState === 'REJECTED' || newState === 'KYC_REJECTED' ? 'reject'
-              : newState === 'WITHDRAWN' ? 'withdraw'
-              : !prevState ? 'submit'
-              : prevState === 'DRAFT' ? 'submit'
-              : prevState === 'KYC_REVIEW' ? 'approve'
-              : prevState === 'COMMITTEE_REVIEW' ? 'approve'
-              : 'advance',
-            oldState: prevState,
-            newState,
-            metadata: { source: 'seed', transition: `${prevState || 'NEW'} → ${newState}` },
-            hash: prevHash,
-          },
-        });
-        prevHash = event.id;
+        const action = newState === 'REJECTED' || newState === 'KYC_REJECTED' ? 'reject'
+          : newState === 'WITHDRAWN' ? 'withdraw'
+          : !prevState ? 'submit'
+          : prevState === 'DRAFT' ? 'submit'
+          : prevState === 'KYC_REVIEW' ? 'approve'
+          : prevState === 'COMMITTEE_REVIEW' ? 'approve'
+          : 'advance';
+        await AuditChainService.appendEvent(
+          app.id,
+          'STATE_TRANSITION',
+          adminId,
+          action,
+          prevState,
+          newState,
+          { source: 'seed', transition: `${prevState || 'NEW'} → ${newState}` },
+        );
         count++;
       }
     }
   }
 
-  console.log(`  ✅ ${count} audit events`);
+  console.log(`  ✅ ${count} audit events (hash-chained via AuditChainService)`);
 }
 
 // ---------------------------------------------------------------------------

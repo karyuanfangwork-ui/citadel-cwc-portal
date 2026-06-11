@@ -43,10 +43,7 @@ const financeWorkflowService = {
         return response.data;
     },
 
-    async dceoDecision(requestId: string, decision: 'APPROVED' | 'REJECTED', comments?: string) {
-        const response = await api.post(`/finance-workflow/requests/${requestId}/dceo-decision`, { decision, comments });
-        return response.data;
-    },
+
 
     async markPaymentComplete(requestId: string, paymentReference?: string, notes?: string) {
         const response = await api.post(`/finance-workflow/requests/${requestId}/mark-payment-complete`, { paymentReference, notes });
