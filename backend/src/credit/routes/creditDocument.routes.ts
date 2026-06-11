@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { creditDocumentController } from '../controllers/creditDocument.controller';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
 import { validate } from '../../middleware/validate.middleware';
+import { assertBorrowerAccess } from '../middleware/assertBorrowerAccess.middleware';
 import {
   listCreditDocumentsSchema,
   updateCreditDocumentSchema,
@@ -187,6 +188,7 @@ router.patch(
 router.get(
   '/credit-documents/:id/download',
   requirePermission('credit:read'),
+  assertBorrowerAccess(),
   creditDocumentController.download,
 );
 
@@ -198,6 +200,7 @@ router.get(
 router.get(
   '/credit-documents/:id/versions/:version/download',
   requirePermission('credit:read'),
+  assertBorrowerAccess(),
   creditDocumentController.downloadVersion,
 );
 

@@ -274,8 +274,9 @@ class CreditDocumentController {
    * Get a presigned download URL for the current version.
    */
   download = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const user = requireUser(req);
     const id = String(req.params.id);
-    const url = await creditDocumentService.getDownloadUrl(id);
+    const url = await creditDocumentService.getDownloadUrl(id, user.id);
 
     if (!url) {
       throw new AppError('Document not found', 404);
@@ -289,6 +290,7 @@ class CreditDocumentController {
    * Get a presigned download URL for a specific version.
    */
   downloadVersion = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const user = requireUser(req);
     const documentId = String(req.params.id);
     const version = parseInt(String(req.params.version), 10);
 
@@ -296,7 +298,7 @@ class CreditDocumentController {
       throw new AppError('Version must be a number', 400);
     }
 
-    const url = await creditDocumentService.getVersionDownloadUrl(documentId, version);
+    const url = await creditDocumentService.getVersionDownloadUrl(documentId, version, user.id);
 
     if (!url) {
       throw new AppError('Version not found', 404);

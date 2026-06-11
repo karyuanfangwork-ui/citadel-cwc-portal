@@ -4,6 +4,7 @@ import { Prisma, DocumentClass } from '@prisma/client';
 import { s3Service } from '../../services/s3.service';
 import { AuditChainService } from './auditChain.service';
 import { requireEditableState, requireDeletableState } from './stateGuard.util';
+import { AppError } from '../../middleware/error.middleware';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -515,15 +516,30 @@ class CreditDocumentService {
 
   /**
    * Generate a presigned download URL for the current file of a document.
+   * Blocks downloads where isAvClean === false (virus scan failed).
+   * Allows isAvClean === null (not yet scanned).
+   * Audit-logs every successful download via AuditChainService.
    */
-  async getDownloadUrl(id: string): Promise<string | null> {
+  async getDownloadUrl(id: string, userId: string): Promise<string | null> {
     const doc = await prisma.creditDocument.findFirst({
       where: { id, deletedAt: null },
-      select: { filePath: true, fileName: true, mimeType: true },
+      select: {
+        filePath: true,
+        fileName: true,
+        mimeType: true,
+        isAvClean: true,
+        applicationId: true,
+        borrowerProfileId: true,
+      },
     });
 
     if (!doc) {
       return null;
+    }
+
+    // Block downloads of documents that failed virus scan
+    if (doc.isAvClean === false) {
+      throw new AppError('Document failed virus scan', 403);
     }
 
     const overrides: Record<string, string> = {
@@ -533,13 +549,45 @@ class CreditDocumentService {
       overrides['response-content-type'] = doc.mimeType;
     }
 
-    return s3Service.getPresignedUrl(doc.filePath, 0.25, overrides);
+    const url = await s3Service.getPresignedUrl(doc.filePath, 0.25, overrides);
+
+    // Audit-log the download
+    const scopeId = doc.applicationId ?? doc.borrowerProfileId;
+    await AuditChainService.appendEvent(
+      scopeId,
+      'DOCUMENT_DOWNLOADED',
+      userId,
+      'DOWNLOAD',
+      null,
+      null,
+      { docId: id, filename: doc.fileName },
+    );
+
+    return url;
   }
 
   /**
    * Generate a presigned download URL for a specific version of a document.
+   * Blocks downloads where the parent document has isAvClean === false.
+   * Allows isAvClean === null (not yet scanned).
+   * Audit-logs every successful download via AuditChainService.
    */
-  async getVersionDownloadUrl(documentId: string, version: number): Promise<string | null> {
+  async getVersionDownloadUrl(documentId: string, version: number, userId: string): Promise<string | null> {
+    // Fetch parent document to check AV status and get scope info
+    const parentDoc = await prisma.creditDocument.findFirst({
+      where: { id: documentId, deletedAt: null },
+      select: { isAvClean: true, applicationId: true, borrowerProfileId: true },
+    });
+
+    if (!parentDoc) {
+      return null;
+    }
+
+    // Block downloads of documents that failed virus scan
+    if (parentDoc.isAvClean === false) {
+      throw new AppError('Document failed virus scan', 403);
+    }
+
     const ver = await prisma.creditDocumentVersion.findFirst({
       where: { documentId, version },
     });
@@ -548,7 +596,21 @@ class CreditDocumentService {
       return null;
     }
 
-    return s3Service.getPresignedUrl(ver.filePath, 0.25);
+    const url = await s3Service.getPresignedUrl(ver.filePath, 0.25);
+
+    // Audit-log the download
+    const scopeId = parentDoc.applicationId ?? parentDoc.borrowerProfileId;
+    await AuditChainService.appendEvent(
+      scopeId,
+      'DOCUMENT_DOWNLOADED',
+      userId,
+      'DOWNLOAD',
+      null,
+      null,
+      { docId: documentId, version, filename: ver.fileName },
+    );
+
+    return url;
   }
 
   // ===========================================================================
