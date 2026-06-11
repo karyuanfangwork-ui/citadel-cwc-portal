@@ -215,6 +215,7 @@ model User {
   // §F23 — FX Rate entries
   createdFxRates             CreditFxRate[]         @relation("FxRateCreatedBy")
   // §7.1 — Collateral Cross-Linking
+  softDeletedCollaterals       Collateral[]           @relation("CollateralSoftDeletedBy")
   linkedCollateral          CollateralApplicationLink[] @relation("CollateralLinkedBy")
   // AI Governance Relations
   aiInteractions            AiInteraction[]              @relation("AiInteractionUser")
@@ -2632,6 +2633,12 @@ enum FacilityType {
 enum SecurityCategory {
   TANGIBLE
   SUPPORTING
+  // P1-4 — Granular categories for haircut-based LTV computation
+  PROPERTY
+  VEHICLE
+  FD
+  SECURITIES
+  OTHER
 }
 
 enum CounterpartyRole {
@@ -3948,6 +3955,12 @@ model Collateral {
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
 
+  // P1-4 — Soft delete (replaces hard-delete for audit trail)
+  softDeletedAt    DateTime?  @map("soft_deleted_at") @db.Timestamp(6)
+  softDeletedById  String?    @map("soft_deleted_by_id") @db.Uuid
+  softDeleteReason String?    @map("soft_delete_reason") @db.VarChar(500)
+  softDeletedBy    User?      @relation("CollateralSoftDeletedBy", fields: [softDeletedById], references: [id])
+
   facility       ApplicationFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
   valuations     CollateralValuation[]
   liens          CollateralLien[]
@@ -3956,6 +3969,20 @@ model Collateral {
 
   @@index([facilityId])
   @@map("collaterals")
+}
+
+// P1-4 — Collateral Haircut Configuration
+model CollateralHaircutConfig {
+  id                    String   @id @default(uuid()) @db.Uuid
+  securityCategory      String   @map("security_category") @db.VarChar(50)
+  haircutPercent        Decimal  @map("haircut_percent") @db.Decimal(5, 4)   // e.g. 0.3000 = 30%
+  minValuationAgeMonths Int      @map("min_valuation_age_months") @default(12)
+  isActive              Boolean  @default(true) @map("is_active")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt             DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@unique([securityCategory, isActive])
+  @@map("collateral_haircut_configs")
 }
 
 // §7.1 — Collateral Cross-Application Linking

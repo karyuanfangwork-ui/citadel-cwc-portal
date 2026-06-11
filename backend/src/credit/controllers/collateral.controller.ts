@@ -46,15 +46,38 @@ class CollateralController {
   });
 
   /**
-   * DELETE /collateral/:id
+   * DELETE /collateral/:id — now soft-deletes
    */
   delete = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const collateral = await collateralService.deleteCollateral(id);
-    if (!collateral) {
-      throw new AppError('Collateral not found', 404);
-    }
-    res.json({ status: 'success', message: 'Collateral deleted successfully' });
+    const deletedById = req.user!.id;
+    const reason = req.body.reason ?? 'No reason provided';
+    const collateral = await collateralService.softDeleteCollateral(id, deletedById, reason);
+    res.json({ status: 'success', data: { collateral } });
+  });
+
+  // -------------------------------------------------------------------------
+  // P1-4 — LTV Gate
+  // -------------------------------------------------------------------------
+
+  /**
+   * GET /facilities/:facilityId/ltv
+   */
+  computeLtv = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const facilityId = String(req.params.facilityId);
+    const ltvCap = req.query.ltvCap ? Number(req.query.ltvCap) : undefined;
+    const result = await collateralService.computeLtv(facilityId, ltvCap);
+    res.json({ status: 'success', data: result });
+  });
+
+  /**
+   * GET /applications/:applicationId/ltv
+   */
+  computeApplicationLtv = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const applicationId = String(req.params.applicationId);
+    const ltvCap = req.query.ltvCap ? Number(req.query.ltvCap) : undefined;
+    const results = await collateralService.computeApplicationLtv(applicationId, ltvCap);
+    res.json({ status: 'success', data: { facilities: results } });
   });
 
   // -------------------------------------------------------------------------

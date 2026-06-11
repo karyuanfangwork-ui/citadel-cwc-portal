@@ -30,6 +30,18 @@ router.get(
   collateralController.totalValue,
 );
 
+// P1-4 — LTV Gate
+router.get(
+  '/facilities/:facilityId/ltv',
+  requirePermission('credit:read'),
+  collateralController.computeLtv,
+);
+router.get(
+  '/:applicationId/ltv',
+  requirePermission('credit:read'),
+  collateralController.computeApplicationLtv,
+);
+
 // §7.1 — Collateral Cross-Application Linking
 router.post(
   '/collateral/:collateralId/link',

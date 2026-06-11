@@ -1971,6 +1971,23 @@ async function main() {
     }
     console.log('✅ FX rates seeded');
 
+    // P1-4 — Seed collateral haircut configs
+    const haircutConfigs = [
+        { securityCategory: 'PROPERTY', haircutPercent: 0.30, minValuationAgeMonths: 12 },
+        { securityCategory: 'VEHICLE', haircutPercent: 0.40, minValuationAgeMonths: 6 },
+        { securityCategory: 'FD', haircutPercent: 0.05, minValuationAgeMonths: 3 },
+        { securityCategory: 'SECURITIES', haircutPercent: 0.50, minValuationAgeMonths: 3 },
+        { securityCategory: 'OTHER', haircutPercent: 0.50, minValuationAgeMonths: 6 },
+    ];
+    for (const hc of haircutConfigs) {
+        await prisma.collateralHaircutConfig.upsert({
+            where: { securityCategory_isActive: { securityCategory: hc.securityCategory, isActive: true } },
+            update: { haircutPercent: hc.haircutPercent, minValuationAgeMonths: hc.minValuationAgeMonths },
+            create: hc,
+        });
+    }
+    console.log('✅ Collateral haircut configs seeded');
+
     console.log('🎉 Database seeding completed!');
 }
 
