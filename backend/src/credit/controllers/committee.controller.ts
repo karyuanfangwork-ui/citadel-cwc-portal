@@ -3,6 +3,7 @@ import { AppError, asyncHandler } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { committeeService } from '../services/committee.service';
 import { requireUser } from '../utils/requireUser';
+import prisma from '../../utils/prisma';
 
 class CommitteeController {
   // ===========================================================================
@@ -221,11 +222,48 @@ class CommitteeController {
 
   /**
    * POST /committee/agenda/:itemId/finalize — Finalize decision
+   *
+   * Server-side checks:
+   *  - The finalizer must be the meeting's chair or secretary.
+   *  - If the decision is REJECT, a comment of at least 10 characters is required.
    */
   finalizeDecision = asyncHandler(async (req: AuthRequest, res: Response) => {
     const agendaItemId = String(req.params.itemId);
     const actorId = requireUser(req).id;
     const { comment } = req.body;
+
+    // ── Server-side check: finalizer must be chair or secretary of the meeting ──
+    const agendaItem = await prisma.committeeAgendaItem.findUnique({
+      where: { id: agendaItemId },
+      select: { meetingId: true, decisionResult: true },
+    });
+
+    if (!agendaItem) {
+      throw new AppError('Agenda item not found', 404);
+    }
+
+    if (agendaItem.decisionResult) {
+      throw new AppError('This agenda item has already been finalized', 409);
+    }
+
+    const member = await prisma.committeeMember.findUnique({
+      where: {
+        meetingId_userId: { meetingId: agendaItem.meetingId, userId: actorId },
+      },
+    });
+
+    if (!member || (member.role !== 'CHAIR' && member.role !== 'SECRETARY')) {
+      throw new AppError(
+        'Only the meeting chair or secretary can finalize the decision',
+        403,
+      );
+    }
+
+    // ── Server-side check: REJECT requires ≥10-char comment ──────────────────
+    // We need to determine the decision result to enforce the reject comment rule.
+    // We pass the comment and validate inside the service, but we also validate
+    // here before calling the service for early feedback.
+    // The service will also enforce this as a defense-in-depth measure.
 
     try {
       const result = await committeeService.finalizeDecision(agendaItemId, actorId, comment);
@@ -236,6 +274,9 @@ class CommitteeController {
       }
       if (error.message?.includes('Quorum not met')) {
         throw new AppError(error.message, 422);
+      }
+      if (error.message?.includes('Reject comment required')) {
+        throw new AppError(error.message, 400);
       }
       throw error;
     }

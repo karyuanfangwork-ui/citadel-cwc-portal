@@ -525,6 +525,16 @@ class CommitteeService {
       decisionResult = AgendaItemDecisionType.DEFER;
     }
 
+    // ── Server-side check: REJECT requires ≥10-char comment ──────────────────
+    if (decisionResult === AgendaItemDecisionType.REJECT) {
+      if (!comment || comment.trim().length < 10) {
+        throw new AppError(
+          'Reject comment required: a minimum of 10 characters must be provided when finalizing a REJECT decision',
+          400,
+        );
+      }
+    }
+
     // Update agenda item with decision
     const updated = await prisma.committeeAgendaItem.update({
       where: { id: agendaItemId },

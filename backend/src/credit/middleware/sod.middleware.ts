@@ -3,6 +3,7 @@ import prisma from '../../utils/prisma';
 import { AppError } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import { logger } from '../../utils/logger';
+import { AuditChainService } from '../services/auditChain.service';
 
 /**
  * SOD (Segregation of Duties) constraints for credit module.
@@ -10,10 +11,14 @@ import { logger } from '../../utils/logger';
  * Rules enforced:
  * 1. The assigned RM on an application cannot approve or take approval-level
  *    actions on that same application (assignedRmId === actorId → blocked).
+ *    This rule applies to ALL users including ADMIN/CREDIT_ADMIN.
  * 2. Maker-checker: a user who performed the last state transition (maker)
  *    cannot also approve the same transition (checker). Enforced by checking
  *    if the actorId matches the last audit event's actorId for approval-type events.
- * 3. Admin role (ADMIN) always bypasses SOD checks.
+ *    This rule applies to ALL users including ADMIN/CREDIT_ADMIN.
+ * 3. Admin role (ADMIN/CREDIT_ADMIN) bypasses authority-level SOD checks
+ *    (e.g., role-based approval authority requirements). When bypassed, an
+ *    explicit SOD_BYPASSED audit event is logged via AuditChainService.
  *
  * This prevents the same person from both originating and approving a credit application,
  * which is a fundamental principle of sound credit risk governance.
@@ -25,7 +30,7 @@ const ORIGINATOR_ROLES = ['CREDIT_RM'];
 // Roles that are considered "approver" roles
 const APPROVER_ROLES = ['CREDIT_MANAGER'];
 
-// Roles that bypass all SOD checks
+// Roles that bypass authority-level SOD checks (but NOT Rule 1 or Rule 2)
 const ADMIN_BYPASS_ROLES = ['ADMIN', 'CREDIT_ADMIN'];
 
 /**
@@ -35,7 +40,9 @@ const ADMIN_BYPASS_ROLES = ['ADMIN', 'CREDIT_ADMIN'];
  *   b) Maker-checker: the user who initiated a state transition cannot also
  *      approve it (prevents single-person end-to-end control)
  *
- * Admin users bypass all SOD checks.
+ * Admin users (ADMIN/CREDIT_ADMIN) bypass authority-level checks but
+ * are still subject to Rule 1 (RM-self) and Rule 2 (maker-checker).
+ * When an admin bypass occurs, a SOD_BYPASSED audit event is logged.
  *
  * Usage: router.post('/:id/approvals', enforceCreditSOD(), approvalController)
  */
@@ -50,11 +57,7 @@ export function enforceCreditSOD() {
         return next();
       }
 
-      // Admin bypass — admins can override SOD
       const isAdmin = userRoles.some(r => ADMIN_BYPASS_ROLES.includes(r));
-      if (isAdmin) {
-        return next();
-      }
 
       // Fetch the application with audit trail for maker-checker
       let application;
@@ -76,6 +79,7 @@ export function enforceCreditSOD() {
       }
 
       // ── Rule 1: Assigned RM cannot approve their own application ──────────
+      // This rule applies to ALL users including admins.
       if (application.assignedRmId === userId) {
         throw new AppError(
           'Segregation of Duties violation: You cannot approve an application where you are the assigned Relationship Manager. Please escalate to another approver.',
@@ -89,6 +93,7 @@ export function enforceCreditSOD() {
       // state transition (oldState !== newState) for this application.
       // Field-only updates (oldState === newState) are excluded so that
       // editing a field does not block the same user from later approving.
+      // This rule applies to ALL users including admins.
       try {
         const lastTransition = await prisma.creditAuditEvent.findFirst({
           where: {
@@ -113,6 +118,27 @@ export function enforceCreditSOD() {
         return next(new AppError('SoD check unavailable — please try again', 503));
       }
 
+      // ── Admin bypass: authority-level short-circuit ────────────────────────
+      // If the user has an admin bypass role and passed Rule 1 & 2, they are
+      // allowed through. Log an explicit SOD_BYPASSED audit event for
+      // traceability.
+      if (isAdmin) {
+        try {
+          await AuditChainService.appendEvent(
+            applicationId,
+            'SOD_BYPASSED',
+            userId,
+            `SOD bypassed by ${userRoles.join(', ')}`,
+            undefined,
+            undefined,
+            { rule: 'authority-bypass', roles: userRoles },
+          );
+        } catch (auditErr) {
+          logger.error('SOD middleware: failed to log SOD_BYPASSED audit event', { applicationId, userId, err: auditErr });
+          // Non-blocking: audit logging failure should not prevent the action
+        }
+      }
+
       next();
     } catch (err) {
       if (err instanceof AppError) {
@@ -125,16 +151,14 @@ export function enforceCreditSOD() {
 }
 
 /**
- * Check if a user holds conflicting SOD roles for a given application.
- * Returns true if there's a potential SOD conflict (for UI warning display).
- *
- * Admin users are never considered to have SOD conflicts.
- */
-/**
  * Middleware that enforces SOD on committee approval actions.
  * Same rules as enforceCreditSOD(), but resolves the applicationId from
  * the agenda item (req.params.itemId) since committee routes reference
  * agenda items rather than applications directly.
+ *
+ * Admin users (ADMIN/CREDIT_ADMIN) bypass authority-level checks but
+ * are still subject to Rule 1 (RM-self) and Rule 2 (maker-checker).
+ * When an admin bypass occurs, a SOD_BYPASSED audit event is logged.
  *
  * Usage: router.post('/agenda/:itemId/vote', enforceCommitteeSOD(), committeeController)
  */
@@ -149,11 +173,7 @@ export function enforceCommitteeSOD() {
         return next();
       }
 
-      // Admin bypass — admins can override SOD
       const isAdmin = userRoles.some(r => ADMIN_BYPASS_ROLES.includes(r));
-      if (isAdmin) {
-        return next();
-      }
 
       // Resolve applicationId from agenda item
       let agendaItem;
@@ -193,6 +213,7 @@ export function enforceCommitteeSOD() {
       }
 
       // ── Rule 1: Assigned RM cannot approve their own application ──────────
+      // This rule applies to ALL users including admins.
       if (application.assignedRmId === userId) {
         throw new AppError(
           'Segregation of Duties violation: You cannot vote on an agenda item for an application where you are the assigned Relationship Manager. Please escalate to another committee member.',
@@ -203,6 +224,7 @@ export function enforceCommitteeSOD() {
       // ── Rule 2: Maker-checker on state transitions ───────────────────────
       // Only block if the user originated an actual state change (oldState !== newState).
       // Field-only updates (oldState === newState) do not trigger maker-checker.
+      // This rule applies to ALL users including admins.
       try {
         const lastTransition = await prisma.creditAuditEvent.findFirst({
           where: {
@@ -225,6 +247,27 @@ export function enforceCommitteeSOD() {
         if (err instanceof AppError) throw err;
         logger.error('SOD committee middleware: audit event query failed — blocking maker-checker check', { applicationId, userId, err });
         return next(new AppError('SoD check unavailable — please try again', 503));
+      }
+
+      // ── Admin bypass: authority-level short-circuit ────────────────────────
+      // If the user has an admin bypass role and passed Rule 1 & 2, they are
+      // allowed through. Log an explicit SOD_BYPASSED audit event for
+      // traceability.
+      if (isAdmin) {
+        try {
+          await AuditChainService.appendEvent(
+            applicationId,
+            'SOD_BYPASSED',
+            userId,
+            `SOD bypassed by ${userRoles.join(', ')}`,
+            undefined,
+            undefined,
+            { rule: 'authority-bypass', roles: userRoles },
+          );
+        } catch (auditErr) {
+          logger.error('SOD committee middleware: failed to log SOD_BYPASSED audit event', { applicationId, userId, err: auditErr });
+          // Non-blocking: audit logging failure should not prevent the action
+        }
       }
 
       next();
@@ -254,7 +297,7 @@ export async function checkSodConflict(userId: string, applicationId: string): P
 
   const roleNames = user.roles.map(ur => ur.role.name);
 
-  // Admin bypass
+  // Admin bypass — no conflict reported (authority-level check)
   const isAdmin = roleNames.some(r => ADMIN_BYPASS_ROLES.includes(r));
   if (isAdmin) return false;
 

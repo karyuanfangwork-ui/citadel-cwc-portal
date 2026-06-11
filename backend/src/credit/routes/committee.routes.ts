@@ -208,11 +208,11 @@ router.get(
 /**
  * POST /committee/agenda/:itemId/finalize
  * Finalize the decision for an agenda item
- * Requires: credit:admin + SOD enforcement
+ * Requires: credit:approve + SOD enforcement + chair/secretary check
  */
 router.post(
   '/agenda/:itemId/finalize',
-  requirePermission('credit:admin'),
+  requirePermission('credit:approve'),
   enforceCommitteeSOD(),
   validate(finalizeDecisionSchema),
   committeeController.finalizeDecision,
