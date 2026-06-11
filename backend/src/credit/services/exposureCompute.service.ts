@@ -1,5 +1,6 @@
 import prisma from '../../utils/prisma';
 import { ApplicationState } from '@prisma/client';
+import { toBase } from './fxRate.service';
 
 // ---------------------------------------------------------------------------
 // Exposure States — the set of application states whose facilities count
@@ -24,7 +25,8 @@ export const EXPOSURE_STATES: ApplicationState[] = [
 /**
  * Compute the total exposure for a borrower profile by summing
  * `approvedAmount ?? amount` across all facilities belonging to credit
- * applications whose state is in EXPOSURE_STATES.
+ * applications whose state is in EXPOSURE_STATES, converting each facility
+ * amount to the base currency (MYR) via the FX rate table.
  *
  * Mirrors the include-path and field logic from the existing
  * GET /borrowers/:borrowerProfileId/exposure route
@@ -57,12 +59,16 @@ export async function computeBorrowerExposure(
 
   let totalExposure = 0;
   for (const app of applications) {
+    // Each application has a currency — use it for all facilities in that app
+    const appCurrency = (app as any).currency ?? 'MYR';
     for (const fac of app.facilities) {
       // approvedAmount ?? amount — same convention as policyLimit.service.ts:126
       const effectiveAmount = fac.approvedAmount
         ? Number(fac.approvedAmount)
         : Number(fac.amount);
-      totalExposure += effectiveAmount;
+      // §F23 — Convert to base currency (MYR)
+      const baseAmount = await toBase(effectiveAmount, appCurrency);
+      totalExposure += baseAmount;
     }
   }
 

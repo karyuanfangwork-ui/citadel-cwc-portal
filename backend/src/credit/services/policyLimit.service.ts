@@ -10,6 +10,7 @@
 
 import { PrismaClient, PolicyLimitType, ApplicationState } from '@prisma/client';
 import { AppError } from '../../middleware/error.middleware';
+import { toBase } from './fxRate.service';
 
 const prisma = new PrismaClient();
 
@@ -122,9 +123,15 @@ class PolicyLimitService {
     if (!appRaw) throw new AppError('Application not found', 404);
 
     const app = appRaw as any;
-    const proposedAmount = (app.facilities as any[]).reduce((sum: number, f: any) => {
-      return sum + Number(f.approvedAmount ?? f.amount);
-    }, 0);
+    const appCurrency: string = app.currency ?? 'MYR';
+
+    // §F23 — Convert proposed amount to base currency
+    let proposedAmount = 0;
+    for (const f of app.facilities as any[]) {
+      const facCurrency: string = appCurrency; // Application-level currency
+      const effectiveAmount = Number(f.approvedAmount ?? f.amount);
+      proposedAmount += await toBase(effectiveAmount, facCurrency);
+    }
 
     const blocks: PolicyBlock[] = [];
     const warnings: PolicyBlock[] = [];
@@ -188,9 +195,15 @@ class PolicyLimitService {
       where: {
         application: { borrowerProfileId, state: { in: ACTIVE_STATES }, id: { not: excludeId }, deletedAt: null },
       },
-      select: { approvedAmount: true, amount: true },
+      select: { approvedAmount: true, amount: true, application: { select: { currency: true } } },
     });
-    return facilities.reduce((s, f) => s + Number(f.approvedAmount ?? f.amount), 0);
+    let total = 0;
+    for (const f of facilities) {
+      const currency: string = (f.application as any)?.currency ?? 'MYR';
+      const effectiveAmount = Number(f.approvedAmount ?? f.amount);
+      total += await toBase(effectiveAmount, currency);
+    }
+    return total;
   }
 
   private async getSectorExposure(industry: string, excludeId: string): Promise<number> {
@@ -206,9 +219,15 @@ class PolicyLimitService {
       where: {
         application: { borrowerProfileId: { in: profileIds }, state: { in: ACTIVE_STATES }, id: { not: excludeId }, deletedAt: null },
       },
-      select: { approvedAmount: true, amount: true },
+      select: { approvedAmount: true, amount: true, application: { select: { currency: true } } },
     });
-    return facilities.reduce((s, f) => s + Number(f.approvedAmount ?? f.amount), 0);
+    let total = 0;
+    for (const f of facilities) {
+      const currency: string = (f.application as any)?.currency ?? 'MYR';
+      const effectiveAmount = Number(f.approvedAmount ?? f.amount);
+      total += await toBase(effectiveAmount, currency);
+    }
+    return total;
   }
 
   private async getProductExposure(productType: string, excludeId: string): Promise<number> {
@@ -216,9 +235,15 @@ class PolicyLimitService {
       where: {
         application: { productType: productType as any, state: { in: ACTIVE_STATES }, id: { not: excludeId }, deletedAt: null },
       },
-      select: { approvedAmount: true, amount: true },
+      select: { approvedAmount: true, amount: true, application: { select: { currency: true } } },
     });
-    return facilities.reduce((s, f) => s + Number(f.approvedAmount ?? f.amount), 0);
+    let total = 0;
+    for (const f of facilities) {
+      const currency: string = (f.application as any)?.currency ?? 'MYR';
+      const effectiveAmount = Number(f.approvedAmount ?? f.amount);
+      total += await toBase(effectiveAmount, currency);
+    }
+    return total;
   }
 
   private checkLimit(

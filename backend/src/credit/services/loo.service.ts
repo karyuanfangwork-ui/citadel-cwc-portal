@@ -40,12 +40,13 @@ class LooService {
       throw new AppError('LOO can only be generated for APPROVED or OFFER state applications', 400);
     }
 
-    // Build template data
+    // Build template data — §F23: use the application's actual currency
+    const appCurrency: string = (app as any).currency ?? 'MYR';
     const facilities = app.facilities.map((f: any) => ({
       facilityType: f.facilityType,
       approvedAmount: f.approvedAmount
-        ? `MYR ${Number(f.approvedAmount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}`
-        : `MYR ${Number(f.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}`,
+        ? `${appCurrency} ${Number(f.approvedAmount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}`
+        : `${appCurrency} ${Number(f.amount).toLocaleString('en-MY', { minimumFractionDigits: 2 })}`,
       tenor: f.approvedTenor ? `${f.approvedTenor} months` : f.tenorMonths ? `${f.tenorMonths} months` : '—',
       effectiveRate: f.approvedRate
         ? `${Number(f.approvedRate).toFixed(4)}%`

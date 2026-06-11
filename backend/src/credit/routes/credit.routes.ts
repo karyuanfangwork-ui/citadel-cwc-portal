@@ -104,6 +104,9 @@ import amlRescreenRoutes from './amlRescreen.routes';
 // §6.2 — Credit Policy Limits
 import policyLimitRoutes from './policyLimit.routes';
 
+// §F23 — FX Rate Admin
+import fxRateRoutes from './fxRate.routes';
+
 // AI & Automation (A4/A5/A6/A13/A15)
 import creditAiRoutes from './creditAi.routes';
 
@@ -258,6 +261,9 @@ router.use('/', amlRescreenRoutes);
 
 // §6.2 — Credit Policy Limits
 router.use('/policy-limits', policyLimitRoutes);
+
+// §F23 — FX Rate Admin
+router.use('/fx-rates', fxRateRoutes);
 
 // AI & Automation (A4/A5/A6/A13/A15)
 router.use('/applications', creditAiRoutes);

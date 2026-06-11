@@ -1948,6 +1948,25 @@ async function main() {
     }
     console.log('✅ Feature flags seeded');
 
+    // ── FX Rates ───────────────────────────────────────────────────────
+    const fxRates = [
+        { currency: 'MYR', rateToBase: 1,        effectiveDate: new Date('2026-01-01') },
+        { currency: 'USD', rateToBase: 4.72,     effectiveDate: new Date('2026-01-01') },
+        { currency: 'SGD', rateToBase: 3.50,     effectiveDate: new Date('2026-01-01') },
+        { currency: 'GBP', rateToBase: 5.89,     effectiveDate: new Date('2026-01-01') },
+        { currency: 'EUR', rateToBase: 5.02,     effectiveDate: new Date('2026-01-01') },
+        { currency: 'JPY', rateToBase: 0.0314,   effectiveDate: new Date('2026-01-01') },
+        { currency: 'CNY', rateToBase: 0.649,    effectiveDate: new Date('2026-01-01') },
+    ];
+    for (const rate of fxRates) {
+        await prisma.creditFxRate.upsert({
+            where: { currency_effectiveDate: { currency: rate.currency, effectiveDate: rate.effectiveDate } },
+            update: { rateToBase: rate.rateToBase },
+            create: rate,
+        });
+    }
+    console.log('✅ FX rates seeded');
+
     console.log('🎉 Database seeding completed!');
 }
 
