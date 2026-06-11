@@ -4,29 +4,72 @@ import { PrismaClient } from '@prisma/client';
 
 type TransactionClient = Omit<PrismaClient, '$connect' | '$disconnect' | '$on' | '$use' | '$transaction' | '$extends'>;
 
+/**
+ * Hash payload for v2 includes actorId, oldState, newState, metadata.
+ * v1 (legacy) only included id|applicationId|eventType|action|createdAt|previousHash.
+ * The hashVersion column (default 1) tracks which formula was used.
+ */
+const HASH_VERSION = 2;
+
 export class AuditChainService {
+  /**
+   * Compute the hash for an audit event.
+   * v2 payload: id|applicationId|eventType|actorId|action|oldState|newState|metadata|createdAt|previousHash
+   */
   static async computeHash(event: {
     id: string;
     applicationId: string;
     eventType: string;
+    actorId: string | null;
     action: string;
+    oldState?: string | null;
+    newState?: string | null;
+    metadata?: any;
     createdAt: Date;
     previousHash?: string;
+    hashVersion?: number;
   }): Promise<string> {
-    const payload = `${event.id}|${event.applicationId}|${event.eventType}|${event.action}|${event.createdAt.toISOString()}|${event.previousHash || ''}`;
+    const version = event.hashVersion ?? HASH_VERSION;
+
+    if (version === 1) {
+      // Legacy v1 formula: id|applicationId|eventType|action|createdAt|previousHash
+      const payload = `${event.id}|${event.applicationId}|${event.eventType}|${event.action}|${event.createdAt.toISOString()}|${event.previousHash || ''}`;
+      return crypto.createHash('sha256').update(payload).digest('hex');
+    }
+
+    // v2 formula: id|applicationId|eventType|actorId|action|oldState|newState|metadata|createdAt|previousHash
+    const metadataStr = typeof event.metadata === 'string'
+      ? event.metadata
+      : JSON.stringify(event.metadata ?? null);
+    const payload = [
+      event.id,
+      event.applicationId,
+      event.eventType,
+      event.actorId ?? '',
+      event.action,
+      event.oldState ?? '',
+      event.newState ?? '',
+      metadataStr,
+      event.createdAt.toISOString(),
+      event.previousHash || '',
+    ].join('|');
     return crypto.createHash('sha256').update(payload).digest('hex');
   }
 
+  /**
+   * Append an audit event to the chain for a given application.
+   * This is the canonical way to create audit events — never use raw prisma.creditAuditEvent.create.
+   */
   static async appendEvent(
     applicationId: string,
     eventType: string,
     actorId: string | null,
     action: string,
-    oldState?: string,
-    newState?: string,
+    oldState?: string | null,
+    newState?: string | null,
     metadata?: any,
     tx?: TransactionClient,
-  ): Promise<void> {
+  ): Promise<string> {
     const client = tx ?? prisma;
     const lastEvent = await client.creditAuditEvent.findFirst({
       where: { applicationId },
@@ -34,13 +77,19 @@ export class AuditChainService {
     });
     const previousHash = lastEvent?.hash || '';
     const tempId = crypto.randomUUID();
+    const createdAt = new Date();
     const hash = await this.computeHash({
       id: tempId,
       applicationId,
       eventType,
+      actorId,
       action,
-      createdAt: new Date(),
+      oldState: oldState ?? null,
+      newState: newState ?? null,
+      metadata,
+      createdAt,
       previousHash,
+      hashVersion: HASH_VERSION,
     });
     await client.creditAuditEvent.create({
       data: {
@@ -49,14 +98,21 @@ export class AuditChainService {
         eventType,
         actorId,
         action,
-        oldState,
-        newState,
+        oldState: oldState ?? null,
+        newState: newState ?? null,
         metadata,
         hash,
+        hashVersion: HASH_VERSION,
       },
     });
+    return tempId;
   }
 
+  /**
+   * Verify the hash-chain integrity of all audit events for an application.
+   * Uses per-event hashVersion to select the correct formula.
+   * Returns { valid: boolean, brokenAt?: string } — brokenAt is the id of the first tampered event.
+   */
   static async verifyChain(
     applicationId: string,
   ): Promise<{ valid: boolean; brokenAt?: string }> {
@@ -70,9 +126,14 @@ export class AuditChainService {
         id: event.id,
         applicationId: event.applicationId,
         eventType: event.eventType,
+        actorId: event.actorId,
         action: event.action,
+        oldState: event.oldState,
+        newState: event.newState,
+        metadata: event.metadata,
         createdAt: event.createdAt,
         previousHash,
+        hashVersion: (event as any).hashVersion ?? 1, // v1 for rows that predate the column
       });
       if (event.hash !== expected) {
         return { valid: false, brokenAt: event.id };

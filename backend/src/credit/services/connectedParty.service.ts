@@ -14,6 +14,7 @@
 
 import prisma from '../../utils/prisma';
 import { logger } from '../../utils/logger';
+import { AuditChainService } from './auditChain.service';
 
 interface ConnectedPartyResult {
   flagged: boolean;
@@ -125,23 +126,16 @@ export async function deriveAndSetConnectedPartyFlag(applicationId: string, acto
       data: { connectedPartyFlag: derivedFlag },
     });
 
-    // Log audit event
-    await prisma.creditAuditEvent.create({
-      data: {
-        applicationId,
-        eventType: 'CONNECTED_PARTY_FLAG_CHANGED',
-        actorId: actorId ?? null,
-        action: derivedFlag ? 'AUTO_FLAG_CONNECTED' : 'AUTO_UNFLAG_CONNECTED',
-        oldState: String(application.connectedPartyFlag),
-        newState: String(derivedFlag),
-        metadata: {
-          source: result.source,
-          groups: result.groups,
-          previousFlag: application.connectedPartyFlag,
-          newFlag: derivedFlag,
-        },
-      },
-    });
+    // Log audit event via chain service
+    await AuditChainService.appendEvent(
+      applicationId,
+      'CONNECTED_PARTY_FLAG_CHANGED',
+      actorId ?? null,
+      derivedFlag ? 'AUTO_FLAG_CONNECTED' : 'AUTO_UNFLAG_CONNECTED',
+      String(application.connectedPartyFlag),
+      String(derivedFlag),
+      { source: result.source, groups: result.groups, previousFlag: application.connectedPartyFlag, newFlag: derivedFlag },
+    );
 
     logger.info(
       `[ConnectedParty] Application ${application.applicationNo}: flag changed from ${application.connectedPartyFlag} to ${derivedFlag} (groups: ${result.groups.map((g) => g.groupName).join(', ') || 'none'})`,
@@ -178,24 +172,16 @@ export async function overrideConnectedPartyFlag(
     data: { connectedPartyFlag: overrideValue },
   });
 
-  // Log override audit event
-  await prisma.creditAuditEvent.create({
-    data: {
-      applicationId,
-      eventType: 'CONNECTED_PARTY_FLAG_OVERRIDE',
-      actorId,
-      action: overrideValue ? 'MANUAL_FLAG_CONNECTED' : 'MANUAL_UNFLAG_CONNECTED',
-      oldState: String(application.connectedPartyFlag),
-      newState: String(overrideValue),
-      metadata: {
-        source: 'override',
-        autoDerivedValue: autoResult.flagged,
-        overrideValue,
-        reason: overrideReason || null,
-        groups: autoResult.groups,
-      },
-    },
-  });
+  // Log override audit event via chain service
+  await AuditChainService.appendEvent(
+    applicationId,
+    'CONNECTED_PARTY_FLAG_OVERRIDE',
+    actorId,
+    overrideValue ? 'MANUAL_FLAG_CONNECTED' : 'MANUAL_UNFLAG_CONNECTED',
+    String(application.connectedPartyFlag),
+    String(overrideValue),
+    { source: 'override', autoDerivedValue: autoResult.flagged, overrideValue, reason: overrideReason || null, groups: autoResult.groups },
+  );
 
   logger.info(
     `[ConnectedParty] Application ${application.applicationNo}: manual override from ${application.connectedPartyFlag} to ${overrideValue} (auto would be ${autoResult.flagged})`,

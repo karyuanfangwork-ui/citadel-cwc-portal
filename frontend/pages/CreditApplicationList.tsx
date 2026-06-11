@@ -53,29 +53,42 @@ const QUICK_FILTERS: { key: QuickFilterKey; label: string; icon: string }[] = [
   { key: 'offers', label: 'Offers', icon: 'description' },
 ];
 
-function applyQuickFilter(apps: CreditApplication[], key: QuickFilterKey, currentUserId?: string): CreditApplication[] {
-  if (key === 'all') return apps;
-  return apps.filter(app => {
-    const state = (app.state || app.status) as ApplicationState;
-    switch (key) {
-      case 'mine':
-        return !!currentUserId && (app.rmId === currentUserId || app.analystId === currentUserId);
-      case 'pendingApproval':
-        return PENDING_APPROVAL_STATES.includes(state);
-      case 'overdueSla':
-        return getSLAInfo(app.createdAt, state).color === '#dc2626';
-      case 'inCommittee':
-        return state === 'COMMITTEE_REVIEW';
-      case 'offers':
-        return state === 'OFFER';
-      default:
-        return true;
-    }
-  });
+/**
+ * §F8 — Map quick-filter key to server query params.
+ * These are sent to the backend instead of filtering client-side,
+ * so pagination and kanban totals are correct.
+ */
+function quickFilterToServerParams(key: QuickFilterKey, userId?: string): Record<string, string | string[] | undefined> {
+  switch (key) {
+    case 'mine':
+      return { assignedToMe: userId };
+    case 'pendingApproval':
+      return { states: PENDING_APPROVAL_STATES };
+    case 'overdueSla':
+      return { overdueSla: 'true' };
+    case 'inCommittee':
+      return { states: ['COMMITTEE_REVIEW'] };
+    case 'offers':
+      return { states: ['OFFER'] };
+    case 'all':
+    default:
+      return {};
+  }
 }
 
-function getSLAInfo(createdAt: string, state: ApplicationState): { text: string; color: string } {
-  const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
+/**
+ * §F8 — SLA info derived from server-provided hasOpenSlaBreach flag
+ * (authoritative, from CreditSlaBreach table) plus local display logic
+ * for urgency level (uses createdAt as a fallback heuristic for display only).
+ */
+function getSLAInfo(app: CreditApplication & { hasOpenSlaBreach?: boolean }): { text: string; color: string } {
+  const state = (app.state || app.status) as ApplicationState;
+  // Authoritative overdue check from CreditSlaBreach
+  if (app.hasOpenSlaBreach) {
+    return { text: 'Overdue', color: '#dc2626' };
+  }
+  // Display remaining days heuristic (for non-overdue items)
+  const days = Math.floor((Date.now() - new Date(app.createdAt).getTime()) / 86400000);
   const slaMap: Partial<Record<ApplicationState, number>> = {
     DRAFT: 7, SUBMITTED: 3, KYC_REVIEW: 5, UNDERWRITING: 7, CREDIT_ASSESSMENT: 5,
     COMMITTEE_REVIEW: 3, OFFER: 5, ACCEPTED: 3,
@@ -83,16 +96,14 @@ function getSLAInfo(createdAt: string, state: ApplicationState): { text: string;
   const limit = slaMap[state];
   if (!limit) return { text: `${days}d`, color: '#6b7280' };
   const remaining = limit - days;
-  if (remaining <= 0) return { text: 'Overdue', color: '#dc2626' };
-  if (remaining <= 1) return { text: `${remaining}d left`, color: '#ea580c' };
+  if (remaining <= 1) return { text: `${remaining <= 0 ? 0 : remaining}d left`, color: '#ea580c' };
   return { text: `${remaining}d left`, color: '#16a34a' };
 }
 
-function getSLAStrip(apps: CreditApplication[]) {
+function getSLAStrip(apps: (CreditApplication & { hasOpenSlaBreach?: boolean })[]) {
   let overdue = 0, urgent = 0, ok = 0;
   apps.forEach(app => {
-    const state = (app.state || app.status) as ApplicationState;
-    const info = getSLAInfo(app.createdAt, state);
+    const info = getSLAInfo(app);
     if (info.color === '#dc2626') overdue++;
     else if (info.color === '#ea580c') urgent++;
     else if (info.color === '#16a34a') ok++;
@@ -449,7 +460,7 @@ const CreditApplicationList: React.FC = () => {
                     {sortedApplications.map(app => {
                       const state = (app.state || app.status) as ApplicationState;
                       const badge = STATE_COLORS[state] || STATE_COLORS.DRAFT;
-                      const sla = getSLAInfo(app.createdAt, state);
+                      const sla = getSLAInfo(app as any);
                       const isOverdue = sla.color === '#dc2626';
                       const borrowerName = app.borrowerProfile
                         ? (app.borrowerProfile.account?.name ||
@@ -577,7 +588,7 @@ const CreditApplicationList: React.FC = () => {
                     {col.items.map(app => {
                       const state = (app.state || app.status) as ApplicationState;
                       const badge = STATE_COLORS[state] || STATE_COLORS.DRAFT;
-                      const sla = getSLAInfo(app.createdAt, state);
+                      const sla = getSLAInfo(app as any);
                       return (
                         <div key={app.id} onClick={() => navigate(`/credit/applications/${app.id}`)}
                           className="bg-bg-surface border border-border rounded-xl p-3.5 cursor-pointer hover:border-brand-300 hover:shadow-sm transition-all"

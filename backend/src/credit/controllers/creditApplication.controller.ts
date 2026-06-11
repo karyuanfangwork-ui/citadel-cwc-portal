@@ -6,6 +6,7 @@ import { requireUser } from '../utils/requireUser';
 import { validateSubmissionReadiness } from '../services/submissionReadiness.service';
 import { overrideConnectedPartyFlag } from '../services/connectedParty.service';
 import { RmScopedRequest } from '../middleware/rmScope.middleware';
+import { AuditChainService } from '../services/auditChain.service';
 import prisma from '../../utils/prisma';
 
 class CreditApplicationController {
@@ -64,22 +65,16 @@ class CreditApplicationController {
     const rmScopeFilter = (req as RmScopedRequest).rmScopeFilter;
     if (rmScopeFilter && req.user?.id) {
       // Fire-and-forget audit log (don't block the response)
-      // Serialize rmScopeFilter to plain JSON for Prisma's Json type
       const scopeMeta = JSON.parse(JSON.stringify(rmScopeFilter));
-      prisma.creditAuditEvent.create({
-        data: {
-          applicationId: id,
-          eventType: 'PII_ACCESS',
-          actorId: req.user.id,
-          action: 'READ',
-          newState: application.state,
-          metadata: {
-            accessType: 'direct_id',
-            endpoint: `/api/v1/credit/applications/${id}`,
-            rmScopeFilter: scopeMeta,
-          },
-        },
-      }).catch(() => {
+      AuditChainService.appendEvent(
+        id,
+        'PII_ACCESS',
+        req.user.id,
+        'READ',
+        null,
+        application.state,
+        { accessType: 'direct_id', endpoint: `/api/v1/credit/applications/${id}`, rmScopeFilter: scopeMeta },
+      ).catch(() => {
         // Silently swallow audit log failures — don't block the read
       });
     }

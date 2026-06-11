@@ -3670,10 +3670,11 @@ model CreditAuditEvent {
   newState       String?  @map("new_state") @db.VarChar(30)
   metadata       Json?
   hash           String?  @db.VarChar(64) // hash-chain for tamper evidence
+  hashVersion    Int      @default(1) @map("hash_version")
   
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   
-  application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Restrict)
   
   @@index([applicationId])
   @@index([eventType])

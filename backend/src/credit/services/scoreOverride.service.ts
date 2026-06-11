@@ -14,6 +14,7 @@
 import prisma from '../../utils/prisma';
 import { logger } from '../../utils/logger';
 import { ScoreOverrideStatus } from '@prisma/client';
+import { AuditChainService } from './auditChain.service';
 
 // Minimum notch delta that requires dual approval
 const DUAL_APPROVAL_THRESHOLD = 2;
@@ -76,23 +77,16 @@ export async function requestScoreOverride(params: {
     },
   });
 
-  // Log audit event
-  await prisma.creditAuditEvent.create({
-    data: {
-      applicationId,
-      eventType: 'SCORE_OVERRIDE_REQUESTED',
-      actorId: approverId,
-      action: `Override ${originalRating} → ${overrideRating} (Δ${notchDelta} notches)`,
-      oldState: originalRating,
-      newState: overrideRating,
-      metadata: {
-        overrideId: override.id,
-        notchDelta,
-        requiresSecondApproval,
-        autoApproved: !requiresSecondApproval,
-      },
-    },
-  });
+  // Log audit event via chain service
+  await AuditChainService.appendEvent(
+    applicationId,
+    'SCORE_OVERRIDE_REQUESTED',
+    approverId,
+    `Override ${originalRating} → ${overrideRating} (Δ${notchDelta} notches)`,
+    originalRating,
+    overrideRating,
+    { overrideId: override.id, notchDelta, requiresSecondApproval, autoApproved: !requiresSecondApproval },
+  );
 
   logger.info(
     `[ScoreOverride] ${requiresSecondApproval ? 'PENDING second approval' : 'Auto-approved'}: ${originalRating} → ${overrideRating} (Δ${notchDelta}) for application ${applicationId}`,
@@ -144,25 +138,18 @@ export async function resolveScoreOverride(params: {
     },
   });
 
-  // Log audit event
-  await prisma.creditAuditEvent.create({
-    data: {
-      applicationId: existing.applicationId,
-      eventType: approved ? 'SCORE_OVERRIDE_APPROVED' : 'SCORE_OVERRIDE_REJECTED',
-      actorId: secondApproverId,
-      action: approved
-        ? `Second approval granted: ${existing.originalRating} → ${existing.overrideRating}`
-        : `Second approval denied: ${existing.originalRating} → ${existing.overrideRating}`,
-      oldState: ScoreOverrideStatus.PENDING_SECOND_APPROVAL,
-      newState: newStatus,
-      metadata: {
-        overrideId,
-        notchDelta: existing.notchDelta,
-        firstApproverId: existing.firstApproverId,
-        secondApproverId,
-      },
-    },
-  });
+  // Log audit event via chain service
+  await AuditChainService.appendEvent(
+    existing.applicationId,
+    approved ? 'SCORE_OVERRIDE_APPROVED' : 'SCORE_OVERRIDE_REJECTED',
+    secondApproverId,
+    approved
+      ? `Second approval granted: ${existing.originalRating} → ${existing.overrideRating}`
+      : `Second approval denied: ${existing.originalRating} → ${existing.overrideRating}`,
+    ScoreOverrideStatus.PENDING_SECOND_APPROVAL,
+    newStatus,
+    { overrideId, notchDelta: existing.notchDelta, firstApproverId: existing.firstApproverId, secondApproverId },
+  );
 
   logger.info(
     `[ScoreOverride] ${approved ? 'APPROVED' : 'REJECTED'} by second approver ${secondApproverId}: override ${overrideId}`,
