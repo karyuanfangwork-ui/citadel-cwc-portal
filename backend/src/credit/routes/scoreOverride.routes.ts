@@ -1,7 +1,22 @@
 import { Router } from 'express';
 import { scoreOverrideController } from '../controllers/scoreOverride.controller';
 import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { validate } from '../../middleware/validate.middleware';
+import { z } from 'zod';
 import { creditScoreOverrideLimiter } from '../../middleware/rateLimit.middleware';
+
+// ── Validators ─────────────────────────────────────────────────────────
+
+const requestOverrideSchema = z.object({
+  body: z.object({
+    applicationId: z.string().uuid('applicationId must be a valid UUID'),
+    originalRating: z.string().min(1, 'originalRating is required').max(50),
+    overrideRating: z.string().min(1, 'overrideRating is required').max(50),
+    justification: z.string().max(5000).optional().default(''),
+  }),
+});
+
+// ── Routes ────────────────────────────────────────────────────────────
 
 const router = Router();
 
@@ -23,6 +38,7 @@ router.post(
   '/',
   creditScoreOverrideLimiter,
   requirePermission('credit:approve'),
+  validate(requestOverrideSchema),
   scoreOverrideController.requestOverride,
 );
 

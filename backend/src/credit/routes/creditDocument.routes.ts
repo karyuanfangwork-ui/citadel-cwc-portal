@@ -8,6 +8,7 @@ import {
   updateCreditDocumentSchema,
   replaceCreditDocumentSchema,
   updateAvStatusSchema,
+  rejectDocumentSchema,
   listDocumentRequirementsSchema,
   createDocumentRequirementSchema,
   batchCreateDocumentRequirementsSchema,
@@ -156,6 +157,7 @@ router.post(
 router.post(
   '/credit-documents/:id/reject',
   requirePermission('credit:write'),
+  validate(rejectDocumentSchema),
   creditDocumentController.reject,
 );
 

@@ -54,6 +54,16 @@ export const updateAvStatusSchema = z.object({
   }),
 });
 
+export const rejectDocumentSchema = z.object({
+  body: z.object({
+    rejectionReason: z.string().min(1, 'rejectionReason is required').max(2000),
+  }),
+});
+
+export const verifyDocumentSchema = z.object({
+  body: z.object({}).strict().optional(),
+});
+
 // ---------------------------------------------------------------------------
 // Document Requirement validators
 // ---------------------------------------------------------------------------
