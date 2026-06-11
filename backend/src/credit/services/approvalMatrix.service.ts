@@ -9,7 +9,7 @@ const RATING_ORDER: Record<string, number> = {
   B: 6, CCC: 7, CC: 8, C: 9, D: 10, NR: 11,
 };
 
-function ratingToOrdinal(r: string): number {
+export function ratingToOrdinal(r: string): number {
   return RATING_ORDER[r] ?? 99;
 }
 

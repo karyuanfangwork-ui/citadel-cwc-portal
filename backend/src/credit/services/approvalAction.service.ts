@@ -1,6 +1,7 @@
 import prisma from '../../utils/prisma';
 import { ApprovalDecisionType, ApplicationState } from '@prisma/client';
 import { approvalMatrixService } from './approvalMatrix.service';
+import { ratingToOrdinal } from './approvalMatrix.service';
 import { checkSodConflict } from '../middleware/sod.middleware';
 import { formatCurrency } from '../utils/formatCurrency';
 import { AuditChainService } from './auditChain.service';
@@ -8,6 +9,7 @@ import { notify } from '../../services/notification.service';
 import { pushToUser } from '../../utils/sseClients';
 import { logger } from '../../utils/logger';
 import { computeBorrowerExposure } from './exposureCompute.service';
+import { AppError } from '../../middleware/error.middleware';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -175,21 +177,45 @@ class ApprovalActionService {
 
     const authorityResult = await approvalMatrixService.lookupApprovalAuthority(totalExposure, borrowerRating ?? 'NR', application.branchId);
 
-    let authorityLevel: string | null = null;
-    let requiredApproverCount = 1;
+    // P1-1 — Hard block: no matrix row means no configured approval path.
+    // Without a matrix entry, there is no authority level or required approver count,
+    // so any approval action would bypass governance controls entirely.
+    if (!authorityResult) {
+      throw new AppError(
+        'No approval matrix entry matches this exposure/rating combination. Configure an approval matrix before proceeding.',
+        403,
+        { code: 'NO_APPROVAL_MATRIX' },
+      );
+    }
 
-    if (authorityResult) {
-      authorityLevel = authorityResult.authorityLevel;
-      requiredApproverCount = authorityResult.requiredApproverCount;
+    let authorityLevel: string | null = authorityResult.authorityLevel;
+    let requiredApproverCount = authorityResult.requiredApproverCount;
 
-      // 4. Check if user has sufficient authority
-      const userHighestAuthority = this.getHighestAuthorityLevel(actorRoles);
-      if (!hasSufficientAuthority(userHighestAuthority, authorityLevel)) {
-        throw Object.assign(
-          new Error(`Insufficient approval authority. This application requires '${authorityLevel}' level approval. Your highest authority is '${userHighestAuthority}'.`),
-          { statusCode: 403 },
+    // P1-1 — Board-band enforcement: exposures >= RM5M or risk rating CC/worse
+    // must be approved by committee or board — never by a single manager.
+    const BOARD_BAND_EXPOSURE_THRESHOLD = 5_000_000;
+    const BOARD_BAND_RATING_ORDINAL = ratingToOrdinal('CC'); // CC or worse
+    const currentRatingOrdinal = ratingToOrdinal(borrowerRating ?? 'NR');
+
+    if (totalExposure >= BOARD_BAND_EXPOSURE_THRESHOLD || currentRatingOrdinal <= BOARD_BAND_RATING_ORDINAL) {
+      const authorityOrdinal = AUTHORITY_HIERARCHY[authorityLevel!] ?? 0;
+      if (authorityOrdinal < AUTHORITY_HIERARCHY['COMMITTEE']) {
+        throw new AppError(
+          'Board-band exposure or adverse rating requires committee-level or board-level approval.',
+          403,
+          { code: 'COMMITTEE_REQUIRED' },
         );
       }
+    }
+
+    // 4. Check if user has sufficient authority
+    const userHighestAuthority = this.getHighestAuthorityLevel(actorRoles);
+    if (!hasSufficientAuthority(userHighestAuthority, authorityLevel!)) {
+      throw new AppError(
+        `Insufficient approval authority. This application requires '${authorityLevel}' level approval. Your highest authority is '${userHighestAuthority}'.`,
+        403,
+        { code: 'INSUFFICIENT_AUTHORITY' },
+      );
     }
 
     // 5–8. Atomic block: check duplicate, record decision, recount, advance state
