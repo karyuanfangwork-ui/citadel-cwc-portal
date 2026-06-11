@@ -17,9 +17,11 @@ const ALL_ITEMS: CreditNavItem[] = [
   { to: '/credit/applications', label: 'Applications', icon: 'description' },
   { to: '/credit/group-exposure', label: 'Group Exposure', icon: 'scatter_plot', permission: 'credit:read' },
   { to: '/credit/approvals', label: 'My Approvals', icon: 'approval', permission: 'credit:approve' },
-  { to: '/credit/committee', label: 'Committee', icon: 'groups', permission: 'credit:approve' },
+  { to: '/credit/committee', label: 'Committee', icon: 'groups', permission: 'credit:read' },
   { to: '/credit/scorecards', label: 'Scorecards', icon: 'dashboard_customize', permission: 'credit:admin' },
   { to: '/credit/analysis', label: 'Analysis', icon: 'query_stats', permission: 'credit:read' },
+  { to: '/credit/financials', label: 'Spreading', icon: 'table_chart', permission: 'credit:read' },
+  { to: '/credit/collateral', label: 'Collateral', icon: 'shield', permission: 'credit:read' },
   { to: '/credit/reports', label: 'Reports', icon: 'assessment', permission: 'credit:read' },
 ];
 

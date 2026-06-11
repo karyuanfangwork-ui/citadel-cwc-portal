@@ -86,7 +86,6 @@ import BorrowerProfileList from './pages/BorrowerProfileList';
 import BorrowerProfileDetail from './pages/BorrowerProfileDetail';
 import CreditApplicationList from './pages/CreditApplicationList';
 import CreditApplicationDetail from './pages/CreditApplicationDetail';
-import CreditApplicationWizard from './pages/credit/CreditApplicationWizard';
 import MyApprovals from './pages/MyApprovals';
 import FinancialSpreading from './pages/FinancialSpreading';
 import FinancialAnalysis from './pages/FinancialAnalysis';
@@ -301,7 +300,7 @@ const AppShell = () => {
               <Route path="/credit/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:read"><CommitteeMeetingDetail /></ProtectedRoute>} />
               <Route path="/credit/m/committee/:meetingId" element={<ProtectedRoute requirePermission="credit:approve"><CommitteeMobileVote /></ProtectedRoute>} />
               <Route path="/credit/m/approvals" element={<ProtectedRoute requirePermission="credit:approve"><MobileApprovalInbox /></ProtectedRoute>} />
-              <Route path="/credit/m/applications/:id" element={<ProtectedRoute><CreditApplicationMobileSummary /></ProtectedRoute>} />
+              <Route path="/credit/m/applications/:id" element={<ProtectedRoute requirePermission="credit:read"><CreditApplicationMobileSummary /></ProtectedRoute>} />
               <Route path="/credit/collateral" element={<ProtectedRoute requirePermission="credit:read"><CollateralManagement /></ProtectedRoute>} />
               <Route path="/credit/reports" element={<ProtectedRoute requirePermission="credit:read"><CreditReports /></ProtectedRoute>} />
               <Route path="/credit/group-exposure" element={<ProtectedRoute requirePermission="credit:read"><GroupExposurePage /></ProtectedRoute>} />
