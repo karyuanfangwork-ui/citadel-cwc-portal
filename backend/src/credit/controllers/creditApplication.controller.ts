@@ -21,12 +21,19 @@ class CreditApplicationController {
     const page = parseInt(req.query.page as string, 10) || 1;
     const limit = parseInt(req.query.limit as string, 10) || 20;
     const state = req.query.state as string | undefined;
+    const states = req.query.states
+      ? (req.query.states as string).split(',').filter(Boolean)
+      : undefined;
     const productType = req.query.productType as string | undefined;
     const borrowerProfileId = req.query.borrowerProfileId as string | undefined;
     const assignedRmId = req.query.assignedRmId as string | undefined;
     const assignedAnalystId = req.query.assignedAnalystId as string | undefined;
     const search = req.query.search as string | undefined;
+    const assignedToMe = req.query.assignedToMe as string | undefined;
+    const overdueSla = req.query.overdueSla === 'true';
     const branchId = req.query.branchId as string | undefined;
+    const sortBy = req.query.sortBy as string | undefined;
+    const sortDir = (req.query.sortDir as 'asc' | 'desc') ?? undefined;
 
     // §2.4 — Row-level access: use rmScopeFilter from middleware
     const rmScopeFilter = (req as RmScopedRequest).rmScopeFilter;
@@ -35,12 +42,17 @@ class CreditApplicationController {
       page,
       limit,
       state,
+      states,
       productType,
       borrowerProfileId,
       assignedRmId,
       assignedAnalystId,
       search,
+      assignedToMe,
+      overdueSla,
       branchId,
+      sortBy,
+      sortDir,
       rmScopeFilter,
     });
 

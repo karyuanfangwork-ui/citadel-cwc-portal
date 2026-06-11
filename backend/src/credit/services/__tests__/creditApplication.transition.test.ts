@@ -28,9 +28,9 @@ jest.mock('../creditNotification.service', () => ({
 }));
 
 jest.mock('../auditChain.service', () => ({
-  AuditChainService: jest.fn().mockImplementation(() => ({
-    createEvent: jest.fn().mockResolvedValue(undefined),
-  })),
+  AuditChainService: {
+    appendEvent: jest.fn().mockResolvedValue('mock-event-id'),
+  },
 }));
 
 jest.mock('../../../middleware/occ.middleware', () => ({

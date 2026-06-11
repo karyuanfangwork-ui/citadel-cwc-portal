@@ -341,7 +341,7 @@ async function main() {
         CREDIT_RM: ['credit:read', 'credit:write', 'credit:create', 'credit:export', 'credit:disburse'],
         CREDIT_ANALYST: ['credit:read', 'credit:write', 'credit:export'],
         CREDIT_MANAGER: ['credit:read', 'credit:write', 'credit:approve', 'credit:export'],
-        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:create', 'credit:approve', 'credit:admin', 'credit:disburse', 'credit:compliance', 'credit:export'],
+        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:create', 'credit:approve', 'credit:admin', 'credit:compliance', 'credit:export'],
     };
 
     // Upsert RolePermission records: only add seed-default assignments,

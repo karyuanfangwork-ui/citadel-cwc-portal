@@ -99,13 +99,23 @@ export interface ListCreditApplicationsOptions {
   page?: number;
   limit?: number;
   state?: string;
+  /** §2.7 — Multi-state filter (overrides `state` when both are provided) */
+  states?: string[];
   productType?: string;
   borrowerProfileId?: string;
   assignedRmId?: string;
   assignedAnalystId?: string;
   search?: string;
+  /** §2.4 — Filter to apps assigned to the current user (RM or analyst) */
+  assignedToMe?: string;
+  /** §2.7 — Filter to apps with unresolved SLA breaches */
+  overdueSla?: boolean;
   /** §3.1 — Multi-branch support: scope list to a given branch */
   branchId?: string;
+  /** Sort field: amount | createdAt | state (default: createdAt) */
+  sortBy?: string;
+  /** Sort direction: asc | desc (default: desc) */
+  sortDir?: 'asc' | 'desc';
   /** §2.4 — Row-level access: Prisma where clause injected by rmScope middleware.
    *  When present, this OR filter is AND-combined with the other filters,
    *  ensuring non-admin users only see their own applications. */
@@ -386,12 +396,17 @@ class CreditApplicationService {
       page = 1,
       limit = 20,
       state,
+      states,
       productType,
       borrowerProfileId,
       assignedRmId,
       assignedAnalystId,
       search,
+      assignedToMe,
+      overdueSla,
       branchId,
+      sortBy,
+      sortDir = 'desc',
       rmScopeFilter,
     } = options;
 
@@ -401,7 +416,10 @@ class CreditApplicationService {
       deletedAt: null,
     };
 
-    if (state) {
+    if (states && states.length > 0) {
+      // §2.7 — Multi-state filter overrides single state
+      where.state = { in: states as ApplicationState[] };
+    } else if (state) {
       where.state = state as ApplicationState;
     }
     if (productType) {
@@ -424,6 +442,27 @@ class CreditApplicationService {
         { applicationNo: { contains: search, mode: 'insensitive' } },
         { purpose: { contains: search, mode: 'insensitive' } },
       ];
+    }
+
+    // §2.4 — assignedToMe: OR filter for RM or analyst
+    if (assignedToMe) {
+      const meFilter: Prisma.CreditApplicationWhereInput = {
+        OR: [
+          { assignedRmId: assignedToMe },
+          { assignedAnalystId: assignedToMe },
+        ],
+      };
+      const existingAnd = (where.AND ?? []);
+      where.AND = Array.isArray(existingAnd) ? [...existingAnd, meFilter] : [existingAnd, meFilter];
+    }
+
+    // §2.7 — overdueSla: unresolved breaches
+    if (overdueSla) {
+      const slaFilter: Prisma.CreditApplicationWhereInput = {
+        slaBreaches: { some: { resolvedAt: null } },
+      };
+      const existingAnd = (where.AND ?? []);
+      where.AND = Array.isArray(existingAnd) ? [...existingAnd, slaFilter] : [existingAnd, slaFilter];
     }
 
     // §2.4 — Row-level access: AND-combine the RM scope filter
@@ -453,12 +492,21 @@ class CreditApplicationService {
       }
     }
 
+    // §2.7 — Dynamic sorting
+    const sortFieldMap: Record<string, string> = {
+      amount: 'requestedAmount',
+      createdAt: 'createdAt',
+      state: 'state',
+    };
+    const prismaSortField = sortFieldMap[sortBy ?? ''] ?? 'createdAt';
+    const orderBy = { [prismaSortField]: sortDir };
+
     const [applications, total] = await Promise.all([
       prisma.creditApplication.findMany({
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         include: {
           borrowerProfile: {
             select: {

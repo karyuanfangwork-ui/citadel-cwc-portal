@@ -25,6 +25,15 @@ describe('1.1 SOD — credit:disburse separated from credit:admin', () => {
         description: 'Disburse approved credit facilities (SOD: separated from admin)',
       },
     });
+
+    // SOD: Remove credit:disburse from CREDIT_ADMIN if it was assigned by a previous seed
+    const adminRole = await prisma.role.findUnique({ where: { name: 'CREDIT_ADMIN' } });
+    const disbursePerm = await prisma.permission.findUnique({ where: { name: 'credit:disburse' } });
+    if (adminRole && disbursePerm) {
+      await prisma.rolePermission.deleteMany({
+        where: { roleId: adminRole.id, permissionId: disbursePerm.id },
+      });
+    }
   });
 
   afterAll(async () => {
