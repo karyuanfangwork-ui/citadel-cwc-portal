@@ -83,6 +83,7 @@ model User {
   mfaSecret          String?        @map("mfa_secret") @db.VarChar(255)  // TOTP secret (encrypted)
   mfaBackupCodes     String[]       @map("mfa_backup_codes")              // Hashed backup codes
   mfaVerifiedAt      DateTime?      @map("mfa_verified_at") @db.Timestamp(6)  // Last TOTP verification timestamp
+  mustEnrollMfa      Boolean        @default(false) @map("must_enroll_mfa")  // P1-8: set when user gets credit:approve/disburse
 
   // Delegation
   delegatedTo              User?                  @relation("UserDelegate", fields: [delegatedToId], references: [id], onDelete: SetNull, onUpdate: NoAction)

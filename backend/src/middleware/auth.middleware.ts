@@ -17,6 +17,10 @@ export interface AuthRequest extends Request {
         roles: string[];
         permissions: string[];
         agentTeam?: string | null;
+        // P1-8 — MFA fields for requireMfa middleware
+        mfaEnabled?: boolean;
+        mustEnrollMfa?: boolean;
+        mfaVerifiedAt?: Date | null;
     };
     jti?: string;
     tokenExp?: number;
@@ -96,6 +100,10 @@ export const authenticate = async (
             roles,
             permissions,
             agentTeam: user.agentTeam,
+            // P1-8 — MFA fields for requireMfa middleware
+            mfaEnabled: user.mfaEnabled,
+            mustEnrollMfa: user.mustEnrollMfa,
+            mfaVerifiedAt: user.mfaVerifiedAt,
         };
         // Populate jti and tokenExp so logout can revoke the specific token
         req.jti = decoded.jti;

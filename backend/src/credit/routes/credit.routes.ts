@@ -109,6 +109,7 @@ import fxRateRoutes from './fxRate.routes';
 import deviationRoutes from './deviation.routes';
 import consentRoutes from './consent.routes';
 import strRoutes from './str.routes';
+import mfaRoutes from './mfa.routes';
 
 // AI & Automation (A4/A5/A6/A13/A15)
 import creditAiRoutes from './creditAi.routes';
@@ -293,5 +294,8 @@ router.use('/consent', consentRoutes);
 
 // P1-7 — STR Register (restricted access — tipping-off risk)
 router.use('/str', strRoutes);
+
+// P1-8 — MFA for Approver/Disburser Roles
+router.use('/mfa', mfaRoutes);
 
 export default router;
