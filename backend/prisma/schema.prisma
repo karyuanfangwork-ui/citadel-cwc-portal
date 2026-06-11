@@ -201,6 +201,9 @@ model User {
   fatcaCrsVerified            FatcaCrsDeclaration[]   @relation("FatcaVerifiedBy")
   // §6.2 — Credit Policy Limits
   createdPolicyLimits        CreditPolicyLimit[]     @relation("PolicyLimitCreatedBy")
+  // P1-6 — Deviation approvals (approved/rejected by)
+  approvedDeviations          DeviationApproval[]    @relation("DeviationApprovedBy")
+  rejectedDeviations          DeviationApproval[]    @relation("DeviationRejectedBy")
   // §F23 — FX Rate entries
   createdFxRates             CreditFxRate[]         @relation("FxRateCreatedBy")
   // §7.1 — Collateral Cross-Linking
@@ -2744,6 +2747,21 @@ enum RejectionReasonCode {
   OTHER
 }
 
+// P1-6 — Policy deviation / exception register
+enum DeviationSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum DeviationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
 // §2.8 — AML Rescreen Event Log
 enum AmlRescreenOutcome {
   CLEAR
@@ -2809,6 +2827,44 @@ model CreditPolicyLimit {
   @@index([sector])
   @@index([productType])
   @@map("credit_policy_limits")
+}
+
+// P1-6 — Policy deviation / exception register
+// Tracks policy breaches (LTV cap, DSR threshold, guarantor capacity, etc.) that require
+// explicit approval before the application can proceed. Non-waivable rules cannot be deviated.
+model DeviationApproval {
+  id                String            @id @default(uuid()) @db.Uuid
+  applicationId     String            @map("application_id") @db.Uuid
+  policyRule       String            @map("policy_rule") @db.VarChar(100)   // e.g., "LTV_CAP", "NET_DSR", "GUARANTOR_CAPACITY"
+  description       String            // What policy is being deviated from
+  actualValue       Decimal?          @map("actual_value") @db.Decimal(15, 2)   // e.g., LTV = 85%
+  thresholdValue    Decimal?          @map("threshold_value") @db.Decimal(15, 2) // e.g., 70% cap
+  severity          DeviationSeverity @default(MEDIUM)
+  justification     String            // Why the deviation is requested
+  status            DeviationStatus   @default(PENDING)
+  isNonWaivable     Boolean           @default(false) @map("is_non_waivable") // Some regulatory limits cannot be waived
+  requiredAuthorityLevel String?     @map("required_authority_level") @db.VarChar(50) // Authority level needed to approve
+
+  approvedById     String?           @map("approved_by_id") @db.Uuid
+  approvedAt       DateTime?         @map("approved_at") @db.Timestamp(6)
+  approvalComments  String?           @map("approval_comments")
+  rejectedById     String?           @map("rejected_by_id") @db.Uuid
+  rejectedAt       DateTime?         @map("rejected_at") @db.Timestamp(6)
+  rejectionReason  String?           @map("rejection_reason")
+
+  reviewDate       DateTime?         @map("review_date") @db.Timestamp(6)   // When deviation should be reviewed
+  sunsetDate       DateTime?         @map("sunset_date") @db.Timestamp(6)   // When deviation expires
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application      CreditApplication  @relation(fields: [applicationId], references: [id])
+  approvedBy       User?             @relation("DeviationApprovedBy", fields: [approvedById], references: [id])
+  rejectedBy       User?             @relation("DeviationRejectedBy", fields: [rejectedById], references: [id])
+
+  @@index([applicationId, status])
+  @@index([status, reviewDate])
+  @@index([policyRule])
+  @@map("deviation_approvals")
 }
 
 // Committee vote — kept for backward compat; newer code uses CommitteeVoteChoice
@@ -3297,6 +3353,7 @@ model CreditApplication {
   looGeneratedBy   User?     @relation("CreditApplicationLooGeneratedBy", fields: [looGeneratedById], references: [id])
   amlRescreenEvents AmlRescreenEvent[]
   collateralApplicationLinks CollateralApplicationLink[]
+  deviations              DeviationApproval[]
 
   @@index([borrowerProfileId])
   @@index([state])

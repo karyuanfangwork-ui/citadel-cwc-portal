@@ -106,6 +106,7 @@ import policyLimitRoutes from './policyLimit.routes';
 
 // §F23 — FX Rate Admin
 import fxRateRoutes from './fxRate.routes';
+import deviationRoutes from './deviation.routes';
 
 // AI & Automation (A4/A5/A6/A13/A15)
 import creditAiRoutes from './creditAi.routes';
@@ -281,5 +282,8 @@ router.use('/fx-rates', fxRateRoutes);
 
 // AI & Automation (A4/A5/A6/A13/A15)
 router.use('/applications', creditAiRoutes);
+
+// P1-6 — Policy Deviation / Exception Register
+router.use('/deviations', deviationRoutes);
 
 export default router;
