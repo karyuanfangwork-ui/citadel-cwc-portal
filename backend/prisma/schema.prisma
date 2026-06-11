@@ -207,6 +207,10 @@ model User {
   // P1-2 — PDPA consent records
   grantedConsents             ConsentRecord[]         @relation("ConsentGrantedBy")
   withdrawnConsents           ConsentRecord[]         @relation("ConsentWithdrawnBy")
+  // P1-7 — STR Register
+  strAssignedTo               SuspiciousTransaction[] @relation("StrAssignedTo")
+  strReviewed                 SuspiciousTransaction[] @relation("StrReviewedBy")
+  strAttachmentsUploaded      StrAttachment[]         @relation("StrUploadedBy")
   // §F23 — FX Rate entries
   createdFxRates             CreditFxRate[]         @relation("FxRateCreatedBy")
   // §7.1 — Collateral Cross-Linking
@@ -2813,9 +2817,65 @@ model AmlRescreenEvent {
   application     CreditApplication?  @relation(fields: [applicationId], references: [id])
   triggeredBy     User                @relation("AmlRescreenTriggeredBy", fields: [triggeredById], references: [id])
   reviewedBy      User?               @relation("AmlRescreenReviewedBy", fields: [reviewedById], references: [id])
+  suspiciousTransactions SuspiciousTransaction[]  // P1-7
 
   @@index([borrowerProfileId])
   @@map("aml_rescreen_events")
+}
+
+// P1-7 — STR Register
+enum StrStatus {
+  DRAFT
+  UNDER_REVIEW
+  FILED
+  ACKNOWLEDGED
+  CLOSED
+}
+
+model SuspiciousTransaction {
+  id                String       @id @default(uuid()) @db.Uuid
+  applicationId     String?      @map("application_id") @db.Uuid
+  subjectName       String       @map("subject_name") @db.VarChar(255)
+  subjectIdType     String?      @map("subject_id_type") @db.VarChar(20)    // "NRIC", "PASSPORT", "BRN"
+  subjectIdNumber   String?      @map("subject_id_number") @db.VarChar(50)  // PII — encrypt at rest
+  grounds           String       @db.Text                                        // Why suspicious
+  filingReference    String?      @map("filing_reference") @db.VarChar(100)  // FIU/BNM reference
+  filingDate        DateTime?    @map("filing_date") @db.Timestamp(6)
+  status            StrStatus    @default(DRAFT)
+  severity          String?      @db.VarChar(10)                                // LOW, MEDIUM, HIGH
+  assignedToId      String?      @map("assigned_to_id") @db.Uuid
+  reviewedById      String?      @map("reviewed_by_id") @db.Uuid
+  reviewedAt        DateTime?    @map("reviewed_at") @db.Timestamp(6)
+  notes             String?      @db.Text
+  amlRescreenEventId String?     @map("aml_rescreen_event_id") @db.Uuid
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt         DateTime     @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application       CreditApplication?  @relation(fields: [applicationId], references: [id])
+  assignedTo        User?               @relation("StrAssignedTo", fields: [assignedToId], references: [id])
+  reviewedBy        User?               @relation("StrReviewedBy", fields: [reviewedById], references: [id])
+  amlRescreenEvent  AmlRescreenEvent?   @relation(fields: [amlRescreenEventId], references: [id])
+  attachments       StrAttachment[]
+
+  @@index([status, severity])
+  @@index([applicationId])
+  @@map("suspicious_transactions")
+}
+
+model StrAttachment {
+  id                String   @id @default(uuid()) @db.Uuid
+  strId             String   @map("str_id") @db.Uuid
+  documentId        String?  @map("document_id") @db.Uuid
+  fileName          String   @map("file_name") @db.VarChar(255)
+  fileUrl           String   @map("file_url") @db.Text
+  uploadedById      String?  @map("uploaded_by_id") @db.Uuid
+  uploadedAt        DateTime @default(now()) @map("uploaded_at") @db.Timestamp(6)
+
+  str               SuspiciousTransaction @relation(fields: [strId], references: [id], onDelete: Cascade)
+  uploadedBy        User?                @relation("StrUploadedBy", fields: [uploadedById], references: [id])
+
+  @@index([strId])
+  @@map("str_attachments")
 }
 
 // §6.2 — Credit Policy Limit types
@@ -3401,6 +3461,7 @@ model CreditApplication {
   amlRescreenEvents AmlRescreenEvent[]
   collateralApplicationLinks CollateralApplicationLink[]
   deviations              DeviationApproval[]
+  suspiciousTransactions  SuspiciousTransaction[]   // P1-7
 
   @@index([borrowerProfileId])
   @@index([state])

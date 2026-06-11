@@ -243,6 +243,8 @@ async function main() {
         { name: 'credit:admin', resource: 'credit', action: 'admin', description: 'Configure credit module settings' },
         { name: 'credit:disburse', resource: 'credit', action: 'disburse', description: 'Disburse approved credit facilities (SOD: separated from admin)' },
         { name: 'credit:compliance', resource: 'credit', action: 'compliance', description: 'Access credit compliance and AML functions' },
+        { name: 'credit:str_view', resource: 'credit', action: 'str_view', description: 'View STR records (compliance only — tipping-off risk)' },
+        { name: 'credit:str_manage', resource: 'credit', action: 'str_manage', description: 'Create, update, file STR records (compliance officer)' },
         { name: 'credit:export', resource: 'credit', action: 'export', description: 'Export credit data with reason capture' },
     ];
 
@@ -291,6 +293,7 @@ async function main() {
         'announcement:read', 'announcement:write', 'announcement:admin',
         'credit:read', 'credit:write', 'credit:approve', 'credit:create',
         'credit:admin', 'credit:disburse', 'credit:compliance', 'credit:export',
+        'credit:str_view', 'credit:str_manage',
     ];
 
     // AGENT gets full request CRUD + assign + confidential, no admin/user/report/banner/workflow
@@ -341,7 +344,7 @@ async function main() {
         CREDIT_RM: ['credit:read', 'credit:write', 'credit:create', 'credit:export', 'credit:disburse'],
         CREDIT_ANALYST: ['credit:read', 'credit:write', 'credit:export'],
         CREDIT_MANAGER: ['credit:read', 'credit:write', 'credit:approve', 'credit:export'],
-        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:create', 'credit:approve', 'credit:admin', 'credit:compliance', 'credit:export'],
+        CREDIT_ADMIN: ['credit:read', 'credit:write', 'credit:create', 'credit:approve', 'credit:admin', 'credit:compliance', 'credit:export', 'credit:str_view', 'credit:str_manage'],
     };
 
     // Upsert RolePermission records: only add seed-default assignments,
