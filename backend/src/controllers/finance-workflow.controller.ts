@@ -482,7 +482,7 @@ export const dceoDecision = async (req: Request, res: Response) => {
             return;
         }
 
-        const newStatus = decision === 'APPROVED' ? RequestStatus.DCEO_APPROVED_FIN : RequestStatus.DCEO_REJECTED_FIN;
+        const newStatus = decision === 'APPROVED' ? RequestStatus.PAYMENT_PROCESSING_FIN : RequestStatus.DCEO_REJECTED_FIN;
 
         // Reassign back to Finance agent using shared reassignToTeam
         await reassignToTeam(id, request.referenceNumber, 'FINANCE', 'Finance-Workflow');
