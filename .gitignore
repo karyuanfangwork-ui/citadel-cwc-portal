@@ -62,3 +62,4 @@ backend/remove-*.js
 .worktrees/
 
 docs/credit-training/
+docs

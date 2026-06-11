@@ -277,6 +277,18 @@ const isIdPlaceholder = id === 'new';
     }
   }, [showTransitionDialog]);
 
+  // §T9 — Completion status callback for wizard (must be before early returns — Rules of Hooks)
+  // Reads phaseCompletion via ref so hook identity is stable while data stays current.
+  const phaseCompletionRef = useRef<Record<string, string>>({});
+  const getCompletionStatus = useCallback((tabId: DetailTab): 'complete' | 'partial' | 'empty' => {
+    const phaseKey = TAB_TO_PHASE_MAP[tabId];
+    if (!phaseKey) return 'empty';
+    const status = phaseCompletionRef.current[phaseKey];
+    if (status === 'complete') return 'complete';
+    if (status === 'incomplete') return 'partial';
+    return 'empty';
+  }, []);
+
   const handleTransition = async (action: string) => {
     if (!id) return;
     const t = transitions.find(tr => tr.action === showTransitionDialog);
@@ -403,22 +415,13 @@ const isIdPlaceholder = id === 'new';
     bureauChecklist: (app as any).bureauChecklist ?? null,
     isSecured: ((app as any).collateralItems?.length ?? 0) > 0 || SECURED_PRODUCTS.includes(app.productType as string),
   });
+  phaseCompletionRef.current = phaseCompletion; // keep ref in sync for getCompletionStatus
   const incompleteCount = getIncompletePhaseCount(phaseCompletion);
   // §3.5b — Application progress ring (required sections only; 'optional' excluded)
   const requiredPhases = Object.values(phaseCompletion).filter(s => s !== 'optional');
   const completedPhases = requiredPhases.filter(s => s === 'complete').length;
   const progressPct = requiredPhases.length > 0 ? Math.round((completedPhases / requiredPhases.length) * 100) : 0;
   const progressColor = progressPct > 80 ? '#16a34a' : progressPct >= 50 ? '#d97706' : '#dc2626';
-
-  // Completion status callback for wizard — maps DetailTab → phase completion status
-  const getCompletionStatus = useCallback((tabId: DetailTab): 'complete' | 'partial' | 'empty' => {
-    const phaseKey = TAB_TO_PHASE_MAP[tabId];
-    if (!phaseKey) return 'empty';
-    const status = phaseCompletion[phaseKey];
-    if (status === 'complete') return 'complete';
-    if (status === 'incomplete') return 'partial';
-    return 'empty'; // 'optional' or unknown
-  }, [phaseCompletion]);
 
   // Stepper logic
   const currentStageIdx = STEPPER_STAGES.findIndex(s => s.states.includes(currentState));
