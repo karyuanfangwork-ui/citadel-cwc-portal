@@ -7,7 +7,6 @@ import {
   listCreditDocumentsSchema,
   updateCreditDocumentSchema,
   replaceCreditDocumentSchema,
-  updateAvStatusSchema,
   rejectDocumentSchema,
   listDocumentRequirementsSchema,
   createDocumentRequirementSchema,
@@ -17,7 +16,9 @@ import {
 
 const router = Router();
 
-// All routes require authentication
+// ── P0-5: AV-status route is in credit.routes.ts (above parent auth gate) ──
+
+// ── All routes below require authentication ──────────────────────────────────
 router.use(authenticate);
 
 // ==============================================================================
@@ -159,23 +160,6 @@ router.post(
   requirePermission('credit:write'),
   validate(rejectDocumentSchema),
   creditDocumentController.reject,
-);
-
-/**
- * PATCH /credit-documents/:id/av-status
- * Update AV scan status of a document
- * Requires: credit:admin
- *
- * TODO(security): This endpoint should be protected by an API key or service-to-service
- * auth mechanism (e.g. X-API-Key header) rather than a user-facing permission, since
- * it is intended to be called only by the AV scan service / webhook. The current
- * credit:admin permission still allows any admin user to bypass AV scanning.
- */
-router.patch(
-  '/credit-documents/:id/av-status',
-  requirePermission('credit:admin'),
-  validate(updateAvStatusSchema),
-  creditDocumentController.updateAvStatus,
 );
 
 // ==============================================================================

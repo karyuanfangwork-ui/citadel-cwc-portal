@@ -24,14 +24,40 @@ interface AuthUser {
     agentTeam?: string | null;
 }
 
+/** P0-2: Error thrown when the backend requires a password reset */
+export class PasswordResetRequiredError extends Error {
+    resetToken: string;
+    email: string;
+    constructor(resetToken: string, email: string) {
+        super('PASSWORD_RESET_REQUIRED');
+        this.name = 'PasswordResetRequiredError';
+        this.resetToken = resetToken;
+        this.email = email;
+    }
+}
+
 export const authService = {
     async login(credentials: LoginCredentials): Promise<AuthUser & { accessToken?: string }> {
-        const response = await apiClient.post('/auth/login', credentials);
-        // Backend returns { user, accessToken } - return both
-        return {
-            ...response.data.data.user,
-            accessToken: response.data.data.accessToken,
-        };
+        try {
+            const response = await apiClient.post('/auth/login', credentials);
+            return {
+                ...response.data.data.user,
+                accessToken: response.data.data.accessToken,
+            };
+        } catch (error: any) {
+            // P0-2: Handle mustResetPassword — backend returns 403 with PASSWORD_RESET_REQUIRED
+            if (
+                error?.response?.status === 403 &&
+                error?.response?.data?.message === 'PASSWORD_RESET_REQUIRED' &&
+                error?.response?.data?.details?.resetToken
+            ) {
+                throw new PasswordResetRequiredError(
+                    error.response.data.details.resetToken,
+                    error.response.data.details.email,
+                );
+            }
+            throw error;
+        }
     },
 
     async register(data: RegisterData): Promise<AuthUser> {

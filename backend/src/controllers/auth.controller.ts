@@ -84,6 +84,11 @@ async function recordFailedLogin(email: string): Promise<void> {
     } catch {
         // In-memory fallback already updated above.
     }
+
+    // P0-4: Audit log when account gets locked
+    if (lockUntil) {
+        logger.warn(`Account locked: ${email} after ${attempts} failed attempts (locked for ${Math.ceil(config.security.accountLockoutWindowMs / 60000)} min)`);
+    }
 }
 
 async function clearFailedLogin(email: string): Promise<void> {
@@ -235,6 +240,17 @@ class AuthController {
         }
 
         await clearFailedLogin(normalizedEmail);
+
+        // P0-2: Enforce mustResetPassword — block login until user changes password
+        if (user.mustResetPassword) {
+            // Generate a one-time reset token so the frontend can redirect to /reset-password
+            const { plainToken } = await passwordResetService.createToken(user.id);
+            throw new AppError(
+                'PASSWORD_RESET_REQUIRED',
+                403,
+                { resetToken: plainToken, email: user.email },
+            );
+        }
 
         const { token: accessToken } = generateAccessToken(user.id, user.email);
         const refreshToken = generateRefreshToken(user.id, user.email);
@@ -397,6 +413,30 @@ class AuthController {
         await tokenService.revokeAllForUser(record.userId);
 
         res.json({ status: 'success', message: 'Password reset successful. Please log in again.' });
+    });
+
+    /**
+     * P0-4: Admin unlocks a locked-out account.
+     * POST /api/v1/auth/admin-unlock  { email: string }
+     * Requires: user:manage permission
+     */
+    adminUnlock = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
+        const { email } = req.body;
+        if (!email) {
+            throw new AppError('Email is required', 400);
+        }
+
+        const normalizedEmail = email.toLowerCase().trim();
+        const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+        if (!user) {
+            // Don't reveal whether user exists
+            res.json({ status: 'success', message: 'Unlock processed' });
+            return;
+        }
+
+        await clearFailedLogin(normalizedEmail);
+        logger.info(`Admin ${req.user?.email} unlocked account: ${normalizedEmail}`);
+        res.json({ status: 'success', message: 'Account unlocked successfully' });
     });
 }
 

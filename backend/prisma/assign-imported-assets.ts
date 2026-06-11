@@ -11,11 +11,16 @@
 
 import { PrismaClient, AssetStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 
 const prisma = new PrismaClient();
 const DRY_RUN = process.argv.includes('--dry-run');
 const ADMIN_ID = '65718092-6fed-42fb-b478-96fbf77b58d6';
-const DEFAULT_PASSWORD = 'abc@123';
+
+/** P0-2: Generate a per-user random password instead of a shared hardcoded one */
+function generateRandomPassword(): string {
+  return crypto.randomBytes(12).toString('base64url').slice(0, 16);
+}
 
 // All unique employees from the Excel with their real emails
 const employees: Array<{ email: string; firstName: string; lastName: string; department?: string; jobTitle?: string }> = [
@@ -109,7 +114,6 @@ async function main() {
   // Step 1: Create user accounts for all Excel employees
   console.log('--- Step 1: Create Employee User Accounts ---');
   const emailToUserId: Record<string, string> = {};
-  const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
   // Get existing default role (NORMAL_STAFF)
   const endUserRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
@@ -131,10 +135,15 @@ async function main() {
       continue;
     }
 
+    // P0-2: per-user random password + mustResetPassword=true
+    const tempPassword = generateRandomPassword();
+    const passwordHash = await bcrypt.hash(tempPassword, 12);
+
     const user = await prisma.user.create({
       data: {
         email: emp.email,
         passwordHash,
+        mustResetPassword: true,
         firstName: emp.firstName,
         lastName: emp.lastName,
         jobTitle: emp.jobTitle || null,

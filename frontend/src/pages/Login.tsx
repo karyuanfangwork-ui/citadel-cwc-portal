@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import citadelLogo from '../assets/citadel-logo-mark.svg';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { PasswordResetRequiredError } from '../services/auth.service';
 
 /* ─── Module spotlight data ─────────────────────────────────────── */
 interface Module {
@@ -272,6 +273,11 @@ const Login = () => {
       await login(email, password);
       navigate('/');
     } catch (err: any) {
+      // P0-2: If mustResetPassword, redirect to reset-password with the one-time token
+      if (err instanceof PasswordResetRequiredError) {
+        navigate(`/reset-password?token=${err.resetToken}&email=${encodeURIComponent(err.email)}`, { replace: true });
+        return;
+      }
       setError(err.message || 'Invalid email or password');
     } finally {
       setLoading(false);

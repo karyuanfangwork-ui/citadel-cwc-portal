@@ -1,4 +1,5 @@
 import winston from 'winston';
+import DailyRotateFile from 'winston-daily-rotate-file';
 import { config } from '../config';
 
 // Define log levels
@@ -36,15 +37,21 @@ const format = winston.format.combine(
         : winston.format.json()
 );
 
-// Define transports
+// P0-6: Replace plain File transports with DailyRotateFile to prevent unbounded log growth
 const transports = [
     new winston.transports.Console(),
-    new winston.transports.File({
-        filename: 'logs/error.log',
+    new DailyRotateFile({
+        filename: 'logs/error-%DATE%.log',
+        datePattern: 'YYYY-MM-DD',
         level: 'error',
+        maxSize: '20m',
+        maxFiles: '30d',   // keep 30 days of error logs
     }),
-    new winston.transports.File({
-        filename: 'logs/combined.log',
+    new DailyRotateFile({
+        filename: 'logs/combined-%DATE%.log',
+        datePattern: 'YYYY-MM-DD',
+        maxSize: '20m',
+        maxFiles: '30d',   // keep 30 days of combined logs
     }),
 ];
 

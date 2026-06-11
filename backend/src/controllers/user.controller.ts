@@ -877,14 +877,15 @@ class UserController {
         // Generate a random 16-char temporary password
         const tempPassword = crypto.randomBytes(12).toString('base64url').slice(0, 16);
 
-        // Hash the temporary password
-        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+        // Hash the temporary password (P0-6: salt rounds 12, was 10)
+        const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
-        // Update the user's password and set passwordChangedAt
+        // Update the user's password, set mustResetPassword=true and passwordChangedAt
         await prisma.user.update({
             where: { id },
             data: {
                 passwordHash: hashedPassword,
+                mustResetPassword: true,
                 passwordChangedAt: new Date(),
             },
         });

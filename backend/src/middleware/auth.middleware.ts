@@ -179,6 +179,31 @@ export const optionalAuth = async (
     }
 };
 
+// ── P0-5: Service API Key authentication ────────────────────────────────────────
+// For service-to-service endpoints (e.g. AV scan callback) that should NOT
+// be accessible via user JWT. Validates the X-Service-API-Key header against
+// the SERVICE_API_KEY env var. Falls back to INTERNAL_SCAN_TOKEN for backward
+// compatibility with the existing ClamAV scan-document pattern.
+
+export const requireServiceApiKey = (
+    req: Request,
+    _res: Response,
+    next: NextFunction
+) => {
+    const apiKey = req.header('x-service-api-key') || req.header('x-internal-scan-token');
+    const configuredKey = config.security.serviceApiKey || config.security.internalScanToken;
+
+    if (!configuredKey) {
+        return next(new AppError('Service API key is not configured on the server', 503));
+    }
+
+    if (!apiKey || apiKey !== configuredKey) {
+        return next(new AppError('Valid service API key is required', 403));
+    }
+
+    next();
+};
+
 export function hasRole(req: AuthRequest, ...roles: string[]): boolean {
     return roles.some((role) => req.user?.roles.includes(role) ?? false);
 }

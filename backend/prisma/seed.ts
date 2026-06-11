@@ -583,7 +583,7 @@ async function main() {
     // Will be populated after entity seeding (entities need approver users to exist first)
 
     // --- System accounts ---
-    const hashedPassword = await bcrypt.hash('abc@123', 10);
+    const hashedPassword = await bcrypt.hash('abc@123', 12);  // P0-6: salt rounds 12
     const adminUser = await prisma.user.upsert({
         where: { email: 'admin@test.local' },
         update: { jobTitle: 'Administrator', department: 'IT' },
@@ -670,7 +670,7 @@ async function main() {
     console.log('✅ Group Deputy CEO user created (email: groupceo@test.local, password: abc@123)');
 
     // --- Agent accounts ---
-    const agentPassword = await bcrypt.hash('abc@123', 10);
+    const agentPassword = await bcrypt.hash('abc@123', 12);  // P0-6
 
     const agentAccounts = [
         { email: 'finance@test.local',     firstName: 'Zahidah', lastName: 'Zahidah',     department: 'Finance', jobTitle: 'Finance Agent',             roles: [agentRole.id], agentTeam: 'FINANCE', entityCode: 'CG' },
@@ -699,7 +699,7 @@ async function main() {
     console.log('✅ Agent accounts created (password: abc@123)');
 
     // --- Regular test users ---
-    const testPassword = await bcrypt.hash('abc@123', 10);
+    const testPassword = await bcrypt.hash('abc@123', 12);  // P0-6
     const testUsers = [
         { email: 'john.doe@test.local',   firstName: 'John', lastName: 'Doe',   department: 'Engineering', jobTitle: 'Software Engineer' },
         { email: 'jane.smith@test.local', firstName: 'Jane', lastName: 'Smith', department: 'Marketing',   jobTitle: 'Marketing Manager' },
@@ -764,7 +764,7 @@ async function main() {
         update: {},
         create: {
             email: 'user@helpdesk.com',
-            passwordHash: await bcrypt.hash('abc@123', 10),
+            passwordHash: await bcrypt.hash('abc@123', 12),  // P0-6
             firstName: 'Regular',
             lastName: 'User',
             department: 'General',
@@ -903,7 +903,7 @@ async function main() {
     // IMPORTANT: This runs BEFORE entity config so approver users exist for assignment.
     if (SEED_PRODUCTION_USERS.length > 0) {
         console.log('👥 Creating production staff accounts...');
-        const PROD_PASSWORD = await bcrypt.hash('Welcome@2026', 10);
+        const PROD_PASSWORD = await bcrypt.hash('Welcome@2026', 12);  // P0-6
         let prodCreated = 0;
         let prodUpdated = 0;
 
@@ -938,6 +938,7 @@ async function main() {
                         firstName: pu.firstName,
                         lastName: pu.lastName,
                         passwordHash: PROD_PASSWORD,
+                        mustResetPassword: true,  // P0-2: force password change on first login
                         department: pu.department || null,
                         jobTitle: pu.jobTitle || null,
                         executiveRole: (pu.executiveRole as any) || null,

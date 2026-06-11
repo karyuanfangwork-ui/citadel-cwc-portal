@@ -61,7 +61,7 @@ export const passwordResetService = {
       }),
       prisma.user.update({
         where: { id: userId },
-        data: { passwordHash },
+        data: { passwordHash, mustResetPassword: false, passwordChangedAt: new Date() },
       }),
     ]);
 

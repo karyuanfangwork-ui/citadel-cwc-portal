@@ -146,6 +146,7 @@ export const config = {
         accountLockoutMaxAttempts: parseInt(process.env.ACCOUNT_LOCKOUT_MAX_ATTEMPTS || '5', 10),
         accountLockoutWindowMs: parseInt(process.env.ACCOUNT_LOCKOUT_WINDOW_MS || `${15 * 60 * 1000}`, 10),
         internalScanToken: process.env.INTERNAL_SCAN_TOKEN || '',
+        serviceApiKey: process.env.SERVICE_API_KEY || '',  // P0-5: for service-to-service auth
     },
 
     // Credit

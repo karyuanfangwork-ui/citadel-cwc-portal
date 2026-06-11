@@ -70,7 +70,8 @@ model User {
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamp(6)
   lastLoginAt       DateTime?      @map("last_login_at") @db.Timestamp(6)
-  passwordChangedAt DateTime?      @map("password_changed_at") @db.Timestamp(6)
+  passwordChangedAt  DateTime?      @map("password_changed_at") @db.Timestamp(6)
+  mustResetPassword  Boolean        @default(false) @map("must_reset_password")  // P0-2: force password change on next login
   outOfOffice        Boolean        @default(false) @map("out_of_office")
   outOfOfficeUntil   DateTime?      @map("out_of_office_until") @db.Timestamp(6)
   outOfOfficeMessage String?        @map("out_of_office_message") @db.Text
@@ -3683,6 +3684,7 @@ model CreditAuditEvent {
   @@index([eventType])
   @@index([createdAt])
   @@index([applicationId, eventType, createdAt])
+  @@index([applicationId, createdAt])  // P0-6: common query pattern — events per app ordered by time
   @@map("credit_audit_events")
 }
 

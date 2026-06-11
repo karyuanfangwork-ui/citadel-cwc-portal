@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { authenticate, requirePermission } from '../../middleware/auth.middleware';
+import { authenticate, requirePermission, requireServiceApiKey } from '../../middleware/auth.middleware';
 import { requireFeatureFlag } from '../middleware/featureFlag.middleware';
 import prisma from '../../utils/prisma';
 
@@ -131,6 +131,20 @@ router.patch('/feature-flags/:key', requirePermission('credit:admin'), async (re
   });
   res.json({ status: 'success', data: { flag } });
 });
+
+// ── P0-5: Service-to-service AV-status callback (no JWT auth) ──────────────
+// This route must sit ABOVE the router.use(authenticate) gate so that the
+// scanner service can call it with just a service API key, no user JWT required.
+import { validate } from '../../middleware/validate.middleware';
+import { updateAvStatusSchema } from '../validators/creditDocument.validator';
+import { creditDocumentController } from '../controllers/creditDocument.controller';
+
+router.patch(
+  '/credit-documents/:id/av-status',
+  requireServiceApiKey,
+  validate(updateAvStatusSchema),
+  creditDocumentController.updateAvStatus,
+);
 
 // All routes below require authentication + feature flag
 router.use(authenticate);
