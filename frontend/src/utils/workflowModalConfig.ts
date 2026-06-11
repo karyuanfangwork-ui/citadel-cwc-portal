@@ -665,6 +665,39 @@ export const WORKFLOW_MODAL_CONFIG: Record<string, WorkflowModalConfig> = {
       ),
   },
 
+  DCEO_DECISION_FIN: {
+    title: 'DCEO Decision',
+    subtitle: 'Finance Purchase Requisition · Review Invoice & Confirm',
+    icon: 'gavel',
+    iconBgClass: 'bg-purple-100',
+    iconTextClass: 'text-purple-600',
+    fields: [
+      {
+        name: 'decision',
+        label: 'Decision',
+        type: 'select',
+        required: true,
+        options: DECISION_OPTIONS,
+      },
+      {
+        name: 'notes',
+        label: 'Comments',
+        type: 'textarea',
+        placeholder: 'Reason for decision…',
+        required: false,
+        rows: 3,
+      },
+    ],
+    submitLabel: 'Submit Decision',
+    submitColor: 'primary',
+    onSubmit: (requestId, values) =>
+      financeWorkflowService.dceoDecision(
+        requestId,
+        (values.decision as string) === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+        (values.notes as string) || undefined,
+      ),
+  },
+
   GROUP_DCEO_DECISION_FIN: {
     title: 'Group Deputy CEO Decision',
     subtitle: 'Finance Workflow · Approve or reject high-value Purchase Requisition',

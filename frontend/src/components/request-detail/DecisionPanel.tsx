@@ -8,6 +8,7 @@ import ScheduleInterviewModal from './ScheduleInterviewModal';
 import PendingInvoiceModal from './PendingInvoiceModal';
 import CfoDecisionModal from './CfoDecisionModal';
 import CfoDecisionFinModal from './CfoDecisionFinModal';
+import DceoDecisionFinModal from './DceoDecisionFinModal';
 import { getWorkflowActions, WorkflowActionType } from '../../utils/workflowActions';
 import { WORKFLOW_MODAL_CONFIG, hasWorkflowModalConfig } from '../../utils/workflowModalConfig';
 import WorkflowActionModal from './WorkflowActionModal';
@@ -120,6 +121,7 @@ const ACTION_ICONS: Record<string, { icon: string; bgClass: string; textClass: s
   ROUTE_TO_CFO_FIN:          { icon: 'route',            bgClass: 'bg-orange-100', textClass: 'text-orange-600' },
   ROUTE_TO_CFO_BP:           { icon: 'send',             bgClass: 'bg-amber-100', textClass: 'text-amber-600' },
   CFO_DECISION_FIN:          { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
+  DCEO_DECISION_FIN:          { icon: 'gavel',            bgClass: 'bg-purple-100', textClass: 'text-purple-600' },
   GROUP_DCEO_DECISION_FIN:    { icon: 'gavel',            bgClass: 'bg-red-100', textClass: 'text-red-600' },
   MARK_PAYMENT_COMPLETE_FIN: { icon: 'payments',         bgClass: 'bg-emerald-100', textClass: 'text-emerald-600' },
   CLOSE_TICKET_FIN:          { icon: 'task_alt',         bgClass: 'bg-green-100', textClass: 'text-green-600' },
@@ -508,8 +510,18 @@ const DecisionPanel: React.FC<DecisionPanelProps> = ({
         />
       )}
 
-      {/* Config-driven modal (non-CEO, non-schedule-interview, non-invoice, non-CFO-decision actions) */}
-      {activeModal && activeModal !== 'CEO_DECISION_IT' && activeModal !== 'CEO_DECISION_HR' && activeModal !== 'SCHEDULE_INTERVIEW' && activeModal !== 'ROUTE_TO_CFO' && activeModal !== 'CFO_DECISION' && activeModal !== 'CFO_DECISION_FIN' && hasWorkflowModalConfig(activeModal) && (
+      {/* Dedicated DCEO Decision modal (Finance Purchase Requisition — shows invoice preview) */}
+      {activeModal === 'DCEO_DECISION_FIN' && (
+        <DceoDecisionFinModal
+          requestId={requestId}
+          attachments={attachments}
+          onSuccess={handleModalSuccess}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      {/* Config-driven modal (non-CEO, non-schedule-interview, non-invoice, non-CFO-decision, non-DCEO-decision actions) */}
+      {activeModal && activeModal !== 'CEO_DECISION_IT' && activeModal !== 'CEO_DECISION_HR' && activeModal !== 'SCHEDULE_INTERVIEW' && activeModal !== 'ROUTE_TO_CFO' && activeModal !== 'CFO_DECISION' && activeModal !== 'CFO_DECISION_FIN' && activeModal !== 'DCEO_DECISION_FIN' && hasWorkflowModalConfig(activeModal) && (
         <WorkflowActionModal
           open={!!activeModal}
           requestId={requestId}
@@ -575,6 +587,7 @@ function actionToModalKey(action: WorkflowActionType): string | null {
     ROUTE_TO_CFO_FIN: 'ROUTE_TO_CFO_FIN',
     ROUTE_TO_CFO_BP: 'ROUTE_TO_CFO_BP',
     CFO_DECISION_FIN: 'CFO_DECISION_FIN',
+    DCEO_DECISION_FIN: 'DCEO_DECISION_FIN',
     GROUP_DCEO_DECISION_FIN: 'GROUP_DCEO_DECISION_FIN',
     MARK_PAYMENT_COMPLETE_FIN: 'MARK_PAYMENT_COMPLETE_FIN',
     CLOSE_TICKET_FIN: 'CLOSE_TICKET_FIN',

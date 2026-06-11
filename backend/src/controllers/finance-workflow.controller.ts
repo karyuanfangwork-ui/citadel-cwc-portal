@@ -235,14 +235,14 @@ export const cfoDecision = async (req: Request, res: Response) => {
             const isBudgetProposal = requestType?.code === 'BUDGET_PROPOSAL';
 
             if (isBudgetProposal) {
-                // Budget Proposals: CFO approval → Finance Updating (no Group DCEO, no payment)
+                // Budget Proposals: CFO approval → Finance Updating (no DCEO, no Group DCEO, no payment)
                 newStatus = RequestStatus.FINANCE_IN_PROGRESS;
             } else if (amount > GROUP_DCEO_THRESHOLD) {
                 // Purchase Requisitions > threshold: CFO approval → Group DCEO
                 newStatus = RequestStatus.PENDING_GROUP_DCEO_APPROVAL;
             } else {
-                // Purchase Requisitions ≤ threshold: CFO approval → Payment Processing
-                newStatus = RequestStatus.PAYMENT_PROCESSING_FIN;
+                // Purchase Requisitions ≤ threshold: CFO approval → DCEO
+                newStatus = RequestStatus.PENDING_DCEO_APPROVAL_FIN;
             }
         }
 
@@ -279,8 +279,38 @@ export const cfoDecision = async (req: Request, res: Response) => {
                     });
                 }
             }
+        } else if (newStatus === RequestStatus.PENDING_DCEO_APPROVAL_FIN) {
+            // When routing to DCEO (amount ≤ threshold), reassign to DCEO and create PENDING approval record
+            const existingDceoApproval = await prisma.requestApproval.findFirst({
+                where: { requestId: id, approverType: 'DCEO', status: 'PENDING' },
+                select: { approverId: true },
+            });
+            let dceoId: string | undefined;
+            if (existingDceoApproval?.approverId) {
+                dceoId = existingDceoApproval.approverId;
+            } else {
+                const dceoUser = await prisma.user.findFirst({
+                    where: { isActive: true, executiveRole: 'DCEO' },
+                    select: { id: true },
+                });
+                dceoId = dceoUser?.id;
+            }
+            if (dceoId) {
+                cfoUpdateData.assignedToId = dceoId;
+                if (!existingDceoApproval) {
+                    await prisma.requestApproval.create({
+                        data: {
+                            requestId: id,
+                            approverType: 'DCEO',
+                            approverId: dceoId,
+                            status: 'PENDING',
+                            comments: null,
+                        },
+                    });
+                }
+            }
         } else {
-            // CFO approved (payment processing) or rejected — reassign back to Finance agent using shared reassignToTeam
+            // CFO approved (payment processing / budget) or rejected — reassign back to Finance agent using shared reassignToTeam
             await reassignToTeam(id, (await prisma.request.findUnique({ where: { id } }))!.referenceNumber, 'FINANCE', 'Finance-Workflow');
         }
 
@@ -290,7 +320,7 @@ export const cfoDecision = async (req: Request, res: Response) => {
             data: { requestId: id, approverType: 'CFO', approverId: userId, status: decision, comments: comments || null },
         });
 
-        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL ? 'Group Deputy CEO (amount > MYR ' + GROUP_DCEO_THRESHOLD + ')' : newStatus === RequestStatus.FINANCE_IN_PROGRESS ? 'Finance Updating (budget adopted)' : 'payment processing'}`;
+        const verb = decision === 'REJECTED' ? 'rejected' : `approved — routed to ${newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL ? 'Group Deputy CEO (amount > MYR ' + GROUP_DCEO_THRESHOLD + ')' : newStatus === RequestStatus.PENDING_DCEO_APPROVAL_FIN ? 'DCEO (amount ≤ MYR ' + GROUP_DCEO_THRESHOLD + ')' : newStatus === RequestStatus.FINANCE_IN_PROGRESS ? 'Finance Updating (budget adopted)' : 'payment processing'}`;
         await logActivity(id, `CFO ${verb}${comments ? ': ' + comments : ''}`, userId);
         await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
             decision,
@@ -313,10 +343,24 @@ export const cfoDecision = async (req: Request, res: Response) => {
             }
         }
 
+        // If routed to DCEO for approval, notify them
+        if (newStatus === RequestStatus.PENDING_DCEO_APPROVAL_FIN) {
+            const dceoIdForNotify = (await prisma.requestApproval.findFirst({
+                where: { requestId: id, approverType: 'DCEO', status: 'PENDING' },
+                select: { approverId: true },
+            }))?.approverId ?? (await prisma.user.findFirst({
+                where: { isActive: true, executiveRole: 'DCEO' },
+                select: { id: true },
+            }))?.id;
+            if (dceoIdForNotify) {
+                await notify({ userId: dceoIdForNotify, eventType: 'APPROVAL_REQUIRED', variables: { requestId: id, role: 'DCEO' }, relatedRequestId: id });
+            }
+        }
+
         await resumeSla(id);
 
-        // If routed to Group Deputy CEO, pause SLA again for PENDING_GROUP_DCEO_APPROVAL
-        if (newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL) {
+        // If routed to Group Deputy CEO or DCEO, pause SLA again for approval wait
+        if (newStatus === RequestStatus.PENDING_GROUP_DCEO_APPROVAL || newStatus === RequestStatus.PENDING_DCEO_APPROVAL_FIN) {
             await pauseSla(id);
         }
 
@@ -399,6 +443,81 @@ export const groupDceoDecision = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('groupDceoDecision error:', error);
         res.status(500).json({ status: 'error', message: 'Failed to process Group Deputy CEO decision' });
+    }
+};
+
+/** POST /finance-workflow/requests/:id/dceo-decision */
+export const dceoDecision = async (req: Request, res: Response) => {
+    try {
+        const id = String(req.params.id);
+        const { decision, comments } = req.body;
+        const userId = (req as any).user?.id;
+
+        if (!['APPROVED', 'REJECTED'].includes(decision)) {
+            res.status(400).json({ status: 'error', message: 'decision must be APPROVED or REJECTED' });
+            return;
+        }
+
+        const request = await prisma.request.findUnique({
+            where: { id },
+            include: {
+                approvals: {
+                    where: { approverType: 'DCEO', status: 'PENDING' },
+                },
+            },
+        });
+        if (!request) {
+            res.status(404).json({ status: 'error', message: 'Request not found' });
+            return;
+        }
+
+        if (request.status !== 'PENDING_DCEO_APPROVAL_FIN') {
+            res.status(400).json({ status: 'error', message: 'Request is not pending DCEO approval' });
+            return;
+        }
+
+        const pendingApproval = request.approvals[0];
+        if (!pendingApproval) {
+            res.status(404).json({ status: 'error', message: 'No pending DCEO approval found for this request' });
+            return;
+        }
+
+        const newStatus = decision === 'APPROVED' ? RequestStatus.DCEO_APPROVED_FIN : RequestStatus.DCEO_REJECTED_FIN;
+
+        // Reassign back to Finance agent using shared reassignToTeam
+        await reassignToTeam(id, request.referenceNumber, 'FINANCE', 'Finance-Workflow');
+        const dceoUpdateData: any = { status: newStatus };
+
+        const updated = await prisma.request.update({ where: { id }, data: dceoUpdateData });
+
+        // Update the existing PENDING approval record
+        await prisma.requestApproval.update({
+            where: { id: pendingApproval.id },
+            data: {
+                status: decision,
+                approverId: userId,
+                comments: comments || null,
+            },
+        });
+
+        const verb = decision === 'APPROVED' ? 'approved — routed to payment processing' : 'rejected';
+        await logActivity(id, `DCEO ${verb}${comments ? ': ' + comments : ''}`, userId);
+        await auditLog(req as any, 'APPROVAL_DECISION', 'request', id, {
+            decision,
+            approverType: 'DCEO',
+            newStatus,
+            previousStatus: request.status,
+            comments: comments || null,
+        }, { status: request.status });
+        await notify({ userId: request.requesterId, eventType: 'FINANCE_DCEO_DECISION', variables: { requestId: id, decision }, relatedRequestId: id });
+
+        // Resume SLA — leaving PENDING_DCEO_APPROVAL_FIN
+        await resumeSla(id);
+
+        res.json({ status: 'success', data: { request: updated } });
+    } catch (error) {
+        console.error('dceoDecision error:', error);
+        res.status(500).json({ status: 'error', message: 'Failed to process DCEO decision' });
     }
 };
 
