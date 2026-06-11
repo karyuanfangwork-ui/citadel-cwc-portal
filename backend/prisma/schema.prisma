@@ -204,6 +204,9 @@ model User {
   // P1-6 — Deviation approvals (approved/rejected by)
   approvedDeviations          DeviationApproval[]    @relation("DeviationApprovedBy")
   rejectedDeviations          DeviationApproval[]    @relation("DeviationRejectedBy")
+  // P1-2 — PDPA consent records
+  grantedConsents             ConsentRecord[]         @relation("ConsentGrantedBy")
+  withdrawnConsents           ConsentRecord[]         @relation("ConsentWithdrawnBy")
   // §F23 — FX Rate entries
   createdFxRates             CreditFxRate[]         @relation("FxRateCreatedBy")
   // §7.1 — Collateral Cross-Linking
@@ -2762,6 +2765,20 @@ enum DeviationStatus {
   EXPIRED
 }
 
+// P1-2 — PDPA Consent Record
+enum ConsentPurpose {
+  PROCESSING          // General data processing
+  BUREAU_PULL         // Credit bureau check (CCRIS/CTOS)
+  THIRD_PARTY_SHARING // Sharing with third parties
+  MARKETING           // Marketing communications
+}
+
+enum ConsentStatus {
+  ACTIVE
+  WITHDRAWN
+  EXPIRED
+}
+
 // §2.8 — AML Rescreen Event Log
 enum AmlRescreenOutcome {
   CLEAR
@@ -2865,6 +2882,36 @@ model DeviationApproval {
   @@index([status, reviewDate])
   @@index([policyRule])
   @@map("deviation_approvals")
+}
+
+// P1-2 — PDPA Consent Record
+model ConsentRecord {
+  id                  String          @id @default(uuid()) @db.Uuid
+  subjectId           String          @map("subject_id") @db.Uuid   // BorrowerProfile or CrmContact ID
+  subjectType         String          @map("subject_type") @db.VarChar(20) // "BORROWER" | "CONTACT"
+  purpose             ConsentPurpose
+  status              ConsentStatus   @default(ACTIVE)
+  consentText         String?         @map("consent_text") @db.Text    // Versioned consent text shown to user
+  consentTextVersion  String?         @map("consent_text_version") @db.VarChar(20)
+  evidence            String?         @db.VarChar(50)   // How consent was captured: "WEB_FORM", "VERBAL", "DOCUMENT"
+  channel             String?         @db.VarChar(50)   // Where consent was given: "PORTAL", "BRANCH", "PHONE"
+  grantedAt           DateTime        @default(now()) @map("granted_at") @db.Timestamp(6)
+  grantedById         String?         @map("granted_by_id") @db.Uuid
+  withdrawnAt         DateTime?       @map("withdrawn_at") @db.Timestamp(6)
+  withdrawnById       String?         @map("withdrawn_by_id") @db.Uuid
+  withdrawalReason    String?         @map("withdrawal_reason") @db.Text
+  expiresAt           DateTime?       @map("expires_at") @db.Timestamp(6)    // Optional expiry
+  applicationId       String?         @map("application_id") @db.Uuid   // Link to application if purpose-specific
+  createdAt           DateTime        @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt           DateTime        @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  grantedBy           User?           @relation("ConsentGrantedBy", fields: [grantedById], references: [id])
+  withdrawnBy         User?           @relation("ConsentWithdrawnBy", fields: [withdrawnById], references: [id])
+
+  @@unique([subjectId, subjectType, purpose, status]) // One active consent per purpose per subject
+  @@index([subjectId, purpose, status])
+  @@index([applicationId])
+  @@map("consent_records")
 }
 
 // Committee vote — kept for backward compat; newer code uses CommitteeVoteChoice
