@@ -200,6 +200,8 @@ model User {
   fatcaCrsVerified            FatcaCrsDeclaration[]   @relation("FatcaVerifiedBy")
   // §6.2 — Credit Policy Limits
   createdPolicyLimits        CreditPolicyLimit[]     @relation("PolicyLimitCreatedBy")
+  // §F23 — FX Rate entries
+  createdFxRates             CreditFxRate[]         @relation("FxRateCreatedBy")
   // §7.1 — Collateral Cross-Linking
   linkedCollateral          CollateralApplicationLink[] @relation("CollateralLinkedBy")
   // AI Governance Relations
@@ -2853,6 +2855,7 @@ enum SignalType {
   FINANCIAL_DETERIORATION
   COLLATERAL_VALUATION_STALE
   INSURANCE_EXPIRY
+  CONDITION_OVERDUE
   OTHER
 }
 
@@ -4066,6 +4069,7 @@ model Condition {
   fulfilledBy     User?             @relation("ConditionFulfilledBy", fields: [fulfilledById], references: [id])
   waivedBy        User?             @relation("ConditionWaivedBy", fields: [waivedById], references: [id])
   decision        CreditDecision?   @relation("CreditDecisionConditions", fields: [decisionId], references: [id])
+  earlyWarningSignals EarlyWarningSignal[]  @relation("EwsCondition")
   
   @@index([applicationId])
   @@index([conditionType])
@@ -4532,6 +4536,7 @@ model CovenantDefinition {
 
   application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   tests         CovenantTest[]
+  earlyWarningSignals EarlyWarningSignal[]     @relation("EwsCovenant")
 
   @@index([applicationId])
   @@index([isActive])
@@ -4585,13 +4590,21 @@ model EarlyWarningSignal {
   closedAt      DateTime?           @map("closed_at") @db.Timestamp(6)
   resolvedById  String?             @map("resolved_by_id") @db.Uuid
 
+  // FK-based deduplication — links EWS to the source covenant or condition
+  covenantId    String?             @map("covenant_id") @db.Uuid
+  conditionId   String?             @map("condition_id") @db.Uuid
+
   application   CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   resolvedBy    User?             @relation(fields: [resolvedById], references: [id])
+  covenant      CovenantDefinition? @relation("EwsCovenant", fields: [covenantId], references: [id])
+  condition     Condition?          @relation("EwsCondition", fields: [conditionId], references: [id])
 
   @@index([applicationId])
   @@index([severity])
   @@index([signalType])
   @@index([openedAt])
+  @@index([covenantId])
+  @@index([conditionId])
   @@map("early_warning_signals")
 }
 
@@ -5027,4 +5040,23 @@ model AiOverride {
 
   @@index([interactionId])
   @@map("ai_overrides")
+}
+
+// ============================================================================
+// §F23 — FX Rate Table for exposure/limit aggregation in base currency (MYR)
+// ============================================================================
+
+model CreditFxRate {
+  id            String   @id @default(uuid()) @db.Uuid
+  currency      String   // ISO 4217, quote vs MYR base
+  rateToBase    Decimal  @db.Decimal(18, 8)
+  effectiveDate DateTime @map("effective_date") @db.Timestamp(6)
+  createdById   String?  @map("created_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  createdBy User? @relation("FxRateCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([currency, effectiveDate])
+  @@index([currency, effectiveDate(sort: Desc)])
+  @@map("credit_fx_rates")
 }
