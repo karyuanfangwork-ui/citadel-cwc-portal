@@ -3988,6 +3988,10 @@ model Guarantee {
   guarantorRiskRatingSnapshot String?  @map("guarantor_risk_rating_snapshot") @db.VarChar(20)
   remarks                     String?  @db.Text
 
+  // P1-5 — Guarantor capacity checks
+  isRelatedParty    Boolean  @default(false) @map("is_related_party")   // Is guarantor also a director/shareholder?
+  relatedPartyRole  String?  @map("related_party_role") @db.VarChar(20)  // "DIRECTOR", "SHAREHOLDER", "BOTH"
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamp(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
 

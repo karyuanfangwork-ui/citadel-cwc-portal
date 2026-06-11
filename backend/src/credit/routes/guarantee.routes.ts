@@ -82,4 +82,15 @@ router.delete(
   guaranteeController.delete,
 );
 
+/**
+ * GET /guarantees/:id/capacity
+ * P1-5 — Check guarantor capacity (aggregate exposure, utilization, related-party flag)
+ * Requires: credit:read
+ */
+router.get(
+  '/guarantees/:id/capacity',
+  requirePermission('credit:read'),
+  guaranteeController.checkCapacity,
+);
+
 export default router;

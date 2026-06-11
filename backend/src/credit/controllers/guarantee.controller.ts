@@ -69,6 +69,16 @@ class GuaranteeController {
     }
     res.json({ status: 'success', message: 'Guarantee deleted successfully' });
   });
+
+  /**
+   * GET /guarantees/:id/capacity
+   * P1-5 — Check guarantor capacity (aggregate exposure, utilization, related-party flag)
+   */
+  checkCapacity = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const id = String(req.params.id);
+    const result = await guaranteeService.checkGuarantorCapacity(id);
+    res.json({ status: 'success', data: result });
+  });
 }
 
 export const guaranteeController = new GuaranteeController();
