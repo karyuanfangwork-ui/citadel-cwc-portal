@@ -1939,6 +1939,7 @@ export interface TurnaroundAppRow {
   submittedAt: string;
   firstApprovalAt: string;
   turnaroundDays: number;
+  decision: string;
 }
 
 export interface TurnaroundGroup {

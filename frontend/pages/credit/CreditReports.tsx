@@ -229,7 +229,7 @@ const TurnaroundReportView: React.FC<{
 
   const groupLabels: Record<string, string> = { product: 'Product Type', month: 'Month', rm: 'RM' };
   const trendArrow = (groups: typeof data.summary.groups, idx: number) => {
-    if (idx === 0 || groups.length < 2) return '—';
+    if (groupBy !== 'month' || idx === 0 || groups.length < 2) return '—';
     const prev = groups[idx - 1].avgDays;
     const curr = groups[idx].avgDays;
     if (curr < prev) return <span className="text-green-600">↓</span>;
@@ -342,8 +342,9 @@ const TurnaroundReportView: React.FC<{
                     <th className="p-2 text-left">Product</th>
                     <th className="p-2 text-left">RM</th>
                     <th className="p-2 text-right">Submitted</th>
-                    <th className="p-2 text-right">Approved</th>
+                    <th className="p-2 text-right">Decision Date</th>
                     <th className="p-2 text-right font-bold">Days</th>
+                    <th className="p-2 text-left">Decision</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -363,6 +364,11 @@ const TurnaroundReportView: React.FC<{
                         ) : (
                           <span className="text-green-600">{a.turnaroundDays}d</span>
                         )}
+                      </td>
+                      <td className="p-2">
+                        <span className={`inline-block px-1.5 py-0.5 text-xs font-semibold rounded ${
+                          a.decision === 'APPROVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        }`}>{a.decision === 'APPROVE' ? 'Approved' : 'Rejected'}</span>
                       </td>
                     </tr>
                   ))}

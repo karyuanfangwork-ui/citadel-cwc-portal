@@ -70,6 +70,17 @@ router.get('/pipeline', creditExportLimiter, requirePermission('credit:read'), a
   if (format !== 'json') {
     const headers = ['State', 'Count', 'Avg Days In State'];
     const rows = data.states.map(s => [s.state, s.count, s.avgDaysInState] as (string | number | null)[]);
+    // Add SLA breach summary row
+    rows.push([] as (string | number | null)[]);
+    rows.push(['SLA Breaches', data.slaBreachCount, ''] as (string | number | null)[]);
+    // Add breach detail line items
+    if (data.slaBreaches.length > 0) {
+      rows.push([] as (string | number | null)[]);
+      rows.push(['Application No', 'Borrower', 'Current State', 'Days Overdue', 'Policy'] as (string | number | null)[]);
+      for (const b of data.slaBreaches) {
+        rows.push([b.applicationNo, b.borrowerName, b.currentState, b.daysOverdue, b.policyName] as (string | number | null)[]);
+      }
+    }
     return handleExport(res, format as 'csv' | 'xlsx', headers, rows, 'pipeline-report', getUserId(req), 'pipeline', filters);
   }
 
@@ -89,11 +100,27 @@ router.get('/exposure', creditExportLimiter, requirePermission('credit:read'), a
   const data = await dashboardService.getExposureDashboard(filters);
 
   if (format !== 'json') {
-    const headers = ['Type', 'Name', 'Sector', 'Rating', 'Exposure'];
-    const rows = [
-      ...data.topBorrowers.map(b => ['Borrower', b.borrowerName, b.industry || 'Unknown', b.rating || 'NR', b.totalExposure] as (string | number | null)[]),
-      ...data.sectorBreakdown.map(s => ['Sector', s.sector, '-', s.count, s.totalExposure] as (string | number | null)[]),
-    ];
+    // Separate sections for borrowers and sectors with correct headers
+    const headers = ['Section', 'Name', 'Sector', 'Rating', 'Exposure', 'Borrowers'];
+    const rows: (string | number | null)[][] = [];
+
+    // Borrower section
+    rows.push(['--- Top Borrowers ---', '', '', '', '', ''] as (string | number | null)[]);
+    rows.push(['Borrower', 'Name', 'Sector', 'Rating', 'Exposure', ''] as (string | number | null)[]);
+    for (const b of data.topBorrowers) {
+      rows.push(['Borrower', b.borrowerName, b.industry || 'Unknown', b.rating || 'NR', b.totalExposure, ''] as (string | number | null)[]);
+    }
+
+    // Blank separator
+    rows.push([] as (string | number | null)[]);
+
+    // Sector section
+    rows.push(['--- Sector Breakdown ---', '', '', '', '', ''] as (string | number | null)[]);
+    rows.push(['Sector', 'Sector', '', '', 'Exposure', 'Borrowers'] as (string | number | null)[]);
+    for (const s of data.sectorBreakdown) {
+      rows.push(['Sector', s.sector, '', '', s.totalExposure, s.count] as (string | number | null)[]);
+    }
+
     return handleExport(res, format as 'csv' | 'xlsx', headers, rows, 'exposure-report', getUserId(req), 'exposure', filters);
   }
 
@@ -131,7 +158,7 @@ router.get('/approval-turnaround', creditExportLimiter, requirePermission('credi
   });
 
   if (format !== 'json') {
-    const headers = ['Application No', 'Borrower', 'Product Type', 'RM', 'Submitted', 'First Approval', 'Turnaround Days'];
+    const headers = ['Application No', 'Borrower', 'Product Type', 'RM', 'Submitted', 'Decision Date', 'Turnaround Days', 'Decision'];
     const rows = data.applications.map(a => [
       a.applicationNo,
       a.borrowerName,
@@ -140,6 +167,7 @@ router.get('/approval-turnaround', creditExportLimiter, requirePermission('credi
       a.submittedAt.slice(0, 10),
       a.firstApprovalAt.slice(0, 10),
       a.turnaroundDays,
+      a.decision,
     ] as (string | number | null)[]);
     return handleExport(res, format as 'csv' | 'xlsx', headers, rows, 'approval-turnaround-report', getUserId(req), 'approval-turnaround', filterParams as Record<string, unknown>);
   }

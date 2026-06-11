@@ -125,6 +125,7 @@ export interface TurnaroundAppRow {
   submittedAt: string;
   firstApprovalAt: string;
   turnaroundDays: number;
+  decision: string; // 'APPROVE' | 'REJECT'
 }
 
 export interface TurnaroundGroup {
@@ -681,9 +682,15 @@ class DashboardService {
       ratingMap.set(rating, entry);
     }
 
+    const RATING_ORDER = ['AAA', 'AA', 'A', 'BBB', 'BB', 'B', 'CCC', 'CC', 'C', 'D', 'NR'];
+
     const ratingDistribution: RatingDistribution[] = Array.from(ratingMap.entries())
       .map(([rating, data]) => ({ rating, ...data }))
-      .sort((a, b) => a.rating.localeCompare(b.rating));
+      .sort((a, b) => {
+        const ai = RATING_ORDER.indexOf(a.rating);
+        const bi = RATING_ORDER.indexOf(b.rating);
+        return (ai === -1 ? RATING_ORDER.length : ai) - (bi === -1 ? RATING_ORDER.length : bi);
+      });
 
     const totalPortfolio = borrowerExposures.reduce((sum, b) => sum + b.totalExposure, 0);
 
@@ -850,7 +857,7 @@ class DashboardService {
     if (filters?.rmId) where.assignedRmId = filters.rmId;
     if (filters?.branchId) where.branchId = filters.branchId;
 
-    // Fetch relevant applications with their APPROVE decisions
+    // Fetch relevant applications with their first final decision (APPROVE or REJECT)
     const applicationsRaw = await prisma.creditApplication.findMany({
       where,
       select: {
@@ -870,8 +877,8 @@ class DashboardService {
           select: { id: true, firstName: true, lastName: true },
         },
         decisions: {
-          where: { decisionType: 'APPROVE' },
-          select: { decisionAt: true },
+          where: { decisionType: { in: ['APPROVE', 'REJECT'] } },
+          select: { decisionType: true, decisionAt: true },
           orderBy: { decisionAt: 'asc' },
           take: 1,
         },
@@ -879,7 +886,7 @@ class DashboardService {
       orderBy: { submittedAt: 'desc' },
     }) as any[];
 
-    // Calculate turnaround for each application
+    // Calculate turnaround for each application — include both APPROVE and REJECT
     const appRows: TurnaroundAppRow[] = [];
 
     for (const app of applicationsRaw) {
@@ -889,12 +896,20 @@ class DashboardService {
         ?? bp?.name
         ?? 'Unknown';
 
-      // Only include apps that have at least one APPROVE decision
+      // Only include apps that have at least one final decision (APPROVE or REJECT)
       if (!app.decisions || app.decisions.length === 0) continue;
       if (!app.submittedAt) continue;
 
-      const firstApprovalAt = app.decisions[0].decisionAt;
+      // Defense-in-depth: pick the first APPROVE or REJECT decision, even if
+      // the Prisma query didn't perfectly filter (e.g. in mock/tests)
+      const firstFinalDecision = app.decisions.find(
+        (d: any) => d.decisionType === 'APPROVE' || d.decisionType === 'REJECT',
+      );
+      if (!firstFinalDecision) continue;
+
+      const firstApprovalAt = firstFinalDecision.decisionAt;
       const turnaroundDays = daysBetween(app.submittedAt, firstApprovalAt);
+      const decisionType = firstFinalDecision.decisionType as string;
 
       appRows.push({
         applicationId: app.id,
@@ -905,6 +920,7 @@ class DashboardService {
         submittedAt: app.submittedAt.toISOString(),
         firstApprovalAt: firstApprovalAt.toISOString(),
         turnaroundDays: Math.max(0, turnaroundDays),
+        decision: decisionType,
       });
     }
 
@@ -952,13 +968,17 @@ class DashboardService {
         medianDays: Math.round(percentile(days, 50) * 10) / 10,
         p90Days: Math.round(percentile(days, 90) * 10) / 10,
       }))
-      .sort((a, b) => a.key.localeCompare(b.key));
+      .sort((a, b) => {
+        // Sort chronologically for month groups, alphabetically for others
+        if (groupKey === 'month') return a.key.localeCompare(b.key);
+        return a.key.localeCompare(b.key);
+      });
 
     // Overall aggregates
     const allDays = appRows.map(r => r.turnaroundDays);
     const overall: TurnaroundGroup = {
       key: 'overall',
-      label: 'Overall',
+      label: 'Decisions',
       count: allDays.length,
       avgDays: avg(allDays),
       medianDays: Math.round(percentile(allDays, 50) * 10) / 10,
