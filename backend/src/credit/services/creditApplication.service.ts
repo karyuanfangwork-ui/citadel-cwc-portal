@@ -476,8 +476,25 @@ class CreditApplicationService {
       prisma.creditApplication.count({ where }),
     ]);
 
+    // §2.7 — Attach SLA breach flag from CreditSlaBreach table (single source of truth)
+    const appIds = applications.map(a => a.id);
+    const breachedAppIds = appIds.length > 0
+      ? new Set(
+          (await prisma.creditSlaBreach.findMany({
+            where: { resolvedAt: null, applicationId: { in: appIds } },
+            select: { applicationId: true },
+            distinct: ['applicationId'],
+          })).map(b => b.applicationId),
+        )
+      : new Set<string>();
+
+    const applicationsWithBreach = applications.map(app => ({
+      ...app,
+      _slaBreached: breachedAppIds.has(app.id),
+    }));
+
     return {
-      applications,
+      applications: applicationsWithBreach,
       pagination: {
         page,
         limit,

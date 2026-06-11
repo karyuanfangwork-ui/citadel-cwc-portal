@@ -6,6 +6,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import StateBadge from '../src/components/ui/StateBadge';
 import EditBorrowerModal from '../src/components/credit/EditBorrowerModal';
+import PartyFormModal, { PartyRole } from '../src/components/credit/PartyFormModal';
 import toast from 'react-hot-toast';
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -110,6 +111,7 @@ const BorrowerProfileDetail: React.FC = () => {
   const [loadingExposure, setLoadingExposure] = useState(false);
   const [showLinkCrm, setShowLinkCrm] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [partyModal, setPartyModal] = useState<{ open: boolean; role: PartyRole }>({ open: false, role: 'director' });
 
   const canWrite = hasPermission(user, 'credit:write');
   const canReview = hasPermission(user, 'credit:approve');
@@ -449,7 +451,7 @@ const BorrowerProfileDetail: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Directors</h3>
               {canWrite && (
-                <button className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+                <button onClick={() => setPartyModal({ open: true, role: 'director' })} className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   <span className="material-symbols-outlined text-base">add</span> Add Director
                 </button>
@@ -506,7 +508,7 @@ const BorrowerProfileDetail: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Shareholders</h3>
               {canWrite && (
-                <button className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+                <button onClick={() => setPartyModal({ open: true, role: 'shareholder' })} className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   <span className="material-symbols-outlined text-base">add</span> Add Shareholder
                 </button>
@@ -560,7 +562,7 @@ const BorrowerProfileDetail: React.FC = () => {
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider">Ultimate Beneficial Owners</h3>
               {canWrite && (
-                <button className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
+                <button onClick={() => setPartyModal({ open: true, role: 'ubo' })} className="flex items-center gap-1.5 bg-brand-700 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
                   style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
                   <span className="material-symbols-outlined text-base">add</span> Add UBO
                 </button>
@@ -774,6 +776,20 @@ const BorrowerProfileDetail: React.FC = () => {
             isOpen={showEditModal}
             onClose={() => setShowEditModal(false)}
             onSaved={(updated) => { setProfile(updated); setShowEditModal(false); }}
+          />
+        )}
+
+        {/* Add Director / Shareholder / UBO Modal */}
+        {profile && (
+          <PartyFormModal
+            borrowerProfileId={profile.id}
+            role={partyModal.role}
+            open={partyModal.open}
+            onClose={() => setPartyModal({ open: false, role: 'director' })}
+            onCreated={() => {
+              setPartyModal({ open: false, role: 'director' });
+              fetchProfile(); // refresh to show new party
+            }}
           />
         )}
       </div>

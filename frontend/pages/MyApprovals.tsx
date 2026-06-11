@@ -12,13 +12,16 @@ import RiskBadge from '../src/components/credit/RiskBadge';
 import ApprovalQuickView from '../src/components/credit/ApprovalQuickView';
 import { useIsMobile } from '../src/hooks/useIsMobile';
 
-function getUrgency(createdAt: string, state: ApplicationState): { level: 'overdue' | 'urgent' | 'normal'; text: string; color: string; icon: string } {
+function getUrgency(createdAt: string, state: ApplicationState, slaBreached?: boolean): { level: 'overdue' | 'urgent' | 'normal'; text: string; color: string; icon: string } {
   const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / 86400000);
-  const slaMap: Partial<Record<ApplicationState, number>> = {
+  // SLA breach comes from the API (creditSlaBreach table) — no more hardcoded map
+  if (slaBreached) return { level: 'overdue', text: 'Overdue', color: '#dc2626', icon: 'error' };
+  // Fallback heuristic for states without a breach record yet
+  const fallbackDays: Partial<Record<ApplicationState, number>> = {
     COMMITTEE_REVIEW: 2, KYC_REVIEW: 3, UNDERWRITING: 5, CREDIT_ASSESSMENT: 5,
     SUBMITTED: 3, OFFER: 5,
   };
-  const limit = slaMap[state];
+  const limit = fallbackDays[state];
   if (!limit) return { level: 'normal', text: `${days}d`, color: '#6b7280', icon: 'schedule' };
   const remaining = limit - days;
   if (remaining <= 0) return { level: 'overdue', text: 'Overdue', color: '#dc2626', icon: 'error' };
@@ -75,18 +78,18 @@ const MyApprovals: React.FC = () => {
     setApplications(prev => prev.filter(a => a.id !== applicationId));
   }, []);
 
-  // Group by urgency
+  // Group by urgency — _slaBreached comes from the API (creditSlaBreach table)
   const overdue = applications.filter(a => {
     const state = (a.state || a.status) as ApplicationState;
-    return getUrgency(a.createdAt, state).level === 'overdue';
+    return getUrgency(a.createdAt, state, (a as any)._slaBreached).level === 'overdue';
   });
   const urgent = applications.filter(a => {
     const state = (a.state || a.status) as ApplicationState;
-    return getUrgency(a.createdAt, state).level === 'urgent';
+    return getUrgency(a.createdAt, state, (a as any)._slaBreached).level === 'urgent';
   });
   const normal = applications.filter(a => {
     const state = (a.state || a.status) as ApplicationState;
-    return getUrgency(a.createdAt, state).level === 'normal';
+    return getUrgency(a.createdAt, state, (a as any)._slaBreached).level === 'normal';
   });
 
   const openQuickView = (app: CreditApplication) => {
@@ -96,7 +99,7 @@ const MyApprovals: React.FC = () => {
 
   const renderCard = (app: CreditApplication) => {
     const state = (app.state || app.status) as ApplicationState;
-    const urgency = getUrgency(app.createdAt, state);
+    const urgency = getUrgency(app.createdAt, state, (app as any)._slaBreached);
     const borrowerName = app.borrowerProfile
       ? (app.borrowerProfile.account?.name ||
         (app.borrowerProfile.contact

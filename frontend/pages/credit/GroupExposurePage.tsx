@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import CreditNav from '../../src/components/CreditNav';
 import { useAuth } from '../../src/context/AuthContext';
@@ -8,6 +8,7 @@ import {
   RelatedPartyGroup,
   GroupExposureData,
 } from '../../src/services/credit.service';
+import creditService from '../../src/services/credit.service';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -147,23 +148,53 @@ const AddMemberModal: React.FC<{
   onClose: () => void;
   onAdded: () => void;
 }> = ({ open, groupId, onClose, onAdded }) => {
-  const [borrowerProfileId, setBorrowerProfileId] = useState('');
+  const [selectedId, setSelectedId] = useState('');
   const [role, setRole] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchResults, setSearchResults] = useState<{ id: string; name: string }[]>([]);
+  const [searching, setSearching] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounced borrower search
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    if (!search.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    searchTimerRef.current = setTimeout(async () => {
+      try {
+        setSearching(true);
+        const { profiles } = await creditService.listBorrowerProfiles({ search: search.trim(), limit: 10 });
+        setSearchResults(profiles.map((p: any) => ({
+          id: p.id,
+          name: p.account?.name || [p.contact?.firstName, p.contact?.lastName].filter(Boolean).join(' ') || p.name || p.id,
+        })));
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [search]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!borrowerProfileId.trim()) return;
+    if (!selectedId) return;
     try {
       setSubmitting(true);
       setError('');
       await relatedPartyGroupApi.addMember(groupId, {
-        borrowerProfileId: borrowerProfileId.trim(),
+        borrowerProfileId: selectedId,
         role: role.trim() || null,
       });
-      setBorrowerProfileId('');
+      setSelectedId('');
       setRole('');
+      setSearch('');
+      setSearchResults([]);
       onAdded();
       onClose();
     } catch (err: any) {
@@ -175,6 +206,8 @@ const AddMemberModal: React.FC<{
 
   if (!open) return null;
 
+  const selectedName = searchResults.find(r => r.id === selectedId)?.name || '';
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
@@ -182,15 +215,33 @@ const AddMemberModal: React.FC<{
         {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm mb-3">{error}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[#44546f] mb-1">Borrower Profile ID *</label>
+            <label className="block text-sm font-medium text-[#44546f] mb-1">Search Borrower *</label>
             <input
               type="text"
-              value={borrowerProfileId}
-              onChange={(e) => setBorrowerProfileId(e.target.value)}
-              className="w-full border border-[#d0d7de] rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#0052cc]"
-              placeholder="UUID of the borrower profile"
-              required
+              value={selectedId ? selectedName : search}
+              onChange={(e) => { if (selectedId) { setSelectedId(''); setSearch(e.target.value); } else { setSearch(e.target.value); } }}
+              className="w-full border border-[#d0d7de] rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0052cc]"
+              placeholder="Type to search by name…"
+              required={!selectedId}
             />
+            {searching && <p className="text-xs text-[#44546f] mt-1">Searching…</p>}
+            {searchResults.length > 0 && !selectedId && (
+              <ul className="border border-[#d0d7de] rounded-lg mt-1 max-h-40 overflow-y-auto bg-white">
+                {searchResults.map(r => (
+                  <li key={r.id} onClick={() => { setSelectedId(r.id); setSearch(''); }}
+                    className="px-3 py-2 text-sm cursor-pointer hover:bg-[#0052cc]/5 border-b border-[#d0d7de] last:border-b-0">
+                    <span className="font-medium">{r.name}</span>
+                    <span className="text-[#44546f] ml-2 text-xs font-mono">{r.id.slice(0, 8)}…</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {selectedId && (
+              <div className="flex items-center gap-2 mt-1 text-sm text-[#0052cc]">
+                <span className="font-medium">{selectedName}</span>
+                <button type="button" onClick={() => setSelectedId('')} className="text-xs text-red-500 hover:underline">Clear</button>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-[#44546f] mb-1">Role in Group</label>
@@ -212,7 +263,7 @@ const AddMemberModal: React.FC<{
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-[#44546f] hover:text-[#101418]">Cancel</button>
-            <button type="submit" disabled={submitting || !borrowerProfileId.trim()} className="px-4 py-2 bg-[#0052cc] text-white text-sm font-bold rounded-lg hover:bg-[#0043a8] disabled:opacity-50">
+            <button type="submit" disabled={submitting || !selectedId} className="px-4 py-2 bg-[#0052cc] text-white text-sm font-bold rounded-lg hover:bg-[#0043a8] disabled:opacity-50">
               {submitting ? 'Adding…' : 'Add Member'}
             </button>
           </div>

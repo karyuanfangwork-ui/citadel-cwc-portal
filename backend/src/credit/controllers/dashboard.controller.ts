@@ -82,6 +82,7 @@ class DashboardController {
       rmId: req.query.rmId as string | undefined,
       borrowerGroupId: req.query.borrowerGroupId as string | undefined,
       riskRating: req.query.riskRating as string | undefined,
+      branchId: req.query.branchId as string | undefined,
     };
     const result = await dashboardService.getExposureSummary(filters);
     res.json({ status: 'success', data: result });

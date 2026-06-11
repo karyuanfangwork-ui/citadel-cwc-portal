@@ -16,6 +16,11 @@ export interface CreateDirectorData {
   appointmentDate?: string | null;
   resignationDate?: string | null;
   isExecutive?: boolean;
+  // Phase 4 fields
+  dateOfBirth?: string | null;
+  nationality?: string | null;
+  experienceQualification?: string | null;
+  isKeyManagement?: boolean;
 }
 
 export interface UpdateDirectorData {
@@ -26,6 +31,11 @@ export interface UpdateDirectorData {
   appointmentDate?: string | null;
   resignationDate?: string | null;
   isExecutive?: boolean;
+  // Phase 4 fields
+  dateOfBirth?: string | null;
+  nationality?: string | null;
+  experienceQualification?: string | null;
+  isKeyManagement?: boolean;
 }
 
 export interface ListDirectorsOptions {
@@ -133,6 +143,11 @@ class DirectorService {
       appointmentDate: data.appointmentDate ? new Date(data.appointmentDate) : undefined,
       resignationDate: data.resignationDate ? new Date(data.resignationDate) : undefined,
       isExecutive: data.isExecutive ?? false,
+      // Phase 4 fields
+      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : undefined,
+      nationality: data.nationality ?? undefined,
+      experienceQualification: data.experienceQualification ?? undefined,
+      isKeyManagement: data.isKeyManagement ?? false,
       borrowerProfile: { connect: { id: data.borrowerProfileId } },
       ...(data.contactId && { contact: { connect: { id: data.contactId } } }),
     };

@@ -168,7 +168,7 @@ const CreditDashboard: React.FC = () => {
     if (activeTab === 'exposure') {
       Promise.all([
         dashboardApi.getExposureDashboard(branchFilter ? { branchId: branchFilter } : undefined),
-        dashboardApi.getExposureSummary(),
+        dashboardApi.getExposureSummary(branchFilter ? { branchId: branchFilter } : undefined),
       ])
         .then(([dashboard, summary]: any[]) => {
           setExposure(dashboard.data?.data ?? dashboard.data ?? dashboard);

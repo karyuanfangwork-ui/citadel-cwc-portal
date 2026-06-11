@@ -736,6 +736,22 @@ const creditService = {
     await apiClient.delete(`/credit/borrowers/${id}`);
   },
 
+  // Director / Shareholder / UBO CRUD on borrower profile
+  async createDirector(borrowerProfileId: string, data: { name: string; nricPassport?: string | null; position?: string | null; appointmentDate?: string | null; isExecutive?: boolean; dateOfBirth?: string | null; nationality?: string | null; experienceQualification?: string | null; isKeyManagement?: boolean }) {
+    const res = await apiClient.post(`/credit/borrowers/${borrowerProfileId}/directors`, data);
+    return res.data.data.director as Director;
+  },
+
+  async createShareholder(borrowerProfileId: string, data: { name: string; nricPassport?: string | null; shareholdingPct?: number | null; shareClass?: string | null; numberOfShares?: number | null; dateOfBirthOrIncorporation?: string | null; nationality?: string | null; businessRegNo?: string | null }) {
+    const res = await apiClient.post(`/credit/borrowers/${borrowerProfileId}/shareholders`, data);
+    return res.data.data.shareholder as Shareholder;
+  },
+
+  async createUbo(borrowerProfileId: string, data: { name: string; nricPassport?: string | null; ownershipPct: number; isPep?: boolean; sourceOfWealth?: string | null; countryOfResidence?: string | null }) {
+    const res = await apiClient.post(`/credit/borrowers/${borrowerProfileId}/ubos`, data);
+    return res.data.data.ubo as UltimateBeneficialOwner;
+  },
+
   // Documents
   async listDocuments(borrowerProfileId: string) {
     const res = await apiClient.get(`/credit/borrowers/${borrowerProfileId}/documents`);
@@ -1861,7 +1877,7 @@ export const dashboardApi = {
   getExposureDashboard: (params?: { branchId?: string }) => apiClient.get('/credit/dashboard/exposure', { params }),
   getCommitteeCalendar: () => apiClient.get('/credit/dashboard/committee-calendar'),
   // §2.6 — Exposure Summary
-  getExposureSummary: async (filters?: { rmId?: string; borrowerGroupId?: string; riskRating?: string }) => {
+  getExposureSummary: async (filters?: { rmId?: string; borrowerGroupId?: string; riskRating?: string; branchId?: string }) => {
     const res = await apiClient.get('/credit/dashboard/exposure-summary', { params: filters });
     return res.data.data as ExposureSummary;
   },

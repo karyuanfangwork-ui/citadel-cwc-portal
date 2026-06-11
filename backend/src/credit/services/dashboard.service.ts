@@ -146,29 +146,6 @@ export interface TurnaroundResult {
   };
 }
 
-// ---------------------------------------------------------------------------
-// SLA thresholds per state (business days) — kept simple for Sprint 5
-// ---------------------------------------------------------------------------
-
-const SLA_DAYS_BY_STATE: Record<string, number> = {
-  DRAFT: 999,
-  SUBMITTED: 2,
-  KYC_REVIEW: 3,
-  KYC_APPROVED: 1,
-  KYC_REJECTED: 999,
-  UNDERWRITING: 5,
-  CREDIT_ASSESSMENT: 5,
-  COMMITTEE_REVIEW: 3,
-  APPROVED: 2,
-  REJECTED: 999,
-  OFFER: 3,
-  ACCEPTED: 2,
-  DISBURSED: 999,
-  ACTIVE: 999,
-  CLOSED: 999,
-  WITHDRAWN: 999,
-};
-
 // States that require approval action
 const APPROVAL_PENDING_STATES: ApplicationState[] = [
   'UNDERWRITING' as ApplicationState,
@@ -232,11 +209,11 @@ class DashboardService {
     });
 
     // Group by state
-    const stateMap = new Map<string, { count: number; totalDays: number; breached: number }>();
+    const stateMap = new Map<string, { count: number; totalDays: number }>();
 
     for (const app of applications) {
       const st = app.state as string;
-      const entry = stateMap.get(st) ?? { count: 0, totalDays: 0, breached: 0 };
+      const entry = stateMap.get(st) ?? { count: 0, totalDays: 0 };
       entry.count++;
 
       // Calculate days in current state using updatedAt for time in current state
@@ -244,12 +221,6 @@ class DashboardService {
       const refDate = app.updatedAt ?? app.createdAt;
       const daysInState = daysBetween(refDate, new Date());
       entry.totalDays += Math.max(0, daysInState);
-
-      // Check SLA breach
-      const slaLimit = SLA_DAYS_BY_STATE[st] ?? 999;
-      if (daysInState > slaLimit) {
-        entry.breached++;
-      }
 
       stateMap.set(st, entry);
     }
@@ -260,11 +231,29 @@ class DashboardService {
       avgDaysInState: data.count > 0 ? Math.round((data.totalDays / data.count) * 10) / 10 : 0,
     }));
 
-    const slaBreachCount = Array.from(stateMap.values()).reduce((sum, d) => sum + d.breached, 0);
+    // Build application-level filter for SLA breach queries (branch + date)
+    const applicationFilter: any = { deletedAt: null };
+    if (filters?.branchId) applicationFilter.branchId = filters.branchId;
+    if (filters?.dateFrom || filters?.dateTo) {
+      applicationFilter.createdAt = {};
+      if (filters.dateFrom) applicationFilter.createdAt.gte = filters.dateFrom;
+      if (filters.dateTo) applicationFilter.createdAt.lte = filters.dateTo;
+    }
+
+    // SLA breach count — single-sourced from CreditSlaBreach table (authoritative)
+    const slaBreachCount = await prisma.creditSlaBreach.count({
+      where: {
+        resolvedAt: null,
+        application: applicationFilter,
+      },
+    });
 
     // Fetch itemized SLA breaches from the CreditSlaBreach table (authoritative source)
     const activeBreaches = await prisma.creditSlaBreach.findMany({
-      where: { resolvedAt: null },
+      where: {
+        resolvedAt: null,
+        application: applicationFilter,
+      },
       include: {
         application: {
           select: {
@@ -705,11 +694,12 @@ class DashboardService {
   /**
    * §2.6 — Get exposure summary with approaching/breached limits.
    */
-  async getExposureSummary(filters?: { rmId?: string; borrowerGroupId?: string; riskRating?: string }) {
+  async getExposureSummary(filters?: { rmId?: string; borrowerGroupId?: string; riskRating?: string; branchId?: string }) {
     // Build borrower filter
     const where: any = { isActive: true, deletedAt: null };
     if (filters?.rmId) where.relationshipManagerId = filters.rmId;
     if (filters?.riskRating) where.creditRiskRating = filters.riskRating;
+    if (filters?.branchId) where.branchId = filters.branchId;
 
     const borrowers = await prisma.borrowerProfile.findMany({
       where,
@@ -763,7 +753,7 @@ class DashboardService {
     breachedLimit.sort((a, b) => b.utilisationPct - a.utilisationPct);
 
     // Existing dashboard method for top borrowers + rating breakdown
-    const dashboard = await this.getExposureDashboard({ topN: 10 });
+    const dashboard = await this.getExposureDashboard({ topN: 10, branchId: filters?.branchId });
 
     return {
       totalPortfolioExposure,
