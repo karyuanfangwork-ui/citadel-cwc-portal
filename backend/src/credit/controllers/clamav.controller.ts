@@ -4,6 +4,8 @@ import { asyncHandler, AppError } from '../../middleware/error.middleware';
 import { AuthRequest } from '../../middleware/auth.middleware';
 import prisma from '../../utils/prisma';
 import { execFileSync } from 'child_process';
+import { config } from '../../config';
+import { logger } from '../../utils/logger';
 
 const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
 
@@ -53,6 +55,16 @@ class ClamAvController {
    * Requires: credit:write
    */
   scanDocument = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const internalScanToken = req.header('x-internal-scan-token');
+
+    if (!config.security.internalScanToken) {
+      throw new AppError('Document scanning is not configured for internal service access', 503);
+    }
+
+    if (internalScanToken !== config.security.internalScanToken) {
+      throw new AppError('Internal scan token is required', 403);
+    }
+
     const { documentId } = req.body;
 
     if (!documentId) {
@@ -72,7 +84,7 @@ class ClamAvController {
 
     if (!isClamAvAvailable()) {
       // ClamAV not available — log and return clean result (MVP stub)
-      console.warn('ClamAV not available - scan skipped for document', documentId);
+      logger.warn('ClamAV not available - scan skipped for document', { documentId });
       avClean = null; // null = not scanned
       avScanResult = 'SKIPPED: ClamAV not available';
     } else {

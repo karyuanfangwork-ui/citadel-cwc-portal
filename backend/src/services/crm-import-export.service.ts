@@ -2,6 +2,7 @@ import { PrismaClient, LeadSource } from '@prisma/client';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
+import { assertSpreadsheetOrCsvSignature } from '../utils/file-signature';
 
 const prisma = new PrismaClient();
 
@@ -116,6 +117,10 @@ export async function uploadAndParseFile(
   entity: string,
   userId: string
 ): Promise<{ jobId: string; preview: Record<string, unknown>[]; headers: string[]; suggestedMapping: Record<string, string>; totalRows: number }> {
+  if (!assertSpreadsheetOrCsvSignature(file.buffer, file.originalname, file.mimetype)) {
+    throw new Error('Uploaded file content does not match the declared CSV/XLS/XLSX type.');
+  }
+
   let rawRows: Record<string, unknown>[];
 
   if (file.mimetype.includes('csv') || file.originalname.endsWith('.csv')) {

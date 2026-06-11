@@ -24,6 +24,45 @@ import {
 
 const prisma = new PrismaClient();
 
+function generateTemporaryPassword(): string {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lower = 'abcdefghijkmnopqrstuvwxyz';
+    const digits = '23456789';
+    const symbols = '!@#$%^&*';
+    const all = `${upper}${lower}${digits}${symbols}`;
+    const passwordChars = [upper, lower, digits, symbols].map((charset) => charset[crypto.randomInt(0, charset.length)]);
+
+    while (passwordChars.length < 16) {
+        passwordChars.push(all[crypto.randomInt(0, all.length)]);
+    }
+
+    for (let i = passwordChars.length - 1; i > 0; i -= 1) {
+        const swapIndex = crypto.randomInt(0, i + 1);
+        [passwordChars[i], passwordChars[swapIndex]] = [passwordChars[swapIndex], passwordChars[i]];
+    }
+
+    return passwordChars.join('');
+}
+
+function isExcelFileSignature(buffer: Buffer): boolean {
+    if (buffer.length < 8) {
+        return false;
+    }
+
+    const isZipContainer = buffer[0] === 0x50 && buffer[1] === 0x4b;
+    const isOleWorkbook =
+        buffer[0] === 0xd0 &&
+        buffer[1] === 0xcf &&
+        buffer[2] === 0x11 &&
+        buffer[3] === 0xe0 &&
+        buffer[4] === 0xa1 &&
+        buffer[5] === 0xb1 &&
+        buffer[6] === 0x1a &&
+        buffer[7] === 0xe1;
+
+    return isZipContainer || isOleWorkbook;
+}
+
 class UserController {
     /**
      * Get current user profile
@@ -773,8 +812,8 @@ class UserController {
             }
         }
 
-        const TEMP_PASSWORD='***';
-        const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
+        const tempPassword = generateTemporaryPassword();
+        const hashedPassword = await bcrypt.hash(tempPassword, 12);
 
         const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
         if (!normalStaffRole) throw new AppError('NORMAL_STAFF role not found in database', 500);
@@ -785,6 +824,7 @@ class UserController {
                 lastName,
                 email: normalizedEmail,
                 passwordHash: hashedPassword,
+                passwordChangedAt: null,
                 department: department || null,
                 jobTitle: jobTitle || null,
                 entityId: entityId || null,
@@ -815,7 +855,7 @@ class UserController {
                     agentTeam: newUser.agentTeam,
                     roles: (newUser as any).roles.map((ur: any) => ur.role.name),
                 },
-                tempPassword: TEMP_PASSWORD,
+                tempPassword,
             },
         });
     });
@@ -931,6 +971,10 @@ class UserController {
             throw new AppError('No file uploaded. Please attach an .xlsx file.', 400);
         }
 
+        if (!isExcelFileSignature(file.buffer)) {
+            throw new AppError('Uploaded file is not a valid Excel workbook.', 400);
+        }
+
         // Parse the Excel buffer
         let staffData: StaffRow[];
         try {
@@ -984,13 +1028,11 @@ class UserController {
         const normalStaffRole = await prisma.role.findFirst({ where: { name: 'NORMAL_STAFF' } });
         if (!normalStaffRole) throw new AppError('NORMAL_STAFF role not found in database', 500);
 
-        const TEMP_PASSWORD = 'abc@123';
-        const hashedPassword = await bcrypt.hash(TEMP_PASSWORD, 10);
-
         let created = 0;
         let updated = 0;
         let skipped = 0;
         let errorCount = 0;
+        const temporaryCredentials: Array<{ email: string; tempPassword: string }> = [];
 
         const details: {
             email: string;
@@ -1047,12 +1089,16 @@ class UserController {
 
             // CREATE new user
             try {
+                const tempPassword = generateTemporaryPassword();
+                const hashedPassword = await bcrypt.hash(tempPassword, 12);
+
                 await prisma.user.create({
                     data: {
                         firstName,
                         lastName,
                         email,
                         passwordHash: hashedPassword,
+                        passwordChangedAt: null,
                         jobTitle: staff.jobTitle,
                         department,
                         entityId,
@@ -1070,6 +1116,7 @@ class UserController {
                     action: 'created',
                     message: `entity=${entityCode || '?'}, execRole=${executiveRole || 'none'}`,
                 });
+                temporaryCredentials.push({ email, tempPassword });
                 created++;
             } catch (err: any) {
                 details.push({ email, displayName: staff.displayName, action: 'error', message: err.message });
@@ -1095,6 +1142,7 @@ class UserController {
                     skipped,
                     errors: errorCount,
                 },
+                temporaryCredentials,
                 details,
             },
         });

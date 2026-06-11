@@ -12,8 +12,90 @@ import { tokenService } from '../services/token.service';
 import { passwordResetService } from '../services/password-reset.service';
 import { notify } from '../services/notification.service';
 import { validatePassword, checkPasswordBreach } from '../utils/password';
+import { createRedisClient, ensureConnected } from '../utils/redis';
 
 const prisma = new PrismaClient();
+const lockoutRedis = createRedisClient({ maxRetriesPerRequest: 1 });
+
+type LockoutEntry = {
+    attempts: number;
+    lockUntil: number | null;
+};
+
+const loginLockouts = new Map<string, LockoutEntry>();
+
+function lockoutKey(email: string): string {
+    return `auth:lockout:${email}`;
+}
+
+function getLockoutTtlSeconds(): number {
+    return Math.max(1, Math.ceil(config.security.accountLockoutWindowMs / 1000));
+}
+
+function getFallbackLockoutEntry(email: string): LockoutEntry {
+    return loginLockouts.get(email) || { attempts: 0, lockUntil: null };
+}
+
+async function getLockoutEntry(email: string): Promise<LockoutEntry> {
+    try {
+        await ensureConnected(lockoutRedis);
+        const raw = await lockoutRedis.get(lockoutKey(email));
+        if (!raw) {
+            return { attempts: 0, lockUntil: null };
+        }
+
+        const parsed = JSON.parse(raw) as LockoutEntry;
+        return {
+            attempts: Number(parsed.attempts) || 0,
+            lockUntil: parsed.lockUntil ? Number(parsed.lockUntil) : null,
+        };
+    } catch {
+        return getFallbackLockoutEntry(email);
+    }
+}
+
+async function isLockedOut(email: string): Promise<boolean> {
+    const entry = await getLockoutEntry(email);
+    if (!entry.lockUntil) {
+        return false;
+    }
+
+    if (entry.lockUntil <= Date.now()) {
+        await clearFailedLogin(email);
+        return false;
+    }
+
+    return true;
+}
+
+async function recordFailedLogin(email: string): Promise<void> {
+    const current = await getLockoutEntry(email);
+    const attempts = current.attempts + 1;
+    const lockUntil = attempts >= config.security.accountLockoutMaxAttempts
+        ? Date.now() + config.security.accountLockoutWindowMs
+        : null;
+    const entry = { attempts, lockUntil };
+
+    loginLockouts.set(email, entry);
+
+    try {
+        await ensureConnected(lockoutRedis);
+        await lockoutRedis.set(lockoutKey(email), JSON.stringify(entry), 'EX', getLockoutTtlSeconds());
+    } catch {
+        // In-memory fallback already updated above.
+    }
+}
+
+async function clearFailedLogin(email: string): Promise<void> {
+    loginLockouts.delete(email);
+
+    try {
+        await ensureConnected(lockoutRedis);
+        await lockoutRedis.del(lockoutKey(email));
+    } catch {
+        // In-memory fallback already cleared above.
+    }
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -130,20 +212,29 @@ class AuthController {
 
     login = asyncHandler(async (req: AuthRequest, res: Response, _next: NextFunction) => {
         const { email, password } = req.body;
+        const normalizedEmail = email.toLowerCase().trim();
+
+        if (await isLockedOut(normalizedEmail)) {
+            throw new AppError('Account temporarily locked due to repeated failed login attempts. Please try again later.', 429);
+        }
 
         const user = await prisma.user.findUnique({
-            where: { email },
+            where: { email: normalizedEmail },
             include: { roles: { include: { role: true } } },
         });
 
         if (!user || !user.isActive) {
+            await recordFailedLogin(normalizedEmail);
             throw new AppError('Invalid email or password', 401);
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
         if (!isPasswordValid) {
+            await recordFailedLogin(normalizedEmail);
             throw new AppError('Invalid email or password', 401);
         }
+
+        await clearFailedLogin(normalizedEmail);
 
         const { token: accessToken } = generateAccessToken(user.id, user.email);
         const refreshToken = generateRefreshToken(user.id, user.email);
@@ -230,33 +321,22 @@ class AuthController {
         // Rotate: delete old session, create new one with new refresh token
         const newRefreshToken = generateRefreshToken(decoded.userId, decoded.email);
 
-        try {
-            // Try to delete old session, but don't fail if it doesn't exist
-            await prisma.session.deleteMany({
-                where: {
-                    id: session.id,
-                    userId: decoded.userId,
-                },
-            });
-        } catch (deleteError) {
-            // Log but don't fail — session may have been deleted already
-            console.warn('Could not delete old session during rotation:', deleteError);
-        }
+        await prisma.session.deleteMany({
+            where: {
+                id: session.id,
+                userId: decoded.userId,
+            },
+        });
 
-        try {
-            await prisma.session.create({
-                data: {
-                    userId: decoded.userId,
-                    token: hashRefreshToken(newRefreshToken),
-                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-                    ipAddress: req.ip,
-                    userAgent: req.headers['user-agent'],
-                },
-            });
-        } catch (createError) {
-            console.error('Error creating new session:', createError);
-            // Still return success for access token — session creation is best-effort
-        }
+        await prisma.session.create({
+            data: {
+                userId: decoded.userId,
+                token: hashRefreshToken(newRefreshToken),
+                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                ipAddress: req.ip,
+                userAgent: req.headers['user-agent'],
+            },
+        });
 
         const { token: newAccessToken } = generateAccessToken(decoded.userId, decoded.email);
         setAuthCookies(res, newAccessToken, newRefreshToken);

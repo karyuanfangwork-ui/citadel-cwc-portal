@@ -25,14 +25,35 @@ app.set('trust proxy', 1);
 // ============================================================================
 
 // Security headers
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+            defaultSrc: ["'self'"],
+            baseUri: ["'self'"],
+            objectSrc: ["'none'"],
+            frameAncestors: ["'none'"],
+            imgSrc: ["'self'", 'data:', 'blob:'],
+        },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    referrerPolicy: { policy: 'no-referrer' },
+}));
 
 // Cookie parsing
 app.use(cookieParser());
 
 // CORS
 app.use(cors({
-    origin: config.cors.origin,
+    origin: (origin, callback) => {
+        if (!origin || config.cors.origins.includes(origin)) {
+            callback(null, true);
+            return;
+        }
+
+        callback(new Error(`CORS origin not allowed: ${origin}`));
+    },
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

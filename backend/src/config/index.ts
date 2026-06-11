@@ -2,6 +2,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
 export const config = {
     env: process.env.NODE_ENV || 'development',
     port: parseInt(process.env.PORT || '3000', 10),
@@ -34,7 +39,7 @@ export const config = {
 
     // CORS
     cors: {
-        origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+        origins: corsOrigins,
     },
 
     // File Upload
@@ -138,6 +143,9 @@ export const config = {
     security: {
         checkPasswordBreach: process.env.CHECK_PASSWORD_BREACH === 'true',
         passwordMinLength: parseInt(process.env.PASSWORD_MIN_LENGTH || '8', 10),
+        accountLockoutMaxAttempts: parseInt(process.env.ACCOUNT_LOCKOUT_MAX_ATTEMPTS || '5', 10),
+        accountLockoutWindowMs: parseInt(process.env.ACCOUNT_LOCKOUT_WINDOW_MS || `${15 * 60 * 1000}`, 10),
+        internalScanToken: process.env.INTERNAL_SCAN_TOKEN || '',
     },
 
     // Credit

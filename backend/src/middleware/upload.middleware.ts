@@ -1,9 +1,9 @@
 import multer from 'multer';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import multerS3 from 'multer-s3';
-import { S3Client } from '@aws-sdk/client-s3';
-import { config } from '../config';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
+import { s3Service } from '../services/s3.service';
+import { assertAllowedUploadSignature } from '../utils/file-signature';
 
 // ---------------------------------------------------------------------------
 // MIME type allowlist — only these file types are accepted
@@ -66,37 +66,11 @@ const BLOCKED_EXTENSIONS = new Set([
   '.action', '.applescript', '.scpt',
 ]);
 
-// ---------------------------------------------------------------------------
-// S3 Client Configuration
-// ---------------------------------------------------------------------------
-const s3 = new S3Client({
-  region: config.s3.region,
-  endpoint: config.s3.endpoint,
-  credentials: {
-    accessKeyId: config.s3.accessKey,
-    secretAccessKey: config.s3.secretKey,
-  },
-  forcePathStyle: config.s3.forcePathStyle,
-  // DO Spaces rejects AWS SDK v3 checksum headers — disable them
-  requestChecksumCalculation: 'WHEN_REQUIRED',
-  responseChecksumValidation: 'WHEN_REQUIRED',
-});
-
-// ---------------------------------------------------------------------------
-// Multer S3 storage engine
-// ---------------------------------------------------------------------------
-const storage = multerS3({
-  s3: s3,
-  bucket: config.s3.bucket,
-  metadata: (_req, file, cb) => {
-    cb(null, { fieldName: file.fieldname });
-  },
-  key: (_req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const uuid = crypto.randomUUID();
-    cb(null, `cwc/${uuid}${ext}`);
-  },
-});
+function buildS3Key(originalname: string): string {
+  const ext = path.extname(originalname).toLowerCase();
+  const uuid = crypto.randomUUID();
+  return `cwc/${uuid}${ext}`;
+}
 
 // ---------------------------------------------------------------------------
 // File filter — validates MIME type and extension
@@ -108,17 +82,14 @@ function fileFilter(
 ): void {
   const ext = path.extname(file.originalname).toLowerCase();
 
-  // Check blocked extensions first (defense in depth)
   if (BLOCKED_EXTENSIONS.has(ext)) {
     return cb(new Error(`File type not allowed: ${ext}`));
   }
 
-  // Check blocked MIME types
   if (BLOCKED_MIME_TYPES.has(file.mimetype)) {
     return cb(new Error(`File type not allowed: ${file.mimetype}`));
   }
 
-  // Check allowlist
   if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
     return cb(
       new Error(
@@ -131,25 +102,61 @@ function fileFilter(
   cb(null, true);
 }
 
-// ---------------------------------------------------------------------------
-// Configured multer instance — 10MB limit, 5 files max
-// ---------------------------------------------------------------------------
 const uploader = multer({
-  storage,
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10 MB
+    fileSize: 10 * 1024 * 1024,
     files: 5,
   },
 });
 
-// ---------------------------------------------------------------------------
-// Middleware factory for single file upload
-// ---------------------------------------------------------------------------
-export const uploadSingleFile = (fieldName: string) => uploader.single(fieldName);
+type UploadedFile = Express.Multer.File & {
+  key?: string;
+  location?: string;
+};
 
-// ---------------------------------------------------------------------------
-// Middleware factory for multiple file upload
-// ---------------------------------------------------------------------------
-export const uploadMultipleFiles = (fieldName: string, maxCount: number) => uploader.array(fieldName, maxCount);
+async function validateAndUploadFile(file: UploadedFile): Promise<void> {
+  if (!assertAllowedUploadSignature(file.buffer, file.originalname, file.mimetype)) {
+    throw new Error(`Uploaded file content does not match the declared type for ${file.originalname}`);
+  }
 
+  const key = buildS3Key(file.originalname);
+  await s3Service.uploadBuffer(key, file.buffer, file.mimetype);
+  file.key = key;
+  file.location = key;
+}
+
+function withUploadProcessing(uploadMiddleware: RequestHandler): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    uploadMiddleware(req, res, async (err?: unknown) => {
+      if (err) {
+        next(err);
+        return;
+      }
+
+      try {
+        const files: UploadedFile[] = [];
+        if (req.file) {
+          files.push(req.file as UploadedFile);
+        }
+        if (Array.isArray(req.files)) {
+          files.push(...(req.files as UploadedFile[]));
+        }
+
+        for (const file of files) {
+          await validateAndUploadFile(file);
+        }
+
+        next();
+      } catch (uploadError) {
+        next(uploadError);
+      }
+    });
+  };
+}
+
+export const uploadSingleFile = (fieldName: string) => withUploadProcessing(uploader.single(fieldName));
+
+export const uploadMultipleFiles = (fieldName: string, maxCount: number) =>
+  withUploadProcessing(uploader.array(fieldName, maxCount));

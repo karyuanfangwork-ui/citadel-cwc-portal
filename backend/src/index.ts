@@ -14,6 +14,7 @@ dotenv.config();
 // ============================================================================
 
 const PORT = config.port;
+let isShuttingDown = false;
 
 const server = app.listen(PORT, () => {
     logger.info(`🚀 Server running on port ${PORT} in ${config.env} mode`);
@@ -29,8 +30,17 @@ const server = app.listen(PORT, () => {
 });
 
 // Graceful shutdown
-const gracefulShutdown = (signal: string) => {
+const gracefulShutdown = (signal: string, error?: unknown, exitCode = 0) => {
+    if (isShuttingDown) {
+        return;
+    }
+
+    isShuttingDown = true;
     logger.info(`${signal} received, shutting down gracefully...`);
+
+    if (error) {
+        logger.error(`${signal} triggered by fatal error`, error);
+    }
 
     // Disconnect Redis pub/sub connections
     disconnectSseRedis();
@@ -40,7 +50,7 @@ const gracefulShutdown = (signal: string) => {
 
     server.close(() => {
         logger.info('Server closed');
-        process.exit(0);
+        process.exit(exitCode);
     });
 
     // Force shutdown after 10 seconds
@@ -52,5 +62,7 @@ const gracefulShutdown = (signal: string) => {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('unhandledRejection', (reason) => gracefulShutdown('unhandledRejection', reason, 1));
+process.on('uncaughtException', (error) => gracefulShutdown('uncaughtException', error, 1));
 
 export default app;

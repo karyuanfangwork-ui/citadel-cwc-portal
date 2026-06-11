@@ -332,7 +332,29 @@ S-L1 HIBP breach check fails open · S-L2 `console.log` PII leak paths · S-L3 e
 | 20 | No document retention policy per class (≥5yr credit-file rule unmodeled) | Medium | Medium |
 
 ## Top 20 Quick Wins (all Easy–Medium, high payoff)
-1. Rotate all exposed keys + purge `.env` from history. 2. Randomize import passwords + force reset. 3. Add `unhandledRejection`/`uncaughtException` handlers. 4. Deduct EPF in DSR + add net-income field. 5. Guarantor net-worth ≥ guarantee warning. 6. LTV computation + configurable cap warning at decision. 7. Index `CreditAuditEvent(applicationId, createdAt)`. 8. Account lockout after N failures. 9. bcrypt 12 everywhere. 10. Magic-bytes file validation. 11. "Score outdated" banner when financials newer than last run. 12. Default Advanced-Memo tabs off; hide ECL/ESG/FATCA for all non-admin. 13. Per-application comments thread. 14. Bulk document upload. 15. Saved filters on application list. 16. Role-default dashboard tab. 17. Approval-turnaround + NPL widgets for management. 18. Move AV-status behind service API key. 19. winston-daily-rotate-file. 20. GitHub Actions: lint + test gate.
+
+| # | Quick Win |
+|---|---|
+| 1 | Rotate all exposed keys and purge `.env` from history. |
+| 2 | Randomize import passwords and force reset. |
+| 3 | Add `unhandledRejection` / `uncaughtException` handlers. |
+| 4 | Deduct EPF in DSR and add a net-income field. |
+| 5 | Add a guarantor net-worth ≥ guarantee warning. |
+| 6 | Add LTV computation and a configurable cap warning at decision time. |
+| 7 | Add an index on `CreditAuditEvent(applicationId, createdAt)`. |
+| 8 | Add account lockout after N failures. |
+| 9 | Standardize on bcrypt 12 everywhere. |
+| 10 | Add magic-bytes file validation. |
+| 11 | Show a "Score outdated" banner when financials are newer than the last score run. |
+| 12 | Default Advanced Memo tabs off; hide ECL / ESG / FATCA for non-admin users. |
+| 13 | Add a per-application comments thread. |
+| 14 | Add bulk document upload. |
+| 15 | Add saved filters on the application list. |
+| 16 | Add a role-default dashboard tab. |
+| 17 | Add approval-turnaround and NPL widgets for management. |
+| 18 | Move AV-status behind a service API key. |
+| 19 | Add `winston-daily-rotate-file`. |
+| 20 | Add a GitHub Actions lint + test gate. |
 
 ## Features to Remove (or default-off)
 IFRS 9 ECL tab · ESG/SICR/forward-looking risk tab · FATCA/CRS module · Profitability/wallet-share tab · Counterparty-netting tab · committee quorum/voting apparatus (replace with enforced N-eyes) · SYNDICATED + PROJECT_FINANCE product types · one of the two detail view modes.

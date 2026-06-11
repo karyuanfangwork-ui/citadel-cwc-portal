@@ -8,6 +8,7 @@ import { announcementService } from '../services/announcement.service';
 import { s3Service } from '../services/s3.service';
 import { config } from '../config';
 import { auditLog } from '../utils/audit';
+import { assertAnnouncementDocumentSignature, assertImageSignature } from '../utils/file-signature';
 
 const memoryUpload = multer({
   storage: multer.memoryStorage(),
@@ -282,6 +283,9 @@ class AnnouncementController {
   parseDoc = asyncHandler(async (req: AuthRequest, res: Response) => {
     const file = req.file as Express.Multer.File & { buffer: Buffer };
     if (!file) throw new AppError('No file provided', 400);
+    if (!assertAnnouncementDocumentSignature(file.buffer, file.mimetype)) {
+      throw new AppError('Uploaded document content does not match the declared PDF/DOCX type', 400);
+    }
 
     const ext = path.extname(file.originalname).toLowerCase();
     let text = '';
@@ -324,6 +328,9 @@ class AnnouncementController {
   uploadImage = asyncHandler(async (req: AuthRequest, res: Response) => {
     const file = req.file as Express.Multer.File & { buffer: Buffer };
     if (!file) throw new AppError('No file provided', 400);
+    if (!assertImageSignature(file.buffer, file.mimetype)) {
+      throw new AppError('Uploaded image content does not match the declared file type', 400);
+    }
 
     const ext = path.extname(file.originalname).toLowerCase() || '.png';
     const key = `cwc/announcements/images/${crypto.randomUUID()}${ext}`;

@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { PrismaClient, AssetStatus } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
+import { assertSpreadsheetOrCsvSignature } from '../utils/file-signature';
 
 const prisma = new PrismaClient();
 
@@ -731,6 +732,10 @@ class AssetController {
         let rawRows: Record<string, string>[];
 
         if (file) {
+            if (!assertSpreadsheetOrCsvSignature(file.buffer, file.originalname, file.mimetype)) {
+                throw new AppError('Uploaded file content does not match the declared CSV/XLS/XLSX type', 400);
+            }
+
             // File uploaded via multipart
             const XLSX = await import('xlsx');
             const isXlsx = file.originalname.endsWith('.xlsx') || file.originalname.endsWith('.xls');
