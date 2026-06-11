@@ -249,6 +249,7 @@ export interface CreditApplication {
   deletedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  version: number;
   // CA Memo Phase 1 — header
   customerGroupName?: string | null;
   cifNo?: string | null;
@@ -800,7 +801,9 @@ const creditService = {
   },
 
   async updateApplication(id: string, data: Partial<CreditApplication>) {
-    const res = await apiClient.patch(`/credit/applications/${id}`, data);
+    // §F25 — Always send version for mandatory OCC
+    const payload = { ...data, version: data.version };
+    const res = await apiClient.patch(`/credit/applications/${id}`, payload);
     return normalizeApplication(res.data.data.application);
   },
 

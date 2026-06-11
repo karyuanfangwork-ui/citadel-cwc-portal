@@ -56,6 +56,7 @@ import {
   STATE_ICONS,
   STEPPER_STAGES,
   PRODUCT_LABELS,
+  SECURED_PRODUCTS,
   DetailTab,
   TabGroup,
   TAB_GROUPS,
@@ -64,6 +65,7 @@ import {
   getIncompletePhaseCount,
   getNextIncompleteTab,
   getVisibleTabGroups,
+  TAB_TO_PHASE_MAP,
 } from './credit/creditUtils';
 import CreditApplicationWizard from './credit/CreditApplicationWizard';
 import { LEGACY_TAB_MAP } from './credit/tabRegistry';
@@ -399,7 +401,7 @@ const isIdPlaceholder = id === 'new';
     creditBureauChecks: (app as any).creditBureauChecks ?? [],
     retailIncome: (app as any).retailIncome ?? null,
     bureauChecklist: (app as any).bureauChecklist ?? null,
-    isSecured: false,
+    isSecured: ((app as any).collateralItems?.length ?? 0) > 0 || SECURED_PRODUCTS.includes(app.productType as string),
   });
   const incompleteCount = getIncompletePhaseCount(phaseCompletion);
   // §3.5b — Application progress ring (required sections only; 'optional' excluded)
@@ -407,6 +409,16 @@ const isIdPlaceholder = id === 'new';
   const completedPhases = requiredPhases.filter(s => s === 'complete').length;
   const progressPct = requiredPhases.length > 0 ? Math.round((completedPhases / requiredPhases.length) * 100) : 0;
   const progressColor = progressPct > 80 ? '#16a34a' : progressPct >= 50 ? '#d97706' : '#dc2626';
+
+  // Completion status callback for wizard — maps DetailTab → phase completion status
+  const getCompletionStatus = useCallback((tabId: DetailTab): 'complete' | 'partial' | 'empty' => {
+    const phaseKey = TAB_TO_PHASE_MAP[tabId];
+    if (!phaseKey) return 'empty';
+    const status = phaseCompletion[phaseKey];
+    if (status === 'complete') return 'complete';
+    if (status === 'incomplete') return 'partial';
+    return 'empty'; // 'optional' or unknown
+  }, [phaseCompletion]);
 
   // Stepper logic
   const currentStageIdx = STEPPER_STAGES.findIndex(s => s.states.includes(currentState));
@@ -516,6 +528,11 @@ const isIdPlaceholder = id === 'new';
           app={app!}
           onRefresh={fetchApp}
           renderTab={renderTab}
+          getCompletionStatus={getCompletionStatus}
+          dirty={isDirty}
+          onDirtyChange={setDirty}
+          confirmTabSwitch={confirmTabSwitch}
+          DirtyGuardDialog={DirtyGuardDialog}
         />
       </>
     );

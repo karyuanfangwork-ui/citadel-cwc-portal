@@ -24,6 +24,12 @@ interface CreditApplicationWizardProps {
   getCompletionStatus?: (tabId: DetailTab) => CompletionStatus;
   /** Whether the form is dirty (unsaved changes) */
   dirty?: boolean;
+  /** Callback to notify parent of dirty state changes */
+  onDirtyChange?: (dirty: boolean) => void;
+  /** Confirm tab switch when dirty — returns true if user confirmed, false to cancel */
+  confirmTabSwitch?: () => boolean;
+  /** Dirty guard dialog component rendered by parent */
+  DirtyGuardDialog?: React.ReactNode;
 }
 
 const CreditApplicationWizard: React.FC<CreditApplicationWizardProps> = ({
@@ -32,6 +38,9 @@ const CreditApplicationWizard: React.FC<CreditApplicationWizardProps> = ({
   renderTab,
   getCompletionStatus,
   dirty,
+  onDirtyChange,
+  confirmTabSwitch,
+  DirtyGuardDialog,
 }) => {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -39,11 +48,15 @@ const CreditApplicationWizard: React.FC<CreditApplicationWizardProps> = ({
   const urlStep = Number(searchParams.get('step')) as WizardStep;
   const urlSection = searchParams.get('section') as DetailTab | null;
 
+  // Default section: first section of the first non-advanced group (step 1)
+  const defaultSection: DetailTab = 'loan-request';
+  const defaultStep: WizardStep = 1;
+
   const [currentStep, setCurrentStep] = useState<WizardStep>(
-    (urlStep >= 1 && urlStep <= 3) ? urlStep : getStepForTab(urlSection ?? 'header')
+    (urlStep >= 1 && urlStep <= 3) ? urlStep : getStepForTab(urlSection ?? defaultSection)
   );
   const [activeSection, setActiveSection] = useState<DetailTab>(
-    SECTIONS.find(s => s.id === urlSection) ? urlSection! : 'header'
+    SECTIONS.find(s => s.id === urlSection) ? urlSection! : defaultSection
   );
 
   // Sync URL params — preserve mode=wizard so wizard mode survives refresh/re-render
@@ -79,17 +92,20 @@ const CreditApplicationWizard: React.FC<CreditApplicationWizardProps> = ({
   }, [getCompletion]);
 
   const goToSection = useCallback((section: DetailTab) => {
+    if (dirty && confirmTabSwitch && !confirmTabSwitch()) return;
     setCurrentStep(getStepForTab(section));
     setActiveSection(section);
-  }, []);
+  }, [dirty, confirmTabSwitch]);
 
   const goToStep = useCallback((step: WizardStep) => {
+    if (dirty && confirmTabSwitch && !confirmTabSwitch()) return;
     setCurrentStep(step);
     const first = getSectionsForStep(step)[0];
     if (first) setActiveSection(first.id);
-  }, []);
+  }, [dirty, confirmTabSwitch]);
 
   const goNext = useCallback(() => {
+    if (dirty && confirmTabSwitch && !confirmTabSwitch()) return;
     const idx = stepSections.findIndex(s => s.id === activeSection);
     if (idx < stepSections.length - 1) {
       setActiveSection(stepSections[idx + 1].id);
@@ -100,9 +116,10 @@ const CreditApplicationWizard: React.FC<CreditApplicationWizardProps> = ({
         setActiveSection(next[0].id);
       }
     }
-  }, [currentStep, activeSection, stepSections]);
+  }, [currentStep, activeSection, stepSections, dirty, confirmTabSwitch]);
 
   const goPrev = useCallback(() => {
+    if (dirty && confirmTabSwitch && !confirmTabSwitch()) return;
     const idx = stepSections.findIndex(s => s.id === activeSection);
     if (idx > 0) {
       setActiveSection(stepSections[idx - 1].id);
@@ -113,7 +130,7 @@ const CreditApplicationWizard: React.FC<CreditApplicationWizardProps> = ({
         setActiveSection(prev[prev.length - 1].id);
       }
     }
-  }, [currentStep, activeSection, stepSections]);
+  }, [currentStep, activeSection, stepSections, dirty, confirmTabSwitch]);
 
   return (
     <div className="flex h-[calc(100vh-4rem)]" role="main" aria-label="Application wizard">

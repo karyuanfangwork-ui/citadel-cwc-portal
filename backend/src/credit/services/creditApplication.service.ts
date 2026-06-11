@@ -619,8 +619,13 @@ class CreditApplicationService {
       }
     }
 
+    // §F25 — Mandatory optimistic concurrency: version is required
+    if (expectedVersion === undefined || expectedVersion === null) {
+      throw new AppError('version required', 428);
+    }
+
     // §2.3 — Optimistic concurrency check
-    if (expectedVersion !== undefined && existing.version !== expectedVersion) {
+    if (existing.version !== expectedVersion) {
       const { versionConflictError } = await import('../../middleware/occ.middleware');
       throw versionConflictError(existing.version, {
         id: existing.id,
@@ -962,9 +967,21 @@ class CreditApplicationService {
     // §2.3 — Auto-increment version on every state transition
     (updateData as any).version = { increment: 1 };
 
-    const application = await prisma.creditApplication.update({
-      where: { id },
-      data: updateData,
+    // §F25 — Race-safe state transition: use updateMany with state guard so that
+    // if another process moved the application to a different state since our read,
+    // the write is a no-op (count 0) and we throw a 409 conflict.
+    const { count } = await prisma.creditApplication.updateMany({
+      where: { id, state: existing.state },
+      data: updateData as any,
+    });
+
+    if (count === 0) {
+      throw new AppError('Application state changed since read. Please refresh and try again.', 409);
+    }
+
+    // Re-read the application after the guarded write for side effects
+    const application = await prisma.creditApplication.findFirst({
+      where: { id, deletedAt: null },
       include: {
         borrowerProfile: {
           select: {
@@ -979,6 +996,11 @@ class CreditApplicationService {
         assignedAnalyst: { select: { id: true, firstName: true, lastName: true } },
       },
     });
+
+    // Should never be null since updateMany count > 0, but satisfy TS
+    if (!application) {
+      throw new AppError('Application not found after transition', 500);
+    }
 
     // Create audit event for state transition
     await this.createAuditEvent(id, actorId, action, existing.state, transition.to, {

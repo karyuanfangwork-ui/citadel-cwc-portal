@@ -47,7 +47,8 @@ const HeaderBackgroundTab: React.FC<Props> = ({ application, onUpdated, onDirtyC
   const autosave = useAutosave<CreditApplication>({
     saveFn: async () => {
       if (readOnly || dirtyKeys.current.size === 0) return application;
-      const payload: Partial<CreditApplication> = {};
+      // §F25 — Include version for mandatory OCC
+      const payload: Partial<CreditApplication> = { version: application.version };
       dirtyKeys.current.forEach((k) => {
         (payload as any)[k] = (form as any)[k] ?? null;
       });

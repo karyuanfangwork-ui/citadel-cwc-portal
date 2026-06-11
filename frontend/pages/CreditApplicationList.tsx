@@ -168,8 +168,7 @@ const CreditApplicationList: React.FC = () => {
     localStorage.setItem('credit-applications-view', v);
   };
 
-  const quickFilteredApplications = applyQuickFilter(applications, quickFilter, user?.id);
-  const sortedApplications = sortApplications(quickFilteredApplications, sortCol, sortDir);
+  const sortedApplications = sortApplications(applications, sortCol, sortDir);
 
   // Debounce search input
   useEffect(() => {

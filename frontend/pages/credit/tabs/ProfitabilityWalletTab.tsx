@@ -346,7 +346,8 @@ const ProfitabilityWalletTab: React.FC<Props> = ({ application, onUpdated, onDir
       }
 
       if (dirty.has('strategy')) {
-        const payload: any = {};
+        // §F25 — Include version for mandatory OCC
+        const payload: any = { version: application.version };
         strategyRef.current.dirtyKeys.forEach(k => {
           payload[k] = k === 'accountStrategy'
             ? strategyRef.current.accountStrategy || null

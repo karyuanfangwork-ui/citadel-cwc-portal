@@ -336,7 +336,8 @@ const PaymentCapabilityTab: React.FC<Props> = ({ application, onUpdated, onDirty
       dirtyKeys.current.clear();
 
       if (dirty.has('wayOut')) {
-        const payload: any = {};
+        // §F25 — Include version for mandatory OCC
+        const payload: any = { version: application.version };
         wayOutDirtyKeys.current.forEach(k => { payload[k] = wayOutRef.current[k] || null; });
         wayOutDirtyKeys.current.clear();
         const updated = await creditService.updateApplication(application.id, payload);

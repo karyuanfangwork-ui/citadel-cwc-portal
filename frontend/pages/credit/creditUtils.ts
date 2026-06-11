@@ -86,6 +86,16 @@ export const PRODUCT_LABELS: Record<string, string> = {
   OVERDRAFT: 'Overdraft', LETTER_OF_CREDIT: 'Letter of Credit', BANK_GUARANTEE: 'Bank Guarantee',
 };
 
+/** Product types that always require collateral (secured deals). */
+export const SECURED_PRODUCTS: string[] = [
+  'TERM_LOAN',
+  'PROJECT_FINANCE',
+  'SYNDICATED',
+  'BRIDGE_LOAN',
+  'LETTER_OF_CREDIT',
+  'BANK_GUARANTEE',
+];
+
 export const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
   { value: 'TERM_LOAN', label: 'Term Loan' }, { value: 'REVOLVING_CREDIT', label: 'Revolving Credit' },
   { value: 'OVERDRAFT', label: 'Overdraft' }, { value: 'LETTER_OF_CREDIT', label: 'Letter of Credit' },
@@ -434,6 +444,32 @@ export const PHASE_TO_TAB_MAP: Record<string, string> = {
   meta: 'documents',
 };
 
+/** Reverse map: tab ID → phase completion key (s1-s7 / meta). */
+export const TAB_TO_PHASE_MAP: Record<string, string> = {};
+for (const [phase, tab] of Object.entries(PHASE_TO_TAB_MAP)) {
+  TAB_TO_PHASE_MAP[tab] = phase;
+}
+// Assign remaining tabs to their parent phase
+TAB_TO_PHASE_MAP['parties'] = 's2';
+TAB_TO_PHASE_MAP['facilities'] = 's1';
+TAB_TO_PHASE_MAP['payment-capability'] = 's4';
+TAB_TO_PHASE_MAP['industry'] = 's5';
+TAB_TO_PHASE_MAP['risk'] = 's5';
+TAB_TO_PHASE_MAP['ai-insights'] = 's5';
+TAB_TO_PHASE_MAP['security'] = 's6';
+TAB_TO_PHASE_MAP['signoff'] = 's7';
+TAB_TO_PHASE_MAP['guarantor-assessment'] = 's7';
+TAB_TO_PHASE_MAP['conditions'] = 's7';
+TAB_TO_PHASE_MAP['disbursement'] = 's7';
+TAB_TO_PHASE_MAP['summary'] = 's7';
+TAB_TO_PHASE_MAP['audit'] = 'meta';
+TAB_TO_PHASE_MAP['risk-rating'] = 's4';
+TAB_TO_PHASE_MAP['profitability'] = 's3';
+TAB_TO_PHASE_MAP['counterparties'] = 's3';
+TAB_TO_PHASE_MAP['conduct'] = 's3';
+TAB_TO_PHASE_MAP['forward-looking-risk'] = 's4';
+TAB_TO_PHASE_MAP['header'] = 's1';
+
 /**
  * Returns the first tab ID belonging to the first incomplete (non-optional) section,
  * or null if all sections are complete.
@@ -445,6 +481,9 @@ export function getNextIncompleteTab(completion: Record<string, PhaseStatus>, ap
     // Skip state-gated groups that don't apply to current state
     if (group.states && applicationState && !group.states.includes(applicationState as ApplicationState)) continue;
     if (completion[group.id] === 'incomplete') {
+      // Use PHASE_TO_TAB_MAP for consistent navigation targets
+      const mapped = PHASE_TO_TAB_MAP[group.id];
+      if (mapped) return mapped as DetailTab;
       return group.tabs[0].id;
     }
   }
