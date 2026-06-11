@@ -49,11 +49,11 @@ router.post(
 /**
  * GET /directors/:id/nric-reveal
  * Reveal decrypted NRIC — PII-logged
- * Requires: credit:pii or credit:admin
+ * Requires: credit:write
  */
 router.get(
   '/directors/:id/nric-reveal',
-  requirePermission('credit:read'),
+  requirePermission('credit:write'),
   directorController.revealNric,
 );
 

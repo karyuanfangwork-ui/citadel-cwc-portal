@@ -49,10 +49,11 @@ router.post(
 /**
  * GET /ubos/:id/nric-reveal
  * Reveal decrypted NRIC — PII-logged
+ * Requires: credit:write
  */
 router.get(
   '/ubos/:id/nric-reveal',
-  requirePermission('credit:read'),
+  requirePermission('credit:write'),
   uboController.revealNric,
 );
 

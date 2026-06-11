@@ -49,10 +49,11 @@ router.post(
 /**
  * GET /shareholders/:id/nric-reveal
  * Reveal decrypted NRIC — PII-logged
+ * Requires: credit:write
  */
 router.get(
   '/shareholders/:id/nric-reveal',
-  requirePermission('credit:read'),
+  requirePermission('credit:write'),
   shareholderController.revealNric,
 );
 
