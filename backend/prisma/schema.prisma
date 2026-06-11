@@ -4482,6 +4482,12 @@ model RetailIncome {
   otherCommitments        Decimal        @default(0) @map("other_commitments") @db.Decimal(15, 2)
   proposedInstalment      Decimal?       @map("proposed_instalment") @db.Decimal(15, 2)
   dsrPercent              Decimal?       @map("dsr_percent") @db.Decimal(5, 2)
+  // P1-3 — Net-income DSR fields
+  monthlyNetIncome       Decimal?       @map("monthly_net_income") @db.Decimal(15, 2)   // Computed: gross - EPF - tax - SOCSO
+  monthlyTaxDeduction    Decimal?       @default(0) @map("monthly_tax_deduction") @db.Decimal(15, 2)
+  monthlySocsoDeduction  Decimal?       @default(0) @map("monthly_socso_deduction") @db.Decimal(15, 2)
+  netDsrPercent          Decimal?       @map("net_dsr_percent") @db.Decimal(5, 2)      // Net-DSR = commitments / net income * 100
+  dsrBasis               String?        @default("GROSS") @map("dsr_basis") @db.VarChar(10) // "GROSS" or "NET"
   financialsVerified      Boolean        @default(false) @map("financials_verified")
   financialsVerifiedAt    DateTime?      @map("financials_verified_at") @db.Timestamp(6)
   createdAt               DateTime       @default(now()) @map("created_at") @db.Timestamp(6)

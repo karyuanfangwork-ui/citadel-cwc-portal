@@ -201,11 +201,11 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
     }
   }
 
-  // ---- Check 10: Retail DSR warning ----
+  // ---- Check 10: Retail DSR warning (P1-3: now uses net-DSR thresholds) ----
   if (isRetailBorrower) {
     const retailIncome = await prisma.retailIncome.findUnique({
       where: { applicationId },
-      select: { dsrPercent: true },
+      select: { dsrPercent: true, netDsrPercent: true, dsrBasis: true },
     });
     if (!retailIncome) {
       warnings.push({
@@ -214,19 +214,41 @@ export async function validateSubmissionReadiness(applicationId: string): Promis
         severity: 'warning',
       });
     } else {
-      const dsr = Number(retailIncome.dsrPercent);
-      if (dsr > 70) {
-        errors.push({
-          field: 'retailIncome',
-          message: `DSR of ${dsr.toFixed(1)}% exceeds 70% threshold — application is high risk`,
-          severity: 'error',
-        });
-      } else if (dsr > 60) {
-        warnings.push({
-          field: 'retailIncome',
-          message: `DSR of ${dsr.toFixed(1)}% is in the warning band (60-70%)`,
-          severity: 'warning',
-        });
+      // P1-3: Prefer net-DSR when available; fall back to gross-DSR for backward compat
+      const dsrBasis = retailIncome.dsrBasis ?? 'GROSS';
+      const netDsr = Number(retailIncome.netDsrPercent ?? 0);
+      const grossDsr = Number(retailIncome.dsrPercent ?? 0);
+
+      if (dsrBasis === 'NET' && netDsr > 0) {
+        // Net-DSR thresholds: pass ≤50%, warning ≤60%, fail >60%
+        if (netDsr > 60) {
+          errors.push({
+            field: 'retailIncome',
+            message: `Net DSR of ${netDsr.toFixed(1)}% exceeds 60% threshold — application is high risk`,
+            severity: 'error',
+          });
+        } else if (netDsr > 50) {
+          warnings.push({
+            field: 'retailIncome',
+            message: `Net DSR of ${netDsr.toFixed(1)}% is in the warning band (50-60%)`,
+            severity: 'warning',
+          });
+        }
+      } else {
+        // Fallback to gross-DSR thresholds: pass ≤60%, warning ≤70%, fail >70%
+        if (grossDsr > 70) {
+          errors.push({
+            field: 'retailIncome',
+            message: `DSR of ${grossDsr.toFixed(1)}% exceeds 70% threshold — application is high risk`,
+            severity: 'error',
+          });
+        } else if (grossDsr > 60) {
+          warnings.push({
+            field: 'retailIncome',
+            message: `DSR of ${grossDsr.toFixed(1)}% is in the warning band (60-70%)`,
+            severity: 'warning',
+          });
+        }
       }
     }
   }
