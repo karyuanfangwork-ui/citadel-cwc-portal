@@ -43,7 +43,7 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
       await itWorkflowService.cfoDecision(requestId, 'APPROVED', comments || undefined);
       onSuccess();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to approve request');
+      setError(err.response?.data?.error || 'Failed to confirm decision');
     } finally {
       setSubmitting(false);
     }
@@ -71,8 +71,8 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
             <span className="material-symbols-outlined text-amber-600">account_balance</span>
           </div>
           <div>
-            <h2 className="font-bold text-base text-gray-900">CFO Approval</h2>
-            <p className="text-xs text-gray-500">IT Workflow · CFO Decision Required</p>
+            <h2 className="font-bold text-base text-gray-900">CFO Decision</h2>
+            <p className="text-xs text-gray-500">IT Workflow · Review Invoice & Confirm</p>
           </div>
         </div>
         <form className="flex flex-col min-h-0 flex-1">
@@ -144,7 +144,7 @@ const CfoDecisionModal: React.FC<CfoDecisionModalProps> = ({
               disabled={submitting}
               className="px-4 py-3 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-2"
             >
-              {submitting ? 'Approving…' : 'Approve'}
+              {submitting ? 'Confirming…' : 'Confirm'}
             </button>
           </div>
         </form>

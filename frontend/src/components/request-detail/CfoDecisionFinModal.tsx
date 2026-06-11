@@ -42,7 +42,7 @@ const CfoDecisionFinModal: React.FC<CfoDecisionFinModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!decision) {
-      setError('Please select Approve or Reject');
+      setError('Please select Confirm or Reject');
       return;
     }
     try {
@@ -66,8 +66,8 @@ const CfoDecisionFinModal: React.FC<CfoDecisionFinModalProps> = ({
             <span className="material-symbols-outlined text-green-600">gavel</span>
           </div>
           <div>
-            <h2 className="font-bold text-base text-gray-900">CFO Approval</h2>
-            <p className="text-xs text-gray-500">Finance Purchase Requisition · CFO Decision Required</p>
+            <h2 className="font-bold text-base text-gray-900">CFO Decision</h2>
+            <p className="text-xs text-gray-500">Finance Purchase Requisition · Review Invoice & Confirm</p>
           </div>
         </div>
         <form onSubmit={handleSubmit} className="flex flex-col min-h-0 flex-1">
@@ -118,7 +118,7 @@ const CfoDecisionFinModal: React.FC<CfoDecisionFinModalProps> = ({
                       : 'border-gray-200 bg-white text-gray-600 hover:border-green-300'
                   }`}
                 >
-                  Approve
+                  Confirm
                 </button>
                 <button
                   type="button"
@@ -169,7 +169,7 @@ const CfoDecisionFinModal: React.FC<CfoDecisionFinModalProps> = ({
                   : 'bg-green-600 hover:bg-green-700 focus-visible:ring-green-600'
               }`}
             >
-              {submitting ? 'Submitting…' : decision === 'REJECTED' ? 'Reject' : 'Approve'}
+              {submitting ? 'Submitting…' : decision === 'REJECTED' ? 'Reject' : 'Confirm'}
             </button>
           </div>
         </form>

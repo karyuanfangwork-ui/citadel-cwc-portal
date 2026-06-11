@@ -182,6 +182,7 @@ const CreditApplicationList: React.FC = () => {
   const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
+      const quickParams = quickFilter !== 'all' ? quickFilterToServerParams(quickFilter, user?.id) : {};
       const data = await creditService.listApplications({
         page,
         limit: pageSize,
@@ -190,6 +191,7 @@ const CreditApplicationList: React.FC = () => {
         state: stateFilter || undefined,
         borrowerProfileId: borrowerFilter || undefined,
         branchId: branchFilter || undefined,
+        ...quickParams,
       });
       setApplications(data.applications);
       setPagination(data.pagination);
@@ -199,7 +201,7 @@ const CreditApplicationList: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, debouncedSearch, productFilter, stateFilter, borrowerFilter, branchFilter]);
+  }, [page, pageSize, debouncedSearch, productFilter, stateFilter, borrowerFilter, branchFilter, quickFilter, user?.id]);
 
   // Reset to page 1 when filters change (not page itself)
   useEffect(() => { setPage(1); }, [debouncedSearch, productFilter, stateFilter, borrowerFilter, branchFilter, quickFilter]);
