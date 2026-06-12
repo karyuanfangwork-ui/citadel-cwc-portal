@@ -141,7 +141,7 @@ export async function isPauseStatus(status: string): Promise<boolean> {
   }
 
   const step = await prisma.workflowStep.findFirst({
-    where: { status, slaPause: true },
+    where: { status: status as any, slaPause: true },
     select: { id: true },
   });
 
