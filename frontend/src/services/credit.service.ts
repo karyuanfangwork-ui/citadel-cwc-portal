@@ -2859,3 +2859,71 @@ export const relatedPartyGroupApi = {
     return res.data.data.exposure as GroupExposureData;
   },
 };
+
+// ── P2-4: Application Comments API ──────────────────────────────────────────
+
+export interface ApplicationComment {
+  id: string;
+  applicationId: string;
+  parentId: string | null;
+  authorId: string;
+  content: string;
+  isInternal: boolean;
+  isDeleted: boolean;
+  createdAt: string;
+  updatedAt: string;
+  author: CreditUserRef;
+  replies?: ApplicationComment[];
+}
+
+export interface CommentListResult {
+  comments: ApplicationComment[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+export interface ScoreStatus {
+  lastScoreRunAt: string | null;
+  lastFinancialsUpdatedAt: string | null;
+  isOutdated: boolean;
+}
+
+export const commentApi = {
+  /** List threaded comments for an application */
+  list: async (applicationId: string, page = 1, limit = 50): Promise<CommentListResult> => {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/comments`, { params: { page, limit } });
+    return res.data.data as CommentListResult;
+  },
+
+  /** Create a top-level comment or reply */
+  create: async (applicationId: string, data: { content: string; parentId?: string; isInternal?: boolean }): Promise<ApplicationComment> => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/comments`, data);
+    return res.data.data as ApplicationComment;
+  },
+
+  /** Edit own comment */
+  update: async (commentId: string, data: { content?: string; isInternal?: boolean }): Promise<ApplicationComment> => {
+    const res = await apiClient.patch(`/credit/comments/${commentId}`, data);
+    return res.data.data as ApplicationComment;
+  },
+
+  /** Soft-delete comment */
+  delete: async (commentId: string): Promise<void> => {
+    await apiClient.delete(`/credit/comments/${commentId}`);
+  },
+};
+
+export const scoreStatusApi = {
+  /** Get score status (outdated check) */
+  getStatus: async (applicationId: string): Promise<ScoreStatus> => {
+    const res = await apiClient.get(`/credit/applications/${applicationId}/score-status`);
+    return res.data.data as ScoreStatus;
+  },
+
+  /** Trigger rescore */
+  rescore: async (applicationId: string): Promise<{ message: string; applicationId: string }> => {
+    const res = await apiClient.post(`/credit/applications/${applicationId}/rescore`);
+    return res.data.data as { message: string; applicationId: string };
+  },
+};

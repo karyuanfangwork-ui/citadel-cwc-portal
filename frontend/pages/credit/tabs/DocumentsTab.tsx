@@ -3,6 +3,7 @@ import creditService, { CreditApplication, CreditDocument, DocumentStatus } from
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../../../src/utils/errorMessages';
 import EmptyState from '../../../src/components/EmptyState';
+import BulkDocumentUpload from '../../../src/components/credit/BulkDocumentUpload';
 
 const ALL_DOC_CLASSES: { value: string; label: string; borrowerTypes?: string[] }[] = [
   { value: 'NRIC_PASSPORT', label: 'NRIC / Passport', borrowerTypes: ['INDIVIDUAL', 'SOLE_PROPRIETOR'] },
@@ -60,6 +61,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
   const [rejectReason, setRejectReason] = useState('');
   const [classification, setClassification] = useState('NRIC_PASSPORT');
   const [description, setDescription] = useState('');
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -181,6 +183,28 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
       {/* Upload form */}
       <div className="bg-bg-surface border border-border rounded-xl p-5">
         <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Upload Document</h3>
+        {/* P2-4: Toggle between single and bulk upload */}
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => setShowBulkUpload(false)}
+            className={`px-3 py-1 text-xs rounded-lg border transition-colors ${!showBulkUpload ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+          >
+            Single Upload
+          </button>
+          <button
+            onClick={() => setShowBulkUpload(true)}
+            className={`px-3 py-1 text-xs rounded-lg border transition-colors flex items-center gap-1 ${showBulkUpload ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+          >
+            <span className="material-icons text-sm">upload_file</span>
+            Bulk Upload
+          </button>
+        </div>
+        {showBulkUpload ? (
+          <BulkDocumentUpload
+            borrowerProfileId={app.borrowerProfileId}
+            onUploaded={() => fetchDocs()}
+          />
+        ) : (
         <form onSubmit={handleUpload} className="space-y-3">
           <div>
             <label className="block text-sm font-semibold text-text-primary mb-1">
@@ -230,6 +254,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ app, canApprove }) => {
             </button>
           </div>
         </form>
+        )}
       </div>
 
       {/* Document list */}

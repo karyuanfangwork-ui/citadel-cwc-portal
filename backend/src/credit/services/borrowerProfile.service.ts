@@ -24,6 +24,12 @@ export interface CreateBorrowerProfileData {
   employer?: string | null;
   annualIncome?: number | string | null;
   netWorth?: number | string | null;
+  // P2-2: Annual turnover for SME lane threshold
+  annualTurnover?: number | string | null;
+  // P2-3: SME-specific fields
+  yearsTrading?: number | null;
+  smeFinancialStatementType?: string | null;
+  sicCode?: string | null;
   // §2.9 Encrypted fields — set by encryptBorrowerFields middleware
   annualIncomeEncrypted?: string | null;
   netWorthEncrypted?: string | null;
@@ -47,6 +53,12 @@ export interface UpdateBorrowerProfileData {
   annualIncome?: number | string | null;
   netWorth?: number | string | null;
   isActive?: boolean;
+  // P2-2: Annual turnover for SME lane threshold
+  annualTurnover?: number | string | null;
+  // P2-3: SME-specific fields
+  yearsTrading?: number | null;
+  smeFinancialStatementType?: string | null;
+  sicCode?: string | null;
   // §2.9 Encrypted fields — set by encryptBorrowerFields middleware
   annualIncomeEncrypted?: string | null;
   netWorthEncrypted?: string | null;
@@ -368,6 +380,12 @@ class BorrowerProfileService {
       employer: data.employer ?? undefined,
       annualIncome: data.annualIncomeEncrypted ? null : (data.annualIncome != null ? new Prisma.Decimal(data.annualIncome as string | number) : undefined),
       netWorth: data.netWorthEncrypted ? null : (data.netWorth != null ? new Prisma.Decimal(data.netWorth as string | number) : undefined),
+      // P2-2: Annual turnover
+      annualTurnover: data.annualTurnover != null ? new Prisma.Decimal(data.annualTurnover as string | number) : undefined,
+      // P2-3: SME-specific fields
+      yearsTrading: data.yearsTrading ?? undefined,
+      smeFinancialStatementType: (data.smeFinancialStatementType as any) ?? undefined,
+      sicCode: data.sicCode ?? undefined,
       sourceOfWealthEncrypted: data.sourceOfWealthEncrypted ?? undefined,
       annualIncomeEncrypted: data.annualIncomeEncrypted ?? undefined,
       netWorthEncrypted: data.netWorthEncrypted ?? undefined,
@@ -439,6 +457,12 @@ class BorrowerProfileService {
     if (data.annualIncome !== undefined) updateData.annualIncome = data.annualIncome != null ? new Prisma.Decimal(data.annualIncome as string | number) : null;
     if (data.netWorth !== undefined) updateData.netWorth = data.netWorth != null ? new Prisma.Decimal(data.netWorth as string | number) : null;
     if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    // P2-2: Annual turnover
+    if (data.annualTurnover !== undefined) updateData.annualTurnover = data.annualTurnover != null ? new Prisma.Decimal(data.annualTurnover as string | number) : null;
+    // P2-3: SME-specific fields
+    if (data.yearsTrading !== undefined) updateData.yearsTrading = data.yearsTrading ?? null;
+    if (data.smeFinancialStatementType !== undefined) updateData.smeFinancialStatementType = data.smeFinancialStatementType as any ?? null;
+    if (data.sicCode !== undefined) updateData.sicCode = data.sicCode ?? null;
 
     // §2.9 Encrypted fields — if the encryption middleware has encrypted values,
     // store those in the Encrypted columns and zero out the plaintext.

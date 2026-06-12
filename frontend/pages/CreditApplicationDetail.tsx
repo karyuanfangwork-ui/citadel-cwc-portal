@@ -46,9 +46,16 @@ import ForwardLookingRiskTab from './credit/tabs/ForwardLookingRiskTab';
 import HeaderBackgroundTab from './credit/tabs/HeaderBackgroundTab';
 import FacilitiesTab from './credit/tabs/FacilitiesTab';
 import RequestsFacilitiesTab from './credit/tabs/RequestsFacilitiesTab';
+import SmeFinancialsTab from './credit/tabs/SmeFinancialsTab';
 
 // ── AI Insights panels (A4/A5/A6/A13/A15) ──
 import { AiDuplicateAlert, AiRedFlagPanel, AiNarrativePanel, AiCompliancePanel, AiAutoExceptionPanel } from '../src/components/credit-ai';
+
+// ── P2-4: Collaboration & Performance ──
+import ApplicationComments from '../src/components/credit/ApplicationComments';
+import ScoreOutdatedBanner from '../src/components/credit/ScoreOutdatedBanner';
+import BulkDocumentUpload from '../src/components/credit/BulkDocumentUpload';
+import BorrowerSummaryCard, { getBorrowerDisplayName } from '../src/components/credit/BorrowerSummaryCard';
 
 import {
   formatCurrency,
@@ -452,6 +459,9 @@ const isIdPlaceholder = id === 'new';
       case 'risk-score': return <RiskScoreTab application={app!} onUpdated={setApp} onRefresh={fetchApp} />;
       case 'payment-capability': return <PaymentCapabilityTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
 
+      // P2-3 — SME Simplified Financials
+      case 'sme-financials': return <SmeFinancialsTab application={app!} />;
+
       // S5 — Bureau & Compliance
       case 'credit-checks': return <CreditChecksTab application={app!} onUpdated={setApp} />;
       case 'industry': return <IndustryOutlookTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
@@ -488,6 +498,8 @@ const isIdPlaceholder = id === 'new';
 
       // META — Operations
       case 'documents': return <DocumentsTab app={app!} canApprove={canApprove} />;
+      // P2-4: Comments thread per application
+      case 'comments': return <ApplicationComments applicationId={app!.id} />;
       case 'audit': return <AuditTab />;
 
       // Bank-only tabs (P2-1: gated by feature flags — only rendered if tab is in visibleTabs)
@@ -511,6 +523,9 @@ const isIdPlaceholder = id === 'new';
       </a>
       <CreditNav />
       <div id="credit-detail-content" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
+        {/* P2-4: Score outdated banner */}
+        <ScoreOutdatedBanner applicationId={app.id} className="mb-4" />
+
         {/* Breadcrumb */}
         <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
           <div className="flex items-center gap-2 text-sm text-text-secondary">
@@ -518,7 +533,7 @@ const isIdPlaceholder = id === 'new';
             <span>/</span>
             <Link to="/credit/applications" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Applications</Link>
             <span>/</span>
-            <span className="font-semibold text-text-primary">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : app.id.slice(0, 8)}</span>
+            <span className="font-semibold text-text-primary">{getBorrowerDisplayName(app.borrowerProfile) || app.id.slice(0, 8)}</span>
             {/* P2-2: Processing lane badge */}
             {lane && lane !== 'CORPORATE' && (
               <span
@@ -545,7 +560,7 @@ const isIdPlaceholder = id === 'new';
               </div>
               <div>
                 <h1 className="text-lg font-black text-text-primary leading-tight">
-                  {app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : 'Application'}
+                  {getBorrowerDisplayName(app.borrowerProfile) || 'Application'}
                 </h1>
                 <div className="flex items-center gap-2 mt-0.5">
                   <StateBadge state={currentState} size="md" />
@@ -1092,6 +1107,13 @@ const isIdPlaceholder = id === 'new';
           </div>
         )}
 
+        {/* P2-3 — SME Simplified Financials */}
+        {activeTab === 'sme-financials' && (
+          <div role="tabpanel" id="panel-sme-financials" aria-labelledby="tab-sme-financials" tabIndex={0}>
+            <SmeFinancialsTab application={app} />
+          </div>
+        )}
+
         {/* S5 — Bureau Checks */}
         {activeTab === 'credit-checks' && (
           <div role="tabpanel" id="panel-credit-checks" aria-labelledby="tab-credit-checks" tabIndex={0}>
@@ -1196,6 +1218,13 @@ const isIdPlaceholder = id === 'new';
         {activeTab === 'documents' && (
           <div role="tabpanel" id="panel-documents" aria-labelledby="tab-documents" tabIndex={0}>
             <DocumentsTab app={app} canApprove={canApprove} />
+          </div>
+        )}
+
+        {/* P2-4: Comments thread */}
+        {activeTab === 'comments' && (
+          <div role="tabpanel" id="panel-comments" aria-labelledby="tab-comments" tabIndex={0}>
+            <ApplicationComments applicationId={app.id} />
           </div>
         )}
 

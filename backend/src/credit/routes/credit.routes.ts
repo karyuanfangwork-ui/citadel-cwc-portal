@@ -318,4 +318,8 @@ router.get('/applications/:id/lane', requirePermission('credit:read'), getApplic
 router.post('/applications/:id/lane', requirePermission('credit:write'), reEvaluateLane);
 router.get('/applications/:id/tabs', requirePermission('credit:read'), getApplicationTabs);
 
+// P2-3 — SME Financial Assessment
+import smeFinancialRoutes from './smeFinancial.routes';
+router.use('/sme', smeFinancialRoutes);
+
 export default router;

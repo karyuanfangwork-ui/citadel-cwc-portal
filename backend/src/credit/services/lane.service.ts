@@ -112,6 +112,11 @@ const SME_EXTRA_TABS: string[] = [
   'risk-score',
 ];
 
+/** Tabs exclusive to SME lane (not inherited by CORPORATE) */
+const SME_ONLY_TABS: string[] = [
+  'sme-financials',  // P2-3: SME simplified financials tab
+];
+
 /** Tabs added for CORPORATE lane (on top of SME) */
 const CORPORATE_EXTRA_TABS: string[] = [
   'parties',
@@ -135,6 +140,10 @@ export function getLaneTabs(
 
   if (lane === 'SME' || lane === 'CORPORATE') {
     tabs.push(...SME_EXTRA_TABS);
+  }
+
+  if (lane === 'SME') {
+    tabs.push(...SME_ONLY_TABS);
   }
 
   if (lane === 'CORPORATE') {

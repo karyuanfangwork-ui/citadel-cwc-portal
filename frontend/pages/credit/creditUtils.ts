@@ -165,6 +165,8 @@ export type DetailTab =
   // S4 — Risk Score
   | 'risk-score'
   | 'payment-capability'
+  // P2-3 — SME Simplified Financials
+  | 'sme-financials'
   // S5 — Bureau & Compliance
   | 'credit-checks'
   | 'industry'
@@ -180,6 +182,7 @@ export type DetailTab =
   | 'summary'
   // META — Operations
   | 'documents'
+  | 'comments'
   | 'audit'
   // Disbursement (visible in ACCEPTED / DISBURSED / CLOSED states)
   | 'disbursement'
@@ -239,6 +242,7 @@ export const TAB_GROUPS: TabGroup[] = [
     tabs: [
       { id: 'risk-score', label: 'Scorecard & Rating' },
       { id: 'payment-capability', label: 'Payment Capability' },
+      { id: 'sme-financials', label: 'SME Financials' },
     ],
   },
   {
@@ -284,6 +288,7 @@ export const TAB_GROUPS: TabGroup[] = [
     label: 'Operations',
     tabs: [
       { id: 'documents', label: 'Documents' },
+      { id: 'comments', label: 'Comments' },
       { id: 'audit', label: 'Audit Trail' },
     ],
   },
@@ -379,6 +384,7 @@ export const TAB_MIN_LANE: Partial<Record<DetailTab, ProcessingLane>> = {
   'conditions': 'SME',
   'payment-capability': 'SME',
   'risk-score': 'SME',
+  'sme-financials': 'SME',
   'parties': 'CORPORATE',
   'industry': 'CORPORATE',
   'guarantor-assessment': 'CORPORATE',
@@ -407,11 +413,11 @@ export function isTabVisibleForLane(tabId: DetailTab, lane: ProcessingLane): boo
 export function getLaneTabIds(lane: ProcessingLane): DetailTab[] {
   // Start with core tabs (visible in all lanes)
   const coreTabs: DetailTab[] = [
-    'loan-request', 'borrower-profile', 'financials', 'credit-checks', 'signoff', 'documents',
+    'loan-request', 'borrower-profile', 'financials', 'credit-checks', 'signoff', 'documents', 'comments',
   ];
 
   const smeTabs: DetailTab[] = [
-    'collateral', 'security', 'conditions', 'payment-capability', 'risk-score',
+    'collateral', 'security', 'conditions', 'payment-capability', 'risk-score', 'sme-financials',
   ];
 
   const corporateTabs: DetailTab[] = [
@@ -614,6 +620,7 @@ for (const [phase, tab] of Object.entries(PHASE_TO_TAB_MAP)) {
 TAB_TO_PHASE_MAP['parties'] = 's2';
 TAB_TO_PHASE_MAP['facilities'] = 's1';
 TAB_TO_PHASE_MAP['payment-capability'] = 's4';
+TAB_TO_PHASE_MAP['sme-financials'] = 's4';
 TAB_TO_PHASE_MAP['industry'] = 's5';
 TAB_TO_PHASE_MAP['risk'] = 's5';
 TAB_TO_PHASE_MAP['ai-insights'] = 's5';

@@ -3088,6 +3088,14 @@ enum RatioCategory {
   ACTIVITY
 }
 
+// P2-3: SME financial statement classification (audited vs management vs compiled)
+// Distinct from FinancialStatementType (BS/PL/CF) which classifies by report type.
+enum SmeFinancialStatementType {
+  AUDITED
+  MANAGEMENT
+  COMPILED
+}
+
 // ============================================================================
 // Borrower Profile — 1:1 extension of CrmAccount (CORPORATE) or CrmContact (INDIVIDUAL)
 // ============================================================================
@@ -3117,6 +3125,11 @@ model BorrowerProfile {
   
   // P2-2: Annual turnover for SME lane threshold (RM). Used by lane.service.ts.
   annualTurnover    Decimal?      @map("annual_turnover") @db.Decimal(15, 2)
+
+  // P2-3: SME-specific fields
+  yearsTrading                Int?                     @map("years_trading")
+  smeFinancialStatementType   SmeFinancialStatementType? @map("sme_financial_statement_type")
+  sicCode                     String?                  @map("sic_code") @db.VarChar(10)
 
   // §2.9 — Encrypted PII fields (AES-256-GCM)
   // These store the encrypted versions of annualIncome, netWorth, and sourceOfWealth.
@@ -3518,6 +3531,9 @@ model ApplicationFacility {
   undisbursedLimit   Decimal? @map("undisbursed_limit") @db.Decimal(15, 2)
   approvingLevel     String?  @map("approving_level") @db.VarChar(100)
   requestItemId      String?  @map("request_item_id") @db.Uuid
+
+  // P2-3: SME-specific lane configuration (simplified benchmarks, overrides)
+  smeLaneConfig      Json?    @map("sme_lane_config")
 
   deletedAt       DateTime?    @map("deleted_at") @db.Timestamp(6)
   createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamp(6)
