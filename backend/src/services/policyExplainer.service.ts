@@ -251,7 +251,7 @@ async function explainCreditPolicy(applicationId: string, currentUserId: string)
   try {
     // Use the existing service for a proper lookup
     const { approvalMatrixService } = await import('../credit/services/approvalMatrix.service');
-    authorityResult = await approvalMatrixService.lookupApprovalAuthority(totalExposure, borrowerRating as string);
+    authorityResult = await approvalMatrixService.lookupApprovalAuthority(totalExposure, borrowerRating as string, null, null);
   } catch {
     // If lookup fails, authority result stays null — we just report no matrix match
   }

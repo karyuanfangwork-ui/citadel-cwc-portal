@@ -64,7 +64,7 @@ class ApprovalMatrixService {
    *   - isActive = true
    *   - effectiveFrom <= now <= effectiveTo (or effectiveTo is null)
    */
-  async lookupApprovalAuthority(exposure: number, riskRating: string, branchId?: string | null): Promise<ApprovalAuthorityResult | null> {
+  async lookupApprovalAuthority(exposure: number, riskRating: string, branchId?: string | null, lane?: string | null): Promise<ApprovalAuthorityResult | null> {
     const now = new Date();
     const ratingOrdinal = ratingToOrdinal(riskRating);
 
@@ -109,11 +109,41 @@ class ApprovalMatrixService {
     // §3.1 — Branch-specific matrices take precedence over the global matrix
     if (branchId) {
       const branchMatch = matrices.find(m => m.branchId === branchId && matches(m));
-      if (branchMatch) return toResult(branchMatch);
+      if (branchMatch) {
+        // P2-2: Lane-aware approval depth override for branch-specific match
+        if (lane === 'PERSONAL_FAST' || lane === 'SME') {
+          return {
+            ...toResult(branchMatch),
+            requiredApproverCount: 2,
+          };
+        }
+        return toResult(branchMatch);
+      }
     }
 
     const globalMatch = matrices.find(m => m.branchId === null && matches(m));
-    if (globalMatch) return toResult(globalMatch);
+    if (globalMatch) {
+      // P2-2: Lane-aware approval depth override
+      // PERSONAL_FAST and SME lanes always require exactly 2 approvals.
+      // Authority level still comes from the matrix (who can approve).
+      if (lane === 'PERSONAL_FAST' || lane === 'SME') {
+        return {
+          ...toResult(globalMatch),
+          requiredApproverCount: 2,
+        };
+      }
+      return toResult(globalMatch);
+    }
+
+    // P2-2: Even without a matrix match, PERSONAL_FAST/SME lanes default to 2 approvals at MANAGER level
+    if (lane === 'PERSONAL_FAST' || lane === 'SME') {
+      return {
+        authorityLevel: 'MANAGER',
+        requiredApproverCount: 2,
+        matrixId: '',
+        matrixName: `Lane override: ${lane}`,
+      };
+    }
 
     return null;
   }

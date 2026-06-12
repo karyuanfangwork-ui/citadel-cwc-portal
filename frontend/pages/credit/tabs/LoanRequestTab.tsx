@@ -8,7 +8,7 @@ import {
   getFacilityTypes,
   CURRENCIES,
   PRODUCT_LABELS,
-  FACILITY_TYPES,
+  VISIBLE_FACILITY_TYPES,
 } from '../creditUtils';
 import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import useAutosave from '../../../src/hooks/useAutosave';
@@ -71,7 +71,7 @@ const LoanRequestTab: React.FC<Props> = ({ application, onUpdated, onDirtyChange
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:bg-gray-50 disabled:text-gray-400"
             >
               <option value="">Select product type</option>
-              {FACILITY_TYPES.map(ft => (
+              {VISIBLE_FACILITY_TYPES.map(ft => (
                 <option key={ft.value} value={ft.value}>{ft.label}</option>
               ))}
             </select>

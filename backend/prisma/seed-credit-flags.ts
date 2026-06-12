@@ -17,6 +17,14 @@ async function main() {
     { key: 'credit:monitoring', description: 'Post-disbursement monitoring and EWS', enabled: true, category: 'credit' },
     { key: 'credit:dashboards', description: 'Credit operational dashboards', enabled: true, category: 'credit' },
     { key: 'credit:ai', description: 'AI advisory features (v2 - deferred)', enabled: true, category: 'credit' },
+    { key: 'credit:ecl', description: 'Expected Credit Loss calculation', enabled: false, category: 'credit' },
+    { key: 'credit:esg', description: 'ESG risk assessment', enabled: false, category: 'credit' },
+    { key: 'credit:sicr', description: 'Significant Increase in Credit Risk tracking', enabled: false, category: 'credit' },
+    { key: 'credit:fatca_crs', description: 'FATCA/CRS tax compliance screening', enabled: false, category: 'credit' },
+    { key: 'credit:profitability', description: 'Profitability analysis and pricing', enabled: false, category: 'credit' },
+    { key: 'credit:counterparties', description: 'Counterparty risk management', enabled: false, category: 'credit' },
+    { key: 'credit:account_conduct', description: 'Account conduct and behavioural scoring', enabled: false, category: 'credit' },
+    { key: 'credit:advanced_memo', description: 'Advanced credit memo templating and generation', enabled: true, category: 'credit' },
   ];
 
   for (const flag of flags) {

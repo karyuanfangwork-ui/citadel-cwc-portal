@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { authenticate, requirePermission, requireServiceApiKey } from '../../middleware/auth.middleware';
-import { requireFeatureFlag } from '../middleware/featureFlag.middleware';
+import { requireFeatureFlag, invalidateFlagCache } from '../middleware/featureFlag.middleware';
 import prisma from '../../utils/prisma';
 
 // Sprint 1 — Borrower + Documents
@@ -116,7 +116,19 @@ import creditAiRoutes from './creditAi.routes';
 
 const router = Router();
 
-// Feature flag admin routes (outside feature flag gate)
+// Feature flag routes (outside feature flag gate)
+
+// Public endpoint — returns only {key, enabled} for all flags.
+// Requires only credit:read so the frontend can determine which tabs/features to show.
+router.get('/feature-flags/public', authenticate, requirePermission('credit:read'), async (_req: Request, res: Response) => {
+  const flags = await prisma.featureFlag.findMany({
+    select: { key: true, enabled: true },
+    orderBy: { key: 'asc' },
+  });
+  res.json({ status: 'success', data: { flags } });
+});
+
+// Admin endpoint — returns full flag details
 router.get('/feature-flags', requirePermission('credit:admin'), async (_req: Request, res: Response) => {
   const flags = await prisma.featureFlag.findMany({ orderBy: { key: 'asc' } });
   res.json({ status: 'success', data: { flags } });
@@ -133,6 +145,7 @@ router.patch('/feature-flags/:key', requirePermission('credit:admin'), async (re
     update: { enabled, rolloutPct, category, description },
     create: { key: String(key), enabled: enabled ?? false, rolloutPct: rolloutPct ?? 0, category: category ?? 'credit', description: description ?? '' },
   });
+  await invalidateFlagCache();
   res.json({ status: 'success', data: { flag } });
 });
 
@@ -297,5 +310,12 @@ router.use('/str', strRoutes);
 
 // P1-8 — MFA for Approver/Disburser Roles
 router.use('/mfa', mfaRoutes);
+
+// P2-2 — Processing Lanes
+import { getApplicationLane, reEvaluateLane, getApplicationTabs } from '../controllers/lane.controller';
+
+router.get('/applications/:id/lane', requirePermission('credit:read'), getApplicationLane);
+router.post('/applications/:id/lane', requirePermission('credit:write'), reEvaluateLane);
+router.get('/applications/:id/tabs', requirePermission('credit:read'), getApplicationTabs);
 
 export default router;

@@ -847,6 +847,32 @@ const creditService = {
     return res.data.data.flags as { key: string; enabled: boolean }[];
   },
 
+  /** Public endpoint — no admin permission required. Returns {key, enabled} for all credit flags. */
+  async getPublicFeatureFlags(): Promise<{ key: string; enabled: boolean }[]> {
+    const res = await apiClient.get('/credit/feature-flags/public');
+    return res.data.data.flags as { key: string; enabled: boolean }[];
+  },
+
+  // ── P2-2: Processing Lanes ──────────────────────────────────────────────────
+
+  /** Get the processing lane for an application (lane, reason, required approvers). */
+  async getApplicationLane(id: string): Promise<{ lane: string; reason: string; requiredApproverCount: number; persistedLane: string }> {
+    const res = await apiClient.get(`/credit/applications/${id}/lane`);
+    return res.data.data;
+  },
+
+  /** Re-evaluate and persist the processing lane for an application. */
+  async reEvaluateLane(id: string): Promise<{ lane: string; reason: string; requiredApproverCount: number }> {
+    const res = await apiClient.post(`/credit/applications/${id}/lane`);
+    return res.data.data;
+  },
+
+  /** Get the tab list for an application filtered by lane + feature flags. */
+  async getApplicationTabs(id: string): Promise<{ lane: string; reason: string; tabs: string[]; featureFlags: Record<string, boolean> }> {
+    const res = await apiClient.get(`/credit/applications/${id}/tabs`);
+    return res.data.data;
+  },
+
   // State Machine Transitions
   async transitionApplication(id: string, data: { action: string; reason?: string }) {
     const res = await apiClient.post(`/credit/applications/${id}/transition`, data);

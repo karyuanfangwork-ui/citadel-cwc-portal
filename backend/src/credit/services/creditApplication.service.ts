@@ -649,6 +649,14 @@ class CreditApplicationService {
       applicationNo,
     });
 
+    // P2-2: Determine and persist the processing lane
+    try {
+      const { persistLane } = await import('./lane.service');
+      await persistLane(application.id);
+    } catch (_e) {
+      // Non-blocking — lane defaults to CORPORATE if determination fails
+    }
+
     return application;
   }
 
@@ -915,6 +923,7 @@ class CreditApplicationService {
           totalExposure,
           borrowerRating ?? 'NR',
           appWithBorrower.branchId,
+          appWithBorrower.lane,
         );
 
         const requiredApproverCount = authorityResult?.requiredApproverCount ?? 1;

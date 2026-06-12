@@ -254,9 +254,11 @@ type Props = {
   onDirtyChange?: (dirty: boolean) => void;
   /** §8.2 — Callback to signal whether FATCA/CRS is complete */
   onFatcaComplete?: (complete: boolean) => void;
+  /** P2-1: Whether the credit:fatca_crs feature flag is enabled */
+  fatcaCrsEnabled?: boolean;
 };
 
-const BorrowerProfileTab: React.FC<Props> = ({ application, onFatcaComplete }) => {
+const BorrowerProfileTab: React.FC<Props> = ({ application, onFatcaComplete, fatcaCrsEnabled = false }) => {
   const bp = application.borrowerProfile;
   const account = bp?.account;
   const contact = bp?.contact;
@@ -357,8 +359,8 @@ const BorrowerProfileTab: React.FC<Props> = ({ application, onFatcaComplete }) =
         )}
       </CaMemoSection>
 
-      {/* ── FATCA/CRS Declaration ──────────────────────────── */}
-      {isCorporate && !fatcaIsComplete && (
+      {/* ── FATCA/CRS Declaration (P2-1: gated by credit:fatca_crs feature flag) ─── */}
+      {fatcaCrsEnabled && isCorporate && !fatcaIsComplete && (
         <div className="rounded-lg border border-red-300 bg-red-50 p-3 flex items-center gap-2">
           <span className="material-symbols-outlined text-red-600">warning</span>
           <span className="text-sm font-semibold text-red-800">
@@ -366,7 +368,7 @@ const BorrowerProfileTab: React.FC<Props> = ({ application, onFatcaComplete }) =
           </span>
         </div>
       )}
-      {bp?.id && <FatcaCrsSection borrowerProfileId={bp.id} onDeclarationLoaded={setFatcaDeclaration} />}
+      {fatcaCrsEnabled && bp?.id && <FatcaCrsSection borrowerProfileId={bp.id} onDeclarationLoaded={setFatcaDeclaration} />}
     </div>
   );
 };

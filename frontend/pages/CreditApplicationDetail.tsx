@@ -11,8 +11,9 @@ import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
 import { useDirtyFormGuard } from '../src/hooks/useDirtyFormGuard';
+import { useCreditFeatureFlags } from '../src/hooks/useCreditFeatureFlags';
+import { useApplicationLane } from '../src/hooks/useApplicationLane';
 import ReadinessChecklistModal from '../src/components/credit/ReadinessChecklistModal';
-import { PHASE_TO_TAB_MAP } from './credit/creditUtils';
 
 // ── New 7-Section Tabs ───────────────────────────────────
 import LoanRequestTab from './credit/tabs/LoanRequestTab';
@@ -36,7 +37,7 @@ import DocumentsTab from './credit/tabs/DocumentsTab';
 import AuditTab from './credit/tabs/AuditTab';
 import PartiesTab from './credit/tabs/PartiesTab';
 
-// ── Legacy tabs (bank-grade, behind credit:advanced_memo flag) ──
+// ── Legacy tabs (bank-grade, behind feature flags) ──
 import RiskRatingEclTab from './credit/tabs/RiskRatingEclTab';
 import ProfitabilityWalletTab from './credit/tabs/ProfitabilityWalletTab';
 import CounterpartiesTab from './credit/tabs/CounterpartiesTab';
@@ -66,9 +67,11 @@ import {
   getNextIncompleteTab,
   getVisibleTabGroups,
   TAB_TO_PHASE_MAP,
+  FATCA_CRS_FLAG,
+  LANE_LABELS,
+  LANE_DESCRIPTIONS,
+  ProcessingLane as ProcessingLaneType,
 } from './credit/creditUtils';
-import CreditApplicationWizard from './credit/CreditApplicationWizard';
-import { LEGACY_TAB_MAP } from './credit/tabRegistry';
 import RejectionBanner from './credit/RejectionBanner';
 import ApplicationTimeline from '../src/components/credit/ApplicationTimeline';
 
@@ -100,8 +103,10 @@ const ProgressRing: React.FC<{ pct: number; color: string; size?: number }> = ({
 const CreditApplicationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  // §3.4 — Single useSearchParams for both mode/new params and tab state
   const { user } = useAuth();
+
+  // §3.4 — Tab state persisted in URL search params (survives navigation away/back)
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Dirty form guard — warns on tab change / navigation if any tab has unsaved changes
   const { isDirty, setDirty, confirmTabSwitch, DirtyGuardDialog } = useDirtyFormGuard();
@@ -109,9 +114,23 @@ const CreditApplicationDetail: React.FC = () => {
   const [app, setApp] = useState<CreditApplication | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // §3.4 — Tab state persisted in URL search params (survives navigation away/back)
-  const [searchParams, setSearchParams] = useSearchParams();
-  const wizardMode = searchParams.get('mode') === 'wizard';
+  // P2-1: Feature flags from backend (controls bank-grade tab visibility)
+  const { flags: featureFlags, isFeatureEnabled } = useCreditFeatureFlags();
+
+  // P2-2: Processing lane (determines tab set and approval depth)
+  const { lane, reason: laneReason } = useApplicationLane(id);
+
+  // P2-1: Redirect ?mode=wizard to classic view (Wizard mode removed)
+  // This runs once on mount if the URL has ?mode=wizard
+  useEffect(() => {
+    if (searchParams.get('mode') === 'wizard') {
+      const clean = new URLSearchParams(searchParams);
+      clean.delete('mode');
+      setSearchParams(clean, { replace: true });
+      toast('Redirected to Classic View — Wizard mode has been retired.', { icon: 'ℹ️' });
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isNewApplication = searchParams.get('new') === '1';
 
   const getDefaultTab = (state: string): DetailTab => {
@@ -128,22 +147,10 @@ const CreditApplicationDetail: React.FC = () => {
     }, { replace: true });
   }, [setSearchParams]);
 
-  // Feature flag: credit:advanced_memo — enables bank-only sections
-  // TODO (Wave E): wire to FeatureFlag API. For now, default false.
-  const [advancedMemo, setAdvancedMemo] = useState(false);
+  // P2-1: Advanced Memo is now driven by feature flags instead of a separate toggle.
+  // The credit:advanced_memo flag gates the advanced tab groups.
+  const advancedMemo = isFeatureEnabled('credit:advanced_memo');
   const [showOnboardingBanner, setShowOnboardingBanner] = useState(isNewApplication);
-
-  // Feature flag: credit:advanced_memo — gate Advanced Memo toggle behind API
-  const [advancedMemoFlag, setAdvancedMemoFlag] = useState(false);
-
-  useEffect(() => {
-    creditService.listFeatureFlags()
-      .then(flags => {
-        const flag = flags.find(f => f.key === 'credit:advanced_memo');
-        if (flag?.enabled) setAdvancedMemoFlag(true);
-      })
-      .catch(() => { /* non-admin — stays false */ });
-  }, []);
 
   // State-dependent tab visibility — computed after currentState
   // (visibleTabGroups is set in useEffect below after app loads)
@@ -226,12 +233,12 @@ const isIdPlaceholder = id === 'new';
     if (isIdPlaceholder) setLoading(false);
   }, [isIdPlaceholder]);
 
-  // Recalculate visible tab groups when app state changes
+  // Recalculate visible tab groups when app state or feature flags change
   useEffect(() => {
     if (!app) return;
     const st = (app.state || app.status) as ApplicationState;
-    setVisibleTabGroups(getVisibleTabGroups(advancedMemo, app.borrowerProfile?.borrowerType ?? null, st));
-  }, [app, advancedMemo]);
+    setVisibleTabGroups(getVisibleTabGroups(advancedMemo, app.borrowerProfile?.borrowerType ?? null, st, featureFlags, lane as ProcessingLaneType | null));
+  }, [app, advancedMemo, featureFlags, lane]);
 
   // Fetch sign-offs for committee review gate
   useEffect(() => {
@@ -277,7 +284,7 @@ const isIdPlaceholder = id === 'new';
     }
   }, [showTransitionDialog]);
 
-  // §T9 — Completion status callback for wizard (must be before early returns — Rules of Hooks)
+  // §T9 — Completion status callback (must be before early returns — Rules of Hooks)
   // Reads phaseCompletion via ref so hook identity is stable while data stays current.
   const phaseCompletionRef = useRef<Record<string, string>>({});
   const getCompletionStatus = useCallback((tabId: DetailTab): 'complete' | 'partial' | 'empty' => {
@@ -435,7 +442,7 @@ const isIdPlaceholder = id === 'new';
       case 'loan-request': return <LoanRequestTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />;
 
       // S2 — Borrower Profile
-      case 'borrower-profile': return <BorrowerProfileTab application={app!} />;
+      case 'borrower-profile': return <BorrowerProfileTab application={app!} fatcaCrsEnabled={isFeatureEnabled(FATCA_CRS_FLAG)} />;
       case 'parties': return <PartiesTab app={app!} borrowerType={app?.borrowerProfile?.borrowerType} />;
 
       // S3 — Financials
@@ -483,63 +490,18 @@ const isIdPlaceholder = id === 'new';
       case 'documents': return <DocumentsTab app={app!} canApprove={canApprove} />;
       case 'audit': return <AuditTab />;
 
-      // Bank-only tabs (rendered when credit:advanced_memo is enabled)
-      case 'risk-rating': return <RiskRatingEclTab application={app!} onDirtyChange={setDirty} />;
-      case 'profitability': return <ProfitabilityWalletTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'counterparties': return <CounterpartiesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'conduct': return <AccountConductTab application={app!} onUpdated={setApp} />;
-      case 'forward-looking-risk': return <ForwardLookingRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'header': return <HeaderBackgroundTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} />;
-      case 'facilities': return <RequestsFacilitiesTab application={app!} onDirtyChange={setDirty} />;
+      // Bank-only tabs (P2-1: gated by feature flags — only rendered if tab is in visibleTabs)
+      case 'risk-rating': return isFeatureEnabled('credit:ecl') ? <RiskRatingEclTab application={app!} onDirtyChange={setDirty} /> : null;
+      case 'profitability': return isFeatureEnabled('credit:profitability') ? <ProfitabilityWalletTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} /> : null;
+      case 'counterparties': return isFeatureEnabled('credit:counterparties') ? <CounterpartiesTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} /> : null;
+      case 'conduct': return isFeatureEnabled('credit:account_conduct') ? <AccountConductTab application={app!} onUpdated={setApp} /> : null;
+      case 'forward-looking-risk': return isFeatureEnabled('credit:esg') ? <ForwardLookingRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} /> : null;
+      case 'header': return advancedMemo ? <HeaderBackgroundTab application={app!} onUpdated={(updated) => setApp(updated)} onDirtyChange={setDirty} /> : null;
+      case 'facilities': return advancedMemo ? <RequestsFacilitiesTab application={app!} onDirtyChange={setDirty} /> : null;
 
       default: return null;
     }
   };
-
-  // §3.6 — Wizard mode: uses CreditApplicationWizard shell instead of classic tab layout
-  if (wizardMode) {
-    return (
-      <>
-        <CreditNav />
-        <div className="flex items-center justify-between px-4 sm:px-8 py-3 bg-white border-b border-gray-200">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Link to="/credit" className="hover:text-blue-600">Credit</Link>
-            <span>/</span>
-            <Link to="/credit/applications" className="hover:text-blue-600">Applications</Link>
-            <span>/</span>
-            <span className="font-semibold text-gray-900">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : app.id.slice(0, 8)}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Advanced Memo toggle */}
-            {advancedMemoFlag && (
-            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer">
-              <input type="checkbox" checked={advancedMemo} onChange={e => setAdvancedMemo(e.target.checked)} className="rounded border-gray-300" />
-              Advanced Memo
-            </label>
-            )}
-            <Link
-              to={`/credit/applications/${id}`}
-              className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800"
-              title="Switch to classic view"
-            >
-              <span className="material-symbols-outlined text-lg">view_agenda</span>
-              Classic View
-            </Link>
-          </div>
-        </div>
-        <CreditApplicationWizard
-          app={app!}
-          onRefresh={fetchApp}
-          renderTab={renderTab}
-          getCompletionStatus={getCompletionStatus}
-          dirty={isDirty}
-          onDirtyChange={setDirty}
-          confirmTabSwitch={confirmTabSwitch}
-          DirtyGuardDialog={DirtyGuardDialog}
-        />
-      </>
-    );
-  }
 
   return (
     <>
@@ -557,24 +519,17 @@ const isIdPlaceholder = id === 'new';
             <Link to="/credit/applications" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Applications</Link>
             <span>/</span>
             <span className="font-semibold text-text-primary">{app.borrowerProfile ? (app.borrowerProfile.account?.name || (app.borrowerProfile.contact ? `${app.borrowerProfile.contact.firstName} ${app.borrowerProfile.contact.lastName}` : app.borrowerProfile.name) || 'Unnamed Borrower') : app.id.slice(0, 8)}</span>
-          </div>
-          <div className="flex items-center gap-3">
-            {/* Advanced Memo toggle */}
-            {advancedMemoFlag && (
-            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer select-none" title="Show bank-grade ECL, ESG, SICR, Committee sections">
-              <input type="checkbox" checked={advancedMemo} onChange={e => setAdvancedMemo(e.target.checked)} className="rounded border-gray-300" />
-              Advanced Memo
-            </label>
+            {/* P2-2: Processing lane badge */}
+            {lane && lane !== 'CORPORATE' && (
+              <span
+                className={`ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                  lane === 'PERSONAL_FAST' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                }`}
+                title={laneReason || LANE_DESCRIPTIONS[lane as ProcessingLaneType]}
+              >
+                {LANE_LABELS[lane as ProcessingLaneType] || lane}
+              </span>
             )}
-            {/* §3.6 — Wizard mode toggle */}
-            <Link
-              to={`/credit/applications/${id}?mode=wizard`}
-              className="flex items-center gap-1 text-sm font-semibold text-blue-600 hover:text-blue-800"
-              title="Switch to wizard view"
-            >
-              <span className="material-symbols-outlined text-lg">view_sidebar</span>
-              Wizard View
-            </Link>
           </div>
         </div>
 

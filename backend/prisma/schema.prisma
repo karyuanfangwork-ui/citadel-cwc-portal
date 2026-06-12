@@ -2543,6 +2543,13 @@ enum BorrowerType {
   SOLE_PROPRIETOR
 }
 
+// P2-2: Processing lanes — determines tab set and approval depth
+enum ProcessingLane {
+  PERSONAL_FAST
+  SME
+  CORPORATE
+}
+
 enum EmploymentType {
   SALARIED
   SELF_EMPLOYED
@@ -3107,6 +3114,9 @@ model BorrowerProfile {
   employer          String?       @db.VarChar(255)
   annualIncome      Decimal?      @map("annual_income") @db.Decimal(15, 2)
   netWorth          Decimal?      @map("net_worth") @db.Decimal(15, 2)
+  
+  // P2-2: Annual turnover for SME lane threshold (RM). Used by lane.service.ts.
+  annualTurnover    Decimal?      @map("annual_turnover") @db.Decimal(15, 2)
 
   // §2.9 — Encrypted PII fields (AES-256-GCM)
   // These store the encrypted versions of annualIncome, netWorth, and sourceOfWealth.
@@ -3359,6 +3369,9 @@ model CreditApplication {
   requestedAmount Decimal           @map("requested_amount") @db.Decimal(15, 2)
   requestedTenor  Int?              @map("requested_tenor") // months
   currency        CurrencyCode      @default(MYR)
+  
+  // P2-2: Processing lane — determined by borrowerType × requestedAmount × annualTurnover
+  lane            ProcessingLane    @default(CORPORATE) @map("lane")
   
   // Assignment
   assignedRmId    String?           @map("assigned_rm_id") @db.Uuid

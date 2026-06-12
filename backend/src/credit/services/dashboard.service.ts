@@ -522,6 +522,7 @@ class DashboardService {
         exposure,
         riskRating,
         branchId,
+        (app as any).lane ?? null,
       );
       if (authorityResult) {
         const requiredLevel = AUTHORITY_HIERARCHY[authorityResult.authorityLevel] ?? 0;

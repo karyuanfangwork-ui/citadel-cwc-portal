@@ -90,7 +90,8 @@ class ApprovalController {
       throw new AppError('exposure and riskRating are required', 400);
     }
 
-    const result = await approvalMatrixService.lookupApprovalAuthority(Number(exposure), riskRating, branchId ?? null);
+    const lane = (req.query.lane as string) || null;
+    const result = await approvalMatrixService.lookupApprovalAuthority(Number(exposure), riskRating, branchId ?? null, lane);
 
     if (!result) {
       throw new AppError('No matching approval authority found for the given exposure and risk rating', 404);

@@ -10,7 +10,7 @@ import { hasPermission } from '../src/utils/permissions';
 import toast from 'react-hot-toast';
 import { friendlyMessage } from '../src/utils/errorMessages';
 import { sortApplications, type SortColumn, type SortDir } from '../src/utils/creditSort';
-import { formatCurrency, formatDate, STATE_COLORS, STATE_LABELS, STATE_ICONS, getSmartDefaults } from './credit/creditUtils';
+import { formatCurrency, formatDate, STATE_COLORS, STATE_LABELS, STATE_ICONS, getSmartDefaults, VISIBLE_PRODUCT_TYPES, VISIBLE_PRODUCT_LABELS, HIDDEN_PRODUCT_TYPES } from './credit/creditUtils';
 import StateBadge from '../src/components/credit/StateBadge';
 import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
 
@@ -23,19 +23,15 @@ const KANBAN_COLUMNS: { key: string; label: string; states: ApplicationState[]; 
   { key: 'active', label: 'Active', states: ['DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN'], color: '#22c55e' },
 ];
 
-const PRODUCT_TYPES: { value: CreditProductType; label: string }[] = [
-  { value: 'TERM_LOAN', label: 'Term Loan' },
-  { value: 'REVOLVING_CREDIT', label: 'Revolving Credit' },
-  { value: 'TRADE_FINANCE', label: 'Trade Finance' },
-  { value: 'PROJECT_FINANCE', label: 'Project Finance' },
-  { value: 'SYNDICATED', label: 'Syndicated' },
-  { value: 'BRIDGE_LOAN', label: 'Bridge Loan' },
-  { value: 'OVERDRAFT', label: 'Overdraft' },
-  { value: 'LETTER_OF_CREDIT', label: 'Letter of Credit' },
-  { value: 'BANK_GUARANTEE', label: 'Bank Guarantee' },
-];
+// P2-1: Use visible product types (SYNDICATED, PROJECT_FINANCE hidden from dropdowns)
+const PRODUCT_TYPES = VISIBLE_PRODUCT_TYPES as { value: CreditProductType; label: string }[];
 
-const PRODUCT_LABELS: Record<string, string> = Object.fromEntries(PRODUCT_TYPES.map(p => [p.value, p.label]));
+// Labels map still includes ALL products (hidden ones needed for displaying existing records)
+const PRODUCT_LABELS: Record<string, string> = {
+  ...VISIBLE_PRODUCT_LABELS,
+  // Hidden types remain in the map so existing records still render labels
+  ...Object.fromEntries(HIDDEN_PRODUCT_TYPES.map(t => [t, t === 'SYNDICATED' ? 'Syndicated' : 'Project Finance'])),
+};
 
 const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD'] as const;
 

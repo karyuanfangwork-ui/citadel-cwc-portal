@@ -80,11 +80,23 @@ export const STEPPER_STAGES: { key: string; label: string; states: ApplicationSt
   { key: 'active', label: 'Active', states: ['DISBURSED', 'ACTIVE', 'CLOSED', 'WITHDRAWN'] },
 ];
 
+/** Product types hidden from frontend dropdowns (bank-grade). */
+export const HIDDEN_PRODUCT_TYPES: string[] = ['SYNDICATED', 'PROJECT_FINANCE'];
+
 export const PRODUCT_LABELS: Record<string, string> = {
   TERM_LOAN: 'Term Loan', REVOLVING_CREDIT: 'Revolving Credit', TRADE_FINANCE: 'Trade Finance',
   PROJECT_FINANCE: 'Project Finance', SYNDICATED: 'Syndicated', BRIDGE_LOAN: 'Bridge Loan',
   OVERDRAFT: 'Overdraft', LETTER_OF_CREDIT: 'Letter of Credit', BANK_GUARANTEE: 'Bank Guarantee',
 };
+
+/** P2-1: Visible product labels — excludes hidden product types for dropdowns/selectors. */
+export const VISIBLE_PRODUCT_LABELS: Record<string, string> = Object.fromEntries(
+  Object.entries(PRODUCT_LABELS).filter(([key]) => !HIDDEN_PRODUCT_TYPES.includes(key)),
+);
+
+/** P2-1: Visible product types for dropdowns — excludes SYNDICATED and PROJECT_FINANCE. */
+export const VISIBLE_PRODUCT_TYPES: { value: string; label: string }[] = Object.entries(VISIBLE_PRODUCT_LABELS)
+  .map(([value, label]) => ({ value, label }));
 
 /** Product types that always require collateral (secured deals). */
 export const SECURED_PRODUCTS: string[] = [
@@ -96,12 +108,20 @@ export const SECURED_PRODUCTS: string[] = [
   'BANK_GUARANTEE',
 ];
 
+/** P2-1: Visible secured products — excludes hidden product types from collateral-required logic for new applications. */
+export const VISIBLE_SECURED_PRODUCTS: string[] = SECURED_PRODUCTS.filter(p => !HIDDEN_PRODUCT_TYPES.includes(p));
+
 export const FACILITY_TYPES: { value: FacilityType; label: string }[] = [
   { value: 'TERM_LOAN', label: 'Term Loan' }, { value: 'REVOLVING_CREDIT', label: 'Revolving Credit' },
   { value: 'OVERDRAFT', label: 'Overdraft' }, { value: 'LETTER_OF_CREDIT', label: 'Letter of Credit' },
   { value: 'BANK_GUARANTEE', label: 'Bank Guarantee' }, { value: 'TRADE_FINANCE', label: 'Trade Finance' },
   { value: 'BRIDGE_LOAN', label: 'Bridge Loan' }, { value: 'PROJECT_FINANCE', label: 'Project Finance' },
 ];
+
+/** P2-1: Visible facility types — excludes hidden product types from dropdowns/selectors. */
+export const VISIBLE_FACILITY_TYPES: { value: FacilityType; label: string }[] = FACILITY_TYPES.filter(
+  ft => !HIDDEN_PRODUCT_TYPES.includes(ft.value),
+);
 
 export const PHASE2_FACILITY_TYPES: { value: FacilityType; label: string }[] = [
   { value: 'CASHLINE', label: 'Cashline (Islamic)' },
@@ -112,7 +132,8 @@ export const PHASE2_FACILITY_TYPES: { value: FacilityType; label: string }[] = [
 ];
 
 export function getFacilityTypes(islamicEnabled: boolean): { value: FacilityType; label: string }[] {
-  return islamicEnabled ? [...FACILITY_TYPES, ...PHASE2_FACILITY_TYPES] : FACILITY_TYPES;
+  const base = islamicEnabled ? [...VISIBLE_FACILITY_TYPES, ...PHASE2_FACILITY_TYPES] : VISIBLE_FACILITY_TYPES;
+  return base;
 }
 
 export const CURRENCIES = ['MYR', 'USD', 'SGD', 'GBP', 'EUR', 'JPY', 'CNY', 'THB', 'IDR', 'AUD', 'HKD'] as const;
@@ -306,22 +327,162 @@ export const TAB_GROUPS: TabGroup[] = [
 
 export const ALL_TABS: DetailTab[] = TAB_GROUPS.flatMap(g => g.tabs.map(t => t.id));
 
+/**
+ * P2-1: Feature-flag key mapping for bank-grade tabs.
+ * Each tab/group ID maps to the feature flag that gates its visibility.
+ * Tabs without a flag key are always visible (core flow).
+ */
+export const TAB_FEATURE_FLAGS: Partial<Record<DetailTab, string>> = {
+  'risk-rating': 'credit:ecl',
+  'profitability': 'credit:profitability',
+  'counterparties': 'credit:counterparties',
+  'conduct': 'credit:account_conduct',
+  'forward-looking-risk': 'credit:esg',  // ESG/SICR/FL Risk combined tab
+};
+
+/** Group-level feature flags — these hide the entire group, not just individual tabs. */
+export const GROUP_FEATURE_FLAGS: Record<string, string> = {
+  'adv-risk-rating': 'credit:ecl',
+  'adv-financial-analysis': 'credit:profitability',  // profitability + counterparties + conduct
+  'adv-forward-risk': 'credit:esg',                  // ESG / SICR / FL Risk
+};
+
+/** FATCA/CRS section within borrower-profile tab is gated separately. */
+export const FATCA_CRS_FLAG = 'credit:fatca_crs';
+
+// ── P2-2: Processing Lanes ────────────────────────────────────────────────────
+
+/** Processing lane types — determines tab set and approval depth. */
+export type ProcessingLane = 'PERSONAL_FAST' | 'SME' | 'CORPORATE';
+
+/** Human-readable labels for each processing lane. */
+export const LANE_LABELS: Record<ProcessingLane, string> = {
+  PERSONAL_FAST: 'Personal Fast',
+  SME: 'SME',
+  CORPORATE: 'Corporate',
+};
+
+/** Lane descriptions shown in tooltips / info banners. */
+export const LANE_DESCRIPTIONS: Record<ProcessingLane, string> = {
+  PERSONAL_FAST: 'Individual borrower ≤ RM150k — streamlined 6-tab flow, 2 approvals',
+  SME: 'SME borrower (turnover < RM5M) — 12-tab flow, 2-eye approval',
+  CORPORATE: 'Full corporate assessment — comprehensive flow, matrix-based approval',
+};
+
+/**
+ * P2-2: Map a tab ID to the minimum lane that includes it.
+ * Tabs not listed here appear in ALL lanes (core tabs).
+ */
+export const TAB_MIN_LANE: Partial<Record<DetailTab, ProcessingLane>> = {
+  'collateral': 'SME',
+  'security': 'SME',
+  'conditions': 'SME',
+  'payment-capability': 'SME',
+  'risk-score': 'SME',
+  'parties': 'CORPORATE',
+  'industry': 'CORPORATE',
+  'guarantor-assessment': 'CORPORATE',
+  'approvals': 'CORPORATE',
+  'audit': 'CORPORATE',
+};
+
+/**
+ * Check if a tab is visible for a given lane.
+ * Core tabs (not in TAB_MIN_LANE) are always visible.
+ */
+export function isTabVisibleForLane(tabId: DetailTab, lane: ProcessingLane): boolean {
+  const minLane = TAB_MIN_LANE[tabId];
+  if (!minLane) return true; // Core tab — always visible
+
+  const LANE_ORDER: Record<ProcessingLane, number> = {
+    PERSONAL_FAST: 0,
+    SME: 1,
+    CORPORATE: 2,
+  };
+
+  return LANE_ORDER[lane] >= LANE_ORDER[minLane];
+}
+
+/** Get the lane-appropriate tab list. */
+export function getLaneTabIds(lane: ProcessingLane): DetailTab[] {
+  // Start with core tabs (visible in all lanes)
+  const coreTabs: DetailTab[] = [
+    'loan-request', 'borrower-profile', 'financials', 'credit-checks', 'signoff', 'documents',
+  ];
+
+  const smeTabs: DetailTab[] = [
+    'collateral', 'security', 'conditions', 'payment-capability', 'risk-score',
+  ];
+
+  const corporateTabs: DetailTab[] = [
+    'parties', 'industry', 'guarantor-assessment', 'approvals', 'audit',
+  ];
+
+  const tabs = [...coreTabs];
+
+  if (lane === 'SME' || lane === 'CORPORATE') {
+    tabs.push(...smeTabs);
+  }
+
+  if (lane === 'CORPORATE') {
+    tabs.push(...corporateTabs);
+  }
+
+  tabs.push('summary');
+  return tabs;
+}
+
 /** Return the default tab groups (S1-S7 + meta), optionally including bank-only groups.
- *  Pass borrowerType to suppress tabs irrelevant for individual/retail borrowers. */
-export function getVisibleTabGroups(advancedMemo: boolean, borrowerType?: string | null, applicationState?: string | null): TabGroup[] {
+ *  Pass borrowerType to suppress tabs irrelevant for individual/retail borrowers.
+ *  Pass featureFlags (from useCreditFeatureFlags) to filter bank-grade tabs.
+ *  Pass lane (from useApplicationLane) to filter tabs by processing lane (P2-2). */
+export function getVisibleTabGroups(
+  advancedMemo: boolean,
+  borrowerType?: string | null,
+  applicationState?: string | null,
+  featureFlags?: Record<string, boolean>,
+  lane?: ProcessingLane | null,
+): TabGroup[] {
   const isRetail = borrowerType === 'INDIVIDUAL' || borrowerType === 'SOLE_PROPRIETOR';
+  const isFlagEnabled = (flagKey: string): boolean => featureFlags?.[flagKey] ?? false;
+
   return TAB_GROUPS
     .filter(g => !g.advancedOnly || advancedMemo)
+    // P2-1: Filter out groups gated by feature flags
+    .filter(g => {
+      if (g.advancedOnly && GROUP_FEATURE_FLAGS[g.id]) {
+        return isFlagEnabled(GROUP_FEATURE_FLAGS[g.id]);
+      }
+      return true;
+    })
     .filter(g => !g.states || !applicationState || g.states.includes(applicationState as ApplicationState))
     .map(g => {
-      if (!isRetail) return g;
+      // P2-1: Filter out individual tabs gated by feature flags
+      // P2-2: Filter out tabs not visible for the current lane
+      const tabFiltered = {
+        ...g,
+        tabs: g.tabs.filter(t => {
+          const flagKey = TAB_FEATURE_FLAGS[t.id];
+          // If a tab has a feature flag key, only show it when the flag is enabled
+          if (flagKey && !g.advancedOnly) {
+            return isFlagEnabled(flagKey);
+          }
+          // P2-2: Lane-based filtering — hide tabs above the current lane
+          if (lane && !isTabVisibleForLane(t.id, lane)) {
+            return false;
+          }
+          return true;
+        }),
+      };
+
+      if (!isRetail) return tabFiltered;
       // For retail: relabel parties tab, but keep payment-capability 
       // (Way Out is universal; Projection/Sensitivity are hidden inside the component)
-      const filteredTabs = g.tabs
+      const filteredTabs = tabFiltered.tabs
         .map(t => t.id === 'parties' ? { ...t, label: 'Guarantors & Parties' } : t);
-      return filteredTabs.some((t, i) => t.label !== g.tabs[i]?.label)
-        ? { ...g, tabs: filteredTabs }
-        : g;
+      return filteredTabs.some((t, i) => t.label !== tabFiltered.tabs[i]?.label)
+        ? { ...tabFiltered, tabs: filteredTabs }
+        : tabFiltered;
     })
     .filter(g => g.tabs.length > 0);
 }

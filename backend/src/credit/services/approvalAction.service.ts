@@ -175,7 +175,7 @@ class ApprovalActionService {
     const { totalExposure: liveExposure } = await computeBorrowerExposure(application.borrowerProfileId);
     const totalExposure = formatCurrency(liveExposure || application.requestedAmount) ?? 0;
 
-    const authorityResult = await approvalMatrixService.lookupApprovalAuthority(totalExposure, borrowerRating ?? 'NR', application.branchId);
+    const authorityResult = await approvalMatrixService.lookupApprovalAuthority(totalExposure, borrowerRating ?? 'NR', application.branchId, application.lane);
 
     // P1-1 — Hard block: no matrix row means no configured approval path.
     // Without a matrix entry, there is no authority level or required approver count,
