@@ -4,7 +4,6 @@
  */
 
 import { Request, Response } from 'express';
-import prisma from '../../utils/prisma';
 import * as commentService from '../services/comment.service';
 
 /** GET /applications/:id/comments?page=1&limit=50 */
@@ -14,15 +13,11 @@ export async function listComments(req: Request, res: Response) {
     const page = parseInt(String(req.query.page)) || 1;
     const limit = Math.min(parseInt(String(req.query.limit)) || 50, 200);
     const user = (req as any).user;
-    // Roles can be strings ['ADMIN', 'AGENT'] or objects [{name: 'credit:read'}]
-    const hasPermission = (user.roles || []).some((r: any) =>
-      typeof r === 'string'
-        ? ['ADMIN', 'AGENT'].includes(r)
-        : ['credit:read', 'credit:write', 'credit:approve', 'credit:admin'].includes(r.name || r)
+    const includeInternal = user && (user.roles || []).some((r: any) =>
+      ['credit:read', 'credit:write', 'credit:approve', 'credit:admin'].includes(r.name || r)
     );
-    const includeInternal = hasPermission !== false;
 
-    const result = await commentService.listComments(id, page, limit, includeInternal);
+    const result = await commentService.listComments(id, page, limit, includeInternal !== false);
     res.json({ data: result });
   } catch (err: any) {
     res.status(500).json({ error: err.message || 'Failed to list comments' });
@@ -79,9 +74,7 @@ export async function deleteComment(req: Request, res: Response) {
     const user = (req as any).user;
     if (!user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
-    const isAdmin = (user.roles || []).some((r: any) =>
-      typeof r === 'string' ? r === 'ADMIN' : r.name === 'credit:admin'
-    );
+    const isAdmin = (user.roles || []).some((r: any) => r.name === 'credit:admin');
     await commentService.deleteComment(commentId, user.id, isAdmin);
     res.json({ data: { deleted: true } });
   } catch (err: any) {
@@ -107,6 +100,8 @@ export async function getScoreStatus(req: Request, res: Response) {
 export async function rescoreApplication(req: Request, res: Response) {
   try {
     const id = String(req.params.id);
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
     const app = await prisma.creditApplication.findUnique({ where: { id }, select: { id: true } });
     if (!app) return res.status(404).json({ error: 'Application not found' });
 
