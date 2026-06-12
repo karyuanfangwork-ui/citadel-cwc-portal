@@ -16,6 +16,7 @@ let otherOwnersContactId: string;
 let otherOwnersLeadId: string;
 let otherOwnersOpportunityId: string;
 let otherOwnersTrustProductId: string;
+let validStageId: string;
 
 const signToken = (userId: string, email: string) =>
   jwt.sign({ userId, email, jti: `crm-authz-${userId}-${suffix}` }, config.jwt.secret, { expiresIn: '1h' });
@@ -73,16 +74,24 @@ beforeAll(async () => {
     data: {
       name: `Authz Pipeline ${suffix}`,
       stages: {
-        create: {
-          name: 'Open',
-          displayOrder: 1,
-          probability: 25,
-        },
+        create: [
+          {
+            name: 'Open',
+            displayOrder: 1,
+            probability: 25,
+          },
+          {
+            name: 'Review',
+            displayOrder: 2,
+            probability: 50,
+          },
+        ],
       },
     },
     include: { stages: true },
   });
-  const stage = pipeline.stages[0];
+  const stage = pipeline.stages.find((item) => item.displayOrder === 1) ?? pipeline.stages[0];
+  validStageId = (pipeline.stages.find((item) => item.displayOrder === 2) ?? stage).id;
 
   const visibleAccount = await prisma.crmAccount.create({
     data: {
@@ -229,5 +238,33 @@ describe('CRM direct read authorization', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.leads.length).toBeLessThanOrEqual(100);
     expect(res.body.data.pagination.limit).toBeLessThanOrEqual(100);
+  });
+});
+
+describe('CRM direct write authorization', () => {
+  it('returns 404 when a sales rep updates another owner lead', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/crm/leads/${otherOwnersLeadId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ title: 'tampered' });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when a sales rep deletes another owner opportunity', async () => {
+    const res = await request(app)
+      .delete(`/api/v1/crm/opportunities/${otherOwnersOpportunityId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when a sales rep moves another owner opportunity stage', async () => {
+    const res = await request(app)
+      .post(`/api/v1/crm/opportunities/${otherOwnersOpportunityId}/move-stage`)
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ stageId: validStageId });
+
+    expect(res.status).toBe(404);
   });
 });

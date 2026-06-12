@@ -147,7 +147,10 @@ class CrmController {
   });
 
   updateAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmAccount.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmAccount.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
+    });
     if (!existing) throw new AppError('Account not found', 404);
     // Cycle guard: validate parentAccountId doesn't create a loop
     if (req.body.parentAccountId !== undefined) {
@@ -167,7 +170,10 @@ class CrmController {
   });
 
   deleteAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmAccount.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmAccount.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
+    });
     if (!existing) throw new AppError('Account not found', 404);
     await prisma.crmAccount.update({ where: { id: req.params.id as string }, data: { isActive: false, deletedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmAccount', resourceId: req.params.id as string } });
@@ -273,7 +279,14 @@ class CrmController {
   });
 
   updateContact = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmContact.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmContact.findFirst({
+      where: {
+        id: req.params.id as string,
+        deletedAt: null,
+        ...(visibleOwnerIds === null ? {} : { account: { ownerId: { in: visibleOwnerIds } } }),
+      },
+    });
     if (!existing) throw new AppError('Contact not found', 404);
     const { dateOfBirth, pdpaConsentDate, followUpDate, ...rest } = req.body;
     const data: any = { ...rest };
@@ -288,7 +301,14 @@ class CrmController {
   });
 
   deleteContact = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmContact.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmContact.findFirst({
+      where: {
+        id: req.params.id as string,
+        deletedAt: null,
+        ...(visibleOwnerIds === null ? {} : { account: { ownerId: { in: visibleOwnerIds } } }),
+      },
+    });
     if (!existing) throw new AppError('Contact not found', 404);
     await prisma.crmContact.update({ where: { id: req.params.id as string }, data: { isActive: false, deletedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmContact', resourceId: req.params.id as string } });
@@ -446,7 +466,10 @@ class CrmController {
   });
 
   updateLead = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmLead.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmLead.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
+    });
     if (!existing) throw new AppError('Lead not found', 404);
     const { followUpDate, ...rest } = req.body;
     const data: any = { ...rest };
@@ -470,13 +493,17 @@ class CrmController {
   });
 
   convertLead = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const opportunity = await crmService.convertLead(req.params.id as string, req.body, req.user!.id);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const opportunity = await crmService.convertLead(req.params.id as string, req.body, req.user!.id, visibleOwnerIds);
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'CONVERT', resourceType: 'CrmLead', resourceId: req.params.id as string, newValues: { opportunityId: opportunity.id } } });
     res.json({ status: 'success', data: { opportunity } });
   });
 
   deleteLead = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmLead.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmLead.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
+    });
     if (!existing) throw new AppError('Lead not found', 404);
     await prisma.crmLead.update({ where: { id: req.params.id as string }, data: { deletedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmLead', resourceId: req.params.id as string } });
@@ -576,7 +603,10 @@ class CrmController {
   });
 
   updateOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmOpportunity.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmOpportunity.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
+    });
     if (!existing) throw new AppError('Opportunity not found', 404);
     const { expectedCloseDate, ...rest } = req.body;
     const data: any = { ...rest };
@@ -599,9 +629,13 @@ class CrmController {
   });
 
   moveStage = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmOpportunity.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmOpportunity.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
+    });
+    if (!existing) throw new AppError('Opportunity not found', 404);
     try {
-      const opportunity = await crmService.moveOpportunityStage(req.params.id as string, req.body.stageId, req.user!.id, req.body.lostReason);
+      const opportunity = await crmService.moveOpportunityStage(req.params.id as string, req.body.stageId, req.user!.id, req.body.lostReason, visibleOwnerIds);
       await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'UPDATE', resourceType: 'CrmOpportunity', resourceId: req.params.id as string, oldValues: existing ? { stageId: (existing as any).stageId } as any : undefined, newValues: { stageId: req.body.stageId } } });
       res.json({ status: 'success', data: { opportunity } });
       broadcast('crm_update', { type: 'opportunity.stage_moved', entityType: 'opportunity', id: req.params.id as string, changedBy: req.user!.id });
@@ -626,7 +660,10 @@ class CrmController {
   });
 
   deleteOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmOpportunity.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmOpportunity.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
+    });
     if (!existing) throw new AppError('Opportunity not found', 404);
     await prisma.crmOpportunity.update({ where: { id: req.params.id as string }, data: { deletedAt: new Date() } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmOpportunity', resourceId: req.params.id as string } });
@@ -1000,7 +1037,10 @@ class CrmController {
   });
 
   updateTrustProduct = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmTrustProduct.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmTrustProduct.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string }, visibleOwnerIds),
+    });
     if (!existing) throw new AppError('Trust product not found', 404);
     const { settlementDate, maturityDate, nextReviewDate, ...rest } = req.body;
     const data: any = { ...rest };
@@ -1022,7 +1062,10 @@ class CrmController {
   });
 
   deleteTrustProduct = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmTrustProduct.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmTrustProduct.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string }, visibleOwnerIds),
+    });
     if (!existing) throw new AppError('Trust product not found', 404);
     await prisma.crmTrustProduct.update({ where: { id: req.params.id as string }, data: { status: 'CLOSED' } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmTrustProduct', resourceId: req.params.id as string } });

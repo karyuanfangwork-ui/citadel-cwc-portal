@@ -1,6 +1,8 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { generateWinLossDebrief } from './crm-ai.service';
 import { logger } from '../utils/logger';
+import { AppError } from '../middleware/error.middleware';
+import { applyOwnerScope } from './crm-scope.service';
 
 const prisma = new PrismaClient();
 
@@ -139,13 +141,15 @@ export async function convertLead(
     createAccount?: boolean;
     accountName?: string;
   },
-  userId: string
+  userId: string,
+  visibleOwnerIds: string[] | null = [userId]
 ) {
   return prisma.$transaction(async (tx) => {
-    const lead = await tx.crmLead.findUniqueOrThrow({
-      where: { id: leadId },
+    const lead = await tx.crmLead.findFirst({
+      where: applyOwnerScope({ id: leadId, deletedAt: null }, visibleOwnerIds),
       include: { account: true, contact: true },
     });
+    if (!lead) throw new AppError('Lead not found', 404);
 
     if (lead.status === 'CONVERTED') {
       throw new Error('Lead is already converted');
@@ -249,13 +253,15 @@ export async function moveOpportunityStage(
   opportunityId: string,
   stageId: string,
   userId: string,
-  lostReason?: string
+  lostReason?: string,
+  visibleOwnerIds: string[] | null = [userId]
 ) {
   const result = await prisma.$transaction(async (tx) => {
-    const opportunity = await tx.crmOpportunity.findUniqueOrThrow({
-      where: { id: opportunityId },
+    const opportunity = await tx.crmOpportunity.findFirst({
+      where: applyOwnerScope({ id: opportunityId, deletedAt: null }, visibleOwnerIds),
       include: { stage: true },
     });
+    if (!opportunity) throw new AppError('Opportunity not found', 404);
 
     const newStage = await tx.crmPipelineStage.findUniqueOrThrow({
       where: { id: stageId },
