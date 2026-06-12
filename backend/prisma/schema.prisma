@@ -220,6 +220,8 @@ model User {
   // AI Governance Relations
   aiInteractions            AiInteraction[]              @relation("AiInteractionUser")
   aiOverrides               AiOverride[]                 @relation("AiOverrideUser")
+  // P2-4 — Application Comments
+  applicationComments       ApplicationComment[]         @relation("CommentAuthor")
 
   @@index([email])
   @@index([managerId])
@@ -3496,6 +3498,7 @@ model CreditApplication {
   collateralApplicationLinks CollateralApplicationLink[]
   deviations              DeviationApproval[]
   suspiciousTransactions  SuspiciousTransaction[]   // P1-7
+  comments                ApplicationComment[]      // P2-4
 
   @@index([borrowerProfileId])
   @@index([state])
@@ -5293,4 +5296,30 @@ model CreditFxRate {
   @@unique([currency, effectiveDate])
   @@index([currency, effectiveDate(sort: Desc)])
   @@map("credit_fx_rates")
+}
+
+// ============================================================================
+// §P2-4 — Application Comments (collaboration thread per application)
+// ============================================================================
+
+model ApplicationComment {
+  id              String   @id @default(uuid()) @db.Uuid
+  applicationId   String   @map("application_id") @db.Uuid
+  parentId        String?  @map("parent_id") @db.Uuid
+  authorId        String   @map("author_id") @db.Uuid
+  content         String   @db.Text
+  isInternal      Boolean  @default(true) @map("is_internal")
+  isDeleted       Boolean  @default(false) @map("is_deleted")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  application CreditApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  author      User              @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  parent      ApplicationComment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies     ApplicationComment[] @relation("CommentReplies")
+
+  @@index([applicationId, createdAt])
+  @@index([parentId])
+  @@index([authorId])
+  @@map("application_comments")
 }

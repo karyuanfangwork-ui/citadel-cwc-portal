@@ -114,6 +114,9 @@ import mfaRoutes from './mfa.routes';
 // AI & Automation (A4/A5/A6/A13/A15)
 import creditAiRoutes from './creditAi.routes';
 
+// P2-4 — Application Comments & Collaboration
+import commentRoutes from './comment.routes';
+
 const router = Router();
 
 // Feature flag routes (outside feature flag gate)
@@ -321,5 +324,8 @@ router.get('/applications/:id/tabs', requirePermission('credit:read'), getApplic
 // P2-3 — SME Financial Assessment
 import smeFinancialRoutes from './smeFinancial.routes';
 router.use('/sme', smeFinancialRoutes);
+
+// P2-4 — Application Comments & Collaboration
+router.use('/', commentRoutes);
 
 export default router;
