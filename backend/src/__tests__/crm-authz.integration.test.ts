@@ -19,6 +19,7 @@ let otherOwnersOpportunityId: string;
 let otherOwnersTrustProductId: string;
 let validStageId: string;
 let pipelineId: string;
+let testTagId: string;
 
 const signToken = (userId: string, email: string) =>
   jwt.sign({ userId, email, jti: `crm-authz-${userId}-${suffix}` }, config.jwt.secret, { expiresIn: '1h' });
@@ -203,6 +204,42 @@ beforeAll(async () => {
     },
   });
 
+  await prisma.crmContactAccountRole.create({
+    data: {
+      accountId: otherAccount.id,
+      contactId: otherContact.id,
+      role: 'DECISION_MAKER',
+    },
+  });
+
+  const tag = await prisma.crmTag.create({
+    data: {
+      name: `Authz Tag ${suffix}`,
+      color: '#111827',
+    },
+  });
+  testTagId = tag.id;
+
+  await prisma.crmTagAssignment.create({
+    data: {
+      tagId: tag.id,
+      entityType: 'ACCOUNT',
+      entityId: otherAccount.id,
+      assignedBy: otherOwner.id,
+    },
+  });
+
+  await prisma.crmFieldChange.create({
+    data: {
+      entityType: 'ACCOUNT',
+      entityId: otherAccount.id,
+      field: 'name',
+      oldValue: 'before',
+      newValue: 'after',
+      changedBy: otherOwner.id,
+    },
+  });
+
   await prisma.crmLead.create({
     data: {
       title: `Visible Lead ${suffix}`,
@@ -224,6 +261,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.crmExportJob.deleteMany({ where: { user: { email: { in: [salesRepEmail, otherOwnerEmail] } } } });
+  await prisma.crmTagAssignment.deleteMany({ where: { OR: [{ entityId: otherOwnersAccountId }, { tag: { name: { contains: suffix } } }] } });
+  await prisma.crmTag.deleteMany({ where: { name: { contains: suffix } } });
+  await prisma.crmFieldChange.deleteMany({ where: { entityId: otherOwnersAccountId } });
+  await prisma.crmContactAccountRole.deleteMany({ where: { account: { name: { contains: suffix } } } });
   await prisma.crmTrustProduct.deleteMany({ where: { account: { name: { contains: suffix } } } });
   await prisma.crmBeneficiary.deleteMany({ where: { contact: { email: { contains: suffix } } } });
   await prisma.crmKycRecord.deleteMany({ where: { contact: { email: { contains: suffix } } } });
@@ -460,5 +501,52 @@ describe('CRM parent entity authorization', () => {
       .send({ firstName: 'Blocked', lastName: 'Beneficiary', relationship: 'OTHER', allocationPct: 10 });
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('CRM indirect entity authorization', () => {
+  it('does not list contact-account roles for another owner account', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/contact-account-roles?accountId=${otherOwnersAccountId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(0);
+  });
+
+  it('returns 404 when adding a contact-account role on another owner account', async () => {
+    const res = await request(app)
+      .post('/api/v1/crm/contact-account-roles')
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ contactId: otherOwnersContactId, accountId: otherOwnersAccountId, role: 'CHAMPION' });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('does not list tags for another owner account', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/tag-assignments?entityType=ACCOUNT&entityId=${otherOwnersAccountId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(0);
+  });
+
+  it('returns 404 when assigning a tag to another owner account', async () => {
+    const res = await request(app)
+      .post('/api/v1/crm/tag-assignments')
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ tagId: testTagId, entityType: 'ACCOUNT', entityId: otherOwnersAccountId });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('does not list field changes for another owner account', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/field-changes?entityType=ACCOUNT&entityId=${otherOwnersAccountId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(0);
   });
 });

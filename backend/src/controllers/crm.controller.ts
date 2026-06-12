@@ -117,6 +117,40 @@ async function assertVisibleCrmParentReferences(
   if (results.some((result) => !result)) throw new AppError('CRM record not found', 404);
 }
 
+async function assertVisibleCrmEntity(entityType: string, entityId: string, visibleOwnerIds: string[] | null): Promise<void> {
+  const normalized = entityType.toUpperCase();
+  if (normalized === 'ACCOUNT') {
+    const account = await prisma.crmAccount.findFirst({ where: applyOwnerScope({ id: entityId, deletedAt: null }, visibleOwnerIds) });
+    if (!account) throw new AppError('CRM record not found', 404);
+    return;
+  }
+  if (normalized === 'CONTACT') {
+    const contact = await prisma.crmContact.findFirst({ where: { id: entityId, deletedAt: null, ...contactScope(visibleOwnerIds) } });
+    if (!contact) throw new AppError('CRM record not found', 404);
+    return;
+  }
+  if (normalized === 'LEAD') {
+    const lead = await prisma.crmLead.findFirst({ where: applyOwnerScope({ id: entityId, deletedAt: null }, visibleOwnerIds) });
+    if (!lead) throw new AppError('CRM record not found', 404);
+    return;
+  }
+  if (normalized === 'OPPORTUNITY') {
+    const opportunity = await prisma.crmOpportunity.findFirst({ where: applyOwnerScope({ id: entityId, deletedAt: null }, visibleOwnerIds) });
+    if (!opportunity) throw new AppError('CRM record not found', 404);
+    return;
+  }
+  throw new AppError('Unsupported CRM entity type', 400);
+}
+
+async function canSeeCrmEntity(entityType: string, entityId: string, visibleOwnerIds: string[] | null): Promise<boolean> {
+  try {
+    await assertVisibleCrmEntity(entityType, entityId, visibleOwnerIds);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function assertVisibleContact(contactId: string, visibleOwnerIds: string[] | null) {
   const contact = await prisma.crmContact.findFirst({
     where: { id: contactId, deletedAt: null, ...contactScope(visibleOwnerIds) },
@@ -2017,6 +2051,8 @@ class CrmController {
 
   addContactAccountRole = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { contactId, accountId, role } = req.body;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    await assertVisibleCrmParentReferences({ contactId, accountId }, visibleOwnerIds);
     const entry = await prisma.crmContactAccountRole.create({
       data: { contactId, accountId, role },
       include: { contact: { select: { id: true, firstName: true, lastName: true } }, account: { select: { id: true, name: true } } },
@@ -2025,13 +2061,26 @@ class CrmController {
   });
 
   removeContactAccountRole = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmContactAccountRole.findFirst({
+      where: {
+        id: req.params.id as string,
+        contact: { deletedAt: null, ...contactScope(visibleOwnerIds) },
+        account: applyOwnerScope({}, visibleOwnerIds),
+      },
+    });
+    if (!existing) throw new AppError('Contact-account role not found', 404);
     await prisma.crmContactAccountRole.delete({ where: { id: req.params.id as string } });
     res.json({ status: 'success', message: 'Contact-account role removed' });
   });
 
   getContactAccountRoles = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { contactId, accountId } = req.query;
-    const where: any = {};
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const where: any = {
+      contact: { deletedAt: null, ...contactScope(visibleOwnerIds) },
+      account: applyOwnerScope({}, visibleOwnerIds),
+    };
     if (contactId) where.contactId = contactId as string;
     if (accountId) where.accountId = accountId as string;
     const roles = await prisma.crmContactAccountRole.findMany({
@@ -2061,6 +2110,8 @@ class CrmController {
 
   assignTag = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { tagId, entityType, entityId } = req.body;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    await assertVisibleCrmEntity(entityType, entityId, visibleOwnerIds);
     const assignment = await prisma.crmTagAssignment.create({
       data: { tagId, entityType, entityId, assignedBy: req.user!.id },
       include: { tag: true },
@@ -2069,12 +2120,22 @@ class CrmController {
   });
 
   removeTagAssignment = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmTagAssignment.findUnique({ where: { id: req.params.id as string } });
+    if (!existing || !(await canSeeCrmEntity(existing.entityType, existing.entityId, visibleOwnerIds))) {
+      throw new AppError('Tag assignment not found', 404);
+    }
     await prisma.crmTagAssignment.delete({ where: { id: req.params.id as string } });
     res.json({ status: 'success', message: 'Tag assignment removed' });
   });
 
   getEntityTags = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { entityType, entityId } = req.query;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    if (!entityType || !entityId || !(await canSeeCrmEntity(entityType as string, entityId as string, visibleOwnerIds))) {
+      res.json({ status: 'success', data: [] });
+      return;
+    }
     const assignments = await prisma.crmTagAssignment.findMany({
       where: { entityType: entityType as string, entityId: entityId as string },
       include: { tag: true },
@@ -2088,6 +2149,11 @@ class CrmController {
   getFieldChanges = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { entityType, entityId } = req.query;
     const { limit } = parsePagination({ limit: req.query.limit ?? 100 }, 500);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    if (!entityType || !entityId || !(await canSeeCrmEntity(entityType as string, entityId as string, visibleOwnerIds))) {
+      res.json({ status: 'success', data: [] });
+      return;
+    }
     const changes = await prisma.crmFieldChange.findMany({
       where: {
         entityType: entityType as string,
