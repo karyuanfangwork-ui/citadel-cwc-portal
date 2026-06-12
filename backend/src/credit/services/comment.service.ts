@@ -3,9 +3,8 @@
  * CRUD operations for threaded comments on credit applications.
  */
 
-import { PrismaClient, ApplicationComment as PrismaComment } from '@prisma/client';
+import prisma from '../../utils/prisma';
 
-const prisma = new PrismaClient();
 
 export interface CommentCreateInput {
   content: string;

@@ -4,15 +4,15 @@
  */
 
 import { Request, Response } from 'express';
+import prisma from '../../utils/prisma';
 import * as commentService from '../services/comment.service';
 
 /** GET /applications/:id/comments?page=1&limit=50 */
 export async function listComments(req: Request, res: Response) {
   try {
-    const { id } = req.params;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = Math.min(parseInt(req.query.limit as string) || 50, 200);
-    // If user is not admin/RM, exclude internal comments
+    const id = String(req.params.id);
+    const page = parseInt(String(req.query.page)) || 1;
+    const limit = Math.min(parseInt(String(req.query.limit)) || 50, 200);
     const user = (req as any).user;
     const includeInternal = user && (user.roles || []).some((r: any) =>
       ['credit:read', 'credit:write', 'credit:approve', 'credit:admin'].includes(r.name || r)
@@ -28,7 +28,7 @@ export async function listComments(req: Request, res: Response) {
 /** POST /applications/:id/comments */
 export async function createComment(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const user = (req as any).user;
     if (!user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -51,7 +51,7 @@ export async function createComment(req: Request, res: Response) {
 /** PATCH /comments/:commentId */
 export async function updateComment(req: Request, res: Response) {
   try {
-    const { commentId } = req.params;
+    const commentId = String(req.params.commentId);
     const user = (req as any).user;
     if (!user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -71,7 +71,7 @@ export async function updateComment(req: Request, res: Response) {
 /** DELETE /comments/:commentId */
 export async function deleteComment(req: Request, res: Response) {
   try {
-    const { commentId } = req.params;
+    const commentId = String(req.params.commentId);
     const user = (req as any).user;
     if (!user?.id) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -88,24 +88,19 @@ export async function deleteComment(req: Request, res: Response) {
 /** GET /applications/:id/score-status */
 export async function getScoreStatus(req: Request, res: Response) {
   try {
-    const { id } = req.params;
+    const id = String(req.params.id);
     const status = await commentService.getScoreStatus(id);
     res.json({ data: status });
   } catch (err: any) {
-    const status = err.message.includes('not found') ? 404 : 500;
-    res.status(status).json({ error: err.message });
+    const httpStatus = err.message.includes('not found') ? 404 : 500;
+    res.status(httpStatus).json({ error: err.message });
   }
 }
 
 /** POST /applications/:id/rescore — trigger rescore */
 export async function rescoreApplication(req: Request, res: Response) {
   try {
-    const { id } = req.params;
-    // For now, just return a message. The actual rescore logic will
-    // call the existing scorecard engine and create a new CreditScoreRun.
-    // This is a placeholder that confirms the application exists.
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
+    const id = String(req.params.id);
     const app = await prisma.creditApplication.findUnique({ where: { id }, select: { id: true } });
     if (!app) return res.status(404).json({ error: 'Application not found' });
 
