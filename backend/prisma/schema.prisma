@@ -2900,6 +2900,7 @@ enum PolicyLimitType {
   SINGLE_BORROWER
   SECTOR
   PRODUCT
+  LANE_THRESHOLD
 }
 
 model CreditPolicyLimit {

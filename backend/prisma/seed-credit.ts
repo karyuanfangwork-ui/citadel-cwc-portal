@@ -34,8 +34,9 @@ const flags = {
   branches:       args.includes('--branches'),
   demo:           args.includes('--demo'),
   clear:          args.includes('--clear'),
+  policyLimits:   args.includes('--policy-limits'),
 };
-const runAll = !flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.branches && !flags.demo && !flags.clear;
+const runAll = !flags.flags && !flags.workflow && !flags.notifications && !flags.approvals && !flags.branches && !flags.demo && !flags.clear && !flags.policyLimits;
 
 // ---------------------------------------------------------------------------
 // §3.1 — Branches (multi-branch support)
@@ -368,6 +369,76 @@ async function seedApprovals() {
 }
 
 // ---------------------------------------------------------------------------
+// 5a. Credit Policy Limits — Lane Thresholds & Single-Borrower Limits
+// ---------------------------------------------------------------------------
+const LANE_THRESHOLD_LIMITS = [
+  {
+    type: 'LANE_THRESHOLD' as const,
+    label: 'Personal Fast Amount Cap',
+    maxValue: 150000,
+    thresholdPct: 80,
+    isActive: true,
+    currency: 'MYR',
+    sector: null,
+    productType: null,
+  },
+  {
+    type: 'LANE_THRESHOLD' as const,
+    label: 'SME Turnover Cap',
+    maxValue: 5000000,
+    thresholdPct: 80,
+    isActive: true,
+    currency: 'MYR',
+    sector: null,
+    productType: null,
+  },
+];
+
+async function seedPolicyLimits() {
+  console.log('📏 Seeding credit policy limits (lane thresholds)...');
+
+  // Use the first admin user as createdById, or fallback
+  const adminUser = await prisma.user.findFirst({ where: { email: 'admin@test.local' } });
+  const createdById = adminUser?.id;
+  if (!createdById) {
+    console.log('  ⚠️ No admin user found — skipping policy limit seed');
+    return;
+  }
+
+  for (const limit of LANE_THRESHOLD_LIMITS) {
+    const existing = await prisma.creditPolicyLimit.findFirst({
+      where: { type: limit.type, label: limit.label, isActive: true },
+    });
+    if (existing) {
+      await prisma.creditPolicyLimit.update({
+        where: { id: existing.id },
+        data: {
+          maxValue: limit.maxValue,
+          thresholdPct: limit.thresholdPct,
+          currency: limit.currency,
+        },
+      });
+      console.log(`  ✅ Updated: ${limit.label} (RM${limit.maxValue.toLocaleString()})`);
+    } else {
+      await prisma.creditPolicyLimit.create({
+        data: {
+          type: limit.type,
+          label: limit.label,
+          maxValue: limit.maxValue,
+          thresholdPct: limit.thresholdPct,
+          isActive: limit.isActive,
+          currency: limit.currency,
+          sector: limit.sector,
+          productType: limit.productType,
+          createdById,
+        },
+      });
+      console.log(`  ✅ Created: ${limit.label} (RM${limit.maxValue.toLocaleString()})`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 5. Clear all credit data (FK-safe order)
 // ---------------------------------------------------------------------------
 async function clearCreditData() {
@@ -516,6 +587,7 @@ async function main() {
     if (shouldRun(flags.notifications)) await seedNotifications();
     if (shouldRun(flags.approvals))     await seedApprovals();
     if (shouldRun(flags.branches))      await seedBranches();
+    if (shouldRun(flags.policyLimits))   await seedPolicyLimits();
     if (shouldRun(flags.demo))          await seedDemo();
 
     console.log('\n✅ Done.');

@@ -20,6 +20,12 @@ const prisma = new PrismaClient();
 const PERSONAL_FAST_AMOUNT_CAP = 150_000;   // RM 150k
 const SME_TURNOVER_CAP = 5_000_000;          // RM 5M
 
+// ── Lane threshold config (fetched from DB) ───────────────────────────────────
+export interface LaneThresholds {
+  personalFastAmountCap: number;
+  smeTurnoverCap: number;
+}
+
 // ── Lane determination result ─────────────────────────────────────────────────
 export interface LaneDetermination {
   lane: ProcessingLane;
@@ -27,8 +33,43 @@ export interface LaneDetermination {
 }
 
 /**
- * Determine the processing lane for an application.
+ * Fetch lane thresholds from CreditPolicyLimit (type: LANE_THRESHOLD).
+ * Falls back to hardcoded constants if no DB rows are found or if
+ * the LANE_THRESHOLD enum value hasn't been migrated yet.
+ */
+export async function getLaneThresholds(): Promise<LaneThresholds> {
+  try {
+    const rows = await prisma.creditPolicyLimit.findMany({
+      where: {
+        type: 'LANE_THRESHOLD',
+        isActive: true,
+      },
+    });
+
+    const personalCap = rows.find((r) => r.label === 'Personal Fast Amount Cap');
+    const smeCap = rows.find((r) => r.label === 'SME Turnover Cap');
+
+    return {
+      personalFastAmountCap: personalCap ? Number(personalCap.maxValue) : PERSONAL_FAST_AMOUNT_CAP,
+      smeTurnoverCap: smeCap ? Number(smeCap.maxValue) : SME_TURNOVER_CAP,
+    };
+  } catch (err: any) {
+    // If the LANE_THRESHOLD enum value doesn't exist in the DB yet
+    // (pre-migration), fall back to hardcoded defaults rather than crash.
+    if (err?.code === '22P02' || err?.message?.includes('invalid input value')) {
+      return {
+        personalFastAmountCap: PERSONAL_FAST_AMOUNT_CAP,
+        smeTurnoverCap: SME_TURNOVER_CAP,
+      };
+    }
+    throw err;
+  }
+}
+
+/**
+ * Determine the processing lane for an application (sync, hardcoded thresholds).
  * Uses borrowerType, requestedAmount, and (for CORPORATE) annualTurnover.
+ * Kept for backward compatibility.
  */
 export function determineLane(
   borrowerType: BorrowerType,
@@ -75,6 +116,87 @@ export function determineLane(
       return {
         lane: ProcessingLane.CORPORATE,
         reason: `Corporate borrower, turnover RM${turnover.toLocaleString()} ≥ RM${SME_TURNOVER_CAP.toLocaleString()} → Corporate lane`,
+      };
+    }
+    // No turnover data → default to CORPORATE (conservative)
+    return {
+      lane: ProcessingLane.CORPORATE,
+      reason: 'Corporate borrower, no turnover data → Corporate lane (default)',
+    };
+  }
+
+  // ── JOINT: always CORPORATE lane ──
+  return {
+    lane: ProcessingLane.CORPORATE,
+    reason: 'Joint borrower → Corporate lane',
+  };
+}
+
+/**
+ * Async version of determineLane that fetches thresholds from the database
+ * via CreditPolicyLimit before computing the lane.
+ * Falls back to hardcoded defaults if DB query fails.
+ */
+export async function determineLaneWithConfig(
+  borrowerType: BorrowerType,
+  requestedAmount: number | string,
+  annualTurnover?: number | string | null,
+): Promise<LaneDetermination> {
+  const thresholds = await getLaneThresholds();
+  return determineLaneWithThresholds(borrowerType, requestedAmount, annualTurnover, thresholds);
+}
+
+/**
+ * Core lane determination logic with explicit thresholds.
+ * Used by both sync (determineLane) and async (determineLaneWithConfig) paths.
+ */
+export function determineLaneWithThresholds(
+  borrowerType: BorrowerType,
+  requestedAmount: number | string,
+  annualTurnover: number | string | null | undefined,
+  thresholds: LaneThresholds,
+): LaneDetermination {
+  const amount = typeof requestedAmount === 'string' ? parseFloat(requestedAmount) : requestedAmount;
+  const turnover = annualTurnover != null
+    ? (typeof annualTurnover === 'string' ? parseFloat(annualTurnover) : annualTurnover)
+    : null;
+
+  const { personalFastAmountCap, smeTurnoverCap } = thresholds;
+
+  // ── PERSONAL_FAST: INDIVIDUAL + amount ≤ cap ──
+  if (borrowerType === 'INDIVIDUAL') {
+    if (amount <= personalFastAmountCap) {
+      return {
+        lane: ProcessingLane.PERSONAL_FAST,
+        reason: `Individual borrower, amount RM${amount.toLocaleString()} ≤ RM${personalFastAmountCap.toLocaleString()}`,
+      };
+    }
+    return {
+      lane: ProcessingLane.CORPORATE,
+      reason: `Individual borrower, amount RM${amount.toLocaleString()} > RM${personalFastAmountCap.toLocaleString()} threshold`,
+    };
+  }
+
+  // ── SOLE_PROPRIETOR: always SME lane ──
+  if (borrowerType === 'SOLE_PROPRIETOR') {
+    return {
+      lane: ProcessingLane.SME,
+      reason: 'Sole proprietor borrower → SME lane',
+    };
+  }
+
+  // ── CORPORATE: SME if turnover < cap, else CORPORATE ──
+  if (borrowerType === 'CORPORATE') {
+    if (turnover != null && turnover < smeTurnoverCap) {
+      return {
+        lane: ProcessingLane.SME,
+        reason: `Corporate borrower, turnover RM${turnover.toLocaleString()} < RM${smeTurnoverCap.toLocaleString()} → SME lane`,
+      };
+    }
+    if (turnover != null && turnover >= smeTurnoverCap) {
+      return {
+        lane: ProcessingLane.CORPORATE,
+        reason: `Corporate borrower, turnover RM${turnover.toLocaleString()} ≥ RM${smeTurnoverCap.toLocaleString()} → Corporate lane`,
       };
     }
     // No turnover data → default to CORPORATE (conservative)
@@ -191,6 +313,7 @@ export function getRequiredApproverCount(lane: ProcessingLane | string): number 
 /**
  * Re-evaluate and persist the lane for a given application.
  * Called after creation and after borrower profile / amount changes.
+ * Now uses DB-configurable thresholds via determineLaneWithConfig().
  */
 export async function persistLane(
   applicationId: string,
@@ -211,7 +334,7 @@ export async function persistLane(
     throw new Error(`Application ${applicationId} not found`);
   }
 
-  const determination = determineLane(
+  const determination = await determineLaneWithConfig(
     app.borrowerProfile?.borrowerType ?? 'CORPORATE',
     app.requestedAmount.toString(),
     app.borrowerProfile?.annualTurnover?.toString() ?? null,

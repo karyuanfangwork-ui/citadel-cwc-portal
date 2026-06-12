@@ -4,7 +4,7 @@
  * Tests lane determination, tab visibility, and approval depth.
  */
 
-import { determineLane, getLaneTabs, getRequiredApproverCount } from '../lane.service';
+import { determineLane, getLaneTabs, getRequiredApproverCount, determineLaneWithThresholds, LaneThresholds } from '../lane.service';
 
 describe('lane.service — P2-2 Processing Lanes', () => {
   // ── determineLane ────────────────────────────────────────────────────────
@@ -161,6 +161,55 @@ describe('lane.service — P2-2 Processing Lanes', () => {
       expect(tabs).not.toContain('audit');
       // But bank-grade flags can add their tabs (e.g. risk-rating)
       expect(tabs).toContain('risk-rating');
+    });
+  });
+
+  // ── determineLaneWithThresholds ──────────────────────────────────────────
+
+  describe('determineLaneWithThresholds()', () => {
+    const defaultThresholds: LaneThresholds = {
+      personalFastAmountCap: 150_000,
+      smeTurnoverCap: 5_000_000,
+    };
+
+    it('PERSONAL_FAST: individual with amount at custom cap', () => {
+      const thresholds: LaneThresholds = { personalFastAmountCap: 200_000, smeTurnoverCap: 5_000_000 };
+      const result = determineLaneWithThresholds('INDIVIDUAL', '200000', null, thresholds);
+      expect(result.lane).toBe('PERSONAL_FAST');
+    });
+
+    it('CORPORATE: individual exceeds custom cap', () => {
+      const thresholds: LaneThresholds = { personalFastAmountCap: 200_000, smeTurnoverCap: 5_000_000 };
+      const result = determineLaneWithThresholds('INDIVIDUAL', '200001', null, thresholds);
+      expect(result.lane).toBe('CORPORATE');
+    });
+
+    it('SME: corporate with turnover below custom cap', () => {
+      const thresholds: LaneThresholds = { personalFastAmountCap: 150_000, smeTurnoverCap: 10_000_000 };
+      const result = determineLaneWithThresholds('CORPORATE', '500000', '9000000', thresholds);
+      expect(result.lane).toBe('SME');
+    });
+
+    it('CORPORATE: corporate with turnover at or above custom cap', () => {
+      const thresholds: LaneThresholds = { personalFastAmountCap: 150_000, smeTurnoverCap: 10_000_000 };
+      const result = determineLaneWithThresholds('CORPORATE', '500000', '10000000', thresholds);
+      expect(result.lane).toBe('CORPORATE');
+    });
+
+    it('uses default thresholds correctly', () => {
+      const result = determineLaneWithThresholds('INDIVIDUAL', '150000', null, defaultThresholds);
+      expect(result.lane).toBe('PERSONAL_FAST');
+    });
+
+    it('SOLE_PROPRIETOR always goes SME regardless of thresholds', () => {
+      const result = determineLaneWithThresholds('SOLE_PROPRIETOR', '999999999', null, defaultThresholds);
+      expect(result.lane).toBe('SME');
+    });
+
+    it('includes threshold values in reason message', () => {
+      const thresholds: LaneThresholds = { personalFastAmountCap: 200_000, smeTurnoverCap: 5_000_000 };
+      const result = determineLaneWithThresholds('INDIVIDUAL', '200001', null, thresholds);
+      expect(result.reason).toContain('200,000');
     });
   });
 });

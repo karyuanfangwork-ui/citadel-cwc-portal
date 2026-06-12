@@ -5,7 +5,7 @@
  */
 
 import { Request, Response } from 'express';
-import { determineLane, getLaneTabs, persistLane, getRequiredApproverCount } from '../services/lane.service';
+import { determineLaneWithConfig, getLaneTabs, persistLane, getRequiredApproverCount } from '../services/lane.service';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -13,6 +13,7 @@ const prisma = new PrismaClient();
 /**
  * GET /applications/:id/lane
  * Returns the current lane for an application, re-evaluating if needed.
+ * Uses DB-configurable thresholds via determineLaneWithConfig().
  */
 export const getApplicationLane = async (req: Request, res: Response) => {
   const id = req.params.id as string;
@@ -29,8 +30,8 @@ export const getApplicationLane = async (req: Request, res: Response) => {
     return res.status(404).json({ status: 'error', message: 'Application not found' });
   }
 
-  // Re-evaluate lane (uses current borrowerType + amount + turnover)
-  const determination = determineLane(
+  // Re-evaluate lane (uses DB-configurable thresholds)
+  const determination = await determineLaneWithConfig(
     app.borrowerProfile?.borrowerType ?? 'CORPORATE',
     app.requestedAmount.toString(),
     app.borrowerProfile?.annualTurnover?.toString() ?? null,
@@ -93,8 +94,8 @@ export const getApplicationTabs = async (req: Request, res: Response) => {
     return res.status(404).json({ status: 'error', message: 'Application not found' });
   }
 
-  // Determine lane
-  const determination = determineLane(
+  // Determine lane using DB-configurable thresholds
+  const determination = await determineLaneWithConfig(
     app.borrowerProfile?.borrowerType ?? 'CORPORATE',
     app.requestedAmount.toString(),
     app.borrowerProfile?.annualTurnover?.toString() ?? null,

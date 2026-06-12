@@ -12,6 +12,7 @@ import CaMemoSection from '../../../src/components/credit/CaMemoSection';
 import ApprovalPackPreview from '../../../src/components/credit/ApprovalPackPreview';
 import ApprovalChainPanel from '../../../src/components/credit/ApprovalChainPanel';
 import LooSection from './LooSection';
+import CommitteeWidget from '../../../src/components/credit/CommitteeWidget';
 
 interface ApprovalsTabProps {
   app: CreditApplication;
@@ -138,6 +139,9 @@ const ApprovalsTab: React.FC<ApprovalsTabProps> = ({ app, onRefresh }) => {
 
       {/* §2.3 — LOO (Letter of Offer) Section — always renders if LOO exists; generate/regen only in APPROVED/OFFER */}
       <LooSection applicationId={app.id} state={app.state} />
+
+      {/* §P2-1 — Committee Meetings Widget (demoted from top-level nav) */}
+      <CommitteeWidget applicationId={app.id} />
     </div>
   );
 };

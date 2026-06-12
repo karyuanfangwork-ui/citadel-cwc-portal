@@ -22,6 +22,7 @@ import FinancialsTab from './credit/tabs/FinancialsTab';
 import RiskScoreTab from './credit/tabs/RiskScoreTab';
 import PaymentCapabilityTab from './credit/tabs/PaymentCapabilityTab';
 import CreditChecksTab from './credit/tabs/CreditChecksTab';
+import CreditChecksRiskTab from './credit/tabs/CreditChecksRiskTab';
 import IndustryOutlookTab from './credit/tabs/IndustryOutlookTab';
 import RiskMitigatorsTab from './credit/tabs/RiskMitigatorsTab';
 import CollateralTab from './credit/tabs/CollateralTab';
@@ -81,6 +82,7 @@ import {
 } from './credit/creditUtils';
 import RejectionBanner from './credit/RejectionBanner';
 import ApplicationTimeline from '../src/components/credit/ApplicationTimeline';
+import PersonalFastView from './credit/PersonalFastView';
 
 // §3.5b — Application progress ring (required-section completion)
 const ProgressRing: React.FC<{ pct: number; color: string; size?: number }> = ({ pct, color, size = 40 }) => {
@@ -462,27 +464,13 @@ const isIdPlaceholder = id === 'new';
       // P2-3 — SME Simplified Financials
       case 'sme-financials': return <SmeFinancialsTab application={app!} />;
 
-      // S5 — Bureau & Compliance
-      case 'credit-checks': return <CreditChecksTab application={app!} onUpdated={setApp} />;
-      case 'industry': return <IndustryOutlookTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-      case 'risk': return <RiskMitigatorsTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
-
-      // AI Insights (A4/A5/A6/A13/A15)
-      case 'ai-insights': return (
-        <div className="space-y-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 flex items-center gap-2">
-            <span className="material-icons text-base">smart_toy</span>
-            AI proposes, humans dispose. All AI outputs are advisory — officers must exercise independent judgement.
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <AiDuplicateAlert applicationId={app!.id} />
-            <AiRedFlagPanel applicationId={app!.id} />
-            <AiCompliancePanel applicationId={app!.id} />
-            <AiAutoExceptionPanel applicationId={app!.id} />
-          </div>
-          <AiNarrativePanel applicationId={app!.id} />
-        </div>
-      );
+      // S5 — Bureau & Compliance (consolidated accordion)
+      case 'credit-checks-risk': return <CreditChecksRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
+      // S5 — Legacy sub-tab redirects → consolidated tab
+      case 'credit-checks':
+      case 'industry':
+      case 'risk':
+      case 'ai-insights': return <CreditChecksRiskTab application={app!} onUpdated={setApp} onDirtyChange={setDirty} />;
 
       // S6 — Collateral & Guarantees
       case 'collateral': return <CollateralTab />;
@@ -1010,7 +998,24 @@ const isIdPlaceholder = id === 'new';
           );
         })()}
 
-        {/* Layout Wrapper */}
+        {/* P2-2: Personal Fast — single scrollable view (no sidebar tabs) */}
+        {lane === 'PERSONAL_FAST' ? (
+          <PersonalFastView
+            app={app}
+            lane={lane}
+            laneReason={laneReason}
+            onUpdated={(updated) => setApp(updated)}
+            onDirtyChange={setDirty}
+            onRefresh={fetchApp}
+            setApp={setApp}
+            canApprove={canApprove}
+            isFeatureEnabled={isFeatureEnabled}
+            signoffs={signoffs}
+            allSigned={allSigned}
+            approvals={approvals}
+            onNavigate={(tab) => handleTabChange(tab as DetailTab)}
+          />
+        ) : (
         <div className="flex flex-col md:flex-row gap-6 mb-6 relative">
           {/* Sidebar Tabs — desktop only */}
           <nav aria-label="Application sections" className="hidden md:flex md:w-72 shrink-0 flex-col sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto overflow-x-hidden pr-1 pb-4 bg-bg-surface border border-border rounded-xl shadow-sm" style={{ scrollbarWidth: 'thin', scrollbarColor: 'var(--color-border) transparent' }}>
@@ -1114,43 +1119,10 @@ const isIdPlaceholder = id === 'new';
           </div>
         )}
 
-        {/* S5 — Bureau Checks */}
-        {activeTab === 'credit-checks' && (
-          <div role="tabpanel" id="panel-credit-checks" aria-labelledby="tab-credit-checks" tabIndex={0}>
-            <CreditChecksTab application={app} onUpdated={setApp} />
-          </div>
-        )}
-
-        {/* S5 — Industry Outlook */}
-        {activeTab === 'industry' && (
-          <div role="tabpanel" id="panel-industry" aria-labelledby="tab-industry" tabIndex={0}>
-            <IndustryOutlookTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* S5 — Risk & Mitigators */}
-        {activeTab === 'risk' && (
-          <div role="tabpanel" id="panel-risk" aria-labelledby="tab-risk" tabIndex={0}>
-            <RiskMitigatorsTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
-          </div>
-        )}
-
-        {/* AI Insights (A4/A5/A6/A13/A15) */}
-        {activeTab === 'ai-insights' && (
-          <div role="tabpanel" id="panel-ai-insights" aria-labelledby="tab-ai-insights" tabIndex={0}>
-            <div className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 flex items-center gap-2">
-                <span className="material-icons text-base">smart_toy</span>
-                AI proposes, humans dispose. All AI outputs are advisory — officers must exercise independent judgement.
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <AiDuplicateAlert applicationId={app.id} />
-                <AiRedFlagPanel applicationId={app.id} />
-                <AiCompliancePanel applicationId={app.id} />
-                <AiAutoExceptionPanel applicationId={app.id} />
-              </div>
-              <AiNarrativePanel applicationId={app.id} />
-            </div>
+        {/* S5 — Credit Checks & Risk (consolidated accordion) */}
+        {(activeTab === 'credit-checks-risk' || activeTab === 'credit-checks' || activeTab === 'industry' || activeTab === 'risk' || activeTab === 'ai-insights') && (
+          <div role="tabpanel" id="panel-credit-checks-risk" aria-labelledby="tab-credit-checks-risk" tabIndex={0}>
+            <CreditChecksRiskTab application={app} onUpdated={setApp} onDirtyChange={setDirty} />
           </div>
         )}
 
@@ -1282,6 +1254,7 @@ const isIdPlaceholder = id === 'new';
             </div>
           </div>
         </div>
+        )}
 
         {/* Floating Action Button — jump to next incomplete section */}
         {(() => {

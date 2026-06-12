@@ -167,7 +167,9 @@ export type DetailTab =
   | 'payment-capability'
   // P2-3 — SME Simplified Financials
   | 'sme-financials'
-  // S5 — Bureau & Compliance
+  // S5 — Bureau & Compliance (consolidated accordion)
+  | 'credit-checks-risk'
+  // S5 — Bureau & Compliance (legacy sub-tabs, redirected to consolidated)
   | 'credit-checks'
   | 'industry'
   | 'risk'
@@ -247,12 +249,9 @@ export const TAB_GROUPS: TabGroup[] = [
   },
   {
     id: 's5',
-    label: 'S5 · Bureau & Compliance',
+    label: 'S5 · Credit Checks & Risk',
     tabs: [
-      { id: 'credit-checks', label: 'Bureau Checks' },
-      { id: 'industry', label: 'Industry Outlook' },
-      { id: 'risk', label: 'Risk & Mitigators' },
-      { id: 'ai-insights', label: 'AI Insights' },
+      { id: 'credit-checks-risk', label: 'Credit Checks & Risk' },
     ],
   },
   {
@@ -413,7 +412,7 @@ export function isTabVisibleForLane(tabId: DetailTab, lane: ProcessingLane): boo
 export function getLaneTabIds(lane: ProcessingLane): DetailTab[] {
   // Start with core tabs (visible in all lanes)
   const coreTabs: DetailTab[] = [
-    'loan-request', 'borrower-profile', 'financials', 'credit-checks', 'signoff', 'documents', 'comments',
+    'loan-request', 'borrower-profile', 'financials', 'credit-checks-risk', 'signoff', 'documents', 'comments',
   ];
 
   const smeTabs: DetailTab[] = [
@@ -421,7 +420,7 @@ export function getLaneTabIds(lane: ProcessingLane): DetailTab[] {
   ];
 
   const corporateTabs: DetailTab[] = [
-    'parties', 'industry', 'guarantor-assessment', 'approvals', 'audit',
+    'parties', 'guarantor-assessment', 'approvals', 'audit',
   ];
 
   const tabs = [...coreTabs];
@@ -605,7 +604,7 @@ export const PHASE_TO_TAB_MAP: Record<string, string> = {
   s2: 'borrower-profile',
   s3: 'financials',
   s4: 'risk-score',
-  s5: 'credit-checks',
+  s5: 'credit-checks-risk',
   s6: 'collateral',
   s7: 'approvals',
   meta: 'documents',
@@ -621,6 +620,9 @@ TAB_TO_PHASE_MAP['parties'] = 's2';
 TAB_TO_PHASE_MAP['facilities'] = 's1';
 TAB_TO_PHASE_MAP['payment-capability'] = 's4';
 TAB_TO_PHASE_MAP['sme-financials'] = 's4';
+TAB_TO_PHASE_MAP['credit-checks-risk'] = 's5';
+// Legacy S5 sub-tab IDs still map to s5 for backward compat
+TAB_TO_PHASE_MAP['credit-checks'] = 's5';
 TAB_TO_PHASE_MAP['industry'] = 's5';
 TAB_TO_PHASE_MAP['risk'] = 's5';
 TAB_TO_PHASE_MAP['ai-insights'] = 's5';
