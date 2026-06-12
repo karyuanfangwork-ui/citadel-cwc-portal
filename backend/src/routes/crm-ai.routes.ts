@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import { crmAiController } from '../controllers/crm-ai.controller';
 import { requirePermission } from '../middleware/auth.middleware';
+import { crmAiLimiter } from '../middleware/rateLimit.middleware';
 
 const router = Router();
+
+router.use(crmAiLimiter);
 
 // Phase 1 — Agent Productivity
 router.post('/activities/:id/analyze', requirePermission('crm:read'), crmAiController.analyzeNote);

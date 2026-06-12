@@ -201,3 +201,27 @@ export const creditScoreOverrideLimiter = rateLimit({
         res.status(options.statusCode).json(options.message);
     },
 });
+
+/**
+ * CRM AI limiter — protects expensive model-backed CRM endpoints.
+ */
+export const crmAiLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: process.env.NODE_ENV === 'development' ? 100 : 10,
+    message: {
+        status: 'error',
+        statusCode: 429,
+        message: 'CRM AI rate limit exceeded. Please wait before making another AI request.',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => (req as AuthRequest).user?.id || req.ip!,
+    handler: (_req, res, _next, options) => {
+        logger.warn('CRM AI rate limit exceeded', {
+            userId: (_req as AuthRequest).user?.id,
+            ip: _req.ip,
+            path: _req.path,
+        });
+        res.status(options.statusCode).json(options.message);
+    },
+});
