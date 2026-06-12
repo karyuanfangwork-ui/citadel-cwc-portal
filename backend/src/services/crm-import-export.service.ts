@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
 import { assertSpreadsheetOrCsvSignature } from '../utils/file-signature';
+import { AppError } from '../middleware/error.middleware';
 
 const prisma = new PrismaClient();
 
@@ -442,12 +443,13 @@ export async function requestExport(
   entity: string,
   filters: Record<string, unknown> | null,
   format: string,
-  userId: string
+  userId: string,
+  visibleOwnerIds: string[] | null
 ): Promise<{ jobId: string }> {
   const job = await prisma.crmExportJob.create({
     data: {
       entity: entity.toUpperCase(),
-      filters: filters as any,
+      filters: { ...(filters ?? {}), __visibleOwnerIds: visibleOwnerIds } as any,
       format: format.toUpperCase() === 'XLSX' ? 'XLSX' : 'CSV',
       status: 'GENERATING',
       createdBy: userId,
@@ -473,20 +475,28 @@ async function generateExportFile(jobId: string): Promise<void> {
   let data: Record<string, unknown>[];
   const ownerSelect = { select: { id: true, firstName: true, lastName: true, email: true } };
 
-  const whereClause = { deletedAt: null as Date | null };
+  const filters = (job.filters as Record<string, unknown> | null) ?? {};
+  const visibleOwnerIds = filters.__visibleOwnerIds as string[] | null | undefined;
+  const ownerScope = visibleOwnerIds === null || visibleOwnerIds === undefined
+    ? {}
+    : { ownerId: { in: visibleOwnerIds } };
+  const whereClause = { deletedAt: null as Date | null, ...ownerScope };
+  const contactWhereClause = visibleOwnerIds === null || visibleOwnerIds === undefined
+    ? { deletedAt: null as Date | null }
+    : { deletedAt: null as Date | null, account: { ownerId: { in: visibleOwnerIds } } };
 
   switch (job.entity) {
     case 'LEAD':
-      data = await prisma.crmLead.findMany({ where: whereClause, include: { owner: ownerSelect } }) as unknown as Record<string, unknown>[];
+      data = await prisma.crmLead.findMany({ where: whereClause, include: { owner: ownerSelect }, take: MAX_ROWS }) as unknown as Record<string, unknown>[];
       break;
     case 'CONTACT':
-      data = await prisma.crmContact.findMany({ where: whereClause, include: { account: ownerSelect } }) as unknown as Record<string, unknown>[];
+      data = await prisma.crmContact.findMany({ where: contactWhereClause, include: { account: ownerSelect }, take: MAX_ROWS }) as unknown as Record<string, unknown>[];
       break;
     case 'ACCOUNT':
-      data = await prisma.crmAccount.findMany({ where: whereClause, include: { owner: ownerSelect } }) as unknown as Record<string, unknown>[];
+      data = await prisma.crmAccount.findMany({ where: whereClause, include: { owner: ownerSelect }, take: MAX_ROWS }) as unknown as Record<string, unknown>[];
       break;
     case 'OPPORTUNITY':
-      data = await prisma.crmOpportunity.findMany({ where: whereClause, include: { owner: ownerSelect, stage: true } }) as unknown as Record<string, unknown>[];
+      data = await prisma.crmOpportunity.findMany({ where: whereClause, include: { owner: ownerSelect, stage: true }, take: MAX_ROWS }) as unknown as Record<string, unknown>[];
       break;
     default:
       throw new Error(`Unknown entity type: ${job.entity}`);
@@ -502,18 +512,23 @@ async function generateExportFile(jobId: string): Promise<void> {
   const fileName = `${job.entity.toLowerCase()}_export_${Date.now()}.${job.format.toLowerCase()}`;
   const filePath = path.join(exportDir, fileName);
 
+  const escapeSpreadsheetFormula = (value: unknown): unknown => {
+    if (typeof value !== 'string') return value;
+    return /^[=+\-@]/.test(value) ? `'${value}` : value;
+  };
+
   // Flatten nested objects for export
   const flatData = data.map(row => {
     const flat: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(row)) {
       if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
         for (const [subKey, subValue] of Object.entries(value as Record<string, unknown>)) {
-          flat[`${key}_${subKey}`] = subValue;
+          flat[`${key}_${subKey}`] = escapeSpreadsheetFormula(subValue);
         }
       } else if (value instanceof Date) {
         flat[key] = value.toISOString();
       } else {
-        flat[key] = value;
+        flat[key] = escapeSpreadsheetFormula(value);
       }
     }
     return flat;
@@ -530,6 +545,16 @@ async function generateExportFile(jobId: string): Promise<void> {
     fs.writeFileSync(filePath, csv);
   }
 
+  await prisma.auditLog.create({
+    data: {
+      userId: job.createdBy,
+      action: 'EXPORT',
+      resourceType: `CRM_${job.entity}`,
+      resourceId: job.id,
+      newValues: { rowCount, format: job.format, scoped: visibleOwnerIds !== null },
+    },
+  });
+
   await prisma.crmExportJob.update({
     where: { id: jobId },
     data: {
@@ -540,11 +565,11 @@ async function generateExportFile(jobId: string): Promise<void> {
   });
 }
 
-export async function getExportDownload(jobId: string, userId: string): Promise<{ filePath: string; fileName: string }> {
+export async function getExportDownload(jobId: string, userId: string, isAdmin = false): Promise<{ filePath: string; fileName: string }> {
   const job = await prisma.crmExportJob.findUnique({ where: { id: jobId } });
-  if (!job) throw new Error('Export job not found');
-  if (job.createdBy !== userId) throw new Error('Not authorized');
-  if (job.status !== 'COMPLETED') throw new Error('Export is not ready');
+  if (!job) throw new AppError('Export job not found', 404);
+  if (job.createdBy !== userId && !isAdmin) throw new AppError('Export job not found', 404);
+  if (job.status !== 'COMPLETED') throw new AppError('Export is not ready', 409);
 
   const fileName = job.fileUrl?.split('/').pop() || `export_${jobId}.csv`;
   const filePath = path.join(process.cwd(), job.fileUrl || '');

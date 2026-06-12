@@ -11,6 +11,7 @@ const otherOwnerEmail = `crm-authz-other-${suffix}@test.local`;
 let salesRepId: string;
 let otherOwnerId: string;
 let salesRepToken: string;
+let otherOwnerToken: string;
 let otherOwnersAccountId: string;
 let otherOwnersContactId: string;
 let otherOwnersLeadId: string;
@@ -69,6 +70,7 @@ beforeAll(async () => {
   salesRepId = salesRep.id;
   otherOwnerId = otherOwner.id;
   salesRepToken = signToken(salesRep.id, salesRep.email);
+  otherOwnerToken = signToken(otherOwner.id, otherOwner.email);
 
   const pipeline = await prisma.crmPipeline.create({
     data: {
@@ -162,6 +164,15 @@ beforeAll(async () => {
       accountId: visibleAccount.id,
     },
   });
+
+  await prisma.crmLead.create({
+    data: {
+      title: `=HYPERLINK("http://evil.test","x") ${suffix}`,
+      companyName: `Formula Company ${suffix}`,
+      ownerId: salesRep.id,
+      accountId: visibleAccount.id,
+    },
+  });
 });
 
 afterAll(async () => {
@@ -172,6 +183,7 @@ afterAll(async () => {
   await prisma.crmContact.deleteMany({ where: { email: { contains: suffix } } });
   await prisma.crmAccount.deleteMany({ where: { name: { contains: suffix } } });
   await prisma.crmPipeline.deleteMany({ where: { name: { contains: suffix } } });
+  await prisma.crmExportJob.deleteMany({ where: { user: { email: { in: [salesRepEmail, otherOwnerEmail] } } } });
   await prisma.userRole.deleteMany({ where: { user: { email: { in: [salesRepEmail, otherOwnerEmail] } } } });
   await prisma.user.deleteMany({ where: { email: { in: [salesRepEmail, otherOwnerEmail] } } });
   await prisma.role.deleteMany({ where: { name: `CRM_AUTHZ_TEST_${suffix}` } });
@@ -266,5 +278,51 @@ describe('CRM direct write authorization', () => {
       .send({ stageId: validStageId });
 
     expect(res.status).toBe(404);
+  });
+});
+
+describe('CRM export authorization', () => {
+  it('exports only records visible to the requesting user', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/crm/export')
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ entity: 'LEAD', format: 'CSV', filters: {} });
+
+    expect(createRes.status).toBe(200);
+
+    const downloadRes = await request(app)
+      .get(`/api/v1/crm/export/${createRes.body.data.jobId}/download`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(downloadRes.status).toBe(200);
+    expect(downloadRes.text).toContain(`Visible Lead ${suffix}`);
+    expect(downloadRes.text).not.toContain(`Other Owner Lead ${suffix}`);
+  });
+
+  it('escapes formula-leading spreadsheet values', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/crm/export')
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ entity: 'LEAD', format: 'CSV', filters: {} });
+
+    const downloadRes = await request(app)
+      .get(`/api/v1/crm/export/${createRes.body.data.jobId}/download`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(downloadRes.status).toBe(200);
+    expect(downloadRes.text).toContain("'=HYPERLINK");
+  });
+
+  it('does not let a user download another user export job', async () => {
+    const createRes = await request(app)
+      .post('/api/v1/crm/export')
+      .set('Authorization', `Bearer ${otherOwnerToken}`)
+      .send({ entity: 'LEAD', format: 'CSV', filters: {} });
+
+    const downloadRes = await request(app)
+      .get(`/api/v1/crm/export/${createRes.body.data.jobId}/download`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(downloadRes.status).toBe(404);
   });
 });

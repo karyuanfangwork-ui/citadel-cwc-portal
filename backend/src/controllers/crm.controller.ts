@@ -1472,13 +1472,15 @@ class CrmController {
   // ======== EXPORT ========
   requestExport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { entity, filters, format } = req.body;
-    const result = await importExportService.requestExport(entity, filters || null, format || 'CSV', req.user!.id);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const result = await importExportService.requestExport(entity, filters || null, format || 'CSV', req.user!.id, visibleOwnerIds);
     res.json({ status: 'success', data: result });
   });
 
   downloadExport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const id = String(req.params.id);
-    const { filePath, fileName } = await importExportService.getExportDownload(id, req.user!.id);
+    const isAdmin = (await resolveVisibleOwnerIds(req.user!)) === null;
+    const { filePath, fileName } = await importExportService.getExportDownload(id, req.user!.id, isAdmin);
     res.download(filePath, fileName);
   });
 
