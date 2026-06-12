@@ -1,0 +1,233 @@
+import request from 'supertest';
+import jwt from 'jsonwebtoken';
+import app from '../app';
+import prisma from '../utils/prisma';
+import { config } from '../config';
+
+const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const salesRepEmail = `crm-authz-rep-${suffix}@test.local`;
+const otherOwnerEmail = `crm-authz-other-${suffix}@test.local`;
+
+let salesRepId: string;
+let otherOwnerId: string;
+let salesRepToken: string;
+let otherOwnersAccountId: string;
+let otherOwnersContactId: string;
+let otherOwnersLeadId: string;
+let otherOwnersOpportunityId: string;
+let otherOwnersTrustProductId: string;
+
+const signToken = (userId: string, email: string) =>
+  jwt.sign({ userId, email, jti: `crm-authz-${userId}-${suffix}` }, config.jwt.secret, { expiresIn: '1h' });
+
+beforeAll(async () => {
+  const permissions = await Promise.all(
+    ['crm:read', 'crm:write', 'crm:delete'].map((name) =>
+      prisma.permission.upsert({
+        where: { name },
+        update: {},
+        create: { name, resource: 'crm', action: name.split(':')[1] },
+      }),
+    ),
+  );
+
+  const role = await prisma.role.upsert({
+    where: { name: `CRM_AUTHZ_TEST_${suffix}` },
+    update: {},
+    create: { name: `CRM_AUTHZ_TEST_${suffix}` },
+  });
+
+  await prisma.rolePermission.createMany({
+    data: permissions.map((permission) => ({ roleId: role.id, permissionId: permission.id })),
+    skipDuplicates: true,
+  });
+
+  const [salesRep, otherOwner] = await Promise.all([
+    prisma.user.create({
+      data: {
+        email: salesRepEmail,
+        passwordHash: 'test-hash',
+        firstName: 'Visible',
+        lastName: 'Rep',
+        isActive: true,
+        roles: { create: { roleId: role.id } },
+      },
+    }),
+    prisma.user.create({
+      data: {
+        email: otherOwnerEmail,
+        passwordHash: 'test-hash',
+        firstName: 'Other',
+        lastName: 'Rep',
+        isActive: true,
+        roles: { create: { roleId: role.id } },
+      },
+    }),
+  ]);
+
+  salesRepId = salesRep.id;
+  otherOwnerId = otherOwner.id;
+  salesRepToken = signToken(salesRep.id, salesRep.email);
+
+  const pipeline = await prisma.crmPipeline.create({
+    data: {
+      name: `Authz Pipeline ${suffix}`,
+      stages: {
+        create: {
+          name: 'Open',
+          displayOrder: 1,
+          probability: 25,
+        },
+      },
+    },
+    include: { stages: true },
+  });
+  const stage = pipeline.stages[0];
+
+  const visibleAccount = await prisma.crmAccount.create({
+    data: {
+      name: `Visible Owner Account ${suffix}`,
+      email: `visible-account-${suffix}@test.local`,
+      ownerId: salesRep.id,
+    },
+  });
+
+  const otherAccount = await prisma.crmAccount.create({
+    data: {
+      name: `Other Owner Account ${suffix}`,
+      email: `other-account-${suffix}@test.local`,
+      ownerId: otherOwner.id,
+    },
+  });
+  otherOwnersAccountId = otherAccount.id;
+
+  const otherContact = await prisma.crmContact.create({
+    data: {
+      accountId: otherAccount.id,
+      firstName: 'Other',
+      lastName: `Owner ${suffix}`,
+      email: `other-contact-${suffix}@test.local`,
+    },
+  });
+  otherOwnersContactId = otherContact.id;
+
+  const otherLead = await prisma.crmLead.create({
+    data: {
+      title: `Other Owner Lead ${suffix}`,
+      companyName: `Other Owner Company ${suffix}`,
+      ownerId: otherOwner.id,
+      accountId: otherAccount.id,
+      contactId: otherContact.id,
+    },
+  });
+  otherOwnersLeadId = otherLead.id;
+
+  const otherOpportunity = await prisma.crmOpportunity.create({
+    data: {
+      name: `Other Owner Opportunity ${suffix}`,
+      accountId: otherAccount.id,
+      contactId: otherContact.id,
+      pipelineId: pipeline.id,
+      stageId: stage.id,
+      ownerId: otherOwner.id,
+      value: 1000,
+    },
+  });
+  otherOwnersOpportunityId = otherOpportunity.id;
+
+  const otherTrustProduct = await prisma.crmTrustProduct.create({
+    data: {
+      accountId: otherAccount.id,
+      contactId: otherContact.id,
+      trustType: 'FAMILY',
+      ownerId: otherOwner.id,
+    },
+  });
+  otherOwnersTrustProductId = otherTrustProduct.id;
+
+  await prisma.crmLead.create({
+    data: {
+      title: `Visible Lead ${suffix}`,
+      companyName: `Visible Company ${suffix}`,
+      ownerId: salesRep.id,
+      accountId: visibleAccount.id,
+    },
+  });
+});
+
+afterAll(async () => {
+  await prisma.crmTrustProduct.deleteMany({ where: { account: { name: { contains: suffix } } } });
+  await prisma.crmOpportunityStageHistory.deleteMany({ where: { opportunity: { account: { name: { contains: suffix } } } } });
+  await prisma.crmOpportunity.deleteMany({ where: { account: { name: { contains: suffix } } } });
+  await prisma.crmLead.deleteMany({ where: { OR: [{ title: { contains: suffix } }, { companyName: { contains: suffix } }] } });
+  await prisma.crmContact.deleteMany({ where: { email: { contains: suffix } } });
+  await prisma.crmAccount.deleteMany({ where: { name: { contains: suffix } } });
+  await prisma.crmPipeline.deleteMany({ where: { name: { contains: suffix } } });
+  await prisma.userRole.deleteMany({ where: { user: { email: { in: [salesRepEmail, otherOwnerEmail] } } } });
+  await prisma.user.deleteMany({ where: { email: { in: [salesRepEmail, otherOwnerEmail] } } });
+  await prisma.role.deleteMany({ where: { name: `CRM_AUTHZ_TEST_${suffix}` } });
+});
+
+describe('CRM direct read authorization', () => {
+  it('returns 404 when a sales rep reads another owner account by id', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/accounts/${otherOwnersAccountId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when a sales rep reads another owner contact by id', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/contacts/${otherOwnersContactId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when a sales rep reads another owner lead by id', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/leads/${otherOwnersLeadId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when a sales rep reads another owner opportunity by id', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/opportunities/${otherOwnersOpportunityId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when a sales rep reads another owner trust product by id', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/trust-products/${otherOwnersTrustProductId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('does not surface other owners records in global search', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/search?q=${encodeURIComponent(`Other Owner Lead ${suffix}`)}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.accounts).toHaveLength(0);
+    expect(res.body.data.contacts).toHaveLength(0);
+    expect(res.body.data.leads).toHaveLength(0);
+    expect(res.body.data.opportunities).toHaveLength(0);
+  });
+
+  it('caps list page size at 100', async () => {
+    const res = await request(app)
+      .get('/api/v1/crm/leads?limit=999999')
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.leads.length).toBeLessThanOrEqual(100);
+    expect(res.body.data.pagination.limit).toBeLessThanOrEqual(100);
+  });
+});

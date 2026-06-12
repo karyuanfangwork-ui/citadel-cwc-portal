@@ -91,8 +91,9 @@ class CrmController {
   });
 
   getAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const account = await prisma.crmAccount.findFirst({
-      where: { id: req.params.id as string, deletedAt: null },
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
       include: {
         owner: { select: userSelect },
         contacts: { where: { isActive: true }, orderBy: { isPrimary: 'desc' } },
@@ -206,8 +207,13 @@ class CrmController {
   });
 
   getContact = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const contact = await prisma.crmContact.findUnique({
-      where: { id: req.params.id as string },
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const contact = await prisma.crmContact.findFirst({
+      where: {
+        id: req.params.id as string,
+        deletedAt: null,
+        ...(visibleOwnerIds === null ? {} : { account: { ownerId: { in: visibleOwnerIds } } }),
+      },
       include: {
         account: { select: { id: true, name: true, industry: true } },
         opportunities: { include: { stage: true }, orderBy: { updatedAt: 'desc' }, take: 5 },
@@ -340,8 +346,9 @@ class CrmController {
   });
 
   getLead = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const lead = await prisma.crmLead.findUnique({
-      where: { id: req.params.id as string },
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const lead = await prisma.crmLead.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
       include: {
         owner: { select: userSelect },
         account: { select: { id: true, name: true } },
@@ -522,8 +529,9 @@ class CrmController {
   });
 
   getOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const opportunity = await prisma.crmOpportunity.findUnique({
-      where: { id: req.params.id as string },
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const opportunity = await prisma.crmOpportunity.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
       include: {
         account: { select: { id: true, name: true, industry: true } },
         contact: { select: { id: true, firstName: true, lastName: true, email: true, phone: true } },
@@ -950,8 +958,9 @@ class CrmController {
   });
 
   getTrustProduct = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const trustProduct = await prisma.crmTrustProduct.findUnique({
-      where: { id: req.params.id as string },
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const trustProduct = await prisma.crmTrustProduct.findFirst({
+      where: applyOwnerScope({ id: req.params.id as string }, visibleOwnerIds),
       include: {
         account: { select: { id: true, name: true } },
         contact: { select: { id: true, firstName: true, lastName: true } },
@@ -1224,16 +1233,28 @@ class CrmController {
       res.json({ success: true, data: { accounts: [], contacts: [], leads: [], opportunities: [] } });
       return;
     }
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const ownerScope = visibleOwnerIds === null
+      ? {}
+      : { ownerId: { in: visibleOwnerIds } };
+    const contactOwnerScope = visibleOwnerIds === null
+      ? {}
+      : { account: { ownerId: { in: visibleOwnerIds } } };
 
     const [accounts, contacts, leads, opportunities] = await Promise.all([
       prisma.crmAccount.findMany({
-        where: { name: { contains: q, mode: 'insensitive' }, deletedAt: null },
+        where: {
+          deletedAt: null,
+          AND: [ownerScope],
+          name: { contains: q, mode: 'insensitive' },
+        },
         select: { id: true, name: true, industry: true, isActive: true },
         take: 5,
       }),
       prisma.crmContact.findMany({
         where: {
           deletedAt: null,
+          AND: [contactOwnerScope],
           OR: [
             { firstName: { contains: q, mode: 'insensitive' } },
             { lastName: { contains: q, mode: 'insensitive' } },
@@ -1246,6 +1267,7 @@ class CrmController {
       prisma.crmLead.findMany({
         where: {
           deletedAt: null,
+          AND: [ownerScope],
           OR: [
             { title: { contains: q, mode: 'insensitive' } },
             { contactName: { contains: q, mode: 'insensitive' } },
@@ -1258,6 +1280,7 @@ class CrmController {
       prisma.crmOpportunity.findMany({
         where: {
           deletedAt: null,
+          AND: [ownerScope],
           OR: [
             { name: { contains: q, mode: 'insensitive' } },
             { account: { name: { contains: q, mode: 'insensitive' } } },
