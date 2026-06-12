@@ -1,5 +1,21 @@
 import prisma from '../utils/prisma';
 
+type VisibleOwnerIds = string[] | null;
+
+function scopedOwnerFilter(ownerId: string | undefined, visibleOwnerIds: VisibleOwnerIds) {
+  if (visibleOwnerIds === null) return ownerId ? { ownerId } : {};
+  const ownerIds = ownerId ? visibleOwnerIds.filter((id) => id === ownerId) : visibleOwnerIds;
+  return { ownerId: { in: ownerIds } };
+}
+
+function ownerScope(visibleOwnerIds: VisibleOwnerIds) {
+  return visibleOwnerIds === null ? {} : { ownerId: { in: visibleOwnerIds } };
+}
+
+function contactAccountScope(visibleOwnerIds: VisibleOwnerIds) {
+  return visibleOwnerIds === null ? {} : { contact: { account: { ownerId: { in: visibleOwnerIds } } } };
+}
+
 // ============================================================================
 // REPORT TYPES
 // ============================================================================
@@ -88,9 +104,10 @@ export interface LeadAgingReport {
 export async function getLeadConversionReport(
   from: Date,
   to: Date,
-  ownerId?: string
+  ownerId?: string,
+  visibleOwnerIds: VisibleOwnerIds = null
 ): Promise<LeadConversionReport> {
-  const ownerFilter = ownerId ? { ownerId } : {};
+  const ownerFilter = scopedOwnerFilter(ownerId, visibleOwnerIds);
   const dateFilter = {
     createdAt: { gte: from, lte: to },
   };
@@ -182,11 +199,13 @@ export async function getLeadConversionReport(
 export async function getSalesPerformanceReport(
   from: Date,
   to: Date,
-  pipelineId?: string
+  pipelineId?: string,
+  visibleOwnerIds: VisibleOwnerIds = null
 ): Promise<SalesPerformanceReport> {
   const baseFilter: Record<string, unknown> = {
     deletedAt: null,
     createdAt: { gte: from, lte: to },
+    ...ownerScope(visibleOwnerIds),
   };
   if (pipelineId) {
     baseFilter.pipelineId = pipelineId;
@@ -269,14 +288,16 @@ export async function getSalesPerformanceReport(
 // ============================================================================
 
 export async function getPipelineForecastReport(
-  pipelineId: string
+  pipelineId: string,
+  visibleOwnerIds: VisibleOwnerIds = null
 ): Promise<PipelineForecastReport> {
+  const scopedOpportunityWhere = { deletedAt: null, ...ownerScope(visibleOwnerIds) };
   const stages = await prisma.crmPipelineStage.findMany({
     where: { pipelineId },
     orderBy: { displayOrder: 'asc' },
     include: {
       opportunities: {
-        where: { deletedAt: null },
+        where: scopedOpportunityWhere,
         select: {
           id: true,
           value: true,
@@ -316,6 +337,7 @@ export async function getPipelineForecastReport(
   const overdueOpps = await prisma.crmOpportunity.findMany({
     where: {
       pipelineId,
+      ...ownerScope(visibleOwnerIds),
       expectedCloseDate: { lt: now },
       wonAt: null,
       lostAt: null,
@@ -345,9 +367,12 @@ export async function getPipelineForecastReport(
 export async function getActivitySummaryReport(
   from: Date,
   to: Date,
-  userId?: string
+  userId?: string,
+  visibleOwnerIds: VisibleOwnerIds = null
 ): Promise<ActivitySummaryReport> {
-  const userFilter = userId ? { userId } : {};
+  const userFilter = visibleOwnerIds === null
+    ? (userId ? { userId } : {})
+    : { userId: { in: userId ? visibleOwnerIds.filter((id) => id === userId) : visibleOwnerIds } };
   const dateFilter = { createdAt: { gte: from, lte: to } };
 
   // Activity counts by type
@@ -413,9 +438,10 @@ export async function getActivitySummaryReport(
 // ============================================================================
 
 export async function getLeadAgingReport(
-  ownerId?: string
+  ownerId?: string,
+  visibleOwnerIds: VisibleOwnerIds = null
 ): Promise<LeadAgingReport> {
-  const ownerFilter = ownerId ? { ownerId } : {};
+  const ownerFilter = scopedOwnerFilter(ownerId, visibleOwnerIds);
   const now = new Date();
 
   // Active leads (not converted/lost, not deleted)
@@ -528,9 +554,10 @@ export interface WinLossReport {
 export async function getWinLossReport(
   from: Date,
   to: Date,
-  ownerId?: string
+  ownerId?: string,
+  visibleOwnerIds: VisibleOwnerIds = null
 ): Promise<WinLossReport> {
-  const ownerFilter = ownerId ? { ownerId } : {};
+  const ownerFilter = scopedOwnerFilter(ownerId, visibleOwnerIds);
 
   // Won deals
   const wonDeals = await prisma.crmOpportunity.findMany({
@@ -599,26 +626,30 @@ export interface KycComplianceReport {
   complianceRate: number; // approved / total * 100
 }
 
-export async function getKycComplianceReport(): Promise<KycComplianceReport> {
+export async function getKycComplianceReport(visibleOwnerIds: VisibleOwnerIds = null): Promise<KycComplianceReport> {
   const now = new Date();
   const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const kycScope = contactAccountScope(visibleOwnerIds);
+  const contactScope = visibleOwnerIds === null ? {} : { account: { ownerId: { in: visibleOwnerIds } } };
 
   const [byStatusRaw, expiringSoon, pepFlagged, totalContacts] = await Promise.all([
     prisma.crmKycRecord.groupBy({
       by: ['status'],
       _count: true,
+      where: kycScope,
     }),
     prisma.crmKycRecord.count({
       where: {
+        ...kycScope,
         expiresAt: { lte: thirtyDaysFromNow, gte: now },
         status: 'APPROVED',
       },
     }),
     prisma.crmKycRecord.count({
-      where: { isPep: true },
+      where: { ...kycScope, isPep: true },
     }),
     prisma.crmContact.count({
-      where: { deletedAt: null },
+      where: { deletedAt: null, ...contactScope },
     }),
   ]);
 

@@ -18,6 +18,7 @@ let otherOwnersLeadId: string;
 let otherOwnersOpportunityId: string;
 let otherOwnersTrustProductId: string;
 let validStageId: string;
+let pipelineId: string;
 
 const signToken = (userId: string, email: string) =>
   jwt.sign({ userId, email, jti: `crm-authz-${userId}-${suffix}` }, config.jwt.secret, { expiresIn: '1h' });
@@ -93,6 +94,7 @@ beforeAll(async () => {
     include: { stages: true },
   });
   const stage = pipeline.stages.find((item) => item.displayOrder === 1) ?? pipeline.stages[0];
+  pipelineId = pipeline.id;
   validStageId = (pipeline.stages.find((item) => item.displayOrder === 2) ?? stage).id;
 
   const visibleAccount = await prisma.crmAccount.create({
@@ -146,6 +148,17 @@ beforeAll(async () => {
   });
   otherOwnersOpportunityId = otherOpportunity.id;
 
+  await prisma.crmOpportunity.create({
+    data: {
+      name: `Visible Opportunity ${suffix}`,
+      accountId: visibleAccount.id,
+      pipelineId: pipeline.id,
+      stageId: stage.id,
+      ownerId: salesRep.id,
+      value: 2000,
+    },
+  });
+
   const otherTrustProduct = await prisma.crmTrustProduct.create({
     data: {
       accountId: otherAccount.id,
@@ -176,6 +189,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await prisma.crmExportJob.deleteMany({ where: { user: { email: { in: [salesRepEmail, otherOwnerEmail] } } } });
   await prisma.crmTrustProduct.deleteMany({ where: { account: { name: { contains: suffix } } } });
   await prisma.crmOpportunityStageHistory.deleteMany({ where: { opportunity: { account: { name: { contains: suffix } } } } });
   await prisma.crmOpportunity.deleteMany({ where: { account: { name: { contains: suffix } } } });
@@ -183,7 +197,6 @@ afterAll(async () => {
   await prisma.crmContact.deleteMany({ where: { email: { contains: suffix } } });
   await prisma.crmAccount.deleteMany({ where: { name: { contains: suffix } } });
   await prisma.crmPipeline.deleteMany({ where: { name: { contains: suffix } } });
-  await prisma.crmExportJob.deleteMany({ where: { user: { email: { in: [salesRepEmail, otherOwnerEmail] } } } });
   await prisma.userRole.deleteMany({ where: { user: { email: { in: [salesRepEmail, otherOwnerEmail] } } } });
   await prisma.user.deleteMany({ where: { email: { in: [salesRepEmail, otherOwnerEmail] } } });
   await prisma.role.deleteMany({ where: { name: `CRM_AUTHZ_TEST_${suffix}` } });
@@ -324,5 +337,26 @@ describe('CRM export authorization', () => {
       .set('Authorization', `Bearer ${salesRepToken}`);
 
     expect(downloadRes.status).toBe(404);
+  });
+});
+
+describe('CRM report authorization', () => {
+  it('does not include another owner in sales performance report', async () => {
+    const res = await request(app)
+      .get('/api/v1/crm/reports/sales-performance')
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.byOwner.some((row: { ownerId: string }) => row.ownerId === salesRepId)).toBe(true);
+    expect(res.body.data.byOwner.some((row: { ownerId: string }) => row.ownerId === otherOwnerId)).toBe(false);
+  });
+
+  it('scopes pipeline forecast values to visible opportunities', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/reports/pipeline-forecast?pipelineId=${pipelineId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.totalPipelineValue).toBe(2000);
   });
 });

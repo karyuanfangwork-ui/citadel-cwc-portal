@@ -1187,7 +1187,8 @@ class CrmController {
     const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const ownerId = req.query.ownerId as string | undefined;
-    const report = await crmReportsService.getLeadConversionReport(from, to, ownerId);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const report = await crmReportsService.getLeadConversionReport(from, to, ownerId, visibleOwnerIds);
     respondOrCsv(res, report, 'lead-conversion.csv',
       ['period', 'leads', 'converted', 'conversionRate'], d => d.periods ?? d,
       req.query.format as string);
@@ -1197,7 +1198,8 @@ class CrmController {
     const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const pipelineId = req.query.pipelineId as string | undefined;
-    const report = await crmReportsService.getSalesPerformanceReport(from, to, pipelineId);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const report = await crmReportsService.getSalesPerformanceReport(from, to, pipelineId, visibleOwnerIds);
     respondOrCsv(res, report, 'sales-performance.csv',
       ['repId', 'repName', 'leadsCreated', 'opportunitiesCreated', 'wonDeals', 'wonValue', 'totalPipelineValue'], d => d.reps ?? d,
       req.query.format as string);
@@ -1206,7 +1208,8 @@ class CrmController {
   getPipelineForecastReport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const pipelineId = req.query.pipelineId as string;
     if (!pipelineId) throw new AppError('pipelineId query parameter is required', 400);
-    const report = await crmReportsService.getPipelineForecastReport(pipelineId);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const report = await crmReportsService.getPipelineForecastReport(pipelineId, visibleOwnerIds);
     respondOrCsv(res, report, 'pipeline-forecast.csv',
       ['stageId', 'stageName', 'probability', 'dealCount', 'totalValue', 'weightedValue'], d => d.stages ?? d,
       req.query.format as string);
@@ -1216,7 +1219,8 @@ class CrmController {
     const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const userId = req.query.userId as string | undefined;
-    const report = await crmReportsService.getActivitySummaryReport(from, to, userId);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const report = await crmReportsService.getActivitySummaryReport(from, to, userId, visibleOwnerIds);
     respondOrCsv(res, report, 'activity-summary.csv',
       ['date', 'calls', 'emails', 'meetings', 'notes'], d => d.daily ?? d,
       req.query.format as string);
@@ -1224,7 +1228,8 @@ class CrmController {
 
   getLeadAgingReport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const ownerId = req.query.ownerId as string | undefined;
-    const report = await crmReportsService.getLeadAgingReport(ownerId);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const report = await crmReportsService.getLeadAgingReport(ownerId, visibleOwnerIds);
     respondOrCsv(res, report, 'lead-aging.csv',
       ['bucket', 'count', 'avgDays', 'totalValue'], d => d.buckets ?? d,
       (req.query.format as string));
@@ -1234,14 +1239,16 @@ class CrmController {
     const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
     const ownerId = req.query.ownerId as string | undefined;
-    const report = await crmReportsService.getWinLossReport(from, to, ownerId);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const report = await crmReportsService.getWinLossReport(from, to, ownerId, visibleOwnerIds);
     respondOrCsv(res, report, 'win-loss.csv',
       ['reason', 'count', 'totalValue'], d => d.reasons ?? d,
       req.query.format as string);
   });
 
   getKycComplianceReport = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const report = await crmReportsService.getKycComplianceReport();
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const report = await crmReportsService.getKycComplianceReport(visibleOwnerIds);
     respondOrCsv(res, report, 'kyc-compliance.csv',
       ['accountId', 'accountName', 'kycStatus', 'lastReviewDate'], d => d.accounts ?? d,
       req.query.format as string);
@@ -1253,7 +1260,8 @@ class CrmController {
       res.status(400).json({ status: 'error', message: 'pipelineId query parameter is required' });
       return;
     }
-    const report = await crmForecastService.getPipelineForecastWithCategories(pipelineId);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const report = await crmForecastService.getPipelineForecastWithCategories(pipelineId, visibleOwnerIds);
     respondOrCsv(res, report, 'forecast-categories.csv',
       ['stageId', 'stageName', 'probability', 'dealCount', 'totalValue', 'weightedValue'], d => d.stages ?? d,
       req.query.format as string);
@@ -1262,7 +1270,8 @@ class CrmController {
   getForecastAccuracyReport = asyncHandler(async (req: AuthRequest, res: Response) => {
     const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const to = req.query.to ? new Date(req.query.to as string) : new Date();
-    const report = await crmForecastService.getForecastAccuracyReport({ from, to });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const report = await crmForecastService.getForecastAccuracyReport({ from, to }, visibleOwnerIds);
     respondOrCsv(res, report, 'forecast-accuracy.csv',
       [{ key: 'commitTotal', label: 'Committed Forecast' }, { key: 'actualWonTotal', label: 'Actual Won Revenue' }, { key: 'accuracyPct', label: 'Accuracy %' }],
       d => [d],

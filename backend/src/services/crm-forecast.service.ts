@@ -86,18 +86,25 @@ export function getForecastAccuracy(
 
 import prisma from '../utils/prisma';
 
+type VisibleOwnerIds = string[] | null;
+
+function ownerScope(visibleOwnerIds: VisibleOwnerIds) {
+  return visibleOwnerIds === null ? {} : { ownerId: { in: visibleOwnerIds } };
+}
+
 /**
  * Fetch opportunities grouped by forecastCategory for a pipeline,
  * returning both stage and category breakdowns.
  */
-export async function getPipelineForecastWithCategories(pipelineId: string) {
+export async function getPipelineForecastWithCategories(pipelineId: string, visibleOwnerIds: VisibleOwnerIds = null) {
+  const scopedOpportunityWhere = { deletedAt: null, ...ownerScope(visibleOwnerIds) };
   // Stage-level breakdown (existing logic, now also includes forecastCategory)
   const stages = await prisma.crmPipelineStage.findMany({
     where: { pipelineId },
     orderBy: { displayOrder: 'asc' },
     include: {
       opportunities: {
-        where: { deletedAt: null },
+        where: scopedOpportunityWhere,
         select: {
           id: true,
           value: true,
@@ -136,6 +143,7 @@ export async function getPipelineForecastWithCategories(pipelineId: string) {
   const overdueCount = await prisma.crmOpportunity.count({
     where: {
       pipelineId,
+      ...ownerScope(visibleOwnerIds),
       expectedCloseDate: { lt: new Date() },
       wonAt: null,
       lostAt: null,
@@ -148,6 +156,7 @@ export async function getPipelineForecastWithCategories(pipelineId: string) {
     _sum: { value: true },
     where: {
       pipelineId,
+      ...ownerScope(visibleOwnerIds),
       expectedCloseDate: { lt: new Date() },
       wonAt: null,
       lostAt: null,
@@ -169,13 +178,14 @@ export async function getPipelineForecastWithCategories(pipelineId: string) {
 /**
  * Forecast accuracy: compare past period's COMMIT total vs actual won revenue.
  */
-export async function getForecastAccuracyReport(period: { from: Date; to: Date }) {
+export async function getForecastAccuracyReport(period: { from: Date; to: Date }, visibleOwnerIds: VisibleOwnerIds = null) {
   // COMMIT total for the period
   const commitOpps = await prisma.crmOpportunity.findMany({
     where: {
       forecastCategory: 'COMMIT',
       createdAt: { gte: period.from, lte: period.to },
       deletedAt: null,
+      ...ownerScope(visibleOwnerIds),
     },
     select: { value: true },
   });
@@ -186,6 +196,7 @@ export async function getForecastAccuracyReport(period: { from: Date; to: Date }
     where: {
       wonAt: { gte: period.from, lte: period.to },
       deletedAt: null,
+      ...ownerScope(visibleOwnerIds),
     },
     select: { value: true },
   });
