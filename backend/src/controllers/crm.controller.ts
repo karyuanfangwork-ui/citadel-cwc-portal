@@ -4,6 +4,7 @@ import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
 import { respondOrCsv } from '../utils/csv-response';
+import { parsePagination } from '../utils/pagination';
 import { resolveVisibleOwnerIds, applyOwnerScope } from '../services/crm-scope.service';
 import { detectCycle } from '../services/crm-account-hierarchy.service';
 import * as crmForecastService from '../services/crm-forecast.service';
@@ -50,8 +51,7 @@ class CrmController {
 
   // ======== ACCOUNTS ========
   listAccounts = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = (req.query.page as string) || '1';
-    const limit = (req.query.limit as string) || '20';
+    const { page, limit, skip } = parsePagination(req.query);
     const search = req.query.search as string | undefined;
     const industry = req.query.industry as string | undefined;
     const ownerId = req.query.ownerId as string | undefined;
@@ -60,8 +60,6 @@ class CrmController {
     const accountType = req.query.accountType as string | undefined;
     const sortBy = (req.query.sortBy as string) || 'createdAt';
     const sortOrder = (req.query.sortOrder as string) || 'desc';
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
     const where: any = { deletedAt: null };
     // Team-scoped RBAC: admins see all, managers see own+team, reps see only own
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
@@ -80,7 +78,7 @@ class CrmController {
     }
     const [accounts, total] = await Promise.all([
       prisma.crmAccount.findMany({
-        where, skip: (pageNum - 1) * limitNum, take: limitNum,
+        where, skip, take: limit,
         orderBy: { [sortBy as string]: sortOrder },
         include: {
           owner: { select: userSelect },
@@ -89,7 +87,7 @@ class CrmController {
       }),
       prisma.crmAccount.count({ where }),
     ]);
-    res.json({ status: 'success', data: { accounts: maskBankAccount(accounts), pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } } });
+    res.json({ status: 'success', data: { accounts: maskBankAccount(accounts), pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
   });
 
   getAccount = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -178,12 +176,9 @@ class CrmController {
 
   // ======== CONTACTS ========
   listContacts = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = (req.query.page as string) || '1';
-    const limit = (req.query.limit as string) || '20';
+    const { page, limit, skip } = parsePagination(req.query);
     const search = req.query.search as string | undefined;
     const accountId = req.query.accountId as string | undefined;
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
     const where: any = { isActive: true, deletedAt: null };
     // Team-scoped RBAC: contacts scoped by parent account ownership
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
@@ -201,13 +196,13 @@ class CrmController {
     }
     const [contacts, total] = await Promise.all([
       prisma.crmContact.findMany({
-        where, skip: (pageNum - 1) * limitNum, take: limitNum,
+        where, skip, take: limit,
         orderBy: { createdAt: 'desc' },
         include: { account: { select: { id: true, name: true } } },
       }),
       prisma.crmContact.count({ where }),
     ]);
-    res.json({ status: 'success', data: { contacts, pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } } });
+    res.json({ status: 'success', data: { contacts, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
   });
 
   getContact = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -297,16 +292,13 @@ class CrmController {
 
   // ======== LEADS ========
   listLeads = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = (req.query.page as string) || '1';
-    const limit = (req.query.limit as string) || '20';
+    const { page, limit, skip } = parsePagination(req.query);
     const search = req.query.search as string | undefined;
     const status = req.query.status as string | undefined;
     const source = req.query.source as string | undefined;
     const ownerId = req.query.ownerId as string | undefined;
     const stale = req.query.stale === 'true';
     const followup = req.query.followup === 'true';
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
     const where: any = { deletedAt: null };
     // Team-scoped RBAC: admins see all, managers see own+team, reps see only own
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
@@ -334,7 +326,7 @@ class CrmController {
     }
     const [leads, total] = await Promise.all([
       prisma.crmLead.findMany({
-        where, skip: (pageNum - 1) * limitNum, take: limitNum,
+        where, skip, take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
           owner: { select: userSelect },
@@ -344,7 +336,7 @@ class CrmController {
       }),
       prisma.crmLead.count({ where }),
     ]);
-    res.json({ status: 'success', data: { leads, pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } } });
+    res.json({ status: 'success', data: { leads, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
   });
 
   getLead = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -487,16 +479,13 @@ class CrmController {
 
   // ======== OPPORTUNITIES ========
   listOpportunities = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = (req.query.page as string) || '1';
-    const limit = (req.query.limit as string) || '20';
+    const { page, limit, skip } = parsePagination(req.query);
     const search = req.query.search as string | undefined;
     const pipelineId = req.query.pipelineId as string | undefined;
     const stageId = req.query.stageId as string | undefined;
     const ownerId = req.query.ownerId as string | undefined;
     const accountId = req.query.accountId as string | undefined;
     const overdue = req.query.overdue === 'true';
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
     const where: any = { deletedAt: null };
     // Team-scoped RBAC: admins see all, managers see own+team, reps see only own
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
@@ -518,7 +507,7 @@ class CrmController {
     }
     const [opportunities, total] = await Promise.all([
       prisma.crmOpportunity.findMany({
-        where, skip: (pageNum - 1) * limitNum, take: limitNum,
+        where, skip, take: limit,
         orderBy: { updatedAt: 'desc' },
         include: {
           account: { select: { id: true, name: true } },
@@ -529,7 +518,7 @@ class CrmController {
       }),
       prisma.crmOpportunity.count({ where }),
     ]);
-    res.json({ status: 'success', data: { opportunities, pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } } });
+    res.json({ status: 'success', data: { opportunities, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
   });
 
   getOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -674,15 +663,12 @@ class CrmController {
 
   // ======== ACTIVITIES ========
   listActivities = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = (req.query.page as string) || '1';
-    const limit = (req.query.limit as string) || '20';
+    const { page, limit, skip } = parsePagination(req.query);
     const activityType = req.query.activityType as string | undefined;
     const accountId = req.query.accountId as string | undefined;
     const contactId = req.query.contactId as string | undefined;
     const leadId = req.query.leadId as string | undefined;
     const opportunityId = req.query.opportunityId as string | undefined;
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
     const where: any = {};
     if (activityType) where.activityType = activityType;
     if (accountId) where.accountId = accountId;
@@ -691,7 +677,7 @@ class CrmController {
     if (opportunityId) where.opportunityId = opportunityId;
     const [activities, total] = await Promise.all([
       prisma.crmActivity.findMany({
-        where, skip: (pageNum - 1) * limitNum, take: limitNum,
+        where, skip, take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: userSelect },
@@ -702,7 +688,7 @@ class CrmController {
       }),
       prisma.crmActivity.count({ where }),
     ]);
-    res.json({ status: 'success', data: { activities, pagination: { page: pageNum, limit: limitNum, total, totalPages: Math.ceil(total / limitNum) } } });
+    res.json({ status: 'success', data: { activities, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
   });
 
   createActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -794,8 +780,7 @@ class CrmController {
 
   // ======== NOTES ========
   listNotes = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = parseInt((req.query.page as string) || '1', 10);
-    const limit = parseInt((req.query.limit as string) || '20', 10);
+    const { page, limit, skip } = parsePagination(req.query);
     const accountId = req.query.accountId as string | undefined;
     const contactId = req.query.contactId as string | undefined;
     const leadId = req.query.leadId as string | undefined;
@@ -810,7 +795,7 @@ class CrmController {
     const [notes, total] = await Promise.all([
       prisma.crmNote.findMany({
         where,
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: { author: { select: userSelect } },
@@ -941,8 +926,7 @@ class CrmController {
     const accountId = req.query.accountId as string | undefined;
     const contactId = req.query.contactId as string | undefined;
     const status = req.query.status as string | undefined;
-    const page = parseInt(req.query.page as string) || 1;
-    const limit = parseInt(req.query.limit as string) || 50;
+    const { page, limit, skip } = parsePagination(req.query);
     const where: any = { status: { not: 'CLOSED' } };
     if (accountId) where.accountId = accountId;
     if (contactId) where.contactId = contactId;
@@ -951,7 +935,7 @@ class CrmController {
       prisma.crmTrustProduct.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
+        skip,
         take: limit,
         include: {
           account: { select: { id: true, name: true } },
@@ -1310,9 +1294,7 @@ class CrmController {
   getEntityAuditTrail = asyncHandler(async (req: AuthRequest, res: Response) => {
     const entityType = req.params.entityType as string;
     const entityId = req.params.entityId as string;
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
-    const offset = (page - 1) * limit;
+    const { page, limit, skip } = parsePagination(req.query);
 
     // Map frontend entity type to audit resourceType
     const resourceTypeMap: Record<string, string> = {
@@ -1332,7 +1314,7 @@ class CrmController {
       prisma.auditLog.findMany({
         where,
         orderBy: { createdAt: 'desc' },
-        skip: offset,
+        skip,
         take: limit,
       }),
       prisma.auditLog.count({ where }),
@@ -1416,8 +1398,7 @@ class CrmController {
   });
 
   getImportHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const { page, limit } = parsePagination(req.query);
     const result = await importExportService.getImportHistory(req.user!.id, page, limit);
     res.json({ status: 'success', data: result });
   });
@@ -1436,16 +1417,14 @@ class CrmController {
   });
 
   getExportHistory = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const { page, limit } = parsePagination(req.query);
     const result = await importExportService.getExportHistory(req.user!.id, page, limit);
     res.json({ status: 'success', data: result });
   });
 
   // ======== TERRITORIES ========
   listTerritories = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const { page, limit } = parsePagination(req.query);
     const result = await territoryService.listTerritories(page, limit);
     res.json({ status: 'success', data: result });
   });
@@ -1504,8 +1483,7 @@ class CrmController {
 
   // ======== QUOTAS ========
   listQuotas = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const { page, limit } = parsePagination(req.query);
     const filters: Record<string, string> = {};
     if (req.query.period) filters.period = req.query.period as string;
     if (req.query.userId) filters.userId = req.query.userId as string;
@@ -1582,8 +1560,7 @@ class CrmController {
 
   // ── Workflow Automation ──────────────────────────────────────────────────
   listWorkflows = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const { page, limit } = parsePagination(req.query);
     const result = await workflowService.listWorkflows(page, limit);
     res.json({ status: 'success', data: result });
   });
@@ -1625,15 +1602,13 @@ class CrmController {
 
   getWorkflowExecutions = asyncHandler(async (req: AuthRequest, res: Response) => {
     const workflowId = String(req.params.id);
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const { page, limit } = parsePagination(req.query);
     const result = await workflowService.getWorkflowExecutions(workflowId, page, limit);
     res.json({ status: 'success', data: result });
   });
 
   getAllExecutions = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const { page, limit } = parsePagination(req.query);
     const result = await workflowService.getAllExecutions(page, limit);
     res.json({ status: 'success', data: result });
   });
@@ -1687,12 +1662,13 @@ class CrmController {
   });
 
   listSyncedEmails = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const { page, limit } = parsePagination(req.query);
     const result = await emailSyncService.listSyncedEmails(req.user!.id, {
       contactId: req.query.contactId as string,
       leadId: req.query.leadId as string,
       accountId: req.query.accountId as string,
-      page: Number(req.query.page) || 1,
-      limit: Number(req.query.limit) || 20,
+      page,
+      limit,
     });
     res.json({ status: 'success', data: result });
   });
@@ -1709,8 +1685,7 @@ class CrmController {
   });
 
   listSyncedEvents = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const page = Number(req.query.page) || 1;
-    const limit = Number(req.query.limit) || 20;
+    const { page, limit } = parsePagination(req.query);
     const result = await emailSyncService.listSyncedEvents(req.user!.id, page, limit);
     res.json({ status: 'success', data: result });
   });
@@ -1920,7 +1895,7 @@ class CrmController {
 
   getFieldChanges = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { entityType, entityId } = req.query;
-    const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+    const { limit } = parsePagination({ limit: req.query.limit ?? 100 }, 500);
     const changes = await prisma.crmFieldChange.findMany({
       where: {
         entityType: entityType as string,
