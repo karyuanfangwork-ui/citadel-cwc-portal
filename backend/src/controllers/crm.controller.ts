@@ -25,6 +25,7 @@ import * as emailSyncService from '../services/crm-email-sync.service';
 import * as anomalyService from '../services/crm-anomaly.service';
 import * as customFieldsService from '../services/crm-custom-fields.service';
 import * as duplicateService from '../services/crm-duplicate.service';
+import { createOAuthState, verifyOAuthState } from '../services/oauth-state.service';
 import { broadcast } from '../utils/sseClients';
 
 const prisma = new PrismaClient();
@@ -1809,27 +1810,29 @@ class CrmController {
   });
 
   getGoogleAuthUrl = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const state = Buffer.from(JSON.stringify({ userId: req.user!.id })).toString('base64');
+    const state = createOAuthState(req.user!.id, 'GOOGLE');
     const url = emailSyncService.getOAuthUrl('GOOGLE', state);
     res.json({ status: 'success', data: { url } });
   });
 
   getOutlookAuthUrl = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const state = Buffer.from(JSON.stringify({ userId: req.user!.id })).toString('base64');
+    const state = createOAuthState(req.user!.id, 'OUTLOOK');
     const url = emailSyncService.getOAuthUrl('OUTLOOK', state);
     res.json({ status: 'success', data: { url } });
   });
 
   handleGoogleCallback = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { code, state } = req.query;
-    const decoded = JSON.parse(Buffer.from(state as string, 'base64').toString());
+    const decoded = verifyOAuthState(state as string | undefined);
+    if (decoded.provider !== 'GOOGLE') throw new AppError('Invalid OAuth state', 400);
     await emailSyncService.handleOAuthCallback('GOOGLE', code as string, decoded.userId);
     res.redirect('/crm/integrations?connected=google');
   });
 
   handleOutlookCallback = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { code, state } = req.query;
-    const decoded = JSON.parse(Buffer.from(state as string, 'base64').toString());
+    const decoded = verifyOAuthState(state as string | undefined);
+    if (decoded.provider !== 'OUTLOOK') throw new AppError('Invalid OAuth state', 400);
     await emailSyncService.handleOAuthCallback('OUTLOOK', code as string, decoded.userId);
     res.redirect('/crm/integrations?connected=outlook');
   });
