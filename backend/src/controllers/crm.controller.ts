@@ -42,6 +42,88 @@ const maskBankAccount = (account: any): any => {
   return account;
 };
 
+const contactScope = (visibleOwnerIds: string[] | null) => (
+  visibleOwnerIds === null ? {} : { account: { ownerId: { in: visibleOwnerIds } } }
+);
+
+const contactAccountScopeForKyc = (visibleOwnerIds: string[] | null) => (
+  visibleOwnerIds === null ? {} : { contact: { account: { ownerId: { in: visibleOwnerIds } } } }
+);
+
+const scopedActivityWhere = (where: Record<string, any>, visibleOwnerIds: string[] | null) => {
+  if (visibleOwnerIds === null) return where;
+  return {
+    ...where,
+    OR: [
+      { account: { ownerId: { in: visibleOwnerIds } } },
+      { contact: { account: { ownerId: { in: visibleOwnerIds } } } },
+      { lead: { ownerId: { in: visibleOwnerIds } } },
+      { opportunity: { ownerId: { in: visibleOwnerIds } } },
+      {
+        AND: [
+          { accountId: null },
+          { contactId: null },
+          { leadId: null },
+          { opportunityId: null },
+          { userId: { in: visibleOwnerIds } },
+        ],
+      },
+    ],
+  };
+};
+
+const scopedNoteWhere = (where: Record<string, any>, visibleOwnerIds: string[] | null) => {
+  if (visibleOwnerIds === null) return where;
+  return {
+    ...where,
+    OR: [
+      { account: { ownerId: { in: visibleOwnerIds } } },
+      { contact: { account: { ownerId: { in: visibleOwnerIds } } } },
+      { lead: { ownerId: { in: visibleOwnerIds } } },
+      { opportunity: { ownerId: { in: visibleOwnerIds } } },
+      {
+        AND: [
+          { accountId: null },
+          { contactId: null },
+          { leadId: null },
+          { opportunityId: null },
+          { authorId: { in: visibleOwnerIds } },
+        ],
+      },
+    ],
+  };
+};
+
+async function assertVisibleCrmParentReferences(
+  input: { accountId?: string; contactId?: string; leadId?: string; opportunityId?: string },
+  visibleOwnerIds: string[] | null,
+): Promise<void> {
+  const checks: Array<Promise<unknown>> = [];
+  if (input.accountId) {
+    checks.push(prisma.crmAccount.findFirst({ where: applyOwnerScope({ id: input.accountId, deletedAt: null }, visibleOwnerIds) }));
+  }
+  if (input.contactId) {
+    checks.push(prisma.crmContact.findFirst({ where: { id: input.contactId, deletedAt: null, ...contactScope(visibleOwnerIds) } }));
+  }
+  if (input.leadId) {
+    checks.push(prisma.crmLead.findFirst({ where: applyOwnerScope({ id: input.leadId, deletedAt: null }, visibleOwnerIds) }));
+  }
+  if (input.opportunityId) {
+    checks.push(prisma.crmOpportunity.findFirst({ where: applyOwnerScope({ id: input.opportunityId, deletedAt: null }, visibleOwnerIds) }));
+  }
+
+  const results = await Promise.all(checks);
+  if (results.some((result) => !result)) throw new AppError('CRM record not found', 404);
+}
+
+async function assertVisibleContact(contactId: string, visibleOwnerIds: string[] | null) {
+  const contact = await prisma.crmContact.findFirst({
+    where: { id: contactId, deletedAt: null, ...contactScope(visibleOwnerIds) },
+  });
+  if (!contact) throw new AppError('Contact not found', 404);
+  return contact;
+}
+
 class CrmController {
   // ======== DASHBOARD ========
   getDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -714,6 +796,7 @@ class CrmController {
     const contactId = req.query.contactId as string | undefined;
     const leadId = req.query.leadId as string | undefined;
     const opportunityId = req.query.opportunityId as string | undefined;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const where: any = {};
     if (activityType) where.activityType = activityType;
     if (accountId) where.accountId = accountId;
@@ -722,7 +805,7 @@ class CrmController {
     if (opportunityId) where.opportunityId = opportunityId;
     const [activities, total] = await Promise.all([
       prisma.crmActivity.findMany({
-        where, skip, take: limit,
+        where: scopedActivityWhere(where, visibleOwnerIds), skip, take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
           user: { select: userSelect },
@@ -731,13 +814,15 @@ class CrmController {
           opportunity: { select: { id: true, name: true } },
         },
       }),
-      prisma.crmActivity.count({ where }),
+      prisma.crmActivity.count({ where: scopedActivityWhere(where, visibleOwnerIds) }),
     ]);
     res.json({ status: 'success', data: { activities, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
   });
 
   createActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { scheduledAt, completedAt, ...rest } = req.body;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    await assertVisibleCrmParentReferences(rest, visibleOwnerIds);
     const activity = await prisma.crmActivity.create({
       data: {
         ...rest, userId: req.user!.id,
@@ -755,9 +840,11 @@ class CrmController {
   });
 
   updateActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmActivity.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmActivity.findFirst({ where: scopedActivityWhere({ id: req.params.id as string }, visibleOwnerIds) });
     if (!existing) throw new AppError('Activity not found', 404);
     const { scheduledAt, completedAt, ...rest } = req.body;
+    await assertVisibleCrmParentReferences(rest, visibleOwnerIds);
     const data: any = { ...rest };
     if (scheduledAt !== undefined) data.scheduledAt = scheduledAt ? new Date(scheduledAt) : null;
     if (completedAt !== undefined) data.completedAt = completedAt ? new Date(completedAt) : null;
@@ -768,6 +855,9 @@ class CrmController {
   });
 
   deleteActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmActivity.findFirst({ where: scopedActivityWhere({ id: req.params.id as string }, visibleOwnerIds) });
+    if (!existing) throw new AppError('Activity not found', 404);
     await prisma.crmActivity.delete({ where: { id: req.params.id as string } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmActivity', resourceId: req.params.id as string } });
     res.json({ status: 'success', message: 'Activity deleted' });
@@ -776,8 +866,9 @@ class CrmController {
 
   remindActivity = asyncHandler(async (req: AuthRequest, res: Response) => {
     const activityId = req.params.id as string;
-    const activity = await prisma.crmActivity.findUnique({
-      where: { id: activityId },
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const activity = await prisma.crmActivity.findFirst({
+      where: scopedActivityWhere({ id: activityId }, visibleOwnerIds),
       include: { user: { select: { id: true, firstName: true, lastName: true } } },
     });
     if (!activity) throw new AppError('Activity not found', 404);
@@ -831,6 +922,7 @@ class CrmController {
     const leadId = req.query.leadId as string | undefined;
     const opportunityId = req.query.opportunityId as string | undefined;
 
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const where: any = {};
     if (accountId) where.accountId = accountId;
     if (contactId) where.contactId = contactId;
@@ -839,19 +931,21 @@ class CrmController {
 
     const [notes, total] = await Promise.all([
       prisma.crmNote.findMany({
-        where,
+        where: scopedNoteWhere(where, visibleOwnerIds),
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: { author: { select: userSelect } },
       }),
-      prisma.crmNote.count({ where }),
+      prisma.crmNote.count({ where: scopedNoteWhere(where, visibleOwnerIds) }),
     ]);
 
     res.json({ status: 'success', data: { notes, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
   });
 
   createNote = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    await assertVisibleCrmParentReferences(req.body, visibleOwnerIds);
     const note = await prisma.crmNote.create({
       data: { ...req.body, authorId: req.user!.id },
       include: { author: { select: userSelect } },
@@ -862,7 +956,8 @@ class CrmController {
   });
 
   updateNote = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmNote.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmNote.findFirst({ where: scopedNoteWhere({ id: req.params.id as string }, visibleOwnerIds) });
     if (!existing) throw new AppError('Note not found', 404);
     if (existing.authorId !== req.user!.id) throw new AppError('You can only edit your own notes', 403);
     const note = await prisma.crmNote.update({ where: { id: req.params.id as string }, data: req.body });
@@ -872,7 +967,8 @@ class CrmController {
   });
 
   deleteNote = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmNote.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmNote.findFirst({ where: scopedNoteWhere({ id: req.params.id as string }, visibleOwnerIds) });
     if (!existing) throw new AppError('Note not found', 404);
     if (existing.authorId !== req.user!.id) throw new AppError('You can only delete your own notes', 403);
     await prisma.crmNote.delete({ where: { id: req.params.id as string } });
@@ -1075,8 +1171,10 @@ class CrmController {
   // ======== KYC ========
   getKycRecord = asyncHandler(async (req: AuthRequest, res: Response) => {
     const contactId = req.params.contactId as string;
-    const kycRecord = await prisma.crmKycRecord.findUnique({
-      where: { contactId },
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    await assertVisibleContact(contactId, visibleOwnerIds);
+    const kycRecord = await prisma.crmKycRecord.findFirst({
+      where: { contactId, ...contactAccountScopeForKyc(visibleOwnerIds) },
       include: { approvedByUser: { select: { id: true, firstName: true, lastName: true, email: true } } },
     });
     if (!kycRecord) throw new AppError('KYC record not found', 404);
@@ -1085,8 +1183,8 @@ class CrmController {
 
   createOrUpdateKycRecord = asyncHandler(async (req: AuthRequest, res: Response) => {
     const contactId = req.params.contactId as string;
-    const contact = await prisma.crmContact.findUnique({ where: { id: contactId } });
-    if (!contact) throw new AppError('Contact not found', 404);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    await assertVisibleContact(contactId, visibleOwnerIds);
     const existing = await prisma.crmKycRecord.findUnique({ where: { contactId } });
     if (existing) {
       const kycRecord = await prisma.crmKycRecord.update({
@@ -1107,7 +1205,9 @@ class CrmController {
 
   approveKyc = asyncHandler(async (req: AuthRequest, res: Response) => {
     const contactId = req.params.contactId as string;
-    const existing = await prisma.crmKycRecord.findUnique({ where: { contactId } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    await assertVisibleContact(contactId, visibleOwnerIds);
+    const existing = await prisma.crmKycRecord.findFirst({ where: { contactId, ...contactAccountScopeForKyc(visibleOwnerIds) } });
     if (!existing) throw new AppError('KYC record not found', 404);
     const now = new Date();
     const expiresAt = new Date(now.getFullYear() + 2, now.getMonth(), now.getDate());
@@ -1128,6 +1228,12 @@ class CrmController {
   // ======== BENEFICIARIES ========
   listBeneficiaries = asyncHandler(async (req: AuthRequest, res: Response) => {
     const contactId = req.params.contactId as string;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const contact = await prisma.crmContact.findFirst({ where: { id: contactId, deletedAt: null, ...contactScope(visibleOwnerIds) } });
+    if (!contact) {
+      res.json({ status: 'success', data: { beneficiaries: [] } });
+      return;
+    }
     const beneficiaries = await prisma.crmBeneficiary.findMany({
       where: { contactId },
       orderBy: { createdAt: 'asc' },
@@ -1137,8 +1243,8 @@ class CrmController {
 
   createBeneficiary = asyncHandler(async (req: AuthRequest, res: Response) => {
     const contactId = req.params.contactId as string;
-    const contact = await prisma.crmContact.findUnique({ where: { id: contactId } });
-    if (!contact) throw new AppError('Contact not found', 404);
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    await assertVisibleContact(contactId, visibleOwnerIds);
     // Validate allocation sum does not exceed 100%
     const existingBeneficiaries = await prisma.crmBeneficiary.findMany({ where: { contactId } });
     const existingTotal = existingBeneficiaries.reduce((sum, b) => sum + Number(b.allocationPct || 0), 0);
@@ -1154,7 +1260,10 @@ class CrmController {
   });
 
   updateBeneficiary = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmBeneficiary.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmBeneficiary.findFirst({
+      where: { id: req.params.id as string, contact: { deletedAt: null, ...contactScope(visibleOwnerIds) } },
+    });
     if (!existing) throw new AppError('Beneficiary not found', 404);
     // Validate allocation sum if allocationPct is being updated
     if (req.body.allocationPct !== undefined) {
@@ -1175,7 +1284,10 @@ class CrmController {
   });
 
   deleteBeneficiary = asyncHandler(async (req: AuthRequest, res: Response) => {
-    const existing = await prisma.crmBeneficiary.findUnique({ where: { id: req.params.id as string } });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const existing = await prisma.crmBeneficiary.findFirst({
+      where: { id: req.params.id as string, contact: { deletedAt: null, ...contactScope(visibleOwnerIds) } },
+    });
     if (!existing) throw new AppError('Beneficiary not found', 404);
     await prisma.crmBeneficiary.delete({ where: { id: req.params.id as string } });
     await prisma.auditLog.create({ data: { userId: req.user!.id, userEmail: req.user!.email, action: 'DELETE', resourceType: 'CrmBeneficiary', resourceId: req.params.id as string } });

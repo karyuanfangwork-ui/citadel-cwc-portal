@@ -169,6 +169,40 @@ beforeAll(async () => {
   });
   otherOwnersTrustProductId = otherTrustProduct.id;
 
+  await prisma.crmActivity.create({
+    data: {
+      activityType: 'CALL',
+      subject: `Other Owner Activity ${suffix}`,
+      accountId: otherAccount.id,
+      userId: otherOwner.id,
+    },
+  });
+
+  await prisma.crmNote.create({
+    data: {
+      content: `Other Owner Note ${suffix}`,
+      accountId: otherAccount.id,
+      authorId: otherOwner.id,
+    },
+  });
+
+  await prisma.crmKycRecord.create({
+    data: {
+      contactId: otherContact.id,
+      status: 'PENDING',
+    },
+  });
+
+  await prisma.crmBeneficiary.create({
+    data: {
+      contactId: otherContact.id,
+      firstName: 'Other',
+      lastName: `Beneficiary ${suffix}`,
+      relationship: 'OTHER',
+      allocationPct: 50,
+    },
+  });
+
   await prisma.crmLead.create({
     data: {
       title: `Visible Lead ${suffix}`,
@@ -191,6 +225,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.crmExportJob.deleteMany({ where: { user: { email: { in: [salesRepEmail, otherOwnerEmail] } } } });
   await prisma.crmTrustProduct.deleteMany({ where: { account: { name: { contains: suffix } } } });
+  await prisma.crmBeneficiary.deleteMany({ where: { contact: { email: { contains: suffix } } } });
+  await prisma.crmKycRecord.deleteMany({ where: { contact: { email: { contains: suffix } } } });
+  await prisma.crmNote.deleteMany({ where: { OR: [{ content: { contains: suffix } }, { account: { name: { contains: suffix } } }] } });
+  await prisma.crmActivity.deleteMany({ where: { OR: [{ subject: { contains: suffix } }, { account: { name: { contains: suffix } } }] } });
   await prisma.crmOpportunityStageHistory.deleteMany({ where: { opportunity: { account: { name: { contains: suffix } } } } });
   await prisma.crmOpportunity.deleteMany({ where: { account: { name: { contains: suffix } } } });
   await prisma.crmLead.deleteMany({ where: { OR: [{ title: { contains: suffix } }, { companyName: { contains: suffix } }] } });
@@ -358,5 +396,69 @@ describe('CRM report authorization', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data.totalPipelineValue).toBe(2000);
+  });
+});
+
+describe('CRM parent entity authorization', () => {
+  it('does not list activities attached to another owner account', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/activities?accountId=${otherOwnersAccountId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.activities).toHaveLength(0);
+  });
+
+  it('returns 404 when creating an activity on another owner account', async () => {
+    const res = await request(app)
+      .post('/api/v1/crm/activities')
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ activityType: 'CALL', subject: 'Should not attach', accountId: otherOwnersAccountId });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('does not list notes attached to another owner account', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/notes?accountId=${otherOwnersAccountId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.notes).toHaveLength(0);
+  });
+
+  it('returns 404 when creating a note on another owner account', async () => {
+    const res = await request(app)
+      .post('/api/v1/crm/notes')
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ content: 'Should not attach', accountId: otherOwnersAccountId });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when reading another owner contact KYC record', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/contacts/${otherOwnersContactId}/kyc`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('does not list beneficiaries for another owner contact', async () => {
+    const res = await request(app)
+      .get(`/api/v1/crm/contacts/${otherOwnersContactId}/beneficiaries`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.beneficiaries).toHaveLength(0);
+  });
+
+  it('returns 404 when creating a beneficiary for another owner contact', async () => {
+    const res = await request(app)
+      .post(`/api/v1/crm/contacts/${otherOwnersContactId}/beneficiaries`)
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ firstName: 'Blocked', lastName: 'Beneficiary', relationship: 'OTHER', allocationPct: 10 });
+
+    expect(res.status).toBe(404);
   });
 });
