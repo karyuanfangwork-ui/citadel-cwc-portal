@@ -63,3 +63,6 @@ backend/remove-*.js
 
 docs/credit-training/
 docs
+
+# Test/export artifacts
+backend/uploads/exports/
