@@ -20,6 +20,10 @@ let otherOwnersTrustProductId: string;
 let validStageId: string;
 let pipelineId: string;
 let testTagId: string;
+let otherOwnersDuplicateMatchId: string;
+let visibleDuplicateMatchId: string;
+let visibleDismissDuplicateMatchId: string;
+let visibleDuplicateMasterLeadId: string;
 
 const signToken = (userId: string, email: string) =>
   jwt.sign({ userId, email, jti: `crm-authz-${userId}-${suffix}` }, config.jwt.secret, { expiresIn: '1h' });
@@ -136,6 +140,26 @@ beforeAll(async () => {
   });
   otherOwnersLeadId = otherLead.id;
 
+  const otherDuplicateLead = await prisma.crmLead.create({
+    data: {
+      title: `Other Owner Duplicate Lead ${suffix}`,
+      companyName: `Other Owner Duplicate Company ${suffix}`,
+      ownerId: otherOwner.id,
+      accountId: otherAccount.id,
+    },
+  });
+
+  const otherDuplicateMatch = await prisma.crmDuplicateMatch.create({
+    data: {
+      entityType: 'LEAD',
+      entityAId: otherLead.id,
+      entityBId: otherDuplicateLead.id,
+      confidence: 0.95,
+      matchFields: ['email'],
+    },
+  });
+  otherOwnersDuplicateMatchId = otherDuplicateMatch.id;
+
   const otherOpportunity = await prisma.crmOpportunity.create({
     data: {
       name: `Other Owner Opportunity ${suffix}`,
@@ -240,7 +264,7 @@ beforeAll(async () => {
     },
   });
 
-  await prisma.crmLead.create({
+  const visibleLead = await prisma.crmLead.create({
     data: {
       title: `Visible Lead ${suffix}`,
       companyName: `Visible Company ${suffix}`,
@@ -248,6 +272,56 @@ beforeAll(async () => {
       accountId: visibleAccount.id,
     },
   });
+  visibleDuplicateMasterLeadId = visibleLead.id;
+
+  const visibleDuplicateLead = await prisma.crmLead.create({
+    data: {
+      title: `Visible Duplicate Lead ${suffix}`,
+      companyName: `Visible Duplicate Company ${suffix}`,
+      ownerId: salesRep.id,
+      accountId: visibleAccount.id,
+    },
+  });
+
+  const visibleDuplicateMatch = await prisma.crmDuplicateMatch.create({
+    data: {
+      entityType: 'LEAD',
+      entityAId: visibleLead.id,
+      entityBId: visibleDuplicateLead.id,
+      confidence: 0.9,
+      matchFields: ['name'],
+    },
+  });
+  visibleDuplicateMatchId = visibleDuplicateMatch.id;
+
+  const visibleDismissLead = await prisma.crmLead.create({
+    data: {
+      title: `Visible Dismiss Lead ${suffix}`,
+      companyName: `Visible Dismiss Company ${suffix}`,
+      ownerId: salesRep.id,
+      accountId: visibleAccount.id,
+    },
+  });
+
+  const visibleDismissDuplicateLead = await prisma.crmLead.create({
+    data: {
+      title: `Visible Dismiss Duplicate Lead ${suffix}`,
+      companyName: `Visible Dismiss Duplicate Company ${suffix}`,
+      ownerId: salesRep.id,
+      accountId: visibleAccount.id,
+    },
+  });
+
+  const visibleDismissDuplicateMatch = await prisma.crmDuplicateMatch.create({
+    data: {
+      entityType: 'LEAD',
+      entityAId: visibleDismissLead.id,
+      entityBId: visibleDismissDuplicateLead.id,
+      confidence: 0.88,
+      matchFields: ['name'],
+    },
+  });
+  visibleDismissDuplicateMatchId = visibleDismissDuplicateMatch.id;
 
   await prisma.crmLead.create({
     data: {
@@ -261,6 +335,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.crmExportJob.deleteMany({ where: { user: { email: { in: [salesRepEmail, otherOwnerEmail] } } } });
+  await prisma.crmDuplicateMatch.deleteMany({ where: { id: { in: [otherOwnersDuplicateMatchId, visibleDuplicateMatchId, visibleDismissDuplicateMatchId].filter(Boolean) } } });
   await prisma.crmTagAssignment.deleteMany({ where: { OR: [{ entityId: otherOwnersAccountId }, { tag: { name: { contains: suffix } } }] } });
   await prisma.crmTag.deleteMany({ where: { name: { contains: suffix } } });
   await prisma.crmFieldChange.deleteMany({ where: { entityId: otherOwnersAccountId } });
@@ -548,5 +623,62 @@ describe('CRM indirect entity authorization', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(0);
+  });
+});
+
+describe('CRM duplicate authorization', () => {
+  it('does not list duplicate matches for another owner', async () => {
+    const res = await request(app)
+      .get('/api/v1/crm/duplicates')
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.duplicates.some((match: { id: string }) => match.id === otherOwnersDuplicateMatchId)).toBe(false);
+  });
+
+  it('returns 404 when merging another owner duplicate match', async () => {
+    const res = await request(app)
+      .post(`/api/v1/crm/duplicates/${otherOwnersDuplicateMatchId}/merge`)
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ masterEntityId: otherOwnersLeadId, fieldSelections: {} });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when dismissing another owner duplicate match', async () => {
+    const res = await request(app)
+      .post(`/api/v1/crm/duplicates/${otherOwnersDuplicateMatchId}/dismiss`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('rejects non-whitelisted merge field selections', async () => {
+    const res = await request(app)
+      .post(`/api/v1/crm/duplicates/${visibleDuplicateMatchId}/merge`)
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ masterEntityId: visibleDuplicateMasterLeadId, fieldSelections: { ownerId: otherOwnerId } });
+
+    expect(res.status).toBe(400);
+    const lead = await prisma.crmLead.findUnique({ where: { id: visibleDuplicateMasterLeadId } });
+    expect(lead?.ownerId).toBe(salesRepId);
+  });
+
+  it('audit logs duplicate dismissals', async () => {
+    const res = await request(app)
+      .post(`/api/v1/crm/duplicates/${visibleDismissDuplicateMatchId}/dismiss`)
+      .set('Authorization', `Bearer ${salesRepToken}`);
+
+    expect(res.status).toBe(200);
+    const audit = await prisma.auditLog.findFirst({
+      where: {
+        userId: salesRepId,
+        action: 'DISMISS',
+        resourceType: 'CrmDuplicateMatch',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(audit).not.toBeNull();
+    expect((audit?.newValues as { matchId?: string } | null)?.matchId).toBe(visibleDismissDuplicateMatchId);
   });
 });

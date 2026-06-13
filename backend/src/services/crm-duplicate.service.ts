@@ -3,6 +3,39 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
+const MERGE_FIELD_ALLOWLIST: Record<string, Set<string>> = {
+  LEAD: new Set([
+    'title',
+    'status',
+    'source',
+    'contactName',
+    'contactEmail',
+    'contactPhone',
+    'companyName',
+    'estimatedValue',
+    'description',
+    'followUpDate',
+    'followUpNote',
+    'customFields',
+  ]),
+  CONTACT: new Set([
+    'firstName',
+    'lastName',
+    'email',
+    'phone',
+    'mobile',
+    'jobTitle',
+    'department',
+    'description',
+    'followUpDate',
+    'followUpNote',
+    'preferredLanguage',
+    'marketingOptIn',
+    'riskProfile',
+    'customFields',
+  ]),
+};
+
 // ── String similarity (Levenshtein-based, 0.0–1.0) ───────────────────────────
 
 export function levenshtein(a: string, b: string): number {
@@ -158,18 +191,38 @@ export async function listDuplicates(entityType?: string, status?: string) {
   });
 }
 
+export async function getDuplicateMatch(matchId: string) {
+  return prisma.crmDuplicateMatch.findUnique({ where: { id: matchId } });
+}
+
+export function sanitizeMergeFieldSelections(entityType: string, fieldSelections: Record<string, unknown>): Record<string, unknown> {
+  const allowlist = MERGE_FIELD_ALLOWLIST[entityType.toUpperCase()];
+  if (!allowlist) throw new Error('Unsupported duplicate entity type');
+
+  const rejectedFields = Object.keys(fieldSelections).filter((field) => !allowlist.has(field));
+  if (rejectedFields.length > 0) {
+    throw new Error(`Unsupported merge field selections: ${rejectedFields.join(', ')}`);
+  }
+
+  return Object.fromEntries(Object.entries(fieldSelections).filter(([, value]) => value !== undefined));
+}
+
 // ── Merge: promote entityAId as master, re-point all refs from entityB ────────
 
 export async function mergeDuplicates(
   matchId: string,
   masterEntityId: string,
-  fieldSelections: Record<string, string>,
+  fieldSelections: Record<string, unknown>,
   resolvedByUserId: string,
 ): Promise<void> {
   const match = await prisma.crmDuplicateMatch.findUnique({ where: { id: matchId } });
   if (!match || match.status !== 'OPEN') throw new Error('Duplicate match not found or already resolved');
+  if (![match.entityAId, match.entityBId].includes(masterEntityId)) {
+    throw new Error('masterEntityId must belong to the duplicate match');
+  }
 
   const losingId = match.entityAId === masterEntityId ? match.entityBId : match.entityAId;
+  const safeFieldSelections = sanitizeMergeFieldSelections(match.entityType, fieldSelections);
 
   await prisma.$transaction(async (tx) => {
     if (match.entityType === 'LEAD') {
@@ -177,8 +230,8 @@ export async function mergeDuplicates(
       await tx.crmActivity.updateMany({ where: { leadId: losingId }, data: { leadId: masterEntityId } });
       await tx.crmNote.updateMany({ where: { leadId: losingId }, data: { leadId: masterEntityId } });
       // Apply field selections to master
-      if (Object.keys(fieldSelections).length > 0) {
-        await tx.crmLead.update({ where: { id: masterEntityId }, data: fieldSelections as any });
+      if (Object.keys(safeFieldSelections).length > 0) {
+        await tx.crmLead.update({ where: { id: masterEntityId }, data: safeFieldSelections as any });
       }
       // Soft-delete loser
       await tx.crmLead.update({ where: { id: losingId }, data: { deletedAt: new Date() } });
@@ -187,8 +240,8 @@ export async function mergeDuplicates(
       await tx.crmNote.updateMany({ where: { contactId: losingId }, data: { contactId: masterEntityId } });
       await tx.crmLead.updateMany({ where: { contactId: losingId }, data: { contactId: masterEntityId } });
       await tx.crmOpportunity.updateMany({ where: { contactId: losingId }, data: { contactId: masterEntityId } });
-      if (Object.keys(fieldSelections).length > 0) {
-        await tx.crmContact.update({ where: { id: masterEntityId }, data: fieldSelections as any });
+      if (Object.keys(safeFieldSelections).length > 0) {
+        await tx.crmContact.update({ where: { id: masterEntityId }, data: safeFieldSelections as any });
       }
       await tx.crmContact.update({ where: { id: losingId }, data: { deletedAt: new Date() } });
     }

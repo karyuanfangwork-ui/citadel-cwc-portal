@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { AppError, asyncHandler } from '../middleware/error.middleware';
 import { AuthRequest } from '../middleware/auth.middleware';
 import crmService from '../services/crm.service';
@@ -149,6 +149,25 @@ async function canSeeCrmEntity(entityType: string, entityId: string, visibleOwne
   } catch {
     return false;
   }
+}
+
+async function canSeeDuplicateMatch(
+  match: { entityType: string; entityAId: string; entityBId: string },
+  visibleOwnerIds: string[] | null,
+): Promise<boolean> {
+  const [canSeeEntityA, canSeeEntityB] = await Promise.all([
+    canSeeCrmEntity(match.entityType, match.entityAId, visibleOwnerIds),
+    canSeeCrmEntity(match.entityType, match.entityBId, visibleOwnerIds),
+  ]);
+  return canSeeEntityA && canSeeEntityB;
+}
+
+async function assertVisibleDuplicateMatch(matchId: string, visibleOwnerIds: string[] | null) {
+  const match = await duplicateService.getDuplicateMatch(matchId);
+  if (!match || match.status !== 'OPEN' || !(await canSeeDuplicateMatch(match, visibleOwnerIds))) {
+    throw new AppError('Duplicate match not found', 404);
+  }
+  return match;
 }
 
 async function assertVisibleContact(contactId: string, visibleOwnerIds: string[] | null) {
@@ -1965,20 +1984,63 @@ class CrmController {
   listDuplicates = asyncHandler(async (req: AuthRequest, res: Response) => {
     const entityType = req.query.entityType as string | undefined;
     const status = req.query.status as string | undefined;
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const duplicates = await duplicateService.listDuplicates(entityType, status);
-    res.json({ status: 'success', data: { duplicates } });
+    const visibleDuplicates = [];
+    for (const duplicate of duplicates) {
+      if (await canSeeDuplicateMatch(duplicate, visibleOwnerIds)) visibleDuplicates.push(duplicate);
+    }
+    res.json({ status: 'success', data: { duplicates: visibleDuplicates } });
   });
 
   mergeDuplicates = asyncHandler(async (req: AuthRequest, res: Response) => {
     const { masterEntityId, fieldSelections } = req.body;
     if (!masterEntityId) throw new AppError('masterEntityId is required', 400);
-    await duplicateService.mergeDuplicates(req.params.id as string, masterEntityId, fieldSelections ?? {}, req.user!.id);
-    broadcast('crm_update', { type: 'duplicate.merged', entityType: 'lead', id: req.params.id as string, changedBy: req.user!.id });
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const match = await assertVisibleDuplicateMatch(req.params.id as string, visibleOwnerIds);
+    if (![match.entityAId, match.entityBId].includes(masterEntityId)) {
+      throw new AppError('masterEntityId must belong to the duplicate match', 400);
+    }
+
+    let safeFieldSelections: Record<string, unknown>;
+    try {
+      safeFieldSelections = duplicateService.sanitizeMergeFieldSelections(match.entityType, fieldSelections ?? {});
+    } catch (error) {
+      throw new AppError(error instanceof Error ? error.message : 'Invalid merge field selections', 400);
+    }
+
+    await duplicateService.mergeDuplicates(req.params.id as string, masterEntityId, safeFieldSelections, req.user!.id);
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: 'MERGE',
+        resourceType: 'CrmDuplicateMatch',
+        newValues: {
+          matchId: req.params.id as string,
+          entityType: match.entityType,
+          masterEntityId,
+          fieldSelections: safeFieldSelections,
+        } as Prisma.InputJsonObject,
+      },
+    });
+    broadcast('crm_update', { type: 'duplicate.merged', entityType: match.entityType.toLowerCase(), id: req.params.id as string, changedBy: req.user!.id });
     res.json({ status: 'success', message: 'Records merged' });
   });
 
   dismissDuplicate = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const match = await assertVisibleDuplicateMatch(req.params.id as string, visibleOwnerIds);
     await duplicateService.dismissDuplicate(req.params.id as string, req.user!.id);
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user!.id,
+        userEmail: req.user!.email,
+        action: 'DISMISS',
+        resourceType: 'CrmDuplicateMatch',
+        newValues: { matchId: req.params.id as string, entityType: match.entityType } as Prisma.InputJsonObject,
+      },
+    });
     res.json({ status: 'success', message: 'Duplicate dismissed' });
   });
 
