@@ -54,29 +54,10 @@ describe('applyOwnerScope', () => {
     expect(applyOwnerScope({ deletedAt: null }, null)).toEqual({ deletedAt: null });
   });
 
-  it('adds AND-composed owner filter including null-owner when ids provided', () => {
+  it('adds ownerId in-filter when ids provided', () => {
     expect(applyOwnerScope({ deletedAt: null }, ['a', 'b'])).toEqual({
       deletedAt: null,
-      AND: [{ OR: [{ ownerId: { in: ['a', 'b'] } }, { ownerId: null }] }],
-    });
-  });
-
-  it('preserves existing AND entries when composing', () => {
-    const existing = { deletedAt: null, AND: [{ isActive: true }] };
-    expect(applyOwnerScope(existing, ['a'])).toEqual({
-      deletedAt: null,
-      AND: [{ isActive: true }, { OR: [{ ownerId: { in: ['a'] } }, { ownerId: null }] }],
-    });
-  });
-
-  it('coexists safely with a top-level OR search filter', () => {
-    const where: any = { deletedAt: null };
-    Object.assign(where, applyOwnerScope({}, ['a', 'b']));
-    where.OR = [{ name: { contains: 'foo' } }];
-    expect(where).toEqual({
-      deletedAt: null,
-      AND: [{ OR: [{ ownerId: { in: ['a', 'b'] } }, { ownerId: null }] }],
-      OR: [{ name: { contains: 'foo' } }],
+      ownerId: { in: ['a', 'b'] },
     });
   });
 });

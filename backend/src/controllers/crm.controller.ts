@@ -1484,10 +1484,10 @@ class CrmController {
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const ownerScope = visibleOwnerIds === null
       ? {}
-      : { OR: [{ ownerId: { in: visibleOwnerIds } }, { ownerId: { equals: null } }] };
+      : { ownerId: { in: visibleOwnerIds } };
     const contactOwnerScope = visibleOwnerIds === null
       ? {}
-      : { account: { OR: [{ ownerId: { in: visibleOwnerIds } }, { ownerId: { equals: null } }] } };
+      : { account: { ownerId: { in: visibleOwnerIds } } };
 
     const [accounts, contacts, leads, opportunities] = await Promise.all([
       prisma.crmAccount.findMany({
