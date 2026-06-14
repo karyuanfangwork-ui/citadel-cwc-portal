@@ -30,6 +30,9 @@ export async function getDashboardStats(userId?: string) {
     followUpDueToday,
     staleLeads,
     overdueDeals,
+    monthlyTrend,
+    pipelinesWithValues,
+    upcomingFollowUpsRaw,
   ] = await Promise.all([
     prisma.crmAccount.count({ where: { isActive: true, deletedAt: null, ...ownerFilter } }),
     prisma.crmContact.count({ where: { isActive: true, deletedAt: null } }),
@@ -103,7 +106,75 @@ export async function getDashboardStats(userId?: string) {
         ...ownerFilter,
       },
     }),
+    (async () => {
+      const months: { month: string; wonCount: number; wonValue: number }[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        const result = await prisma.crmOpportunity.aggregate({
+          _sum: { value: true },
+          _count: true,
+          where: {
+            stage: { isWonStage: true },
+            updatedAt: { gte: start, lt: end },
+            deletedAt: null,
+            ...ownerFilter,
+          },
+        });
+        months.push({
+          month: start.toLocaleString('en-MY', { month: 'short' }),
+          wonCount: result._count,
+          wonValue: Number(result._sum.value || 0),
+        });
+      }
+      return months;
+    })(),
+    prisma.crmPipeline.findMany({
+      where: { isActive: true },
+      select: {
+        name: true,
+        opportunities: {
+          where: {
+            stage: { isWonStage: false, isLostStage: false },
+            deletedAt: null,
+            ...ownerFilter,
+          },
+          select: { value: true },
+        },
+      },
+    }),
+    prisma.crmLead.findMany({
+      take: 5,
+      orderBy: { followUpDate: 'asc' },
+      where: {
+        followUpDate: { gte: todayStart },
+        status: { notIn: ['CONVERTED', 'LOST'] },
+        deletedAt: null,
+        ...ownerFilter,
+      },
+      select: {
+        id: true,
+        title: true,
+        followUpDate: true,
+        followUpNote: true,
+        contactName: true,
+      },
+    }),
   ]);
+
+  const pipelineByName = pipelinesWithValues.map((pipeline: any) => ({
+    name: pipeline.name,
+    value: pipeline.opportunities.reduce((sum: number, opportunity: any) => sum + Number(opportunity.value || 0), 0),
+  }));
+
+  const upcomingFollowUps = upcomingFollowUpsRaw.map((lead: any) => ({
+    id: lead.id,
+    title: lead.title,
+    contactName: lead.contactName ?? null,
+    followUpDate: lead.followUpDate as Date,
+    followUpNote: lead.followUpNote ?? null,
+    entityType: 'lead' as const,
+  }));
 
   return {
     totalAccounts,
@@ -123,6 +194,9 @@ export async function getDashboardStats(userId?: string) {
     followUpDueToday,
     staleLeads,
     overdueDeals,
+    monthlyTrend,
+    pipelineByName,
+    upcomingFollowUps,
   };
 }
 

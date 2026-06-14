@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CrmNav from '../src/components/CrmNav';
 import crmService from '../src/services/crm.service';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -89,7 +88,6 @@ const CrmWorkflows: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <CrmNav />
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>

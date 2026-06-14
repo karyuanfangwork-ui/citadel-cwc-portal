@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import CrmNav from '../src/components/CrmNav';
 import crmService from '../src/services/crm.service';
 
 const ENTITIES = ['LEAD', 'CONTACT', 'ACCOUNT', 'OPPORTUNITY', 'ACTIVITY'] as const;
@@ -61,7 +60,6 @@ export default function CrmCustomFieldAdmin() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <CrmNav />
       <div style={{ flex: 1, padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
           <h1 style={{ fontSize: 24, fontWeight: 600, margin: 0 }}>Custom Fields</h1>

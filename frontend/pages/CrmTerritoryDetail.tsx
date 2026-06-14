@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import crmService from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import EmptyState from '../src/components/ui/EmptyState';
 import { hasPermission } from '../src/utils/permissions';
@@ -167,7 +166,6 @@ const CrmTerritoryDetail = () => {
 
   if (loading) return (
     <>
-      <CrmNav />
       <div style={{ maxWidth: 1200, margin: '0 auto' }} className="px-4 sm:px-8 py-4 sm:py-8">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/4" />
@@ -180,7 +178,6 @@ const CrmTerritoryDetail = () => {
 
   if (!territory) return (
     <>
-      <CrmNav />
       <div style={{ maxWidth: 1200, margin: '0 auto' }} className="px-4 sm:px-8 py-4 sm:py-8">
         <EmptyState icon="error_outline" title="Territory not found" description="This territory may have been deactivated or doesn't exist." action={{ label: 'Back to Territories', onClick: () => navigate('/crm/territories') }} />
       </div>
@@ -191,7 +188,6 @@ const CrmTerritoryDetail = () => {
 
   return (
     <>
-      <CrmNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-text-secondary mb-1">

@@ -79,6 +79,7 @@ import CrmCustomFieldAdmin from './pages/CrmCustomFieldAdmin';
 import CrmDuplicates from './pages/CrmDuplicates';
 import CrmLeadScoringAdmin from './pages/CrmLeadScoringAdmin';
 import CrmAssignmentRulesAdmin from './pages/CrmAssignmentRulesAdmin';
+import CrmLayout from './src/components/crm/CrmLayout';
 import CreditDashboard from './pages/credit/CreditDashboard';
 import CreditReports from './pages/credit/CreditReports';
 import GroupExposurePage from './pages/credit/GroupExposurePage';
@@ -260,32 +261,40 @@ const AppShell = () => {
               <Route path="/announcements/:id" element={<ProtectedRoute><AnnouncementDetail /></ProtectedRoute>} />
               <Route path="/admin/announcements" element={<ProtectedRoute requirePermission="announcement:write"><AnnouncementsManage /></ProtectedRoute>} />
               <Route path="/assets" element={<ProtectedRoute requirePermission="asset:read"><AssetManagement /></ProtectedRoute>} />
-              <Route path="/crm" element={<ProtectedRoute requirePermission="crm:read"><CrmDashboard /></ProtectedRoute>} />
-              <Route path="/crm/accounts" element={<ProtectedRoute requirePermission="crm:read"><CrmAccounts /></ProtectedRoute>} />
-              <Route path="/crm/accounts/:id" element={<ProtectedRoute requirePermission="crm:read"><CrmAccountDetail /></ProtectedRoute>} />
-              <Route path="/crm/contacts" element={<ProtectedRoute requirePermission="crm:read"><CrmContacts /></ProtectedRoute>} />
-              <Route path="/crm/contacts/:id" element={<ProtectedRoute requirePermission="crm:read"><CrmContactDetail /></ProtectedRoute>} />
-              <Route path="/crm/leads" element={<ProtectedRoute requirePermission="crm:read"><CrmLeads /></ProtectedRoute>} />
-              <Route path="/crm/leads/:id" element={<ProtectedRoute requirePermission="crm:read"><CrmLeadDetail /></ProtectedRoute>} />
-              <Route path="/crm/opportunities" element={<ProtectedRoute requirePermission="crm:read"><CrmOpportunities /></ProtectedRoute>} />
-              <Route path="/crm/opportunities/:id" element={<ProtectedRoute requirePermission="crm:read"><CrmOpportunityDetail /></ProtectedRoute>} />
-              <Route path="/crm/pipeline" element={<ProtectedRoute requirePermission="crm:read"><CrmPipelineView /></ProtectedRoute>} />
-              <Route path="/crm/team" element={<ProtectedRoute requirePermission="crm:admin"><CrmTeamDashboard /></ProtectedRoute>} />
-              <Route path="/crm/reports" element={<ProtectedRoute requirePermission="crm:read"><CrmReports /></ProtectedRoute>} />
-              <Route path="/crm/guide" element={<ProtectedRoute requirePermission="crm:read"><CrmGuide /></ProtectedRoute>} />
-              <Route path="/crm/import-export" element={<ProtectedRoute requirePermission="crm:admin"><CrmImportExport /></ProtectedRoute>} />
-              <Route path="/crm/territories" element={<ProtectedRoute requirePermission="crm:read"><CrmTerritories /></ProtectedRoute>} />
-              <Route path="/crm/territories/:id" element={<ProtectedRoute requirePermission="crm:read"><CrmTerritoryDetail /></ProtectedRoute>} />
-              <Route path="/crm/quotas" element={<ProtectedRoute requirePermission="crm:read"><CrmQuotaDashboard /></ProtectedRoute>} />
-              <Route path="/crm/workflows" element={<ProtectedRoute requirePermission="crm:admin"><CrmWorkflows /></ProtectedRoute>} />
-              <Route path="/crm/workflows/new" element={<ProtectedRoute requirePermission="crm:admin"><CrmWorkflowBuilder /></ProtectedRoute>} />
-              <Route path="/crm/workflows/:id" element={<ProtectedRoute requirePermission="crm:admin"><CrmWorkflowDetail /></ProtectedRoute>} />
-              <Route path="/crm/integrations" element={<ProtectedRoute requirePermission="crm:read"><CrmIntegrationsSettings /></ProtectedRoute>} />
-              <Route path="/crm/anomalies" element={<ProtectedRoute requirePermission="crm:admin"><CrmAnomalyConfigPage /></ProtectedRoute>} />
-              <Route path="/crm/custom-fields" element={<ProtectedRoute requirePermission="crm:admin"><CrmCustomFieldAdmin /></ProtectedRoute>} />
-              <Route path="/crm/duplicates" element={<ProtectedRoute requirePermission="crm:admin"><CrmDuplicates /></ProtectedRoute>} />
-              <Route path="/crm/lead-scoring" element={<ProtectedRoute requirePermission="crm:admin"><CrmLeadScoringAdmin /></ProtectedRoute>} />
-              <Route path="/crm/assignment-rules" element={<ProtectedRoute requirePermission="crm:admin"><CrmAssignmentRulesAdmin /></ProtectedRoute>} />
+              <Route
+                element={(
+                  <ProtectedRoute requirePermission="crm:read">
+                    <CrmLayout />
+                  </ProtectedRoute>
+                )}
+              >
+                <Route path="/crm" element={<CrmDashboard />} />
+                <Route path="/crm/accounts" element={<CrmAccounts />} />
+                <Route path="/crm/accounts/:id" element={<CrmAccountDetail />} />
+                <Route path="/crm/contacts" element={<CrmContacts />} />
+                <Route path="/crm/contacts/:id" element={<CrmContactDetail />} />
+                <Route path="/crm/leads" element={<CrmLeads />} />
+                <Route path="/crm/leads/:id" element={<CrmLeadDetail />} />
+                <Route path="/crm/opportunities" element={<CrmOpportunities />} />
+                <Route path="/crm/opportunities/:id" element={<CrmOpportunityDetail />} />
+                <Route path="/crm/pipeline" element={<CrmPipelineView />} />
+                <Route path="/crm/team" element={<CrmTeamDashboard />} />
+                <Route path="/crm/reports" element={<CrmReports />} />
+                <Route path="/crm/guide" element={<CrmGuide />} />
+                <Route path="/crm/import-export" element={<CrmImportExport />} />
+                <Route path="/crm/territories" element={<CrmTerritories />} />
+                <Route path="/crm/territories/:id" element={<CrmTerritoryDetail />} />
+                <Route path="/crm/quotas" element={<CrmQuotaDashboard />} />
+                <Route path="/crm/workflows" element={<CrmWorkflows />} />
+                <Route path="/crm/workflows/new" element={<CrmWorkflowBuilder />} />
+                <Route path="/crm/workflows/:id" element={<CrmWorkflowDetail />} />
+                <Route path="/crm/integrations" element={<CrmIntegrationsSettings />} />
+                <Route path="/crm/anomalies" element={<CrmAnomalyConfigPage />} />
+                <Route path="/crm/custom-fields" element={<CrmCustomFieldAdmin />} />
+                <Route path="/crm/duplicates" element={<CrmDuplicates />} />
+                <Route path="/crm/lead-scoring" element={<CrmLeadScoringAdmin />} />
+                <Route path="/crm/assignment-rules" element={<CrmAssignmentRulesAdmin />} />
+              </Route>
               {/* Credit Module routes */}
               <Route path="/credit" element={<ProtectedRoute requirePermission="credit:read"><CreditDashboard /></ProtectedRoute>} />
               <Route path="/credit/borrowers" element={<ProtectedRoute requirePermission="credit:read"><BorrowerProfileList /></ProtectedRoute>} />

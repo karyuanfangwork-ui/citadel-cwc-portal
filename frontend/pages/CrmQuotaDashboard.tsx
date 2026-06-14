@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import crmService from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
 
 const CrmQuotaDashboard = () => {
   const now = new Date();
@@ -46,7 +45,6 @@ const CrmQuotaDashboard = () => {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
-      <CrmNav />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--color-text, #111827)' }}>Quota Dashboard</h1>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

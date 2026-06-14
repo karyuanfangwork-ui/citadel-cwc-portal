@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import CrmNav from '../src/components/CrmNav';
 import crmService from '../src/services/crm.service';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -84,7 +83,6 @@ const CrmWorkflowDetail: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <CrmNav />
       <div className="max-w-5xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <div>

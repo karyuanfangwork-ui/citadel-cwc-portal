@@ -1,483 +1,297 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../src/context/AuthContext';
-import crmService, { DashboardStats, CrmActivity } from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
+import React, { useEffect, useState } from 'react';
+import crmService from '../src/services/crm.service';
+import type { DashboardStats } from '../src/services/crm.service';
+import { DashboardLayoutProvider } from '../src/components/crm/DashboardLayoutProvider';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
-import { useDebouncedValue } from '../src/hooks/useDebouncedValue';
-import { useDailyBriefing, useNextBestAction } from '../src/hooks/useCrmAi';
-import { DashboardLayoutProvider, useDashboardLayout } from '../src/components/crm/DashboardLayoutProvider';
-import WidgetPicker from '../src/components/crm/WidgetPicker';
-import axios from 'axios';
+import CrmKpiCard from '../src/components/crm/CrmKpiCard';
+import PipelineFunnelChart from '../src/components/crm/PipelineFunnelChart';
+import MonthlyTrendChart from '../src/components/crm/MonthlyTrendChart';
+import ProductMixChart from '../src/components/crm/ProductMixChart';
+import MyTasksWidget from '../src/components/crm/MyTasksWidget';
+import UpcomingFollowUpsWidget from '../src/components/crm/UpcomingFollowUpsWidget';
+import { useDailyBriefing } from '../src/hooks/useCrmAi';
 
-const formatCurrency = (val: number) => new Intl.NumberFormat('en-MY', { style: 'currency', currency: 'MYR', maximumFractionDigits: 0 }).format(val);
-const formatRelative = (d: string) => { const m = Math.floor((Date.now() - new Date(d).getTime()) / 60000); return m < 1 ? 'just now' : m < 60 ? `${m}m ago` : m < 1440 ? `${Math.floor(m/60)}h ago` : `${Math.floor(m/1440)}d ago`; };
+const fmt = (value: number) => new Intl.NumberFormat('en-MY', {
+  style: 'currency',
+  currency: 'MYR',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+}).format(value);
 
-const ACTIVITY_ICONS: Record<string, string> = { CALL: 'call', EMAIL: 'mail', MEETING: 'groups', NOTE: 'sticky_note_2', TASK: 'check_circle', FOLLOW_UP: 'update' };
-
-import StateBadge from '../src/components/ui/StateBadge';
-
-const SkeletonBox = ({ w, h }: { w: string; h: string }) => (
-  <div style={{ width: w, height: h, background: 'var(--color-border)', borderRadius: 'var(--radius-sm)', animation: 'pulse 1.5s ease-in-out infinite' }} />
-);
-
-const CrmDashboard = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { layout } = useDashboardLayout();
-  const isVisible = (widgetId: string) => {
-    const w = layout.find(l => l.widgetId === widgetId);
-    return !w || w.visible; // default visible if not in layout yet
-  };
+const DashboardInner: React.FC = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [myDeals, setMyDeals] = useState(false);
-  const [showCustomize, setShowCustomize] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const debouncedQuery = useDebouncedValue(searchQuery, 350);
-  const [searchResults, setSearchResults] = useState<Awaited<ReturnType<typeof crmService.globalSearch>> | null>(null);
-  const [searching, setSearching] = useState(false);
-  const [showResults, setShowResults] = useState(false);
+  const { briefing, loading: briefingLoading, error: briefingError, fetch: fetchBriefing } = useDailyBriefing();
 
-  // ── AI Daily Briefing (Task 10) — uses useDailyBriefing hook ────────────
-  const { briefing, loading: briefingLoading, error: briefingError, fetch: handleGetBriefing } = useDailyBriefing();
+  const now = new Date();
+  const quarter = `Q${Math.ceil((now.getMonth() + 1) / 3)} ${now.getFullYear()}`;
+  const lastUpdated = now.toLocaleTimeString('en-MY', { hour: '2-digit', minute: '2-digit' });
 
   useEffect(() => {
-    if (!debouncedQuery || debouncedQuery.length < 2) {
-      setSearchResults(null);
-      setShowResults(false);
-      setSearching(false);
-      return;
-    }
-    const controller = new AbortController();
-    setSearching(true);
-    (async () => {
-      try {
-        const results = await crmService.globalSearch(debouncedQuery, controller.signal);
-        setSearchResults(results);
-        setShowResults(true);
-      } catch (err: any) {
-        if (axios.isCancel?.(err) || err?.name === 'CanceledError' || err?.name === 'AbortError') return;
-        /* other errors silent — matches prior behavior */
-      } finally {
-        if (!controller.signal.aborted) setSearching(false);
-      }
-    })();
-    return () => controller.abort();
-  }, [debouncedQuery]);
+    let cancelled = false;
 
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-crm-search]')) setShowResults(false);
+    setLoading(true);
+    setError(null);
+    crmService.getDashboard(myDeals)
+      .then((data) => {
+        if (!cancelled) setStats(data);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setError(err.message ?? 'Failed to load dashboard');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  useEffect(() => {
-    const fetch = async () => {
-      try { setLoading(true); setError(null); const data = await crmService.getDashboard(myDeals); setStats(data); }
-      catch (e: any) { setError(e.message || 'Failed to load CRM dashboard'); }
-      finally { setLoading(false); }
-    };
-    fetch();
   }, [myDeals]);
 
   const didAutoLoad = React.useRef(false);
   useEffect(() => {
     if (!didAutoLoad.current) {
       didAutoLoad.current = true;
-      handleGetBriefing();
+      fetchBriefing();
     }
-  }, [handleGetBriefing]);
+  }, [fetchBriefing]);
 
-  // ── My Performance (Task 5 — Self-Service Rep Stats) ─────────────────────────────────────
-  const [myStats, setMyStats] = useState<{
-    leads: number; opportunities: number; pipelineValue: number;
-    wonThisMonth: number; staleLeads: number; activitiesThisWeek: number;
-  } | null>(null);
-  const [myStatsLoading, setMyStatsLoading] = useState(true);
-
-  useEffect(() => {
-    crmService.getMyStats()
-      .then(setMyStats)
-      .catch(() => { /* fail silently */ })
-      .finally(() => setMyStatsLoading(false));
-  }, []);
+  if (error) {
+    return (
+      <div className="p-6 text-center text-red-600">
+        <span className="material-symbols-outlined text-4xl block mb-2">error_outline</span>
+        {error}
+      </div>
+    );
+  }
 
   return (
-    <>
-      <CrmNav />
-      <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-brand-900 via-brand-700 to-brand-600 rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">
-        <div style={{ position: 'absolute', top: -60, right: -60, width: 220, height: 220, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-        <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 140, height: 140, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
-        <div className="relative z-10">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <div className="text-xs font-bold text-white/60 tracking-widest uppercase mb-2">CRM Dashboard</div>
-              <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight">
-                Sales Pipeline <span className="text-white/65 font-normal">Overview</span>
-              </h1>
+    <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
+      <section className="flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[var(--text-primary,#111827)]">Relationship Overview</h1>
+          <p className="text-sm text-[var(--text-secondary,#6b7280)] mt-0.5">
+            Performance summary for {quarter} · Last updated: Today, {lastUpdated}
+          </p>
+        </div>
+        <label className="flex items-center gap-2 text-sm text-[var(--text-secondary,#6b7280)] cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={myDeals}
+            onChange={(event) => setMyDeals(event.target.checked)}
+            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+          />
+          My deals only
+        </label>
+      </section>
+
+      {(briefing || briefingLoading || briefingError) && (
+        <AiInsightCard
+          title="AI Daily Briefing"
+          loading={briefingLoading}
+          error={briefingError}
+          onRefresh={fetchBriefing}
+        >
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-[var(--text-primary,#111827)]">{briefing?.headline}</p>
+            {!!briefing?.bullets?.length && (
+              <ul className="space-y-1 text-sm text-[var(--text-secondary,#6b7280)] list-disc pl-5">
+                {briefing.bullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+            )}
+            {briefing?.topPriority && (
+              <p className="text-sm text-[var(--text-primary,#111827)]">
+                <span className="font-semibold">Top priority:</span> {briefing.topPriority}
+              </p>
+            )}
+          </div>
+        </AiInsightCard>
+      )}
+
+      <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+        <CrmKpiCard
+          label="Today's Leads"
+          value={loading ? '—' : (stats?.totalLeads ?? 0)}
+          icon="person_add"
+          trend={stats?.totalLeads ? 'up' : 'flat'}
+          trendLabel={stats ? `${stats.totalLeads} active` : undefined}
+          trendPositive
+        />
+        <CrmKpiCard
+          label="Active Opportunities"
+          value={loading ? '—' : (stats?.totalOpportunities ?? 0)}
+          icon="pending_actions"
+          trend="flat"
+          trendLabel="Stable flow"
+        />
+        <CrmKpiCard
+          label="Follow-ups Today"
+          value={loading ? '—' : (stats?.followUpDueToday ?? 0)}
+          icon="rate_review"
+          trend={stats?.followUpDueToday ? 'up' : 'flat'}
+          trendLabel={stats?.followUpDueToday ? `${stats.followUpDueToday} due` : undefined}
+          trendPositive={false}
+        />
+        <CrmKpiCard
+          label="Won This Month"
+          value={loading ? '—' : (stats?.wonDeals.count ?? 0)}
+          icon="check_circle"
+          trend="up"
+          trendLabel={stats ? fmt(stats.wonDeals.value) : undefined}
+          trendPositive
+        />
+        <CrmKpiCard
+          label="Pipeline Value"
+          value={loading ? '—' : (stats ? fmt(stats.pipelineValue) : '—')}
+          icon="account_balance"
+          trend="up"
+          trendLabel={stats?.wonDeals.count ? `${stats.wonDeals.count} won` : undefined}
+          trendPositive
+        />
+        <CrmKpiCard
+          label="Win Rate"
+          value={loading ? '—' : `${stats?.winRate ?? 0}%`}
+          icon="emoji_events"
+          trend={stats && stats.winRate >= 50 ? 'up' : 'down'}
+          trendLabel={stats ? `${stats.lostDeals.count} lost` : undefined}
+          trendPositive={stats ? stats.winRate >= 50 : true}
+        />
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-4 bg-white border border-[var(--border,#e5e7eb)] rounded-xl p-5">
+          <h3 className="text-base font-bold text-[var(--text-primary,#111827)] mb-4">Pipeline Funnel</h3>
+          {loading ? (
+            <div className="space-y-3 animate-pulse">
+              {[100, 80, 60, 40].map((width) => (
+                <div key={width} className="h-8 bg-gray-100 rounded" style={{ width: `${width}%` }} />
+              ))}
             </div>
-            <div className="flex gap-2">
-              <button onClick={() => setMyDeals(false)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${!myDeals ? 'bg-white text-brand-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>All Deals</button>
-              <button onClick={() => setMyDeals(true)} className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${myDeals ? 'bg-white text-brand-700' : 'bg-white/10 text-white/80 hover:bg-white/20'}`}>My Deals</button>
-              <button onClick={() => setShowCustomize(true)} className="px-4 py-2 rounded-lg text-sm font-bold bg-white/10 text-white/80 hover:bg-white/20 transition-all flex items-center gap-1">
-                <span className="material-symbols-outlined" style={{fontSize:16}}>dashboard_customize</span>
-                Customize
-              </button>
+          ) : (
+            <PipelineFunnelChart items={stats?.pipelineByName ?? []} />
+          )}
+        </div>
+
+        <div className="lg:col-span-5 bg-white border border-[var(--border,#e5e7eb)] rounded-xl p-5">
+          <div className="flex justify-between items-center mb-4 gap-3">
+            <h3 className="text-base font-bold text-[var(--text-primary,#111827)]">Monthly Won Deals</h3>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-brand-600" />
+              <span className="text-[11px] text-[var(--text-secondary,#6b7280)]">Closed value</span>
             </div>
           </div>
-          {/* Global Search */}
-          <div data-crm-search="" style={{ position: 'relative', maxWidth: 520, margin: '1.5rem auto 0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 12, padding: '0.5rem 1rem', gap: '0.5rem' }}>
-              <span className="material-symbols-outlined" style={{ color: 'rgba(255,255,255,0.7)', fontSize: 20 }}>search</span>
-              <input
-                type="text"
-                placeholder="Search accounts, contacts, leads, deals…"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                onFocus={() => searchResults && setShowResults(true)}
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'white', fontSize: 14 }}
-              />
-              {searching && <span className="material-symbols-outlined" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 18, animation: 'spin 1s linear infinite' }}>progress_activity</span>}
-              {searchQuery && !searching && (
-                <button onClick={() => { setSearchQuery(''); setShowResults(false); }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', lineHeight: 1 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>close</span>
-                </button>
-              )}
+          {loading ? (
+            <div className="h-48 bg-gray-50 rounded animate-pulse" />
+          ) : (
+            <div className="h-48">
+              <MonthlyTrendChart data={stats?.monthlyTrend ?? []} />
             </div>
+          )}
+        </div>
 
-            {/* Results dropdown */}
-            {showResults && searchResults && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 8, background: 'white', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.18)', zIndex: 100, overflow: 'hidden', maxHeight: 400, overflowY: 'auto' }}>
-                {searchResults.accounts.length > 0 && (
-                  <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Accounts</div>
-                    {searchResults.accounts.map(a => (
-                      <div key={a.id} onClick={() => { navigate(`/crm/accounts/${a.id}`); setShowResults(false); setSearchQuery(''); }}
-                        style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-                        className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--color-brand-500)' }}>business</span>
-                        <span style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{a.name}</span>
-                        {a.industry && <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{a.industry}</span>}
-                      </div>
-                    ))}
+        <div className="lg:col-span-3 bg-white border border-[var(--border,#e5e7eb)] rounded-xl p-5">
+          <h3 className="text-base font-bold text-[var(--text-primary,#111827)] mb-4">Pipeline Mix</h3>
+          {loading ? (
+            <div className="flex flex-col items-center gap-4 animate-pulse">
+              <div className="w-32 h-32 rounded-full bg-gray-100" />
+              <div className="w-full space-y-2">
+                {[1, 2, 3, 4].map((index) => <div key={index} className="h-4 bg-gray-100 rounded" />)}
+              </div>
+            </div>
+          ) : (
+            <ProductMixChart items={stats?.pipelineByName ?? []} />
+          )}
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="bg-white border border-[var(--border,#e5e7eb)] rounded-xl flex flex-col">
+          <div className="px-5 py-4 border-b border-[var(--border,#e5e7eb)] flex justify-between items-center">
+            <h3 className="text-sm font-bold text-[var(--text-primary,#111827)]">My Tasks</h3>
+            <button className="text-xs font-semibold text-brand-600 hover:underline" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+              View all
+            </button>
+          </div>
+          <div className="p-4 flex-1 overflow-y-auto max-h-80">
+            {loading ? (
+              <div className="space-y-4 animate-pulse">
+                {[1, 2, 3].map((index) => <div key={index} className="h-12 bg-gray-100 rounded" />)}
+              </div>
+            ) : (
+              <MyTasksWidget activities={stats?.recentActivities ?? []} />
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white border border-[var(--border,#e5e7eb)] rounded-xl flex flex-col">
+          <div className="px-5 py-4 border-b border-[var(--border,#e5e7eb)] flex justify-between items-center">
+            <h3 className="text-sm font-bold text-[var(--text-primary,#111827)]">Recent Activities</h3>
+            <span className="material-symbols-outlined text-[var(--text-secondary,#6b7280)] text-[18px] cursor-pointer">filter_list</span>
+          </div>
+          <div className="p-4 flex-1 overflow-y-auto max-h-80">
+            {loading ? (
+              <div className="space-y-4 animate-pulse">
+                {[1, 2, 3].map((index) => <div key={index} className="h-14 bg-gray-100 rounded" />)}
+              </div>
+            ) : (
+              <div className="relative border-l-2 border-gray-100 ml-2 pl-5 space-y-5 py-1">
+                {(stats?.recentActivities ?? []).slice(0, 5).map((activity) => (
+                  <div key={activity.id} className="relative">
+                    <span className="absolute -left-[29px] top-1 w-3.5 h-3.5 bg-brand-600 rounded-full border-2 border-white" />
+                    <p className="text-sm font-semibold text-[var(--text-primary,#111827)]">
+                      {activity.subject ?? activity.activityType}
+                    </p>
+                    {activity.description && (
+                      <p className="text-xs text-[var(--text-secondary,#6b7280)] mt-0.5 line-clamp-2">{activity.description}</p>
+                    )}
+                    <p className="text-[11px] text-[var(--text-secondary,#9ca3af)] mt-1">
+                      {new Date(activity.createdAt).toLocaleString('en-MY', { dateStyle: 'short', timeStyle: 'short' })}
+                    </p>
                   </div>
-                )}
-                {searchResults.contacts.length > 0 && (
-                  <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Contacts</div>
-                    {searchResults.contacts.map(c => (
-                      <div key={c.id} onClick={() => { navigate(`/crm/contacts/${c.id}`); setShowResults(false); setSearchQuery(''); }}
-                        style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-                        className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#22c55e' }}>person</span>
-                        <div>
-                          <div style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{c.firstName} {c.lastName}</div>
-                          {c.email && <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{c.email}</div>}
-                        </div>
-                        {c.account && <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginLeft: 'auto' }}>{c.account.name}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {searchResults.leads.length > 0 && (
-                  <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Leads</div>
-                    {searchResults.leads.map(l => (
-                      <div key={l.id} onClick={() => { navigate(`/crm/leads/${l.id}`); setShowResults(false); setSearchQuery(''); }}
-                        style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-                        className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#f59e0b' }}>leaderboard</span>
-                        <span style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{l.title}</span>
-                        {l.companyName && <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{l.companyName}</span>}
-                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, background: 'var(--color-surface-muted)', color: 'var(--color-text-secondary)', marginLeft: 'auto', fontWeight: 600 }}>{l.status}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {searchResults.opportunities.length > 0 && (
-                  <div>
-                    <div style={{ padding: '8px 16px 4px', fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: 1 }}>Deals</div>
-                    {searchResults.opportunities.map(o => (
-                      <div key={o.id} onClick={() => { navigate(`/crm/opportunities/${o.id}`); setShowResults(false); setSearchQuery(''); }}
-                        style={{ padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
-                        className="hover:bg-gray-50">
-                        <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--color-brand-500)' }}>monetization_on</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 14, color: 'var(--color-text-primary)', fontWeight: 500 }}>{o.name}</div>
-                          {o.account && <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{o.account.name}</div>}
-                        </div>
-                        {o.stage && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 600, background: `${o.stage.color}20`, color: o.stage.color }}>{o.stage.name}</span>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {searchResults.accounts.length === 0 && searchResults.contacts.length === 0 && searchResults.leads.length === 0 && searchResults.opportunities.length === 0 && (
-                  <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 14 }}>
-                    No results found for "{searchQuery}"
-                  </div>
+                ))}
+                {!stats?.recentActivities?.length && (
+                  <p className="text-sm text-[var(--text-secondary,#6b7280)]">No recent activities</p>
                 )}
               </div>
             )}
           </div>
+        </div>
 
+        <div className="bg-white border border-[var(--border,#e5e7eb)] rounded-xl flex flex-col">
+          <div className="px-5 py-4 border-b border-[var(--border,#e5e7eb)] flex justify-between items-center">
+            <h3 className="text-sm font-bold text-[var(--text-primary,#111827)]">Upcoming Follow-Ups</h3>
+            <div className="flex gap-1">
+              <button className="p-0.5 rounded border border-[var(--border,#e5e7eb)] hover:bg-gray-50" style={{ background: 'none', cursor: 'pointer' }}>
+                <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+              </button>
+              <button className="p-0.5 rounded border border-[var(--border,#e5e7eb)] hover:bg-gray-50" style={{ background: 'none', cursor: 'pointer' }}>
+                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+              </button>
+            </div>
+          </div>
+          <div className="p-4 flex-1 overflow-y-auto max-h-80">
+            {loading ? (
+              <div className="space-y-3 animate-pulse">
+                {[1, 2, 3].map((index) => <div key={index} className="h-16 bg-gray-100 rounded" />)}
+              </div>
+            ) : (
+              <UpcomingFollowUpsWidget items={stats?.upcomingFollowUps ?? []} />
+            )}
+          </div>
         </div>
       </section>
-
-      {error && (
-        <div className="bg-danger/10 border border-danger text-danger p-4 rounded-lg mb-6">
-          <p className="font-bold">Error loading CRM dashboard</p>
-          <p className="text-sm mt-1">{error}</p>
-        </div>
-      )}
-
-      {/* Today's Priorities */}
-      {!error && isVisible('today_priorities') && (
-        <div className="mb-6">
-          <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">Today's Priorities</h2>
-          <div className="grid grid-cols-3 gap-4">
-            {loading ? [0,1,2].map(i => (
-              <div key={i} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4">
-                <SkeletonBox w="40px" h="40px" /><div><SkeletonBox w="36px" h="24px" /><div className="mt-1"><SkeletonBox w="80px" h="10px" /></div></div>
-              </div>
-            )) : stats && [
-              { label: 'Follow-ups Due Today', value: stats.followUpDueToday ?? 0, icon: 'assignment', bg: 'var(--color-fin-50)', color: 'var(--color-warning)', link: '/crm/leads?filter=followup' },
-              { label: 'Stale Leads', value: stats.staleLeads ?? 0, icon: 'warning', bg: 'rgba(220,38,38,0.06)', color: 'var(--color-danger)', link: '/crm/leads?filter=stale' },
-              { label: 'Overdue Deals', value: stats.overdueDeals ?? 0, icon: 'notifications', bg: 'rgba(220,38,38,0.06)', color: 'var(--color-danger)', link: '/crm/opportunities?filter=overdue' },
-            ].map(p => (
-              <div
-                key={p.label}
-                onClick={() => navigate(p.link)}
-                className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-              >
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: p.bg }}>
-                  <span className="material-symbols-outlined text-[20px]" style={{ color: p.color }}>{p.icon}</span>
-                </div>
-                <div>
-                  <div className="text-2xl font-black leading-none" style={{ color: p.color }}>{p.value}</div>
-                  <div className="text-xs font-semibold mt-0.5 text-text-secondary">{p.label}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* AI Daily Briefing (Task 10) */}
-      {isVisible('ai_briefing') && (
-      <div className="mb-6">
-        <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">AI Daily Briefing</h2>
-        <AiInsightCard
-          title="Your Sales Briefing"
-          loading={briefingLoading}
-          error={briefingError}
-          onRefresh={handleGetBriefing}
-          className="border-brand-100 bg-gradient-to-br from-brand-50 to-brand-50/60"
-        >
-          {!briefing ? (
-            briefingLoading ? null : (
-              <div>
-                <p className="text-sm text-text-secondary italic">
-                  {briefingError ? briefingError : 'Briefing unavailable.'}
-                </p>
-                {briefingError && (
-                  <button
-                    onClick={handleGetBriefing}
-                    className="mt-2 text-sm text-brand-700 hover:underline font-semibold"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-                  >
-                    Retry
-                  </button>
-                )}
-              </div>
-            )
-          ) : (
-            <div className="space-y-3">
-              <p className="font-semibold text-gray-800">{briefing.headline}</p>
-              <ul className="space-y-1">
-                {briefing.bullets.map((b, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                    <span className="material-symbols-outlined text-sm text-brand-500 mt-0.5">chevron_right</span>
-                    {b}
-                  </li>
-                ))}
-              </ul>
-              <div className="rounded-lg border border-brand-300 bg-white px-3 py-2">
-                <p className="text-xs font-bold text-brand-700 uppercase tracking-wide mb-0.5">Top Priority Today</p>
-                <p className="text-sm font-semibold text-gray-800">{briefing.topPriority}</p>
-              </div>
-            </div>
-          )}
-        </AiInsightCard>
-      </div>
-      )}
-
-      {/* AI Suggested Actions — prompt to visit detail pages */}
-      <div className="mb-6">
-        <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">AI Suggested Actions</h2>
-        <div className="bg-surface border border-border rounded-xl p-5 flex items-center gap-3">
-          <span className="material-symbols-outlined text-xl text-brand-500">auto_awesome</span>
-          <p className="text-sm text-text-secondary">
-            Go to a specific{' '}
-            <Link to="/crm/leads" className="text-brand-700 font-semibold hover:underline">Lead</Link>,{' '}
-            <Link to="/crm/contacts" className="text-brand-700 font-semibold hover:underline">Contact</Link>,{' '}
-            <Link to="/crm/accounts" className="text-brand-700 font-semibold hover:underline">Account</Link>, or{' '}
-            <Link to="/crm/pipeline" className="text-brand-700 font-semibold hover:underline">Opportunity</Link>{' '}
-            detail page to see AI-suggested next actions.
-          </p>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-        {loading ? [0,1,2,3].map(i => (
-          <div key={i} className="bg-surface border border-border rounded-xl p-5 flex items-center gap-4">
-            <SkeletonBox w="44px" h="44px" /><div><SkeletonBox w="48px" h="28px" /><div className="mt-1"><SkeletonBox w="80px" h="12px" /></div></div>
-          </div>
-        )) : stats && [
-          { label: 'Accounts', value: stats.totalAccounts, icon: 'business', bg: 'var(--color-it-50)', color: 'var(--color-it-500)', link: '/crm/accounts' },
-          { label: 'Open Leads', value: stats.totalLeads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)', link: '/crm/leads?status=NEW,CONTACTED,QUALIFIED' },
-          { label: 'Pipeline Value', value: formatCurrency(Number(stats.pipelineValue)), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)', link: '/crm/pipeline' },
-          { label: 'Win Rate', value: `${stats.winRate}%`, icon: 'trending_up', bg: 'var(--color-hr-50)', color: 'var(--color-success)', link: '/crm/opportunities?filter=won' },
-        ].map(s => (
-          <div key={s.label} onClick={() => navigate(s.link)} className="group bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-            <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
-              <span className="material-symbols-outlined text-[22px]" style={{ color: s.color }}>{s.icon}</span>
-            </div>
-            <div>
-              <div className="text-2xl font-black leading-none" style={{ color: s.color }}>{s.value}</div>
-              <div className="text-xs font-semibold mt-0.5 text-text-secondary">{s.label}</div>
-            </div>
-            <span className="material-symbols-outlined text-base text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity ml-auto">arrow_forward</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Won/Lost Summary */}
-      {stats && isVisible('won_lost') && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <div onClick={() => navigate('/crm/opportunities?filter=won')} className="group bg-surface border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-success">emoji_events</span>
-              <span className="font-bold text-text-primary">Won Deals</span>
-              <span className="material-symbols-outlined text-base text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity ml-auto">arrow_forward</span>
-            </div>
-            <div className="text-3xl font-black text-success">{formatCurrency(Number(stats.wonDeals.value))}</div>
-            <div className="text-sm text-text-secondary mt-1">{stats.wonDeals.count} deals closed</div>
-          </div>
-          <div onClick={() => navigate('/crm/opportunities?filter=lost')} className="group bg-surface border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="material-symbols-outlined text-danger">trending_down</span>
-              <span className="font-bold text-text-primary">Lost Deals</span>
-              <span className="material-symbols-outlined text-base text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity ml-auto">arrow_forward</span>
-            </div>
-            <div className="text-3xl font-black text-danger">{formatCurrency(Number(stats.lostDeals.value))}</div>
-            <div className="text-sm text-text-secondary mt-1">{stats.lostDeals.count} deals lost</div>
-          </div>
-        </div>
-      )}
-
-      {/* My Performance */}
-      {!myStatsLoading && myStats && isVisible('my_performance') && (
-        <div className="mb-6">
-          <h2 className="text-sm font-extrabold text-text-secondary uppercase tracking-wider mb-3">My Performance</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {[
-              { label: 'My Leads', value: myStats.leads, icon: 'lightbulb', bg: 'var(--color-fin-50)', color: 'var(--color-warning)', link: '/crm/leads?owner=me' },
-              { label: 'My Open Deals', value: myStats.opportunities, icon: 'monetization_on', bg: 'var(--color-it-50)', color: 'var(--color-it-500)', link: '/crm/opportunities?owner=me' },
-              { label: 'My Pipeline', value: formatCurrency(myStats.pipelineValue), icon: 'payments', bg: 'var(--color-hr-50)', color: 'var(--color-success)', link: '/crm/pipeline' },
-              { label: 'Won This Month', value: myStats.wonThisMonth, icon: 'emoji_events', bg: 'var(--color-hr-50)', color: 'var(--color-success)', link: '/crm/opportunities?filter=won' },
-              { label: 'Stale Leads', value: myStats.staleLeads, icon: 'warning', bg: 'rgba(220,38,38,0.06)', color: 'var(--color-danger)', link: '/crm/leads?filter=stale' },
-              { label: 'Activities This Week', value: myStats.activitiesThisWeek, icon: 'event_note', bg: 'var(--color-brand-50)', color: 'var(--color-brand-600)', link: '/crm/leads' },
-            ].map(s => (
-              <div key={s.label} onClick={() => navigate(s.link)} className="group bg-surface border border-border rounded-xl p-5 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                <div className="w-11 h-11 rounded-lg flex items-center justify-center shrink-0" style={{ background: s.bg }}>
-                  <span className="material-symbols-outlined text-[22px]" style={{ color: s.color }}>{s.icon}</span>
-                </div>
-                <div>
-                  <div className="text-2xl font-black leading-none" style={{ color: s.color }}>{s.value}</div>
-                  <div className="text-xs font-semibold mt-0.5 text-text-secondary">{s.label}</div>
-                </div>
-                <span className="material-symbols-outlined text-base text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity ml-auto">arrow_forward</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Lead Status Breakdown */}
-      {stats && stats.leadsByStatus.length > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-6 shadow-sm mb-6">
-          <h2 className="text-lg font-extrabold text-text-primary mb-4">Leads by Status</h2>
-          <div className="flex flex-wrap gap-3">
-            {stats.leadsByStatus.map(ls => (
-                <div key={ls.status} className="flex items-center gap-2 rounded-full px-4 py-2">
-                  <span className="text-2xl font-black"><StateBadge state={ls.status} size="sm" /></span>
-                  <span className="text-xs font-bold">{ls._count}</span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* Recent Activity */}
-      {isVisible('recent_activity') && <div className="bg-surface border border-border rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <h2 className="text-lg font-extrabold text-text-primary">Recent Activity</h2>
-          <Link to="/crm/accounts" className="text-sm font-bold text-brand-700" style={{ textDecoration: 'none' }}>View all →</Link>
-        </div>
-        {loading ? (
-          <div className="p-5 space-y-4">{[0,1,2,3,4].map(i => <div key={i} className="flex gap-3"><SkeletonBox w="36px" h="36px" /><div className="flex-1"><SkeletonBox w="60%" h="14px" /><div className="mt-2"><SkeletonBox w="40%" h="10px" /></div></div></div>)}</div>
-        ) : stats && stats.recentActivities.length === 0 ? (
-          <div className="p-12 text-center text-text-secondary">
-            <span className="material-symbols-outlined text-5xl mb-4 block opacity-30">event_note</span>
-            <p className="font-bold">No recent activities</p>
-            <p className="text-sm mt-1">Start logging calls, emails, and meetings</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {stats?.recentActivities.map((act: CrmActivity) => (
-              <div key={act.id} className="flex items-start gap-3 p-4 hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => act.accountId && navigate(`/crm/accounts/${act.accountId}`)}>
-                <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-brand-600 text-lg">{ACTIVITY_ICONS[act.activityType] || 'note'}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-text-primary truncate">
-                    {act.subject}
-                    {act.scheduledAt && !act.completedAt && new Date(act.scheduledAt) < new Date() && (
-                      <span className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-red-100 text-red-700">
-                        <span className="material-symbols-outlined" style={{fontSize:10}}>warning</span>
-                        Overdue
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {act.user && <span className="text-xs text-text-secondary">{act.user.firstName} {act.user.lastName}</span>}
-                    {act.account && <><span className="text-text-tertiary">·</span><span className="text-xs text-brand-700 font-medium">{act.account.name}</span></>}
-                  </div>
-                </div>
-                <span className="text-xs text-text-tertiary whitespace-nowrap">{formatRelative(act.createdAt)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>}
     </div>
-    {showCustomize && <WidgetPicker onClose={() => setShowCustomize(false)} />}
-    </>
   );
 };
 
-const CrmDashboardWithLayout: React.FC = () => (
+const CrmDashboard: React.FC = () => (
   <DashboardLayoutProvider>
-    <CrmDashboard />
+    <DashboardInner />
   </DashboardLayoutProvider>
 );
 
-export default CrmDashboardWithLayout;
+export default CrmDashboard;

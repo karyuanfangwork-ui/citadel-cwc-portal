@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import crmService, { CrmPipeline, CrmPipelineStage, CrmOpportunity, CrmUser } from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
 import { useCollapsedColumns, CollapsedColumnPill, ColumnCollapseToggle } from '../src/components/CollapsibleKanbanColumn';
 import ConfirmDialog from '../src/components/ConfirmDialog';
 import CrmMobilePipeline from '../src/components/crm/CrmMobilePipeline';
@@ -412,7 +411,6 @@ const CrmPipelineView = () => {
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
-      <CrmNav />
       {/* Header */}
       <div className="px-4 sm:px-8 py-4 sm:py-8" style={{ maxWidth: 1400, margin: '0 auto' }}>
         <div className="flex items-center justify-between flex-wrap gap-4 mb-6">

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import crmService, { CrmLead, CrmUser, Pagination, LeadSource, LeadStatus } from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
 import BulkActionBar, { BulkAction } from '../src/components/crm/BulkActionBar';
 import { cleanFormPayload, NUMERIC_KEYS } from '../src/utils/crmFormHelper';
 import { validateLead, ValidationError } from '../src/utils/crmValidation';
@@ -324,7 +323,6 @@ const CrmLeads = () => {
 
   return (
     <>
-      <CrmNav />
       <div style={{ maxWidth: viewMode === 'table' ? 1400 : 1200, margin: '0 auto', paddingBottom: selectedIds.size > 0 ? '80px' : 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
         <div>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import CrmNav from '../src/components/CrmNav';
 import crmService from '../src/services/crm.service';
 import { useAuth } from '../src/context/AuthContext';
 
@@ -102,7 +101,6 @@ export default function CrmIntegrationsSettings() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <CrmNav />
       <div style={{ flex: 1, padding: '24px', maxWidth: 900 }}>
         <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 24 }}>Email & Calendar Integration</h1>
 

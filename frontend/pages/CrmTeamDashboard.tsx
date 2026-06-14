@@ -3,7 +3,6 @@ import { useAuth } from '../src/context/AuthContext';
 import { hasPermission } from '../src/utils/permissions';
 import { Navigate, useNavigate } from 'react-router-dom';
 import crmService, { TeamPerformance, CrmUser, CrmLead } from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
 import EmptyState from '../src/components/ui/EmptyState';
 
 const formatCurrency = (val: number) =>
@@ -120,7 +119,6 @@ const CrmTeamDashboard = () => {
 
   return (
     <>
-      <CrmNav />
       <div style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Hero */}
       <section className="bg-gradient-to-br from-brand-950 via-brand-800 to-brand-700 rounded-xl py-10 px-4 sm:px-8 relative overflow-hidden mb-6">

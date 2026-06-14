@@ -197,6 +197,16 @@ export interface DashboardStats {
   followUpDueToday: number;
   staleLeads: number;
   overdueDeals: number;
+  monthlyTrend: { month: string; wonCount: number; wonValue: number }[];
+  pipelineByName: { name: string; value: number }[];
+  upcomingFollowUps: {
+    id: string;
+    title: string;
+    contactName: string | null;
+    followUpDate: string;
+    followUpNote: string | null;
+    entityType: 'lead' | 'opportunity';
+  }[];
 }
 
 export interface TeamPerformance {

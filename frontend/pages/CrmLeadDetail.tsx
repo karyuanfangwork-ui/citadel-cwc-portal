@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import crmService, { CrmLead, CrmUser, CrmPipeline, CrmActivity, CrmNote, CrmActivityType, LeadStatus, LeadSource } from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
 import InlineEdit from '../src/components/crm/InlineEdit';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import StateBadge from '../src/components/ui/StateBadge';
@@ -349,7 +348,6 @@ const CrmLeadDetail = () => {
 
   return (
     <>
-      <CrmNav />
       <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">

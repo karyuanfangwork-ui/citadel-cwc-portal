@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CrmNav from '../src/components/CrmNav';
 import crmService from '../src/services/crm.service';
 
 const TRIGGER_EVENTS = [
@@ -98,7 +97,6 @@ const CrmWorkflowBuilder: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <CrmNav />
       <div className="max-w-4xl mx-auto px-4 py-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">New Workflow</h1>
         <p className="text-sm text-gray-500 mb-6">Build an automated workflow in 4 steps</p>

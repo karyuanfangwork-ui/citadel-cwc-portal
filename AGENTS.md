@@ -70,31 +70,21 @@ CWC 2.0 is an Enterprise Help Center / Service Desk system supporting IT Support
 <claude-mem-context>
 # Memory Context
 
-# [citadel-cwc-portal] recent context, 2026-06-14 6:17pm GMT+8
+# [citadel-cwc-portal] recent context, 2026-06-14 6:36pm GMT+8
 
 Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision
 Format: ID TIME TYPE TITLE
 Fetch details: get_observations([IDs]) | Search: mem-search skill
 
-Stats: 50 obs (17,858t read) | 434,882t work | 96% savings
+Stats: 50 obs (16,787t read) | 507,699t work | 97% savings
 
 ### Jun 13, 2026
-S514 updateAccount and updateOpportunity Scope Guards Confirmed — applyOwnerScope Pattern Consistent (Jun 13 at 11:40 AM)
-1946 7:55p 🔵 crm.controller.ts: Full Authorization Architecture Confirmed — 2232 Lines with Scope Helpers
-1947 7:56p 🔵 CRM Scope Service and Reports Service: Owner Scoping Confirmed Live in Code
-1948 " 🔵 crm-access.service.ts vs crm-scope.service.ts: Two Coexisting Scoping Services with Different null-owner Policies
-1949 " 🔵 crm-authz.integration.test.ts: Comprehensive Authorization Coverage Confirmed Across All Plan Domains
-1950 7:57p 🔵 createLead Missing Owner Assignment Scope Check — Plan Requirement Gap Identified
-1951 7:58p 🔵 updateAccount and updateOpportunity Scope Guards Confirmed — applyOwnerScope Pattern Consistent
 S515 CRM Audit Remediation: Next steps and action plan for completing Sprint 1-5 security remediations (Jun 13 at 7:58 PM)
 S516 CRM Remediation Completion Plan — 9-phase implementation plan authored, awaiting greenlight to execute (Jun 13 at 10:23 PM)
 S517 2026-06-13-crm-remediation-completion.md: 9-phase CRM security remediation plan created (Jun 13 at 10:29 PM)
-1952 10:30p 🔵 docs/superpowers/plans: Full plan file inventory mapped
-1953 " ✅ 2026-06-13-crm-remediation-completion.md: 9-phase CRM security remediation plan created
 S519 CRM remediation test files lint-cleaned — warning count reduced from 1042 to 1039 (Jun 13 at 10:30 PM)
 ### Jun 14, 2026
-1954 9:11a 🔵 CRM Remediation Completion Plan: 9-Phase Security Gap Closure
-1955 " ⚖️ CRM Remediation Execution: Proceeding in Current Workspace Without Isolation
+1955 9:11a ⚖️ CRM Remediation Execution: Proceeding in Current Workspace Without Isolation
 1956 9:12a 🔵 crm.routes.ts: CRM AI Routes and OAuth Callbacks Architecture Confirmed
 1957 " 🔵 crm.controller.ts L393: createContact Uses Unscoped findUnique for accountId Validation
 1958 9:14a 🔵 oauth-state.service.ts: verifyOAuthState Returns userId But Callback Never Checks It Against req.user
@@ -133,13 +123,23 @@ S523 Codex hyperpersonalized suggestion generation for citadel-cwc-portal projec
 1987 4:44p 🔵 Codex suggestion engine requested hyperpersonalized tasks for citadel-cwc-portal
 1988 4:45p 🔵 Codex hyperpersonalized suggestion generation for citadel-cwc-portal
 1989 " 🔵 CrmDashboard.tsx: widget visibility architecture and Task 10 AI Daily Briefing wiring confirmed
+S524 CRM Dashboard Redesign: Implementation Plan Commissioned (Jun 14 at 4:46 PM)
 1990 6:11p ⚖️ CRM Dashboard Redesign: Implementation Plan Commissioned
 1991 6:13p ⚖️ CRM Dashboard Redesign: Implementation Plan Commissioned
 1992 " 🔵 CrmDashboard.tsx: Full widget inventory and render order confirmed
 1993 " 🔵 docs/plans/crm/code.html: New CRM dashboard design mockup identified
 1994 6:14p ⚖️ CRM Dashboard Redesign: Implementation Plan Commissioned
-S524 CRM Dashboard Redesign: Implementation Plan Commissioned (Jun 14 at 6:14 PM)
 1995 6:16p 🔵 CRM Dashboard redesign implementation plan exported to docs
+1996 6:17p ✅ CRM Dashboard Redesign Plan Created
+1997 " 🔵 CRM Dashboard Redesign Plan: Full Architecture Mapped
+S525 CRM Dashboard Redesign Plan: Full Architecture Mapped (Jun 14 at 6:17 PM)
+1998 6:21p 🔵 CRM Dashboard Redesign: 13-Task Plan Structure Fully Mapped
+1999 6:22p 🔵 backend/src/lib/prisma.ts does not exist at expected path
+2000 " 🔵 crm.service.ts instantiates PrismaClient locally — no shared prisma singleton
+2001 " 🟣 crm-dashboard-stats.test.ts created with corrected @prisma/client mock
+2002 6:23p 🟣 getDashboardStats extended with monthlyTrend, pipelineByName, upcomingFollowUps
+2003 " 🔵 Backend test suite pre-existing failures: DB unreachable + Redis mock issue
+2004 6:24p 🔵 App.tsx CRM route structure and AuthContext/permissions API confirmed for CrmLayout integration
 
-Access 435k tokens of past work via get_observations([IDs]) or mem-search skill.
+Access 508k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

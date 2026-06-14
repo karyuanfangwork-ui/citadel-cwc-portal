@@ -1,7 +1,6 @@
 // frontend/pages/CrmDuplicates.tsx
 import React, { useState, useEffect, useCallback } from 'react';
 import crmService, { CrmDuplicateMatch } from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
 import { useCrmUpdate } from '../src/hooks/useCrmUpdate';
 
 type EntityFilter = 'ALL' | 'LEAD' | 'CONTACT';
@@ -114,7 +113,6 @@ export default function CrmDuplicates() {
 
   return (
     <div>
-      <CrmNav />
       <div className="max-w-[1200px] mx-auto px-4 sm:px-8 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import crmService from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
 import { useAuth } from '../src/context/AuthContext';
 
 type EntityType = 'LEAD' | 'CONTACT' | 'ACCOUNT' | 'OPPORTUNITY';
@@ -209,7 +208,6 @@ const CrmImportExport = () => {
 
   return (
     <div className="min-h-screen bg-bg-subtle">
-      <CrmNav />
 
       <div className="max-w-[960px] mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* ── Page header ── */}

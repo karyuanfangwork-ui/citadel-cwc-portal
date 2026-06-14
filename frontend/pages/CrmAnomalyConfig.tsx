@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import CrmNav from '../src/components/CrmNav';
 import crmService from '../src/services/crm.service';
 
 interface AnomalyConfig {
@@ -53,7 +52,6 @@ export default function CrmAnomalyConfigPage() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <CrmNav />
       <div style={{ flex: 1, padding: 24, maxWidth: 800 }}>
         <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 8 }}>Anomaly Detection Settings</h1>
         <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24 }}>

@@ -4,7 +4,6 @@ import crmService, {
   CrmContact, CrmOpportunity, CrmLead, CrmKycRecord, CrmNote, CrmAccount, CrmBeneficiary,
   CrmActivity, CrmActivityType, ContactAccountRole,
 } from '../src/services/crm.service';
-import CrmNav from '../src/components/CrmNav';
 import AiInsightCard from '../src/components/crm/AiInsightCard';
 import StateBadge from '../src/components/ui/StateBadge';
 import ConfirmDialog from '../src/components/ConfirmDialog';
@@ -893,7 +892,6 @@ const CrmContactDetail = () => {
 
   return (
     <>
-      <CrmNav />
       <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-4 sm:py-8">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">

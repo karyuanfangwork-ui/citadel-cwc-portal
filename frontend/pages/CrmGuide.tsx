@@ -1,6 +1,5 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import CrmNav from '../src/components/CrmNav';
 
 const SECTIONS = [
   { id: 'what-is-crm', label: 'What Is the CRM?' },
@@ -55,7 +54,6 @@ const StatusBadge = ({ label, bg, text }: { label: string; bg: string; text: str
 const CrmGuide = () => {
   return (
     <>
-      <CrmNav />
       <div style={{ maxWidth: 900, margin: '0 auto', paddingBottom: 'var(--space-16)' }} className="px-4 sm:px-8 py-6">
       {/* Page header */}
       <div className="mb-8">
