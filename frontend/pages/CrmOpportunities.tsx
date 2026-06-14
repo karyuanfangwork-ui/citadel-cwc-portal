@@ -274,7 +274,7 @@ const CrmOpportunities = () => {
           </h1>
         </div>
         <button onClick={() => { setFormErrors([]); setShowCreate(true); }} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-          <span className="material-symbols-outlined text-lg">add</span> New Opportunity
+          <span className="material-symbols-outlined text-lg">add</span> Create Opportunity
         </button>
       </div>
 

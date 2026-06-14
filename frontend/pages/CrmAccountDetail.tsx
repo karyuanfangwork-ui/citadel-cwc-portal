@@ -472,7 +472,7 @@ const CrmAccountDetail = () => {
       {activeTab === 'overview' && (
         <div id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Account Info</h3>
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Account Information</h3>
             {/* Editable fields — all edits route through the Edit Account modal */}
             <div className="flex items-center gap-3 py-2 border-b border-border">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">badge</span>

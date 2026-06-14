@@ -186,7 +186,7 @@ const CrmAccounts = () => {
           <h1 className="text-2xl font-black text-text-primary">Accounts</h1>
         </div>
         <button onClick={() => { setFormErrors([]); setShowCreate(true); }} className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors" style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-          <span className="material-symbols-outlined text-lg">add</span> New Account
+          <span className="material-symbols-outlined text-lg">add</span> Create Account
         </button>
       </div>
 
@@ -230,7 +230,7 @@ const CrmAccounts = () => {
                 <tr><td colSpan={8}><CrmTableSkeleton rows={5} cols={8} /></td></tr>
               ) : accounts.length === 0 ? (
                 <tr><td colSpan={8}>
-                  <EmptyState icon="business" title="No accounts yet" description="Create your first account to start managing client organizations." action={{ label: 'New Account', onClick: () => setShowCreate(true) }} />
+                  <EmptyState icon="business" title="No accounts yet" description="Create your first account to start managing client organizations." action={{ label: 'Create Account', onClick: () => setShowCreate(true) }} />
                 </td></tr>
               ) : accounts.map(acc => (
                 <tr key={acc.id}

@@ -311,7 +311,7 @@ const CrmOpportunityDetail = () => {
       <div className="flex items-center gap-2 text-sm text-text-secondary mb-4">
         <Link to="/crm" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">CRM</Link>
         <span>/</span>
-        <Link to="/crm/pipeline" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Pipeline</Link>
+        <Link to="/crm/opportunities" style={{ textDecoration: 'none', color: 'inherit' }} className="hover:text-brand-700">Opportunities</Link>
         <span>/</span>
         <span className="font-semibold text-text-primary">{opp.name}</span>
       </div>
@@ -470,7 +470,7 @@ const CrmOpportunityDetail = () => {
       {activeTab === 'overview' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-bg-surface border border-border rounded-xl p-5">
-            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Deal Info</h3>
+            <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Opportunity Information</h3>
             <div className="flex items-center gap-3 py-2 border-b border-border last:border-0">
               <span className="material-symbols-outlined text-base text-text-secondary w-5">title</span>
               <span className="text-xs text-text-secondary w-24 shrink-0">Name</span>

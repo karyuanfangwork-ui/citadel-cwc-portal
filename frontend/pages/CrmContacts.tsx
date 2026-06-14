@@ -212,7 +212,7 @@ const CrmContacts = () => {
         <button onClick={openCreate}
           className="flex items-center gap-2 bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-brand-800 transition-colors"
           style={{ border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-          <span className="material-symbols-outlined text-lg">add</span> New Contact
+          <span className="material-symbols-outlined text-lg">add</span> Create Contact
         </button>
       </div>
 
@@ -247,7 +247,7 @@ const CrmContacts = () => {
                 <tr><td colSpan={8}><CrmTableSkeleton rows={5} cols={8} /></td></tr>
               ) : contacts.length === 0 ? (
                 <tr><td colSpan={8}>
-                  <EmptyState icon="person" title="No contacts yet" description="Create your first contact to start building your client network." action={{ label: 'New Contact', onClick: () => openCreate() }} />
+                  <EmptyState icon="person" title="No contacts yet" description="Create your first contact to start building your client network." action={{ label: 'Create Contact', onClick: () => openCreate() }} />
                 </td></tr>
               ) : contacts.map(c => (
                 <tr key={c.id}

@@ -988,7 +988,7 @@ const CrmContactDetail = () => {
       {/* Tab content */}
       {activeTab === 'overview' && (
         <div className="bg-bg-surface border border-border rounded-xl p-5">
-          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Contact Info</h3>
+          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wider mb-4">Contact Information</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8">
             {/* Editable fields */}
             {[
