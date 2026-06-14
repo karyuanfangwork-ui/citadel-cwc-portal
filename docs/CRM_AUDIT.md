@@ -14,9 +14,9 @@
 
 **Partially closed:** H4. A per-user CRM AI rate limit is in place; AI cost budgets and OpenAI-outage fallback behavior remain open.
 
-**Policy decisions taken:** unassigned CRM records (`ownerId: null`) are visible to CRM users; owner reassignment is allowed for admins or within a manager's visible team. No `crm:assign` permission was introduced because it does not exist in the current permission model.
+**Policy decisions taken:** owner reassignment is allowed for admins or within a manager's visible team. No `crm:assign` permission was introduced because it does not exist in the current permission model. The current Prisma schema requires `ownerId` on CRM accounts, leads, opportunities, and trust products, so a null-owner visibility policy is not active in this build.
 
-**Verification on 2026-06-13:** targeted CRM remediation tests passed against the separate `help_center_crm_remediation` database: `validate.middleware.test.ts`, `pagination.test.ts`, `crm-access.service.test.ts`, `crm-authz.integration.test.ts`, `crm-export-report.integration.test.ts`, `oauth-state.service.test.ts`, and `crm-ai-rate-limit.integration.test.ts` command exited 0 with 45 tests passing. TypeScript build exited 0. Backend lint exited 0 with warnings only.
+**Verification on 2026-06-14:** targeted CRM remediation tests passed against the separate `help_center_crm_remediation` database: `validate.middleware.test.ts`, `pagination.test.ts`, `crm-access.service.test.ts`, `crm-authz.integration.test.ts`, `oauth-state.service.test.ts`, `crm-oauth.integration.test.ts`, and `crm-ai-rate-limit.integration.test.ts` command exited 0 with 54 tests passing. TypeScript build exited 0. Backend lint exited 0 with warnings only.
 
 **Full-suite caveat:** the full backend Jest suite was run after seeding the separate remediation database and still failed outside the CRM remediation surface: credit P1 fixture tests hit FK violations for hardcoded user IDs, and Redis-mocked service tests fail because the mock client lacks `.on()`. Current full-suite result: 59 passed / 7 failed suites, 585 passed / 13 failed tests. Do not treat the full backend suite as green until those unrelated fixtures/mocks are repaired.
 

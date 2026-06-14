@@ -190,8 +190,10 @@ export async function runAuditRetentionCheck(): Promise<RetentionReport> {
   return checkAuditRetention();
 }
 
-// Run if called directly
-main().catch(err => {
-  console.error('❌ Audit retention check failed:', err);
-  process.exit(1);
-});
+// Run only when executed as a script, not when imported by the app or tests.
+if (require.main === module) {
+  main().catch(err => {
+    console.error('❌ Audit retention check failed:', err);
+    process.exit(1);
+  });
+}

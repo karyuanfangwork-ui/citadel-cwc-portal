@@ -40,6 +40,7 @@ const accountBodySchema = z.object({
   bankAccount: z.string().max(100).optional(),
   purchaseCashTrust: z.coerce.boolean().optional(),
   accountType: z.enum(['INDIVIDUAL', 'CORPORATE']).default('CORPORATE'),
+  ownerId: z.string().uuid().optional(),
   parentAccountId: z.string().uuid().optional().nullable(),
 });
 
@@ -149,6 +150,7 @@ const opportunityBodySchema = z.object({
   probability: z.coerce.number().int().min(0).max(100).default(0),
   expectedCloseDate: z.string().optional(),
   description: z.string().optional(),
+  ownerId: z.string().uuid().optional(),
 });
 
 export const createOpportunitySchema = z.object({ body: opportunityBodySchema });

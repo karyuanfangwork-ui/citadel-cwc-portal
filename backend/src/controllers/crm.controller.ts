@@ -178,6 +178,16 @@ async function assertVisibleContact(contactId: string, visibleOwnerIds: string[]
   return contact;
 }
 
+function assertCanAssignOwner(
+  targetOwnerId: string | undefined,
+  currentUserId: string,
+  visibleOwnerIds: string[] | null,
+): void {
+  if (!targetOwnerId || targetOwnerId === currentUserId) return;
+  if (visibleOwnerIds === null || visibleOwnerIds.includes(targetOwnerId)) return;
+  throw new AppError('Forbidden owner assignment', 403);
+}
+
 class CrmController {
   // ======== DASHBOARD ========
   getDashboard = asyncHandler(async (req: AuthRequest, res: Response) => {
@@ -288,6 +298,7 @@ class CrmController {
       where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
     });
     if (!existing) throw new AppError('Account not found', 404);
+    assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
     // Cycle guard: validate parentAccountId doesn't create a loop
     if (req.body.parentAccountId !== undefined) {
       const deps = { getParentId: async (id: string) => {
@@ -369,6 +380,7 @@ class CrmController {
   });
 
   createContact = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     // Duplicate check (unless ?force=true)
     if (req.query.force !== 'true' && (req.body.email || req.body.phone || req.body.mobile || req.body.firstName)) {
       const OR: any[] = [];
@@ -390,7 +402,9 @@ class CrmController {
       }
     }
     if (req.body.accountId) {
-      const account = await prisma.crmAccount.findUnique({ where: { id: req.body.accountId } });
+      const account = await prisma.crmAccount.findFirst({
+        where: applyOwnerScope({ id: req.body.accountId, deletedAt: null }, visibleOwnerIds),
+      });
       if (!account) throw new AppError('Account not found', 404);
     }
     const { dateOfBirth, pdpaConsentDate, followUpDate, ...rest } = req.body;
@@ -518,6 +532,7 @@ class CrmController {
   });
 
   createLead = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     // Duplicate check (unless ?force=true)
     if (req.query.force !== 'true' && (req.body.contactEmail || req.body.contactPhone || req.body.contactName)) {
       const OR: any[] = [];
@@ -539,7 +554,9 @@ class CrmController {
     }
     // Use ownerId from body if provided, otherwise default to logged-in user
     const ownerId = req.body.ownerId || req.user!.id;
-    const { ownerId: _ownerId, autoAssign, ...restBody } = req.body;
+    assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
+    const { autoAssign, ...restBody } = req.body;
+    delete restBody.ownerId;
     const lead = await prisma.crmLead.create({
       data: { ...restBody, ownerId },
       include: { owner: { select: userSelect }, account: { select: { id: true, name: true } } },
@@ -607,6 +624,7 @@ class CrmController {
       where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
     });
     if (!existing) throw new AppError('Lead not found', 404);
+    assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
     const { followUpDate, ...rest } = req.body;
     const data: any = { ...rest };
     if (followUpDate !== undefined) data.followUpDate = followUpDate ? new Date(followUpDate) : null;
@@ -719,6 +737,17 @@ class CrmController {
   });
 
   createOpportunity = asyncHandler(async (req: AuthRequest, res: Response) => {
+    const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
+    const account = await prisma.crmAccount.findFirst({
+      where: applyOwnerScope({ id: req.body.accountId, deletedAt: null }, visibleOwnerIds),
+    });
+    if (!account) throw new AppError('Account not found', 404);
+    if (req.body.contactId) {
+      const contact = await prisma.crmContact.findFirst({
+        where: { id: req.body.contactId as string, deletedAt: null, ...contactScope(visibleOwnerIds) },
+      });
+      if (!contact || contact.accountId !== account.id) throw new AppError('Contact not found', 404);
+    }
     const { expectedCloseDate, ...rest } = req.body;
     // Auto-set probability from the selected stage if not explicitly provided
     let probability = req.body.probability;
@@ -744,6 +773,7 @@ class CrmController {
       where: applyOwnerScope({ id: req.params.id as string, deletedAt: null }, visibleOwnerIds),
     });
     if (!existing) throw new AppError('Opportunity not found', 404);
+    assertCanAssignOwner(req.body.ownerId, req.user!.id, visibleOwnerIds);
     const { expectedCloseDate, ...rest } = req.body;
     const data: any = { ...rest };
     if (expectedCloseDate !== undefined) data.expectedCloseDate = expectedCloseDate ? new Date(expectedCloseDate) : null;
@@ -1454,10 +1484,10 @@ class CrmController {
     const visibleOwnerIds = await resolveVisibleOwnerIds(req.user!);
     const ownerScope = visibleOwnerIds === null
       ? {}
-      : { ownerId: { in: visibleOwnerIds } };
+      : { OR: [{ ownerId: { in: visibleOwnerIds } }, { ownerId: { equals: null } }] };
     const contactOwnerScope = visibleOwnerIds === null
       ? {}
-      : { account: { ownerId: { in: visibleOwnerIds } } };
+      : { account: { OR: [{ ownerId: { in: visibleOwnerIds } }, { ownerId: { equals: null } }] } };
 
     const [accounts, contacts, leads, opportunities] = await Promise.all([
       prisma.crmAccount.findMany({
@@ -1878,6 +1908,7 @@ class CrmController {
     const { code, state } = req.query;
     const decoded = verifyOAuthState(state as string | undefined);
     if (decoded.provider !== 'GOOGLE') throw new AppError('Invalid OAuth state', 400);
+    if (decoded.userId !== req.user!.id) throw new AppError('OAuth state does not match session user', 403);
     await emailSyncService.handleOAuthCallback('GOOGLE', code as string, decoded.userId);
     res.redirect('/crm/integrations?connected=google');
   });
@@ -1886,6 +1917,7 @@ class CrmController {
     const { code, state } = req.query;
     const decoded = verifyOAuthState(state as string | undefined);
     if (decoded.provider !== 'OUTLOOK') throw new AppError('Invalid OAuth state', 400);
+    if (decoded.userId !== req.user!.id) throw new AppError('OAuth state does not match session user', 403);
     await emailSyncService.handleOAuthCallback('OUTLOOK', code as string, decoded.userId);
     res.redirect('/crm/integrations?connected=outlook');
   });
@@ -2006,7 +2038,7 @@ class CrmController {
     try {
       safeFieldSelections = duplicateService.sanitizeMergeFieldSelections(match.entityType, fieldSelections ?? {});
     } catch (error) {
-      throw new AppError(error instanceof Error ? error.message : 'Invalid merge field selections', 400);
+      throw new AppError(error instanceof Error ? error.message : 'Invalid merge field selections', 422);
     }
 
     await duplicateService.mergeDuplicates(req.params.id as string, masterEntityId, safeFieldSelections, req.user!.id);
@@ -2036,7 +2068,7 @@ class CrmController {
       data: {
         userId: req.user!.id,
         userEmail: req.user!.email,
-        action: 'DISMISS',
+        action: 'DISMISS_DUPLICATE',
         resourceType: 'CrmDuplicateMatch',
         newValues: { matchId: req.params.id as string, entityType: match.entityType } as Prisma.InputJsonObject,
       },

@@ -69,12 +69,17 @@ export async function resolveVisibleOwnerIds(
 /**
  * Applies owner scoping to a Prisma `where` clause.
  * When `visibleOwnerIds` is null (admin), the where clause is returned unchanged.
- * When it's a list, `{ ownerId: { in: [...] } }` is merged in.
+ * When it's a list, composes via AND so the owner filter coexists safely with any
+ * top-level OR clauses (e.g. search filters) at call sites.
+ * Null-owner records (unassigned) are always included in scoped results.
  */
 export function applyOwnerScope<T extends Record<string, any>>(
   where: T,
   visibleOwnerIds: string[] | null,
 ): T {
   if (visibleOwnerIds === null) return where;
-  return { ...where, ownerId: { in: visibleOwnerIds } };
+  const ownerFilter = { OR: [{ ownerId: { in: visibleOwnerIds } }, { ownerId: null }] };
+  const existing = (where as any).AND;
+  const andArray = existing ? (Array.isArray(existing) ? existing : [existing]) : [];
+  return { ...where, AND: [...andArray, ownerFilter] } as T;
 }

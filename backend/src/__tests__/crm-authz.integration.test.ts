@@ -24,6 +24,8 @@ let otherOwnersDuplicateMatchId: string;
 let visibleDuplicateMatchId: string;
 let visibleDismissDuplicateMatchId: string;
 let visibleDuplicateMasterLeadId: string;
+let visibleAccountId: string;
+let visibleLeadId: string;
 
 const signToken = (userId: string, email: string) =>
   jwt.sign({ userId, email, jti: `crm-authz-${userId}-${suffix}` }, config.jwt.secret, { expiresIn: '1h' });
@@ -109,6 +111,7 @@ beforeAll(async () => {
       ownerId: salesRep.id,
     },
   });
+  visibleAccountId = visibleAccount.id;
 
   const otherAccount = await prisma.crmAccount.create({
     data: {
@@ -273,6 +276,7 @@ beforeAll(async () => {
     },
   });
   visibleDuplicateMasterLeadId = visibleLead.id;
+  visibleLeadId = visibleLead.id;
 
   const visibleDuplicateLead = await prisma.crmLead.create({
     data: {
@@ -418,6 +422,7 @@ describe('CRM direct read authorization', () => {
     expect(res.body.data.leads.length).toBeLessThanOrEqual(100);
     expect(res.body.data.pagination.limit).toBeLessThanOrEqual(100);
   });
+
 });
 
 describe('CRM direct write authorization', () => {
@@ -516,6 +521,36 @@ describe('CRM report authorization', () => {
 });
 
 describe('CRM parent entity authorization', () => {
+  it('returns 404 when creating a contact under another owner account', async () => {
+    const res = await request(app)
+      .post('/api/v1/crm/contacts')
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({
+        accountId: otherOwnersAccountId,
+        firstName: 'Blocked',
+        lastName: 'Contact',
+        email: `blocked-contact-${suffix}@test.local`,
+      });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when creating an opportunity under another owner account', async () => {
+    const res = await request(app)
+      .post('/api/v1/crm/opportunities')
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({
+        name: `Blocked Opportunity ${suffix}`,
+        accountId: otherOwnersAccountId,
+        contactId: otherOwnersContactId,
+        pipelineId,
+        stageId: validStageId,
+        value: 3000,
+      });
+
+    expect(res.status).toBe(404);
+  });
+
   it('does not list activities attached to another owner account', async () => {
     const res = await request(app)
       .get(`/api/v1/crm/activities?accountId=${otherOwnersAccountId}`)
@@ -659,7 +694,7 @@ describe('CRM duplicate authorization', () => {
       .set('Authorization', `Bearer ${salesRepToken}`)
       .send({ masterEntityId: visibleDuplicateMasterLeadId, fieldSelections: { ownerId: otherOwnerId } });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(422);
     const lead = await prisma.crmLead.findUnique({ where: { id: visibleDuplicateMasterLeadId } });
     expect(lead?.ownerId).toBe(salesRepId);
   });
@@ -673,12 +708,59 @@ describe('CRM duplicate authorization', () => {
     const audit = await prisma.auditLog.findFirst({
       where: {
         userId: salesRepId,
-        action: 'DISMISS',
+        action: 'DISMISS_DUPLICATE',
         resourceType: 'CrmDuplicateMatch',
       },
       orderBy: { createdAt: 'desc' },
     });
     expect(audit).not.toBeNull();
     expect((audit?.newValues as { matchId?: string } | null)?.matchId).toBe(visibleDismissDuplicateMatchId);
+  });
+});
+
+describe('CRM owner assignment authorization', () => {
+  it('returns 403 when a sales rep assigns a new lead to another owner', async () => {
+    const res = await request(app)
+      .post('/api/v1/crm/leads')
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({
+        title: `Blocked Assigned Lead ${suffix}`,
+        companyName: `Blocked Assigned Company ${suffix}`,
+        ownerId: otherOwnerId,
+      });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when a sales rep reassigns a visible lead to another owner', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/crm/leads/${visibleLeadId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ ownerId: otherOwnerId });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when a sales rep reassigns a visible account to another owner', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/crm/accounts/${visibleAccountId}`)
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ ownerId: otherOwnerId });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when a sales rep reassigns a visible opportunity to another owner', async () => {
+    const visibleOpportunity = await prisma.crmOpportunity.findFirstOrThrow({
+      where: { accountId: visibleAccountId, ownerId: salesRepId, deletedAt: null },
+      select: { id: true },
+    });
+
+    const res = await request(app)
+      .patch(`/api/v1/crm/opportunities/${visibleOpportunity.id}`)
+      .set('Authorization', `Bearer ${salesRepToken}`)
+      .send({ ownerId: otherOwnerId });
+
+    expect(res.status).toBe(403);
   });
 });
