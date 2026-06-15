@@ -55,9 +55,9 @@ export interface CrmLead {
   // Rule-based scoring
   ruleScore: number | null;
   createdAt: string; updatedAt: string;
-  owner?: UserRef; account?: { id: string; name: string };
+  owner?: UserRef; account?: { id: string; name: string; industry?: string | null };
   contact?: { id: string; firstName: string; lastName: string; email?: string; phone?: string };
-  activities?: CrmActivity[]; notes?: CrmNote[];
+  opportunities?: CrmOpportunity[]; activities?: CrmActivity[]; notes?: CrmNote[];
 }
 
 export interface CrmPipeline {

@@ -47,6 +47,7 @@ const CrmLeadDetail = () => {
   const [showEdit, setShowEdit] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [showDelete, setShowDelete] = useState(false);
+  const [showMoreActions, setShowMoreActions] = useState(false);
   const [formErrors, setFormErrors] = useState<ValidationError[]>([]);
 
   // ── Activity pagination state ─────────────────────────────────────
@@ -347,6 +348,63 @@ const CrmLeadDetail = () => {
 
   const isConverted = lead.status === 'CONVERTED';
   const isLost = lead.status === 'LOST';
+  const ownerFullName = lead.owner ? `${lead.owner.firstName} ${lead.owner.lastName}`.trim() : null;
+  const leadSourceLabel = lead.source ? lead.source.replace(/_/g, ' ') : null;
+  const railPrimaryLabel = lead.companyName || lead.account?.name || lead.contactName || 'Lead details';
+  const railSecondaryLabel = [
+    railPrimaryLabel !== lead.contactName ? lead.contactName : null,
+    leadSourceLabel,
+  ].filter(Boolean).join(' · ') || lead.status.replace(/_/g, ' ');
+  const railInitial = railPrimaryLabel.trim()[0]?.toUpperCase() ?? 'L';
+  const relatedOpportunity = (lead as any).opportunities?.[0];
+  const convertedOpportunityId = lead.convertedToOppId ?? relatedOpportunity?.id ?? null;
+  const convertedSuggestionActions = [
+    convertedOpportunityId
+      ? {
+          action: 'View converted opportunity',
+          priority: 'high',
+          reason: 'This lead is already converted. Continue active deal work from the opportunity.',
+          to: `/crm/opportunities/${convertedOpportunityId}`,
+        }
+      : {
+          action: 'Review converted record',
+          priority: 'high',
+          reason: 'This lead is already converted. Review related CRM records before taking lead-nurturing action.',
+        },
+    {
+      action: 'Log relationship activity',
+      priority: 'medium',
+      reason: 'Use activities to record post-conversion relationship updates.',
+    },
+    {
+      action: 'Review onboarding documents',
+      priority: 'low',
+      reason: 'Converted leads should move into account, opportunity, or onboarding follow-through.',
+    },
+  ];
+  const suggestionActions = isConverted ? convertedSuggestionActions : (nba.data?.actions ?? []);
+  const priorityLabel = (priority?: string) => {
+    if (priority === 'high') return 'High priority';
+    if (priority === 'medium') return 'Recommended';
+    return 'Optional';
+  };
+  const priorityDotClass = (priority?: string) =>
+    priority === 'high' ? 'bg-[#ba1a1a]' : priority === 'medium' ? 'bg-amber-500' : 'bg-[#45464d]';
+  const financialMetrics = [
+    {
+      label: 'CTOS Availability',
+      status: 'Verified',
+      confidence: 84,
+      description: 'Demo financial signal: CTOS availability has been verified with high confidence.',
+    },
+    {
+      label: 'Cash Flow Growth',
+      status: 'Positive',
+      confidence: 70,
+      description: 'Demo financial signal: cash flow trend is positive based on available CRM context.',
+    },
+  ];
+  const scoreRationale = leadScore.scoreData?.reason ?? lead.aiScoreReason ?? null;
 
   return (
     <>
@@ -358,11 +416,11 @@ const CrmLeadDetail = () => {
                 className="w-12 h-12 rounded-xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0"
                 style={{ background: '#006a61' }}
               >
-                {lead.title?.[0]?.toUpperCase() ?? 'L'}
+                {railInitial}
               </div>
               <div className="min-w-0">
-                <p className="text-[13px] font-bold text-[#0b1c30] truncate">{lead.title}</p>
-                <p className="text-[11px] text-[#45464d] opacity-70">{lead.companyName || '—'}</p>
+                <p className="text-[13px] font-bold text-[#0b1c30] truncate">{railPrimaryLabel}</p>
+                <p className="text-[11px] text-[#45464d] opacity-70 truncate">{railSecondaryLabel}</p>
               </div>
             </div>
 
@@ -376,7 +434,15 @@ const CrmLeadDetail = () => {
                     <span className="material-symbols-outlined text-[16px] text-[#45464d] opacity-50 mt-0.5 flex-shrink-0">mail</span>
                     <div className="min-w-0">
                       <p className="text-[10px] text-[#45464d] opacity-60 uppercase tracking-wide mb-0.5">Email Address</p>
-                      <a href={`mailto:${lead.contactEmail}`} className="text-[13px] text-[#006a61] font-medium truncate block" style={{ textDecoration: 'none' }}>{lead.contactEmail}</a>
+                      <a
+                        href={`mailto:${lead.contactEmail}`}
+                        title={lead.contactEmail}
+                        aria-label={`Email ${lead.contactName ?? 'lead contact'} at ${lead.contactEmail}`}
+                        className="text-[13px] text-[#006a61] font-medium break-all block hover:underline"
+                        style={{ textDecoration: 'none' }}
+                      >
+                        {lead.contactEmail}
+                      </a>
                     </div>
                   </div>
                 )}
@@ -424,12 +490,18 @@ const CrmLeadDetail = () => {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[15px] font-semibold text-[#0b1c30] leading-snug truncate">{lead.owner.firstName} {lead.owner.lastName}</p>
-                    <p className="text-[12px] text-[#45464d] opacity-70 leading-snug mt-0.5 truncate">
+                    <p className="text-[15px] font-semibold text-[#0b1c30] leading-snug break-words">{lead.owner.firstName} {lead.owner.lastName}</p>
+                    <p className="text-[12px] text-[#45464d] opacity-70 leading-snug mt-0.5 break-words">
                       {[lead.owner.jobTitle, lead.owner.department].filter(Boolean).join(' · ') || 'Team Member'}
                     </p>
                     {lead.owner.email && (
-                      <a href={`mailto:${lead.owner.email}`} className="text-[12px] text-[#006a61] font-medium truncate block mt-1 hover:underline" style={{ textDecoration: 'none' }}>
+                      <a
+                        href={`mailto:${lead.owner.email}`}
+                        title={lead.owner.email}
+                        aria-label={`Email lead owner ${ownerFullName ?? ''} at ${lead.owner.email}`}
+                        className="text-[12px] text-[#006a61] font-medium break-all block mt-1 hover:underline"
+                        style={{ textDecoration: 'none' }}
+                      >
                         {lead.owner.email}
                       </a>
                     )}
@@ -566,6 +638,7 @@ const CrmLeadDetail = () => {
                     if (lead.title.includes(lead.companyName) || lead.companyName.includes(lead.title.split(' — ').pop() || '')) return null;
                     return lead.companyName;
                   })(),
+                  ownerFullName ? `Owner: ${ownerFullName}` : null,
                   lead.contactName,
                 ].filter(Boolean).join(' · ')}
                 {lead.updatedAt && ` · Updated ${new Date(lead.updatedAt).toLocaleDateString('en-MY', { day: 'numeric', month: 'short' })}`}
@@ -574,16 +647,9 @@ const CrmLeadDetail = () => {
             </div>
 
             <div className="flex items-center justify-end gap-2 flex-wrap">
-              <button
-                onClick={openEdit}
-                className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e2e8f0] text-[#0b1c30] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all shadow-sm"
-                style={{ cursor: 'pointer' }}
-              >
-                <span className="material-symbols-outlined text-[18px]">edit</span> Edit Lead
-              </button>
-              {isConverted && lead.convertedToOppId ? (
+              {isConverted && convertedOpportunityId ? (
                 <Link
-                  to={`/crm/opportunities/${lead.convertedToOppId}`}
+                  to={`/crm/opportunities/${convertedOpportunityId}`}
                   className="flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold rounded-xl border border-[#e2e8f0] text-[#45464d] hover:bg-[#f8f9ff] transition-all"
                   style={{ textDecoration: 'none' }}
                 >
@@ -621,6 +687,13 @@ const CrmLeadDetail = () => {
                   <span className="material-symbols-outlined text-[16px]">auto_awesome</span> Draft Message
                 </button>
               ) : null}
+              <button
+                onClick={openEdit}
+                className="flex items-center gap-2 px-5 py-2.5 bg-white border border-[#e2e8f0] text-[#0b1c30] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all shadow-sm"
+                style={{ cursor: 'pointer' }}
+              >
+                <span className="material-symbols-outlined text-[18px]">edit</span> Edit Lead
+              </button>
               {!isConverted && !isLost ? (
                 <button
                   onClick={handleMarkLost}
@@ -631,13 +704,46 @@ const CrmLeadDetail = () => {
                 </button>
               ) : null}
               {hasPermission(user, 'crm:delete') ? (
-                <button
-                  onClick={() => setShowDelete(true)}
-                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-sm font-semibold rounded-xl hover:bg-[#fff5f5] transition-all"
-                  style={{ cursor: 'pointer', color: '#ba1a1a' }}
-                >
-                  <span className="material-symbols-outlined text-[16px]">delete</span> Delete Lead
-                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowMoreActions(v => !v)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setShowMoreActions(false);
+                    }}
+                    aria-haspopup="menu"
+                    aria-expanded={showMoreActions}
+                    aria-controls="lead-more-actions-menu"
+                    aria-label="More lead actions"
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-white border border-[#e2e8f0] text-[#45464d] text-sm font-semibold rounded-xl hover:bg-[#f8f9ff] transition-all"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <span className="material-symbols-outlined text-[16px]" aria-hidden="true">more_horiz</span> More
+                  </button>
+                  {showMoreActions && (
+                    <div
+                      id="lead-more-actions-menu"
+                      role="menu"
+                      aria-label="More lead actions"
+                      className="absolute right-0 top-full mt-2 z-30 w-48 rounded-xl border border-[#e2e8f0] bg-white p-1 shadow-xl"
+                    >
+                      <button
+                        type="button"
+                        role="menuitem"
+                        aria-label="Delete Lead destructive action"
+                        onClick={() => {
+                          setShowMoreActions(false);
+                          setShowDelete(true);
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold hover:bg-[#fff5f5] transition-colors"
+                        style={{ color: '#ba1a1a', background: 'white', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                      >
+                        <span className="material-symbols-outlined text-[16px]" aria-hidden="true">delete</span>
+                        Delete Lead
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : null}
             </div>
           </div>
@@ -668,15 +774,69 @@ const CrmLeadDetail = () => {
       {/* Overview tab */}
       {activeTab === 'overview' && (
         <div className="space-y-5 max-w-5xl">
-          {nba.data?.actions?.length ? (
+          {isConverted ? (
+            <div className="bg-[#e9fbf7] border border-[#86f2e4]/60 rounded-xl p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="material-symbols-outlined text-[#006a61] mt-0.5">task_alt</span>
+                <div>
+                  <h3 className="text-sm font-bold text-[#0b1c30]">Lead converted</h3>
+                  <p className="text-[13px] text-[#45464d] mt-0.5">
+                    This lead has been converted. Continue active deal work from the related opportunity/account; keep this lead for historical context and notes.
+                  </p>
+                  {relatedOpportunity ? (
+                    <p className="text-[12px] text-[#45464d] mt-1">
+                      Related opportunity: <span className="font-semibold text-[#0b1c30]">{relatedOpportunity.name}</span>
+                      {relatedOpportunity.stage?.name ? ` · ${relatedOpportunity.stage.name}` : ''}
+                      {relatedOpportunity.value != null ? ` · ${formatCurrency(relatedOpportunity.value)}` : ''}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+              {convertedOpportunityId ? (
+                <Link
+                  to={`/crm/opportunities/${convertedOpportunityId}`}
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white hover:opacity-90 transition-opacity flex-shrink-0"
+                  style={{ background: '#006a61', textDecoration: 'none' }}
+                >
+                  <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                  View Opportunity
+                </Link>
+              ) : null}
+            </div>
+          ) : null}
+
+          {suggestionActions.length ? (
             <div className="flex items-center gap-2 flex-wrap p-3 bg-white border border-[#e2e8f0] rounded-xl">
               <span className="text-[11px] font-bold uppercase tracking-widest text-[#45464d] opacity-60">AI Suggested</span>
-              {nba.data.actions.map((a, i) => (
-                <span key={i} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#f8f9ff] border border-[#e2e8f0]" title={a.reason}>
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${a.priority === 'high' ? 'bg-[#ba1a1a]' : a.priority === 'medium' ? 'bg-amber-500' : 'bg-[#45464d]'}`} />
-                  {a.action}
-                </span>
-              ))}
+              {suggestionActions.map((a, i) => {
+                const label = priorityLabel(a.priority);
+                const title = `${label}: ${a.action}. ${a.reason ? `Reason: ${a.reason}` : ''}`;
+                return 'to' in a && a.to ? (
+                  <Link
+                    key={i}
+                    to={a.to}
+                    aria-label={title}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#f8f9ff] border border-[#e2e8f0] hover:border-[#006a61]"
+                    title={title}
+                    style={{ textDecoration: 'none', color: 'inherit' }}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${priorityDotClass(a.priority)}`} />
+                    <span className="font-semibold text-[#45464d]">{label}:</span>
+                    {a.action}
+                  </Link>
+                ) : (
+                  <span
+                    key={i}
+                    aria-label={title}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[#f8f9ff] border border-[#e2e8f0]"
+                    title={title}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${priorityDotClass(a.priority)}`} />
+                    <span className="font-semibold text-[#45464d]">{label}:</span>
+                    {a.action}
+                  </span>
+                );
+              })}
             </div>
           ) : null}
 
@@ -707,14 +867,20 @@ const CrmLeadDetail = () => {
                 Lead Information
                 <span className="w-1.5 h-1.5 rounded-full bg-[#006a61]" />
               </h3>
+              {lead.description ? (
+                <div className="mb-5 rounded-xl border border-[#e2e8f0] bg-[#f8f9ff] p-4">
+                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Description</p>
+                  <p className="text-[13px] leading-relaxed text-[#45464d]">{lead.description}</p>
+                </div>
+              ) : null}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Industry</p>
-                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.account?.industry || '—'}</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{(lead.account as any)?.industry || 'Not specified'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Lead Source</p>
-                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.source ? lead.source.replace(/_/g, ' ') : '—'}</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.source ? lead.source.replace(/_/g, ' ') : 'Not specified'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Estimated Value</p>
@@ -726,19 +892,13 @@ const CrmLeadDetail = () => {
                 </div>
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Company</p>
-                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.companyName || '—'}</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.companyName || 'Not specified'}</p>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Follow-Up Date</p>
-                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.followUpDate ? formatDate(lead.followUpDate) : '—'}</p>
+                  <p className="text-[15px] font-semibold text-[#0b1c30]">{lead.followUpDate ? formatDate(lead.followUpDate) : 'No follow-up scheduled'}</p>
                 </div>
               </div>
-              {lead.description ? (
-                <div className="mt-5 pt-4 border-t border-[#e2e8f0]">
-                  <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Description</p>
-                  <p className="text-[13px] leading-relaxed text-[#45464d]">{lead.description}</p>
-                </div>
-              ) : null}
               {lead.followUpNote ? (
                 <div className="mt-4 pt-4 border-t border-[#e2e8f0]">
                   <p className="text-[10px] font-bold tracking-widest uppercase text-[#45464d] opacity-60 mb-1">Follow-Up Note</p>
@@ -756,31 +916,31 @@ const CrmLeadDetail = () => {
             <div className="bg-white border border-[#e2e8f0] rounded-xl p-5">
               <h3 className="text-[13px] font-bold text-[#0b1c30] mb-5 uppercase tracking-wide">Financial Health</h3>
               <div className="space-y-6">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[12px] font-semibold text-[#45464d]">CTOS Availability</p>
-                    <span className="text-[12px] font-bold text-[#006a61]">VERIFIED</span>
+                {financialMetrics.map(metric => (
+                  <div key={metric.label} title={metric.description}>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="text-[12px] font-semibold text-[#45464d]">{metric.label}</p>
+                      <span className="text-[12px] font-bold text-[#006a61]">
+                        {metric.status} · {metric.confidence}% confidence
+                      </span>
+                    </div>
+                    <div
+                      role="progressbar"
+                      aria-label={`${metric.label}: ${metric.status}, ${metric.confidence}% confidence`}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-valuenow={metric.confidence}
+                      className="h-2 rounded-full bg-[#e2e8f0] overflow-hidden"
+                    >
+                      <div className="h-full rounded-full bg-[#006a61]" style={{ width: `${metric.confidence}%` }} />
+                    </div>
+                    <p className="mt-1 text-[11px] text-[#45464d] opacity-70">{metric.description}</p>
                   </div>
-                  <div className="h-2 rounded-full bg-[#e2e8f0] overflow-hidden">
-                    <div className="h-full rounded-full bg-[#006a61] w-[84%]" />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[12px] font-semibold text-[#45464d]">Cash Flow Growth</p>
-                    <span className="text-[12px] font-bold text-[#006a61]">POSITIVE</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-[#e2e8f0] overflow-hidden">
-                    <div className="h-full rounded-full bg-[#006a61] w-[70%]" />
-                  </div>
-                </div>
-                {lead.aiScore != null ? (
-                  <div className="pt-4 border-t border-[#e2e8f0] flex items-center justify-between">
-                    <p className="text-[12px] font-semibold text-[#45464d]">AI Score</p>
-                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${scoreColor(lead.aiScore)}`}>
-                      <span className="material-symbols-outlined text-[12px]">auto_awesome</span>
-                      {lead.aiScore}/100
-                    </span>
+                ))}
+                {scoreRationale ? (
+                  <div className="pt-4 border-t border-[#e2e8f0]">
+                    <p className="text-[12px] font-semibold text-[#45464d] mb-1">Score Rationale</p>
+                    <p className="text-[12px] leading-relaxed text-[#45464d]">{scoreRationale}</p>
                   </div>
                 ) : null}
               </div>

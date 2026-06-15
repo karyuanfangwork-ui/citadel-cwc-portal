@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CrmLeadDetail from '../../pages/CrmLeadDetail';
@@ -59,6 +59,9 @@ const lead = {
   },
   source: 'REFERRAL',
   estimatedValue: 75000,
+  description: 'Referral from RHB Private Banking — converting existing corporate trust',
+  aiScore: 95,
+  aiScoreReason: 'Strong referral source, verified financial profile, and high conversion likelihood.',
   followUpDate: '2026-06-20T00:00:00.000Z',
   updatedAt: '2026-06-10T00:00:00.000Z',
   account: { id: 'account-1', name: 'ACME Berhad', industry: 'Logistics & Transportation' },
@@ -76,7 +79,9 @@ const lead = {
   notes: [],
 } as any;
 
-const renderPage = async () => {
+const renderPage = async (leadOverride = lead) => {
+  mockGetLead.mockResolvedValue(leadOverride);
+
   await act(async () => {
     render(
       <MemoryRouter initialEntries={['/crm/leads/lead-1']}>
@@ -88,6 +93,12 @@ const renderPage = async () => {
   });
 };
 
+const expectInDocumentOrder = (elements: HTMLElement[]) => {
+  for (let i = 0; i < elements.length - 1; i += 1) {
+    expect(elements[i].compareDocumentPosition(elements[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  }
+};
+
 describe('CrmLeadDetail header redesign', () => {
   beforeEach(() => {
     mockGetLead.mockResolvedValue(lead);
@@ -95,21 +106,42 @@ describe('CrmLeadDetail header redesign', () => {
     mockUseNextBestAction.mockReturnValue({ fetch: vi.fn(), loading: false, error: null, data: null });
   });
 
-  it('shows visible header actions instead of an actions dropdown', async () => {
+  it('shows visible header actions and keeps delete in the more actions menu', async () => {
     await renderPage();
 
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'ACME Expansion Deal' })).toBeInTheDocument();
     });
 
-    expect(screen.queryByRole('button', { name: /actions/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^actions$/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /edit lead/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /convert to opportunity/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /log activity/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add note/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /draft message/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /mark as lost/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /delete lead/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete lead/i })).not.toBeInTheDocument();
+
+    const moreButton = screen.getByRole('button', { name: /more lead actions/i });
+    expectInDocumentOrder([
+      screen.getByRole('button', { name: /convert to opportunity/i }),
+      screen.getByRole('button', { name: /log activity/i }),
+      screen.getByRole('button', { name: /add note/i }),
+      screen.getByRole('button', { name: /draft message/i }),
+      screen.getByRole('button', { name: /edit lead/i }),
+      screen.getByRole('button', { name: /mark as lost/i }),
+      moreButton,
+    ]);
+    expect(moreButton).toHaveAttribute('aria-haspopup', 'menu');
+    expect(moreButton).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(moreButton);
+
+    expect(moreButton).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('menuitem', { name: /delete lead destructive action/i })).toBeInTheDocument();
+
+    fireEvent.keyDown(moreButton, { key: 'Escape' });
+    expect(screen.queryByRole('menuitem', { name: /delete lead destructive action/i })).not.toBeInTheDocument();
   });
 
   it('renders the left contact rail and renamed kinetic tabs', async () => {
@@ -119,19 +151,38 @@ describe('CrmLeadDetail header redesign', () => {
       expect(screen.getByText('Contact Details')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Assigned Lead Owner')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'aisha@acme.test' })).toBeInTheDocument();
+    expect(screen.getByText('Lead Owner')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Email Aisha Rahman at aisha@acme.test/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Overview' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Activities' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Timeline' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Notes & Documents' })).toBeInTheDocument();
   });
 
-  it('shows the full assigned owner name and email in the owner card', async () => {
+  it('uses company and contact context in the left rail instead of duplicating the lead title', async () => {
+    await renderPage({
+      ...lead,
+      title: '[DEMO] Family Office Onboarding — Lim Holdings',
+      companyName: 'Lim Holdings Sdn Bhd',
+      contactName: 'Lim Chee Wai',
+      source: 'COLD_CALL',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: '[DEMO] Family Office Onboarding — Lim Holdings' })).toBeInTheDocument();
+    });
+
+    const leftRail = screen.getByRole('complementary');
+    expect(within(leftRail).getByText('Lim Holdings Sdn Bhd')).toBeInTheDocument();
+    expect(within(leftRail).getByText('Lim Chee Wai · COLD CALL')).toBeInTheDocument();
+    expect(within(leftRail).queryByText(/\[DEMO\] Family Office/)).not.toBeInTheDocument();
+  });
+
+  it('shows the assigned owner name and email in the owner card', async () => {
     await renderPage();
 
     await waitFor(() => {
-      expect(screen.getByText('Assigned Lead Owner')).toBeInTheDocument();
+      expect(screen.getByText('Lead Owner')).toBeInTheDocument();
     });
 
     const ownerName = screen.getByText('Amirul Hafiz Bin Abdullah');
@@ -141,6 +192,7 @@ describe('CrmLeadDetail header redesign', () => {
     expect(ownerEmail).toBeInTheDocument();
     expect(ownerName.className).not.toContain('truncate');
     expect(ownerEmail.className).not.toContain('truncate');
+    expect(ownerEmail).toHaveAttribute('title', 'amirul.hafiz.bin.abdullah@capitalcore.example.my');
   });
 
   it('renders overview as cards with financial health and related opportunities', async () => {
@@ -155,8 +207,46 @@ describe('CrmLeadDetail header redesign', () => {
     expect(screen.getByText('Industry')).toBeInTheDocument();
     expect(screen.getByText('Logistics & Transportation')).toBeInTheDocument();
     expect(screen.getByText('CTOS Availability')).toBeInTheDocument();
+    expect(screen.getByText('Verified · 84% confidence')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /CTOS Availability: Verified, 84% confidence/i })).toBeInTheDocument();
     expect(screen.getByText('Working Capital Expansion')).toBeInTheDocument();
+    expect(screen.getByText('Referral from RHB Private Banking — converting existing corporate trust')).toBeInTheDocument();
     expect(screen.queryByText('Lead Info')).not.toBeInTheDocument();
+  });
+
+
+
+
+
+  it('explains financial health metrics and score rationale without duplicating the AI score', async () => {
+    await renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Financial Health')).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Strong referral source, verified financial profile, and high conversion likelihood.')).toBeInTheDocument();
+    expect(screen.getByText('Positive · 70% confidence')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /Cash Flow Growth: Positive, 70% confidence/i })).toBeInTheDocument();
+    expect(screen.getAllByText('95/100')).toHaveLength(1);
+    expect(screen.queryByText('AI Score')).not.toBeInTheDocument();
+  });
+
+  it('shows owner in the header metadata and uses friendly placeholders for missing fields', async () => {
+    await renderPage({
+      ...lead,
+      companyName: null,
+      followUpDate: null,
+      account: { id: 'account-1', name: 'ACME Berhad', industry: null },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'ACME Expansion Deal' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Owner: Amirul Hafiz Bin Abdullah/)).toBeInTheDocument();
+    expect(screen.getAllByText('Not specified').length).toBeGreaterThan(0);
+    expect(screen.getByText('No follow-up scheduled')).toBeInTheDocument();
   });
 
   it('renders ai suggested actions only once when next best actions are available', async () => {
@@ -176,8 +266,65 @@ describe('CrmLeadDetail header redesign', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Call within 24h')).toBeInTheDocument();
+    expect(screen.getByText('High priority:')).toBeInTheDocument();
+    expect(screen.getByLabelText(/High priority: Call within 24h/i)).toBeInTheDocument();
     });
 
     expect(screen.getAllByText(/AI Suggested/i)).toHaveLength(1);
+  });
+
+  it('shows converted-state guidance with a link to the converted opportunity', async () => {
+    await renderPage({
+      ...lead,
+      status: 'CONVERTED',
+      convertedToOppId: 'opp-1',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Lead converted')).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByRole('link', { name: /view opportunity/i })[0]).toHaveAttribute('href', '/crm/opportunities/opp-1');
+    expect(screen.queryByRole('button', { name: /convert to opportunity/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /draft message/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /mark as lost/i })).not.toBeInTheDocument();
+    expectInDocumentOrder([
+      screen.getAllByRole('link', { name: /view opportunity/i })[0],
+      screen.getByRole('button', { name: /log activity/i }),
+      screen.getByRole('button', { name: /add note/i }),
+      screen.getByRole('button', { name: /edit lead/i }),
+      screen.getByRole('button', { name: /more lead actions/i }),
+    ]);
+  });
+
+  it('replaces lead-nurturing ai suggestions with post-conversion suggestions for converted leads', async () => {
+    mockUseNextBestAction.mockReturnValue({
+      fetch: vi.fn(),
+      loading: false,
+      error: null,
+      data: {
+        actions: [
+          { action: 'Send follow-up email', priority: 'medium', reason: 'No response in 2 days' },
+        ],
+      },
+    });
+
+    await renderPage({
+      ...lead,
+      status: 'CONVERTED',
+      convertedToOppId: 'opp-1',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Lead converted')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText('Send follow-up email')).not.toBeInTheDocument();
+    expect(screen.getByText('View converted opportunity')).toBeInTheDocument();
+    expect(screen.getByText('Log relationship activity')).toBeInTheDocument();
+    expect(screen.getByText('Review onboarding documents')).toBeInTheDocument();
+    expect(screen.getByText('High priority:')).toBeInTheDocument();
+    expect(screen.getByText('Recommended:')).toBeInTheDocument();
+    expect(screen.getByText('Optional:')).toBeInTheDocument();
   });
 });
