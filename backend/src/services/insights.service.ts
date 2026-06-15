@@ -5,26 +5,9 @@
  * Provides cross-module KPIs, ITSM analytics, CRM overview, and Credit overview.
  */
 
-import { RequestStatus } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { cacheGetJSON, cacheSetJSON } from '../utils/cache';
-
-// ── Reuse status arrays from reports controller pattern ─────────────────────
-
-const RESOLVED_STATUSES: RequestStatus[] = [
-  RequestStatus.RESOLVED,
-  RequestStatus.COMPLETED,
-  RequestStatus.PAYMENT_COMPLETED,
-];
-
-const CLOSED_STATUSES: RequestStatus[] = [
-  RequestStatus.RESOLVED,
-  RequestStatus.REJECTED,
-  RequestStatus.COMPLETED,
-  RequestStatus.PAYMENT_COMPLETED,
-  RequestStatus.REIMBURSEMENT_CLOSED,
-  RequestStatus.TICKET_CLOSED_FIN,
-];
+import { RESOLVED_STATUSES, CLOSED_STATUSES } from '../constants/requestStatuses';
 
 // Module-team mapping — assignedTeam values mapped to module names
 const MODULE_TEAMS: Record<string, string> = {

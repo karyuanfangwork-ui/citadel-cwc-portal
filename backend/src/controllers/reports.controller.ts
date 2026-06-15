@@ -1,22 +1,7 @@
 import { Response, NextFunction } from 'express';
 import prisma from '../utils/prisma';
 import { AuthRequest } from '../middleware/auth.middleware';
-import { RequestStatus } from '@prisma/client';
-
-const RESOLVED_STATUSES: RequestStatus[] = [
-    RequestStatus.RESOLVED,
-    RequestStatus.COMPLETED,
-    RequestStatus.PAYMENT_COMPLETED,
-];
-
-const CLOSED_STATUSES: RequestStatus[] = [
-    RequestStatus.RESOLVED,
-    RequestStatus.REJECTED,
-    RequestStatus.COMPLETED,
-    RequestStatus.PAYMENT_COMPLETED,
-    RequestStatus.REIMBURSEMENT_CLOSED,
-    RequestStatus.TICKET_CLOSED_FIN,
-];
+import { RESOLVED_STATUSES, CLOSED_STATUSES } from '../constants/requestStatuses';
 
 /** Parse optional from/to query params into a Prisma date filter. */
 function dateFilter(req: AuthRequest): { createdAt?: { gte?: Date; lte?: Date } } {
